@@ -1,0 +1,33 @@
+#ifndef SHADER_H
+#define SHADER_H
+
+#include "context.h"
+
+/* WebGPU shader */
+typedef struct wgpu_shader_desc_t {
+  const char* file; // file has priority over byte code
+  struct {
+    const uint8_t* data;
+    const uint32_t size;
+  } byte_code;
+  const char* entry;
+} wgpu_shader_desc_t;
+
+typedef struct wgpu_shader_t {
+  WGPUProgrammableStageDescriptor programmable_stage_descriptor;
+  WGPUShaderModule module;
+} wgpu_shader_t;
+
+/* Helper functions */
+WGPUShaderModule
+wgpu_create_shader_module_from_spirv_file(WGPUDevice device,
+                                          const char* filename);
+WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
+  WGPUDevice device, const uint8_t* data, const uint32_t size);
+
+/* Shader creating/releasing */
+wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
+                                 const wgpu_shader_desc_t* desc);
+void wgpu_shader_release(wgpu_shader_t* shader);
+
+#endif

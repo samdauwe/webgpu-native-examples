@@ -1,0 +1,83 @@
+# auto generated files
+assets/samples_info.json
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Qt cache
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+
+# IDE project files
+*.sublime-project
+*.sublime-workspace
+
+# Local config unix
+.localconfig
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Build dir
+/build*
+debug_build
+release_build
+/bin
+/install
+
+# Not yet finished code
+src/Studio
+
+# Absolete code
+src/InspectorV1
+src/SampleLauncher
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Dolphin files
+.directory
+
+# vscode
+.vscode/
+
+# CLion
+.idea/
+cmake-build-debug/
+cmake-build-debug-asan/
+cmake-build-debug-ubsan/
+cmake-build-release/
+cmake-build-relwithdebinfo/
+cmake-build-minsizerel/
+cmake-build-emscripten/
+cmake-build-emscripten_release/
+
+# cquery
+.cquery_cache
+
+# Runtime Compil
+Runtime/
+
+# python cache
+__pycache__

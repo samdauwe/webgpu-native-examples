@@ -1,0 +1,463 @@
+#include "example_base.h"
+#include "examples.h"
+
+#include <string.h>
+
+#include "../webgpu/imgui_overlay.h"
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Two Cubes
+ *
+ * This example shows some of the alignment requirements involved when updating
+ * and binding multiple slices of a uniform buffer.
+ *
+ * Ref:
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/twoCubes.ts
+ * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * Cube geometry data
+ * -------------------------------------------------------------------------- */
+
+static const uint64_t cube_vertex_size
+  = 4 * 10; // Byte size of one cube vertex.
+static const uint64_t cube_position_offset = 0;
+static const uint64_t cube_color_offset
+  = 4 * 4; // Byte offset of cube vertex color attribute.
+static const uint64_t cube_vertex_count   = 36;
+static const float cube_vertex_array[360] = {
+  // float4 position, float4 color, float2 uv,
+  1,  -1, 1,  1, 1, 0, 1, 1, 1, 1, //
+  -1, -1, 1,  1, 0, 0, 1, 1, 0, 1, //
+  -1, -1, -1, 1, 0, 0, 0, 1, 0, 0, //
+  1,  -1, -1, 1, 1, 0, 0, 1, 1, 0, //
+  1,  -1, 1,  1, 1, 0, 1, 1, 1, 1, //
+  -1, -1, -1, 1, 0, 0, 0, 1, 0, 0, //
+
+  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
+  1,  -1, 1,  1, 1, 0, 1, 1, 0, 1, //
+  1,  -1, -1, 1, 1, 0, 0, 1, 0, 0, //
+  1,  1,  -1, 1, 1, 1, 0, 1, 1, 0, //
+  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
+  1,  -1, -1, 1, 1, 0, 0, 1, 0, 0, //
+
+  -1, 1,  1,  1, 0, 1, 1, 1, 1, 1, //
+  1,  1,  1,  1, 1, 1, 1, 1, 0, 1, //
+  1,  1,  -1, 1, 1, 1, 0, 1, 0, 0, //
+  -1, 1,  -1, 1, 0, 1, 0, 1, 1, 0, //
+  -1, 1,  1,  1, 0, 1, 1, 1, 1, 1, //
+  1,  1,  -1, 1, 1, 1, 0, 1, 0, 0, //
+
+  -1, -1, 1,  1, 0, 0, 1, 1, 1, 1, //
+  -1, 1,  1,  1, 0, 1, 1, 1, 0, 1, //
+  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
+  -1, -1, -1, 1, 0, 0, 0, 1, 1, 0, //
+  -1, -1, 1,  1, 0, 0, 1, 1, 1, 1, //
+  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
+
+  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
+  -1, 1,  1,  1, 0, 1, 1, 1, 0, 1, //
+  -1, -1, 1,  1, 0, 0, 1, 1, 0, 0, //
+  -1, -1, 1,  1, 0, 0, 1, 1, 0, 0, //
+  1,  -1, 1,  1, 1, 0, 1, 1, 1, 0, //
+  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
+
+  1,  -1, -1, 1, 1, 0, 0, 1, 1, 1, //
+  -1, -1, -1, 1, 0, 0, 0, 1, 0, 1, //
+  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
+  1,  1,  -1, 1, 1, 1, 0, 1, 1, 0, //
+  1,  -1, -1, 1, 1, 0, 0, 1, 1, 1, //
+  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
+};
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Two Cubes example
+ * -------------------------------------------------------------------------- */
+
+#define NUMBER_OF_CUBES 2
+
+// Cube struct
+typedef struct cube_t {
+  WGPUBindGroup uniform_buffer_bind_group;
+  struct {
+    mat4 model;
+    mat4 model_view_projection;
+    mat4 tmp;
+  } view_mtx;
+} cube_t;
+static cube_t cubes[NUMBER_OF_CUBES] = {0};
+
+// The number of cubes
+static const uint64_t number_of_cubes = (uint64_t)NUMBER_OF_CUBES;
+
+// Vertex buffer
+static struct vertices_t {
+  WGPUBuffer buffer;
+  uint32_t size;
+} vertices = {0};
+
+// Uniform buffer object
+static struct uniform_buffer_t {
+  WGPUBuffer buffer;
+  uint64_t offset;
+  uint64_t size;
+  uint64_t size_with_offset;
+} uniform_buffer = {0};
+
+static struct view_matrices_t {
+  mat4 projection;
+  mat4 view;
+} view_matrices = {0};
+
+// Pipeline
+static WGPURenderPipeline pipeline;
+
+// Render pass descriptor for frame buffer writes
+static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassDescriptor render_pass_desc;
+
+// Other variables
+static const char* example_title = "Two Cubes";
+static bool prepared             = false;
+
+// Prepare vertex buffer
+static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+{
+  vertices.size                    = sizeof(cube_vertex_array);
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+    .size             = vertices.size,
+    .mappedAtCreation = true,
+  };
+  vertices.buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+  ASSERT(vertices.buffer)
+  void* mapping = wgpuBufferGetMappedRange(vertices.buffer, 0, vertices.size);
+  ASSERT(mapping)
+  memcpy(mapping, cube_vertex_array, vertices.size);
+  wgpuBufferUnmap(vertices.buffer);
+}
+
+static void setup_render_pass(wgpu_context_t* wgpu_context)
+{
+  // Color attachment
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+      .attachment = NULL, // attachment is acquired in render loop.
+      .loadOp = WGPULoadOp_Clear,
+      .storeOp = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = 0.1f,
+        .g = 0.2f,
+        .b = 0.3f,
+        .a = 1.0f,
+      },
+  };
+
+  // Depth attachment
+  wgpu_setup_deph_stencil(wgpu_context);
+
+  // Render pass descriptor
+  render_pass_desc = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = rp_color_att_descriptors,
+    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
+  };
+}
+
+static void update_transformation_matrix(wgpu_example_context_t* context)
+{
+  const float now = context->frame.timestamp_millis / 1000.0f;
+
+  const float sin_now = sin(now);
+  const float cos_now = cos(now);
+
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    cube_t* cube = &cubes[i];
+    glm_mat4_copy(cube->view_mtx.model, cube->view_mtx.tmp);
+    if (i % 2 == 0) {
+      glm_rotate(cube->view_mtx.tmp, 1.0f, (vec3){sin_now, cos_now, 0.0f});
+    }
+    else if (i % 2 == 1) {
+      glm_rotate(cube->view_mtx.tmp, 1.0f, (vec3){cos_now, sin_now, 0.0f});
+    }
+    glm_mat4_mul(view_matrices.view, cube->view_mtx.tmp,
+                 cube->view_mtx.model_view_projection);
+    glm_mat4_mul(view_matrices.projection, cube->view_mtx.model_view_projection,
+                 cube->view_mtx.model_view_projection);
+  }
+}
+
+static void update_uniform_buffers(wgpu_example_context_t* context)
+{
+  update_transformation_matrix(context);
+
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    wgpu_queue_write_buffer(
+      context->wgpu_context, uniform_buffer.buffer, i * uniform_buffer.offset,
+      &cubes[i].view_mtx.model_view_projection, sizeof(mat4));
+  }
+}
+
+static void prepare_view_matrices(wgpu_context_t* wgpu_context)
+{
+  const float aspect_ratio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+
+  // Projection matrix
+  glm_mat4_identity(view_matrices.projection);
+  glm_perspective((2 * PI) / 5.0f, aspect_ratio, 1.0f, 100.0f,
+                  view_matrices.projection);
+
+  // View matrix
+  glm_mat4_identity(view_matrices.view);
+  glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -7.0f});
+
+  const float start_x = -2.0f, increment_x = 4.0f;
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    cube_t* cube  = &cubes[i];
+    const float x = start_x + i * increment_x;
+
+    // Model matrices
+    glm_mat4_identity(cube->view_mtx.model);
+    glm_translate(cube->view_mtx.model, (vec3){x, 0.0f, 0.0f});
+
+    // Model view matrices
+    glm_mat4_identity(cube->view_mtx.model_view_projection);
+
+    // Temporary matrices
+    glm_mat4_identity(cube->view_mtx.tmp);
+  }
+}
+
+static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  // Setup the view matrices for the camera
+  prepare_view_matrices(wgpu_context);
+
+  // Unform buffer
+  uniform_buffer.size = sizeof(mat4); // 4x4 matrix
+  uniform_buffer.offset
+    = 256; // uniformBindGroup offset must be 256-byte aligned
+  uniform_buffer.size_with_offset
+    = ((number_of_cubes - 1) * uniform_buffer.offset) + uniform_buffer.size;
+
+  uniform_buffer.buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = uniform_buffer.size_with_offset,
+    });
+}
+
+static void setup_bind_groups(wgpu_context_t* wgpu_context)
+{
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    cubes[i].uniform_buffer_bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor) {
+        .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
+        .entryCount = 1,
+        .entries    = &(WGPUBindGroupEntry) {
+          .binding = 0,
+          .buffer  = uniform_buffer.buffer,
+          .offset  = i * uniform_buffer.offset,
+          .size    = uniform_buffer.size,
+        },
+      }
+    );
+    ASSERT(cubes[i].uniform_buffer_bind_group != NULL);
+  }
+}
+
+static void prepare_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Construct the different states making up the pipeline
+
+  // Rasterization state
+  WGPURasterizationStateDescriptor rasterization_state_desc
+    = wgpu_create_rasterization_state_descriptor(
+      &(create_rasterization_state_desc_t){
+        .front_face = WGPUFrontFace_CCW,
+        .cull_mode  = WGPUCullMode_Back,
+      });
+
+  // Color blend state
+  WGPUColorStateDescriptor color_state_desc
+    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
+      .format       = wgpu_context->swap_chain.format,
+      .enable_blend = true,
+    });
+
+  // Depth and stencil state containing depth and stencil compare and test
+  // operations
+  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state_descriptor(
+      &(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24PlusStencil8,
+        .depth_write_enabled = true,
+      });
+
+  // Vertex input binding (=> Input assembly)
+  WGPU_VERTSTATE(
+    two_cubes, cube_vertex_size,
+    // Attribute location 0: Position
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, cube_position_offset),
+    // Attribute location 1: Color
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4, cube_color_offset))
+
+  // Shaders
+  // Vertex shader
+  wgpu_shader_t vert_shader = wgpu_shader_create(
+    wgpu_context, &(wgpu_shader_desc_t){
+                    // Vertex shader SPIR-V
+                    .file = "shaders/two_cubes/shader.vert.spv",
+                  });
+  // Fragment shader
+  wgpu_shader_t frag_shader = wgpu_shader_create(
+    wgpu_context, &(wgpu_shader_desc_t){
+                    // Fragment shader SPIR-V
+                    .file = "shaders/two_cubes/shader.frag.spv",
+                  });
+
+  // Create rendering pipeline using the specified states
+  pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      // Vertex shader
+      .vertexStage = vert_shader.programmable_stage_descriptor,
+      // Fragment shader
+      .fragmentStage = &frag_shader.programmable_stage_descriptor,
+      // Rasterization state
+      .rasterizationState     = &rasterization_state_desc,
+      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
+      .colorStateCount        = 1,
+      .colorStates            = &color_state_desc,
+      .depthStencilState      = &depth_stencil_state_desc,
+      .vertexState            = &vert_state_two_cubes,
+      .sampleCount            = 1,
+      .sampleMask             = 0xFFFFFFFF,
+      .alphaToCoverageEnabled = false,
+    });
+
+  // Shader modules are no longer needed once the graphics pipeline has been
+  // created
+  wgpu_shader_release(&frag_shader);
+  wgpu_shader_release(&vert_shader);
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    prepare_vertex_buffer(context->wgpu_context);
+    prepare_pipeline(context->wgpu_context);
+    prepare_uniform_buffer(context->wgpu_context);
+    setup_bind_groups(context->wgpu_context);
+    setup_render_pass(context->wgpu_context);
+    prepared = true;
+    return 0;
+  }
+
+  return 1;
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  // Set target frame buffer
+  rp_color_att_descriptors[0].attachment
+    = wgpu_context->swap_chain.frame_buffer;
+
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass_desc);
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       vertices.buffer, 0, 0);
+
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      cubes[i].uniform_buffer_bind_group, 0, 0);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_vertex_count, 1, 0,
+                              0);
+  }
+
+  // End render pass
+  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  const int draw_result = example_draw(context);
+  if (!context->paused) {
+    update_uniform_buffers(context);
+  }
+  return draw_result;
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer)
+  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+    WGPU_RELEASE_RESOURCE(BindGroup, cubes[i].uniform_buffer_bind_group)
+  }
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+}
+
+void example_two_cubes(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+     .title  = example_title,
+     .overlay = true,
+    },
+    .example_initialize_func      = &example_initialize,
+    .example_render_func          = &example_render,
+    .example_destroy_func         = &example_destroy
+  });
+  // clang-format on
+}

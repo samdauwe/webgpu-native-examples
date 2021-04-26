@@ -1,0 +1,12 @@
+[submodule "assets"]
+	path = assets
+	url = https://github.com/samdauwe/webgpu-native-assets
+[submodule "external/cglm"]
+	path = external/cglm
+	url = https://github.com/recp/cglm
+[submodule "external/cgltf"]
+	path = external/cgltf
+	url = https://github.com/jkuhlmann/cgltf
+[submodule "external/cimgui"]
+	path = external/cimgui
+	url = https://github.com/cimgui/cimgui
