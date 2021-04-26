@@ -721,8 +721,8 @@ bool imgui_overlay_want_capture_mouse()
 
 bool imgui_overlay_header(const char* caption)
 {
-  return igCollapsingHeaderTreeNodeFlags(caption,
-                                         ImGuiTreeNodeFlags_DefaultOpen);
+  return igCollapsingHeader_TreeNodeFlags(caption,
+                                          ImGuiTreeNodeFlags_DefaultOpen);
 }
 
 bool imgui_overlay_checkBox(imgui_overlay_t* imgui_overlay, const char* caption,
@@ -765,7 +765,7 @@ bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
     return false;
   }
   bool res
-    = igComboStr_arr(caption, item_index, &items[0], item_count, item_count);
+    = igCombo_Str_arr(caption, item_index, &items[0], item_count, item_count);
   if (res) {
     imgui_overlay->updated = true;
   };
