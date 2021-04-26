@@ -42,12 +42,13 @@ set(RPLY_SOURCES
     external/rply/rply.c
 )
 
-# cimgui
+# cimgui + Dear ImGui
 set(CIMGUI_SOURCES
     external/cimgui/cimgui.cpp
     external/cimgui/imgui/imgui.cpp
     external/cimgui/imgui/imgui_draw.cpp
     external/cimgui/imgui/imgui_widgets.cpp
+    external/cimgui/imgui/imgui_tables.cpp
     external/cimgui/imgui/imgui_demo.cpp
 )
 
@@ -78,7 +79,6 @@ set(HEADERS
     src/core/macro.h
     src/core/platform.h
     src/core/video_decode.h
-    src/core/resource_pool.h
     src/examples/examples.h
     src/examples/example_base.h
     src/webgpu/api.h
@@ -96,7 +96,6 @@ set(SOURCES
     src/core/frustum.c
     src/core/log.c
     src/core/video_decode.c
-    src/core/resource_pool.c
     src/examples/example_base.c
     src/examples/examples.c
     src/webgpu/buffer.c
