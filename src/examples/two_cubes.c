@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../webgpu/imgui_overlay.h"
+#include "meshes.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Two Cubes
@@ -15,66 +16,10 @@
  * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/twoCubes.ts
  * -------------------------------------------------------------------------- */
 
-/* -------------------------------------------------------------------------- *
- * Cube geometry data
- * -------------------------------------------------------------------------- */
-
-static const uint64_t cube_vertex_size
-  = 4 * 10; // Byte size of one cube vertex.
-static const uint64_t cube_position_offset = 0;
-static const uint64_t cube_color_offset
-  = 4 * 4; // Byte offset of cube vertex color attribute.
-static const uint64_t cube_vertex_count   = 36;
-static const float cube_vertex_array[360] = {
-  // float4 position, float4 color, float2 uv,
-  1,  -1, 1,  1, 1, 0, 1, 1, 1, 1, //
-  -1, -1, 1,  1, 0, 0, 1, 1, 0, 1, //
-  -1, -1, -1, 1, 0, 0, 0, 1, 0, 0, //
-  1,  -1, -1, 1, 1, 0, 0, 1, 1, 0, //
-  1,  -1, 1,  1, 1, 0, 1, 1, 1, 1, //
-  -1, -1, -1, 1, 0, 0, 0, 1, 0, 0, //
-
-  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
-  1,  -1, 1,  1, 1, 0, 1, 1, 0, 1, //
-  1,  -1, -1, 1, 1, 0, 0, 1, 0, 0, //
-  1,  1,  -1, 1, 1, 1, 0, 1, 1, 0, //
-  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
-  1,  -1, -1, 1, 1, 0, 0, 1, 0, 0, //
-
-  -1, 1,  1,  1, 0, 1, 1, 1, 1, 1, //
-  1,  1,  1,  1, 1, 1, 1, 1, 0, 1, //
-  1,  1,  -1, 1, 1, 1, 0, 1, 0, 0, //
-  -1, 1,  -1, 1, 0, 1, 0, 1, 1, 0, //
-  -1, 1,  1,  1, 0, 1, 1, 1, 1, 1, //
-  1,  1,  -1, 1, 1, 1, 0, 1, 0, 0, //
-
-  -1, -1, 1,  1, 0, 0, 1, 1, 1, 1, //
-  -1, 1,  1,  1, 0, 1, 1, 1, 0, 1, //
-  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
-  -1, -1, -1, 1, 0, 0, 0, 1, 1, 0, //
-  -1, -1, 1,  1, 0, 0, 1, 1, 1, 1, //
-  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
-
-  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
-  -1, 1,  1,  1, 0, 1, 1, 1, 0, 1, //
-  -1, -1, 1,  1, 0, 0, 1, 1, 0, 0, //
-  -1, -1, 1,  1, 0, 0, 1, 1, 0, 0, //
-  1,  -1, 1,  1, 1, 0, 1, 1, 1, 0, //
-  1,  1,  1,  1, 1, 1, 1, 1, 1, 1, //
-
-  1,  -1, -1, 1, 1, 0, 0, 1, 1, 1, //
-  -1, -1, -1, 1, 0, 0, 0, 1, 0, 1, //
-  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
-  1,  1,  -1, 1, 1, 1, 0, 1, 1, 0, //
-  1,  -1, -1, 1, 1, 0, 0, 1, 1, 1, //
-  -1, 1,  -1, 1, 0, 1, 0, 1, 0, 0, //
-};
-
-/* -------------------------------------------------------------------------- *
- * WebGPU Two Cubes example
- * -------------------------------------------------------------------------- */
-
 #define NUMBER_OF_CUBES 2
+
+// Cube mesh
+static cube_mesh_t cube_mesh = {0};
 
 // Cube struct
 typedef struct cube_t {
@@ -120,10 +65,16 @@ static WGPURenderPassDescriptor render_pass_desc;
 static const char* example_title = "Two Cubes";
 static bool prepared             = false;
 
+// Prepare the cube geometry
+static void prepare_cube_mesh()
+{
+  cube_mesh_init(&cube_mesh);
+}
+
 // Prepare vertex buffer
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  vertices.size                    = sizeof(cube_vertex_array);
+  vertices.size                    = sizeof(cube_mesh.vertex_array);
   WGPUBufferDescriptor buffer_desc = {
     .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
     .size             = vertices.size,
@@ -133,7 +84,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
   ASSERT(vertices.buffer)
   void* mapping = wgpuBufferGetMappedRange(vertices.buffer, 0, vertices.size);
   ASSERT(mapping)
-  memcpy(mapping, cube_vertex_array, vertices.size);
+  memcpy(mapping, cube_mesh.vertex_array, vertices.size);
   wgpuBufferUnmap(vertices.buffer);
 }
 
@@ -298,11 +249,12 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
 
   // Vertex input binding (=> Input assembly)
   WGPU_VERTSTATE(
-    two_cubes, cube_vertex_size,
+    two_cubes, cube_mesh.vertex_size,
     // Attribute location 0: Position
-    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, cube_position_offset),
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4,
+                       cube_mesh.position_offset),
     // Attribute location 1: Color
-    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4, cube_color_offset))
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4, cube_mesh.color_offset))
 
   // Shaders
   // Vertex shader
@@ -347,6 +299,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    prepare_cube_mesh();
     prepare_vertex_buffer(context->wgpu_context);
     prepare_pipeline(context->wgpu_context);
     prepare_uniform_buffer(context->wgpu_context);
@@ -385,8 +338,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   for (uint64_t i = 0; i < number_of_cubes; ++i) {
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       cubes[i].uniform_buffer_bind_group, 0, 0);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_vertex_count, 1, 0,
-                              0);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_mesh.vertex_count,
+                              1, 0, 0);
   }
 
   // End render pass
