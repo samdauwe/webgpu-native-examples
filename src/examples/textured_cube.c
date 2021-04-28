@@ -1,10 +1,10 @@
 ﻿#include "example_base.h"
 #include "examples.h"
+#include "meshes.h"
 
 #include <string.h>
 
 #include "../webgpu/imgui_overlay.h"
-#include "meshes.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Textured Cube
