@@ -98,6 +98,43 @@ static dawn_native::Adapter requestAdapter(WGPUBackendType type1st,
   return dawn_native::Adapter();
 }
 
+static const char* backendTypeName(wgpu::BackendType t) {
+  switch (t) {
+    case wgpu::BackendType::Null:     return "Null";
+    case wgpu::BackendType::D3D11:    return "D3D11";
+    case wgpu::BackendType::D3D12:    return "D3D12";
+    case wgpu::BackendType::Metal:    return "Metal";
+    case wgpu::BackendType::Vulkan:   return "Vulkan";
+    case wgpu::BackendType::OpenGL:   return "OpenGL";
+    case wgpu::BackendType::OpenGLES: return "OpenGLES";
+  }
+  return "?";
+}
+
+static const char* adapterTypeName(wgpu::AdapterType t) {
+  switch (t) {
+    case wgpu::AdapterType::DiscreteGPU:   return "DiscreteGPU";
+    case wgpu::AdapterType::IntegratedGPU: return "IntegratedGPU";
+    case wgpu::AdapterType::CPU:           return "CPU";
+    case wgpu::AdapterType::Unknown:       return "Unknown";
+  }
+  return "?";
+}
+
+static void logAvailableAdapters() {
+  static dawn_native::Instance instance;
+  instance.DiscoverDefaultAdapters();
+  fprintf(stderr, "Available adapters:\n");
+  for (auto&& a : instance.GetAdapters()) {
+    wgpu::AdapterProperties p;
+    a.GetProperties(&p);
+    fprintf(stderr, "  %s (%s)\n"
+      "    deviceID=%u, vendorID=0x%x, BackendType::%s, AdapterType::%s\n",
+      p.name, p.driverDescription,
+      p.deviceID, p.vendorID, backendTypeName(p.backendType), adapterTypeName(p.adapterType));
+  }
+}
+
 /**
  * Creates an API-specific swap chain implementation in \c #swapImpl and stores
  * the \c #swapPref.
@@ -135,6 +172,11 @@ static void printError(WGPUErrorType /*type*/, const char* message, void*)
 } // namespace impl
 
 //******************************** Public API ********************************/
+
+void wgpu_log_available_adapters()
+{
+  impl::logAvailableAdapters();
+}
 
 void* wgpu_get_backend_instance(WGPUDevice device)
 {

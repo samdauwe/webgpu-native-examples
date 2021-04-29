@@ -47,6 +47,7 @@ WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
 
 void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
 {
+  wgpu_log_available_adapters();
   // WebGPU device creation
   wgpu_context->device = wgpu_create_device(WGPUBackendType_Vulkan);
   wgpuDeviceSetUncapturedErrorCallback(
