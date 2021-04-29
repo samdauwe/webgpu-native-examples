@@ -704,6 +704,18 @@ static void handle_client_event(window_t* window, XClientMessageEvent* event)
   }
 }
 
+static void handle_configure_event(window_t* window, XConfigureEvent* event)
+{
+  if (window->width != (uint32_t)event->width
+      || window->height != (uint32_t)event->height) {
+    window->width  = event->width;
+    window->height = event->height;
+    if (window->callbacks.resize_callback) {
+      window->callbacks.resize_callback(window, event->width, event->height);
+    }
+  }
+}
+
 static void process_event(XEvent* event)
 {
   Window handle;
@@ -718,6 +730,9 @@ static void process_event(XEvent* event)
 
   if (event->type == ClientMessage) {
     handle_client_event(window, &event->xclient);
+  }
+  else if (event->type == ConfigureNotify) {
+    handle_configure_event(window, &event->xconfigure);
   }
   else if (event->type == KeyPress) {
     handle_key_event(window, event->xkey.keycode, 1);

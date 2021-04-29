@@ -21,6 +21,7 @@ static const uint32_t WINDOW_WIDTH    = 1280;
 static const uint32_t WINDOW_HEIGHT   = 720;
 
 typedef struct {
+  bool window_resized;
   bool view_updated;
   /* zoom */
   bool mouse_scrolled;
@@ -60,6 +61,34 @@ static void scroll_callback(window_t* window, float offset)
   record_t* record       = (record_t*)window_get_userdata(window);
   record->mouse_scrolled = true;
   record->wheel_delta += offset;
+}
+
+static void resize_callback(window_t* window, int width, int height)
+{
+  UNUSED_VAR(width);
+  UNUSED_VAR(height);
+
+  record_t* record       = (record_t*)window_get_userdata(window);
+  record->window_resized = true;
+}
+
+static void update_window_size(wgpu_example_context_t* context,
+                               record_t* record)
+{
+  if (record->window_resized) {
+    wgpu_context_t* wgpu_context = context->wgpu_context;
+    // Update window size and aspect ratio
+    window_get_size(context->window, &context->window_size.width,
+                    &context->window_size.height);
+    window_get_aspect_ratio(context->window,
+                            &context->window_size.aspect_ratio);
+    // Update surface size
+    window_get_size(context->window, &wgpu_context->surface.width,
+                    &wgpu_context->surface.height);
+    // Recreate swap chain
+    wgpu_setup_swap_chain(context->wgpu_context);
+    record->window_resized = false;
+  }
 }
 
 static void update_camera(wgpu_example_context_t* context, record_t* record)
@@ -158,11 +187,11 @@ static void setup_window(wgpu_example_context_t* context,
   snprintf(window_title,
            strlen("WebGPU Example - ") + strlen(context->example_title) + 1,
            "WebGPU Example - %s", context->example_title);
-  context->window = window_create(
-    GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),            // title
-    GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH),   // width
+  context->window           = window_create(
+    GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),          // title
+    GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH), // width
     GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT), // height
-    0                                                           // resizable
+    windows_config->resizable // resizable
   );
   window_get_size(context->window, &context->window_size.width,
                   &context->window_size.height);
@@ -171,6 +200,7 @@ static void setup_window(wgpu_example_context_t* context,
   memset(&context->callbacks, 0, sizeof(callbacks_t));
   context->callbacks.button_callback = button_callback;
   context->callbacks.scroll_callback = scroll_callback;
+  context->callbacks.resize_callback = resize_callback;
 
   input_set_callbacks(context->window, context->callbacks);
 }
@@ -255,6 +285,7 @@ static void render_loop(wgpu_example_context_t* context,
       record.view_updated   = false;
     }
     input_poll_events();
+    // update_window_size(context, &record);
     render_func(context);
     ++record.frame_counter;
     ++context->frame.index;

@@ -8,6 +8,7 @@
 typedef struct window_config_t {
   uint32_t width;
   uint32_t height;
+  int resizable;
 } window_config_t;
 
 typedef struct window window_t;
@@ -15,6 +16,7 @@ typedef struct {
   void (*key_callback)(window_t* window, keycode_t key, int pressed);
   void (*button_callback)(window_t* window, button_t button, int pressed);
   void (*scroll_callback)(window_t* window, float offset);
+  void (*resize_callback)(window_t* window, int width, int height);
 } callbacks_t;
 
 typedef struct date_t {
