@@ -74,57 +74,81 @@ static void
 prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
                                  stanford_dragon_mesh_t* dragon_mesh)
 {
-  /** Mesh indices **/
-  static uint16_t mesh_indices[(CELL_COUNT_RES_4 + 2) * 3];
-  index_count = (CELL_COUNT_RES_4 + 2) * 3;
-  memcpy(mesh_indices, dragon_mesh->triangles.data,
-         sizeof(dragon_mesh->triangles.data));
-  // Push indices for an additional ground plane
-  static const uint16_t ground_plane_indices[3 * 2] = {
-    POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 2, POSITION_COUNT_RES_4 + 1, //
-    POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 1, POSITION_COUNT_RES_4 + 3, //
-  };
-  memcpy(mesh_indices + CELL_COUNT_RES_4 * 3, ground_plane_indices,
-         2 * 3 * sizeof(uint16_t));
-
-  /** Mesh positions **/
-  static float mesh_positions[(POSITION_COUNT_RES_4 + 4) * 3];
-  memcpy(mesh_positions, dragon_mesh->vertices.data,
-         sizeof(dragon_mesh->vertices.data));
-  // Push positions for an additional ground plane
-  static const float ground_plane_positions[4 * 3] = {
-    -100.0f, 20.0f, -100.0f, //
-    100.0f,  20.0f, 100.0f,  //
-    -100.0f, 20.0f, 100.0f,  //
-    100.0f,  20.0f, -100.0f  //
-  };
-  memcpy(mesh_positions + POSITION_COUNT_RES_4 * 3, ground_plane_positions,
-         4 * 3 * sizeof(float));
-
-  /** Surface normals **/
-  static vec3 mesh_normals[POSITION_COUNT_RES_4 + 4] = {0};
-  const uint16_t mesh_normals_length                 = POSITION_COUNT_RES_4 + 4;
-  const uint16_t mesh_indices_length                 = CELL_COUNT_RES_4 + 2;
-  mesh_compute_surface_normals(mesh_positions, mesh_indices,
-                               mesh_indices_length, mesh_normals,
-                               mesh_normals_length);
-
-  // Create the model vertex buffer.
-  float vertex_buffer_data[(POSITION_COUNT_RES_4 + 4) * 3 * 2] = {0};
-  const uint16_t nb_mesh_positions = POSITION_COUNT_RES_4 + 4;
-  for (uint16_t i = 0; i < nb_mesh_positions; ++i) {
-    memcpy(vertex_buffer_data + 6 * i, &mesh_positions[i * 3],
-           3 * sizeof(float));
-    memcpy(vertex_buffer_data + 6 * i + 3, &mesh_normals[i], 3 * sizeof(float));
+  // Create the model vertex buffer
+  {
+    const uint8_t ground_plane_vertex_count = 4;
+    uint64_t vertex_buffer_size
+      = (dragon_mesh->positions.count + ground_plane_vertex_count) * 3 * 2
+        * sizeof(float);
+    WGPUBufferDescriptor buffer_desc = {
+      .usage            = WGPUBufferUsage_Vertex,
+      .size             = vertex_buffer_size,
+      .mappedAtCreation = true,
+    };
+    vertex_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(vertex_buffer)
+    float* mapping
+      = (float*)wgpuBufferGetMappedRange(vertex_buffer, 0, vertex_buffer_size);
+    ASSERT(mapping)
+    for (uint64_t i = 0; i < dragon_mesh->positions.count; ++i) {
+      memcpy(&mapping[6 * i], dragon_mesh->positions.data[i], sizeof(vec3));
+      memcpy(&mapping[6 * i + 3], dragon_mesh->normals.data[i], sizeof(vec3));
+    }
+    // Push vertex attributes for an additional ground plane
+    static const vec3 ground_plane_positions[4] = {
+      {-100.0f, 20.0f, -100.0f}, //
+      {100.0f, 20.0f, 100.0f},   //
+      {-100.0f, 20.0f, 100.0f},  //
+      {100.0f, 20.0f, -100.0f}   //
+    };
+    static const vec3 ground_plane_normals[4] = {
+      {0.0f, 1.0f, 0.0f}, //
+      {0.0f, 1.0f, 0.0f}, //
+      {0.0f, 1.0f, 0.0f}, //
+      {0.0f, 1.0f, 0.0f}  //
+    };
+    const uint64_t offset = dragon_mesh->positions.count * 6;
+    for (uint64_t i = 0; i < ground_plane_vertex_count; ++i) {
+      memcpy(&mapping[offset + 6 * i], ground_plane_positions[i], sizeof(vec3));
+      memcpy(&mapping[offset + 6 * i + 3], ground_plane_normals[i],
+             sizeof(vec3));
+    }
+    wgpuBufferUnmap(vertex_buffer);
   }
 
-  vertex_buffer = wgpu_create_buffer_from_data(wgpu_context, vertex_buffer_data,
-                                               sizeof(vertex_buffer_data),
-                                               WGPUBufferUsage_Vertex);
-
-  // Create the model index buffer.
-  index_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, mesh_indices, sizeof(mesh_indices), WGPUBufferUsage_Index);
+  // Create the model index buffer
+  {
+    const uint8_t ground_plane_index_count = 2;
+    index_count = (dragon_mesh->triangles.count + ground_plane_index_count) * 3;
+    uint64_t index_buffer_size       = index_count * sizeof(uint16_t);
+    WGPUBufferDescriptor buffer_desc = {
+      .usage            = WGPUBufferUsage_Index,
+      .size             = index_buffer_size,
+      .mappedAtCreation = true,
+    };
+    index_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(index_buffer)
+    uint16_t* mapping
+      = (uint16_t*)wgpuBufferGetMappedRange(index_buffer, 0, index_buffer_size);
+    ASSERT(mapping)
+    for (uint64_t i = 0; i < dragon_mesh->triangles.count; ++i) {
+      memcpy(&mapping[3 * i], dragon_mesh->triangles.data[i],
+             sizeof(uint16_t) * 3);
+    }
+    // Push indices for an additional ground plane
+    static const uint16_t ground_plane_indices[2][3] = {
+      {POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 2,
+       POSITION_COUNT_RES_4 + 1},
+      {POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 1,
+       POSITION_COUNT_RES_4 + 3},
+    };
+    const uint64_t offset = dragon_mesh->triangles.count * 3;
+    for (uint64_t i = 0; i < ground_plane_index_count; ++i) {
+      memcpy(&mapping[offset + 3 * i], ground_plane_indices[i],
+             sizeof(uint16_t) * 3);
+    }
+    wgpuBufferUnmap(index_buffer);
+  }
 }
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
