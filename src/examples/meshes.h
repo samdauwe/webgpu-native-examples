@@ -36,7 +36,7 @@ typedef struct stanford_dragon_mesh_t {
   struct {
     float data[POSITION_COUNT_RES_4][3];
     uint64_t count; // number of vertices (should be 5205)
-  } vertices;
+  } positions;
   struct {
     uint16_t data[CELL_COUNT_RES_4][3];
     uint64_t count; // number of faces (should be 11102)
@@ -66,9 +66,18 @@ typedef enum projected_plane_enum {
   ProjectedPlane_YZ = 2,
 } projected_plane_enum;
 
-void mesh_compute_surface_normals(float* positions, uint16_t* triangles,
-                                  uint64_t triangle_count, float (*normals)[3],
-                                  uint64_t normal_count);
+/**
+ * @brief Computes surface normals.
+ * @param stanford_dragon_mesh mesh object
+ */
+void stanford_dragon_mesh_compute_normals(
+  stanford_dragon_mesh_t* stanford_dragon_mesh);
+
+/**
+ * @brief Computes some easy uvs for testing.
+ * @param stanford_dragon_mesh mesh object
+ * @param projected_plane plane to project to
+ */
 void stanford_dragon_mesh_compute_projected_plane_uvs(
   stanford_dragon_mesh_t* stanford_dragon_mesh,
   projected_plane_enum projected_plane);
