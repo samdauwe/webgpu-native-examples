@@ -1,5 +1,8 @@
 #include "meshes.h"
 
+#include <cglm/cglm.h>
+#include <string.h>
+
 #include "../core/log.h"
 #include "../core/macro.h"
 
@@ -164,6 +167,12 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
   ply_set_read_cb(ply, "vertex", "z", vertex_cb, stanford_dragon_mesh, 2);
   stanford_dragon_mesh->triangles.count = ply_set_read_cb(
     ply, "face", "vertex_indices", face_cb, stanford_dragon_mesh, 0);
+  stanford_dragon_mesh->normals.count = stanford_dragon_mesh->vertices.count;
+  memset(stanford_dragon_mesh->normals.data, 0,
+         sizeof(stanford_dragon_mesh->normals.data)); // Initialize to zero
+  stanford_dragon_mesh->uvs.count = stanford_dragon_mesh->vertices.count;
+  memset(stanford_dragon_mesh->uvs.data, 0,
+         sizeof(stanford_dragon_mesh->uvs.data)); // Initialize to zero
   if (!ply_read(ply)) {
     return 1;
   }
@@ -177,4 +186,77 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
 #endif
 
   return 0;
+}
+
+void mesh_compute_surface_normals(float* positions, uint16_t* triangles,
+                                  uint64_t triangle_count, float (*normals)[3],
+                                  uint64_t normal_count)
+{
+  vec3 p0, p1, p2, v0, v1, norm;
+  uint16_t i0, i1, i2;
+  for (uint16_t i = 0; i < triangle_count; ++i) {
+    // p0
+    i0    = triangles[i * 3 + 0];
+    p0[0] = positions[i0 * 3 + 0];
+    p0[1] = positions[i0 * 3 + 1];
+    p0[2] = positions[i0 * 3 + 2];
+    // p1
+    i1    = triangles[i * 3 + 1];
+    p1[0] = positions[i1 * 3 + 0];
+    p1[1] = positions[i1 * 3 + 1];
+    p1[2] = positions[i1 * 3 + 2];
+    // p1
+    i2    = triangles[i * 3 + 2];
+    p2[0] = positions[i2 * 3 + 0];
+    p2[1] = positions[i2 * 3 + 1];
+    p2[2] = positions[i2 * 3 + 2];
+
+    glm_vec3_sub(p1, p0, v0);
+    glm_vec3_sub(p2, p0, v1);
+
+    glm_vec3_normalize(v0);
+    glm_vec3_normalize(v1);
+    glm_vec3_cross(v0, v1, norm);
+
+    // Accumulate the normals.
+    glm_vec3_add(normals[i0], norm, normals[i0]);
+    glm_vec3_add(normals[i1], norm, normals[i1]);
+    glm_vec3_add(normals[i2], norm, normals[i2]);
+  }
+  // Normalize accumulated normals.
+  for (uint16_t i = 0; i < normal_count; ++i) {
+    glm_vec3_normalize(normals[i]);
+  }
+}
+
+static const uint32_t projected_plane2_ids[3][2] = {
+  {0, 1}, // XY
+  {0, 2}, // XZ
+  {1, 2}, // YZ
+};
+
+void stanford_dragon_mesh_compute_projected_plane_uvs(
+  stanford_dragon_mesh_t* stanford_dragon_mesh,
+  projected_plane_enum projected_plane)
+{
+  const uint32_t* idxs = projected_plane2_ids[(uint32_t)projected_plane];
+  vec2* uvs            = stanford_dragon_mesh->uvs.data;
+  float extent_min[2]  = {FLT_MAX, FLT_MAX};
+  float extent_max[2]  = {FLT_MIN, FLT_MIN};
+  for (uint64_t i = 0; i < stanford_dragon_mesh->vertices.count; ++i) {
+    // Simply project to the selected plane
+    const vec3* pos = &stanford_dragon_mesh->vertices.data[i];
+    uvs[i][0]       = (*pos)[idxs[0]];
+    uvs[i][1]       = (*pos)[idxs[1]];
+
+    extent_min[0] = MIN((*pos)[idxs[0]], extent_min[0]);
+    extent_min[1] = MIN((*pos)[idxs[1]], extent_min[1]);
+    extent_max[0] = MAX((*pos)[idxs[0]], extent_max[0]);
+    extent_max[1] = MAX((*pos)[idxs[1]], extent_max[1]);
+  }
+  for (uint64_t i = 0; i < stanford_dragon_mesh->uvs.count; ++i) {
+    vec2* uv = &stanford_dragon_mesh->uvs.data[i];
+    (*uv)[0] = ((*uv)[0] - extent_min[0]) / (extent_max[0] - extent_min[0]);
+    (*uv)[1] = ((*uv)[1] - extent_min[1]) / (extent_max[1] - extent_min[1]);
+  }
 }

@@ -41,6 +41,14 @@ typedef struct stanford_dragon_mesh_t {
     uint16_t data[CELL_COUNT_RES_4][3];
     uint64_t count; // number of faces (should be 11102)
   } triangles;      // triangles
+  struct {
+    float data[POSITION_COUNT_RES_4][3];
+    uint64_t count; // number of normals (should be 5205)
+  } normals;
+  struct {
+    float data[POSITION_COUNT_RES_4][2];
+    uint64_t count; // number of uvs (should be 5205)
+  } uvs;
 } stanford_dragon_mesh_t;
 
 /**
@@ -51,3 +59,16 @@ typedef struct stanford_dragon_mesh_t {
  * @see http://w3.impa.br/~diego/software/rply/
  */
 int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh);
+
+typedef enum projected_plane_enum {
+  ProjectedPlane_XY = 0,
+  ProjectedPlane_XZ = 1,
+  ProjectedPlane_YZ = 2,
+} projected_plane_enum;
+
+void mesh_compute_surface_normals(float* positions, uint16_t* triangles,
+                                  uint64_t triangle_count, float (*normals)[3],
+                                  uint64_t normal_count);
+void stanford_dragon_mesh_compute_projected_plane_uvs(
+  stanford_dragon_mesh_t* stanford_dragon_mesh,
+  projected_plane_enum projected_plane);
