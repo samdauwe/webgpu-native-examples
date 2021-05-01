@@ -162,7 +162,7 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
                                             .size = pixels_size_bytes,
                                           }});
 
-    WGPUBufferCopyView buffer_copy_view
+    WGPUImageCopyBuffer buffer_copy_view
       = {.buffer = gpu_buffer.buffer,
          .layout = (WGPUTextureDataLayout){
            .offset       = 0,
@@ -170,7 +170,7 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
            .rowsPerImage = font_height,
          }};
 
-    WGPUTextureCopyView texture_copy_view = {
+    WGPUImageCopyTexture texture_copy_view = {
       .texture = imgui_overlay->font.texture,
       .mipLevel = 0,
       .origin = (WGPUOrigin3D){

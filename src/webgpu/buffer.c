@@ -81,8 +81,8 @@ void wgpu_record_copy_data_to_buffer(struct wgpu_context_t* wgpu_context,
 }
 
 WGPUCommandBuffer wgpu_copy_buffer_to_texture(
-  struct wgpu_context_t* wgpu_context, WGPUBufferCopyView* buffer_copy_view,
-  WGPUTextureCopyView* texture_copy_view, WGPUExtent3D* texture_size)
+  struct wgpu_context_t* wgpu_context, WGPUImageCopyBuffer* buffer_copy_view,
+  WGPUImageCopyTexture* texture_copy_view, WGPUExtent3D* texture_size)
 {
   WGPUCommandEncoder cmd_encoder
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);

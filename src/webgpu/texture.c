@@ -40,7 +40,7 @@ void wgpu_image_to_texure(wgpu_context_t* wgpu_context,
   const uint64_t data_size
     = desc->width * desc->height * desc->channels * sizeof(uint8_t);
   wgpuQueueWriteTexture(wgpu_context->queue,
-    &(WGPUTextureCopyView) {
+    &(WGPUImageCopyTexture) {
       .texture = desc->texture,
       .mipLevel = 0,
       .origin = (WGPUOrigin3D) {
@@ -251,7 +251,7 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
         // Upload statging buffer to texture
         wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
           // Source
-          &(WGPUBufferCopyView) {
+          &(WGPUImageCopyBuffer) {
             .buffer = staging_buffer,
             .layout = (WGPUTextureDataLayout) {
               .offset = offset,
@@ -260,7 +260,7 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
             },
           },
           // Destination
-          &(WGPUTextureCopyView){
+          &(WGPUImageCopyTexture){
             .texture = texture.texture,
             .mipLevel = level,
             .origin = (WGPUOrigin3D) {
@@ -320,7 +320,7 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
         // Upload statging buffer to texture
         wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
           // Source
-          &(WGPUBufferCopyView) {
+          &(WGPUImageCopyBuffer) {
             .buffer = staging_buffer,
             .layout = (WGPUTextureDataLayout) {
               .offset = 0,
@@ -329,7 +329,7 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
             },
           },
           // Destination
-          &(WGPUTextureCopyView){
+          &(WGPUImageCopyTexture){
             .texture = texture.texture,
             .mipLevel = level,
             .origin = (WGPUOrigin3D) {

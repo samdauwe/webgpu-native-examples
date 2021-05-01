@@ -95,7 +95,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
     .sampleCount   = sample_count,
     .dimension     = WGPUTextureDimension_2D,
     .format        = wgpu_context->swap_chain.format,
-    .usage         = WGPUTextureUsage_OutputAttachment,
+    .usage         = WGPUTextureUsage_RenderAttachment,
   };
   multisampled_texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);

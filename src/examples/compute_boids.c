@@ -250,35 +250,35 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     });
 
   // Vertex state
-  WGPUVertexAttributeDescriptor vert_buff_attrs_0[2] = {
-    [0] = (WGPUVertexAttributeDescriptor) {
+  WGPUVertexAttribute vert_buff_attrs_0[2] = {
+    [0] = (WGPUVertexAttribute) {
       // Attribute location 0: instance position
       .shaderLocation = 0,
       .offset = 0,
       .format = WGPUVertexFormat_Float32x2,
     },
-    [1] = (WGPUVertexAttributeDescriptor) {
+    [1] = (WGPUVertexAttribute) {
       // Attribute location 1: instance velocity
       .shaderLocation = 1,
       .offset = 2 * 4,
       .format = WGPUVertexFormat_Float32x2,
     },
   };
-  WGPUVertexAttributeDescriptor vert_buff_attrs_1 = {
+  WGPUVertexAttribute vert_buff_attrs_1 = {
     // Attribute location 2: vertex positions
     .shaderLocation = 2,
     .offset         = 0,
     .format         = WGPUVertexFormat_Float32x2,
   };
-  WGPUVertexBufferLayoutDescriptor vert_buf_desc[2] = {
-    [0] = (WGPUVertexBufferLayoutDescriptor) {
+  WGPUVertexBufferLayout vert_buf_desc[2] = {
+    [0] = (WGPUVertexBufferLayout) {
       // instanced particles buffer
       .arrayStride = 4 * 4,
       .stepMode = WGPUInputStepMode_Instance,
       .attributeCount = 2,
       .attributes = vert_buff_attrs_0,
     },
-    [1] = (WGPUVertexBufferLayoutDescriptor) {
+    [1] = (WGPUVertexBufferLayout) {
       // vertex buffer
       .arrayStride = 2 * 4,
       .stepMode = WGPUInputStepMode_Vertex,

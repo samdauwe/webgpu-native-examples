@@ -27,9 +27,9 @@ static stanford_dragon_mesh_t stanford_dragon_mesh = {0};
 static const uint32_t shadow_depth_texture_size    = 1024;
 
 // Vertex and index buffers
-WGPUBuffer vertex_buffer;
-WGPUBuffer index_buffer;
-uint32_t index_count;
+static WGPUBuffer vertex_buffer;
+static WGPUBuffer index_buffer;
+static uint32_t index_count;
 
 // Uniform buffers
 static WGPUBuffer model_uniform_buffer;
@@ -75,7 +75,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
                                  stanford_dragon_mesh_t* dragon_mesh)
 {
   /** Mesh indices **/
-  uint16_t mesh_indices[(CELL_COUNT_RES_4 + 2) * 3];
+  static uint16_t mesh_indices[(CELL_COUNT_RES_4 + 2) * 3];
   index_count = (CELL_COUNT_RES_4 + 2) * 3;
   memcpy(mesh_indices, dragon_mesh->triangles.data,
          sizeof(dragon_mesh->triangles.data));
@@ -103,42 +103,11 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
 
   /** Surface normals **/
   static vec3 mesh_normals[POSITION_COUNT_RES_4 + 4] = {0};
+  const uint16_t mesh_normals_length                 = POSITION_COUNT_RES_4 + 4;
   const uint16_t mesh_indices_length                 = CELL_COUNT_RES_4 + 2;
-  vec3 p0, p1, p2, v0, v1, norm;
-  uint16_t i0, i1, i2;
-  for (uint16_t i = 0; i < mesh_indices_length; ++i) {
-    // p0
-    i0    = mesh_indices[i * 3 + 0];
-    p0[0] = mesh_positions[i0 * 3 + 0];
-    p0[1] = mesh_positions[i0 * 3 + 1];
-    p0[2] = mesh_positions[i0 * 3 + 2];
-    // p1
-    i1    = mesh_indices[i * 3 + 1];
-    p1[0] = mesh_positions[i1 * 3 + 0];
-    p1[1] = mesh_positions[i1 * 3 + 1];
-    p1[2] = mesh_positions[i1 * 3 + 2];
-    // p1
-    i2    = mesh_indices[i * 3 + 2];
-    p2[0] = mesh_positions[i2 * 3 + 0];
-    p2[1] = mesh_positions[i2 * 3 + 1];
-    p2[2] = mesh_positions[i2 * 3 + 2];
-
-    glm_vec3_sub(p1, p0, v0);
-    glm_vec3_sub(p2, p0, v1);
-
-    glm_vec3_normalize(v0);
-    glm_vec3_normalize(v1);
-    glm_vec3_cross(v0, v1, norm);
-
-    // Accumulate the normals.
-    glm_vec3_add(mesh_normals[i0], norm, mesh_normals[i0]);
-    glm_vec3_add(mesh_normals[i1], norm, mesh_normals[i1]);
-    glm_vec3_add(mesh_normals[i2], norm, mesh_normals[i2]);
-  }
-  // Normalize accumulated normals.
-  for (uint16_t i = 0; i < POSITION_COUNT_RES_4 + 4; ++i) {
-    glm_vec3_normalize(mesh_normals[i]);
-  }
+  mesh_compute_surface_normals(mesh_positions, mesh_indices,
+                               mesh_indices_length, mesh_normals,
+                               mesh_normals_length);
 
   // Create the model vertex buffer.
   float vertex_buffer_data[(POSITION_COUNT_RES_4 + 4) * 3 * 2] = {0};
@@ -173,7 +142,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_Depth32Float,
-      .usage = WGPUTextureUsage_OutputAttachment | WGPUTextureUsage_Sampled,
+      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_Sampled,
     };
     shadow_depth_texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
@@ -204,7 +173,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_Depth24PlusStencil8,
-      .usage         = WGPUTextureUsage_OutputAttachment,
+      .usage         = WGPUTextureUsage_RenderAttachment,
     };
     depth_texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);

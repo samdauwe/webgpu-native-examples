@@ -10,7 +10,7 @@
   }
 
 #define WGPU_VERTATTR_DESC(l, f, o)                                            \
-  (WGPUVertexAttributeDescriptor)                                              \
+  (WGPUVertexAttribute)                                                        \
   {                                                                            \
     .shaderLocation = l, .format = f, .offset = o,                             \
   }
@@ -29,8 +29,8 @@
   }
 
 #define WGPU_VERTSTATE(name, bindSize, ...)                                    \
-  WGPUVertexAttributeDescriptor vertAttrDesc##name[] = {__VA_ARGS__};          \
-  WGPUVertexBufferLayoutDescriptor name##VertBuffLayoutDesc                    \
+  WGPUVertexAttribute vertAttrDesc##name[] = {__VA_ARGS__};                    \
+  WGPUVertexBufferLayout name##VertBuffLayoutDesc                              \
     = WGPU_VERTBUFFERLAYOUT_DESC(bindSize, vertAttrDesc##name);                \
   WGPUVertexStateDescriptor vert_state_##name                                  \
     = WPU_VERTEXSTATE_DESC(name##VertBuffLayoutDesc);

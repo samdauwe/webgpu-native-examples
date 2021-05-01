@@ -40,7 +40,7 @@ void wgpu_record_copy_data_to_buffer(struct wgpu_context_t* wgpu_context,
                                      uint32_t data_size);
 
 WGPUCommandBuffer wgpu_copy_buffer_to_texture(
-  struct wgpu_context_t* wgpu_context, WGPUBufferCopyView* buffer_copy_view,
-  WGPUTextureCopyView* texture_copy_view, WGPUExtent3D* texture_size);
+  struct wgpu_context_t* wgpu_context, WGPUImageCopyBuffer* buffer_copy_view,
+  WGPUImageCopyTexture* texture_copy_view, WGPUExtent3D* texture_size);
 
 #endif // BUFFER_H_
