@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 void wgpu_log_available_adapters();
+void wgpu_get_adapter_info(char (*adapter_info)[256]);
 void* wgpu_get_backend_instance(WGPUDevice device);
 WGPUDevice wgpu_create_device(WGPUBackendType type);
 WGPUSwapChain wgpu_create_swap_chain(WGPUDevice device, void* surface, int width, int height);

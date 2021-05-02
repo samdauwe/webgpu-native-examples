@@ -187,11 +187,11 @@ static void setup_window(wgpu_example_context_t* context,
   snprintf(window_title,
            strlen("WebGPU Example - ") + strlen(context->example_title) + 1,
            "WebGPU Example - %s", context->example_title);
-  context->window           = window_create(
-    GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),          // title
-    GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH), // width
+  context->window = window_create(
+    GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),            // title
+    GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH),   // width
     GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT), // height
-    windows_config->resizable // resizable
+    windows_config->resizable                                   // resizable
   );
   window_get_size(context->window, &context->window_size.width,
                   &context->window_size.height);
@@ -213,6 +213,7 @@ static void intialize_webgpu(wgpu_example_context_t* context)
   wgpu_create_device_and_queue(context->wgpu_context);
   wgpu_create_surface(context->wgpu_context, context->window);
   wgpu_setup_swap_chain(context->wgpu_context);
+  wgpu_get_context_info(context->adapter_info);
 }
 
 static void intialize_imgui(wgpu_example_context_t* context,
@@ -254,6 +255,8 @@ update_overlay(wgpu_example_context_t* context,
           ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize
             | ImGuiWindowFlags_NoMove);
   igTextUnformatted(context->example_title, NULL);
+  igTextUnformatted(context->adapter_info[0], NULL);
+  igText("%s backend", context->adapter_info[1]);
   igText("%.2f ms/frame (%.1d fps)", (1000.0f / context->last_fps),
          context->last_fps);
   if (example_on_update_ui_overlay_func) {

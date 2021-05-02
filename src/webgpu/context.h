@@ -76,6 +76,9 @@ typedef struct wgpu_context_t {
 wgpu_context_t* wgpu_context_create();
 void wgpu_context_release(wgpu_context_t* wgpu_context);
 
+/* WebGPU info functions */
+void wgpu_get_context_info(char (*adapter_info)[256]);
+
 /* WebGPU context helper functions */
 WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
                                         const void* data, size_t size,

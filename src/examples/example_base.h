@@ -19,6 +19,8 @@ typedef struct {
   } frame;
   // Title of the example
   char example_title[STRMAX];
+  // Backend info
+  char adapter_info[2][256]; // 0: adapter name, 1: backend name
   // Used to display fps
   uint32_t last_fps;
   // ImGui overlay

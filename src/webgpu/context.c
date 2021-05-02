@@ -30,6 +30,12 @@ void wgpu_context_release(wgpu_context_t* wgpu_context)
   free(wgpu_context);
 }
 
+/* WebGPU info functions */
+void wgpu_get_context_info(char (*adapter_info)[256])
+{
+  wgpu_get_adapter_info(adapter_info);
+}
+
 /* WebGPU context helper functions */
 WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
                                         const void* data, size_t size,

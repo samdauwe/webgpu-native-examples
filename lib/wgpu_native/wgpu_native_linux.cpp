@@ -22,9 +22,15 @@
 namespace impl {
 
 /*
+ * Adapter info.
+ */
+std::string adapterName;
+
+/*
  * Chosen backend type for \c #device.
  */
 WGPUBackendType backend;
+std::string backendTypeStr;
 
 /*
  * WebGPU graphics API-specific device, created from a \c dawn_native::Adapter
@@ -178,6 +184,12 @@ void wgpu_log_available_adapters()
   impl::logAvailableAdapters();
 }
 
+void wgpu_get_adapter_info(char (*adapter_info)[256])
+{
+  strncpy(adapter_info[0], impl::adapterName.c_str(), 256);
+  strncpy(adapter_info[1], impl::backendTypeStr.c_str(), 256);
+}
+
 void* wgpu_get_backend_instance(WGPUDevice device)
 {
   return dawn_native::vulkan::GetInstance(device);
@@ -195,7 +207,9 @@ WGPUDevice wgpu_create_device(WGPUBackendType type)
     adapter.GetProperties(&properties);
     dawn_native::DeviceDescriptor devDesc;
     devDesc.requiredExtensions.push_back("texture_compression_bc");
+    impl::adapterName = properties.name;
     impl::backend = static_cast<WGPUBackendType>(properties.backendType);
+    impl::backendTypeStr = impl::backendTypeName(properties.backendType);
     impl::device  = adapter.CreateDevice(&devDesc);
     if (!impl::device) {
       impl::device = adapter.CreateDevice();
