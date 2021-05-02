@@ -67,6 +67,10 @@ This example shows how to bind and sample textures.
 
 Loads a cube map texture from disk containing six different faces. All faces and mip levels are uploaded into video memory, and the cubemap is displayed on a skybox as a backdrop and on a 3D model as a reflection.
 
+### [Reversed Z](src/examples/reversed_z.c)
+
+This example shows the use of reversed z technique for better utilization of depth buffer precision. The left column uses regular method, while the right one uses reversed z technique. Both are using depth32float as their depth buffer format. A set of red and green planes are positioned very close to each other. Higher sets are placed further from camera (and are scaled for better visual purpose). To use  reversed z to render your scene, you will need depth store value to be 0.0, depth compare function to be greater, and remap depth range by multiplying an additional matrix to your projection matrix.
+
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
@@ -94,6 +98,14 @@ This example shows how to sample from a depth texture to render shadows from a d
 #### [Instancing](src/examples/instanced_cube.c)
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
+
+### Deferred
+
+These examples use a [deferred shading](https://en.wikipedia.org/wiki/Deferred_shading) setup.
+
+#### [Deferred rendering basics](src/examples/deferred_rendering.c)
+
+Shows how to do deferred rendering with WebGPU. Renders geometry info to multiple targets in the gBuffers in the first pass. In this sample, 3 gBuffers are used for positions, normals, and albedo. In a second pass, the lighting is calculated with per fragment data read from gBuffers so it's independent of scene complexity. Light positions are updated in a compute shader, where further operations like tile/cluster culling could happen.
 
 ### Compute Shader
 
