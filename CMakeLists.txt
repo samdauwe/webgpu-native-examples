@@ -81,6 +81,7 @@ set(HEADERS
     src/core/video_decode.h
     src/examples/examples.h
     src/examples/example_base.h
+    src/examples/meshes.h
     src/webgpu/api.h
     src/webgpu/buffer.h
     src/webgpu/context.h
@@ -98,6 +99,7 @@ set(SOURCES
     src/core/video_decode.c
     src/examples/example_base.c
     src/examples/examples.c
+    src/examples/meshes.c
     src/webgpu/buffer.c
     src/webgpu/context.c
     src/webgpu/imgui_overlay.c
@@ -115,6 +117,7 @@ set(SOURCES
     src/examples/compute_particles.c
     src/examples/compute_ray_tracing.c
     src/examples/cube_reflection.c
+    src/examples/deferred_rendering.c
     src/examples/gears.c
     src/examples/dynamic_uniform_buffer.c
     src/examples/gltf_loading.c
