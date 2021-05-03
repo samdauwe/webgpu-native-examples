@@ -33,7 +33,31 @@ git submodule update
 
 ## Building
 
-Coming soon...
+The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard. Dawn uses the Chromium build system and dependency management and therefore needs [depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up).
+
+A helper bash script was created to fetch the latest version of "depot_tools" and "Dawn", compile "Dawn" from source and install the build artifacts into the correct location. Note that running this script takes a while and it needs to pull several Gigabytes of dependencies / build toolchains from the internet. The first step into building the WebGPU examples is running this script as follows:
+
+```
+$ cd external/dawn
+$ bash build.sh
+```
+
+The second step is building the examples:
+
+```
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make all
+```
+
+## Running the examples
+
+The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher <example_name>" like for example:
+
+```
+$ ./wgpu_sample_launcher shadertoy
+```
 
 ## Examples
 
