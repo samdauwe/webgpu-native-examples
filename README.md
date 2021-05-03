@@ -26,7 +26,7 @@ git clone --recursive https://github.com/samdauwe/webgpu-native-examples.git
 
 Existing repositories can be updated manually:
 
-```
+```bash
 git submodule init
 git submodule update
 ```
@@ -37,14 +37,14 @@ The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an 
 
 A helper bash script was created to fetch the latest version of "depot_tools" and "Dawn", compile "Dawn" from source and install the build artifacts into the correct location. Note that running this script takes a while and it needs to pull several Gigabytes of dependencies / build toolchains from the internet. The first step into building the WebGPU examples is running this script as follows:
 
-```
+```bash
 $ cd external/dawn
 $ bash build.sh
 ```
 
 The second step is building the examples:
 
-```
+```bash
 $ mkdir build
 $ cd build
 $ cmake ..
@@ -55,8 +55,35 @@ $ make all
 
 The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher <example_name>" like for example:
 
-```
+```bash
 $ ./wgpu_sample_launcher shadertoy
+```
+
+## Project Layout
+
+```bash
+├─ 📂 assets/           # Assets (models, textures, shaders, etc.)
+├─ 📂 doc/              # Documentation files
+│  └─ 📁 images             # WebGPU diagram, logo
+├─ 📂 external/         # Dependencies dependencies
+│  ├─ 📁 cglm               # Highly Optimized Graphics Math (glm) for C
+│  ├─ 📁 dawn               # WebGPU implementation
+│  └─ 📁 ...                # Other Dependencies (cgltf, cimgui, stb, etc.)
+├─ 📂 lib/              # Custom libraries
+│  └─ 📁 wgpu_native        # Helper functions using the Dawn C++ API exposed as C API
+├─ 📂 screenshots/      # Contains screenshots for each functional example
+├─ 📂 src/              # Helper functions and examples source code
+│  ├─ 📁 core               # Base functions (input, camera, logging, etc.)
+│  ├─ 📁 examples           # Examples source code, each example is located in a single file
+│  ├─ 📁 platforms          # Platform dependent functionality (input handling, window creation, etc.)
+│  ├─ 📁 webgpu             # WebGPU related helper functions (buffers & textures creation, etc.)
+│  └─ 📄 main.c             # Example launcher main source file
+├─ 📄 .clang-format     # Clang-format file for automatically formatting C code
+├─ 📄 .gitmodules       # Used Git submodules
+├─ 📄 .gitignore        # Ignore certain files in git repo
+├─ 📄 CMakeLists.txt    # CMake build file
+├─ 📄 LICENSE           # Repository License (Apache-2.0 License)
+└─ 📃 README.md         # Read Me!
 ```
 
 ## Examples
