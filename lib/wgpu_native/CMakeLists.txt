@@ -56,7 +56,7 @@ elseif(APPLE)
     # nothing to do for now
 else()
     target_include_directories(${TARGET}
-        PRIVATE /home/sdauwe/Dev/libdawn/out/include)
+        PRIVATE "${CMAKE_SOURCE_DIR}/external/dawn/include")
 endif()
 
 # ==============================================================================
@@ -70,7 +70,7 @@ elseif(APPLE)
 else()
     target_link_libraries(${TARGET}
         ${Vulkan_LIBRARIES}
-        /home/sdauwe/Dev/libdawn/out/lib/libdawn_native.so
-        /home/sdauwe/Dev/libdawn/out/lib/libdawn_proc.so
+        "${CMAKE_SOURCE_DIR}/external/dawn/lib/libdawn_native.so"
+        "${CMAKE_SOURCE_DIR}/external/dawn/lib/libdawn_proc.so"
     )
 endif()

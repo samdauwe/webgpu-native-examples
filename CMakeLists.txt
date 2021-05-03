@@ -208,10 +208,10 @@ else()
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cimgui
+        PRIVATE external/dawn/include
         PRIVATE external/ktx/include
         PRIVATE external/rply
         PRIVATE external/stb
-        PRIVATE /home/sdauwe/Dev/libdawn/out/include
     )
 endif()
 
