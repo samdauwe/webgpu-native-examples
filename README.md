@@ -62,28 +62,28 @@ $ ./wgpu_sample_launcher shadertoy
 ## Project Layout
 
 ```bash
-├─ 📂 assets/           # Assets (models, textures, shaders, etc.)
-├─ 📂 doc/              # Documentation files
-│  └─ 📁 images             # WebGPU diagram, logo
-├─ 📂 external/         # Dependencies dependencies
-│  ├─ 📁 cglm               # Highly Optimized Graphics Math (glm) for C
-│  ├─ 📁 dawn               # WebGPU implementation
-│  └─ 📁 ...                # Other Dependencies (cgltf, cimgui, stb, etc.)
-├─ 📂 lib/              # Custom libraries
-│  └─ 📁 wgpu_native        # Helper functions using the Dawn C++ API exposed as C API
-├─ 📂 screenshots/      # Contains screenshots for each functional example
-├─ 📂 src/              # Helper functions and examples source code
-│  ├─ 📁 core               # Base functions (input, camera, logging, etc.)
-│  ├─ 📁 examples           # Examples source code, each example is located in a single file
-│  ├─ 📁 platforms          # Platform dependent functionality (input handling, window creation, etc.)
-│  ├─ 📁 webgpu             # WebGPU related helper functions (buffers & textures creation, etc.)
-│  └─ 📄 main.c             # Example launcher main source file
-├─ 📄 .clang-format     # Clang-format file for automatically formatting C code
-├─ 📄 .gitmodules       # Used Git submodules
-├─ 📄 .gitignore        # Ignore certain files in git repo
-├─ 📄 CMakeLists.txt    # CMake build file
-├─ 📄 LICENSE           # Repository License (Apache-2.0 License)
-└─ 📃 README.md         # Read Me!
+├─ 📂 assets/         # Assets (models, textures, shaders, etc.)
+├─ 📂 doc/            # Documentation files
+│  └─ 📁 images         # WebGPU diagram, logo
+├─ 📂 external/       # Dependencies dependencies
+│  ├─ 📁 cglm           # Highly Optimized Graphics Math (glm) for C
+│  ├─ 📁 dawn           # WebGPU implementation
+│  └─ 📁 ...            # Other Dependencies (cgltf, cimgui, stb, etc.)
+├─ 📂 lib/            # Custom libraries
+│  └─ 📁 wgpu_native    # Helper functions using the Dawn C++ API exposed as C API
+├─ 📂 screenshots/    # Contains screenshots for each functional example
+├─ 📂 src/            # Helper functions and examples source code
+│  ├─ 📁 core           # Base functions (input, camera, logging, etc.)
+│  ├─ 📁 examples       # Examples source code, each example is located in a single file
+│  ├─ 📁 platforms      # Platform dependent functionality (input handling, window creation, etc.)
+│  ├─ 📁 webgpu         # WebGPU related helper functions (buffers & textures creation, etc.)
+│  └─ 📄 main.c         # Example launcher main source file
+├─ 📄 .clang-format   # Clang-format file for automatically formatting C code
+├─ 📄 .gitmodules     # Used Git submodules
+├─ 📄 .gitignore      # Ignore certain files in git repo
+├─ 📄 CMakeLists.txt  # CMake build file
+├─ 📄 LICENSE         # Repository License (Apache-2.0 License)
+└─ 📃 README.md       # Read Me!
 ```
 
 ## Examples
