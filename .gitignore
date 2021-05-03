@@ -1,6 +1,3 @@
-# auto generated files
-assets/samples_info.json
-
 # Compiled Object files
 *.slo
 *.lo
@@ -38,18 +35,14 @@ CMakeLists.txt.user.*
 *.lib
 
 # Build dir
-/build*
 debug_build
 release_build
 /bin
 /install
-
-# Not yet finished code
-src/Studio
-
-# Absolete code
-src/InspectorV1
-src/SampleLauncher
+/external/dawn/dawn
+/external/dawn/depot_tools
+/external/dawn/include
+/external/dawn/lib
 
 # Executables
 *.exe
@@ -61,23 +54,6 @@ src/SampleLauncher
 
 # vscode
 .vscode/
-
-# CLion
-.idea/
-cmake-build-debug/
-cmake-build-debug-asan/
-cmake-build-debug-ubsan/
-cmake-build-release/
-cmake-build-relwithdebinfo/
-cmake-build-minsizerel/
-cmake-build-emscripten/
-cmake-build-emscripten_release/
-
-# cquery
-.cquery_cache
-
-# Runtime Compil
-Runtime/
 
 # python cache
 __pycache__
