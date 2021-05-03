@@ -35,6 +35,7 @@ CMakeLists.txt.user.*
 *.lib
 
 # Build dir
+build
 debug_build
 release_build
 /bin
