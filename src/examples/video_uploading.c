@@ -83,9 +83,10 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
     wgpu_context->device,
     &(WGPUTextureDescriptor){
       .size          = (WGPUExtent3D){
-        .width  = video_info.frame_size.width,
-        .height = video_info.frame_size.height,
-        .depth  = 1,
+        .width               = video_info.frame_size.width,
+        .height              = video_info.frame_size.height,
+        .depth               = 1,
+        .depthOrArrayLayers  = 1,
       },
       .mipLevelCount = 1,
       .sampleCount   = 1,

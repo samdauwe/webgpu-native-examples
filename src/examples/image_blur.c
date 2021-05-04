@@ -112,9 +112,10 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
                  | WGPUTextureUsage_Sampled,
         .dimension     = WGPUTextureDimension_2D,
         .size          = (WGPUExtent3D) {
-          .width  = texture.size.width,
-          .height = texture.size.height,
-          .depth  = texture.size.depth,
+          .width               = texture.size.width,
+          .height              = texture.size.height,
+          .depth               = texture.size.depth,
+          .depthOrArrayLayers  = texture.size.depth,
         },
         .format        = texture.format,
         .mipLevelCount = 1,

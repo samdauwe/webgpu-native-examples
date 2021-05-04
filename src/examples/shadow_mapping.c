@@ -156,9 +156,10 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   // Create the depth texture for rendering/sampling the shadow map.
   {
     WGPUExtent3D texture_extent = {
-      .width  = shadow_depth_texture_size,
-      .height = shadow_depth_texture_size,
-      .depth  = 1,
+      .width               = shadow_depth_texture_size,
+      .height              = shadow_depth_texture_size,
+      .depth               = 1,
+      .depthOrArrayLayers  = 1,
     };
     WGPUTextureDescriptor texture_desc = {
       .size          = texture_extent,
@@ -187,9 +188,10 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   // Create a depth/stencil texture for the color rendering pipeline
   {
     WGPUExtent3D texture_extent = {
-      .width  = wgpu_context->surface.width,
-      .height = wgpu_context->surface.height,
-      .depth  = 1,
+      .width               = wgpu_context->surface.width,
+      .height              = wgpu_context->surface.height,
+      .depth               = 1,
+      .depthOrArrayLayers  = 1,
     };
     WGPUTextureDescriptor texture_desc = {
       .size          = texture_extent,

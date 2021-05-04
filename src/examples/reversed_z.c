@@ -539,9 +539,10 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .size          = (WGPUExtent3D)  {
-        .width  = wgpu_context->surface.width,
-        .height = wgpu_context->surface.height,
-        .depth  = 1,
+        .width               = wgpu_context->surface.width,
+        .height              = wgpu_context->surface.height,
+        .depth               = 1,
+        .depthOrArrayLayers  = 1,
       },
     };
     depth_texture.texture
@@ -584,9 +585,10 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .size          = (WGPUExtent3D)  {
-        .width  = wgpu_context->surface.width,
-        .height = wgpu_context->surface.height,
-        .depth  = 1,
+        .width               = wgpu_context->surface.width,
+        .height              = wgpu_context->surface.height,
+        .depth               = 1,
+        .depthOrArrayLayers  = 1,
       },
     };
     default_depth_texture.texture

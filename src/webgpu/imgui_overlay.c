@@ -137,9 +137,10 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
   // Upload texture to graphics system
   {
     WGPUExtent3D texture_size = {
-      .width  = font_width,
-      .height = font_height,
-      .depth  = 1,
+      .width              = font_width,
+      .height             = font_height,
+      .depth              = 1,
+      .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
       .label         = "imgui-font-texture",

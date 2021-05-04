@@ -57,9 +57,10 @@ void wgpu_image_to_texure(wgpu_context_t* wgpu_context,
       .rowsPerImage = desc->height,
     },
     &(WGPUExtent3D){
-      .width  = desc->width,
-      .height = desc->height,
-      .depth  = 1,
+      .width               = desc->width,
+      .height              = desc->height,
+      .depth               = 1,
+      .depthOrArrayLayers  = 1,
     });
 }
 
@@ -203,9 +204,10 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
 
   WGPUTextureDescriptor texture_desc = {
     .size          = (WGPUExtent3D) {
-      .width  = texture.size.width,
-      .height = texture.size.height,
-      .depth  = texture.size.depth,
+      .width               = texture.size.width,
+      .height              = texture.size.height,
+      .depth               = 1,
+      .depthOrArrayLayers  = texture.size.depth,
      },
     .mipLevelCount = texture.mip_level_count,
     .sampleCount   = 1,
@@ -272,9 +274,10 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
           },
           // Copy size
           &(WGPUExtent3D){
-            .width  = MAX(1u, width),
-            .height = MAX(1u, height),
-            .depth  = 1,
+            .width               = MAX(1u, width),
+            .height              = MAX(1u, height),
+            .depth               = 1,
+            .depthOrArrayLayers  = 1,
           });
       }
     }
@@ -341,9 +344,10 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
           },
           // Copy size
           &(WGPUExtent3D){
-            .width  = MAX(1u, width),
-            .height = MAX(1u, height),
-            .depth  = 1,
+            .width               = MAX(1u, width),
+            .height              = MAX(1u, height),
+            .depth               = 1,
+            .depthOrArrayLayers  = 1,
           });
 
         WGPU_RELEASE_RESOURCE(Buffer, staging_buffer);
@@ -454,9 +458,10 @@ texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
   texture.channels    = read_comps;
 
   WGPUExtent3D texture_size = {
-    .width  = texture.size.width,
-    .height = texture.size.height,
-    .depth  = texture.size.depth,
+    .width              = texture.size.width,
+    .height             = texture.size.height,
+    .depth              = texture.size.depth,
+    .depthOrArrayLayers = texture.size.depth,
   };
 
   WGPUTextureDescriptor tex_desc = {

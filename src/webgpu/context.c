@@ -80,9 +80,10 @@ void wgpu_setup_deph_stencil(wgpu_context_t* wgpu_context)
     .mipLevelCount = 1,
     .sampleCount   = 1,
     .size          = (WGPUExtent3D) {
-      .width  = wgpu_context->surface.width,
-      .height = wgpu_context->surface.height,
-      .depth  = 1,
+      .width               = wgpu_context->surface.width,
+      .height              = wgpu_context->surface.height,
+      .depth               = 1,
+      .depthOrArrayLayers  = 1,
      },
   };
   wgpu_context->depth_stencil.texture

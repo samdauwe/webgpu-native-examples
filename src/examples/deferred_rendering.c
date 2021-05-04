@@ -227,9 +227,10 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
   {
     WGPUTextureDescriptor texture_desc = {
       .size          = (WGPUExtent3D) {
-        .width  = wgpu_context->surface.width,
-        .height = wgpu_context->surface.height,
-        .depth  = 3,
+        .width               = wgpu_context->surface.width,
+        .height              = wgpu_context->surface.height,
+        .depth               = 1,
+        .depthOrArrayLayers  = 3,
       },
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -244,9 +245,10 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
   {
     WGPUTextureDescriptor texture_desc = {
       .size          = (WGPUExtent3D) {
-        .width  = wgpu_context->surface.width,
-        .height = wgpu_context->surface.height,
-        .depth  = 1,
+        .width               = wgpu_context->surface.width,
+        .height              = wgpu_context->surface.height,
+        .depth               = 1,
+        .depthOrArrayLayers  = 1,
       },
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -714,9 +716,10 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
 static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 {
   WGPUExtent3D texture_extent = {
-    .width  = wgpu_context->surface.width,
-    .height = wgpu_context->surface.height,
-    .depth  = 1,
+    .width              = wgpu_context->surface.width,
+    .height             = wgpu_context->surface.height,
+    .depth              = 1,
+    .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
     .size          = texture_extent,
