@@ -128,7 +128,7 @@ These samples show how implement different features of the [glTF 2.0 3D format](
 
 #### [glTF model loading and rendering](src/examples/gltf_loading.c)
 
-Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The structure of the glTF 2.0 scene is converted into the data structures required to render the scene with Vulkan.
+Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The structure of the glTF 2.0 scene is converted into the data structures required to render the scene with WebGPU.
 
 ### Advanced
 
