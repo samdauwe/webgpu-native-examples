@@ -626,7 +626,7 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
 static void prepare_depth_pre_pass_descriptor()
 {
   dppd_rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachmentDescriptor){
-    .attachment     = depth_texture.view,
+    .view           = depth_texture.view,
     .depthLoadOp    = WGPULoadOp_Clear,
     .depthStoreOp   = WGPUStoreOp_Store,
     .clearDepth     = 1.0f,
@@ -652,9 +652,10 @@ static void prepare_draw_pass_descriptors()
   {
     // Color attachment
     dpd_rp_color_att_descriptors[0][0] = (WGPURenderPassColorAttachmentDescriptor) {
-      .attachment = NULL, // attachment is acquired and set in render loop.
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .view       = NULL, // attachment is acquired and set in render loop.
+      .attachment = NULL,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
@@ -665,7 +666,7 @@ static void prepare_draw_pass_descriptors()
 
     dpd_rp_ds_att_descriptors[0]
       = (WGPURenderPassDepthStencilAttachmentDescriptor){
-        .attachment     = default_depth_texture.view,
+        .view           = default_depth_texture.view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
         .clearDepth     = 1.0f,
@@ -685,13 +686,13 @@ static void prepare_draw_pass_descriptors()
   {
     dpd_rp_color_att_descriptors[1][0]
       = (WGPURenderPassColorAttachmentDescriptor){
-        .attachment = NULL, // attachment is acquired and set in render loop.
-        .loadOp     = WGPULoadOp_Load,
+        .view   = NULL, // attachment is acquired and set in render loop.
+        .loadOp = WGPULoadOp_Load,
       };
 
     dpd_rp_ds_att_descriptors[1]
       = (WGPURenderPassDepthStencilAttachmentDescriptor){
-        .attachment     = default_depth_texture.view,
+        .view           = default_depth_texture.view,
         .depthLoadOp    = WGPULoadOp_Load,
         .depthStoreOp   = WGPUStoreOp_Store,
         .clearDepth     = 1.0f,
@@ -714,9 +715,10 @@ static void prepare_texture_quad_pass_descriptors()
   {
     tqd_rp_color_att_descriptors[0][0]
      = (WGPURenderPassColorAttachmentDescriptor) {
-      .attachment = NULL, // attachment is acquired and set in render loop.
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .view       = NULL, // attachment is acquired and set in render loop.
+      .attachment = NULL,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
@@ -735,8 +737,8 @@ static void prepare_texture_quad_pass_descriptors()
   {
     tqd_rp_color_att_descriptors[1][0]
       = (WGPURenderPassColorAttachmentDescriptor){
-        .attachment = NULL, // attachment is acquired and set in render loop.
-        .loadOp     = WGPULoadOp_Load,
+        .view   = NULL, // attachment is acquired and set in render loop.
+        .loadOp = WGPULoadOp_Load,
       };
 
     texture_quad_pass_descriptors[1] = (WGPURenderPassDescriptor){
@@ -1004,8 +1006,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   if (current_render_mode == RenderMode_Color) {
     for (uint32_t m = 0; m < (uint32_t)ARRAY_SIZE(depth_buffer_modes); ++m) {
-      dpd_rp_color_att_descriptors[m][0].attachment = attachment;
-      dpd_rp_ds_att_descriptors[m].depthLoadOp      = depth_load_values[m];
+      dpd_rp_color_att_descriptors[m][0].view  = attachment;
+      dpd_rp_ds_att_descriptors[m].depthLoadOp = depth_load_values[m];
       WGPURenderPassEncoder color_pass = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc, &draw_pass_descriptors[m]);
       wgpuRenderPassEncoderSetPipeline(color_pass, color_pass_pipelines[m]);
@@ -1046,8 +1048,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       }
       // precisionErrorPass
       {
-        dpd_rp_color_att_descriptors[m][0].attachment = attachment;
-        dpd_rp_ds_att_descriptors[m].depthLoadOp      = depth_load_values[m];
+        dpd_rp_color_att_descriptors[m][0].view  = attachment;
+        dpd_rp_ds_att_descriptors[m].depthLoadOp = depth_load_values[m];
         WGPURenderPassEncoder precision_error_pass
           = wgpuCommandEncoderBeginRenderPass(wgpu_context->cmd_enc,
                                               &draw_pass_descriptors[m]);
@@ -1094,7 +1096,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       }
       // depthTextureQuadPass
       {
-        tqd_rp_color_att_descriptors[m][0].attachment = attachment;
+        tqd_rp_color_att_descriptors[m][0].view = attachment;
         WGPURenderPassEncoder depth_texture_quad_pass
           = wgpuCommandEncoderBeginRenderPass(
             wgpu_context->cmd_enc, &texture_quad_pass_descriptors[m]);

@@ -156,10 +156,10 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   // Create the depth texture for rendering/sampling the shadow map.
   {
     WGPUExtent3D texture_extent = {
-      .width               = shadow_depth_texture_size,
-      .height              = shadow_depth_texture_size,
-      .depth               = 1,
-      .depthOrArrayLayers  = 1,
+      .width              = shadow_depth_texture_size,
+      .height             = shadow_depth_texture_size,
+      .depth              = 1,
+      .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
       .size          = texture_extent,
@@ -188,10 +188,10 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   // Create a depth/stencil texture for the color rendering pipeline
   {
     WGPUExtent3D texture_extent = {
-      .width               = wgpu_context->surface.width,
-      .height              = wgpu_context->surface.height,
-      .depth               = 1,
-      .depthOrArrayLayers  = 1,
+      .width              = wgpu_context->surface.width,
+      .height             = wgpu_context->surface.height,
+      .depth              = 1,
+      .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
       .size          = texture_extent,
@@ -304,7 +304,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   {
     // Shadow pass descriptor
     sp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachmentDescriptor){
-      .attachment     = shadow_depth_texture_view,
+      .view           = shadow_depth_texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,
       .clearDepth     = 1.0f,
@@ -325,9 +325,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   {
     // Color attachment
     rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
-      .attachment = NULL, // attachment is acquired and set in render loop.
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .view       = NULL, // attachment is acquired and set in render loop.
+      .attachment = NULL,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.5f,
         .g = 0.5f,
@@ -338,7 +339,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
     // Render pass descriptor
     rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachmentDescriptor){
-      .attachment     = depth_texture_view,
+      .view           = depth_texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,
       .clearDepth     = 1.0f,
@@ -763,8 +764,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].attachment
-    = wgpu_context->swap_chain.frame_buffer;
+  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 

@@ -138,10 +138,11 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
-      .attachment = NULL,
+      .view          = NULL,
+      .attachment    = NULL,
       .resolveTarget = NULL,
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .loadOp        = WGPULoadOp_Clear,
+      .storeOp       = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
@@ -251,12 +252,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
   if (sample_count == 1) {
-    rp_color_att_descriptors[0].attachment
-      = wgpu_context->swap_chain.frame_buffer;
+    rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
     rp_color_att_descriptors[0].resolveTarget = NULL;
   }
   else {
-    rp_color_att_descriptors[0].attachment = multisampled_framebuffer;
+    rp_color_att_descriptors[0].view = multisampled_framebuffer;
     rp_color_att_descriptors[0].resolveTarget
       = wgpu_context->swap_chain.frame_buffer;
   }

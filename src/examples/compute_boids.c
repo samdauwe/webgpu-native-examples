@@ -137,9 +137,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+      .view       = NULL,
       .attachment = NULL,
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
@@ -363,9 +364,8 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 {
-  wgpu_context_t* wgpu_context = context->wgpu_context;
-  rp_color_att_descriptors[0].attachment
-    = wgpu_context->swap_chain.frame_buffer;
+  wgpu_context_t* wgpu_context     = context->wgpu_context;
+  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc

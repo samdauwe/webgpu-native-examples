@@ -235,9 +235,10 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
 
   // Color attachment
   imgui_overlay->rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+      .view       = NULL,
       .attachment = NULL,
-      .loadOp = WGPULoadOp_Load,
-      .storeOp = WGPUStoreOp_Store,
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
@@ -551,7 +552,7 @@ void imgui_overlay_draw_frame(imgui_overlay_t* imgui_overlay,
   imgui_overlay_update_uniform_buffers(imgui_overlay, draw_data);
 
   // Set texture view
-  imgui_overlay->rp_color_att_descriptors[0].attachment = view;
+  imgui_overlay->rp_color_att_descriptors[0].view = view;
   imgui_overlay->wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     imgui_overlay->wgpu_context->cmd_enc, &imgui_overlay->render_pass_desc);
   WGPURenderPassEncoder rpass_enc = imgui_overlay->wgpu_context->rpass_enc;

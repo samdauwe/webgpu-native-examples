@@ -751,9 +751,10 @@ static void setup_render_passes()
     // Color attachments
     write_gbuffer_pass.color_attachments[0] =
       (WGPURenderPassColorAttachmentDescriptor) {
-        .attachment = gbuffer.texture_views[0],
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
+        .view       = gbuffer.texture_views[0],
+        .attachment = NULL,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
           .r = 1.0f,
           .g = 1.0f,
@@ -764,9 +765,10 @@ static void setup_render_passes()
 
     write_gbuffer_pass.color_attachments[1] =
       (WGPURenderPassColorAttachmentDescriptor) {
-        .attachment = gbuffer.texture_views[1],
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
+        .view       = gbuffer.texture_views[1],
+        .attachment = NULL,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -777,9 +779,10 @@ static void setup_render_passes()
 
     write_gbuffer_pass.color_attachments[2] =
       (WGPURenderPassColorAttachmentDescriptor) {
-        .attachment = gbuffer.texture_views[2],
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
+        .view       = gbuffer.texture_views[2],
+        .attachment = NULL,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -791,7 +794,7 @@ static void setup_render_passes()
     // Render pass depth stencil attachment descriptor
     write_gbuffer_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachmentDescriptor){
-        .attachment     = depth_texture_view,
+        .view           = depth_texture_view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
         .clearDepth     = 1.0f,
@@ -813,9 +816,10 @@ static void setup_render_passes()
     // Color attachment
     texture_quad_pass.color_attachments[0] =
       (WGPURenderPassColorAttachmentDescriptor) {
-        .attachment = NULL, // attachment is acquired and set in render loop.
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
+        .view       = NULL, // attachment is acquired and set in render loop.
+        .attachment = NULL,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -1319,7 +1323,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       // Left: position
       // Middle: normal
       // Right: albedo (use uv to mimic a checkerboard texture)
-      texture_quad_pass.color_attachments[0].attachment
+      texture_quad_pass.color_attachments[0].view
         = wgpu_context->swap_chain.frame_buffer;
       WGPURenderPassEncoder debug_view_pass = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc, &texture_quad_pass.descriptor);
@@ -1335,7 +1339,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     }
     else {
       // Deferred rendering
-      texture_quad_pass.color_attachments[0].attachment
+      texture_quad_pass.color_attachments[0].view
         = wgpu_context->swap_chain.frame_buffer;
       WGPURenderPassEncoder deferred_rendering_pass
         = wgpuCommandEncoderBeginRenderPass(wgpu_context->cmd_enc,

@@ -27,9 +27,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+      .view = NULL,
       .attachment = NULL,
-      .loadOp = WGPULoadOp_Clear,
-      .storeOp = WGPUStoreOp_Store,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
         .r = 1.0f,
         .g = 1.0f,
@@ -70,7 +71,7 @@ static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 {
-  rp_color_att_descriptors[0].attachment
+  rp_color_att_descriptors[0].view
     = context->wgpu_context->swap_chain.frame_buffer;
 
   // Figure out how far along duration we are, between 0.0 and 1.0

@@ -103,7 +103,7 @@ void wgpu_setup_deph_stencil(wgpu_context_t* wgpu_context)
 
   wgpu_context->depth_stencil.att_desc
     = (WGPURenderPassDepthStencilAttachmentDescriptor){
-      .attachment     = wgpu_context->depth_stencil.texture_view,
+      .view           = wgpu_context->depth_stencil.texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,
       .clearDepth     = 1.0f,
