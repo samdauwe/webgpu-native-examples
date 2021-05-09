@@ -773,3 +773,11 @@ bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
   };
   return res;
 }
+
+void imgui_overlay_text(const char* format_str, ...)
+{
+  va_list args;
+  va_start(args, format_str);
+  igTextV(format_str, args);
+  va_end(args);
+}
