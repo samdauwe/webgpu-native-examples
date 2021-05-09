@@ -12,6 +12,7 @@ void example_compute_boids(int argc, char* argv[]);
 void example_compute_n_body(int argc, char* argv[]);
 void example_compute_particles(int argc, char* argv[]);
 void example_compute_ray_tracing(int argc, char* argv[]);
+void example_coordinate_system(int argc, char* argv[]);
 void example_cube_reflection(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
 void example_dynamic_uniform_buffer(int argc, char* argv[]);
@@ -38,6 +39,7 @@ static examplecase_t g_example_cases[] = {
   {"compute_n_body", example_compute_n_body},
   {"compute_particles", example_compute_particles},
   {"compute_ray_tracing", example_compute_ray_tracing},
+  {"coordinate_system", example_coordinate_system},
   {"cube_reflection", example_cube_reflection},
   {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},

@@ -85,6 +85,7 @@ set(HEADERS
     src/webgpu/api.h
     src/webgpu/buffer.h
     src/webgpu/context.h
+    #src/webgpu/gltf_model.h
     src/webgpu/imgui_overlay.h
     src/webgpu/shader.h
     src/webgpu/texture.h
@@ -102,6 +103,7 @@ set(SOURCES
     src/examples/meshes.c
     src/webgpu/buffer.c
     src/webgpu/context.c
+    #src/webgpu/gltf_model.c
     src/webgpu/imgui_overlay.c
     src/webgpu/shader.c
     src/webgpu/texture.c
@@ -116,6 +118,7 @@ set(SOURCES
     src/examples/compute_n_body.c
     src/examples/compute_particles.c
     src/examples/compute_ray_tracing.c
+    src/examples/coordinate_system.c
     src/examples/cube_reflection.c
     src/examples/deferred_rendering.c
     src/examples/gears.c
