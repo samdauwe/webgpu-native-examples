@@ -40,7 +40,8 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
 
 /* Image loading using stb */
 texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
-                                     const char* filename);
+                                     const char* filename,
+                                     WGPUTextureUsageFlags texture_usage_flags);
 
 /* Texture destruction */
 void wgpu_destroy_texture(texture_t* texture);

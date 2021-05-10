@@ -410,7 +410,8 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
 }
 
 texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
-                                     const char* filename)
+                                     const char* filename,
+                                     WGPUTextureUsageFlags texture_usage_flags)
 {
   texture_t texture = {0};
   texture.format    = WGPUTextureFormat_RGBA8Unorm;
@@ -465,7 +466,7 @@ texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
   };
 
   WGPUTextureDescriptor tex_desc = {
-    .usage         = WGPUTextureUsage_Sampled | WGPUTextureUsage_CopyDst,
+    .usage         = texture_usage_flags,
     .dimension     = WGPUTextureDimension_2D,
     .size          = texture_size,
     .format        = texture.format,

@@ -113,9 +113,9 @@ static void setup_camera(wgpu_example_context_t* context)
 }
 
 // Prepare a texture target that is used to store compute shader calculations
-void prepareTextureTarget(wgpu_context_t* wgpu_context, texture_t* tex,
-                          uint32_t width, uint32_t height,
-                          WGPUTextureFormat format)
+static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
+                                   uint32_t width, uint32_t height,
+                                   WGPUTextureFormat format)
 {
   // Prepare blit target texture
   tex->size.width      = width;
@@ -561,8 +561,8 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_camera(context);
     prepare_storage_buffers(context->wgpu_context);
     prepare_uniform_buffers(context);
-    prepareTextureTarget(context->wgpu_context, &texture_compute_target,
-                         TEX_DIM, TEX_DIM, WGPUTextureFormat_RGBA8Unorm);
+    prepare_texture_target(context->wgpu_context, &texture_compute_target,
+                           TEX_DIM, TEX_DIM, WGPUTextureFormat_RGBA8Unorm);
     setup_pipeline_layout(context->wgpu_context);
     prepare_pipelines(context->wgpu_context);
     setup_bind_groups(context->wgpu_context);

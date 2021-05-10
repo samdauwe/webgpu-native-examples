@@ -141,7 +141,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 static void prepare_texture(wgpu_context_t* wgpu_context)
 {
   const char* file = "textures/Di-3d.png";
-  texture          = wgpu_texture_load_with_stb(wgpu_context, file);
+  texture          = wgpu_texture_load_with_stb(
+    wgpu_context, file, WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
