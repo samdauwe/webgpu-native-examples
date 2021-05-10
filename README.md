@@ -174,7 +174,7 @@ A GPU compute particle simulation that mimics the flocking behavior of birds. A 
 
 #### [Image blur](src/examples/image_blur.c)
 
-This example shows how to blur an image using a WebGPU compute shader.
+This example shows how to blur an image using a compute shader.
 
 #### [Image processing](src/examples/compute_shader.c)
 
