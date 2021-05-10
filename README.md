@@ -176,6 +176,10 @@ A GPU compute particle simulation that mimics the flocking behavior of birds. A 
 
 This example shows how to blur an image using a WebGPU compute shader.
 
+#### [Image processing](src/examples/compute_shader.c)
+
+Uses a compute shader to apply different convolution kernels (and effects) on an input image in realtime.
+
 #### [GPU particle system](src/examples/compute_particles.c)
 
 Attraction based 2D GPU particle system using compute shaders. Particle data is stored in a shader storage buffer and only modified on the GPU using compute particle updates with graphics pipeline vertex access.

@@ -118,6 +118,7 @@ set(SOURCES
     src/examples/compute_n_body.c
     src/examples/compute_particles.c
     src/examples/compute_ray_tracing.c
+    src/examples/compute_shader.c
     src/examples/coordinate_system.c
     src/examples/cube_reflection.c
     src/examples/deferred_rendering.c
