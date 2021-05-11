@@ -557,6 +557,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
                             &compute.pipeline_index, shader_names, 3);
   }
 }
+
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
