@@ -198,6 +198,12 @@ Simple GPU ray tracer with shadows and reflections using a compute shader. No sc
 
 Generates and renders a complex user interface with multiple windows, controls and user interaction on top of a 3D scene. The UI is generated using [Dear ImGUI](https://github.com/ocornut/imgui) and updated each frame.
 
+### Effects
+
+#### [Parallax mapping](src/examples/parallax_mapping.c)
+
+Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).
+
 ### Misc
 
 #### [WebGPU Gears](src/examples/gears.c)
