@@ -82,6 +82,8 @@ static void setup_camera(wgpu_example_context_t* context)
 // Upload texture image data to the GPU
 static void load_texture(wgpu_context_t* wgpu_context)
 {
+  // We use the Khronos texture format
+  // (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
   texture = wgpu_texture_load_from_ktx_file(wgpu_context,
                                             "textures/metalplate01_rgba.ktx");
 }
@@ -90,10 +92,26 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 {
   // Setup vertices for a single uv-mapped quad made from two triangles
   static const vertex_t vertices_data[4] = {
-    {{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-    {{-1.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-    {{-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-    {{1.0f, -1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+    [0] = {
+      .pos    = {1.0f, 1.0f, 0.0f},
+      .uv     = {1.0f, 1.0f},
+      .normal = {0.0f, 0.0f, 1.0f},
+    },
+    [1] = {
+      .pos    = {-1.0f, 1.0f, 0.0f},
+      .uv     = {0.0f, 1.0f},
+      .normal = {0.0f, 0.0f, 1.0f},
+    },
+    [2] = {
+      .pos    = {-1.0f, -1.0f, 0.0f},
+      .uv     = {0.0f, 0.0f},
+      .normal = {0.0f, 0.0f, 1.0f},
+    },
+    [3] = {
+      .pos    = {1.0f, -1.0f, 0.0f},
+      .uv     = {1.0f, 0.0f},
+      .normal = {0.0f, 0.0f, 1.0f},
+    },
   };
   vertices.count              = (uint32_t)ARRAY_SIZE(vertices_data);
   uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
@@ -112,7 +130,83 @@ static void generate_quad(wgpu_context_t* wgpu_context)
     wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
 }
 
-static void setup_uniform_bind_group_layout(wgpu_context_t* wgpu_context)
+static void update_uniform_buffers(wgpu_example_context_t* context)
+{
+  // Pass matrices to the shaders
+  glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
+  glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
+  glm_vec4_copy(context->camera->view_pos, ubo_vs.view_pos);
+
+  // Map uniform buffer and update it
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
+                          &ubo_vs, sizeof(ubo_vs));
+}
+
+// Prepare and initialize uniform buffer containing shader uniforms
+static void prepare_uniform_buffers(wgpu_example_context_t* context)
+{
+  // Vertex shader uniform buffer block
+  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
+    context->wgpu_context, &ubo_vs, sizeof(ubo_vs), WGPUBufferUsage_Uniform);
+  uniform_buffer_vs.size = sizeof(ubo_vs);
+
+  update_uniform_buffers(context);
+}
+
+static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+{
+  // Bind group layout
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      // Binding 0: Uniform buffer (Vertex shader)
+      .binding = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type = WGPUBufferBindingType_Uniform,
+        .hasDynamicOffset = false,
+        .minBindingSize = uniform_buffer_vs.size,
+      },
+      .sampler = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      // Binding 1: Texture view (Fragment shader)
+      .binding = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled = false,
+      },
+      .storageTexture = {0},
+    },
+    [2] = (WGPUBindGroupLayoutEntry) {
+      // Binding 2: Sampler (Fragment shader)
+      .binding = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type=WGPUSamplerBindingType_Filtering,
+      },
+      .texture = {0},
+    }
+  };
+  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(bind_group_layout != NULL)
+
+  // Create the pipeline layout that is used to generate the rendering pipelines
+  // that are based on this descriptor set layout
+  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts     = &bind_group_layout,
+                          });
+  ASSERT(pipeline_layout != NULL)
+}
+
+static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
   // Bind Group
   WGPUBindGroupEntry bg_entries[3] = {
@@ -142,59 +236,6 @@ static void setup_uniform_bind_group_layout(wgpu_context_t* wgpu_context)
                             .entries    = bg_entries,
                           });
   ASSERT(bind_group != NULL)
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
-{
-  // Bind group layout
-  WGPUBindGroupLayoutEntry bgl_entries[3] = {
-        [0] = (WGPUBindGroupLayoutEntry) {
-          // Binding 0: Uniform buffer (Vertex shader)
-          .binding = 0,
-          .visibility = WGPUShaderStage_Vertex,
-          .buffer = (WGPUBufferBindingLayout) {
-            .type = WGPUBufferBindingType_Uniform,
-            .hasDynamicOffset = false,
-            .minBindingSize = uniform_buffer_vs.size,
-          },
-          .sampler = {0},
-        },
-        [1] = (WGPUBindGroupLayoutEntry) {
-          // Texture view
-          .binding = 1,
-          .visibility = WGPUShaderStage_Fragment,
-          .texture = (WGPUTextureBindingLayout) {
-            .sampleType = WGPUTextureSampleType_Float,
-            .viewDimension = WGPUTextureViewDimension_2D,
-            .multisampled = false,
-          },
-          .storageTexture = {0},
-        },
-        [2] = (WGPUBindGroupLayoutEntry) {
-          // Sampler
-          .binding = 2,
-          .visibility = WGPUShaderStage_Fragment,
-          .sampler = (WGPUSamplerBindingLayout){
-            .type=WGPUSamplerBindingType_Filtering,
-          },
-          .texture = {0},
-        }
-      };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                            .entries    = bgl_entries,
-                          });
-  ASSERT(bind_group_layout != NULL)
-
-  // Create the pipeline layout that is used to generate the rendering pipelines
-  // that are based on this descriptor set layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
-                          });
-  ASSERT(pipeline_layout != NULL)
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -306,39 +347,16 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   wgpu_shader_release(&vert_shader);
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  // Pass matrices to the shaders
-  glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
-  glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
-  glm_vec4_copy(context->camera->view_pos, ubo_vs.view_pos);
-
-  // Map uniform buffer and update it
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &ubo_vs, sizeof(ubo_vs));
-}
-
-// Prepare and initialize uniform buffer containing shader uniforms
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
-{
-  // Vertex shader uniform buffer block
-  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &ubo_vs, sizeof(ubo_vs), WGPUBufferUsage_Uniform);
-  uniform_buffer_vs.size = sizeof(ubo_vs);
-
-  update_uniform_buffers(context);
-}
-
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     setup_camera(context);
     load_texture(context->wgpu_context);
     generate_quad(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
     prepare_uniform_buffers(context);
-    setup_uniform_bind_group_layout(context->wgpu_context);
+    setup_pipeline_layout(context->wgpu_context);
     prepare_pipelines(context->wgpu_context);
+    setup_bind_group(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
     return 0;
