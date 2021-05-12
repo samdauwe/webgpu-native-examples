@@ -273,7 +273,7 @@ static void gltf_model_destroy(gltf_model_t* model)
 static void get_relative_file_path(const char* base_path, const char* new_path,
                                    char* result)
 {
-  strcpy(result, base_path);
+  snprintf(result, strlen(base_path) + 1, "%s", base_path);
   char* insert_point = strrchr(result, '/');
   if (insert_point) {
     insert_point++;
@@ -281,7 +281,7 @@ static void get_relative_file_path(const char* base_path, const char* new_path,
   else {
     insert_point = result;
   }
-  strcpy(insert_point, new_path);
+  snprintf(insert_point, strlen(new_path) + 1, "%s", new_path);
 }
 
 /*
