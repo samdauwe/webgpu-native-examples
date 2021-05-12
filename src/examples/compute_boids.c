@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Compute Boids
  *
@@ -15,6 +17,7 @@
  * data is used to draw instanced particles.
  *
  * Ref:
+ * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/computeBoids
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/boids
  * -------------------------------------------------------------------------- */
 
@@ -24,6 +27,7 @@ static const uint32_t NUM_PARTICLES = 1500;
 // Number of single-particle calculations (invocations) in each gpu work group
 static const uint32_t PARTICLES_PER_GROUP = 64;
 
+// Sim parameters
 typedef struct sim_params_t {
   float delta_t;        // deltaT
   float rule1_distance; // rule1Distance
@@ -33,11 +37,44 @@ typedef struct sim_params_t {
   float rule2_scale;    // rule2Scale
   float rule3_scale;    // rule3Scale
 } sim_params_t;
+static sim_params_t sim_param_data = {
+  .delta_t        = 0.04f,  // deltaT
+  .rule1_distance = 0.1f,   // rule1Distance
+  .rule2_distance = 0.025f, // rule2Distance
+  .rule3_distance = 0.025f, // rule3Distance
+  .rule1_scale    = 0.02f,  // rule1Scale
+  .rule2_scale    = 0.05f,  // rule2Scale
+  .rule3_scale    = 0.005f, // rule3Scale
+};
+
+// Used to configure Sim parameters in GUI
+static const uint8_t sim_params_count = 7;
+static struct {
+  const char* label;
+  float* param_ref;
+} sim_params_mappings[7] = {
+  // clang-format off
+  // deltaT
+  { .label     = "deltaT", .param_ref = &sim_param_data.delta_t },
+  // rule1Distance
+  { .label     = "rule1Distance", .param_ref = &sim_param_data.rule1_distance },
+  // rule2Distance
+  { .label     = "rule2Distance", .param_ref = &sim_param_data.rule2_distance },
+  // rule3Distance
+  { .label     = "rule3Distance", .param_ref = &sim_param_data.rule3_distance },
+  // rule1Scale
+  { .label     = "rule1Scale", .param_ref = &sim_param_data.rule1_scale },
+  // rule2Scale
+  { .label     = "rule2Scale", .param_ref = &sim_param_data.rule2_scale },
+  // rule3Scale
+  { .label     = "rule3Scale", .param_ref = &sim_param_data.rule3_scale },
+  // clang-format on
+};
 
 // WebGPU buffers
 static WGPUBuffer sim_param_buffer; /* Simulation Parameter Buffer */
 static WGPUBuffer particle_buffers[2];
-static WGPUBuffer vertices_buffer;
+static WGPUBuffer sprite_vertex_buffer;
 
 // The pipeline layouts
 static WGPUPipelineLayout compute_pipeline_layout;
@@ -69,11 +106,15 @@ static float rand_float()
 static void prepare_vertices(wgpu_context_t* wgpu_context)
 {
   // Buffer for the three 2d triangle vertices of each instance
-  const float vertex_buffer[6] = {-0.01f, -0.02f, 0.01f, -0.02f, 0.00f, 0.02f};
+  const float vertex_buffer_data[6] = {
+    -0.01f, -0.02f, 0.01f, //
+    -0.02f, 0.00f,  0.02f, //
+  };
   uint32_t vertex_buffer_size
-    = (uint32_t)(ARRAY_SIZE(vertex_buffer) * sizeof(float));
-  vertices_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
+    = (uint32_t)(ARRAY_SIZE(vertex_buffer_data) * sizeof(float));
+  sprite_vertex_buffer
+    = wgpu_create_buffer_from_data(wgpu_context, vertex_buffer_data,
+                                   vertex_buffer_size, WGPUBufferUsage_Vertex);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -145,7 +186,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
-        .a = 0.0f,
+        .a = 1.0f,
       },
   };
 
@@ -159,15 +200,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Buffer for simulation parameters uniform
-  sim_params_t sim_param_data = {
-    .delta_t        = 0.04f,  // deltaT
-    .rule1_distance = 0.1f,   // rule1Distance
-    .rule2_distance = 0.025f, // rule2Distance
-    .rule3_distance = 0.025f, // rule3Distance
-    .rule1_scale    = 0.02f,  // rule1Scale
-    .rule2_scale    = 0.05f,  // rule2Scale
-    .rule3_scale    = 0.005f, // rule3Scale
-  };
   sim_param_buffer = wgpu_create_buffer_from_data(
     context->wgpu_context, &sim_param_data, sizeof(sim_params_t),
     WGPUBufferUsage_Uniform);
@@ -228,6 +260,12 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   // Calculates number of work groups from PARTICLES_PER_GROUP constant
   work_group_count
     = (uint32_t)ceilf((float)NUM_PARTICLES / (float)PARTICLES_PER_GROUP);
+}
+
+static void update_sim_params(wgpu_context_t* wgpu_context)
+{
+  wgpu_queue_write_buffer(wgpu_context, sim_param_buffer, 0, &sim_param_data,
+                          sizeof(sim_params_t));
 }
 
 // Create the compute & graphics pipelines
@@ -362,6 +400,19 @@ static int example_initialize(wgpu_example_context_t* context)
   return 1;
 }
 
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    for (uint8_t i = 0; i < sim_params_count; ++i) {
+      if (imgui_overlay_input_float(
+            context->imgui_overlay, sim_params_mappings[i].label,
+            sim_params_mappings[i].param_ref, 0.01, "%.3f")) {
+        update_sim_params(context->wgpu_context);
+      }
+    }
+  }
+}
+
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 {
   wgpu_context_t* wgpu_context     = context->wgpu_context;
@@ -397,11 +448,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       particle_buffers[(context->frame.index + 1) % 2], 0, 0);
     // the three instance-local vertices
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         vertices_buffer, 0, 0);
+                                         sprite_vertex_buffer, 0, 0);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, NUM_PARTICLES, 0, 0);
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   // Get command buffer
   WGPUCommandBuffer command_buffer
@@ -451,7 +505,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, sim_param_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, particle_buffers[0])
   WGPU_RELEASE_RESOURCE(Buffer, particle_buffers[1])
-  WGPU_RELEASE_RESOURCE(Buffer, vertices_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, sprite_vertex_buffer)
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
   WGPU_RELEASE_RESOURCE(ComputePipeline, compute_pipeline)
 }
@@ -462,6 +516,7 @@ void example_compute_boids(int argc, char* argv[])
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
      .title  = example_title,
+     .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
