@@ -737,6 +737,17 @@ bool imgui_overlay_checkBox(imgui_overlay_t* imgui_overlay, const char* caption,
   return res;
 }
 
+bool imgui_overlay_input_float(imgui_overlay_t* imgui_overlay,
+                               const char* caption, float* value, float step,
+                               const char* format)
+{
+  bool res = igInputFloat(caption, value, step, step * 10.0f, format, 0);
+  if (res) {
+    imgui_overlay->updated = true;
+  };
+  return res;
+}
+
 bool imgui_overlay_slider_float(imgui_overlay_t* imgui_overlay,
                                 const char* caption, float* value, float min,
                                 float max)

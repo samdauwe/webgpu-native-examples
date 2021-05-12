@@ -28,6 +28,9 @@ bool imgui_overlay_want_capture_mouse();
 bool imgui_overlay_header(const char* caption);
 bool imgui_overlay_checkBox(imgui_overlay_t* imgui_overlay, const char* caption,
                             bool* value);
+bool imgui_overlay_input_float(imgui_overlay_t* imgui_overlay,
+                               const char* caption, float* value, float step,
+                               const char* format);
 bool imgui_overlay_slider_float(imgui_overlay_t* imgui_overlay,
                                 const char* caption, float* value, float min,
                                 float max);
