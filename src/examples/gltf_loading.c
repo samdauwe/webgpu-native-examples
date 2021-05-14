@@ -266,8 +266,10 @@ static void gltf_model_destroy(gltf_model_t* model)
     gltf_image_destroy(&model->images[i]);
   }
   free(model->images);
-
+  free(model->textures);
   free(model->materials);
+
+  free(model);
 }
 
 static void get_relative_file_path(const char* base_path, const char* new_path,
