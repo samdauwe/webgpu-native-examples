@@ -3,6 +3,7 @@
 
 #include <string.h>
 
+#include "../webgpu/gltf_model.h"
 #include "../webgpu/imgui_overlay.h"
 #include "../webgpu/texture.h"
 
@@ -23,25 +24,7 @@ static struct {
   texture_t normal_height_map;
 } textures;
 
-// Vertex layout for this example
-typedef struct vertex_t {
-  vec3 pos;
-  vec2 uv;
-  vec3 normal;
-  vec4 tangent;
-} vertex_t;
-
-// Vertex buffer
-static struct vertices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
-
-// Index buffer
-static struct indices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
+struct gltf_model_t* plane;
 
 static struct {
   WGPUBuffer vertex_shader;
@@ -69,7 +52,7 @@ static struct {
   } fragment_shader;
 } ubos = {
   .vertex_shader = {
-    .light_pos = {0.0f, -2.0f, 0.0f, 1.0f},
+    .light_pos = {0.0f, -2.0f * -1.0f, 0.0f, 1.0f},
   },
   .fragment_shader = {
     .height_scale = 0.1f,
@@ -102,69 +85,30 @@ static bool prepared             = false;
 
 static void setup_camera(wgpu_example_context_t* context)
 {
-  const float aspect_ratio = (float)context->wgpu_context->surface.width
-                             / (float)context->wgpu_context->surface.height;
-
   context->timer_speed *= 0.5f;
   context->camera       = camera_create();
-  context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, -2.5f});
-  camera_set_rotation(context->camera, (vec3){0.0f, 15.0f, 0.0f});
-  camera_set_perspective(context->camera, 60.0f, aspect_ratio, 0.0f, 256.0f);
+  context->camera->type = CameraType_FirstPerson;
+  camera_set_position(context->camera, (vec3){0.0f, -1.25f, -1.5f});
+  camera_set_rotation(context->camera, (vec3){45.0f, 0.0f, 0.0f});
+  camera_set_perspective(context->camera, 60.0f,
+                         context->window_size.aspect_ratio, 0.0f, 256.0f);
 }
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
+  const uint32_t gltf_loading_flags
+    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
+      | WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors
+      | WGPU_GLTF_FileLoadingFlags_FlipY;
+  plane = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
+    .wgpu_context       = wgpu_context,
+    .filename           = "models/plane.gltf",
+    .file_loading_flags = gltf_loading_flags,
+  });
   textures.normal_height_map = wgpu_texture_load_from_ktx_file(
     wgpu_context, "textures/rocks_normal_height_rgba.ktx");
   textures.color_map = wgpu_texture_load_from_ktx_file(
     wgpu_context, "textures/rocks_color_rgba.ktx");
-}
-
-static void generate_quad(wgpu_context_t* wgpu_context)
-{
-  // Setup vertices for a single uv-mapped quad made from two triangles
-  static const vertex_t vertices_data[4] = {
-    [0] = {
-      .pos     = {1.0f, 1.0f, 0.0f},
-      .uv      = {1.0f, 1.0f},
-      .normal  = {0.0f, 0.0f, 1.0f},
-      .tangent = {1.0f, 0, 0, 0},
-    },
-    [1] = {
-      .pos     = {-1.0f, 1.0f, 0.0f},
-      .uv      = {0.0f, 1.0f},
-      .normal  = {0.0f, 0.0f, 1.0f},
-      .tangent = {1.0f, 0, 0, 0},
-    },
-    [2] = {
-      .pos     = {-1.0f, -1.0f, 0.0f},
-      .uv      = {0.0f, 0.0f},
-      .normal  = {0.0f, 0.0f, 1.0f},
-      .tangent = {1.0f, 0, 0, 0},
-    },
-    [3] = {
-      .pos     = {1.0f, -1.0f, 0.0f},
-      .uv      = {1.0f, 0.0f},
-      .normal  = {0.0f, 0.0f, 1.0f},
-      .tangent = {1.0f, 0, 0, 0},
-    },
-  };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertices_data);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
-
-  // Setup indices
-  static const uint16_t index_buffer[6] = {0, 1, 2, 2, 3, 0};
-  indices.count                         = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size            = indices.count * sizeof(uint32_t);
-
-  // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertices_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
-
-  // Create index buffer
-  indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -335,7 +279,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPURasterizationStateDescriptor rasterization_state
     = wgpu_create_rasterization_state_descriptor(
       &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CW,
+        .front_face = WGPUFrontFace_CCW,
         .cull_mode  = WGPUCullMode_None,
       });
 
@@ -343,7 +287,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUColorStateDescriptor color_state_desc
     = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
       .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
+      .enable_blend = false,
     });
 
   // Depth and stencil state containing depth and stencil compare and test
@@ -356,19 +300,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Vertex input binding (=> Input assembly) description
-  WGPU_VERTSTATE(
-    quad, sizeof(vertex_t),
-    /* Attribute descriptions */
-    // Attribute location 0: Position
-    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, offsetof(vertex_t, pos)),
-    // Attribute location 1: Texture coordinates
-    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, offsetof(vertex_t, uv)),
-    // Attribute location 2: Vertex normal
-    WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x3,
-                       offsetof(vertex_t, normal)),
-    // Attribute location 3: Vertex tangent
-    WGPU_VERTATTR_DESC(3, WGPUVertexFormat_Float32x4,
-                       offsetof(vertex_t, tangent)))
+  wgpu_gltf_vertex_component_enum vertex_components[4] = {
+    WGPU_GLTF_VertexComponent_Position, // Location 0: Position
+    WGPU_GLTF_VertexComponent_UV,       // Location 1: Texture coordinates
+    WGPU_GLTF_VertexComponent_Normal,   // Location 2: Vertex normal
+    WGPU_GLTF_VertexComponent_Tangent,  // Location 3: Vertex tangent
+  };
+  WGPUVertexStateDescriptor* vert_state_quad
+    = wgpu_gltf_get_vertex_state_descriptor(
+      plane, vertex_components, (uint32_t)ARRAY_SIZE(vertex_components));
 
   // Shaders
   // Vertex shader
@@ -399,7 +339,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .colorStateCount        = 1,
       .colorStates            = &color_state_desc,
       .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = &vert_state_quad,
+      .vertexState            = vert_state_quad,
       .sampleCount            = 1,
       .sampleMask             = 0xFFFFFFFF,
       .alphaToCoverageEnabled = false,
@@ -470,7 +410,6 @@ static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     setup_camera(context);
-    generate_quad(context->wgpu_context);
     load_assets(context->wgpu_context);
     prepare_uniform_buffers(context);
     setup_pipeline_layout(context->wgpu_context);
@@ -526,17 +465,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind triangle vertex buffer (contains position and colors)
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, 0);
-
-  // Bind triangle index buffer
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint16, 0, 0);
-
-  // Draw indexed triangle
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
-                                   0, 0);
+  // Draw plane
+  wgpu_gltf_model_draw(plane, 0, 1);
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
@@ -593,10 +523,9 @@ static void example_on_view_changed(wgpu_example_context_t* context)
 static void example_destroy(wgpu_example_context_t* context)
 {
   camera_release(context->camera);
+  wgpu_gltf_model_destroy(plane);
   wgpu_destroy_texture(&textures.color_map);
   wgpu_destroy_texture(&textures.normal_height_map);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.vertex_shader)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.fragment_shader)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
