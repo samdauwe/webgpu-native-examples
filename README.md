@@ -106,6 +106,10 @@ Basic and verbose example for getting a colored triangle rendered to the screen 
 
 This example shows some of the alignment requirements involved when updating and binding multiple slices of a uniform buffer.
 
+#### [Bind groups](src/examples/bind_groups.c)
+
+Bind groups are used to pass data to shader binding points. This example sets up bind groups & layouts, creates a single render pipeline based on the bind group layout and renders multiple objects with different bind groups.
+
 #### [Dynamic uniform buffers](src/examples/dynamic_uniform_buffer.c)
 
 Dynamic uniform buffers are used for rendering multiple objects with multiple matrices stored in a single uniform buffer object. Individual matrices are dynamically addressed upon bind group binding time, minimizing the number of required bind groups.

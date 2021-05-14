@@ -113,6 +113,7 @@ set(SOURCES
 set(SOURCES
     ${SOURCES}
     src/examples/animometer.c
+    src/examples/bind_groups.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
     src/examples/compute_n_body.c
