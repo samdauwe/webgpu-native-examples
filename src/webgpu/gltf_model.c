@@ -1,0 +1,1897 @@
+#include "gltf_model.h"
+
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <cglm/cglm.h>
+#include <cgltf.h>
+
+#include "../core/log.h"
+#include "../core/macro.h"
+
+/*
+ * Forward declarations
+ */
+struct gltf_model_t;
+struct gltf_node_t;
+static struct gltf_node_t*
+gltf_model_node_from_index(struct gltf_model_t* model, uint32_t index);
+static void gltf_model_get_scene_dimensions(struct gltf_model_t* model);
+static void gltf_model_prepare_node_bind_group(struct gltf_model_t* model,
+                                               struct gltf_node_t* node);
+
+/*
+ * glTF enums
+ */
+typedef enum gltf_bind_group_binding_flags_enum {
+  BindGroupBindingFlags_ImageBaseColor = 0x00000001,
+  BindGroupBindingFlags_ImageNormalMap = 0x00000002
+} gltf_descriptor_binding_flags_enum;
+
+typedef enum alpha_mode_enum {
+  AlphaMode_OPAQUE = 0,
+  AlphaMode_MASK   = 1,
+  AlphaMode_BLEND  = 2,
+} alpha_mode_enum;
+
+/*
+ * glTF texture loading
+ */
+typedef struct gltf_texture_t {
+  wgpu_context_t* wgpu_context;
+  texture_t wgpu_texture;
+  WGPUTextureFormat format;
+  uint32_t width, height;
+  uint32_t mip_levels;
+  uint32_t layer_count;
+} gltf_texture_t;
+
+static void gltf_texture_init(gltf_texture_t* texture,
+                              wgpu_context_t* wgpu_context)
+{
+  texture->wgpu_context = wgpu_context;
+}
+
+static void gltf_texture_destroy(gltf_texture_t* texture)
+{
+  wgpu_destroy_texture(&texture->wgpu_texture);
+  free(texture);
+}
+
+static void get_relative_file_path(const char* base_path, const char* new_path,
+                                   char* result)
+{
+  snprintf(result, strlen(base_path) + 1, "%s", base_path);
+  char* insert_point = strrchr(result, '/');
+  if (insert_point) {
+    insert_point++;
+  }
+  else {
+    insert_point = result;
+  }
+  snprintf(insert_point, strlen(new_path) + 1, "%s", new_path);
+}
+
+static void gltf_texture_from_gltf_image(gltf_texture_t* texture,
+                                         cgltf_image* gltf_image)
+{
+  // TODO
+}
+
+/*
+ * glTF material
+ */
+typedef struct gltf_material_t {
+  wgpu_context_t* wgpu_context;
+  alpha_mode_enum alpha_mode;
+  float alpha_cutoff;
+  float metallic_factor;
+  float roughness_factor;
+  vec4 base_color_factor;
+  gltf_texture_t* base_color_texture;
+  gltf_texture_t* metallic_roughness_texture;
+  gltf_texture_t* normal_texture;
+  gltf_texture_t* occlusion_texture;
+  gltf_texture_t* emissive_texture;
+  gltf_texture_t* specular_glossiness_texture;
+  gltf_texture_t* diffuse_texture;
+  WGPUBindGroup bind_group;
+} gltf_material_t;
+
+static void gltf_material_init(gltf_material_t* material,
+                               wgpu_context_t* wgpu_context)
+{
+  material->wgpu_context     = wgpu_context;
+  material->alpha_mode       = AlphaMode_OPAQUE;
+  material->alpha_cutoff     = 1.0f;
+  material->metallic_factor  = 1.0f;
+  material->roughness_factor = 1.0f;
+  glm_vec4_one(material->base_color_factor);
+  material->base_color_texture          = NULL;
+  material->metallic_roughness_texture  = NULL;
+  material->normal_texture              = NULL;
+  material->occlusion_texture           = NULL;
+  material->emissive_texture            = NULL;
+  material->specular_glossiness_texture = NULL;
+  material->diffuse_texture             = NULL;
+  material->bind_group                  = NULL;
+}
+
+static void gltf_material_create_bind_group(
+  gltf_material_t* material,
+  WGPUBindGroupLayout bind_group_layout_image_base_color,
+  WGPUBindGroupLayout bind_group_layout_image_normal_map,
+  uint32_t bind_group_bindings_flags)
+{
+  if (bind_group_bindings_flags & BindGroupBindingFlags_ImageBaseColor) {
+    WGPUBindGroupEntry bg_entries[2] = {
+          [0] = (WGPUBindGroupEntry) {
+            .binding = 0,
+            .textureView = material->base_color_texture->wgpu_texture.view,
+          },
+          [1] = (WGPUBindGroupEntry) {
+            .binding = 1,
+            .sampler = material->base_color_texture->wgpu_texture.sampler,
+          }
+        };
+    material->bind_group = wgpuDeviceCreateBindGroup(
+      material->wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .layout     = bind_group_layout_image_base_color,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(material->bind_group != NULL)
+  }
+  if (material->normal_texture
+      && bind_group_bindings_flags & BindGroupBindingFlags_ImageNormalMap) {
+    WGPUBindGroupEntry bg_entries[2] = {
+          [0] = (WGPUBindGroupEntry) {
+            .binding = 2,
+            .textureView = material->normal_texture->wgpu_texture.view,
+          },
+          [1] = (WGPUBindGroupEntry) {
+            .binding = 3,
+            .sampler = material->normal_texture->wgpu_texture.sampler,
+          }
+        };
+    material->bind_group = wgpuDeviceCreateBindGroup(
+      material->wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .layout     = bind_group_layout_image_normal_map,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(material->bind_group != NULL)
+  }
+}
+
+/*
+ * glTF primitive
+ */
+typedef struct gltf_primitive_t {
+  uint32_t first_index;
+  uint32_t index_count;
+  uint32_t first_vertex;
+  uint32_t vertex_count;
+  gltf_material_t* material;
+  struct dimensions_t {
+    vec3 min;
+    vec3 max;
+    vec3 size;
+    vec3 center;
+    float radius;
+  } dimensions;
+} gltf_primitive_t;
+
+static void gltf_primitive_set_dimensions(gltf_primitive_t* primitive, vec3 min,
+                                          vec3 max)
+{
+  glm_vec3_copy(min, primitive->dimensions.min);
+  glm_vec3_copy(max, primitive->dimensions.max);
+  glm_vec3_sub(max, min, primitive->dimensions.size);
+  vec3 sum = GLM_VEC3_ZERO_INIT;
+  glm_vec3_add(min, max, sum);
+  glm_vec3_scale(sum, 0.5f, primitive->dimensions.center);
+  primitive->dimensions.radius = glm_vec3_distance(min, max) / 2.0f;
+}
+
+static void gltf_primitive_init(gltf_primitive_t* primitive,
+                                uint32_t first_index, uint32_t index_count,
+                                gltf_material_t* material)
+{
+  primitive->first_index  = first_index;
+  primitive->index_count  = index_count;
+  primitive->first_vertex = 0;
+  primitive->vertex_count = 0;
+  primitive->material     = material;
+  glm_vec3_copy((vec3){FLT_MAX, FLT_MAX, FLT_MAX}, primitive->dimensions.min);
+  glm_vec3_copy((vec3){-FLT_MAX, -FLT_MAX, -FLT_MAX},
+                primitive->dimensions.max);
+  glm_vec3_zero(primitive->dimensions.size);
+  glm_vec3_zero(primitive->dimensions.center);
+  primitive->dimensions.radius = 0.0f;
+}
+
+/*
+ * glTF mesh
+ */
+typedef struct gltf_mesh_uniform_block_t {
+  mat4 matrix;
+  mat4 joint_matrix[64];
+  float joint_count;
+} gltf_mesh_uniform_block_t;
+
+typedef struct gltf_mesh_t {
+  wgpu_context_t* wgpu_context;
+  gltf_primitive_t* primitives;
+  uint32_t primitive_count;
+  char name[STRMAX];
+  struct {
+    WGPUBuffer buffer;
+    uint64_t size;
+    WGPUBindGroup bind_group;
+  } uniform_buffer;
+  gltf_mesh_uniform_block_t uniform_block;
+} gltf_mesh_t;
+
+static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
+                           mat4 matrix)
+{
+  mesh->wgpu_context = wgpu_context;
+  glm_mat4_copy(matrix, mesh->uniform_block.matrix);
+  mesh->uniform_buffer.size   = sizeof(mesh->uniform_block);
+  mesh->uniform_buffer.buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = mesh->uniform_buffer.size,
+    });
+}
+
+static void gltf_mesh_destroy(gltf_mesh_t* mesh)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, mesh->uniform_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(BindGroup, mesh->uniform_buffer.bind_group);
+
+  if (mesh->primitives != NULL) {
+    free(mesh->primitives);
+  }
+}
+
+/*
+ * glTF skin
+ */
+typedef struct gltf_skin_t {
+  char name[STRMAX];
+  struct gltf_node_t* skeleton_root;
+  mat4* inverse_bind_matrices;
+  uint32_t inverse_bind_matrix_count;
+  struct gltf_node_t** joints;
+  uint32_t current_joint_index;
+  uint32_t joint_count;
+} gltf_skin_t;
+
+/*
+ * glTF node
+ */
+typedef struct gltf_node_t {
+  struct gltf_node_t* parent;
+  uint32_t index;
+  struct gltf_node_t** children;
+  uint32_t current_child_index;
+  uint32_t child_count;
+  mat4 matrix;
+  char name[STRMAX];
+  gltf_mesh_t* mesh;
+  gltf_skin_t* skin;
+  int32_t skin_index;
+  vec3 translation;
+  vec3 scale;
+  versor rotation;
+} gltf_node_t;
+
+static void gltf_node_init(gltf_node_t* node)
+{
+  node->parent              = NULL;
+  node->children            = NULL;
+  node->current_child_index = 0;
+  node->child_count         = 0;
+  node->mesh                = NULL;
+  node->skin                = NULL;
+  node->skin_index          = -1;
+  glm_mat4_identity(node->matrix);
+  glm_vec3_zero(node->translation);
+  glm_vec3_one(node->scale);
+  glm_quat_identity(node->rotation);
+}
+
+static void glm_cast_versor_to_mat3(versor q, mat3* result)
+{
+  float qxx = q[0] * q[0];
+  float qyy = q[1] * q[1];
+  float qzz = q[2] * q[2];
+  float qxz = q[0] * q[2];
+  float qxy = q[0] * q[1];
+  float qyz = q[1] * q[2];
+  float qwx = q[3] * q[0];
+  float qwy = q[3] * q[1];
+  float qwz = q[3] * q[2];
+
+  (*result)[0][0] = 1.0f - 2.0f * (qyy + qzz);
+  (*result)[0][1] = 2.0f * (qxy + qwz);
+  (*result)[0][2] = 2.0f * (qxz - qwy);
+
+  (*result)[1][0] = 2.0f * (qxy - qwz);
+  (*result)[1][1] = 1.0f - 2.0f * (qxx + qzz);
+  (*result)[1][2] = 2.0f * (qyz + qwx);
+
+  (*result)[2][0] = 2.0f * (qxz + qwy);
+  (*result)[2][1] = 2.0f * (qyz - qwx);
+  (*result)[2][2] = 1.0f - 2.0f * (qxx + qyy);
+}
+
+static void glm_cast_versor_to_mat4(versor q, mat4* result)
+{
+  mat3 m3 = GLM_MAT3_ZERO_INIT;
+  glm_cast_versor_to_mat3(q, &m3);
+  glm_mat4_identity(*result);
+  glm_mat4_ins3(m3, *result);
+}
+
+static void gltf_node_get_local_matrix(gltf_node_t* node, mat4* dest)
+{
+  mat4 mat_translate = GLM_MAT4_IDENTITY_INIT;
+  glm_translate(mat_translate, node->translation);
+  mat4 mat_scale = GLM_MAT4_IDENTITY_INIT;
+  glm_scale(mat_scale, node->scale);
+  mat4 mat_rotation = GLM_MAT4_IDENTITY_INIT;
+  glm_cast_versor_to_mat4(node->rotation, &mat_rotation);
+  glm_mat4_mulN(
+    (mat4*[]){&mat_translate, &mat_rotation, &mat_scale, &node->matrix}, 4,
+    *dest);
+}
+
+static void gltf_node_get_matrix(gltf_node_t* node, mat4* dest)
+{
+  gltf_node_get_local_matrix(node, dest);
+  gltf_node_t* p    = node->parent;
+  mat4 local_matrix = GLM_MAT4_ZERO_INIT;
+  while (p != NULL) {
+    gltf_node_get_local_matrix(p, &local_matrix);
+    glm_mat4_mul(local_matrix, *dest, *dest);
+    p = p->parent;
+  }
+}
+
+static void gltf_node_update(wgpu_context_t* wgpu_context, gltf_node_t* node)
+{
+  if (node->mesh != NULL) {
+    mat4 m = GLM_MAT4_ZERO_INIT;
+    gltf_node_get_local_matrix(node, &m);
+    if (node->skin != NULL) {
+      glm_mat4_copy(m, node->mesh->uniform_block.matrix);
+      // Update join matrices
+      mat4 inverse_transform = GLM_MAT4_ZERO_INIT;
+      glm_mat4_inv(m, inverse_transform);
+      for (size_t i = 0; i < node->skin->joint_count; ++i) {
+        gltf_node_t* joint_node = node->skin->joints[i];
+        mat4 joint_mat          = GLM_MAT4_ZERO_INIT;
+        mat4 joint_node_mat     = GLM_MAT4_ZERO_INIT;
+        gltf_node_get_matrix(joint_node, &joint_node_mat);
+        glm_mat4_mul(joint_node_mat, node->skin->inverse_bind_matrices[i],
+                     joint_mat);
+        glm_mat4_mul(inverse_transform, joint_mat, joint_mat);
+        glm_mat4_copy(joint_mat, node->mesh->uniform_block.joint_matrix[i]);
+      }
+      node->mesh->uniform_block.joint_count = (float)node->skin->joint_count;
+      wgpu_queue_write_buffer(wgpu_context, node->mesh->uniform_buffer.buffer,
+                              0, &node->mesh->uniform_block,
+                              sizeof(node->mesh->uniform_buffer));
+    }
+    else {
+      wgpu_queue_write_buffer(wgpu_context, node->mesh->uniform_buffer.buffer,
+                              0, &m, sizeof(mat4));
+    }
+  }
+
+  for (uint32_t i = 0; i < node->child_count; ++i) {
+    gltf_node_update(wgpu_context, node->children[i]);
+  }
+}
+
+static void gltf_node_destroy(gltf_node_t* node)
+{
+  if (node->children != NULL) {
+    free(node->children);
+  }
+}
+
+typedef enum path_type_enum {
+  PathType_TRANSLATION = 0,
+  PathType_ROTATION    = 1,
+  PathType_SCALE       = 2,
+} path_type_enum;
+
+/*
+ * glTF Animation channel
+ */
+typedef struct gltf_animation_channel_t {
+  path_type_enum path;
+  gltf_node_t* node;
+  uint32_t sampler_index;
+  bool is_valid;
+} gltf_animation_channel_t;
+
+static void gltf_animation_channel_init(gltf_animation_channel_t* channel)
+{
+  channel->node          = NULL;
+  channel->sampler_index = 0;
+  channel->is_valid      = false;
+}
+
+typedef enum interpolation_type_enum {
+  InterpolationType_LINEAR      = 0,
+  InterpolationType_STEP        = 1,
+  InterpolationType_CUBICSPLINE = 2,
+} interpolation_type_enum;
+
+/*
+ * glTF Animation sampler
+ */
+typedef struct gltf_animation_sampler_t {
+  interpolation_type_enum interpolation;
+  float* inputs;
+  uint32_t input_count;
+  vec4* outputs_vec4;
+  uint32_t outputs_vec4_count;
+} gltf_animation_sampler_t;
+
+static void gltf_animation_sampler_init(gltf_animation_sampler_t* sampler)
+{
+  sampler->inputs      = NULL;
+  sampler->input_count = 0;
+
+  sampler->outputs_vec4       = NULL;
+  sampler->outputs_vec4_count = 0;
+}
+
+/* glTF Animation */
+typedef struct gltf_animation_t {
+  char name[STRMAX];
+  gltf_animation_sampler_t* samplers;
+  uint32_t sampler_count;
+  gltf_animation_channel_t* channels;
+  uint32_t channel_count;
+  float start;
+  float end;
+} gltf_animation_t;
+
+static void gltf_animation_init(gltf_animation_t* animation)
+{
+  animation->samplers      = NULL;
+  animation->sampler_count = 0;
+
+  animation->channels      = NULL;
+  animation->channel_count = 0;
+
+  animation->start = 0;
+  animation->end   = 0;
+}
+
+typedef struct gltf_vertex_t {
+  vec3 pos;
+  vec3 normal;
+  vec2 uv;
+  vec4 color;
+  vec4 joint0;
+  vec4 weight0;
+  vec4 tangent;
+} gltf_vertex_t;
+
+static WGPUVertexAttribute
+gltf_get_vertex_attribute_description(uint32_t shader_location,
+                                      wgpu_gltf_vertex_component_enum component)
+{
+  switch (component) {
+    case WGPU_GLTF_VertexComponent_Position:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x3,
+        .offset         = offsetof(gltf_vertex_t, pos),
+      };
+    case WGPU_GLTF_VertexComponent_Normal:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x3,
+        .offset         = offsetof(gltf_vertex_t, normal),
+      };
+    case WGPU_GLTF_VertexComponent_UV:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x2,
+        .offset         = offsetof(gltf_vertex_t, uv),
+      };
+    case WGPU_GLTF_VertexComponent_Color:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x4,
+        .offset         = offsetof(gltf_vertex_t, color),
+      };
+    case WGPU_GLTF_VertexComponent_Tangent:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x4,
+        .offset         = offsetof(gltf_vertex_t, tangent),
+      };
+    case WGPU_GLTF_VertexComponent_Joint0:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x4,
+        .offset         = offsetof(gltf_vertex_t, joint0),
+      };
+    case WGPU_GLTF_VertexComponent_Weight0:
+      return (WGPUVertexAttribute){
+        .shaderLocation = shader_location,
+        .format         = WGPUVertexFormat_Float32x4,
+        .offset         = offsetof(gltf_vertex_t, weight0),
+      };
+    default:
+      return (WGPUVertexAttribute){0};
+  }
+}
+
+typedef enum render_flags_enum {
+  RenderFlags_BindImages              = 0x00000001,
+  RenderFlags_RenderOpaqueNodes       = 0x00000002,
+  RenderFlags_RenderAlphaMaskedNodes  = 0x00000004,
+  RenderFlags_RenderAlphaBlendedNodes = 0x00000008
+} render_flags_enum;
+
+/*
+ * glTF model loading and rendering class
+ */
+typedef struct gltf_model_t {
+  wgpu_context_t* wgpu_context;
+  char uri[STRMAX];
+  struct {
+    WGPUBuffer buffer;
+    uint32_t count;
+  } vertices;
+  struct {
+    WGPUBuffer buffer;
+    uint32_t count;
+  } indices;
+
+  gltf_node_t* nodes;
+  uint32_t node_count;
+
+  gltf_node_t** linear_nodes;
+  uint32_t linear_node_count;
+
+  gltf_skin_t* skins;
+  uint32_t skin_count;
+
+  gltf_texture_t* textures;
+  uint32_t texture_count;
+
+  gltf_texture_t* empty_texture;
+
+  gltf_material_t* materials;
+  uint32_t material_count;
+
+  gltf_mesh_t* meshes;
+  uint32_t mesh_count;
+
+  gltf_animation_t* animations;
+  uint32_t animation_count;
+
+  struct {
+    vec3 min;
+    vec3 max;
+    vec3 size;
+    vec3 center;
+    float radius;
+  } dimensions;
+
+  bool metallicRoughnessWorkflow;
+  bool buffers_bound;
+  char path[STRMAX];
+
+  struct {
+    WGPUVertexStateDescriptor descriptor;
+    WGPUVertexBufferLayout vertex_buffer;
+    WGPUVertexAttribute* vertex_attributes;
+    uint32_t vertex_attribute_count;
+  } vertex_state;
+
+  uint32_t bind_group_bindings_flags;
+  struct {
+    WGPUBindGroupLayout mesh_ubo;
+    WGPUBindGroupLayout skin_ubo;
+    WGPUBindGroupLayout image_base_color;
+    WGPUBindGroupLayout image_normal_map;
+  } bind_group_layout;
+
+  uint8_t padding[1];
+} gltf_model_t;
+
+static gltf_texture_t* gltf_model_get_texture(gltf_model_t* model,
+                                              uint32_t index)
+{
+  if (index < model->texture_count) {
+    return &model->textures[index];
+  }
+  return NULL;
+}
+
+static void gltf_model_create_empty_texture(gltf_model_t* model)
+{
+  gltf_texture_t* empty_texture = calloc(1, sizeof(gltf_texture_t));
+  model->empty_texture          = empty_texture;
+
+  empty_texture->wgpu_context = model->wgpu_context;
+  empty_texture->format       = WGPUTextureFormat_RGBA8Unorm;
+  empty_texture->width        = 1;
+  empty_texture->height       = 1;
+  empty_texture->layer_count  = 1;
+  empty_texture->mip_levels   = 1;
+
+  size_t buffer_size
+    = empty_texture->width * empty_texture->height * 4 * sizeof(unsigned char);
+  unsigned char* buffer = malloc(buffer_size);
+  memset(buffer, 0, buffer_size);
+
+  // Create texture
+  WGPUExtent3D texture_size = {
+    .width              = empty_texture->width,
+    .height             = empty_texture->height,
+    .depth              = 1,
+    .depthOrArrayLayers = empty_texture->layer_count,
+  };
+  WGPUTextureDescriptor tex_desc = {
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
+    .dimension     = WGPUTextureDimension_2D,
+    .size          = texture_size,
+    .format        = empty_texture->format,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+  };
+  empty_texture->wgpu_texture.texture
+    = wgpuDeviceCreateTexture(model->wgpu_context->device, &tex_desc);
+
+  // Copy pixel data to texture
+  wgpu_image_to_texure(model->wgpu_context,
+                       &(texture_image_desc_t){
+                         .width    = empty_texture->width,
+                         .height   = empty_texture->height,
+                         .channels = 4u,
+                         .pixels   = buffer,
+                         .texture  = empty_texture->wgpu_texture.texture,
+                       });
+  free(buffer);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .format          = empty_texture->format,
+    .dimension       = WGPUTextureViewDimension_2D,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  empty_texture->wgpu_texture.view = wgpuTextureCreateView(
+    empty_texture->wgpu_texture.texture, &texture_view_dec);
+
+  // Create the sampler
+  WGPUSamplerDescriptor sampler_desc = {
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
+    .minFilter     = WGPUFilterMode_Linear,
+    .magFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUFilterMode_Linear,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  empty_texture->wgpu_texture.sampler
+    = wgpuDeviceCreateSampler(model->wgpu_context->device, &sampler_desc);
+}
+
+/**
+ *  @brief Returns the default pipeline vertex input state create info structure
+ * for the requested vertex components
+ */
+WGPUVertexStateDescriptor* wgpu_gltf_get_vertex_state_descriptor(
+  struct gltf_model_t* model, wgpu_gltf_vertex_component_enum* components,
+  uint32_t component_count)
+{
+  memset(&model->vertex_state.descriptor, 0, sizeof(WGPUVertexStateDescriptor));
+  model->vertex_state.descriptor.vertexBufferCount = 1;
+  model->vertex_state.vertex_attribute_count       = component_count;
+  model->vertex_state.vertex_attributes
+    = calloc(component_count, sizeof(WGPUVertexAttribute));
+  for (uint32_t i = 0; i < component_count; ++i) {
+    model->vertex_state.vertex_attributes[i]
+      = gltf_get_vertex_attribute_description(i, components[i]);
+  }
+  model->vertex_state.vertex_buffer = (WGPUVertexBufferLayout){
+    .arrayStride    = sizeof(gltf_vertex_t),
+    .stepMode       = WGPUInputStepMode_Vertex,
+    .attributeCount = component_count,
+    .attributes     = model->vertex_state.vertex_attributes,
+  };
+  model->vertex_state.descriptor.vertexBuffers
+    = &model->vertex_state.vertex_buffer;
+  return &model->vertex_state.descriptor;
+}
+
+/*
+ * glTF model loading and rendering class
+ */
+static void gltf_model_init(gltf_model_t* model,
+                            struct wgpu_gltf_model_load_options_t* options)
+{
+  model->wgpu_context = options->wgpu_context;
+
+  snprintf(model->uri, strlen(options->filename) + 1, "%s", options->filename);
+
+  model->nodes      = NULL;
+  model->node_count = 0;
+
+  model->linear_nodes      = NULL;
+  model->linear_node_count = 0;
+
+  model->skins      = NULL;
+  model->skin_count = 0;
+
+  model->textures      = NULL;
+  model->texture_count = 0;
+
+  model->empty_texture = NULL;
+
+  model->materials      = NULL;
+  model->material_count = 0;
+
+  model->meshes     = NULL;
+  model->mesh_count = 0;
+
+  model->animations      = NULL;
+  model->animation_count = 0;
+
+  model->bind_group_bindings_flags = BindGroupBindingFlags_ImageBaseColor;
+}
+
+void wgpu_gltf_model_destroy(gltf_model_t* model)
+{
+  if (model == NULL) {
+    return;
+  }
+
+  WGPU_RELEASE_RESOURCE(Buffer, model->vertices.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, model->indices.buffer);
+
+  for (uint32_t i = 0; i < model->texture_count; i++) {
+    gltf_texture_destroy(&model->textures[i]);
+  }
+  free(model->textures);
+
+  for (uint32_t i = 0; i < model->mesh_count; i++) {
+    gltf_mesh_destroy(&model->meshes[i]);
+  }
+  free(model->meshes);
+
+  free(model->materials);
+
+  for (uint32_t i = 0; i < model->node_count; i++) {
+    gltf_node_destroy(&model->nodes[i]);
+  }
+  free(model->nodes);
+  free(model->linear_nodes);
+
+  gltf_texture_destroy(model->empty_texture);
+
+  if (model->vertex_state.vertex_attribute_count > 0) {
+    free(model->vertex_state.vertex_attributes);
+  }
+
+  free(model);
+}
+
+static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
+                                 cgltf_node* node, cgltf_data* data,
+                                 gltf_vertex_t** vertices,
+                                 uint32_t* vertex_count, uint32_t** indices,
+                                 uint32_t* index_count, float global_scale)
+{
+  gltf_node_t* new_node = &model->nodes[node - data->nodes];
+  gltf_node_init(new_node);
+  new_node->index = (int32_t)(node - data->nodes);
+  snprintf(new_node->name, strlen(node->name) + 1, "%s", node->name);
+  new_node->skin_index  = (int32_t)(node->skin - data->skins);
+  new_node->children    = calloc(node->children_count, sizeof(gltf_node_t*));
+  new_node->child_count = node->children_count;
+
+  // Generate local node matrix
+  if (node->has_translation) {
+    vec3 translation = GLM_VEC3_ZERO_INIT;
+    glm_vec3_copy(node->translation, translation);
+    glm_translate(new_node->matrix, translation);
+  }
+  if (node->has_rotation) {
+    versor q = GLM_VEC4_ZERO_INIT;
+    memcpy(q, node->rotation, sizeof(node->rotation));
+    glm_quat_copy(q, new_node->rotation);
+  }
+  if (node->has_scale) {
+    glm_vec3_copy(node->scale, new_node->scale);
+  }
+  if (node->has_matrix) {
+    memcpy(new_node->matrix, node->matrix, sizeof(node->matrix));
+    if (global_scale != 1.0f) {
+      // Not support yet
+    }
+  }
+
+  // Node with children
+  if (node->children_count > 0) {
+    for (cgltf_size i = 0, len = node->children_count; i < len; ++i) {
+      gltf_model_load_node(model, node, node->children[i], data, vertices,
+                           vertex_count, indices, index_count, global_scale);
+    }
+  }
+
+  // Node contains mesh data
+  if (node->mesh != NULL) {
+    cgltf_mesh* mesh      = node->mesh;
+    gltf_mesh_t* new_mesh = &model->meshes[node->mesh - data->meshes];
+    gltf_mesh_init(new_mesh, model->wgpu_context, new_node->matrix);
+    snprintf(new_mesh->name, strlen(mesh->name) + 1, "%s", mesh->name);
+
+    new_mesh->primitive_count = (uint32_t)mesh->primitives_count;
+    new_mesh->primitives
+      = mesh->primitives_count > 0 ?
+          calloc(new_mesh->primitive_count, sizeof(*new_mesh->primitives)) :
+          NULL;
+
+    for (uint32_t i = 0; i < mesh->primitives_count; ++i) {
+      cgltf_primitive* primitive = &mesh->primitives[i];
+      if (primitive->indices == NULL) {
+        continue;
+      }
+      uint32_t index_start      = *index_count;
+      uint32_t vertex_start     = *vertex_count;
+      uint32_t prim_index_count = 0;
+      vec3 pos_min              = GLM_VEC3_ZERO_INIT;
+      vec3 pos_max              = GLM_VEC3_ZERO_INIT;
+      bool has_skin             = false;
+
+      // Vertices
+      {
+        float* buffer_pos             = NULL;
+        float* buffer_normals         = NULL;
+        float* buffer_texcoords       = NULL;
+        float* buffer_colors          = NULL;
+        float* buffer_tangents        = NULL;
+        uint32_t num_color_components = 0;
+        const uint16_t* buffer_joints = NULL;
+        const float* buffer_weights   = NULL;
+
+        cgltf_accessor* pos_accessor = NULL;
+
+        for (uint32_t j = 0; j < primitive->attributes_count; j++) {
+          if (primitive->attributes[j].type == cgltf_attribute_type_position) {
+            pos_accessor                = primitive->attributes[j].data;
+            cgltf_buffer_view* pos_view = pos_accessor->buffer_view;
+            buffer_pos
+              = (float*)&((unsigned char*)pos_view->buffer
+                            ->data)[pos_accessor->offset + pos_view->offset];
+            if (pos_accessor->has_min) {
+              glm_vec3_copy(
+                (vec3){
+                  pos_accessor->min[0],
+                  pos_accessor->min[1],
+                  pos_accessor->min[2],
+                },
+                pos_min);
+            }
+            if (pos_accessor->has_max) {
+              glm_vec3_copy(
+                (vec3){
+                  pos_accessor->max[0],
+                  pos_accessor->max[1],
+                  pos_accessor->max[2],
+                },
+                pos_max);
+            }
+          }
+          if (primitive->attributes[j].type == cgltf_attribute_type_normal) {
+            cgltf_accessor* normal_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* normal_view  = normal_accessor->buffer_view;
+            buffer_normals                  = (float*)&(
+              (unsigned char*)normal_view->buffer
+                ->data)[normal_accessor->offset + normal_view->offset];
+          }
+          if (primitive->attributes[j].type == cgltf_attribute_type_texcoord) {
+            cgltf_accessor* texcoord_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* texcoord_view  = texcoord_accessor->buffer_view;
+            buffer_texcoords                  = (float*)&(
+              ((unsigned char*)texcoord_view->buffer
+                 ->data)[texcoord_accessor->offset + texcoord_view->offset]);
+          }
+          if (primitive->attributes[j].type == cgltf_attribute_type_color) {
+            cgltf_accessor* color_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* color_view  = color_accessor->buffer_view;
+            // Color buffer are either of type vec3 or vec4
+            num_color_components
+              = color_accessor->type == cgltf_type_vec3 ? 3 : 4;
+            buffer_colors = (float*)&(
+              ((unsigned char*)color_view->buffer
+                 ->data)[color_accessor->offset + color_view->offset]);
+          }
+          if (primitive->attributes[j].type == cgltf_attribute_type_tangent) {
+            cgltf_accessor* tangent_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* tangent_view  = tangent_accessor->buffer_view;
+            buffer_tangents                  = (float*)&(
+              ((unsigned char*)tangent_view->buffer
+                 ->data)[tangent_accessor->offset + tangent_view->offset]);
+          }
+
+          // Skinning
+          // Joints
+          if (primitive->attributes[j].type == cgltf_attribute_type_joints) {
+            cgltf_accessor* joint_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* joint_view  = joint_accessor->buffer_view;
+            buffer_joints                  = (uint16_t*)&(
+              ((unsigned char*)joint_view->buffer
+                 ->data)[joint_accessor->offset + joint_view->offset]);
+          }
+          if (primitive->attributes[j].type == cgltf_attribute_type_weights) {
+            cgltf_accessor* weight_accessor = primitive->attributes[j].data;
+            cgltf_buffer_view* weight_view  = weight_accessor->buffer_view;
+            buffer_weights                  = (float*)&(
+              ((unsigned char*)weight_view->buffer
+                 ->data)[weight_accessor->offset + weight_view->offset]);
+          }
+        }
+
+        has_skin = (buffer_joints != NULL && buffer_weights != NULL);
+
+        // Position attribute is required
+        ASSERT(pos_accessor != NULL);
+
+        *vertex_count += (uint32_t)pos_accessor->count;
+        *vertices = realloc(*vertices, (*vertex_count) * sizeof(gltf_vertex_t));
+
+        for (uint32_t v = 0; v < pos_accessor->count; ++v) {
+          gltf_vertex_t vert = {0};
+          memcpy(&vert.pos, &buffer_pos[v * 3], sizeof(vec3));
+          if (buffer_normals != NULL) {
+            memcpy(&vert.normal, &buffer_normals[v * 3], sizeof(vec3));
+          }
+          if (buffer_texcoords != NULL) {
+            memcpy(&vert.uv, &buffer_texcoords[v * 2], sizeof(vec2));
+          }
+          if (buffer_colors) {
+            switch (num_color_components) {
+              case 3: {
+                glm_vec4_one(vert.color);
+                vec3 tmp_vec3 = GLM_VEC3_ZERO_INIT;
+                memcpy(&tmp_vec3, &buffer_colors[v * 3], sizeof(vec3));
+                glm_vec4_copy3(tmp_vec3, vert.color);
+              } break;
+              case 4:
+                memcpy(&vert.color, &buffer_colors[v * 4], sizeof(vec4));
+                break;
+            }
+          }
+          else {
+            glm_vec4_one(vert.color);
+          }
+          if (buffer_tangents) {
+            memcpy(&vert.tangent, &buffer_tangents[v * 4], sizeof(vec4));
+          }
+          if (has_skin) {
+            uint16_t tmp_joint[4] = {0};
+            memcpy(&tmp_joint, &buffer_joints[v * 4], sizeof(tmp_joint));
+            glm_vec4_copy(
+              (vec4){tmp_joint[0], tmp_joint[1], tmp_joint[2], tmp_joint[3]},
+              vert.joint0);
+          }
+          if (has_skin) {
+            memcpy(&vert.weight0, &buffer_weights[v * 4], sizeof(vec4));
+          }
+          (*vertices)[(*vertex_count) - pos_accessor->count + v] = vert;
+        }
+      }
+
+      // Indices
+      {
+        cgltf_accessor* accessor       = primitive->indices;
+        cgltf_buffer_view* buffer_view = accessor->buffer_view;
+        cgltf_buffer* buffer           = buffer_view->buffer;
+
+        prim_index_count = (uint32_t)accessor->count;
+
+        *index_count += prim_index_count;
+        *indices = realloc(*indices, (*index_count) * sizeof(**indices));
+
+        // glTF supports different component types of indices
+        switch (accessor->component_type) {
+          case cgltf_component_type_r_32u: {
+            uint32_t* buf = calloc(accessor->count, sizeof(*buf));
+            memcpy(buf,
+                   &((unsigned char*)
+                       buffer->data)[accessor->offset + buffer_view->offset],
+                   accessor->count * sizeof(*buf));
+            for (size_t index = 0; index < accessor->count; index++) {
+              (*indices)[(*index_count) - prim_index_count + index]
+                = buf[index] + vertex_start;
+            }
+            free(buf);
+            break;
+          }
+          case cgltf_component_type_r_16u: {
+            uint16_t* buf = calloc(accessor->count, sizeof(*buf));
+            memcpy(buf,
+                   &((unsigned char*)
+                       buffer->data)[accessor->offset + buffer_view->offset],
+                   accessor->count * sizeof(*buf));
+            for (size_t index = 0; index < accessor->count; index++) {
+              (*indices)[(*index_count) - prim_index_count + index]
+                = buf[index] + vertex_start;
+            }
+            free(buf);
+            break;
+          }
+          case cgltf_component_type_r_8u: {
+            uint8_t* buf = calloc(accessor->count, sizeof(*buf));
+            memcpy(buf,
+                   &((unsigned char*)
+                       buffer->data)[accessor->offset + buffer_view->offset],
+                   accessor->count * sizeof(*buf));
+            for (size_t index = 0; index < accessor->count; index++) {
+              (*indices)[(*index_count) - prim_index_count + index]
+                = buf[index] + vertex_start;
+            }
+            free(buf);
+            break;
+          }
+          default: {
+            assert(false);
+          }
+        }
+      }
+      gltf_primitive_t new_primitive = {0};
+      gltf_primitive_init(
+        &new_primitive, index_start, prim_index_count,
+        &model->materials[primitive->material - data->materials]);
+      gltf_primitive_set_dimensions(&new_primitive, pos_min, pos_max);
+      new_mesh->primitives[i] = new_primitive;
+    }
+    if (node->mesh != NULL) {
+      new_node->mesh = &model->meshes[node->mesh - data->meshes];
+    }
+  }
+  if (parent != NULL) {
+    new_node->parent = &model->nodes[parent - data->nodes];
+    new_node->parent->children[new_node->parent->current_child_index++]
+      = new_node;
+  }
+  model->linear_nodes[model->linear_node_count++] = new_node;
+}
+
+static void gltf_model_load_skins(gltf_model_t* model, cgltf_data* data)
+{
+  model->skin_count = (uint32_t)data->skins_count;
+  model->skins      = model->skin_count > 0 ?
+                        calloc(model->skin_count, sizeof(*model->skins)) :
+                        NULL;
+  for (uint32_t i = 0; i < model->skin_count; ++i) {
+    cgltf_skin* skin      = &data->skins[i];
+    gltf_skin_t* new_skin = &model->skins[i];
+    snprintf(new_skin->name, strlen(skin->name) + 1, "%s", skin->name);
+
+    // Find skeleton root node
+    if (skin->skeleton != NULL) {
+      new_skin->skeleton_root
+        = gltf_model_node_from_index(model, skin->skeleton - data->nodes);
+    }
+
+    // Find joint nodes
+    new_skin->joint_count = (uint32_t)skin->joints_count;
+    new_skin->joints
+      = new_skin->joint_count > 0 ?
+          calloc(new_skin->joint_count, sizeof(*new_skin->joints)) :
+          NULL;
+    for (uint32_t j = 0; j < new_skin->joint_count; ++j) {
+      gltf_node_t* node
+        = gltf_model_node_from_index(model, skin->joints[i] - data->nodes);
+      if (node != NULL) {
+        new_skin->joints[new_skin->current_joint_index++] = node;
+      }
+    }
+
+    // Get inverse bind matrices from buffer
+    if (skin->inverse_bind_matrices != NULL) {
+      cgltf_accessor* accessor            = skin->inverse_bind_matrices;
+      cgltf_buffer_view* buffer_view      = accessor->buffer_view;
+      new_skin->inverse_bind_matrix_count = accessor->count;
+      memcpy(new_skin->inverse_bind_matrices,
+             (mat4*)&((unsigned char*)buffer_view->buffer
+                        ->data)[accessor->offset + buffer_view->offset],
+             new_skin->inverse_bind_matrix_count
+               * sizeof(*new_skin->inverse_bind_matrices));
+    }
+  }
+}
+
+static void gltf_model_load_images(gltf_model_t* model, cgltf_data* data)
+{
+  model->texture_count = (uint32_t)data->images_count;
+  model->textures      = model->texture_count > 0 ?
+                           calloc(model->texture_count, sizeof(*model->textures)) :
+                           NULL;
+  for (uint32_t i = 0; i < model->texture_count; ++i) {
+    cgltf_image* image      = &data->images[i];
+    gltf_texture_t* texture = &model->textures[i];
+    gltf_texture_init(texture, model->wgpu_context);
+    gltf_texture_from_gltf_image(texture, image);
+  }
+  // Create an empty texture to be used for empty material images
+  gltf_model_create_empty_texture(model);
+}
+
+static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
+{
+  model->material_count = (uint32_t)data->materials_count + 1;
+  model->materials
+    = model->material_count > 0 ?
+        calloc(model->material_count, sizeof(*model->materials)) :
+        NULL;
+  for (uint32_t i = 0; i < data->materials_count; ++i) {
+    cgltf_material* mat       = &data->materials[i];
+    gltf_material_t* material = &model->materials[i];
+    gltf_material_init(material, model->wgpu_context);
+
+    // Metallic roughness workflow
+    if (mat->has_pbr_metallic_roughness) {
+      cgltf_pbr_metallic_roughness* mr_config = &mat->pbr_metallic_roughness;
+      if (mr_config->base_color_texture.texture != NULL) {
+        material->base_color_texture = gltf_model_get_texture(
+          model, mr_config->base_color_texture.texture - data->textures);
+      }
+      if (mr_config->metallic_roughness_texture.texture != NULL) {
+        material->metallic_roughness_texture = gltf_model_get_texture(
+          model,
+          mr_config->metallic_roughness_texture.texture - data->textures);
+      }
+      material->roughness_factor = mr_config->roughness_factor;
+      material->metallic_factor  = mr_config->metallic_factor;
+      const float* c             = mr_config->base_color_factor;
+      memcpy(material->base_color_factor, (vec4){c[0], c[1], c[2], c[3]},
+             sizeof(vec4));
+    }
+    if (mat->normal_texture.texture != NULL) {
+      material->normal_texture = gltf_model_get_texture(
+        model, mat->normal_texture.texture - data->textures);
+    }
+    else {
+      material->normal_texture = model->empty_texture;
+    }
+    if (mat->emissive_texture.texture != NULL) {
+      material->emissive_texture = gltf_model_get_texture(
+        model, mat->emissive_texture.texture - data->textures);
+    }
+    if (mat->occlusion_texture.texture != NULL) {
+      material->occlusion_texture = gltf_model_get_texture(
+        model, mat->occlusion_texture.texture - data->textures);
+    }
+    if (mat->alpha_mode == cgltf_alpha_mode_blend) {
+      material->alpha_mode = AlphaMode_BLEND;
+    }
+    if (mat->alpha_mode == cgltf_alpha_mode_mask) {
+      material->alpha_mode = AlphaMode_MASK;
+    }
+    material->alpha_cutoff = mat->alpha_cutoff;
+  }
+  // Push a default material at the end of the list for meshes with no material
+  // assigned
+  gltf_material_init(&model->materials[model->material_count - 1],
+                     model->wgpu_context);
+}
+
+static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
+{
+  model->animation_count = (uint32_t)data->animations_count;
+  model->animations
+    = model->animation_count > 0 ?
+        calloc(model->animation_count, sizeof(*model->animations)) :
+        NULL;
+  for (uint32_t i = 0; i < model->animation_count; ++i) {
+    cgltf_animation* anim       = &data->animations[i];
+    gltf_animation_t* animation = &model->animations[i];
+    gltf_animation_init(animation);
+    snprintf(animation->name, strlen(anim->name) + 1, "%s", anim->name);
+
+    // Samplers
+    animation->sampler_count = (uint32_t)anim->samplers_count;
+    animation->samplers
+      = animation->sampler_count > 0 ?
+          calloc(animation->sampler_count, sizeof(*animation->samplers)) :
+          NULL;
+    for (uint32_t j = 0; j < animation->sampler_count; ++j) {
+      cgltf_animation_sampler* samp     = &anim->samplers[j];
+      gltf_animation_sampler_t* sampler = &animation->samplers[j];
+      gltf_animation_sampler_init(sampler);
+
+      if (samp->interpolation == cgltf_interpolation_type_linear) {
+        sampler->interpolation = InterpolationType_LINEAR;
+      }
+      if (samp->interpolation == cgltf_interpolation_type_step) {
+        sampler->interpolation = InterpolationType_STEP;
+      }
+      if (samp->interpolation == cgltf_interpolation_type_cubic_spline) {
+        sampler->interpolation = InterpolationType_CUBICSPLINE;
+      }
+
+      // Read sampler input time values
+      {
+        cgltf_accessor* accessor       = samp->input;
+        cgltf_buffer_view* buffer_view = accessor->buffer_view;
+        cgltf_buffer* buffer           = buffer_view->buffer;
+
+        ASSERT(accessor->component_type == cgltf_component_type_r_32f);
+
+        sampler->input_count = (uint32_t)accessor->count;
+        sampler->inputs
+          = sampler->input_count > 0 ?
+              calloc(sampler->input_count, sizeof(*sampler->inputs)) :
+              NULL;
+
+        float* buf = calloc(accessor->count, sizeof(float));
+        memcpy(buf,
+               (float*)&(((unsigned char*)buffer
+                            ->data)[accessor->offset + buffer_view->offset]),
+               accessor->count * sizeof(*buf));
+        for (size_t index = 0; index < accessor->count; index++) {
+          sampler->inputs[index] = buf[index];
+        }
+        free(buf);
+
+        for (uint32_t k = 0; k < sampler->input_count; ++k) {
+          float input = sampler->inputs[k];
+          if (input < animation->start) {
+            animation->start = input;
+          };
+          if (input > animation->end) {
+            animation->end = input;
+          }
+        }
+      }
+
+      // Read sampler output T/R/S values
+      {
+        cgltf_accessor* accessor       = samp->output;
+        cgltf_buffer_view* buffer_view = accessor->buffer_view;
+        cgltf_buffer* buffer           = buffer_view->buffer;
+
+        ASSERT(accessor->component_type == cgltf_component_type_r_32f);
+
+        switch (accessor->type) {
+          case cgltf_type_vec3: {
+            sampler->outputs_vec4_count = (uint32_t)accessor->count;
+            sampler->outputs_vec4       = calloc(sampler->outputs_vec4_count,
+                                           sizeof(*sampler->outputs_vec4));
+
+            vec3* buf = calloc(accessor->count, sizeof(vec3));
+            memcpy(buf,
+                   (vec3*)&(((unsigned char*)buffer
+                               ->data)[accessor->offset + buffer_view->offset]),
+                   accessor->count * sizeof(*buf));
+
+            for (size_t index = 0; index < accessor->count; ++index) {
+              glm_vec4_zero(sampler->outputs_vec4[i]);
+              glm_vec4_copy3(buf[index], sampler->outputs_vec4[i]);
+            }
+
+            free(buf);
+          } break;
+          case cgltf_type_vec4: {
+            sampler->outputs_vec4_count = (uint32_t)accessor->count;
+            sampler->outputs_vec4       = calloc(sampler->outputs_vec4_count,
+                                           sizeof(*sampler->outputs_vec4));
+
+            vec4* buf = calloc(accessor->count, sizeof(vec4));
+            memcpy(buf,
+                   (vec4*)&(((unsigned char*)buffer
+                               ->data)[accessor->offset + buffer_view->offset]),
+                   accessor->count * sizeof(*buf));
+
+            for (size_t index = 0; index < accessor->count; ++index) {
+              glm_vec4_copy(buf[index], sampler->outputs_vec4[i]);
+            }
+
+            free(buf);
+          } break;
+          default: {
+            log_warn("unknown type");
+            break;
+          }
+        }
+      }
+    }
+
+    // Channels
+    animation->channel_count = (uint32_t)anim->channels_count;
+    animation->channels
+      = calloc(animation->channel_count, sizeof(*animation->channels));
+    for (uint32_t j = 0; j < animation->channel_count; ++j) {
+      cgltf_animation_channel* chan     = &anim->channels[j];
+      gltf_animation_channel_t* channel = &animation->channels[j];
+      gltf_animation_channel_init(channel);
+
+      if (chan->target_path == cgltf_animation_path_type_rotation) {
+        channel->path = PathType_ROTATION;
+      }
+      if (chan->target_path == cgltf_animation_path_type_translation) {
+        channel->path = PathType_TRANSLATION;
+      }
+      if (chan->target_path == cgltf_animation_path_type_scale) {
+        channel->path = PathType_SCALE;
+      }
+      if (chan->target_path == cgltf_animation_path_type_weights) {
+        log_warn("weights not yet supported, skipping channel");
+        continue;
+      }
+      channel->sampler_index = chan->sampler - anim->samplers;
+      channel->node
+        = gltf_model_node_from_index(model, chan->target_node - data->nodes);
+      if (!channel->node) {
+        continue;
+      }
+
+      channel->is_valid = true;
+    }
+  }
+}
+
+gltf_model_t* wgpu_gltf_model_load_from_file(
+  struct wgpu_gltf_model_load_options_t* load_options)
+{
+  uint32_t file_loading_flags = load_options->file_loading_flags;
+
+  gltf_model_t* gltf_model = NULL;
+
+  cgltf_options options = {0};
+  cgltf_data* gltf_data = NULL;
+  cgltf_result result
+    = cgltf_parse_file(&options, load_options->filename, &gltf_data);
+
+  // Vertex buffer & Index buffer
+  gltf_vertex_t* vertices = NULL;
+  uint32_t* indices       = NULL;
+
+  if (result == cgltf_result_success) {
+    cgltf_result buffers_result
+      = cgltf_load_buffers(&options, gltf_data, load_options->filename);
+
+    if (buffers_result == cgltf_result_success) {
+      gltf_model = calloc(1, sizeof(gltf_model_t));
+      gltf_model_init(gltf_model, load_options);
+
+      // Load images
+      if (!(file_loading_flags & WGPU_GLTF_FileLoadingFlags_DontLoadImages)) {
+        gltf_model_load_images(gltf_model, gltf_data);
+      }
+
+      // Load materials
+      gltf_model_load_materials(gltf_model, gltf_data);
+
+      // If there is no default scene specified, then the default is the first
+      // one. It is not an error for a glTF file to have zero scenes.
+      const cgltf_scene* scene
+        = gltf_data->scene ? gltf_data->scene : gltf_data->scenes;
+      if (!scene) {
+        return NULL;
+      }
+
+      // Vertex buffer & Index buffer
+      gltf_model->vertices.count = 0;
+      gltf_model->indices.count  = 0;
+
+      // Nodes and meshes
+      gltf_model->node_count = (uint32_t)gltf_data->nodes_count;
+      gltf_model->nodes = calloc(gltf_model->node_count, sizeof(gltf_node_t));
+
+      gltf_model->linear_nodes
+        = calloc(gltf_model->node_count, sizeof(gltf_node_t*));
+
+      gltf_model->mesh_count = (uint32_t)gltf_data->meshes_count;
+      gltf_model->meshes = calloc(gltf_model->mesh_count, sizeof(gltf_mesh_t));
+
+      // Recursively create all nodes.
+      for (cgltf_size i = 0, len = scene->nodes_count; i < len; ++i) {
+        gltf_model_load_node(gltf_model, NULL, scene->nodes[i], gltf_data,
+                             &vertices, &gltf_model->vertices.count, &indices,
+                             &gltf_model->indices.count, load_options->scale);
+      }
+
+      // Load animations
+      if (gltf_data->animations_count > 0) {
+        gltf_model_load_animations(gltf_model, gltf_data);
+      }
+
+      // Load skins
+      gltf_model_load_skins(gltf_model, gltf_data);
+
+      // Assign skins and initial pose
+      for (uint32_t i = 0; i < gltf_model->linear_node_count; ++i) {
+        gltf_node_t* node = gltf_model->linear_nodes[i];
+        // Assign skins
+        if (node->skin_index > -1) {
+          node->skin = &gltf_model->skins[(uint32_t)node->skin_index];
+        }
+        // Initial pose
+        if (node->mesh != NULL) {
+          gltf_node_update(gltf_model->wgpu_context, node);
+        }
+      }
+    }
+  }
+  else {
+    log_error("Could not load gltf file: %s, error: %d\n",
+              load_options->filename, result);
+    return NULL;
+  }
+
+  // Pre-Calculations for requested features
+  if ((file_loading_flags & WGPU_GLTF_FileLoadingFlags_PreTransformVertices)
+      || (file_loading_flags
+          & WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors)
+      || (file_loading_flags & WGPU_GLTF_FileLoadingFlags_FlipY)) {
+    const bool preTransform
+      = file_loading_flags & WGPU_GLTF_FileLoadingFlags_PreTransformVertices;
+    const bool preMultiplyColor
+      = file_loading_flags & WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors;
+    const bool flipY = file_loading_flags & WGPU_GLTF_FileLoadingFlags_FlipY;
+    for (uint32_t n = 0; n < gltf_model->linear_node_count; ++n) {
+      gltf_node_t* node = gltf_model->linear_nodes[n];
+      if (node->mesh != NULL) {
+        mat4 local_matrix = GLM_MAT4_ZERO_INIT;
+        gltf_node_get_matrix(node, &local_matrix);
+        for (uint32_t p = 0; p < node->mesh->primitive_count; ++p) {
+          gltf_primitive_t* primitive = &node->mesh->primitives[p];
+          for (uint32_t i = 0; i < primitive->vertex_count; ++i) {
+            gltf_vertex_t* vertex = &vertices[primitive->first_vertex + i];
+            // Pre-transform vertex positions by node-hierarchy
+            if (preTransform) {
+              // Vertex position
+              vec4 vertex_pos_tmp = GLM_VEC4_ZERO_INIT;
+              glm_vec4(vertex->pos, 1.0f, vertex_pos_tmp);
+              glm_mat4_mulv(local_matrix, vertex_pos_tmp, vertex_pos_tmp);
+              glm_vec3(vertex_pos_tmp, vertex->pos);
+              // Vertex normal
+              mat3 local_matrix_tmp = GLM_MAT3_ZERO_INIT;
+              glm_mat4_pick3(local_matrix, local_matrix_tmp);
+              vec3 mulv_result;
+              glm_mat3_mulv(local_matrix_tmp, vertex->normal, mulv_result);
+              glm_normalize_to(mulv_result, vertex->normal);
+            }
+            // Flip Y-Axis of vertex positions
+            if (flipY) {
+              vertex->pos[1] *= -1.0f;
+              vertex->normal[1] *= -1.0f;
+            }
+            // Pre-Multiply vertex colors with material base color
+            if (preMultiplyColor) {
+              glm_vec4_mul(primitive->material->base_color_factor,
+                           vertex->color, vertex->color);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Vertex and index buffers
+  size_t vertex_buffer_size
+    = gltf_model->vertices.count * sizeof(gltf_vertex_t);
+  size_t index_buffer_size = gltf_model->indices.count * sizeof(uint32_t);
+
+  assert((vertex_buffer_size > 0) && (index_buffer_size > 0));
+
+  // Create vertex buffer
+  gltf_model->vertices.buffer
+    = wgpu_create_buffer_from_data(load_options->wgpu_context, vertices,
+                                   vertex_buffer_size, WGPUBufferUsage_Vertex);
+
+  // Create index buffer
+  gltf_model->indices.buffer
+    = wgpu_create_buffer_from_data(load_options->wgpu_context, indices,
+                                   index_buffer_size, WGPUBufferUsage_Index);
+
+  if (vertices != NULL) {
+    free(vertices);
+  }
+  if (indices != NULL) {
+    free(indices);
+  }
+
+  // Get scene dimensions
+  gltf_model_get_scene_dimensions(gltf_model);
+
+  // Bind groups for per-node uniform buffers
+  {
+    // Bind group layouts are global, so only create if the have not already
+    // been created before
+    {
+      if (gltf_model->bind_group_layout.mesh_ubo == NULL) {
+        WGPUBindGroupLayoutDescriptor bgl_desc = {
+            .entryCount = 1,
+            .entries = &(WGPUBindGroupLayoutEntry) {
+              // Binding 0: Uniform buffer (Vertex shader)
+              .binding = 0,
+              .visibility = WGPUShaderStage_Vertex,
+              .buffer = (WGPUBufferBindingLayout){
+                .type = WGPUBufferBindingType_Uniform,
+                .minBindingSize = sizeof(mat4),
+              },
+              .sampler = {0},
+            }
+          };
+        gltf_model->bind_group_layout.mesh_ubo
+          = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
+                                            &bgl_desc);
+        ASSERT(gltf_model->bind_group_layout.mesh_ubo != NULL);
+      }
+    }
+    {
+      if (gltf_model->bind_group_layout.skin_ubo == NULL) {
+        WGPUBindGroupLayoutDescriptor bgl_desc = {
+            .entryCount = 1,
+            .entries = &(WGPUBindGroupLayoutEntry) {
+              // Binding 0: Uniform buffer (Vertex shader)
+              .binding = 0,
+              .visibility = WGPUShaderStage_Vertex,
+              .buffer = (WGPUBufferBindingLayout){
+                .type = WGPUBufferBindingType_Uniform,
+                .minBindingSize = sizeof(gltf_mesh_uniform_block_t),
+              },
+              .sampler = {0},
+            }
+          };
+        gltf_model->bind_group_layout.skin_ubo
+          = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
+                                            &bgl_desc);
+        ASSERT(gltf_model->bind_group_layout.skin_ubo != NULL);
+      }
+    }
+
+    for (uint32_t i = 0; i < gltf_model->node_count; ++i) {
+      gltf_model_prepare_node_bind_group(gltf_model, &gltf_model->nodes[i]);
+    }
+  }
+
+  // Bind groups for per-material images
+  {
+    // Layout is global, so only create if it hasn't already been created before
+    if ((gltf_model->bind_group_bindings_flags
+         & BindGroupBindingFlags_ImageBaseColor)
+        && gltf_model->bind_group_layout.image_base_color == NULL) {
+      WGPUBindGroupLayoutEntry bgl_entries[2] = {
+          [0] = (WGPUBindGroupLayoutEntry) {
+            // Binding 0: texture2D (Fragment shader)
+            .binding = 0,
+            .visibility = WGPUShaderStage_Fragment,
+            .texture = (WGPUTextureBindingLayout) {
+              .sampleType = WGPUTextureSampleType_Float,
+              .viewDimension = WGPUTextureViewDimension_2D,
+              .multisampled = false,
+            },
+            .storageTexture = {0},
+          },
+          [1] = (WGPUBindGroupLayoutEntry) {
+            // Binding 1: sampler (Fragment shader)
+            .binding = 1,
+            .visibility = WGPUShaderStage_Fragment,
+            .sampler = (WGPUSamplerBindingLayout){
+              .type=WGPUSamplerBindingType_Filtering,
+            },
+            .texture = {0},
+          },
+        };
+      WGPUBindGroupLayoutDescriptor bgl_desc = {
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      };
+      gltf_model->bind_group_layout.image_base_color
+        = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
+                                          &bgl_desc);
+      ASSERT(gltf_model->bind_group_layout.image_base_color != NULL);
+    }
+    if ((gltf_model->bind_group_bindings_flags
+         & BindGroupBindingFlags_ImageNormalMap)
+        && gltf_model->bind_group_layout.image_base_color == NULL) {
+      WGPUBindGroupLayoutEntry bgl_entries[2] = {
+          [0] = (WGPUBindGroupLayoutEntry) {
+            // Binding 2: texture2D (Fragment shader)
+            .binding = 2,
+            .visibility = WGPUShaderStage_Fragment,
+            .texture = (WGPUTextureBindingLayout) {
+              .sampleType = WGPUTextureSampleType_Float,
+              .viewDimension = WGPUTextureViewDimension_2D,
+              .multisampled = false,
+            },
+            .storageTexture = {0},
+          },
+          [1] = (WGPUBindGroupLayoutEntry) {
+            // Binding 3: sampler (Fragment shader)
+            .binding = 3,
+            .visibility = WGPUShaderStage_Fragment,
+            .sampler = (WGPUSamplerBindingLayout){
+              .type=WGPUSamplerBindingType_Filtering,
+            },
+            .texture = {0},
+          },
+        };
+      WGPUBindGroupLayoutDescriptor bgl_desc = {
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      };
+      gltf_model->bind_group_layout.image_normal_map
+        = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
+                                          &bgl_desc);
+      ASSERT(gltf_model->bind_group_layout.image_normal_map != NULL);
+    }
+    for (uint32_t i = 0; i < gltf_model->material_count; ++i) {
+      gltf_material_t* material = &gltf_model->materials[i];
+      if (material->base_color_texture != NULL) {
+        gltf_material_create_bind_group(
+          material, gltf_model->bind_group_layout.image_base_color,
+          gltf_model->bind_group_layout.image_normal_map,
+          gltf_model->bind_group_bindings_flags);
+      }
+    }
+  }
+
+  // Cleanup
+  cgltf_free(gltf_data);
+
+  return gltf_model;
+}
+
+static void gltf_model_bind_buffers(gltf_model_t* model)
+{
+  wgpu_context_t* wgpu_context = model->wgpu_context;
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       model->vertices.buffer, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
+                                      model->indices.buffer,
+                                      WGPUIndexFormat_Uint32, 0, 0);
+  model->buffers_bound = true;
+}
+
+static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
+                                 uint32_t render_flags, uint32_t bind_image_set)
+{
+  if (node->mesh && node->mesh->primitive_count > 0) {
+    for (uint32_t i = 0; i < node->mesh->primitive_count; ++i) {
+      gltf_primitive_t* primitive = &node->mesh->primitives[i];
+      bool skip                   = false;
+      gltf_material_t* material   = primitive->material;
+      if (render_flags & RenderFlags_RenderOpaqueNodes) {
+        skip = (material->alpha_mode != AlphaMode_OPAQUE);
+      }
+      if (render_flags & RenderFlags_RenderAlphaMaskedNodes) {
+        skip = (material->alpha_mode != AlphaMode_MASK);
+      }
+      if (render_flags & RenderFlags_RenderAlphaBlendedNodes) {
+        skip = (material->alpha_mode != AlphaMode_BLEND);
+      }
+      if (!skip) {
+        if (render_flags & RenderFlags_BindImages) {
+          wgpuRenderPassEncoderSetBindGroup(model->wgpu_context->rpass_enc,
+                                            bind_image_set,
+                                            material->bind_group, 0, 0);
+        }
+        wgpuRenderPassEncoderDrawIndexed(model->wgpu_context->rpass_enc,
+                                         primitive->index_count, 1,
+                                         primitive->first_index, 0, 0);
+      }
+    }
+  }
+  for (uint32_t i = 0; i < node->child_count; ++i) {
+    gltf_model_draw_node(model, node->children[i], render_flags,
+                         bind_image_set);
+  }
+}
+
+void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
+                          uint32_t bind_image_set)
+{
+  if (!model->buffers_bound) {
+    wgpu_context_t* wgpu_context = model->wgpu_context;
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         model->vertices.buffer, 0, 0);
+    wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
+                                        model->indices.buffer,
+                                        WGPUIndexFormat_Uint32, 0, 0);
+  }
+  for (uint32_t i = 0; i < model->node_count; ++i) {
+    gltf_model_draw_node(model, &model->nodes[i], render_flags, bind_image_set);
+  }
+}
+
+static void gltf_model_get_node_dimensions(gltf_node_t* node, vec3* min,
+                                           vec3* max)
+{
+  if (node->mesh != NULL) {
+    vec4 loc_min, loc_max;
+    mat4 node_matrix;
+    gltf_node_get_matrix(node, &node_matrix);
+    for (uint32_t i = 0; i < node->mesh->primitive_count; ++i) {
+      gltf_primitive_t* primitive = &node->mesh->primitives[i];
+      glm_vec4(primitive->dimensions.min, 1.0f, loc_min);
+      glm_mat4_mulv(node_matrix, loc_min, loc_min);
+      glm_vec4(primitive->dimensions.max, 1.0f, loc_max);
+      glm_mat4_mulv(node_matrix, loc_max, loc_max);
+      // clang-format off
+      if (loc_min[0] < (*min)[0]) { (*min)[0] = loc_min[0]; }
+      if (loc_min[1] < (*min)[1]) { (*min)[1] = loc_min[1]; }
+      if (loc_min[2] < (*min)[2]) { (*min)[2] = loc_min[2]; }
+      if (loc_max[0] > (*max)[0]) { (*max)[0] = loc_max[0]; }
+      if (loc_max[1] > (*max)[1]) { (*max)[1] = loc_max[1]; }
+      if (loc_max[2] > (*max)[2]) { (*max)[2] = loc_max[2]; }
+      // clang-format on
+    }
+  }
+  for (uint32_t i = 0; i < node->child_count; ++i) {
+    gltf_model_get_node_dimensions(node->children[i], min, max);
+  }
+}
+
+static void gltf_model_get_scene_dimensions(gltf_model_t* model)
+{
+  glm_vec3_copy((vec3){FLT_MAX, FLT_MAX, FLT_MAX}, model->dimensions.min);
+  glm_vec3_copy((vec3){-FLT_MAX, -FLT_MAX, -FLT_MAX}, model->dimensions.max);
+  for (uint32_t i = 0; i < model->node_count; ++i) {
+    gltf_model_get_node_dimensions(&model->nodes[i], &model->dimensions.min,
+                                   &model->dimensions.max);
+  }
+  glm_vec3_sub(model->dimensions.max, model->dimensions.min,
+               model->dimensions.size);
+  vec3 sum = GLM_VEC3_ZERO_INIT;
+  glm_vec3_add(model->dimensions.min, model->dimensions.max, sum);
+  glm_vec3_scale(sum, 0.5f, model->dimensions.center);
+  model->dimensions.radius
+    = glm_vec3_distance(model->dimensions.min, model->dimensions.max) / 2.0f;
+}
+
+static void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
+                                        float time)
+{
+  if ((int32_t)index > ((int32_t)model->animation_count) - 1) {
+    log_warn("No animation with index %u", index);
+    return;
+  }
+  gltf_animation_t* animation = &model->animations[index];
+
+  bool updated = false;
+  for (uint32_t c = 0; c < animation->channel_count; ++c) {
+    gltf_animation_channel_t* channel = &animation->channels[c];
+    gltf_animation_sampler_t* sampler
+      = &animation->samplers[channel->sampler_index];
+    if (sampler->input_count > sampler->outputs_vec4_count) {
+      continue;
+    }
+
+    for (uint32_t i = 0; i < sampler->input_count - 1; i++) {
+      if ((time >= sampler->inputs[i]) && (time <= sampler->inputs[i + 1])) {
+        float u = MAX(0.0f, time - sampler->inputs[i])
+                  / (sampler->inputs[i + 1] - sampler->inputs[i]);
+        if (u <= 1.0f) {
+          switch (channel->path) {
+            case PathType_TRANSLATION: {
+              vec4 trans = GLM_VEC4_ZERO_INIT;
+              glm_vec4_mix(sampler->outputs_vec4[i],
+                           sampler->outputs_vec4[i + 1], u, trans);
+              glm_vec3_copy((vec3){trans[0], trans[1], trans[2]},
+                            channel->node->translation);
+              break;
+            }
+            case PathType_SCALE: {
+              vec4 trans = GLM_VEC4_ZERO_INIT;
+              glm_vec4_mix(sampler->outputs_vec4[i],
+                           sampler->outputs_vec4[i + 1], u, trans);
+              glm_vec3_copy((vec3){trans[0], trans[1], trans[2]},
+                            channel->node->scale);
+              break;
+            }
+            case PathType_ROTATION: {
+              versor q1  = GLM_VEC4_ZERO_INIT;
+              q1[0]      = sampler->outputs_vec4[i][0];
+              q1[1]      = sampler->outputs_vec4[i][1];
+              q1[2]      = sampler->outputs_vec4[i][2];
+              q1[3]      = sampler->outputs_vec4[i][3];
+              versor q2  = GLM_VEC4_ZERO_INIT;
+              q2[0]      = sampler->outputs_vec4[i + 1][0];
+              q2[1]      = sampler->outputs_vec4[i + 1][1];
+              q2[2]      = sampler->outputs_vec4[i + 1][2];
+              q2[3]      = sampler->outputs_vec4[i + 1][3];
+              versor tmp = GLM_VEC4_ZERO_INIT;
+              glm_quat_slerp(q1, q2, u, tmp);
+              glm_quat_normalize(tmp);
+              glm_vec4_copy(tmp, channel->node->rotation);
+              break;
+            }
+          }
+          updated = true;
+        }
+      }
+    }
+  }
+  if (updated) {
+    for (uint32_t i = 0; i < model->node_count; ++i) {
+      gltf_node_update(model->wgpu_context, &model->nodes[i]);
+    }
+  }
+}
+
+/*
+ * Helper functions
+ */
+static gltf_node_t* gltf_model_find_node(gltf_model_t* model,
+                                         gltf_node_t* parent, uint32_t index)
+{
+  gltf_node_t* node_found = NULL;
+  if (parent->index == index) {
+    return parent;
+  }
+  for (uint32_t i = 0; i < parent->child_count; ++i) {
+    node_found = gltf_model_find_node(model, parent->children[i], index);
+    if (node_found) {
+      break;
+    }
+  }
+  return node_found;
+}
+
+static gltf_node_t* gltf_model_node_from_index(gltf_model_t* model,
+                                               uint32_t index)
+{
+  gltf_node_t* node_found = NULL;
+  for (uint32_t i = 0; i < model->node_count; ++i) {
+    node_found = gltf_model_find_node(model, &model->nodes[i], index);
+    if (node_found) {
+      break;
+    }
+  }
+  return node_found;
+}
+
+static void gltf_model_prepare_node_bind_group(gltf_model_t* model,
+                                               gltf_node_t* node)
+{
+  if (node->mesh != NULL) {
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout     = node->skin != NULL ? model->bind_group_layout.skin_ubo :
+                                         model->bind_group_layout.mesh_ubo,
+      .entryCount = 1,
+      .entries    = &(WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = node->mesh->uniform_buffer.buffer,
+        .offset  = 0,
+        .size    =  node->mesh->uniform_buffer.size,
+      },
+    };
+    node->mesh->uniform_buffer.bind_group
+      = wgpuDeviceCreateBindGroup(model->wgpu_context->device, &bg_desc);
+    ASSERT(node->mesh->uniform_buffer.bind_group != NULL)
+  }
+  for (uint32_t i = 0; i < node->child_count; ++i) {
+    gltf_model_prepare_node_bind_group(model, node->children[i]);
+  }
+}

@@ -85,7 +85,7 @@ set(HEADERS
     src/webgpu/api.h
     src/webgpu/buffer.h
     src/webgpu/context.h
-    #src/webgpu/gltf_model.h
+    src/webgpu/gltf_model.h
     src/webgpu/imgui_overlay.h
     src/webgpu/shader.h
     src/webgpu/texture.h
@@ -103,7 +103,7 @@ set(SOURCES
     src/examples/meshes.c
     src/webgpu/buffer.c
     src/webgpu/context.c
-    #src/webgpu/gltf_model.c
+    src/webgpu/gltf_model.c
     src/webgpu/imgui_overlay.c
     src/webgpu/shader.c
     src/webgpu/texture.c
