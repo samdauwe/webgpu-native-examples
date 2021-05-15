@@ -12,7 +12,7 @@
  * This example shows how to bind and sample textures.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/texturedCube.ts
+ * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/texturedCube
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/cube
  * -------------------------------------------------------------------------- */
 
