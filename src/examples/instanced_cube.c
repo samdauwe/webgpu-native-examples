@@ -12,7 +12,7 @@
  * This example shows the use of instancing.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/instancedCube.ts
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/instancedCube
  * -------------------------------------------------------------------------- */
 
 #define MAX_NUM_INSTANCES 16
