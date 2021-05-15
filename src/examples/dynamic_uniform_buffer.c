@@ -62,7 +62,7 @@ static vec3 rotation_speeds[OBJECT_INSTANCES] = {0};
 // One big uniform buffer that contains all matrices
 static struct ubo_data_dynamic_t {
   mat4 model;
-  uint8_t passing[192];
+  uint8_t padding[192];
 } ubo_data_dynamic[OBJECT_INSTANCES] = {0};
 
 // Pipeline
