@@ -66,10 +66,10 @@ static struct {
 static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
-WGPUPipelineLayout pipeline_layout;
-WGPURenderPipeline pipeline;
-WGPUBindGroupLayout bind_group_layout;
-WGPUBindGroup bind_group;
+static WGPUPipelineLayout pipeline_layout;
+static WGPURenderPipeline pipeline;
+static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroup bind_group;
 
 static const char* mapping_modes[5] = {
   "Color only",                 //
