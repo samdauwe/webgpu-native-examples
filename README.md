@@ -158,6 +158,14 @@ This example shows how to sample from a depth texture to render shadows from a d
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
 
+### Physically Based Rendering
+
+Physical based rendering as a lighting technique that achieves a more realistic and dynamic look by applying approximations of bidirectional reflectance distribution functions based on measured real-world material parameters and environment lighting.
+
+#### [PBR basics](src/examples/pbr_basic.c)
+
+Demonstrates a basic specular BRDF implementation with solid materials and fixed light sources on a grid of objects with varying material parameters, demonstrating how metallic reflectance and surface roughness affect the appearance of pbr lit objects.
+
 ### Deferred
 
 These examples use a [deferred shading](https://en.wikipedia.org/wiki/Deferred_shading) setup.
