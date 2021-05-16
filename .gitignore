@@ -56,5 +56,8 @@ release_build
 # vscode
 .vscode/
 
-# python cache
+# Python cache
 __pycache__
+
+# Backup example files
+/src/examples/*.bak
