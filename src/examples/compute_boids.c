@@ -10,7 +10,7 @@
  *
  * Flocking boids example with gpu compute update pass.
  * Adapted from:
- * https://github.com/austinEng/webgpu-samples/blob/master/src/examples/computeBoids.ts
+ * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/computeBoids
  *
  * A GPU compute particle simulation that mimics the flocking behavior of birds.
  * A compute shader updates two ping-pong buffers which store particle data. The
