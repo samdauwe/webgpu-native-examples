@@ -11,7 +11,7 @@
  * This example shows how to blur an image using a WebGPU compute shader.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/imageBlur.ts
+ * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/imageBlur
  * -------------------------------------------------------------------------- */
 
 static const uint32_t tile_dim = 256;
