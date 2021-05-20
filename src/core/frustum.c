@@ -1,5 +1,7 @@
 #include "frustum.h"
 
+#include <string.h>
+
 #include "macro.h"
 
 /* frustum creating/releasing */
@@ -7,6 +9,7 @@
 frustum_t* frustum_create()
 {
   frustum_t* frustum = (frustum_t*)malloc(sizeof(frustum_t));
+  memset(frustum, 0, sizeof(frustum_t));
 
   return frustum;
 }
