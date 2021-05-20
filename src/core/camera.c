@@ -182,3 +182,51 @@ float camera_get_far_clip(camera_t* camera)
 {
   return camera->zfar;
 }
+
+/* projection helpers */
+
+/* Converts a projection matrix from WebGPU-style Z range [0, 1] to OpenGL-style
+ * Z range [-1, 1] */
+static void projection_matrix_wgpu_to_opengl(mat4* proj_mtx)
+{
+  static mat4 WGPU_TO_OPENGL_MATRIX = {
+    {1.0f, 0.0f, 0.0f, 0.0f}, //
+    {0.0f, 1.0f, 0.0f, 0.0f}, //
+    {0.0f, 0.0f, 2.0f, 0.0f}, //
+    {0.0f, 0.0f, -1.0f, 1.0f} //
+  };
+  mat4 tmp = GLM_MAT4_IDENTITY_INIT;
+  glm_mat4_mulN((mat4*[]){&WGPU_TO_OPENGL_MATRIX, proj_mtx}, 2, tmp);
+  glm_mat4_copy(tmp, *proj_mtx);
+}
+
+/* Converts a projection matrix from OpenGL-style Z range [-1, 1] to
+ * WebGPU-style Z range [0, 1] */
+static void projection_matrix_opengl_to_wgpu(mat4* proj_mtx)
+{
+  static mat4 OPENGL_TO_WGPU_MATRIX = {
+    {1.0f, 0.0f, 0.0f, 0.0f}, //
+    {0.0f, 1.0f, 0.0f, 0.0f}, //
+    {0.0f, 0.0f, 0.5f, 0.0f}, //
+    {0.0f, 0.0f, 0.5f, 1.0f}  //
+  };
+  mat4 tmp = GLM_MAT4_IDENTITY_INIT;
+  glm_mat4_mulN((mat4*[]){&OPENGL_TO_WGPU_MATRIX, proj_mtx}, 2, tmp);
+  glm_mat4_copy(tmp, *proj_mtx);
+}
+
+void projection_matrix_convert_clip_space_near_z(mat4* proj_mtx,
+                                                 clip_space_near_z_enum dest,
+                                                 clip_space_near_z_enum src)
+{
+  if (dest == src) {
+    return;
+  }
+
+  if (dest == ClipSpaceNearZ_NegativeOne) {
+    projection_matrix_wgpu_to_opengl(proj_mtx);
+  }
+  else if (dest == ClipSpaceNearZ_Zero) {
+    projection_matrix_opengl_to_wgpu(proj_mtx);
+  }
+}
