@@ -41,6 +41,8 @@ void camera_release(camera_t* camera);
 
 /* camera updating */
 void camera_update(camera_t* camera, float delta_time);
+bool camera_update_pad(camera_t* camera, vec2 axis_left, vec2 axis_right,
+                       float delta_time);
 void camera_update_view_matrix(camera_t* camera);
 void camera_set_position(camera_t* camera, vec3 position);
 void camera_set_rotation(camera_t* camera, vec3 rotation);

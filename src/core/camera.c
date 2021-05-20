@@ -35,40 +35,113 @@ void camera_update(camera_t* camera, float delta_time)
   camera->updated = false;
   if (camera->type == CameraType_FirstPerson) {
     if (camera_moving(camera)) {
-      vec3 camFront = {0};
-      camFront[0]   = -cos(glm_rad(camera->rotation[0]))
-                    * sin(glm_rad(camera->rotation[1]));
-      camFront[1] = sin(glm_rad(camera->rotation[0]));
-      camFront[2]
+      vec3 cam_front = GLM_VEC3_ZERO_INIT;
+      cam_front[0]   = -cos(glm_rad(camera->rotation[0]))
+                     * sin(glm_rad(camera->rotation[1]));
+      cam_front[1] = sin(glm_rad(camera->rotation[0]));
+      cam_front[2]
         = cos(glm_rad(camera->rotation[0])) * cos(glm_rad(camera->rotation[1]));
-      glm_normalize(camFront);
+      glm_normalize(cam_front);
 
-      const float moveSpeed = delta_time * camera->movement_speed;
+      const float move_speed = delta_time * camera->movement_speed;
 
       if (camera->keys.up) {
-        glm_vec3_scale(camFront, moveSpeed, camFront);
-        glm_vec3_add(camera->position, camFront, camera->position);
+        glm_vec3_scale(cam_front, move_speed, cam_front);
+        glm_vec3_add(camera->position, cam_front, camera->position);
       }
       if (camera->keys.down) {
-        glm_vec3_scale(camFront, moveSpeed, camFront);
-        glm_vec3_sub(camera->position, camFront, camera->position);
+        glm_vec3_scale(cam_front, move_speed, cam_front);
+        glm_vec3_sub(camera->position, cam_front, camera->position);
       }
       if (camera->keys.left) {
-        glm_cross(camFront, (vec3){0.0f, 1.0f, 0.0f}, camFront);
-        glm_normalize(camFront);
-        glm_vec3_scale(camFront, moveSpeed, camFront);
-        glm_vec3_sub(camera->position, camFront, camera->position);
+        glm_cross(cam_front, (vec3){0.0f, 1.0f, 0.0f}, cam_front);
+        glm_normalize(cam_front);
+        glm_vec3_scale(cam_front, move_speed, cam_front);
+        glm_vec3_sub(camera->position, cam_front, camera->position);
       }
       if (camera->keys.right) {
-        glm_cross(camFront, (vec3){0.0f, 1.0f, 0.0f}, camFront);
-        glm_normalize(camFront);
-        glm_vec3_scale(camFront, moveSpeed, camFront);
-        glm_vec3_add(camera->position, camFront, camera->position);
+        glm_cross(cam_front, (vec3){0.0f, 1.0f, 0.0f}, cam_front);
+        glm_normalize(cam_front);
+        glm_vec3_scale(cam_front, move_speed, cam_front);
+        glm_vec3_add(camera->position, cam_front, camera->position);
       }
 
       camera_update_view_matrix(camera);
     }
   }
+}
+
+/*
+ * Update camera passing separate axis data (gamepad)
+ * Returns true if view or position has been changed
+ */
+bool camera_update_pad(camera_t* camera, vec2 axis_left, vec2 axis_right,
+                       float delta_time)
+{
+  bool ret_val = false;
+
+  if (camera->type == CameraType_FirstPerson) {
+    // Use the common console thumbstick layout
+    // Left = view, right = move
+
+    const float dead_zone = 0.0015f;
+    const float range     = 1.0f - dead_zone;
+
+    vec3 cam_front = GLM_VEC3_ZERO_INIT;
+    cam_front[0]
+      = -cos(glm_rad(camera->rotation[0])) * sin(glm_rad(camera->rotation[1]));
+    cam_front[1] = sin(glm_rad(camera->rotation[0]));
+    cam_front[2]
+      = cos(glm_rad(camera->rotation[0])) * cos(glm_rad(camera->rotation[1]));
+    glm_normalize(cam_front);
+
+    const float move_speed = delta_time * camera->movement_speed * 2.0f;
+    const float rot_speed  = delta_time * camera->movement_speed * 50.0f;
+
+    // Move
+    if (fabsf(axis_left[1]) > dead_zone) {
+      vec3 cam_front_left_y = GLM_VEC3_ZERO_INIT;
+      glm_vec3_copy(cam_front, cam_front_left_y);
+      const float pos = (fabsf(axis_left[1]) - dead_zone) / range;
+      glm_vec3_scale(cam_front_left_y,
+                     pos * ((axis_left[1] < 0.0f) ? -1.0f : 1.0f) * move_speed,
+                     cam_front_left_y);
+      glm_vec3_sub(camera->position, cam_front_left_y, camera->position);
+      ret_val = true;
+    }
+    if (fabsf(axis_left[0]) > dead_zone) {
+      vec3 cam_front_left_x = GLM_VEC3_ZERO_INIT;
+      glm_vec3_copy(cam_front, cam_front_left_x);
+      const float pos = (fabsf(axis_left[0]) - dead_zone) / range;
+      glm_cross(cam_front_left_x, (vec3){0.0f, 1.0f, 0.0f}, cam_front_left_x);
+      glm_normalize(cam_front_left_x);
+      glm_vec3_scale(cam_front_left_x,
+                     pos * ((axis_left[0] < 0.0f) ? -1.0f : 1.0f) * move_speed,
+                     cam_front_left_x);
+      glm_vec3_add(camera->position, cam_front_left_x, camera->position);
+      ret_val = true;
+    }
+
+    // Rotate
+    if (fabsf(axis_right[0]) > dead_zone) {
+      const float pos = (fabsf(axis_right[0]) - dead_zone) / range;
+      camera->rotation[1]
+        += pos * ((axis_right[0] < 0.0f) ? -1.0f : 1.0f) * rot_speed;
+      ret_val = true;
+    }
+    if (fabsf(axis_right[1]) > dead_zone) {
+      const float pos = (fabsf(axis_right[1]) - dead_zone) / range;
+      camera->rotation[0]
+        -= pos * ((axis_right[1] < 0.0f) ? -1.0f : 1.0f) * rot_speed;
+      ret_val = true;
+    }
+  }
+
+  if (ret_val) {
+    camera_update_view_matrix(camera);
+  }
+
+  return ret_val;
 }
 
 void camera_update_view_matrix(camera_t* camera)
@@ -123,7 +196,7 @@ void camera_rotate(camera_t* camera, vec3 delta)
 
 void camera_set_translation(camera_t* camera, vec3 translation)
 {
-  memcpy(camera->position, translation, sizeof(vec3));
+  glm_vec3_copy(translation, camera->position);
   camera_update_view_matrix(camera);
 }
 
