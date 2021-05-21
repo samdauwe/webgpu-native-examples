@@ -143,7 +143,7 @@ static void setup_camera(wgpu_example_context_t* context)
   camera_set_rotation(context->camera, (vec3){62.5f, 90.0f, 0.0f});
   camera_set_movement_speed(context->camera, 4.0f);
   camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.0f, 256.0f);
+                         context->window_size.aspect_ratio, 0.1f, 256.0f);
   camera_set_rotation_speed(context->camera, 0.25f);
   context->paused = true;
   context->timer_speed *= 0.25f;
@@ -395,10 +395,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   // Set objects positions and material properties
-   uint32_t index = 0;
+  uint32_t index = 0;
   for (uint32_t y = 0; y < GRID_DIM; y++) {
     for (uint32_t x = 0; x < GRID_DIM; x++) {
-      //uint32_t index = x * GRID_DIM + y * GRID_DIM;
+      // uint32_t index = x * GRID_DIM + y * GRID_DIM;
 
       // Set object position
       vec3* pos = &object_params_dynamic[index].position;
