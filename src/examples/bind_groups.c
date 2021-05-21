@@ -55,7 +55,7 @@ static void setup_camera(wgpu_example_context_t* context)
   context->camera       = camera_create();
   context->camera->type = CameraType_LookAt;
   camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.0f, 512.0f);
+                         context->window_size.aspect_ratio, 0.1f, 512.0f);
   camera_set_rotation(context->camera, (vec3){0.0f, 0.0f, 0.0f});
   camera_set_translation(context->camera, (vec3){0.0f, 0.0f, -5.0f});
 }
