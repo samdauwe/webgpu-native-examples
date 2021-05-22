@@ -152,6 +152,10 @@ This example shows how to create a basic reflection pipeline.
 
 This example shows how to sample from a depth texture to render shadows from a directional light source.
 
+#### [Run-time mip-map generation](src/examples/texture_mipmap_gen.c)
+
+Generating a complete mip-chain at runtime instead of loading it from a file, by blitting from one mip level, starting with the actual texture image, down to the next smaller size until the lower 1x1 pixel end of the mip chain.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)

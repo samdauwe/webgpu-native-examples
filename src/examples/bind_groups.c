@@ -35,7 +35,7 @@ typedef struct cube_t {
 } cube_t;
 static cube_t cubes[2] = {0};
 
-struct gltf_model_t* model;
+static struct gltf_model_t* model;
 
 // Render pass descriptor for frame buffer writes
 static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
