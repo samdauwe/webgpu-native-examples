@@ -375,6 +375,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
     versor q      = GLM_VEC4_ZERO_INIT;
     mat4 rotation = GLM_MAT4_IDENTITY_INIT;
     memcpy(q, node->rotation, sizeof(node->rotation));
+    q[1] += -1.0f; // flip Y to match Vulkan Y-axis to keep other code the same
     glm_quat_mat4(q, rotation);
     glm_mat4_mul(new_node->matrix, rotation, new_node->matrix);
   }
@@ -813,8 +814,8 @@ static void setup_camera(wgpu_example_context_t* context)
 {
   context->camera       = camera_create();
   context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.1f, -1.0f});
-  camera_set_rotation(context->camera, (vec3){0.0f, 45.0f, 0.0f});
+  camera_set_position(context->camera, (vec3){0.0f, -0.1f, -1.0f});
+  camera_set_rotation(context->camera, (vec3){0.0f, -135.0f, 0.0f});
   camera_set_perspective(context->camera, 60.0f,
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
   camera_set_rotation_speed(context->camera, 0.5f);

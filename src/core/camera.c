@@ -178,19 +178,22 @@ void camera_update_view_matrix(camera_t* camera)
 
 void camera_set_position(camera_t* camera, vec3 position)
 {
-  glm_vec3_copy(position, camera->position);
+  glm_vec3_copy((vec3){position[0], -position[1], position[2]},
+                camera->position);
   camera_update_view_matrix(camera);
 }
 
 void camera_set_rotation(camera_t* camera, vec3 rotation)
 {
-  glm_vec3_copy(rotation, camera->rotation);
+  glm_vec3_copy((vec3){-rotation[0], rotation[1], rotation[2]},
+                camera->rotation);
   camera_update_view_matrix(camera);
 }
 
 void camera_rotate(camera_t* camera, vec3 delta)
 {
-  glm_vec3_add(camera->rotation, delta, camera->rotation);
+  glm_vec3_add(camera->rotation, (vec3){delta[0], -delta[1], delta[2]},
+               camera->rotation);
   camera_update_view_matrix(camera);
 }
 
@@ -202,7 +205,8 @@ void camera_set_translation(camera_t* camera, vec3 translation)
 
 void camera_translate(camera_t* camera, vec3 delta)
 {
-  glm_vec3_add(camera->position, delta, camera->position);
+  glm_vec3_add(camera->position, (vec3){-delta[0], delta[1], -delta[2]},
+               camera->position);
   camera_update_view_matrix(camera);
 }
 

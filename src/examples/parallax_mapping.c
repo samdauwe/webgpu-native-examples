@@ -88,10 +88,10 @@ static void setup_camera(wgpu_example_context_t* context)
   context->timer_speed *= 0.5f;
   context->camera       = camera_create();
   context->camera->type = CameraType_FirstPerson;
-  camera_set_position(context->camera, (vec3){0.0f, -1.25f, -1.5f});
-  camera_set_rotation(context->camera, (vec3){45.0f, 0.0f, 0.0f});
+  camera_set_position(context->camera, (vec3){0.0f, 1.25f, -1.5f});
+  camera_set_rotation(context->camera, (vec3){-45.0f, 0.0f, 0.0f});
   camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.0f, 256.0f);
+                         context->window_size.aspect_ratio, 0.1f, 256.0f);
 }
 
 static void load_assets(wgpu_context_t* wgpu_context)
