@@ -29,6 +29,9 @@ typedef struct {
   /* click */
   bool buttons[BUTTON_NUM];
   vec2 cursor_pos;
+  /* key press */
+  bool keys[KEY_NUM];
+  bool keys_changed;
   /* timings */
   uint32_t frame_counter;
   float last_timestamp;
@@ -54,6 +57,13 @@ static void button_callback(window_t* window, button_t button, int pressed)
   record->buttons[BUTTON_L] = (button == BUTTON_L) && pressed;
   record->buttons[BUTTON_M] = (button == BUTTON_M) && pressed;
   record->buttons[BUTTON_R] = (button == BUTTON_R) && pressed;
+}
+
+static void key_callback(window_t* window, keycode_t key, int pressed)
+{
+  record_t* record     = (record_t*)window_get_userdata(window);
+  record->keys[key]    = pressed ? true : false;
+  record->keys_changed = true;
 }
 
 static void scroll_callback(window_t* window, float offset)
@@ -114,30 +124,46 @@ static void update_camera(wgpu_example_context_t* context, record_t* record)
   }
 
   if (handled) {
+    glm_vec2_copy(cursor_pos, context->mouse_position);
     return;
   }
 
+  /* Mouse clicks */
   if (record->buttons[BUTTON_L]) {
     camera_rotate(camera, (vec3){pos_delta[1] * camera->rotation_speed,
-                                 pos_delta[0] * camera->rotation_speed, 0.0f});
+                                 -pos_delta[0] * camera->rotation_speed, 0.0f});
     record->view_updated = true;
   }
 
   if (record->buttons[BUTTON_M]) {
-    camera_translate(camera,
-                     (vec3){pos_delta[0] * 0.01f, -pos_delta[1] * 0.01f, 0.0f});
+    camera_translate(
+      camera, (vec3){-pos_delta[0] * 0.01f, -pos_delta[1] * 0.01f, 0.0f});
     record->view_updated = true;
   }
 
   if (record->buttons[BUTTON_R]) {
-    camera_translate(camera, (vec3){-0.0f, 0.0f, -pos_delta[1] * .005f});
+    camera_translate(camera, (vec3){-0.0f, 0.0f, pos_delta[1] * 0.005f});
     record->view_updated = true;
   }
 
   if (record->mouse_scrolled) {
     camera_translate(camera,
-                     (vec3){0.0f, 0.0f, (float)record->wheel_delta * 0.05f});
+                     (vec3){0.0f, 0.0f, -(float)record->wheel_delta * 0.05f});
     record->view_updated = true;
+  }
+  glm_vec2_copy(cursor_pos, context->mouse_position);
+
+  /* Key events */
+  if (record->keys_changed) {
+    camera->keys.up    = record->keys[KEY_W];
+    camera->keys.down  = record->keys[KEY_S];
+    camera->keys.left  = record->keys[KEY_A];
+    camera->keys.right = record->keys[KEY_D];
+    camera_update(camera, context->frame_timer);
+    if (camera_moving(camera)) {
+      record->view_updated = true;
+    }
+    record->keys_changed = false;
   }
 }
 
@@ -199,6 +225,7 @@ static void setup_window(wgpu_example_context_t* context,
 
   memset(&context->callbacks, 0, sizeof(callbacks_t));
   context->callbacks.button_callback = button_callback;
+  context->callbacks.key_callback    = key_callback;
   context->callbacks.scroll_callback = scroll_callback;
   context->callbacks.resize_callback = resize_callback;
 
