@@ -220,6 +220,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
   sampler_desc.lodMaxClamp = (float)texture.mip_levels - 1;
   samplers[1] = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
 
+  // With mip mapping and anisotropic filtering
   sampler_desc.maxAnisotropy = 16;
   samplers[2] = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
 
@@ -609,15 +610,10 @@ static int example_render(wgpu_example_context_t* context)
     return 1;
   }
   const int draw_result = example_draw(context);
-  if (!context->paused) {
+  if (!context->paused || context->camera->updated) {
     update_uniform_buffers(context);
   }
   return draw_result;
-}
-
-static void example_on_view_changed(wgpu_example_context_t* context)
-{
-  update_uniform_buffers(context);
 }
 
 static void example_destroy(wgpu_example_context_t* context)
@@ -646,7 +642,6 @@ void example_texture_mipmap_gen(int argc, char* argv[])
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
     .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
   });
   // clang-format on
 }
