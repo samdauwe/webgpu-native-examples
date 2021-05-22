@@ -257,7 +257,7 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
           = ktxTexture_GetImageOffset(ktx_texture, level, 0, face, &offset);
         assert(result == KTX_SUCCESS);
 
-        // Upload statging buffer to texture
+        // Upload staging buffer to texture
         wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
           // Source
           &(WGPUImageCopyBuffer) {
@@ -611,8 +611,8 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
     // Color blend state
     WGPUColorStateDescriptor color_state_desc
       = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-        .format       = wgpu_context->swap_chain.format,
-        .enable_blend = true,
+        .format       = format,
+        .enable_blend = false,
       });
 
     // Vertex state
@@ -654,6 +654,7 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
           .primitiveTopology      = WGPUPrimitiveTopology_TriangleStrip,
           .colorStateCount        = 1,
           .colorStates            = &color_state_desc,
+          .depthStencilState      = NULL,
           .vertexState            = &vertex_state,
           .sampleCount            = 1,
           .sampleMask             = 0xFFFFFFFF,
@@ -676,7 +677,8 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
 
 WGPUTexture
 wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
-                                      texture_image_desc_t* texture_desc)
+                                      WGPUTexture texture,
+                                      WGPUTextureDescriptor* texture_desc)
 {
   WGPURenderPipeline pipeline = wgpu_mipmap_generator_get_mipmap_pipeline(
     mipmap_generator, texture_desc->format);
@@ -689,12 +691,11 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
   }
 
   wgpu_context_t* wgpu_context     = mipmap_generator->wgpu_context;
-  WGPUTexture texture              = texture_desc->texture;
   WGPUTexture mip_texture          = texture;
-  const uint32_t array_layer_count = texture_desc->depth > 0 ?
-                                       texture_desc->depth :
+  const uint32_t array_layer_count = texture_desc->size.depth > 0 ?
+                                       texture_desc->size.depth :
                                        1; // Only valid for 2D textures.
-  const uint32_t mip_level_count   = texture_desc->mip_level_count;
+  const uint32_t mip_level_count   = texture_desc->mipLevelCount;
 
   // If the texture was created with RENDER_ATTACHMENT usage we can render
   // directly between mip levels.
@@ -706,14 +707,17 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
     // level.
     const WGPUTextureDescriptor mip_texture_desc = {
       .size = (WGPUExtent3D) {
-        .width = ceil(texture_desc->width / 2.0f),
-        .height= ceil(texture_desc->height / 2.0f),
+        .width              = ceil(texture_desc->size.width / 2.0f),
+        .height             = ceil(texture_desc->size.height / 2.0f),
+        .depth              = 1,
         .depthOrArrayLayers = array_layer_count,
       },
-      .format = texture_desc->format,
-      .usage = WGPUTextureUsage_CopySrc | WGPUTextureUsage_Sampled
-               | WGPUTextureUsage_RenderAttachment,
-      .mipLevelCount = texture_desc->mip_level_count - 1,
+      .format        = texture_desc->format,
+      .usage         = WGPUTextureUsage_CopySrc | WGPUTextureUsage_Sampled
+                       | WGPUTextureUsage_RenderAttachment,
+      .dimension     = WGPUTextureDimension_2D,
+      .mipLevelCount = texture_desc->mipLevelCount - 1,
+      .sampleCount   = 1,
     };
     mip_texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &mip_texture_desc);
@@ -747,30 +751,30 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
                });
 
     uint32_t dst_mip_level = render_to_source ? 1 : 0;
-    for (uint32_t i = 1; i < texture_desc->mip_level_count; ++i) {
-      views[view_index + i] = wgpuTextureCreateView(
-        texture, &(WGPUTextureViewDescriptor){
-                   .label           = "dst_view",
-                   .aspect          = WGPUTextureAspect_All,
-                   .baseMipLevel    = dst_mip_level++,
-                   .mipLevelCount   = 1,
-                   .dimension       = WGPUTextureViewDimension_2D,
-                   .baseArrayLayer  = array_layer,
-                   .arrayLayerCount = 1,
-                 });
+    for (uint32_t i = 1; i < texture_desc->mipLevelCount; ++i) {
+      const uint32_t target_mip = view_index + i;
+      views[target_mip]         = wgpuTextureCreateView(
+        mip_texture, &(WGPUTextureViewDescriptor){
+                       .label           = "dst_view",
+                       .aspect          = WGPUTextureAspect_All,
+                       .baseMipLevel    = dst_mip_level++,
+                       .mipLevelCount   = 1,
+                       .dimension       = WGPUTextureViewDimension_2D,
+                       .baseArrayLayer  = array_layer,
+                       .arrayLayerCount = 1,
+                     });
 
       const  WGPURenderPassColorAttachmentDescriptor color_attachment_desc
         = (WGPURenderPassColorAttachmentDescriptor){
-           .view          = views[view_index + i],
-           .attachment    = NULL,
+           .view          = views[target_mip],
            .resolveTarget = NULL,
            .loadOp        = WGPULoadOp_Clear,
            .storeOp       = WGPUStoreOp_Store,
            .clearColor = (WGPUColor){
-             .r = 0.f,
-             .g = 0.f,
-             .b = 0.f,
-             .a = 0.f,
+             .r = 0.0f,
+             .g = 0.0f,
+             .b = 0.0f,
+             .a = 0.0f,
            },
         };
       WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
@@ -783,15 +787,14 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry){
           .binding     = 0,
-          .textureView = views[view_index + i - 1],
+          .textureView = views[target_mip - 1],
         },
         [1] = (WGPUBindGroupEntry){
           .binding = 1,
           .sampler = mipmap_generator->sampler,
         },
       };
-      uint32_t bind_group_index
-        = array_layer_count * (mip_level_count - 1) + i - 1;
+      uint32_t bind_group_index = array_layer * (mip_level_count - 1) + i - 1;
       bind_groups[bind_group_index] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
                                 .layout     = bind_group_layout,
@@ -813,12 +816,13 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
   // results from the temporary mipmap texture to the source.
   if (!render_to_source) {
     WGPUExtent3D mip_level_size = (WGPUExtent3D){
-      .width              = ceil(texture_desc->width / 2.0f),
-      .height             = ceil(texture_desc->height / 2.0f),
+      .width              = ceil(texture_desc->size.width / 2.0f),
+      .height             = ceil(texture_desc->size.height / 2.0f),
+      .depth              = 1,
       .depthOrArrayLayers = array_layer_count,
     };
 
-    for (uint32_t i = 1; i < texture_desc->mip_level_count - 1; ++i) {
+    for (uint32_t i = 1; i < texture_desc->mipLevelCount - 1; ++i) {
       wgpuCommandEncoderCopyTextureToTexture(cmd_encoder,
                                              // source
                                              &(WGPUImageCopyTexture){

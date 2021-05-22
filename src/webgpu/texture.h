@@ -64,12 +64,14 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
  * @brief Generates mipmaps for the given GPUTexture from the data in level 0.
  *
  * @param {wgpu_mipmap_generator_t*} mipmap_generator - The mip map generator.
- * @param {texture_image_desc_t*} texture_desc - the texture description was
+ * @param {WGPUTexture*} texture - Texture to generate mipmaps for.
+ * @param {WGPUTextureDescriptor*} texture_desc - the texture description was
  * created with.
  * @returns {WGPUTexture} - The originally passed texture
  */
 WGPUTexture
 wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
-                                      texture_image_desc_t* texture_desc);
+                                      WGPUTexture texture,
+                                      WGPUTextureDescriptor* texture_desc);
 
 #endif
