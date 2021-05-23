@@ -162,6 +162,10 @@ Generating a complete mip-chain at runtime instead of loading it from a file, by
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
 
+#### [Occlusion queries](src/examples/occlusion_query.c)
+
+Demonstrated how to use occlusion queries to get the number of fragment samples that pass all the per-fragment tests for a set of drawing commands.
+
 ### Physically Based Rendering
 
 Physical based rendering as a lighting technique that achieves a more realistic and dynamic look by applying approximations of bidirectional reflectance distribution functions based on measured real-world material parameters and environment lighting.
