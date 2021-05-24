@@ -426,7 +426,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Vertex input binding (=> Input assembly) description
-  wgpu_gltf_vertex_component_enum vertex_components[4] = {
+  wgpu_gltf_vertex_component_enum vertex_components[3] = {
     WGPU_GLTF_VertexComponent_Position, // Location 0: Position
     WGPU_GLTF_VertexComponent_UV,       // Location 1: Texture coordinates
     WGPU_GLTF_VertexComponent_Normal,   // Location 2: Vertex normal
