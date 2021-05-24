@@ -132,6 +132,7 @@ set(SOURCES
     src/examples/msaa_line.c
     src/examples/occlusion_query.c
     src/examples/parallax_mapping.c
+    src/examples/particle_fire.c
     src/examples/pbr_basic.c
     src/examples/reversed_z.c
     src/examples/shadertoy.c
