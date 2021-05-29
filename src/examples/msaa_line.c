@@ -47,7 +47,7 @@ static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // Render bundle
-WGPURenderBundle render_bundle;
+static WGPURenderBundle render_bundle;
 
 // Multi-sampled texture
 static WGPUTexture multisampled_texture;
