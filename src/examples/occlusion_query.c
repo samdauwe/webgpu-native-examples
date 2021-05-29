@@ -16,6 +16,8 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/occlusionquery/occlusionquery.cpp
  * -------------------------------------------------------------------------- */
 
+#define MAX_DEST_BUFFERS 1
+
 static struct {
   struct gltf_model_t* teapot;
   struct gltf_model_t* plane;
@@ -61,7 +63,8 @@ static WGPUBindGroupLayout bind_group_layout;
 
 static WGPUQuerySet occlusion_query_set;
 static WGPUBuffer occlusion_query_set_src_buffer;
-static WGPUBuffer occlusion_query_set_dst_buffer;
+static WGPUBuffer occlusion_query_set_dst_buffer[MAX_DEST_BUFFERS];
+static bool dest_buffer_mapped[MAX_DEST_BUFFERS] = {0};
 
 // Passed query samples
 static uint64_t passed_samples[2] = {1, 1};
@@ -441,19 +444,20 @@ static void prepare_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
   occlusion_query_set_src_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopyDst
-               | WGPUBufferUsage_CopySrc,
-      .size             = 256,
+      .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
+      .size  = sizeof(passed_samples),
       .mappedAtCreation = false,
     });
 
-  occlusion_query_set_dst_buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-      .size             = 256,
-      .mappedAtCreation = false,
-    });
+  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
+    occlusion_query_set_dst_buffer[i] = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+        .usage            = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+        .size             = sizeof(passed_samples),
+        .mappedAtCreation = false,
+      });
+  }
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -474,11 +478,57 @@ static int example_initialize(wgpu_example_context_t* context)
   return 1;
 }
 
+static int32_t get_unmapped_dest_buffer_index()
+{
+  int32_t index = -1;
+  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
+    if (!dest_buffer_mapped[i]) {
+      index = i;
+      break;
+    }
+  }
+  return index;
+}
+
+static int32_t get_mapped_dest_buffer_index()
+{
+  int32_t index = -1;
+  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
+    if (dest_buffer_mapped[i]) {
+      index = i;
+      break;
+    }
+  }
+  return index;
+}
+
+static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
+{
+  UNUSED_VAR(user_data);
+
+  if (status == WGPUBufferMapAsyncStatus_Success) {
+    int32_t mapped_dest_buffer_index = get_mapped_dest_buffer_index();
+    uint64_t const* mapping          = (uint64_t*)wgpuBufferGetConstMappedRange(
+      occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
+      sizeof(passed_samples));
+    ASSERT(mapping)
+    memcpy(passed_samples, mapping, sizeof(passed_samples));
+    wgpuBufferUnmap(occlusion_query_set_dst_buffer[mapped_dest_buffer_index]);
+    dest_buffer_mapped[(uint64_t)mapped_dest_buffer_index] = false;
+  }
+}
+
 // Retrieves the results of the occlusion queries submitted to the command
 // buffer
-static void get_occlusion_query_results()
+static void get_occlusion_query_results(void)
 {
-  // TODO
+  int32_t unmapped_dest_buffer_index = get_unmapped_dest_buffer_index();
+  if (unmapped_dest_buffer_index != -1) {
+    dest_buffer_mapped[(uint64_t)unmapped_dest_buffer_index] = true;
+    wgpuBufferMapAsync(
+      occlusion_query_set_dst_buffer[(uint64_t)unmapped_dest_buffer_index],
+      WGPUMapMode_Read, 0, sizeof(passed_samples), read_buffer_map_cb, NULL);
+  }
 }
 
 static WGPUCommandBuffer resolve_query_set(wgpu_context_t* wgpu_context)
@@ -492,10 +542,14 @@ static WGPUCommandBuffer resolve_query_set(wgpu_context_t* wgpu_context)
                                     0, (uint32_t)ARRAY_SIZE(passed_samples),
                                     occlusion_query_set_src_buffer, 0);
 
-  // Copy occlusion query result to destination buffer
-  wgpuCommandEncoderCopyBufferToBuffer(
-    wgpu_context->cmd_enc, occlusion_query_set_src_buffer, 0,
-    occlusion_query_set_dst_buffer, 0, sizeof(passed_samples));
+  int32_t unmapped_dest_buffer_index = get_unmapped_dest_buffer_index();
+  if (unmapped_dest_buffer_index != -1) {
+    // Copy occlusion query result to destination buffer
+    wgpuCommandEncoderCopyBufferToBuffer(
+      wgpu_context->cmd_enc, occlusion_query_set_src_buffer, 0,
+      occlusion_query_set_dst_buffer[(uint64_t)unmapped_dest_buffer_index], 0,
+      sizeof(passed_samples));
+  }
 
   // Get command buffer
   WGPUCommandBuffer command_buffer
@@ -574,9 +628,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Occluder
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.occluder);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.teapot, 0, 0);
-  wgpu_gltf_model_draw(models.teapot, 0, 1);
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
+                                    0);
+  wgpu_gltf_model_draw(models.plane, 0, 1);
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
@@ -609,11 +663,11 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit to queue
   submit_command_buffers(context);
 
-  // Submit frame
-  submit_frame(context);
-
   // Read query results for displaying in next frame
   get_occlusion_query_results();
+
+  // Submit frame
+  submit_frame(context);
 
   return 0;
 }
@@ -656,7 +710,13 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(QuerySet, occlusion_query_set)
   WGPU_RELEASE_RESOURCE(Buffer, occlusion_query_set_src_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, occlusion_query_set_dst_buffer)
+  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
+    if (dest_buffer_mapped[i]) {
+      wgpuBufferUnmap(occlusion_query_set_dst_buffer[i]);
+      dest_buffer_mapped[i] = false;
+    }
+    WGPU_RELEASE_RESOURCE(Buffer, occlusion_query_set_dst_buffer[i])
+  }
 }
 
 void example_occlusion_query(int argc, char* argv[])
