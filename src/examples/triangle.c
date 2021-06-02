@@ -237,82 +237,82 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Construct the different states making up the pipeline
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_None,
-      });
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
 
-  // Color blend state describes how blend factors are calculated (if used)
-  // We need one blend attachment state per color attachment (even if blending
-  // is not used)
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
     });
 
-  // Depth and stencil state containing depth and stencil compare and test
-  // operations
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(triangle, sizeof(float) * 6,
+                            // Attribute location 0: Position
+                            WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
+                                               offsetof(vertex_t, position)),
+                            // Attribute location 1: Color
+                            WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
+                                               offsetof(vertex_t, color)))
+
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    wgpu_context, &(wgpu_vertex_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Vertex shader SPIR-V
+      .file = "shaders/triangle/triangle.vert.spv",
+    },
+    .buffer_count = 1,
+    .buffers = &triangle_vertex_buffer_layout,
+  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Fragment shader SPIR-V
+      .file = "shaders/triangle/triangle.frag.spv",
+    },
+    .target_count = 1,
+    .targets = &color_target_state_desc,
+  });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
       });
-
-  // Vertex input binding (=> Input assembly)
-  // Input attribute bindings describe shader attribute locations and memory
-  // layouts
-  WGPU_VERTSTATE(triangle, sizeof(float) * 6,
-                 // Attribute location 0: Position
-                 WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
-                                    offsetof(vertex_t, position)),
-                 // Attribute location 1: Color
-                 WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
-                                    offsetof(vertex_t, color)))
-
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/triangle/triangle.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/triangle/triangle.frag.spv",
-                  });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .layout = pipeline_layout,
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state_desc,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = &vert_state_triangle,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label        = "triangle_render_pipeline",
+                            .layout       = pipeline_layout,
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_desc,
+                            .multisample  = multisample_state_desc,
+                          });
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
