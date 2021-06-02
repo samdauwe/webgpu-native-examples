@@ -67,3 +67,63 @@ void wgpu_shader_release(wgpu_shader_t* shader)
   ASSERT(shader->module);
   WGPU_RELEASE_RESOURCE(ShaderModule, shader->module);
 }
+
+WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
+                                         const wgpu_vertex_state_t* desc)
+{
+  ASSERT(desc);
+  wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
+
+  ASSERT(shader_desc);
+  ASSERT(shader_desc->file
+         || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0));
+  ASSERT(wgpu_context && wgpu_context->device);
+
+  WGPUVertexState vertex_state = {0};
+  if (shader_desc->file) {
+    vertex_state.module = wgpu_create_shader_module_from_spirv_file(
+      wgpu_context->device, shader_desc->file);
+  }
+  else {
+    vertex_state.module = wgpu_create_shader_module_from_spirv_bytecode(
+      wgpu_context->device, shader_desc->byte_code.data,
+      shader_desc->byte_code.size);
+  }
+  ASSERT(vertex_state.module);
+
+  vertex_state.entryPoint  = shader_desc->entry ? shader_desc->entry : "main",
+  vertex_state.bufferCount = desc->buffer_count,
+  vertex_state.buffers     = desc->buffers;
+
+  return vertex_state;
+}
+
+WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
+                                             const wgpu_fragment_state_t* desc)
+{
+  ASSERT(desc);
+  wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
+
+  ASSERT(shader_desc);
+  ASSERT(shader_desc->file
+         || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0));
+  ASSERT(wgpu_context && wgpu_context->device);
+
+  WGPUFragmentState vertex_state = {0};
+  if (shader_desc->file) {
+    vertex_state.module = wgpu_create_shader_module_from_spirv_file(
+      wgpu_context->device, shader_desc->file);
+  }
+  else {
+    vertex_state.module = wgpu_create_shader_module_from_spirv_bytecode(
+      wgpu_context->device, shader_desc->byte_code.data,
+      shader_desc->byte_code.size);
+  }
+  ASSERT(vertex_state.module);
+
+  vertex_state.entryPoint  = shader_desc->entry ? shader_desc->entry : "main",
+  vertex_state.targetCount = desc->target_count,
+  vertex_state.targets     = desc->targets;
+
+  return vertex_state;
+}

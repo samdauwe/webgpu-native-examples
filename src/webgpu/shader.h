@@ -30,4 +30,20 @@ wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
                                  const wgpu_shader_desc_t* desc);
 void wgpu_shader_release(wgpu_shader_t* shader);
 
+typedef struct wgpu_vertex_state_t {
+  wgpu_shader_desc_t shader_desc;
+  uint32_t buffer_count;
+  WGPUVertexBufferLayout const* buffers;
+} wgpu_vertex_state_t;
+WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
+                                         const wgpu_vertex_state_t* desc);
+
+typedef struct wgpu_fragment_state_t {
+  wgpu_shader_desc_t shader_desc;
+  uint32_t target_count;
+  WGPUColorTargetState const* targets;
+} wgpu_fragment_state_t;
+WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
+                                             const wgpu_fragment_state_t* desc);
+
 #endif
