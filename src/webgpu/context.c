@@ -220,6 +220,52 @@ wgpu_create_color_state_descriptor(create_color_state_desc_t* desc)
   };
 }
 
+WGPUBlendState wgpu_create_blend_state(bool enable_blend)
+{
+  WGPUBlendComponent blend_component_descriptor = {
+    .operation = WGPUBlendOperation_Add,
+  };
+
+  if (enable_blend) {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+  }
+  else {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_One;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_Zero;
+  }
+
+  return (WGPUBlendState){
+    .color = blend_component_descriptor,
+    .alpha = blend_component_descriptor,
+  };
+}
+
+WGPUColorTargetState
+wgpu_create_color_target_state(create_color_state_desc_t* desc)
+{
+  WGPUBlendComponent blend_component_descriptor = {
+    .operation = WGPUBlendOperation_Add,
+  };
+  if (desc->enable_blend) {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+  }
+  else {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_One;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_Zero;
+  }
+
+  return (WGPUColorTargetState){
+    .format     = desc->format,
+    .blend  = &(WGPUBlendState){
+      .color = blend_component_descriptor,
+      .alpha = blend_component_descriptor,
+    },
+    .writeMask  = WGPUColorWriteMask_All,
+  };
+}
+
 WGPUDepthStencilStateDescriptor wgpu_create_depth_stencil_state_descriptor(
   create_depth_stencil_state_desc_t* desc)
 {
@@ -241,6 +287,30 @@ WGPUDepthStencilStateDescriptor wgpu_create_depth_stencil_state_descriptor(
   };
 }
 
+WGPUDepthStencilState
+wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc)
+{
+  WGPUStencilFaceState stencil_state_face_descriptor = {
+    .compare     = WGPUCompareFunction_Always,
+    .failOp      = WGPUStencilOperation_Keep,
+    .depthFailOp = WGPUStencilOperation_Keep,
+    .passOp      = WGPUStencilOperation_Keep,
+  };
+
+  return (WGPUDepthStencilState){
+    .depthWriteEnabled   = desc->depth_write_enabled,
+    .format              = desc->format,
+    .depthCompare        = WGPUCompareFunction_LessEqual,
+    .stencilFront        = stencil_state_face_descriptor,
+    .stencilBack         = stencil_state_face_descriptor,
+    .stencilReadMask     = 0xFFFFFFFF,
+    .stencilWriteMask    = 0xFFFFFFFF,
+    .depthBias           = 0,
+    .depthBiasSlopeScale = 0,
+    .depthBiasClamp      = 0,
+  };
+}
+
 WGPURasterizationStateDescriptor wgpu_create_rasterization_state_descriptor(
   create_rasterization_state_desc_t* desc)
 {
@@ -251,5 +321,15 @@ WGPURasterizationStateDescriptor wgpu_create_rasterization_state_descriptor(
     .depthBias           = 0,
     .depthBiasSlopeScale = 0.f,
     .depthBiasClamp      = 0.0f,
+  };
+}
+
+WGPUMultisampleState
+wgpu_create_multisample_state_descriptor(create_multisample_state_desc_t* desc)
+{
+  return (WGPUMultisampleState){
+    .count                  = desc ? desc->sample_count : 1,
+    .mask                   = 0xFFFFFFFF,
+    .alphaToCoverageEnabled = false,
   };
 }

@@ -35,6 +35,11 @@
   WGPUVertexStateDescriptor vert_state_##name                                  \
     = WPU_VERTEXSTATE_DESC(name##VertBuffLayoutDesc);
 
+#define WGPU_VERTEX_BUFFER_LAYOUT(name, bind_size, ...)                        \
+  WGPUVertexAttribute vert_attr_desc_##name[] = {__VA_ARGS__};                 \
+  WGPUVertexBufferLayout name##_vertex_buffer_layout                           \
+    = WGPU_VERTBUFFERLAYOUT_DESC(bind_size, vert_attr_desc_##name);
+
 #define MAX_COMMAND_BUFFER_COUNT 256
 
 /* Initializers */
@@ -110,6 +115,9 @@ typedef struct create_color_state_desc_t {
 } create_color_state_desc_t;
 WGPUColorStateDescriptor
 wgpu_create_color_state_descriptor(create_color_state_desc_t* desc);
+WGPUColorTargetState
+wgpu_create_color_target_state(create_color_state_desc_t* desc);
+WGPUBlendState wgpu_create_blend_state(bool enable_blend);
 
 typedef struct create_depth_stencil_state_desc_t {
   WGPUTextureFormat format;
@@ -117,6 +125,8 @@ typedef struct create_depth_stencil_state_desc_t {
 } create_depth_stencil_state_desc_t;
 WGPUDepthStencilStateDescriptor wgpu_create_depth_stencil_state_descriptor(
   create_depth_stencil_state_desc_t* desc);
+WGPUDepthStencilState
+wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc);
 
 typedef struct create_rasterization_state_desc_t {
   WGPUFrontFace front_face;
@@ -124,5 +134,11 @@ typedef struct create_rasterization_state_desc_t {
 } create_rasterization_state_desc_t;
 WGPURasterizationStateDescriptor wgpu_create_rasterization_state_descriptor(
   create_rasterization_state_desc_t* desc);
+
+typedef struct create_multisample_state_desc_t {
+  uint32_t sample_count;
+} create_multisample_state_desc_t;
+WGPUMultisampleState
+wgpu_create_multisample_state_descriptor(create_multisample_state_desc_t* desc);
 
 #endif
