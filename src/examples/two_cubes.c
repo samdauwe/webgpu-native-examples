@@ -13,7 +13,7 @@
  * and binding multiple slices of a uniform buffer.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/twoCubes.ts
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/twoCubes/main.ts
  * -------------------------------------------------------------------------- */
 
 #define NUMBER_OF_CUBES 2
