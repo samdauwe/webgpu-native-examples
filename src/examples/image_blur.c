@@ -325,79 +325,95 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 // Create the compute & graphics pipelines
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CW,
-        .cull_mode  = WGPUCullMode_Back,
+  // Blur compute pipeline
+  {
+    // Compute shader
+    wgpu_shader_t blur_comp_shader = wgpu_shader_create(
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader SPIR-V
+                      .file = "shaders/image_blur/blur.comp.spv",
+                    });
+
+    // Compute pipeline
+    blur_pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .computeStage = blur_comp_shader.programmable_stage_descriptor,
       });
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
-    });
+    // Partial clean-up
+    wgpu_shader_release(&blur_comp_shader);
+  }
 
-  // Vertex input binding (=> Input assembly)
-  WGPU_VERTSTATE(cube, 20,
-                 // Attribute location 0: Position
-                 WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-                 // Attribute location 1: UV
-                 WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 12))
+  // Fullscreen quad render pipeline
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state_desc = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CW,
+      .cullMode  = WGPUCullMode_Back,
+    };
 
-  // Shaders
-  // Compute shader
-  wgpu_shader_t blur_comp_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader SPIR-V
-                    .file = "shaders/image_blur/blur.comp.spv",
-                  });
+    // Color target state
+    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
 
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
+    // Vertex buffer layout
+    WGPU_VERTEX_BUFFER_LAYOUT(
+      image_blur, 20,
+      // Attribute location 0: Position
+      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
+      // Attribute location 1: UV
+      WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 12))
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+                  wgpu_context, &(wgpu_vertex_state_t){
+                  .shader_desc = (wgpu_shader_desc_t){
                     // Vertex shader SPIR-V
                     .file = "shaders/image_blur/shader.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
+                  },
+                  .buffer_count = 1,
+                  .buffers = &image_blur_vertex_buffer_layout,
+                });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+                  wgpu_context, &(wgpu_fragment_state_t){
+                  .shader_desc = (wgpu_shader_desc_t){
                     // Fragment shader SPIR-V
                     .file = "shaders/image_blur/shader.frag.spv",
-                  });
+                  },
+                  .target_count = 1,
+                  .targets = &color_target_state_desc,
+                });
 
-  // Compute pipeline
-  blur_pipeline = wgpuDeviceCreateComputePipeline(
-    wgpu_context->device,
-    &(WGPUComputePipelineDescriptor){
-      .computeStage = blur_comp_shader.programmable_stage_descriptor,
-    });
+    // Multisample state
+    WGPUMultisampleState multisample_state_desc
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
 
-  // Rendering pipeline
-  render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state: no culling, no depth bias
-      .rasterizationState     = &rasterization_state,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .vertexState            = &vert_state_cube,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+    // Create rendering pipeline using the specified states
+    render_pipeline = wgpuDeviceCreateRenderPipeline2(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                              .label       = "image_blur_render_pipeline",
+                              .primitive   = primitive_state_desc,
+                              .vertex      = vertex_state_desc,
+                              .fragment    = &fragment_state_desc,
+                              .multisample = multisample_state_desc,
+                            });
 
-  // Partial clean-up
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
-  wgpu_shader_release(&blur_comp_shader);
+    // Shader modules are no longer needed once the graphics pipeline has been
+    // created
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
 }
 
 static void update_settings(wgpu_context_t* wgpu_context)
