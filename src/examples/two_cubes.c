@@ -10,10 +10,11 @@
  * WebGPU Example - Two Cubes
  *
  * This example shows some of the alignment requirements involved when updating
- * and binding multiple slices of a uniform buffer.
+ * and binding multiple slices of a uniform buffer. It renders two rotating
+ * cubes which have transform matrices at different offsets in a uniform buffer.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/twoCubes/main.ts
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/twoCubes
  * -------------------------------------------------------------------------- */
 
 #define NUMBER_OF_CUBES 2
@@ -222,34 +223,35 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
 static void prepare_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    // Backface culling since the cube is solid piece of geometry.
+    // Faces pointing away from the camera will be occluded by faces
+    // pointing toward the camera.
+    .cullMode = WGPUCullMode_Back,
+  };
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_Back,
-      });
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
+  // Depth stencil state
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
+  WGPUDepthStencilState depth_stencil_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
     });
 
-  // Depth and stencil state containing depth and stencil compare and test
-  // operations
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
-      });
-
-  // Vertex input binding (=> Input assembly)
-  WGPU_VERTSTATE(
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(
     two_cubes, cube_mesh.vertex_size,
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4,
@@ -257,44 +259,50 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     // Attribute location 1: Color
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4, cube_mesh.color_offset))
 
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/two_cubes/shader.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/two_cubes/shader.frag.spv",
-                  });
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+        wgpu_context, &(wgpu_vertex_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Vertex shader SPIR-V
+          .file = "shaders/two_cubes/shader.vert.spv",
+        },
+        .buffer_count = 1,
+        .buffers = &two_cubes_vertex_buffer_layout,
+      });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+        wgpu_context, &(wgpu_fragment_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Fragment shader SPIR-V
+          .file = "shaders/two_cubes/shader.frag.spv",
+        },
+        .target_count = 1,
+        .targets = &color_target_state_desc,
+      });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state_desc,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = &vert_state_two_cubes,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label        = "two_cubes_render_pipeline",
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_desc,
+                            .multisample  = multisample_state_desc,
+                          });
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
