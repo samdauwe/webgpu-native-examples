@@ -12,7 +12,7 @@
  * This example shows how to bind and sample textures.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/texturedCube
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/texturedCube
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/cube
  * -------------------------------------------------------------------------- */
 
@@ -255,79 +255,82 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_Back,
-      });
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
     });
 
-  // Depth and stencil state
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
-      });
-
-  // Vertex input binding
-  WGPU_VERTSTATE(
-    cube, cube_mesh.vertex_size,
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    textured_cube, cube_mesh.vertex_size,
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4,
                        cube_mesh.position_offset),
     // Attribute location 1: UV
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, cube_mesh.uv_offset))
 
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/textured_cube/shader.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/textured_cube/shader.frag.spv",
-                  });
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+             wgpu_context, &(wgpu_vertex_state_t){
+             .shader_desc = (wgpu_shader_desc_t){
+               // Vertex shader SPIR-V
+               .file = "shaders/textured_cube/shader.vert.spv",
+             },
+             .buffer_count = 1,
+             .buffers = &textured_cube_vertex_buffer_layout,
+           });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+             wgpu_context, &(wgpu_fragment_state_t){
+             .shader_desc = (wgpu_shader_desc_t){
+               // Fragment shader SPIR-V
+               .file = "shaders/textured_cube/shader.frag.spv",
+             },
+             .target_count = 1,
+             .targets = &color_target_state_desc,
+           });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .layout = pipeline_layout,
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state_desc,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = &vert_state_cube,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label        = "textured_cube_render_pipeline",
+                            .layout       = pipeline_layout,
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_desc,
+                            .multisample  = multisample_state_desc,
+                          });
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
