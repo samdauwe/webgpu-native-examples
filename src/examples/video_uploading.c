@@ -169,68 +169,72 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CW,
+    .cullMode  = WGPUCullMode_Back,
+  };
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CW,
-        .cull_mode  = WGPUCullMode_Back,
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    video_uploading, 20,
+    // Attribute location 0: Position
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
+    // Attribute location 1: UV
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 12))
+
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+                wgpu_context, &(wgpu_vertex_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Vertex shader SPIR-V
+                  .file = "shaders/video_uploading/shader.vert.spv",
+                },
+                .buffer_count = 1,
+                .buffers = &video_uploading_vertex_buffer_layout,
+              });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+                wgpu_context, &(wgpu_fragment_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Fragment shader SPIR-V
+                  .file = "shaders/video_uploading/shader.frag.spv",
+                },
+                .target_count = 1,
+                .targets = &color_target_state_desc,
+              });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
       });
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
-    });
-
-  // Vertex input binding
-  WGPU_VERTSTATE(video_uploading, 20,
-                 // Attribute location 0: Position
-                 WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-                 // Attribute location 1: UV
-                 WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 12))
-
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/video_uploading/shader.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/video_uploading/shader.frag.spv",
-                  });
-
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state_desc,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = NULL,
-      .vertexState            = &vert_state_video_uploading,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label       = "video_uploading_render_pipeline",
+                            .primitive   = primitive_state_desc,
+                            .vertex      = vertex_state_desc,
+                            .fragment    = &fragment_state_desc,
+                            .multisample = multisample_state_desc,
+                          });
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static int prepare_video(const char* fname)
