@@ -253,7 +253,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_desc
+  WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
@@ -305,7 +305,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
                             .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_desc,
+                            .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
 
