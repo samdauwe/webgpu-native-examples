@@ -493,7 +493,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color blend state
