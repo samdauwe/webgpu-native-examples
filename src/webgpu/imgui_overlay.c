@@ -325,32 +325,31 @@ static void imgui_overlay_prepare_pipeline(imgui_overlay_t* imgui_overlay)
 {
   wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_None,
-      });
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = imgui_overlay->settings.enable_alpha_blending,
+  // Color target state
+  WGPUBlendState blend_state
+    = wgpu_create_blend_state(imgui_overlay->settings.enable_alpha_blending);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = false,
     });
 
-  // Depth and stencil state containing depth and stencil compare and test
-  // operations
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = false,
-      });
-
-  // Vertex bindings an attributes based on ImGui vertex definition
-  WGPU_VERTSTATE(
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(
     imgui, sizeof(ImDrawVert),
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
@@ -360,45 +359,50 @@ static void imgui_overlay_prepare_pipeline(imgui_overlay_t* imgui_overlay)
     // Attribute location 2: Color
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Unorm8x4, offsetof(ImDrawVert, col)))
 
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/imgui_overlay/imgui.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/imgui_overlay/imgui.frag.spv",
-                  });
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+                wgpu_context, &(wgpu_vertex_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Vertex shader SPIR-V
+                  .file = "shaders/imgui_overlay/imgui.vert.spv",
+                },
+                .buffer_count = 1,
+                .buffers = &imgui_vertex_buffer_layout,
+              });
 
-  // Create graphics rendering pipeline using the specified states
-  imgui_overlay->pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .layout = imgui_overlay->pipeline_layout,
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state_desc,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = &vert_state_imgui,
-      .sampleCount            = imgui_overlay->settings.msaa_sample_count,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+                wgpu_context, &(wgpu_fragment_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Fragment shader SPIR-V
+                  .file = "shaders/imgui_overlay/imgui.frag.spv",
+                },
+                .target_count = 1,
+                .targets = &color_target_state_desc,
+              });
 
-  // Shader modules are no longer needed once the graphics pipeline has been
-  // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = imgui_overlay->settings.msaa_sample_count,
+      });
+
+  // Create rendering pipeline using the specified states
+  imgui_overlay->pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label        = "imgui_render_pipeline",
+                            .layout       = imgui_overlay->pipeline_layout,
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_state_desc,
+                            .multisample  = multisample_state_desc,
+                          });
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static void imgui_overlay_prepare_uniform_buffer(imgui_overlay_t* imgui_overlay)
