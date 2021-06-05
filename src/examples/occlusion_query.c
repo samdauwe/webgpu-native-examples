@@ -89,7 +89,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
       | WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors
-      | WGPU_GLTF_FileLoadingFlags_FlipY;
+      | WGPU_GLTF_FileLoadingFlags_FlipY
+      | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   models.plane
     = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
       .wgpu_context       = wgpu_context,

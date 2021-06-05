@@ -153,7 +153,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
 {
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
-      | WGPU_GLTF_FileLoadingFlags_FlipY;
+      | WGPU_GLTF_FileLoadingFlags_FlipY
+      | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models); ++i) {
     models[i].object
       = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
