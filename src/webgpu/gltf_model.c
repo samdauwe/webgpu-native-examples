@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <cglm/cglm.h>
 #include <cgltf.h>
 
+#include "../core/file.h"
 #include "../core/log.h"
 #include "../core/macro.h"
 
@@ -18,34 +18,16 @@ struct gltf_node_t;
 static struct gltf_node_t*
 gltf_model_node_from_index(struct gltf_model_t* model, uint32_t index);
 static void gltf_model_get_scene_dimensions(struct gltf_model_t* model);
-static void gltf_model_prepare_node_bind_group(struct gltf_model_t* model,
-                                               struct gltf_node_t* node);
 
 /*
  * glTF enums
  */
-typedef enum gltf_bind_group_binding_flags_enum {
-  BindGroupBindingFlags_ImageBaseColor = 0x00000001,
-  BindGroupBindingFlags_ImageNormalMap = 0x00000002
-} gltf_descriptor_binding_flags_enum;
-
-typedef enum alpha_mode_enum {
-  AlphaMode_OPAQUE = 0,
-  AlphaMode_MASK   = 1,
-  AlphaMode_BLEND  = 2,
-} alpha_mode_enum;
+typedef wgpu_gltf_alpha_mode_enum alpha_mode_enum;
 
 /*
  * glTF texture loading
  */
-typedef struct gltf_texture_t {
-  wgpu_context_t* wgpu_context;
-  texture_t wgpu_texture;
-  WGPUTextureFormat format;
-  uint32_t width, height;
-  uint32_t mip_levels;
-  uint32_t layer_count;
-} gltf_texture_t;
+typedef wgpu_gltf_texture_t gltf_texture_t;
 
 static void gltf_texture_init(gltf_texture_t* texture,
                               wgpu_context_t* wgpu_context)
@@ -55,6 +37,10 @@ static void gltf_texture_init(gltf_texture_t* texture,
 
 static void gltf_texture_destroy(gltf_texture_t* texture)
 {
+  if (!texture) {
+    return;
+  }
+
   wgpu_destroy_texture(&texture->wgpu_texture);
   free(texture);
 }
@@ -73,34 +59,30 @@ static void get_relative_file_path(const char* base_path, const char* new_path,
   snprintf(insert_point, strlen(new_path) + 1, "%s", new_path);
 }
 
-static void gltf_texture_from_gltf_image(gltf_texture_t* texture,
+static void gltf_texture_from_gltf_image(const char* model_uri,
+                                         gltf_texture_t* texture,
                                          cgltf_image* gltf_image)
 {
-  // TODO
+  char image_uri[STRMAX];
+  get_relative_file_path(model_uri, gltf_image->uri, image_uri);
+  if (filename_has_extension(image_uri, "jpg")
+      || filename_has_extension(image_uri, "png")) {
+    texture->wgpu_texture = wgpu_texture_load_with_stb(
+      texture->wgpu_context, image_uri,
+      WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
+    texture_t* wgpu_texture = &texture->wgpu_texture;
+    texture->format         = wgpu_texture->format;
+    texture->width          = wgpu_texture->size.width;
+    texture->height         = wgpu_texture->size.height;
+    texture->mip_levels     = wgpu_texture->mip_level_count;
+    texture->layer_count    = wgpu_texture->size.depth;
+  }
 }
 
 /*
  * glTF material
  */
-typedef struct gltf_material_t {
-  wgpu_context_t* wgpu_context;
-  alpha_mode_enum alpha_mode;
-  bool blend;
-  bool double_sided;
-  float alpha_cutoff;
-  float metallic_factor;
-  float roughness_factor;
-  vec4 base_color_factor;
-  gltf_texture_t* base_color_texture;
-  gltf_texture_t* metallic_roughness_texture;
-  gltf_texture_t* normal_texture;
-  gltf_texture_t* occlusion_texture;
-  gltf_texture_t* emissive_texture;
-  gltf_texture_t* specular_glossiness_texture;
-  gltf_texture_t* diffuse_texture;
-  WGPUBindGroup bind_group;
-  WGPURenderPipeline pipeline;
-} gltf_material_t;
+typedef wgpu_gltf_material_t gltf_material_t;
 
 static void gltf_material_init(gltf_material_t* material,
                                wgpu_context_t* wgpu_context)
@@ -123,53 +105,10 @@ static void gltf_material_init(gltf_material_t* material,
   material->bind_group                  = NULL;
 }
 
-static void gltf_material_create_bind_group(
-  gltf_material_t* material,
-  WGPUBindGroupLayout bind_group_layout_image_base_color,
-  WGPUBindGroupLayout bind_group_layout_image_normal_map,
-  uint32_t bind_group_bindings_flags)
+static void gltf_material_destroy(gltf_material_t* material)
 {
-  if (bind_group_bindings_flags & BindGroupBindingFlags_ImageBaseColor) {
-    WGPUBindGroupEntry bg_entries[2] = {
-          [0] = (WGPUBindGroupEntry) {
-            .binding = 0,
-            .textureView = material->base_color_texture->wgpu_texture.view,
-          },
-          [1] = (WGPUBindGroupEntry) {
-            .binding = 1,
-            .sampler = material->base_color_texture->wgpu_texture.sampler,
-          }
-        };
-    material->bind_group = wgpuDeviceCreateBindGroup(
-      material->wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = bind_group_layout_image_base_color,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(material->bind_group != NULL)
-  }
-  if (material->normal_texture
-      && bind_group_bindings_flags & BindGroupBindingFlags_ImageNormalMap) {
-    WGPUBindGroupEntry bg_entries[2] = {
-          [0] = (WGPUBindGroupEntry) {
-            .binding = 2,
-            .textureView = material->normal_texture->wgpu_texture.view,
-          },
-          [1] = (WGPUBindGroupEntry) {
-            .binding = 3,
-            .sampler = material->normal_texture->wgpu_texture.sampler,
-          }
-        };
-    material->bind_group = wgpuDeviceCreateBindGroup(
-      material->wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = bind_group_layout_image_normal_map,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(material->bind_group != NULL)
-  }
+  WGPU_RELEASE_RESOURCE(BindGroup, material->bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, material->pipeline)
 }
 
 /*
@@ -236,7 +175,6 @@ typedef struct gltf_mesh_t {
   struct {
     WGPUBuffer buffer;
     uint64_t size;
-    WGPUBindGroup bind_group;
   } uniform_buffer;
   gltf_mesh_uniform_block_t uniform_block;
 } gltf_mesh_t;
@@ -258,7 +196,6 @@ static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
 static void gltf_mesh_destroy(gltf_mesh_t* mesh)
 {
   WGPU_RELEASE_RESOURCE(Buffer, mesh->uniform_buffer.buffer);
-  WGPU_RELEASE_RESOURCE(BindGroup, mesh->uniform_buffer.bind_group);
 
   if (mesh->primitives != NULL) {
     free(mesh->primitives);
@@ -496,9 +433,8 @@ typedef struct gltf_vertex_t {
   vec4 tangent;
 } gltf_vertex_t;
 
-WGPUVertexAttribute
-gltf_get_vertex_attribute_description(uint32_t shader_location,
-                                      wgpu_gltf_vertex_component_enum component)
+WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
+  uint32_t shader_location, wgpu_gltf_vertex_component_enum component)
 {
   switch (component) {
     case WGPU_GLTF_VertexComponent_Position:
@@ -548,7 +484,7 @@ gltf_get_vertex_attribute_description(uint32_t shader_location,
   }
 }
 
-uint64_t get_gltf_vertex_size()
+uint64_t wgpu_gltf_get_vertex_size()
 {
   return sizeof(gltf_vertex_t);
 }
@@ -614,8 +550,6 @@ typedef struct gltf_model_t {
   struct {
     WGPUBindGroupLayout mesh_ubo;
     WGPUBindGroupLayout skin_ubo;
-    WGPUBindGroupLayout image_base_color;
-    WGPUBindGroupLayout image_normal_map;
   } bind_group_layout;
 
   uint8_t padding[1];
@@ -736,8 +670,6 @@ static void gltf_model_init(gltf_model_t* model,
 
   model->animations      = NULL;
   model->animation_count = 0;
-
-  model->bind_group_bindings_flags = BindGroupBindingFlags_ImageBaseColor;
 }
 
 void wgpu_gltf_model_destroy(gltf_model_t* model)
@@ -749,25 +681,28 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
   WGPU_RELEASE_RESOURCE(Buffer, model->vertices.buffer);
   WGPU_RELEASE_RESOURCE(Buffer, model->indices.buffer);
 
-  for (uint32_t i = 0; i < model->texture_count; i++) {
+  for (uint32_t i = 0; i < model->texture_count; ++i) {
     gltf_texture_destroy(&model->textures[i]);
   }
   free(model->textures);
 
-  for (uint32_t i = 0; i < model->mesh_count; i++) {
+  for (uint32_t i = 0; i < model->mesh_count; ++i) {
     gltf_mesh_destroy(&model->meshes[i]);
   }
   free(model->meshes);
 
-  free(model->materials);
-
-  for (uint32_t i = 0; i < model->node_count; i++) {
+  for (uint32_t i = 0; i < model->node_count; ++i) {
     gltf_node_destroy(&model->nodes[i]);
   }
   free(model->nodes);
   free(model->linear_nodes);
 
   gltf_texture_destroy(model->empty_texture);
+
+  for (uint32_t i = 0; i < model->material_count; ++i) {
+    gltf_material_destroy(&model->materials[i]);
+  }
+  free(model->materials);
 
   free(model);
 }
@@ -1110,7 +1045,7 @@ static void gltf_model_load_images(gltf_model_t* model, cgltf_data* data)
     cgltf_image* image      = &data->images[i];
     gltf_texture_t* texture = &model->textures[i];
     gltf_texture_init(texture, model->wgpu_context);
-    gltf_texture_from_gltf_image(texture, image);
+    gltf_texture_from_gltf_image(model->uri, texture, image);
   }
   // Create an empty texture to be used for empty material images
   gltf_model_create_empty_texture(model);
@@ -1544,92 +1479,6 @@ gltf_model_t* wgpu_gltf_model_load_from_file(
         ASSERT(gltf_model->bind_group_layout.skin_ubo != NULL);
       }
     }
-
-    for (uint32_t i = 0; i < gltf_model->node_count; ++i) {
-      gltf_model_prepare_node_bind_group(gltf_model, &gltf_model->nodes[i]);
-    }
-  }
-
-  // Bind groups for per-material images
-  {
-    // Layout is global, so only create if it hasn't already been created before
-    if ((gltf_model->bind_group_bindings_flags
-         & BindGroupBindingFlags_ImageBaseColor)
-        && gltf_model->bind_group_layout.image_base_color == NULL) {
-      WGPUBindGroupLayoutEntry bgl_entries[2] = {
-          [0] = (WGPUBindGroupLayoutEntry) {
-            // Binding 0: texture2D (Fragment shader)
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = (WGPUTextureBindingLayout) {
-              .sampleType = WGPUTextureSampleType_Float,
-              .viewDimension = WGPUTextureViewDimension_2D,
-              .multisampled = false,
-            },
-            .storageTexture = {0},
-          },
-          [1] = (WGPUBindGroupLayoutEntry) {
-            // Binding 1: sampler (Fragment shader)
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = (WGPUSamplerBindingLayout){
-              .type=WGPUSamplerBindingType_Filtering,
-            },
-            .texture = {0},
-          },
-        };
-      WGPUBindGroupLayoutDescriptor bgl_desc = {
-        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-        .entries    = bgl_entries,
-      };
-      gltf_model->bind_group_layout.image_base_color
-        = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
-                                          &bgl_desc);
-      ASSERT(gltf_model->bind_group_layout.image_base_color != NULL);
-    }
-    if ((gltf_model->bind_group_bindings_flags
-         & BindGroupBindingFlags_ImageNormalMap)
-        && gltf_model->bind_group_layout.image_base_color == NULL) {
-      WGPUBindGroupLayoutEntry bgl_entries[2] = {
-          [0] = (WGPUBindGroupLayoutEntry) {
-            // Binding 2: texture2D (Fragment shader)
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = (WGPUTextureBindingLayout) {
-              .sampleType = WGPUTextureSampleType_Float,
-              .viewDimension = WGPUTextureViewDimension_2D,
-              .multisampled = false,
-            },
-            .storageTexture = {0},
-          },
-          [1] = (WGPUBindGroupLayoutEntry) {
-            // Binding 3: sampler (Fragment shader)
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = (WGPUSamplerBindingLayout){
-              .type=WGPUSamplerBindingType_Filtering,
-            },
-            .texture = {0},
-          },
-        };
-      WGPUBindGroupLayoutDescriptor bgl_desc = {
-        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-        .entries    = bgl_entries,
-      };
-      gltf_model->bind_group_layout.image_normal_map
-        = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
-                                          &bgl_desc);
-      ASSERT(gltf_model->bind_group_layout.image_normal_map != NULL);
-    }
-    for (uint32_t i = 0; i < gltf_model->material_count; ++i) {
-      gltf_material_t* material = &gltf_model->materials[i];
-      if (material->base_color_texture != NULL) {
-        gltf_material_create_bind_group(
-          material, gltf_model->bind_group_layout.image_base_color,
-          gltf_model->bind_group_layout.image_normal_map,
-          gltf_model->bind_group_bindings_flags);
-      }
-    }
   }
 
   // Cleanup
@@ -1646,7 +1495,7 @@ static void gltf_model_bind_buffers(gltf_model_t* model)
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
                                       model->indices.buffer,
                                       WGPUIndexFormat_Uint32, 0, 0);
-  model->buffers_bound = true;
+  // model->buffers_bound = true;
 }
 
 static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
@@ -1667,7 +1516,12 @@ static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
         skip = (material->alpha_mode != AlphaMode_BLEND);
       }
       if (!skip) {
-        if (render_flags & RenderFlags_BindImages) {
+        // Bind the pipeline for the node's material if present
+        if (material->pipeline) {
+          wgpuRenderPassEncoderSetPipeline(model->wgpu_context->rpass_enc,
+                                           material->pipeline);
+        }
+        if ((render_flags & RenderFlags_BindImages) && material->bind_group) {
           wgpuRenderPassEncoderSetBindGroup(model->wgpu_context->rpass_enc,
                                             bind_image_set,
                                             material->bind_group, 0, 0);
@@ -1691,17 +1545,20 @@ void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
   if (!model->buffers_bound) {
     // All vertices and indices are stored in single buffers, so we only need to
     // bind once
-    wgpu_context_t* wgpu_context = model->wgpu_context;
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         model->vertices.buffer, 0, 0);
-    wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
-                                        model->indices.buffer,
-                                        WGPUIndexFormat_Uint32, 0, 0);
+    gltf_model_bind_buffers(model);
   }
   // Render all nodes at top-level
   for (uint32_t i = 0; i < model->node_count; ++i) {
     gltf_model_draw_node(model, &model->nodes[i], render_flags, bind_image_set);
   }
+}
+
+wgpu_gltf_materials_t wgpu_gltf_model_get_materials(gltf_model_t* model)
+{
+  return (wgpu_gltf_materials_t){
+    .materials      = model->materials,
+    .material_count = model->material_count,
+  };
 }
 
 static void gltf_model_get_node_dimensions(gltf_node_t* node, vec3* min,
@@ -1849,28 +1706,4 @@ static gltf_node_t* gltf_model_node_from_index(gltf_model_t* model,
     }
   }
   return node_found;
-}
-
-static void gltf_model_prepare_node_bind_group(gltf_model_t* model,
-                                               gltf_node_t* node)
-{
-  if (node->mesh != NULL) {
-    WGPUBindGroupDescriptor bg_desc = {
-      .layout     = node->skin != NULL ? model->bind_group_layout.skin_ubo :
-                                         model->bind_group_layout.mesh_ubo,
-      .entryCount = 1,
-      .entries    = &(WGPUBindGroupEntry) {
-        .binding = 0,
-        .buffer  = node->mesh->uniform_buffer.buffer,
-        .offset  = 0,
-        .size    =  node->mesh->uniform_buffer.size,
-      },
-    };
-    node->mesh->uniform_buffer.bind_group
-      = wgpuDeviceCreateBindGroup(model->wgpu_context->device, &bg_desc);
-    ASSERT(node->mesh->uniform_buffer.bind_group != NULL)
-  }
-  for (uint32_t i = 0; i < node->child_count; ++i) {
-    gltf_model_prepare_node_bind_group(model, node->children[i]);
-  }
 }
