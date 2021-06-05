@@ -242,127 +242,151 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_Back,
-      });
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = false,
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
     });
 
-  // Depth and stencil state containing depth and stencil compare and test
-  // operations
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
+  // Vertex buffer layout
+  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+    gltf_model,
+    // Location 0: Position
+    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
+    // Location 1: Vertex normal
+    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
+    // Location 3: Vertex color
+    WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_Color));
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
       });
 
-  // Vertex input binding (=> Input assembly) description
-  wgpu_gltf_vertex_component_enum vertex_components[4] = {
-    WGPU_GLTF_VertexComponent_Position, // Location 0: Vertex Position
-    WGPU_GLTF_VertexComponent_Normal,   // Location 1: Vertex normal
-    WGPU_GLTF_VertexComponent_Color,    // Location 2: Vertex color
-  };
-  WGPUVertexStateDescriptor* vert_state = wgpu_gltf_get_vertex_state_descriptor(
-    models.plane, vertex_components, (uint32_t)ARRAY_SIZE(vertex_components));
-
-  WGPURenderPipelineDescriptor pipeline_desc = {
-    .layout = pipeline_layout,
-    // Rasterization state
-    .rasterizationState     = &rasterization_state,
-    .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-    .colorStateCount        = 1,
-    .colorStates            = &color_state_desc,
-    .depthStencilState      = &depth_stencil_state_desc,
-    .vertexState            = vert_state,
-    .sampleCount            = 1,
-    .sampleMask             = 0xFFFFFFFF,
-    .alphaToCoverageEnabled = false,
+  // Render pipeline description
+  WGPURenderPipelineDescriptor2 pipeline_desc = {
+    .layout       = pipeline_layout,
+    .primitive    = primitive_state_desc,
+    .depthStencil = &depth_stencil_state_desc,
+    .multisample  = multisample_state_desc,
   };
 
   // Solid rendering pipeline
   {
-    // Vertex shader
-    wgpu_shader_t vert_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .file = "shaders/occlusion_query/mesh.vert.spv",
-                    });
-    // Fragment shader
-    wgpu_shader_t frag_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .file = "shaders/occlusion_query/mesh.frag.spv",
-                    });
-    pipeline_desc.vertexStage   = vert_shader.programmable_stage_descriptor;
-    pipeline_desc.fragmentStage = &frag_shader.programmable_stage_descriptor;
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .file = "shaders/occlusion_query/mesh.vert.spv",
+              },
+              .buffer_count = 1,
+              .buffers = &gltf_model_vertex_buffer_layout,
+            });
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .file = "shaders/occlusion_query/mesh.frag.spv",
+              },
+              .target_count = 1,
+              .targets = &color_target_state_desc,
+            });
+    pipeline_desc.vertex   = vertex_state_desc;
+    pipeline_desc.fragment = &fragment_state_desc;
     pipelines.solid
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.solid);
-    wgpu_shader_release(&frag_shader);
-    wgpu_shader_release(&vert_shader);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
   // Basic pipeline for coloring occluded objects
   {
-    // Vertex shader
-    wgpu_shader_t vert_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .file = "shaders/occlusion_query/simple.vert.spv",
-                    });
-    // Fragment shader
-    wgpu_shader_t frag_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .file = "shaders/occlusion_query/simple.frag.spv",
-                    });
-    rasterization_state.cullMode = WGPUCullMode_None;
-    pipeline_desc.vertexStage    = vert_shader.programmable_stage_descriptor;
-    pipeline_desc.fragmentStage  = &frag_shader.programmable_stage_descriptor;
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .file = "shaders/occlusion_query/simple.vert.spv",
+              },
+              .buffer_count = 1,
+              .buffers = &gltf_model_vertex_buffer_layout,
+            });
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .file = "shaders/occlusion_query/simple.frag.spv",
+              },
+              .target_count = 1,
+              .targets = &color_target_state_desc,
+            });
+    pipeline_desc.primitive.cullMode = WGPUCullMode_None;
+    pipeline_desc.vertex             = vertex_state_desc;
+    pipeline_desc.fragment           = &fragment_state_desc;
     pipelines.simple
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.simple);
-    wgpu_shader_release(&frag_shader);
-    wgpu_shader_release(&vert_shader);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
   // Visual pipeline for the occluder
   {
-    // Vertex shader
-    wgpu_shader_t vert_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .file = "shaders/occlusion_query/occluder.vert.spv",
-                    });
-    // Fragment shader
-    wgpu_shader_t frag_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .file = "shaders/occlusion_query/occluder.frag.spv",
-                    });
-    color_state_desc
-      = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-        .format       = wgpu_context->swap_chain.format,
-        .enable_blend = true,
-      });
-    pipeline_desc.colorStates   = &color_state_desc;
-    pipeline_desc.vertexStage   = vert_shader.programmable_stage_descriptor;
-    pipeline_desc.fragmentStage = &frag_shader.programmable_stage_descriptor;
+    blend_state             = wgpu_create_blend_state(true);
+    color_target_state_desc = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .file = "shaders/occlusion_query/occluder.vert.spv",
+              },
+              .buffer_count = 1,
+              .buffers = &gltf_model_vertex_buffer_layout,
+            });
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .file = "shaders/occlusion_query/occluder.frag.spv",
+              },
+              .target_count = 1,
+              .targets = &color_target_state_desc,
+            });
+    pipeline_desc.vertex   = vertex_state_desc;
+    pipeline_desc.fragment = &fragment_state_desc;
     pipelines.occluder
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.occluder);
-    wgpu_shader_release(&frag_shader);
-    wgpu_shader_release(&vert_shader);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 }
 

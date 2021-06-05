@@ -249,80 +249,83 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Construct the different states making up the pipeline
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_Back,
-      });
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = false,
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
     });
 
-  // Depth and stencil state containing depth and stencil compare and test
-  // operations
-  WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state_descriptor(
-      &(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
+  // Vertex buffer layout
+  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+    cube,
+    // Location 0: Position
+    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
+    // Location 1: Vertex normal
+    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
+    // Location 2: Texture coordinates
+    WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV),
+    // Location 3: Vertex color
+    WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Color));
+
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/bind_groups/cube.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &cube_vertex_buffer_layout,
+          });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/bind_groups/cube.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
       });
-
-  // Vertex input binding (=> Input assembly) description
-  wgpu_gltf_vertex_component_enum vertex_components[4] = {
-    WGPU_GLTF_VertexComponent_Position, // Location 0: Position
-    WGPU_GLTF_VertexComponent_Normal,   // Location 1: Vertex normal
-    WGPU_GLTF_VertexComponent_UV,       // Location 2: Texture coordinates
-    WGPU_GLTF_VertexComponent_Color,    // Location 3: Vertex color
-  };
-  WGPUVertexStateDescriptor* vert_state_cube
-    = wgpu_gltf_get_vertex_state_descriptor(
-      model, vertex_components, (uint32_t)ARRAY_SIZE(vertex_components));
-
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/bind_groups/cube.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/bind_groups/cube.frag.spv",
-                  });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .layout = pipeline_layout,
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state
-      .rasterizationState     = &rasterization_state,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .depthStencilState      = &depth_stencil_state_desc,
-      .vertexState            = vert_state_cube,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label        = "cube_render_pipeline",
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_state_desc,
+                            .multisample  = multisample_state_desc,
+                          });
 
-  // Shader modules are no longer needed once the graphics pipeline has been
-  // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)

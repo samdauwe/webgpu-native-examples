@@ -8,6 +8,15 @@
 struct gltf_model_t;
 struct wgpu_context_t;
 
+#define WGPU_GLTF_VERTATTR_DESC(l, c)                                          \
+  gltf_get_vertex_attribute_description(l, c)
+
+#define WGPU_GLTF_VERTEX_BUFFER_LAYOUT(name, ...)                              \
+  uint64_t array_stride                       = get_gltf_vertex_size();        \
+  WGPUVertexAttribute vert_attr_desc_##name[] = {__VA_ARGS__};                 \
+  WGPUVertexBufferLayout name##_vertex_buffer_layout                           \
+    = WGPU_VERTBUFFERLAYOUT_DESC(array_stride, vert_attr_desc_##name);
+
 /*
  * glTF model loading options
  */
@@ -47,12 +56,16 @@ struct gltf_model_t* wgpu_gltf_model_load_from_file(
 void wgpu_gltf_model_destroy(struct gltf_model_t* model);
 
 /**
- *  @brief Returns the default pipeline vertex input state create info structure
- * for the requested vertex components
+ * @brief Returns the vertex attribute description for the given shader location
+ * and component.
  */
-WGPUVertexStateDescriptor* wgpu_gltf_get_vertex_state_descriptor(
-  struct gltf_model_t* model, wgpu_gltf_vertex_component_enum* components,
-  uint32_t component_count);
+WGPUVertexAttribute gltf_get_vertex_attribute_description(
+  uint32_t shader_location, wgpu_gltf_vertex_component_enum component);
+
+/**
+ * @brief Returns the size of a glTF Vertex.
+ */
+uint64_t get_gltf_vertex_size();
 
 /**
  *  @brief glTF model rendering

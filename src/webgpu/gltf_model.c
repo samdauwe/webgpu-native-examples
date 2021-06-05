@@ -85,6 +85,8 @@ static void gltf_texture_from_gltf_image(gltf_texture_t* texture,
 typedef struct gltf_material_t {
   wgpu_context_t* wgpu_context;
   alpha_mode_enum alpha_mode;
+  bool blend;
+  bool double_sided;
   float alpha_cutoff;
   float metallic_factor;
   float roughness_factor;
@@ -97,6 +99,7 @@ typedef struct gltf_material_t {
   gltf_texture_t* specular_glossiness_texture;
   gltf_texture_t* diffuse_texture;
   WGPUBindGroup bind_group;
+  WGPURenderPipeline pipeline;
 } gltf_material_t;
 
 static void gltf_material_init(gltf_material_t* material,
@@ -104,6 +107,8 @@ static void gltf_material_init(gltf_material_t* material,
 {
   material->wgpu_context     = wgpu_context;
   material->alpha_mode       = AlphaMode_OPAQUE;
+  material->blend            = false;
+  material->double_sided     = false;
   material->alpha_cutoff     = 1.0f;
   material->metallic_factor  = 1.0f;
   material->roughness_factor = 1.0f;
@@ -480,6 +485,7 @@ static void gltf_animation_init(gltf_animation_t* animation)
   animation->end   = 0;
 }
 
+/* glTF Vertex */
 typedef struct gltf_vertex_t {
   vec3 pos;
   vec3 normal;
@@ -490,7 +496,7 @@ typedef struct gltf_vertex_t {
   vec4 tangent;
 } gltf_vertex_t;
 
-static WGPUVertexAttribute
+WGPUVertexAttribute
 gltf_get_vertex_attribute_description(uint32_t shader_location,
                                       wgpu_gltf_vertex_component_enum component)
 {
@@ -540,6 +546,11 @@ gltf_get_vertex_attribute_description(uint32_t shader_location,
     default:
       return (WGPUVertexAttribute){0};
   }
+}
+
+uint64_t get_gltf_vertex_size()
+{
+  return sizeof(gltf_vertex_t);
 }
 
 typedef enum render_flags_enum {
@@ -598,13 +609,6 @@ typedef struct gltf_model_t {
   bool metallicRoughnessWorkflow;
   bool buffers_bound;
   char path[STRMAX];
-
-  struct {
-    WGPUVertexStateDescriptor descriptor;
-    WGPUVertexBufferLayout vertex_buffer;
-    WGPUVertexAttribute* vertex_attributes;
-    uint32_t vertex_attribute_count;
-  } vertex_state;
 
   uint32_t bind_group_bindings_flags;
   struct {
@@ -700,34 +704,6 @@ static void gltf_model_create_empty_texture(gltf_model_t* model)
     = wgpuDeviceCreateSampler(model->wgpu_context->device, &sampler_desc);
 }
 
-/**
- *  @brief Returns the default pipeline vertex input state create info structure
- * for the requested vertex components
- */
-WGPUVertexStateDescriptor* wgpu_gltf_get_vertex_state_descriptor(
-  struct gltf_model_t* model, wgpu_gltf_vertex_component_enum* components,
-  uint32_t component_count)
-{
-  memset(&model->vertex_state.descriptor, 0, sizeof(WGPUVertexStateDescriptor));
-  model->vertex_state.descriptor.vertexBufferCount = 1;
-  model->vertex_state.vertex_attribute_count       = component_count;
-  model->vertex_state.vertex_attributes
-    = calloc(component_count, sizeof(WGPUVertexAttribute));
-  for (uint32_t i = 0; i < component_count; ++i) {
-    model->vertex_state.vertex_attributes[i]
-      = gltf_get_vertex_attribute_description(i, components[i]);
-  }
-  model->vertex_state.vertex_buffer = (WGPUVertexBufferLayout){
-    .arrayStride    = sizeof(gltf_vertex_t),
-    .stepMode       = WGPUInputStepMode_Vertex,
-    .attributeCount = component_count,
-    .attributes     = model->vertex_state.vertex_attributes,
-  };
-  model->vertex_state.descriptor.vertexBuffers
-    = &model->vertex_state.vertex_buffer;
-  return &model->vertex_state.descriptor;
-}
-
 /*
  * glTF model loading and rendering class
  */
@@ -792,10 +768,6 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
   free(model->linear_nodes);
 
   gltf_texture_destroy(model->empty_texture);
-
-  if (model->vertex_state.vertex_attribute_count > 0) {
-    free(model->vertex_state.vertex_attributes);
-  }
 
   free(model);
 }
@@ -1191,11 +1163,14 @@ static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
     }
     if (mat->alpha_mode == cgltf_alpha_mode_blend) {
       material->alpha_mode = AlphaMode_BLEND;
+      material->blend      = true;
     }
     if (mat->alpha_mode == cgltf_alpha_mode_mask) {
       material->alpha_mode = AlphaMode_MASK;
+      material->blend      = true;
     }
     material->alpha_cutoff = mat->alpha_cutoff;
+    material->double_sided = mat->double_sided;
   }
   // Push a default material at the end of the list for meshes with no material
   // assigned
@@ -1709,10 +1684,13 @@ static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
   }
 }
 
+// Draw the glTF scene starting at the top-level-nodes
 void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
                           uint32_t bind_image_set)
 {
   if (!model->buffers_bound) {
+    // All vertices and indices are stored in single buffers, so we only need to
+    // bind once
     wgpu_context_t* wgpu_context = model->wgpu_context;
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                          model->vertices.buffer, 0, 0);
@@ -1720,6 +1698,7 @@ void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
                                         model->indices.buffer,
                                         WGPUIndexFormat_Uint32, 0, 0);
   }
+  // Render all nodes at top-level
   for (uint32_t i = 0; i < model->node_count; ++i) {
     gltf_model_draw_node(model, &model->nodes[i], render_flags, bind_image_set);
   }
