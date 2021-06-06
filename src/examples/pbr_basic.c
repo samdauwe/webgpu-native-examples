@@ -577,7 +577,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 2,
                                       dynamic_offsets);
     // Draw object
-    wgpu_gltf_model_draw(models[current_object_index].object, 0, 1);
+    wgpu_gltf_model_draw(models[current_object_index].object,
+                         (wgpu_gltf_model_render_options_t){0});
   }
 
   // End render pass

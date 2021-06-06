@@ -31,6 +31,16 @@ typedef enum wgpu_gltf_file_loading_flags_enum {
 } wgpu_gltf_file_loading_flags_enum;
 
 /*
+ * glTF model render options
+ */
+typedef enum wgpu_gltf_render_flags_enum {
+  WGPU_GLTF_RenderFlags_BindImages              = 0x00000001,
+  WGPU_GLTF_RenderFlags_RenderOpaqueNodes       = 0x00000002,
+  WGPU_GLTF_RenderFlags_RenderAlphaMaskedNodes  = 0x00000004,
+  WGPU_GLTF_RenderFlags_RenderAlphaBlendedNodes = 0x00000008
+} wgpu_gltf_render_flags_enum;
+
+/*
  * glTF default vertex layout with easy WebGPU mapping functions
  */
 typedef enum wgpu_gltf_vertex_component_enum {
@@ -116,11 +126,20 @@ WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
 /** glTF helper functions */
 uint64_t wgpu_gltf_get_vertex_size();
 wgpu_gltf_materials_t wgpu_gltf_model_get_materials();
+void wgpu_gltf_model_prepare_node_bind_group(
+  struct gltf_model_t* model, WGPUBindGroupLayout bind_group_layout);
 
 /**
  *  @brief glTF model rendering
  */
-void wgpu_gltf_model_draw(struct gltf_model_t* model, uint32_t render_flags,
-                          uint32_t bind_image_set);
+typedef struct wgpu_gltf_model_render_options_t {
+  uint32_t render_flags;
+  uint32_t bind_mesh_model_set;
+  uint32_t bind_image_set;
+} wgpu_gltf_model_render_options_t;
+void wgpu_gltf_model_draw(struct gltf_model_t* model,
+                          wgpu_gltf_model_render_options_t render_options);
+void gltf_model_update_animation(struct gltf_model_t* model, uint32_t index,
+                                 float time);
 
 #endif

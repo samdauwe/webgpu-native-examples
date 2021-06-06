@@ -567,7 +567,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                     0);
 
   // Draw plane
-  wgpu_gltf_model_draw(model, 0, 1);
+  wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);

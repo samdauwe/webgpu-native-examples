@@ -829,7 +829,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                    pipelines.environment);
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.environment, 0, 0);
-  wgpu_gltf_model_draw(environment, 0, 1);
+  wgpu_gltf_model_draw(environment, (wgpu_gltf_model_render_options_t){0});
 
   // Particle system (no index buffer)
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,

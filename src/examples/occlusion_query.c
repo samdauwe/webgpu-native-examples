@@ -622,20 +622,20 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Occluder first
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
-  wgpu_gltf_model_draw(models.plane, 0, 1);
+  wgpu_gltf_model_draw(models.plane, (wgpu_gltf_model_render_options_t){0});
 
   // Teapot
   wgpuRenderPassEncoderBeginOcclusionQuery(wgpu_context->rpass_enc, 0);
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.teapot, 0, 0);
-  wgpu_gltf_model_draw(models.teapot, 0, 1);
+  wgpu_gltf_model_draw(models.teapot, (wgpu_gltf_model_render_options_t){0});
   wgpuRenderPassEncoderEndOcclusionQuery(wgpu_context->rpass_enc);
 
   // Sphere
   wgpuRenderPassEncoderBeginOcclusionQuery(wgpu_context->rpass_enc, 1);
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.sphere, 0, 0);
-  wgpu_gltf_model_draw(models.sphere, 0, 1);
+  wgpu_gltf_model_draw(models.sphere, (wgpu_gltf_model_render_options_t){0});
   wgpuRenderPassEncoderEndOcclusionQuery(wgpu_context->rpass_enc);
 
   // Visible pass
@@ -644,18 +644,18 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Teapot
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.teapot, 0, 0);
-  wgpu_gltf_model_draw(models.teapot, 0, 1);
+  wgpu_gltf_model_draw(models.teapot, (wgpu_gltf_model_render_options_t){0});
 
   // Sphere
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.sphere, 0, 0);
-  wgpu_gltf_model_draw(models.sphere, 0, 1);
+  wgpu_gltf_model_draw(models.sphere, (wgpu_gltf_model_render_options_t){0});
 
   // Occluder
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.occluder);
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
-  wgpu_gltf_model_draw(models.plane, 0, 1);
+  wgpu_gltf_model_draw(models.plane, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);

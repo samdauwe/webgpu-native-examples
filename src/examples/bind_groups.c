@@ -429,7 +429,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     // uniform buffer and image set for this cube
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       cubes[i].bind_group, 0, 0);
-    wgpu_gltf_model_draw(model, 0, 1);
+    wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
   }
 
   // End render pass

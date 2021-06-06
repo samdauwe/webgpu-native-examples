@@ -42,7 +42,6 @@ static void gltf_texture_destroy(gltf_texture_t* texture)
   }
 
   wgpu_destroy_texture(&texture->wgpu_texture);
-  free(texture);
 }
 
 static void get_relative_file_path(const char* base_path, const char* new_path,
@@ -175,6 +174,7 @@ typedef struct gltf_mesh_t {
   struct {
     WGPUBuffer buffer;
     uint64_t size;
+    WGPUBindGroup bind_group;
   } uniform_buffer;
   gltf_mesh_uniform_block_t uniform_block;
 } gltf_mesh_t;
@@ -196,6 +196,7 @@ static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
 static void gltf_mesh_destroy(gltf_mesh_t* mesh)
 {
   WGPU_RELEASE_RESOURCE(Buffer, mesh->uniform_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(BindGroup, mesh->uniform_buffer.bind_group);
 
   if (mesh->primitives != NULL) {
     free(mesh->primitives);
@@ -489,13 +490,6 @@ uint64_t wgpu_gltf_get_vertex_size()
   return sizeof(gltf_vertex_t);
 }
 
-typedef enum render_flags_enum {
-  RenderFlags_BindImages              = 0x00000001,
-  RenderFlags_RenderOpaqueNodes       = 0x00000002,
-  RenderFlags_RenderAlphaMaskedNodes  = 0x00000004,
-  RenderFlags_RenderAlphaBlendedNodes = 0x00000008
-} render_flags_enum;
-
 /*
  * glTF model loading and rendering class
  */
@@ -545,14 +539,6 @@ typedef struct gltf_model_t {
   bool metallicRoughnessWorkflow;
   bool buffers_bound;
   char path[STRMAX];
-
-  uint32_t bind_group_bindings_flags;
-  struct {
-    WGPUBindGroupLayout mesh_ubo;
-    WGPUBindGroupLayout skin_ubo;
-  } bind_group_layout;
-
-  uint8_t padding[1];
 } gltf_model_t;
 
 static gltf_texture_t* gltf_model_get_texture(gltf_model_t* model,
@@ -698,6 +684,7 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
   free(model->linear_nodes);
 
   gltf_texture_destroy(model->empty_texture);
+  free(model->empty_texture);
 
   for (uint32_t i = 0; i < model->material_count; ++i) {
     gltf_material_destroy(&model->materials[i]);
@@ -716,7 +703,9 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
   gltf_node_t* new_node = &model->nodes[node - data->nodes];
   gltf_node_init(new_node);
   new_node->index = (int32_t)(node - data->nodes);
-  snprintf(new_node->name, strlen(node->name) + 1, "%s", node->name);
+  if (node->name) {
+    snprintf(new_node->name, strlen(node->name) + 1, "%s", node->name);
+  }
   new_node->skin_index  = (int32_t)(node->skin - data->skins);
   new_node->children    = calloc(node->children_count, sizeof(gltf_node_t*));
   new_node->child_count = node->children_count;
@@ -750,12 +739,15 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
     }
   }
 
-  // Node contains mesh data
+  // If the node contains mesh data, we load vertices and indices from the
+  // buffers In glTF this is done via accessors and buffer views
   if (node->mesh != NULL) {
     cgltf_mesh* mesh      = node->mesh;
     gltf_mesh_t* new_mesh = &model->meshes[node->mesh - data->meshes];
     gltf_mesh_init(new_mesh, model->wgpu_context, new_node->matrix);
-    snprintf(new_mesh->name, strlen(mesh->name) + 1, "%s", mesh->name);
+    if (mesh->name) {
+      snprintf(new_mesh->name, strlen(mesh->name) + 1, "%s", mesh->name);
+    }
 
     new_mesh->primitive_count = (uint32_t)mesh->primitives_count;
     new_mesh->primitives
@@ -763,6 +755,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
           calloc(new_mesh->primitive_count, sizeof(*new_mesh->primitives)) :
           NULL;
 
+    // Iterate through all primitives of this node's mesh
     for (uint32_t i = 0; i < mesh->primitives_count; ++i) {
       cgltf_primitive* primitive = &mesh->primitives[i];
       if (primitive->indices == NULL) {
@@ -788,7 +781,8 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
 
         cgltf_accessor* pos_accessor = NULL;
 
-        for (uint32_t j = 0; j < primitive->attributes_count; j++) {
+        for (uint32_t j = 0; j < primitive->attributes_count; ++j) {
+          // Get buffer data for vertex normals
           if (primitive->attributes[j].type == cgltf_attribute_type_position) {
             pos_accessor                = primitive->attributes[j].data;
             cgltf_buffer_view* pos_view = pos_accessor->buffer_view;
@@ -814,6 +808,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
                 pos_max);
             }
           }
+          // Get buffer data for vertex normals
           if (primitive->attributes[j].type == cgltf_attribute_type_normal) {
             cgltf_accessor* normal_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* normal_view  = normal_accessor->buffer_view;
@@ -821,6 +816,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
               (unsigned char*)normal_view->buffer
                 ->data)[normal_accessor->offset + normal_view->offset];
           }
+          // Get buffer data for vertex texture coordinates
           if (primitive->attributes[j].type == cgltf_attribute_type_texcoord) {
             cgltf_accessor* texcoord_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* texcoord_view  = texcoord_accessor->buffer_view;
@@ -828,6 +824,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
               ((unsigned char*)texcoord_view->buffer
                  ->data)[texcoord_accessor->offset + texcoord_view->offset]);
           }
+          // Get buffer data for vertex colors
           if (primitive->attributes[j].type == cgltf_attribute_type_color) {
             cgltf_accessor* color_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* color_view  = color_accessor->buffer_view;
@@ -838,6 +835,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
               ((unsigned char*)color_view->buffer
                  ->data)[color_accessor->offset + color_view->offset]);
           }
+          // Get buffer data for vertex tangents
           if (primitive->attributes[j].type == cgltf_attribute_type_tangent) {
             cgltf_accessor* tangent_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* tangent_view  = tangent_accessor->buffer_view;
@@ -1433,54 +1431,6 @@ gltf_model_t* wgpu_gltf_model_load_from_file(
   // Get scene dimensions
   gltf_model_get_scene_dimensions(gltf_model);
 
-  // Bind groups for per-node uniform buffers
-  {
-    // Bind group layouts are global, so only create if the have not already
-    // been created before
-    {
-      if (gltf_model->bind_group_layout.mesh_ubo == NULL) {
-        WGPUBindGroupLayoutDescriptor bgl_desc = {
-            .entryCount = 1,
-            .entries = &(WGPUBindGroupLayoutEntry) {
-              // Binding 0: Uniform buffer (Vertex shader)
-              .binding = 0,
-              .visibility = WGPUShaderStage_Vertex,
-              .buffer = (WGPUBufferBindingLayout){
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(mat4),
-              },
-              .sampler = {0},
-            }
-          };
-        gltf_model->bind_group_layout.mesh_ubo
-          = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
-                                            &bgl_desc);
-        ASSERT(gltf_model->bind_group_layout.mesh_ubo != NULL);
-      }
-    }
-    {
-      if (gltf_model->bind_group_layout.skin_ubo == NULL) {
-        WGPUBindGroupLayoutDescriptor bgl_desc = {
-            .entryCount = 1,
-            .entries = &(WGPUBindGroupLayoutEntry) {
-              // Binding 0: Uniform buffer (Vertex shader)
-              .binding = 0,
-              .visibility = WGPUShaderStage_Vertex,
-              .buffer = (WGPUBufferBindingLayout){
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(gltf_mesh_uniform_block_t),
-              },
-              .sampler = {0},
-            }
-          };
-        gltf_model->bind_group_layout.skin_ubo
-          = wgpuDeviceCreateBindGroupLayout(gltf_model->wgpu_context->device,
-                                            &bgl_desc);
-        ASSERT(gltf_model->bind_group_layout.skin_ubo != NULL);
-      }
-    }
-  }
-
   // Cleanup
   cgltf_free(gltf_data);
 
@@ -1498,21 +1448,29 @@ static void gltf_model_bind_buffers(gltf_model_t* model)
   // model->buffers_bound = true;
 }
 
-static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
-                                 uint32_t render_flags, uint32_t bind_image_set)
+static void
+gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
+                     wgpu_gltf_model_render_options_t render_options)
 {
+  uint32_t render_flags = render_options.render_flags;
+
   if (node->mesh && node->mesh->primitive_count > 0) {
+    if (node->mesh->uniform_buffer.bind_group) {
+      wgpuRenderPassEncoderSetBindGroup(
+        model->wgpu_context->rpass_enc, render_options.bind_mesh_model_set,
+        node->mesh->uniform_buffer.bind_group, 0, 0);
+    }
     for (uint32_t i = 0; i < node->mesh->primitive_count; ++i) {
       gltf_primitive_t* primitive = &node->mesh->primitives[i];
       bool skip                   = false;
       gltf_material_t* material   = primitive->material;
-      if (render_flags & RenderFlags_RenderOpaqueNodes) {
+      if (render_flags & WGPU_GLTF_RenderFlags_RenderOpaqueNodes) {
         skip = (material->alpha_mode != AlphaMode_OPAQUE);
       }
-      if (render_flags & RenderFlags_RenderAlphaMaskedNodes) {
+      if (render_flags & WGPU_GLTF_RenderFlags_RenderAlphaMaskedNodes) {
         skip = (material->alpha_mode != AlphaMode_MASK);
       }
-      if (render_flags & RenderFlags_RenderAlphaBlendedNodes) {
+      if (render_flags & WGPU_GLTF_RenderFlags_RenderAlphaBlendedNodes) {
         skip = (material->alpha_mode != AlphaMode_BLEND);
       }
       if (!skip) {
@@ -1521,9 +1479,10 @@ static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
           wgpuRenderPassEncoderSetPipeline(model->wgpu_context->rpass_enc,
                                            material->pipeline);
         }
-        if ((render_flags & RenderFlags_BindImages) && material->bind_group) {
+        if ((render_flags & WGPU_GLTF_RenderFlags_BindImages)
+            && material->bind_group) {
           wgpuRenderPassEncoderSetBindGroup(model->wgpu_context->rpass_enc,
-                                            bind_image_set,
+                                            render_options.bind_image_set,
                                             material->bind_group, 0, 0);
         }
         wgpuRenderPassEncoderDrawIndexed(model->wgpu_context->rpass_enc,
@@ -1533,14 +1492,13 @@ static void gltf_model_draw_node(gltf_model_t* model, gltf_node_t* node,
     }
   }
   for (uint32_t i = 0; i < node->child_count; ++i) {
-    gltf_model_draw_node(model, node->children[i], render_flags,
-                         bind_image_set);
+    gltf_model_draw_node(model, node->children[i], render_options);
   }
 }
 
 // Draw the glTF scene starting at the top-level-nodes
-void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
-                          uint32_t bind_image_set)
+void wgpu_gltf_model_draw(gltf_model_t* model,
+                          wgpu_gltf_model_render_options_t render_options)
 {
   if (!model->buffers_bound) {
     // All vertices and indices are stored in single buffers, so we only need to
@@ -1549,7 +1507,7 @@ void wgpu_gltf_model_draw(gltf_model_t* model, uint32_t render_flags,
   }
   // Render all nodes at top-level
   for (uint32_t i = 0; i < model->node_count; ++i) {
-    gltf_model_draw_node(model, &model->nodes[i], render_flags, bind_image_set);
+    gltf_model_draw_node(model, &model->nodes[i], render_options);
   }
 }
 
@@ -1559,6 +1517,40 @@ wgpu_gltf_materials_t wgpu_gltf_model_get_materials(gltf_model_t* model)
     .materials      = model->materials,
     .material_count = model->material_count,
   };
+}
+
+static void
+gltf_model_prepare_node_bind_group(gltf_model_t* model, gltf_node_t* node,
+                                   WGPUBindGroupLayout bind_group_layout)
+{
+  if (node->mesh != NULL) {
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout     = bind_group_layout,
+      .entryCount = 1,
+      .entries    = &(WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = node->mesh->uniform_buffer.buffer,
+        .offset  = 0,
+        .size    =  node->mesh->uniform_buffer.size,
+      },
+    };
+    node->mesh->uniform_buffer.bind_group
+      = wgpuDeviceCreateBindGroup(model->wgpu_context->device, &bg_desc);
+    ASSERT(node->mesh->uniform_buffer.bind_group != NULL)
+  }
+  for (uint32_t i = 0; i < node->child_count; ++i) {
+    gltf_model_prepare_node_bind_group(model, node->children[i],
+                                       bind_group_layout);
+  }
+}
+
+void wgpu_gltf_model_prepare_node_bind_group(
+  gltf_model_t* model, WGPUBindGroupLayout bind_group_layout)
+{
+  for (uint32_t i = 0; i < model->node_count; ++i) {
+    gltf_model_prepare_node_bind_group(model, &model->nodes[i],
+                                       bind_group_layout);
+  }
 }
 
 static void gltf_model_get_node_dimensions(gltf_node_t* node, vec3* min,
@@ -1606,8 +1598,8 @@ static void gltf_model_get_scene_dimensions(gltf_model_t* model)
     = glm_vec3_distance(model->dimensions.min, model->dimensions.max) / 2.0f;
 }
 
-static void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
-                                        float time)
+void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
+                                 float time)
 {
   if ((int32_t)index > ((int32_t)model->animation_count) - 1) {
     log_warn("No animation with index %u", index);
