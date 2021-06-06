@@ -126,6 +126,7 @@ set(SOURCES
     src/examples/gears.c
     src/examples/dynamic_uniform_buffer.c
     src/examples/gltf_loading.c
+    src/examples/gltf_scene_rendering.c
     src/examples/image_blur.c
     src/examples/imgui_overlay.c
     src/examples/instanced_cube.c

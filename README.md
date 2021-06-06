@@ -142,6 +142,10 @@ These samples show how implement different features of the [glTF 2.0 3D format](
 
 Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The structure of the glTF 2.0 scene is converted into the data structures required to render the scene with WebGPU.
 
+#### [glTF scene rendering](src/examples/gltf_scene_rendering.c)
+
+Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The sample uses the glTF model loading functions, and adds data structures, functions and shaders required to render a more complex scene using Crytek's Sponza model with per-material pipelines and normal mapping.
+
 ### Advanced
 
 #### [Multi sampling](src/examples/msaa_line.c)
