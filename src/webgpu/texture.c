@@ -506,9 +506,9 @@ texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
 
   // Create the sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .addressModeU  = WGPUAddressMode_ClampToEdge,
-    .addressModeV  = WGPUAddressMode_ClampToEdge,
-    .addressModeW  = WGPUAddressMode_ClampToEdge,
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
     .minFilter     = WGPUFilterMode_Linear,
     .magFilter     = WGPUFilterMode_Linear,
     .mipmapFilter  = WGPUFilterMode_Nearest,
