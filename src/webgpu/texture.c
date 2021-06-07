@@ -542,9 +542,9 @@ struct wgpu_mipmap_generator {
   WGPUBindGroupLayout pipeline_layouts[(uint32_t)NUMBER_OF_TEXTURE_FORMATS];
   WGPURenderPipeline pipelines[(uint32_t)NUMBER_OF_TEXTURE_FORMATS];
   bool active_pipelines[(uint32_t)NUMBER_OF_TEXTURE_FORMATS];
-  // Shaders are shared between all pipelines
-  wgpu_shader_t vert_mipmap_shader;
-  wgpu_shader_t frag_mipmap_shader;
+  // Vertex state and  Fragment state are shared between all pipelines
+  WGPUVertexState vertex_state_desc;
+  WGPUFragmentState fragment_state_desc;
 };
 
 wgpu_mipmap_generator_t*
@@ -583,10 +583,12 @@ void wgpu_mipmap_generator_destroy(wgpu_mipmap_generator_t* mipmap_generator)
       mipmap_generator->active_pipelines[i] = false;
     }
   }
-  if (mipmap_generator->vert_mipmap_shader.module
-      || mipmap_generator->frag_mipmap_shader.module) {
-    wgpu_shader_release(&mipmap_generator->vert_mipmap_shader);
-    wgpu_shader_release(&mipmap_generator->frag_mipmap_shader);
+  if (!mipmap_generator->vertex_state_desc.module
+      || !mipmap_generator->fragment_state_desc.module) {
+    WGPU_RELEASE_RESOURCE(ShaderModule,
+                          mipmap_generator->vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule,
+                          mipmap_generator->fragment_state_desc.module);
   }
   free(mipmap_generator);
 }
@@ -600,65 +602,65 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
   if (!pipeline_exists) {
     wgpu_context_t* wgpu_context = mipmap_generator->wgpu_context;
 
-    // Rasterization state
-    WGPURasterizationStateDescriptor rasterization_state_desc
-      = wgpu_create_rasterization_state_descriptor(
-        &(create_rasterization_state_desc_t){
-          .front_face = WGPUFrontFace_CCW,
-          .cull_mode  = WGPUCullMode_None,
-        });
-
-    // Color blend state
-    WGPUColorStateDescriptor color_state_desc
-      = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-        .format       = format,
-        .enable_blend = false,
-      });
-
-    // Vertex state
-    WGPUVertexStateDescriptor vertex_state = {
-      .indexFormat = WGPUIndexFormat_Uint32,
+    // Primitive state
+    WGPUPrimitiveState primitive_state_desc = {
+      .topology         = WGPUPrimitiveTopology_TriangleStrip,
+      .stripIndexFormat = WGPUIndexFormat_Uint32,
+      .frontFace        = WGPUFrontFace_CCW,
+      .cullMode         = WGPUCullMode_None,
     };
 
-    // Shaders are shared between all pipelines, so only create once.
-    if (!mipmap_generator->vert_mipmap_shader.module
-        || !mipmap_generator->frag_mipmap_shader.module) {
-      // Vertex shader
-      mipmap_generator->vert_mipmap_shader = wgpu_shader_create(
-        wgpu_context, &(wgpu_shader_desc_t){
-                        // Vertex shader SPIR-V
-                        .file = "shaders/blit/blit.vert.spv",
-                      });
-      // Fragment shader
-      mipmap_generator->frag_mipmap_shader = wgpu_shader_create(
-        wgpu_context, &(wgpu_shader_desc_t){
-                        // Fragment shader SPIR-V
-                        .file = "shaders/blit/blit.frag.spv",
-                      });
+    // Color target state
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Vertex state and  Fragment state are shared between all pipelines, so
+    // only create once.
+    if (!mipmap_generator->vertex_state_desc.module
+        || !mipmap_generator->fragment_state_desc.module) {
+      // Vertex state
+      mipmap_generator->vertex_state_desc = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .file = "shaders/blit/blit.vert.spv",
+              },
+              .buffer_count = 0,
+              .buffers = NULL,
+            });
+      // Fragment state
+      mipmap_generator->fragment_state_desc = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .file = "shaders/blit/blit.frag.spv",
+              },
+              .target_count = 1,
+              .targets = &color_target_state_desc,
+            });
     }
+
+    // Multisample state
+    WGPUMultisampleState multisample_state_desc
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
 
     // Create rendering pipeline using the specified states
     mipmap_generator->pipelines[pipeline_index]
-      = wgpuDeviceCreateRenderPipeline(
+      = wgpuDeviceCreateRenderPipeline2(
         wgpu_context->device,
-        &(WGPURenderPipelineDescriptor){
-          .label = "blit",
-          // Vertex shader
-          .vertexStage
-          = mipmap_generator->vert_mipmap_shader.programmable_stage_descriptor,
-          // Fragment shader
-          .fragmentStage
-          = &mipmap_generator->frag_mipmap_shader.programmable_stage_descriptor,
-          // Rasterization state
-          .rasterizationState     = &rasterization_state_desc,
-          .primitiveTopology      = WGPUPrimitiveTopology_TriangleStrip,
-          .colorStateCount        = 1,
-          .colorStates            = &color_state_desc,
-          .depthStencilState      = NULL,
-          .vertexState            = &vertex_state,
-          .sampleCount            = 1,
-          .sampleMask             = 0xFFFFFFFF,
-          .alphaToCoverageEnabled = false,
+        &(WGPURenderPipelineDescriptor2){
+          .label       = "blit_render_pipeline",
+          .primitive   = primitive_state_desc,
+          .vertex      = mipmap_generator->vertex_state_desc,
+          .fragment    = &mipmap_generator->fragment_state_desc,
+          .multisample = multisample_state_desc,
         });
     ASSERT(mipmap_generator->pipelines[pipeline_index]);
 
@@ -767,6 +769,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       const  WGPURenderPassColorAttachmentDescriptor color_attachment_desc
         = (WGPURenderPassColorAttachmentDescriptor){
            .view          = views[target_mip],
+           .attachment    = NULL,
            .resolveTarget = NULL,
            .loadOp        = WGPULoadOp_Clear,
            .storeOp       = WGPUStoreOp_Store,
