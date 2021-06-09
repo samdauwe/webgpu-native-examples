@@ -11,7 +11,7 @@
  * A WebGPU of port of the Animometer MotionMark benchmark.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/examples/animometer.ts
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/animometer.ts
  * -------------------------------------------------------------------------- */
 
 // Settings
