@@ -12,7 +12,7 @@
  * used to speed up compute calculations.
  *
  * Ref:
- * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computenbody
+ * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computenbody/computenbody.cpp
  * -------------------------------------------------------------------------- */
 
 #define PARTICLES_PER_ATTRACTOR 4 * 1024
