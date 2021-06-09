@@ -12,7 +12,7 @@
  * is stored in a shader storage buffer.
  *
  * Ref:
- * https://github.com/SaschaWillems/Vulkan/tree/master/examples/computeparticles
+ * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles/computeparticles.cpp
  * -------------------------------------------------------------------------- */
 
 #define PARTICLE_COUNT 256 * 1024
