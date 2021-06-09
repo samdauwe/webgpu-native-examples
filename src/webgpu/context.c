@@ -306,8 +306,8 @@ wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc)
     .stencilReadMask     = 0xFFFFFFFF,
     .stencilWriteMask    = 0xFFFFFFFF,
     .depthBias           = 0,
-    .depthBiasSlopeScale = 0,
-    .depthBiasClamp      = 0,
+    .depthBiasSlopeScale = 0.0f,
+    .depthBiasClamp      = 0.0f,
   };
 }
 
