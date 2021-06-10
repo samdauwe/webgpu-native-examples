@@ -271,22 +271,20 @@ static void update_sim_params(wgpu_context_t* wgpu_context)
 // Create the compute & graphics pipelines
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
 
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_Back,
-      });
-
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
-    });
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
 
   // Vertex state
   WGPUVertexAttribute vert_buff_attrs_0[2] = {
@@ -325,12 +323,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .attributes = &vert_buff_attrs_1,
     },
   };
-  WGPUVertexStateDescriptor vert_state_desc = {
-    .vertexBufferCount = 2,
-    .vertexBuffers     = vert_buf_desc,
-  };
 
-  // Shaders
   // Compute shader
   wgpu_shader_t boids_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
@@ -338,18 +331,34 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     .file = "shaders/compute_boids/boids.comp.spv",
                   });
 
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/compute_boids/shader.vert.spv",
-                  });
-  // Fragment shader
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/compute_boids/shader.frag.spv",
-                  });
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/compute_boids/shader.vert.spv",
+            },
+            .buffer_count = 2,
+            .buffers = vert_buf_desc,
+          });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/compute_boids/shader.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
 
   // Compute pipeline
   compute_pipeline = wgpuDeviceCreateComputePipeline(
@@ -359,29 +368,20 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .computeStage = boids_comp_shader.programmable_stage_descriptor,
     });
 
-  // Rendering pipeline
-  render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .layout = render_pipeline_layout,
-      // Vertex shader
-      .vertexStage = vert_shader.programmable_stage_descriptor,
-      // Fragment shader
-      .fragmentStage = &frag_shader.programmable_stage_descriptor,
-      // Rasterization state: no culling, no depth bias
-      .rasterizationState     = &rasterization_state,
-      .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-      .colorStateCount        = 1,
-      .colorStates            = &color_state_desc,
-      .vertexState            = &vert_state_desc,
-      .sampleCount            = 1,
-      .sampleMask             = 0xFFFFFFFF,
-      .alphaToCoverageEnabled = false,
-    });
+  // Create rendering pipeline using the specified states
+  render_pipeline = wgpuDeviceCreateRenderPipeline2(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                            .label       = "boids_render_pipeline",
+                            .layout      = render_pipeline_layout,
+                            .primitive   = primitive_state_desc,
+                            .vertex      = vertex_state_desc,
+                            .fragment    = &fragment_state_desc,
+                            .multisample = multisample_state_desc,
+                          });
 
-  // Partial clean-up
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   wgpu_shader_release(&boids_comp_shader);
 }
 
