@@ -259,158 +259,146 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 // Create the graphics pipeline
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Rasterization state
-  WGPURasterizationStateDescriptor rasterization_state_desc
-    = wgpu_create_rasterization_state_descriptor(
-      &(create_rasterization_state_desc_t){
-        .front_face = WGPUFrontFace_CCW,
-        .cull_mode  = WGPUCullMode_None,
-      });
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
 
-  // Color blend state
-  WGPUColorStateDescriptor color_state_desc
-    = wgpu_create_color_state_descriptor(&(create_color_state_desc_t){
-      .format       = wgpu_context->swap_chain.format,
-      .enable_blend = true,
-    });
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
 
-  // Vertex input binding (=> Input assembly)
-  WGPU_VERTSTATE(
+  // Vertex buffer layout
+  WGPU_VERTEX_BUFFER_LAYOUT(
     cube_reflection, 6 * sizeof(float),
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
     // Attribute location 1: Color
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, 3 * sizeof(float)));
 
-  // Shaders
-  // Vertex shader
-  wgpu_shader_t vert_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/cube_reflection/shader.vert.spv",
-                  });
-  // Fragment shaders
-  wgpu_shader_t frag_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/cube_reflection/shader.frag.spv",
-                  });
-  wgpu_shader_t frag_shader_reflection = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/cube_reflection/reflection.frag.spv",
-                  });
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/cube_reflection/shader.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &cube_reflection_vertex_buffer_layout,
+          });
+
+  // Fragment states
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/cube_reflection/shader.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+  WGPUFragmentState fragment_state_reflection_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/cube_reflection/reflection.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
 
   // Cube rendering pipeline
   {
-    // Depth and stencil state
-    WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-      = wgpu_create_depth_stencil_state_descriptor(
-        &(create_depth_stencil_state_desc_t){
-          .format              = WGPUTextureFormat_Depth24PlusStencil8,
-          .depth_write_enabled = true,
-        });
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state_desc
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24PlusStencil8,
+        .depth_write_enabled = true,
+      });
     depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
-    // Create the rendering pipeline
-    pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device,
-      &(WGPURenderPipelineDescriptor){
-        .layout = pipeline_layout,
-        // Vertex shader
-        .vertexStage = vert_shader.programmable_stage_descriptor,
-        // Fragment shader
-        .fragmentStage = &frag_shader.programmable_stage_descriptor,
-        // Rasterization state
-        .rasterizationState     = &rasterization_state_desc,
-        .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-        .colorStateCount        = 1,
-        .colorStates            = &color_state_desc,
-        .depthStencilState      = &depth_stencil_state_desc,
-        .vertexState            = &vert_state_cube_reflection,
-        .sampleCount            = 1,
-        .sampleMask             = 0xFFFFFFFF,
-        .alphaToCoverageEnabled = false,
-      });
+    // Create rendering pipeline using the specified states
+    pipeline = wgpuDeviceCreateRenderPipeline2(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                              .label        = "cube_render_pipeline",
+                              .layout       = pipeline_layout,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
   }
 
   // Plane rendering pipeline
   {
-    // Depth and stencil state
-    WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-      = wgpu_create_depth_stencil_state_descriptor(
-        &(create_depth_stencil_state_desc_t){
-          .format              = WGPUTextureFormat_Depth24PlusStencil8,
-          .depth_write_enabled = false,
-        });
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state_desc
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24PlusStencil8,
+        .depth_write_enabled = false,
+      });
     depth_stencil_state_desc.stencilFront.passOp = WGPUStencilOperation_Replace;
     depth_stencil_state_desc.stencilBack.passOp  = WGPUStencilOperation_Replace;
     depth_stencil_state_desc.depthCompare        = WGPUCompareFunction_Less;
 
-    // Create the rendering pipeline
-    plane_pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device,
-      &(WGPURenderPipelineDescriptor){
-        .layout = pipeline_layout,
-        // Vertex shader
-        .vertexStage = vert_shader.programmable_stage_descriptor,
-        // Fragment shader
-        .fragmentStage = &frag_shader.programmable_stage_descriptor,
-        // Rasterization state
-        .rasterizationState     = &rasterization_state_desc,
-        .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-        .colorStateCount        = 1,
-        .colorStates            = &color_state_desc,
-        .depthStencilState      = &depth_stencil_state_desc,
-        .vertexState            = &vert_state_cube_reflection,
-        .sampleCount            = 1,
-        .sampleMask             = 0xFFFFFFFF,
-        .alphaToCoverageEnabled = false,
-      });
+    // Create rendering pipeline using the specified states
+    plane_pipeline = wgpuDeviceCreateRenderPipeline2(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                              .label        = "plane_render_pipeline",
+                              .layout       = pipeline_layout,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
   }
 
   // Cube reflection rendering pipeline
   {
-    // Depth and stencil state
-    WGPUDepthStencilStateDescriptor depth_stencil_state_desc
-      = wgpu_create_depth_stencil_state_descriptor(
-        &(create_depth_stencil_state_desc_t){
-          .format              = WGPUTextureFormat_Depth24PlusStencil8,
-          .depth_write_enabled = true,
-        });
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state_desc
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24PlusStencil8,
+        .depth_write_enabled = true,
+      });
     depth_stencil_state_desc.stencilFront.compare = WGPUCompareFunction_Equal;
     depth_stencil_state_desc.stencilBack.compare  = WGPUCompareFunction_Equal;
     depth_stencil_state_desc.stencilFront.passOp = WGPUStencilOperation_Replace;
     depth_stencil_state_desc.stencilBack.passOp  = WGPUStencilOperation_Replace;
     depth_stencil_state_desc.depthCompare        = WGPUCompareFunction_Less;
 
-    // Create the rendering pipeline
-    reflection_pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device,
-      &(WGPURenderPipelineDescriptor){
-        .layout = pipeline_layout,
-        // Vertex shader
-        .vertexStage = vert_shader.programmable_stage_descriptor,
-        // Fragment shader
-        .fragmentStage = &frag_shader_reflection.programmable_stage_descriptor,
-        // Rasterization state
-        .rasterizationState     = &rasterization_state_desc,
-        .primitiveTopology      = WGPUPrimitiveTopology_TriangleList,
-        .colorStateCount        = 1,
-        .colorStates            = &color_state_desc,
-        .depthStencilState      = &depth_stencil_state_desc,
-        .vertexState            = &vert_state_cube_reflection,
-        .sampleCount            = 1,
-        .sampleMask             = 0xFFFFFFFF,
-        .alphaToCoverageEnabled = false,
-      });
+    // Create rendering pipeline using the specified states
+    reflection_pipeline = wgpuDeviceCreateRenderPipeline2(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+                              .label        = "cube_reflection_render_pipeline",
+                              .layout       = pipeline_layout,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_reflection_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
   }
 
-  // Shader modules are no longer needed once the graphics pipeline has been
-  // created
-  wgpu_shader_release(&frag_shader);
-  wgpu_shader_release(&vert_shader);
-  wgpu_shader_release(&frag_shader_reflection);
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_reflection_desc.module);
 }
 
 static void update_camera_view(wgpu_context_t* wgpu_context)
