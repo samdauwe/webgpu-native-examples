@@ -109,31 +109,14 @@ void wgpu_flush_command_buffers(wgpu_context_t* wgpu_context,
 void wgpu_swap_chain_present(wgpu_context_t* wgpu_context);
 
 /* Pipeline state factories */
-typedef struct create_color_state_desc_t {
-  WGPUTextureFormat format;
-  bool enable_blend;
-} create_color_state_desc_t;
-WGPUColorStateDescriptor
-wgpu_create_color_state_descriptor(create_color_state_desc_t* desc);
-WGPUColorTargetState
-wgpu_create_color_target_state(create_color_state_desc_t* desc);
 WGPUBlendState wgpu_create_blend_state(bool enable_blend);
 
 typedef struct create_depth_stencil_state_desc_t {
   WGPUTextureFormat format;
   bool depth_write_enabled;
 } create_depth_stencil_state_desc_t;
-WGPUDepthStencilStateDescriptor wgpu_create_depth_stencil_state_descriptor(
-  create_depth_stencil_state_desc_t* desc);
 WGPUDepthStencilState
 wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc);
-
-typedef struct create_rasterization_state_desc_t {
-  WGPUFrontFace front_face;
-  WGPUCullMode cull_mode;
-} create_rasterization_state_desc_t;
-WGPURasterizationStateDescriptor wgpu_create_rasterization_state_descriptor(
-  create_rasterization_state_desc_t* desc);
 
 typedef struct create_multisample_state_desc_t {
   uint32_t sample_count;
