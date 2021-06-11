@@ -286,8 +286,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                             .multisample  = multisample_state_desc,
                           });
 
-  // Shader modules are no longer needed once the graphics pipeline has been
-  // created
+  // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
