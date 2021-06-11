@@ -302,6 +302,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .buffer_count = 1,
               .buffers = &gltf_model_vertex_buffer_layout,
             });
+
     // Fragment state
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
@@ -312,11 +313,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .target_count = 1,
               .targets = &color_target_state_desc,
             });
+
+    // Create solid pipeline
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.solid
       = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.solid);
+
+    // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
@@ -333,6 +338,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .buffer_count = 1,
               .buffers = &gltf_model_vertex_buffer_layout,
             });
+
     // Fragment state
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
@@ -343,24 +349,30 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .target_count = 1,
               .targets = &color_target_state_desc,
             });
+
+    // Create solid pipeline
     pipeline_desc.primitive.cullMode = WGPUCullMode_None;
     pipeline_desc.vertex             = vertex_state_desc;
     pipeline_desc.fragment           = &fragment_state_desc;
     pipelines.simple
       = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.simple);
+
+    // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
   // Visual pipeline for the occluder
   {
+    // Color target state
     blend_state             = wgpu_create_blend_state(true);
     color_target_state_desc = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
+
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
@@ -371,6 +383,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .buffer_count = 1,
               .buffers = &gltf_model_vertex_buffer_layout,
             });
+
     // Fragment state
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
@@ -381,11 +394,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .target_count = 1,
               .targets = &color_target_state_desc,
             });
+
+    // Create solid pipeline
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.occluder
       = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.occluder);
+
+    // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
