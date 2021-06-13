@@ -200,7 +200,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.textures != NULL);
   }
 
-  // Pipeline layout using both bind group layouts
+  // Pipeline layout using the bind group layouts
   {
     WGPUBindGroupLayout bind_group_layout_sets[3] = {
       bind_group_layouts.ubo_scene,     // set 0
@@ -238,10 +238,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.ubo_scene != NULL)
   }
 
-  // Bind group for glTF Model meshes
+  // Bind group for glTF model meshes
   {
-    wgpu_gltf_model_prepare_node_bind_group(gltf_model,
-                                            bind_group_layouts.ubo_primitive);
+    wgpu_gltf_model_prepare_nodes_bind_group(gltf_model,
+                                             bind_group_layouts.ubo_primitive);
   }
 
   // Bind group for materials
