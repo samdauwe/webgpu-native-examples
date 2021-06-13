@@ -362,6 +362,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_copy(context->camera->matrices.view, ubos.vertex_shader.view);
   glm_mat4_identity(ubos.vertex_shader.model);
   glm_scale(ubos.vertex_shader.model, (vec3){0.2f, 0.2f, 0.2f});
+  glm_rotate(ubos.vertex_shader.model, glm_rad(-90), (vec3){0.0f, 1.0f, 0.0f});
 
   if (!context->paused) {
     ubos.vertex_shader.light_pos[0]
