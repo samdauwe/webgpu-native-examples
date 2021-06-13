@@ -214,6 +214,11 @@ typedef struct gltf_skin_t {
   struct gltf_node_t** joints;
   uint32_t current_joint_index;
   uint32_t joint_count;
+  struct {
+    WGPUBuffer buffer;
+    uint64_t size;
+    WGPUBindGroup bind_group;
+  } ssbo;
 } gltf_skin_t;
 
 /*
@@ -283,6 +288,11 @@ static void glm_cast_versor_to_mat4(versor q, mat4* result)
   glm_mat4_ins3(m3, *result);
 }
 
+/*
+ * Get a node's local matrix from the current translation, rotation and scale
+ * values.These are calculated from the current animation an need to be
+ * calculated dynamically.
+ */
 static void gltf_node_get_local_matrix(gltf_node_t* node, mat4* dest)
 {
   mat4 mat_translate = GLM_MAT4_IDENTITY_INIT;
@@ -296,6 +306,8 @@ static void gltf_node_get_local_matrix(gltf_node_t* node, mat4* dest)
     *dest);
 }
 
+// Traverse the node hierarchy to the top-most parent to get the local matrix of
+// the given node
 static void gltf_node_get_matrix(gltf_node_t* node, mat4* dest)
 {
   gltf_node_get_local_matrix(node, dest);
@@ -315,7 +327,7 @@ static void gltf_node_update(wgpu_context_t* wgpu_context, gltf_node_t* node)
     gltf_node_get_local_matrix(node, &m);
     if (node->skin != NULL) {
       glm_mat4_copy(m, node->mesh->uniform_block.matrix);
-      // Update join matrices
+      // Update the joint matrices
       mat4 inverse_transform = GLM_MAT4_ZERO_INIT;
       glm_mat4_inv(m, inverse_transform);
       for (size_t i = 0; i < node->skin->joint_count; ++i) {
@@ -711,6 +723,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
   new_node->child_count = node->children_count;
 
   // Generate local node matrix
+  // It's either made up from translation, rotation, scale or a 4x4 matrix
   if (node->has_translation) {
     vec3 translation = GLM_VEC3_ZERO_INIT;
     glm_vec3_copy(node->translation, translation);
@@ -740,7 +753,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
   }
 
   // If the node contains mesh data, we load vertices and indices from the
-  // buffers In glTF this is done via accessors and buffer views
+  // buffers. In glTF this is done via accessors and buffer views.
   if (node->mesh != NULL) {
     cgltf_mesh* mesh      = node->mesh;
     gltf_mesh_t* new_mesh = &model->meshes[node->mesh - data->meshes];
@@ -845,7 +858,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
           }
 
           // Skinning
-          // Joints
+          // Get vertex joint indices
           if (primitive->attributes[j].type == cgltf_attribute_type_joints) {
             cgltf_accessor* joint_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* joint_view  = joint_accessor->buffer_view;
@@ -853,6 +866,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
               ((unsigned char*)joint_view->buffer
                  ->data)[joint_accessor->offset + joint_view->offset]);
           }
+          // Get vertex joint weights
           if (primitive->attributes[j].type == cgltf_attribute_type_weights) {
             cgltf_accessor* weight_accessor = primitive->attributes[j].data;
             cgltf_buffer_view* weight_view  = weight_accessor->buffer_view;
@@ -870,6 +884,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
         *vertex_count += (uint32_t)pos_accessor->count;
         *vertices = realloc(*vertices, (*vertex_count) * sizeof(gltf_vertex_t));
 
+        // Append data to model's vertex buffer
         for (uint32_t v = 0; v < pos_accessor->count; ++v) {
           gltf_vertex_t vert = {0};
           memcpy(&vert.pos, &buffer_pos[v * 3], sizeof(vec3));
@@ -999,7 +1014,7 @@ static void gltf_model_load_skins(gltf_model_t* model, cgltf_data* data)
     gltf_skin_t* new_skin = &model->skins[i];
     snprintf(new_skin->name, strlen(skin->name) + 1, "%s", skin->name);
 
-    // Find skeleton root node
+    // Find the root node of the skeleton
     if (skin->skeleton != NULL) {
       new_skin->skeleton_root
         = gltf_model_node_from_index(model, skin->skeleton - data->nodes);
@@ -1019,7 +1034,7 @@ static void gltf_model_load_skins(gltf_model_t* model, cgltf_data* data)
       }
     }
 
-    // Get inverse bind matrices from buffer
+    // Get the inverse bind matrices from the buffer associated to this skin
     if (skin->inverse_bind_matrices != NULL) {
       cgltf_accessor* accessor            = skin->inverse_bind_matrices;
       cgltf_buffer_view* buffer_view      = accessor->buffer_view;
@@ -1111,6 +1126,7 @@ static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
                      model->wgpu_context);
 }
 
+// Load the animations from the glTF model
 static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
 {
   model->animation_count = (uint32_t)data->animations_count;
@@ -1169,6 +1185,7 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
         }
         free(buf);
 
+        // Adjust animation's start and end times
         for (uint32_t k = 0; k < sampler->input_count; ++k) {
           float input = sampler->inputs[k];
           if (input < animation->start) {
@@ -1180,7 +1197,7 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
         }
       }
 
-      // Read sampler output T/R/S values
+      // Read sampler keyframe output translate/rotate/scale values
       {
         cgltf_accessor* accessor       = samp->output;
         cgltf_buffer_view* buffer_view = accessor->buffer_view;
@@ -1544,11 +1561,39 @@ gltf_model_prepare_node_bind_group(gltf_model_t* model, gltf_node_t* node,
   }
 }
 
-void wgpu_gltf_model_prepare_node_bind_group(
+void wgpu_gltf_model_prepare_nodes_bind_group(
   gltf_model_t* model, WGPUBindGroupLayout bind_group_layout)
 {
   for (uint32_t i = 0; i < model->node_count; ++i) {
     gltf_model_prepare_node_bind_group(model, &model->nodes[i],
+                                       bind_group_layout);
+  }
+}
+
+static void
+gltf_model_prepare_skin_bind_group(gltf_model_t* model, gltf_skin_t* skin,
+                                   WGPUBindGroupLayout bind_group_layout)
+{
+  WGPUBindGroupDescriptor bg_desc = {
+      .layout     = bind_group_layout,
+      .entryCount = 1,
+      .entries    = &(WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = skin->ssbo.buffer,
+        .offset  = 0,
+        .size    =  skin->ssbo.size,
+      },
+    };
+  skin->ssbo.bind_group
+    = wgpuDeviceCreateBindGroup(model->wgpu_context->device, &bg_desc);
+  ASSERT(skin->ssbo.bind_group != NULL)
+}
+
+void wgpu_gltf_model_prepare_skins_bind_group(
+  gltf_model_t* model, WGPUBindGroupLayout bind_group_layout)
+{
+  for (uint32_t i = 0; i < model->skin_count; ++i) {
+    gltf_model_prepare_skin_bind_group(model, &model->skins[i],
                                        bind_group_layout);
   }
 }
@@ -1669,7 +1714,7 @@ void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
 }
 
 /*
- * Helper functions
+ * Helper functions for locating glTF nodes
  */
 static gltf_node_t* gltf_model_find_node(gltf_model_t* model,
                                          gltf_node_t* parent, uint32_t index)

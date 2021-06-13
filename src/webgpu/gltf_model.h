@@ -126,7 +126,9 @@ WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
 /** glTF helper functions */
 uint64_t wgpu_gltf_get_vertex_size();
 wgpu_gltf_materials_t wgpu_gltf_model_get_materials();
-void wgpu_gltf_model_prepare_node_bind_group(
+void wgpu_gltf_model_prepare_nodes_bind_group(
+  struct gltf_model_t* model, WGPUBindGroupLayout bind_group_layout);
+void wgpu_gltf_model_prepare_skins_bind_group(
   struct gltf_model_t* model, WGPUBindGroupLayout bind_group_layout);
 
 /**
