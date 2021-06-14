@@ -23,7 +23,7 @@
  * -------------------------------------------------------------------------- */
 
 #define NUMBER_OF_LINES 50
-const uint32_t sample_count = 4;
+static const uint32_t sample_count = 4;
 
 typedef struct vertex_t {
   float position[2];
