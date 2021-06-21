@@ -625,8 +625,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         });
 
     // Create rendering pipeline using the specified states
-    pipelines.particles = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    pipelines.particles = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "particle_render_pipeline",
                               .layout       = pipeline_layouts.particles,
                               .primitive    = primitive_state_desc,
@@ -707,8 +707,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         });
 
     // Create rendering pipeline using the specified states
-    pipelines.environment = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    pipelines.environment = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "environment_render_pipeline",
                               .layout       = pipeline_layouts.environment,
                               .primitive    = primitive_state_desc,

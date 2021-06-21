@@ -283,7 +283,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Render pipeline description
-  WGPURenderPipelineDescriptor2 pipeline_desc = {
+  WGPURenderPipelineDescriptor pipeline_desc = {
     .layout       = pipeline_layout,
     .primitive    = primitive_state_desc,
     .depthStencil = &depth_stencil_state_desc,
@@ -318,7 +318,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.solid
-      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.solid);
 
     // Partial cleanup
@@ -355,7 +355,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.vertex             = vertex_state_desc;
     pipeline_desc.fragment           = &fragment_state_desc;
     pipelines.simple
-      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.simple);
 
     // Partial cleanup
@@ -399,7 +399,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.occluder
-      = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
     ASSERT(pipelines.occluder);
 
     // Partial cleanup

@@ -369,8 +369,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     });
 
   // Create rendering pipeline using the specified states
-  render_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "boids_render_pipeline",
                             .layout      = render_pipeline_layout,
                             .primitive   = primitive_state_desc,

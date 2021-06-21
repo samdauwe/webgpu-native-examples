@@ -387,7 +387,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Render pipeline descriptor
-  WGPURenderPipelineDescriptor2 render_pipeline_descriptor = {
+  WGPURenderPipelineDescriptor render_pipeline_descriptor = {
     .label        = "gltf_scene_render_pipeline",
     .layout       = pipeline_layout,
     .primitive    = primitive_state_desc,
@@ -406,7 +406,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUPrimitiveState* primitive_desc = &render_pipeline_descriptor.primitive;
     primitive_desc->cullMode
       = material->double_sided ? WGPUCullMode_None : WGPUCullMode_Back;
-    material->pipeline = wgpuDeviceCreateRenderPipeline2(
+    material->pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &render_pipeline_descriptor);
     ASSERT(material->pipeline != NULL)
   }

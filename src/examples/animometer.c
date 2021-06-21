@@ -380,7 +380,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline layout using the specified states
-  WGPURenderPipelineDescriptor2 pipeline_desc = {
+  WGPURenderPipelineDescriptor pipeline_desc = {
     .label       = "animometer_render_pipeline",
     .primitive   = primitive_state_desc,
     .vertex      = vertex_state_desc,
@@ -391,11 +391,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create render pipelines
   pipeline_desc.layout = pipeline_layout;
   pipeline
-    = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
 
   pipeline_desc.layout = dynamic_pipeline_layout;
   dynamic_pipeline
-    = wgpuDeviceCreateRenderPipeline2(wgpu_context->device, &pipeline_desc);
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);

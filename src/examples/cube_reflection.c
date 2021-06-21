@@ -331,8 +331,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
     // Create rendering pipeline using the specified states
-    pipeline = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "cube_render_pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state_desc,
@@ -356,8 +356,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     depth_stencil_state_desc.depthCompare        = WGPUCompareFunction_Less;
 
     // Create rendering pipeline using the specified states
-    plane_pipeline = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    plane_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "plane_render_pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state_desc,
@@ -383,8 +383,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     depth_stencil_state_desc.depthCompare        = WGPUCompareFunction_Less;
 
     // Create rendering pipeline using the specified states
-    reflection_pipeline = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    reflection_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "cube_reflection_render_pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state_desc,
