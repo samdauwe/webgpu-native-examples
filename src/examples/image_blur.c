@@ -115,7 +115,6 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
         .size          = (WGPUExtent3D) {
           .width               = texture.size.width,
           .height              = texture.size.height,
-          .depth               = texture.size.depth,
           .depthOrArrayLayers  = texture.size.depth,
         },
         .format        = texture.format,
@@ -400,8 +399,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         });
 
     // Create rendering pipeline using the specified states
-    render_pipeline = wgpuDeviceCreateRenderPipeline2(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+    render_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label       = "image_blur_render_pipeline",
                               .primitive   = primitive_state_desc,
                               .vertex      = vertex_state_desc,

@@ -125,7 +125,6 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
       .size          = (WGPUExtent3D){
         .width               = tex->size.width,
         .height              = tex->size.height,
-        .depth               = tex->size.depth,
         .depthOrArrayLayers  = tex->size.depth,
       },
       .format        = tex->format,
@@ -396,8 +395,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  graphics.pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  graphics.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "graphics_render_pipeline",
                             .layout       = graphics.pipeline_layout,
                             .primitive    = primitive_state_desc,

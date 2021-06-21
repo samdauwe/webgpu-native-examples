@@ -264,8 +264,8 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
 
   // depthPrePass is used to render scene to the depth texture
   // this is not needed if you just want to use reversed z to render a scene
-  WGPURenderPipelineDescriptor2 depth_pre_pass_render_pipeline_descriptor_base
-    = (WGPURenderPipelineDescriptor2){
+  WGPURenderPipelineDescriptor depth_pre_pass_render_pipeline_descriptor_base
+    = (WGPURenderPipelineDescriptor){
       .label        = "depth_pre_pass_render_pipeline",
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
@@ -280,13 +280,13 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   depth_pre_pass_pipelines[(uint32_t)DepthBufferMode_Default]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &depth_pre_pass_render_pipeline_descriptor_base);
   /* Reversed */
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   depth_pre_pass_pipelines[(uint32_t)DepthBufferMode_Reversed]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &depth_pre_pass_render_pipeline_descriptor_base);
 
   // Shader modules are no longer needed once the graphics pipeline has been
@@ -360,8 +360,8 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
 
   // precisionPass is to draw precision error as color of depth value stored in
   // depth buffer compared to that directly calcualated in the shader
-  WGPURenderPipelineDescriptor2 precision_pass_render_pipeline_descriptor_base
-    = (WGPURenderPipelineDescriptor2){
+  WGPURenderPipelineDescriptor precision_pass_render_pipeline_descriptor_base
+    = (WGPURenderPipelineDescriptor){
       .label        = "precision_error_pass_render_pipeline",
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
@@ -374,13 +374,13 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   precision_pass_pipelines[(uint32_t)DepthBufferMode_Default]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &precision_pass_render_pipeline_descriptor_base);
   /* Reversed */
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   precision_pass_pipelines[(uint32_t)DepthBufferMode_Reversed]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &precision_pass_render_pipeline_descriptor_base);
 
   // Shader modules are no longer needed once the graphics pipeline has been
@@ -454,8 +454,8 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // colorPass is the regular render pass to render the scene
-  WGPURenderPipelineDescriptor2 color_passRender_pipeline_descriptor_base
-    = (WGPURenderPipelineDescriptor2){
+  WGPURenderPipelineDescriptor color_passRender_pipeline_descriptor_base
+    = (WGPURenderPipelineDescriptor){
       .label        = "color_pass_render_pipeline",
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
@@ -468,13 +468,13 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   color_pass_pipelines[(uint32_t)DepthBufferMode_Default]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &color_passRender_pipeline_descriptor_base);
   /* Reversed */
   depth_stencil_state_desc.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   color_pass_pipelines[(uint32_t)DepthBufferMode_Reversed]
-    = wgpuDeviceCreateRenderPipeline2(
+    = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &color_passRender_pipeline_descriptor_base);
 
   // Shader modules are no longer needed once the graphics pipeline has been
@@ -535,8 +535,8 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
   // textureQuadPass is draw a full screen quad of depth texture
   // to see the difference of depth value using reversed z compared to default
   // depth buffer usage 0.0 will be the furthest and 1.0 will be the closest
-  texture_quad_pass_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  texture_quad_pass_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "texture_quad_pass_render_pipeline",
                             .primitive   = primitive_state_desc,
                             .vertex      = vertex_state_desc,
@@ -563,7 +563,6 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D)  {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
-        .depth               = 1,
         .depthOrArrayLayers  = 1,
       },
     };
@@ -609,7 +608,6 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D)  {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
-        .depth               = 1,
         .depthOrArrayLayers  = 1,
       },
     };

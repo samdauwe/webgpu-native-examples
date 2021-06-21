@@ -229,7 +229,6 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D) {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
-        .depth               = 1,
         .depthOrArrayLayers  = 3,
       },
       .mipLevelCount = 1,
@@ -247,7 +246,6 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D) {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
-        .depth               = 1,
         .depthOrArrayLayers  = 1,
       },
       .mipLevelCount = 1,
@@ -592,8 +590,8 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  write_gbuffers_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  write_gbuffers_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "write_gbuffers_render_pipeline",
                             .layout       = write_gbuffers_pipeline_layout,
                             .primitive    = primitive_state_desc,
@@ -655,8 +653,8 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  gbuffers_debug_view_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  gbuffers_debug_view_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label     = "gbuffers_debug_view_render_pipeline",
                             .layout    = gbuffers_debug_view_pipeline_layout,
                             .primitive = primitive_state_desc,
@@ -717,8 +715,8 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  deferred_render_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  deferred_render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "deferred_render_pipeline",
                             .layout      = deferred_render_pipeline_layout,
                             .primitive   = primitive_state_desc,
@@ -737,7 +735,6 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
   WGPUExtent3D texture_extent = {
     .width              = wgpu_context->surface.width,
     .height             = wgpu_context->surface.height,
-    .depth              = 1,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {

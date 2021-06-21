@@ -89,7 +89,6 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
     .size          = (WGPUExtent3D){
       .width               = wgpu_context->surface.width,
       .height              = wgpu_context->surface.height,
-      .depth               = 1,
       .depthOrArrayLayers  = 1,
      },
     .mipLevelCount = 1,
@@ -221,8 +220,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "msaa_line_render_pipeline",
                             .layout      = pipeline_layout,
                             .primitive   = primitive_state_desc,

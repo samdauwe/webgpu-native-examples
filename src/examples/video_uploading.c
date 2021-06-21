@@ -85,7 +85,6 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D){
         .width               = video_info.frame_size.width,
         .height              = video_info.frame_size.height,
-        .depth               = 1,
         .depthOrArrayLayers  = 1,
       },
       .mipLevelCount = 1,
@@ -222,8 +221,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "video_uploading_render_pipeline",
                             .primitive   = primitive_state_desc,
                             .vertex      = vertex_state_desc,

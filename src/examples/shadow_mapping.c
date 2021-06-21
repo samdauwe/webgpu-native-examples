@@ -158,7 +158,6 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     WGPUExtent3D texture_extent = {
       .width              = shadow_depth_texture_size,
       .height             = shadow_depth_texture_size,
-      .depth              = 1,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -190,7 +189,6 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     WGPUExtent3D texture_extent = {
       .width              = wgpu_context->surface.width,
       .height             = wgpu_context->surface.height,
-      .depth              = 1,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -628,8 +626,8 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  shadow_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  shadow_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "shadow_render_pipeline",
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
@@ -727,8 +725,8 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  color_render_pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  color_render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "colo_render_pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state_desc,
