@@ -139,7 +139,6 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
     WGPUExtent3D texture_size = {
       .width              = font_width,
       .height             = font_height,
-      .depth              = 1,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -389,8 +388,8 @@ static void imgui_overlay_prepare_pipeline(imgui_overlay_t* imgui_overlay)
       });
 
   // Create rendering pipeline using the specified states
-  imgui_overlay->pipeline = wgpuDeviceCreateRenderPipeline2(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor2){
+  imgui_overlay->pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "imgui_render_pipeline",
                             .layout       = imgui_overlay->pipeline_layout,
                             .primitive    = primitive_state_desc,
