@@ -74,7 +74,7 @@ void wgpu_create_surface(wgpu_context_t* wgpu_context, void* window)
 void wgpu_setup_deph_stencil(wgpu_context_t* wgpu_context)
 {
   WGPUTextureDescriptor depth_texture_desc = {
-    .usage         = WGPUTextureUsage_RenderAttachment |  WGPUTextureUsage_CopySrc,
+    .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
     .format        = WGPUTextureFormat_Depth24PlusStencil8,
     .dimension     = WGPUTextureDimension_2D,
     .mipLevelCount = 1,
@@ -82,7 +82,6 @@ void wgpu_setup_deph_stencil(wgpu_context_t* wgpu_context)
     .size          = (WGPUExtent3D) {
       .width               = wgpu_context->surface.width,
       .height              = wgpu_context->surface.height,
-      .depth               = 1,
       .depthOrArrayLayers  = 1,
      },
   };

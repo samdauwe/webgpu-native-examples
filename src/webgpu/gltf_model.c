@@ -583,7 +583,6 @@ static void gltf_model_create_empty_texture(gltf_model_t* model)
   WGPUExtent3D texture_size = {
     .width              = empty_texture->width,
     .height             = empty_texture->height,
-    .depth              = 1,
     .depthOrArrayLayers = empty_texture->layer_count,
   };
   WGPUTextureDescriptor tex_desc = {

@@ -59,7 +59,6 @@ void wgpu_image_to_texure(wgpu_context_t* wgpu_context,
     &(WGPUExtent3D){
       .width               = desc->width,
       .height              = desc->height,
-      .depth               = 1,
       .depthOrArrayLayers  = 1,
     });
 }
@@ -213,7 +212,6 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
     .size          = (WGPUExtent3D) {
       .width               = texture.size.width,
       .height              = texture.size.height,
-      .depth               = 1,
       .depthOrArrayLayers  = texture.size.depth,
      },
     .mipLevelCount = texture.mip_level_count,
@@ -283,7 +281,6 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
           &(WGPUExtent3D){
             .width               = MAX(1u, width),
             .height              = MAX(1u, height),
-            .depth               = 1,
             .depthOrArrayLayers  = 1,
           });
       }
@@ -353,7 +350,6 @@ texture_t wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
           &(WGPUExtent3D){
             .width               = MAX(1u, width),
             .height              = MAX(1u, height),
-            .depth               = 1,
             .depthOrArrayLayers  = 1,
           });
 
@@ -468,7 +464,6 @@ texture_t wgpu_texture_load_with_stb(wgpu_context_t* wgpu_context,
   WGPUExtent3D texture_size = {
     .width              = texture.size.width,
     .height             = texture.size.height,
-    .depth              = texture.size.depth,
     .depthOrArrayLayers = texture.size.depth,
   };
 
@@ -653,9 +648,9 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
 
     // Create rendering pipeline using the specified states
     mipmap_generator->pipelines[pipeline_index]
-      = wgpuDeviceCreateRenderPipeline2(
+      = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device,
-        &(WGPURenderPipelineDescriptor2){
+        &(WGPURenderPipelineDescriptor){
           .label       = "blit_render_pipeline",
           .primitive   = primitive_state_desc,
           .vertex      = mipmap_generator->vertex_state_desc,
@@ -694,8 +689,8 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
 
   wgpu_context_t* wgpu_context     = mipmap_generator->wgpu_context;
   WGPUTexture mip_texture          = texture;
-  const uint32_t array_layer_count = texture_desc->size.depth > 0 ?
-                                       texture_desc->size.depth :
+  const uint32_t array_layer_count = texture_desc->size.depthOrArrayLayers > 0 ?
+                                       texture_desc->size.depthOrArrayLayers :
                                        1; // Only valid for 2D textures.
   const uint32_t mip_level_count   = texture_desc->mipLevelCount;
 
@@ -711,7 +706,6 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       .size = (WGPUExtent3D) {
         .width              = ceil(texture_desc->size.width / 2.0f),
         .height             = ceil(texture_desc->size.height / 2.0f),
-        .depth              = 1,
         .depthOrArrayLayers = array_layer_count,
       },
       .format        = texture_desc->format,
@@ -821,7 +815,6 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
     WGPUExtent3D mip_level_size = (WGPUExtent3D){
       .width              = ceil(texture_desc->size.width / 2.0f),
       .height             = ceil(texture_desc->size.height / 2.0f),
-      .depth              = 1,
       .depthOrArrayLayers = array_layer_count,
     };
 
