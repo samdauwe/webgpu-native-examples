@@ -62,13 +62,28 @@ static void gltf_texture_from_gltf_image(const char* model_uri,
                                          gltf_texture_t* texture,
                                          cgltf_image* gltf_image)
 {
-  char image_uri[STRMAX];
-  get_relative_file_path(model_uri, gltf_image->uri, image_uri);
-  if (filename_has_extension(image_uri, "jpg")
-      || filename_has_extension(image_uri, "png")) {
-    texture->wgpu_texture = wgpu_texture_load_with_stb(
-      texture->wgpu_context, image_uri,
-      WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
+  if (gltf_image->uri != NULL) {
+    char image_uri[STRMAX];
+    get_relative_file_path(model_uri, gltf_image->uri, image_uri);
+    if (filename_has_extension(image_uri, "jpg")
+        || filename_has_extension(image_uri, "png")) {
+      texture->wgpu_texture = wgpu_texture_load_with_stb(
+        texture->wgpu_context, image_uri,
+        WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
+      texture_t* wgpu_texture = &texture->wgpu_texture;
+      texture->format         = wgpu_texture->format;
+      texture->width          = wgpu_texture->size.width;
+      texture->height         = wgpu_texture->size.height;
+      texture->mip_levels     = wgpu_texture->mip_level_count;
+      texture->layer_count    = wgpu_texture->size.depth;
+    }
+  }
+  else if (gltf_image->buffer_view) {
+    texture->wgpu_texture
+      = tex_create_mem(texture->wgpu_context,
+                       (void*)((uint8_t*)gltf_image->buffer_view->buffer->data
+                               + gltf_image->buffer_view->offset),
+                       gltf_image->buffer_view->size);
     texture_t* wgpu_texture = &texture->wgpu_texture;
     texture->format         = wgpu_texture->format;
     texture->width          = wgpu_texture->size.width;
@@ -128,18 +143,6 @@ typedef struct gltf_primitive_t {
   } dimensions;
 } gltf_primitive_t;
 
-static void gltf_primitive_set_dimensions(gltf_primitive_t* primitive, vec3 min,
-                                          vec3 max)
-{
-  glm_vec3_copy(min, primitive->dimensions.min);
-  glm_vec3_copy(max, primitive->dimensions.max);
-  glm_vec3_sub(max, min, primitive->dimensions.size);
-  vec3 sum = GLM_VEC3_ZERO_INIT;
-  glm_vec3_add(min, max, sum);
-  glm_vec3_scale(sum, 0.5f, primitive->dimensions.center);
-  primitive->dimensions.radius = glm_vec3_distance(min, max) / 2.0f;
-}
-
 static void gltf_primitive_init(gltf_primitive_t* primitive,
                                 uint32_t first_index, uint32_t index_count,
                                 gltf_material_t* material)
@@ -155,6 +158,18 @@ static void gltf_primitive_init(gltf_primitive_t* primitive,
   glm_vec3_zero(primitive->dimensions.size);
   glm_vec3_zero(primitive->dimensions.center);
   primitive->dimensions.radius = 0.0f;
+}
+
+static void gltf_primitive_set_dimensions(gltf_primitive_t* primitive, vec3 min,
+                                          vec3 max)
+{
+  glm_vec3_copy(min, primitive->dimensions.min);
+  glm_vec3_copy(max, primitive->dimensions.max);
+  glm_vec3_sub(max, min, primitive->dimensions.size);
+  vec3 sum = GLM_VEC3_ZERO_INIT;
+  glm_vec3_add(min, max, sum);
+  glm_vec3_scale(sum, 0.5f, primitive->dimensions.center);
+  primitive->dimensions.radius = glm_vec3_distance(min, max) / 2.0f;
 }
 
 /*
@@ -393,7 +408,7 @@ typedef enum interpolation_type_enum {
 } interpolation_type_enum;
 
 /*
- * glTF Animation sampler
+ * glTF animation sampler
  */
 typedef struct gltf_animation_sampler_t {
   interpolation_type_enum interpolation;
@@ -412,7 +427,7 @@ static void gltf_animation_sampler_init(gltf_animation_sampler_t* sampler)
   sampler->outputs_vec4_count = 0;
 }
 
-/* glTF Animation */
+/* glTF animation */
 typedef struct gltf_animation_t {
   char name[STRMAX];
   gltf_animation_sampler_t* samplers;
@@ -548,14 +563,21 @@ typedef struct gltf_model_t {
     float radius;
   } dimensions;
 
-  bool metallicRoughnessWorkflow;
+  bool metallic_roughness_workflow;
   bool buffers_bound;
   char path[STRMAX];
 } gltf_model_t;
 
+/**
+ * In this WebGPU glTF model, each texture is represented by a single image,
+ * therefore WebGPU texture = glTF image. This function maps a glTF texture to a
+ * WebGPU texture (= glTF image).
+ */
 static gltf_texture_t* gltf_model_get_texture(gltf_model_t* model,
-                                              uint32_t index)
+                                              cgltf_data* data,
+                                              cgltf_texture* texture)
 {
+  uint32_t index = texture->image - data->images;
   if (index < model->texture_count) {
     return &model->textures[index];
   }
@@ -782,11 +804,11 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
 
       // Vertices
       {
-        float* buffer_pos             = NULL;
-        float* buffer_normals         = NULL;
-        float* buffer_texcoords       = NULL;
-        float* buffer_colors          = NULL;
-        float* buffer_tangents        = NULL;
+        const float* buffer_pos       = NULL;
+        const float* buffer_normals   = NULL;
+        const float* buffer_texcoords = NULL;
+        const float* buffer_colors    = NULL;
+        const float* buffer_tangents  = NULL;
         uint32_t num_color_components = 0;
         const uint16_t* buffer_joints = NULL;
         const float* buffer_weights   = NULL;
@@ -1080,12 +1102,11 @@ static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
       cgltf_pbr_metallic_roughness* mr_config = &mat->pbr_metallic_roughness;
       if (mr_config->base_color_texture.texture != NULL) {
         material->base_color_texture = gltf_model_get_texture(
-          model, mr_config->base_color_texture.texture - data->textures);
+          model, data, mr_config->base_color_texture.texture);
       }
       if (mr_config->metallic_roughness_texture.texture != NULL) {
         material->metallic_roughness_texture = gltf_model_get_texture(
-          model,
-          mr_config->metallic_roughness_texture.texture - data->textures);
+          model, data, mr_config->metallic_roughness_texture.texture);
       }
       material->roughness_factor = mr_config->roughness_factor;
       material->metallic_factor  = mr_config->metallic_factor;
@@ -1094,19 +1115,19 @@ static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
              sizeof(vec4));
     }
     if (mat->normal_texture.texture != NULL) {
-      material->normal_texture = gltf_model_get_texture(
-        model, mat->normal_texture.texture - data->textures);
+      material->normal_texture
+        = gltf_model_get_texture(model, data, mat->normal_texture.texture);
     }
     else {
       material->normal_texture = model->empty_texture;
     }
     if (mat->emissive_texture.texture != NULL) {
-      material->emissive_texture = gltf_model_get_texture(
-        model, mat->emissive_texture.texture - data->textures);
+      material->emissive_texture
+        = gltf_model_get_texture(model, data, mat->emissive_texture.texture);
     }
     if (mat->occlusion_texture.texture != NULL) {
-      material->occlusion_texture = gltf_model_get_texture(
-        model, mat->occlusion_texture.texture - data->textures);
+      material->occlusion_texture
+        = gltf_model_get_texture(model, data, mat->occlusion_texture.texture);
     }
     if (mat->alpha_mode == cgltf_alpha_mode_blend) {
       material->alpha_mode = AlphaMode_BLEND;
@@ -1660,7 +1681,7 @@ void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
       continue;
     }
 
-    for (uint32_t i = 0; i < sampler->input_count - 1; i++) {
+    for (uint32_t i = 0; i < sampler->input_count - 1; ++i) {
       if ((time >= sampler->inputs[i]) && (time <= sampler->inputs[i + 1])) {
         float u = MAX(0.0f, time - sampler->inputs[i])
                   / (sampler->inputs[i + 1] - sampler->inputs[i]);
