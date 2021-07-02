@@ -862,3 +862,93 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
 
   return texture;
 }
+
+texture_t tex_create_mem(wgpu_context_t* wgpu_context, void* data,
+                         size_t data_size)
+{
+  texture_t texture = {0};
+
+  bool is_hdr  = stbi_is_hdr_from_memory((stbi_uc*)data, data_size);
+  int channels = 0;
+  int width    = 0;
+  int height   = 0;
+  stbi_set_flip_vertically_on_load(false);
+  /*uint8_t* col_data
+    = is_hdr ? (uint8_t*)stbi_loadf_from_memory((stbi_uc*)data, data_size,
+                                                &width, &height, &channels, 4) :
+               (uint8_t*)stbi_load_from_memory((stbi_uc*)data, data_size,
+                                               &width, &height, &channels, 4);*/
+
+  uint8_t* col_data = (uint8_t*)stbi_load_from_memory((stbi_uc*)data, 1024*1024*4,
+                                                      &width, &height, &channels, 4);
+
+  if (col_data == NULL) {
+    log_warn("Couldn't parse image data!");
+    return texture;
+  }
+
+  texture.format = WGPUTextureFormat_RGBA8Unorm;
+
+  texture.size.width  = width;
+  texture.size.height = height;
+  texture.size.depth  = 1;
+  texture.channels    = 4; //channels;
+
+  WGPUExtent3D texture_size = {
+    .width              = texture.size.width,
+    .height             = texture.size.height,
+    .depthOrArrayLayers = texture.size.depth,
+  };
+
+  WGPUTextureDescriptor tex_desc = {
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
+    .dimension     = WGPUTextureDimension_2D,
+    .size          = texture_size,
+    .format        = texture.format,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+  };
+
+  texture.texture = wgpuDeviceCreateTexture(wgpu_context->device, &tex_desc);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .format          = texture.format,
+    .dimension       = WGPUTextureViewDimension_2D,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  texture.view = wgpuTextureCreateView(texture.texture, &texture_view_dec);
+
+  // Copy pixel data to texture
+  wgpu_image_to_texure(wgpu_context, &(texture_image_desc_t){
+                                       .width     = width,
+                                       .height    = height,
+                                       .depth     = 1,
+                                       .dimension = WGPUTextureDimension_2D,
+                                       .channels  = 4u,
+                                       .pixels    = col_data,
+                                       .texture   = texture.texture,
+                                       .format = WGPUTextureFormat_RGBA8Unorm,
+                                     });
+  free(col_data);
+
+  // Create the sampler
+  WGPUSamplerDescriptor sampler_desc = {
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
+    .minFilter     = WGPUFilterMode_Linear,
+    .magFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUFilterMode_Nearest,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  texture.sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+
+  return texture;
+}

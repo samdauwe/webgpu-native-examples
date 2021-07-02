@@ -74,4 +74,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
                                       WGPUTexture texture,
                                       WGPUTextureDescriptor* texture_desc);
 
+texture_t tex_create_mem(wgpu_context_t* wgpu_context, void* data,
+                         size_t data_size);
+
 #endif
