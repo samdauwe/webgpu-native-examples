@@ -131,6 +131,7 @@ set(SOURCES
     src/examples/imgui_overlay.c
     src/examples/instanced_cube.c
     src/examples/msaa_line.c
+    src/examples/multi_sampling.c
     src/examples/occlusion_query.c
     src/examples/parallax_mapping.c
     src/examples/particle_fire.c
