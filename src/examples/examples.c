@@ -25,6 +25,7 @@ void example_image_blur(int argc, char* argv[]);
 void example_imgui_overlay(int argc, char* argv[]);
 void example_instanced_cube(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
+void example_multi_sampling(int argc, char* argv[]);
 void example_occlusion_query(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_texture_particle_fire(int argc, char* argv[]);
@@ -60,6 +61,7 @@ static examplecase_t g_example_cases[] = {
   {"imgui_overlay", example_imgui_overlay},
   {"instanced_cube", example_instanced_cube},
   {"msaa_line", example_msaa_line},
+  {"multi_sampling", example_multi_sampling},
   {"occlusion_query", example_occlusion_query},
   {"parallax_mapping", example_parallax_mapping},
   {"particle_fire", example_texture_particle_fire},
