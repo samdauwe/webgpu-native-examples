@@ -141,8 +141,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 static void prepare_texture(wgpu_context_t* wgpu_context)
 {
   const char* file = "textures/Di-3d.png";
-  texture          = wgpu_texture_load_with_stb(
-    wgpu_context, file, WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
+  texture          = wgpu_create_texture_from_file(wgpu_context, file, NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -450,8 +449,8 @@ void example_textured_cube(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
-     .overlay = true,
+     .title                 = example_title,
+     .overlay               = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,

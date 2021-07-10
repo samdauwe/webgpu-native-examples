@@ -62,34 +62,29 @@ static void gltf_texture_from_gltf_image(const char* model_uri,
                                          gltf_texture_t* texture,
                                          cgltf_image* gltf_image)
 {
+  ASSERT(texture && texture->wgpu_context);
+
   if (gltf_image->uri != NULL) {
+    /* Load image data from file */
     char image_uri[STRMAX];
     get_relative_file_path(model_uri, gltf_image->uri, image_uri);
     if (filename_has_extension(image_uri, "jpg")
-        || filename_has_extension(image_uri, "png")) {
-      texture->wgpu_texture = wgpu_texture_load_with_stb(
+        || filename_has_extension(image_uri, "png")
+        || filename_has_extension(image_uri, "ktx")) {
+      texture->wgpu_texture = wgpu_create_texture_from_file(
         texture->wgpu_context, image_uri,
-        WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled);
-      texture_t* wgpu_texture = &texture->wgpu_texture;
-      texture->format         = wgpu_texture->format;
-      texture->width          = wgpu_texture->size.width;
-      texture->height         = wgpu_texture->size.height;
-      texture->mip_levels     = wgpu_texture->mip_level_count;
-      texture->layer_count    = wgpu_texture->size.depth;
+        &(struct wgpu_texture_load_options_t){
+          .address_mode = WGPUAddressMode_Repeat,
+        });
     }
   }
   else if (gltf_image->buffer_view) {
-    texture->wgpu_texture
-      = tex_create_mem(texture->wgpu_context,
-                       (void*)((uint8_t*)gltf_image->buffer_view->buffer->data
-                               + gltf_image->buffer_view->offset),
-                       gltf_image->buffer_view->size);
-    texture_t* wgpu_texture = &texture->wgpu_texture;
-    texture->format         = wgpu_texture->format;
-    texture->width          = wgpu_texture->size.width;
-    texture->height         = wgpu_texture->size.height;
-    texture->mip_levels     = wgpu_texture->mip_level_count;
-    texture->layer_count    = wgpu_texture->size.depth;
+    /* Load image data from memory */
+    texture->wgpu_texture = wgpu_create_texture_from_memory(
+      texture->wgpu_context,
+      (void*)((uint8_t*)gltf_image->buffer_view->buffer->data
+              + gltf_image->buffer_view->offset),
+      gltf_image->buffer_view->size, NULL);
   }
 }
 
@@ -588,73 +583,8 @@ static void gltf_model_create_empty_texture(gltf_model_t* model)
 {
   gltf_texture_t* empty_texture = calloc(1, sizeof(gltf_texture_t));
   model->empty_texture          = empty_texture;
-
-  empty_texture->wgpu_context = model->wgpu_context;
-  empty_texture->format       = WGPUTextureFormat_RGBA8Unorm;
-  empty_texture->width        = 1;
-  empty_texture->height       = 1;
-  empty_texture->layer_count  = 1;
-  empty_texture->mip_levels   = 1;
-
-  size_t buffer_size
-    = empty_texture->width * empty_texture->height * 4 * sizeof(unsigned char);
-  unsigned char* buffer = malloc(buffer_size);
-  memset(buffer, 0, buffer_size);
-
-  // Create texture
-  WGPUExtent3D texture_size = {
-    .width              = empty_texture->width,
-    .height             = empty_texture->height,
-    .depthOrArrayLayers = empty_texture->layer_count,
-  };
-  WGPUTextureDescriptor tex_desc = {
-    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
-    .dimension     = WGPUTextureDimension_2D,
-    .size          = texture_size,
-    .format        = empty_texture->format,
-    .mipLevelCount = 1,
-    .sampleCount   = 1,
-  };
-  empty_texture->wgpu_texture.texture
-    = wgpuDeviceCreateTexture(model->wgpu_context->device, &tex_desc);
-
-  // Copy pixel data to texture
-  wgpu_image_to_texure(model->wgpu_context,
-                       &(texture_image_desc_t){
-                         .width    = empty_texture->width,
-                         .height   = empty_texture->height,
-                         .channels = 4u,
-                         .pixels   = buffer,
-                         .texture  = empty_texture->wgpu_texture.texture,
-                       });
-  free(buffer);
-
-  // Create the texture view
-  WGPUTextureViewDescriptor texture_view_dec = {
-    .format          = empty_texture->format,
-    .dimension       = WGPUTextureViewDimension_2D,
-    .baseMipLevel    = 0,
-    .mipLevelCount   = 1,
-    .baseArrayLayer  = 0,
-    .arrayLayerCount = 1,
-  };
-  empty_texture->wgpu_texture.view = wgpuTextureCreateView(
-    empty_texture->wgpu_texture.texture, &texture_view_dec);
-
-  // Create the sampler
-  WGPUSamplerDescriptor sampler_desc = {
-    .addressModeU  = WGPUAddressMode_Repeat,
-    .addressModeV  = WGPUAddressMode_Repeat,
-    .addressModeW  = WGPUAddressMode_Repeat,
-    .minFilter     = WGPUFilterMode_Linear,
-    .magFilter     = WGPUFilterMode_Linear,
-    .mipmapFilter  = WGPUFilterMode_Linear,
-    .lodMinClamp   = 0.0f,
-    .lodMaxClamp   = 1.0f,
-    .maxAnisotropy = 1,
-  };
-  empty_texture->wgpu_texture.sampler
-    = wgpuDeviceCreateSampler(model->wgpu_context->device, &sampler_desc);
+  empty_texture->wgpu_context   = model->wgpu_context;
+  empty_texture->wgpu_texture = wgpu_create_empty_texture(model->wgpu_context);
 }
 
 /*

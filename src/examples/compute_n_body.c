@@ -92,10 +92,10 @@ static void setup_camera(wgpu_example_context_t* context)
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
-  textures.particle = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/particle01_rgba.ktx");
-  textures.gradient = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/particle_gradient_rgba.ktx");
+  textures.particle = wgpu_create_texture_from_file(
+    wgpu_context, "textures/particle01_rgba.ktx", NULL);
+  textures.gradient = wgpu_create_texture_from_file(
+    wgpu_context, "textures/particle_gradient_rgba.ktx", NULL);
 }
 
 // Setup and fill the compute shader storage buffers containing the particles

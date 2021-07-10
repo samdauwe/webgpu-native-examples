@@ -51,6 +51,8 @@ typedef struct {
   const char* title;
   /** @brief Enable UI overlay */
   bool overlay;
+  /** @brief Create texture client */
+  bool create_texture_client;
 } wgpu_example_settings_t;
 
 typedef void* surface_t;

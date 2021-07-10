@@ -84,8 +84,8 @@ static void load_texture(wgpu_context_t* wgpu_context)
 {
   // We use the Khronos texture format
   // (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
-  texture = wgpu_texture_load_from_ktx_file(wgpu_context,
-                                            "textures/metalplate01_rgba.ktx");
+  texture = wgpu_create_texture_from_file(
+    wgpu_context, "textures/metalplate01_rgba.ktx", NULL);
 }
 
 static void generate_quad(wgpu_context_t* wgpu_context)

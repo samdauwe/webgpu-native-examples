@@ -114,8 +114,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 // Upload texture image data to the GPU
 static void load_texture(wgpu_context_t* wgpu_context)
 {
-  texture = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/cubemap_yokohama_rgba.ktx");
+  texture = wgpu_create_texture_from_file(
+    wgpu_context, "textures/cubemap_yokohama_rgba.ktx", NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)

@@ -99,10 +99,12 @@ static void setup_camera(wgpu_example_context_t* context)
 static void load_assets(wgpu_context_t* wgpu_context)
 {
   const char* file   = "textures/Di-3d.png";
-  textures.color_map = wgpu_texture_load_with_stb(wgpu_context, file,
-                                                  WGPUTextureUsage_CopyDst
-                                                    | WGPUTextureUsage_Sampled
-                                                    | WGPUTextureUsage_Storage);
+  textures.color_map = wgpu_create_texture_from_file(
+    wgpu_context, file,
+    &(struct wgpu_texture_load_options_t){
+      .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled
+               | WGPUTextureUsage_Storage,
+    });
 }
 
 // Prepare a texture target that is used to store compute shader calculations

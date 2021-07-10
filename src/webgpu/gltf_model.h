@@ -65,10 +65,6 @@ typedef enum wgpu_gltf_alpha_mode_enum {
 typedef struct wgpu_gltf_texture_t {
   wgpu_context_t* wgpu_context;
   texture_t wgpu_texture;
-  WGPUTextureFormat format;
-  uint32_t width, height;
-  uint32_t mip_levels;
-  uint32_t layer_count;
 } wgpu_gltf_texture_t;
 
 /*

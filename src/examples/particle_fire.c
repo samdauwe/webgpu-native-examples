@@ -241,16 +241,16 @@ static void update_particles(wgpu_example_context_t* context)
 static void load_assets(wgpu_context_t* wgpu_context)
 {
   // Particles
-  textures.particles.smoke = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/particle_smoke.ktx");
-  textures.particles.fire = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/particle_fire.ktx");
+  textures.particles.smoke = wgpu_create_texture_from_file(
+    wgpu_context, "textures/particle_smoke.ktx", NULL);
+  textures.particles.fire = wgpu_create_texture_from_file(
+    wgpu_context, "textures/particle_fire.ktx", NULL);
 
   // Floor
-  textures.floor.color_map = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/fireplace_colormap_rgba.ktx");
-  textures.floor.normal_map = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/fireplace_normalmap_rgba.ktx");
+  textures.floor.color_map = wgpu_create_texture_from_file(
+    wgpu_context, "textures/fireplace_colormap_rgba.ktx", NULL);
+  textures.floor.normal_map = wgpu_create_texture_from_file(
+    wgpu_context, "textures/fireplace_normalmap_rgba.ktx", NULL);
 
   // Create a custom sampler to be used with the particle textures
   // Create sampler

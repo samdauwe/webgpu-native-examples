@@ -72,10 +72,10 @@ static void load_assets(wgpu_context_t* wgpu_context)
     .filename           = "models/cube.gltf",
     .file_loading_flags = gltf_loading_flags,
   });
-  cubes[0].texture = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/crate01_color_height_rgba.ktx");
-  cubes[1].texture = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/crate02_color_height_rgba.ktx");
+  cubes[0].texture = wgpu_create_texture_from_file(
+    wgpu_context, "textures/crate01_color_height_rgba.ktx", NULL);
+  cubes[1].texture = wgpu_create_texture_from_file(
+    wgpu_context, "textures/crate02_color_height_rgba.ktx", NULL);
 }
 
 /*

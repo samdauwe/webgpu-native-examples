@@ -258,13 +258,14 @@ static int update_capture_texture(wgpu_context_t* wgpu_context)
   get_video_buffer(&video_buf);
 
   if (video_buf) {
-    wgpu_image_to_texure(wgpu_context, &(texture_image_desc_t){
-                                         .width  = video_info.frame_size.width,
-                                         .height = video_info.frame_size.height,
-                                         .channels = 4u,
-                                         .pixels   = (uint8_t*)video_buf,
-                                         .texture  = video_texture.texture,
-                                       });
+    wgpu_image_to_texure(wgpu_context, video_texture.texture,
+                         (uint8_t*)video_buf,
+                         (WGPUExtent3D){
+                           .width              = video_info.frame_size.width,
+                           .height             = video_info.frame_size.height,
+                           .depthOrArrayLayers = 1,
+                         },
+                         4u);
   }
 
   return 0;

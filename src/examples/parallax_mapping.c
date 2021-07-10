@@ -106,10 +106,10 @@ static void load_assets(wgpu_context_t* wgpu_context)
     .filename           = "models/plane.gltf",
     .file_loading_flags = gltf_loading_flags,
   });
-  textures.normal_height_map = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/rocks_normal_height_rgba.ktx");
-  textures.color_map = wgpu_texture_load_from_ktx_file(
-    wgpu_context, "textures/rocks_color_rgba.ktx");
+  textures.normal_height_map = wgpu_create_texture_from_file(
+    wgpu_context, "textures/rocks_normal_height_rgba.ktx", NULL);
+  textures.color_map = wgpu_create_texture_from_file(
+    wgpu_context, "textures/rocks_color_rgba.ktx", NULL);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
