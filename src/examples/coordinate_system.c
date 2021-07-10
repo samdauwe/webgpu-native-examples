@@ -231,7 +231,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context);
+  wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
   render_pass_desc = (WGPURenderPassDescriptor){

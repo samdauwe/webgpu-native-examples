@@ -223,7 +223,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context);
+  wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Occlusion query set
   occlusion_query_set = wgpuDeviceCreateQuerySet(

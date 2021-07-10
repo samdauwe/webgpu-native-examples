@@ -247,7 +247,7 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
   };
 
   // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context);
+  wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
   imgui_overlay->render_pass_desc = (WGPURenderPassDescriptor){
