@@ -8,6 +8,7 @@
 #include "../core/platform.h"
 
 #include "../webgpu/buffer.h"
+#include "../webgpu/texture.h"
 
 #include "../../lib/wgpu_native/wgpu_native.h"
 
@@ -26,6 +27,10 @@ void wgpu_context_release(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(SwapChain, wgpu_context->swap_chain.instance);
   WGPU_RELEASE_RESOURCE(Queue, wgpu_context->queue);
   WGPU_RELEASE_RESOURCE(Device, wgpu_context->device);
+
+  if (wgpu_context->texture_client != NULL) {
+    wgpu_texture_client_destroy(wgpu_context->texture_client);
+  }
 
   free(wgpu_context);
 }
@@ -193,6 +198,14 @@ void wgpu_swap_chain_present(wgpu_context_t* wgpu_context)
   wgpuSwapChainPresent(wgpu_context->swap_chain.instance);
 
   WGPU_RELEASE_RESOURCE(TextureView, wgpu_context->swap_chain.frame_buffer)
+}
+
+/* Texture client creation */
+void wgpu_create_texture_client(wgpu_context_t* wgpu_context)
+{
+  if (wgpu_context->texture_client == NULL) {
+    wgpu_context->texture_client = wgpu_texture_client_create(wgpu_context);
+  }
 }
 
 /* Pipeline state factories */

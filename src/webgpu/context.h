@@ -46,6 +46,7 @@
 
 /* Forward declarations */
 struct wgpu_buffer_t;
+struct wgpu_texture_client_t;
 
 /* WebGPU context */
 typedef struct wgpu_context_t {
@@ -75,6 +76,7 @@ typedef struct wgpu_context_t {
     uint32_t command_buffer_count;
     WGPUCommandBuffer command_buffers[MAX_COMMAND_BUFFER_COUNT];
   } submit_info;
+  struct wgpu_texture_client_t* texture_client;
 } wgpu_context_t;
 
 /* WebGPU context creating/releasing */
@@ -107,6 +109,9 @@ void wgpu_flush_command_buffers(wgpu_context_t* wgpu_context,
                                 WGPUCommandBuffer* command_buffers,
                                 uint32_t command_buffer_count);
 void wgpu_swap_chain_present(wgpu_context_t* wgpu_context);
+
+/* Texture client creation */
+void wgpu_create_texture_client(wgpu_context_t* wgpu_context);
 
 /* Pipeline state factories */
 WGPUBlendState wgpu_create_blend_state(bool enable_blend);
