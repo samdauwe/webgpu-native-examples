@@ -87,12 +87,18 @@ void wgpu_context_release(wgpu_context_t* wgpu_context);
 void wgpu_get_context_info(char (*adapter_info)[256]);
 
 /* WebGPU context helper functions */
+typedef struct deph_stencil_texture_creation_options_t {
+  WGPUTextureFormat format;
+} deph_stencil_texture_creation_options;
+
 WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
                                         const void* data, size_t size,
                                         WGPUBufferUsage usage);
 void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context);
 void wgpu_create_surface(wgpu_context_t* wgpu_context, void* window);
-void wgpu_setup_deph_stencil(wgpu_context_t* wgpu_context);
+void wgpu_setup_deph_stencil(
+  wgpu_context_t* wgpu_context,
+  struct deph_stencil_texture_creation_options_t* options);
 void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context);
 void wgpu_error_callback(WGPUErrorType type, char const* message,
                          void* userdata);
