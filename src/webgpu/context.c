@@ -59,12 +59,12 @@ WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
 void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
 {
   wgpu_log_available_adapters();
-  // WebGPU device creation
+  /* WebGPU device creation */
   wgpu_context->device = wgpu_create_device(WGPUBackendType_Vulkan);
   wgpuDeviceSetUncapturedErrorCallback(
     wgpu_context->device, &wgpu_error_callback, (void*)wgpu_context);
 
-  // Get the default queue from the device
+  /* Get the default queue from the device */
   wgpu_context->queue = wgpuDeviceGetQueue(wgpu_context->device);
 }
 
@@ -131,7 +131,7 @@ void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context)
     wgpu_context->device, wgpu_context->surface.instance,
     wgpu_context->surface.width, wgpu_context->surface.height);
 
-  // Find a suitable depth format
+  /* Find a suitable depth format */
   wgpu_context->swap_chain.format
     = wgpu_get_swap_chain_preferred_format(wgpu_context->device);
 }
@@ -172,7 +172,7 @@ void wgpu_queue_write_buffer(wgpu_context_t* wgpu_context, WGPUBuffer buffer,
 
 /* Render helper functions */
 
-// Get a new command buffer
+/* Get a new command buffer */
 WGPUCommandBuffer wgpu_get_command_buffer(WGPUCommandEncoder cmd_encoder)
 {
   return wgpuCommandEncoderFinish(cmd_encoder, NULL);
@@ -185,17 +185,17 @@ WGPUTextureView wgpu_swap_chain_get_current_image(wgpu_context_t* wgpu_context)
   return wgpu_context->swap_chain.frame_buffer;
 }
 
-// End the command buffers and submit it to the queue
+/* End the command buffers and submit it to the queue */
 void wgpu_flush_command_buffers(wgpu_context_t* wgpu_context,
                                 WGPUCommandBuffer* command_buffers,
                                 uint32_t command_buffer_count)
 {
   ASSERT(command_buffers != NULL)
 
-  // Submit to the queue
+  /* Submit to the queue */
   wgpuQueueSubmit(wgpu_context->queue, command_buffer_count, command_buffers);
 
-  // Release command buffer
+  /* Release command buffer */
   for (uint32_t i = 0; i < command_buffer_count; ++i) {
     WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffers[i])
   }

@@ -9,7 +9,7 @@
 wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
                                  const wgpu_buffer_desc_t* desc)
 {
-  // Ensure that buffer size is a multiple of 4
+  /* Ensure that buffer size is a multiple of 4 */
   const uint32_t size = (desc->size + 3) & ~3;
 
   wgpu_buffer_t wgpu_buffer = {
