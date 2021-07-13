@@ -7,7 +7,7 @@
  * WebGPU Example - Terrain Mesh
  *
  * This example shows how to render an infinite landscape for the camera to
- * meander around in. The terrain will consist of a tiled planar mesh that is
+ * meander around in. The terrain consists of a tiled planar mesh that is
  * displaced with a heightmap.
  *
  * The example demonstrates the following:
@@ -22,7 +22,15 @@
  * https://blogs.igalia.com/itoral/2016/10/13/opengl-terrain-renderer-rendering-the-terrain-mesh/
  * -------------------------------------------------------------------------- */
 
+// Math macros
 #define RADIANS_PER_DEGREE (PI / 180.0f)
+
+// Terrain patch parameters
+#define PATCH_SIZE 50
+#define PATCH_SEGMENT_COUNT 40
+#define PATCH_INDEX_COUNT PATCH_SEGMENT_COUNT* PATCH_SEGMENT_COUNT * 6
+#define PATCH_VERTEX_COUNT (PATCH_SEGMENT_COUNT + 1) * (PATCH_SEGMENT_COUNT + 1)
+#define PATCH_FLOATS_PER_VERTEX 6
 
 // Camera parameters
 static const float fov_y  = 60.0f * RADIANS_PER_DEGREE;
@@ -33,12 +41,12 @@ static float camera_target_heading        = PI / 2.0f; // radians
 static float camera_angular_easing_factor = 0.01f;
 static float camera_speed                 = 8.0f; // meters per second
 
-// Terrain patch parameters
-#define PATCH_SIZE 50
-#define PATCH_SEGMENT_COUNT 40
-#define PATCH_INDEX_COUNT PATCH_SEGMENT_COUNT* PATCH_SEGMENT_COUNT * 6
-#define PATCH_VERTEX_COUNT (PATCH_SEGMENT_COUNT + 1) * (PATCH_SEGMENT_COUNT + 1)
-#define PATCH_FLOATS_PER_VERTEX 6
+// Used to calculate view and projection matrices
+static float rot_y[16], trans[16], view_matrix[16], projection_matrix[16];
+
+// Camera matrices
+static float model_matrix[16], model_view_matrix[16];
+static float model_view_projection_matrix[16];
 
 // Nine terrain patches
 static vec3 patch_centers[9];
@@ -49,7 +57,7 @@ static float direction_change_countdown = 6.0f; // seconds
 
 // Internal constants
 static const uint32_t instance_length
-  = sizeof(mat4) * 2; // Length of the data associated with a single instance
+  = 16 * 2; // Length of the data associated with a single instance
 static const uint32_t max_instance_count = 9;
 static const uint64_t instance_buffer_length
   = 4 * instance_length * max_instance_count; // in bytes
@@ -101,6 +109,79 @@ static WGPURenderPassDescriptor render_pass_desc;
 // Other variables
 static const char* example_title = "Terrain Mesh";
 static bool prepared             = false;
+
+/* -------------------------------------------------------------------------- *
+ * Custom math
+ * -------------------------------------------------------------------------- */
+
+static void mat4_mul(float (*a)[16], float (*b)[16], float (*m)[16])
+{
+  memset(m, 0, sizeof(*m));
+  // clang-format off
+  (*m)[0]  = (*a)[0] * (*b)[0]  + (*a)[4] * (*b)[1]  + (*a)[8]  * (*b)[2]  + (*a)[12] * (*b)[3];
+  (*m)[1]  = (*a)[1] * (*b)[0]  + (*a)[5] * (*b)[1]  + (*a)[9]  * (*b)[2]  + (*a)[13] * (*b)[3];
+  (*m)[2]  = (*a)[2] * (*b)[0]  + (*a)[6] * (*b)[1]  + (*a)[10] * (*b)[2]  + (*a)[14] * (*b)[3];
+  (*m)[3]  = (*a)[3] * (*b)[0]  + (*a)[7] * (*b)[1]  + (*a)[11] * (*b)[2]  + (*a)[15] * (*b)[3];
+  (*m)[4]  = (*a)[0] * (*b)[4]  + (*a)[4] * (*b)[5]  + (*a)[8]  * (*b)[6]  + (*a)[12] * (*b)[7];
+  (*m)[5]  = (*a)[1] * (*b)[4]  + (*a)[5] * (*b)[5]  + (*a)[9]  * (*b)[6]  + (*a)[13] * (*b)[7];
+  (*m)[6]  = (*a)[2] * (*b)[4]  + (*a)[6] * (*b)[5]  + (*a)[10] * (*b)[6]  + (*a)[14] * (*b)[7];
+  (*m)[7]  = (*a)[3] * (*b)[4]  + (*a)[7] * (*b)[5]  + (*a)[11] * (*b)[6]  + (*a)[15] * (*b)[7];
+  (*m)[8]  = (*a)[0] * (*b)[8]  + (*a)[4] * (*b)[9]  + (*a)[8]  * (*b)[10] + (*a)[12] * (*b)[11];
+  (*m)[9]  = (*a)[1] * (*b)[8]  + (*a)[5] * (*b)[9]  + (*a)[9]  * (*b)[10] + (*a)[13] * (*b)[11];
+  (*m)[10] = (*a)[2] * (*b)[8]  + (*a)[6] * (*b)[9]  + (*a)[10] * (*b)[10] + (*a)[14] * (*b)[11];
+  (*m)[11] = (*a)[3] * (*b)[8]  + (*a)[7] * (*b)[9]  + (*a)[11] * (*b)[10] + (*a)[15] * (*b)[11];
+  (*m)[12] = (*a)[0] * (*b)[12] + (*a)[4] * (*b)[13] + (*a)[8]  * (*b)[14] + (*a)[12] * (*b)[15];
+  (*m)[13] = (*a)[1] * (*b)[12] + (*a)[5] * (*b)[13] + (*a)[9]  * (*b)[14] + (*a)[13] * (*b)[15];
+  (*m)[14] = (*a)[2] * (*b)[12] + (*a)[6] * (*b)[13] + (*a)[10] * (*b)[14] + (*a)[14] * (*b)[15];
+  (*m)[15] = (*a)[3] * (*b)[12] + (*a)[7] * (*b)[13] + (*a)[11] * (*b)[14] + (*a)[15] * (*b)[15];
+  // clang-format on
+}
+
+static void mat4_translation(float (*m)[16], vec3 t)
+{
+  memset(m, 0, sizeof(*m));
+  (*m)[0]  = 1.0f;
+  (*m)[5]  = 1.0f;
+  (*m)[10] = 1.0f;
+  (*m)[12] = t[0];
+  (*m)[13] = t[1];
+  (*m)[14] = t[2];
+  (*m)[15] = 1.0f;
+}
+
+static void mat4_rotation_y(float (*m)[16], float angle)
+{
+  memset(m, 0, sizeof(*m));
+  const float c = cos(angle);
+  const float s = sin(angle);
+  (*m)[0]       = c;
+  (*m)[2]       = -s;
+  (*m)[5]       = 1.0f;
+  (*m)[8]       = s;
+  (*m)[10]      = c;
+  (*m)[15]      = 1.0f;
+}
+
+/*
+ * Calculates a perspective projection matrix that maps from right-handed view
+ * space to left-handed clip space with z on [0, 1]
+ */
+static void mat4_perspective_fov(float fovY, float aspect, float near,
+                                 float far, float (*m)[16])
+{
+  memset(m, 0, sizeof(*m));
+  const float sy = 1.0f / tan(fovY * 0.5f);
+  const float nf = 1.0f / (near - far);
+  (*m)[0]        = sy / aspect;
+  (*m)[5]        = sy;
+  (*m)[10]       = far * nf;
+  (*m)[11]       = -1.0f;
+  (*m)[14]       = far * near * nf;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Terrain Mesh example
+ * -------------------------------------------------------------------------- */
 
 static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
 {
@@ -238,11 +319,8 @@ static void update_camera_pose(float dt)
 
 static void update_uniforms(wgpu_example_context_t* context)
 {
-  float frame_timestamp_millis = context->frame.timestamp_millis;
-
-  const float dt  = (last_frame_time < 0.0f) ?
-                      (frame_timestamp_millis - last_frame_time) * 0.001 :
-                      0.0f; // s
+  const float frame_timestamp_millis = context->frame.timestamp_millis;
+  const float dt  = (frame_timestamp_millis - last_frame_time) * 0.001; // s
   last_frame_time = frame_timestamp_millis;
 
   update_camera_pose(dt);
@@ -270,41 +348,33 @@ static void update_uniforms(wgpu_example_context_t* context)
   }
 
   // Calculate view and projection matrices
-  mat4 rot_y_src = GLM_MAT4_IDENTITY_INIT, rot_y_dst = GLM_MAT4_ZERO_INIT;
-  glm_rotate_y(rot_y_src, -camera_heading, rot_y_dst);
-
-  mat4 trans = GLM_MAT4_IDENTITY_INIT;
-  glm_translate(trans, (vec3){-camera_position[0], -camera_position[1],
-                              -camera_position[2]});
-  mat4 view_matrix = GLM_MAT4_ZERO_INIT;
-  glm_mat4_mul(rot_y_dst, trans, view_matrix);
+  mat4_rotation_y(&rot_y, -camera_heading);
+  mat4_translation(&trans, (vec3){-camera_position[0], -camera_position[1],
+                                  -camera_position[2]});
+  mat4_mul(&rot_y, &trans, &view_matrix);
   const float aspect_ratio = context->window_size.aspect_ratio;
-  mat4 projection_matrix   = GLM_MAT4_IDENTITY_INIT;
-  glm_perspective(fov_y, aspect_ratio, near_z, far_z, projection_matrix);
+  mat4_perspective_fov(fov_y, aspect_ratio, near_z, far_z, &projection_matrix);
 
   // Calculate the per-instance matrices
   if (instance_data == NULL) {
     instance_data = calloc(instance_buffer_length / 4, sizeof(float));
   }
-  instance_count         = MIN(ARRAY_SIZE(patch_centers), max_instance_count);
-  mat4 model_matrix      = GLM_MAT4_ZERO_INIT;
-  mat4 model_view_matrix = GLM_MAT4_ZERO_INIT;
-  mat4 model_view_projection_matrix = GLM_MAT4_ZERO_INIT;
+  instance_count = MIN(ARRAY_SIZE(patch_centers), max_instance_count);
   for (uint32_t i = 0; i < instance_count; ++i) {
-    glm_mat4_identity(model_matrix);
-    glm_translate(model_matrix, patch_centers[i]);
-    glm_mat4_mul(view_matrix, model_matrix, model_view_matrix);
-    glm_mat4_mul(projection_matrix, model_view_matrix,
-                 model_view_projection_matrix);
-    memcpy(instance_data + (i * 32), model_view_matrix,
+    mat4_translation(&model_matrix, patch_centers[i]);
+    mat4_mul(&view_matrix, &model_matrix, &model_view_matrix);
+    mat4_mul(&projection_matrix, &model_view_matrix,
+             &model_view_projection_matrix);
+    memcpy(instance_data + (i * instance_length), model_view_matrix,
            sizeof(model_view_matrix));
-    memcpy(instance_data + (i * 32 + 16), model_view_projection_matrix,
-           sizeof(model_view_projection_matrix));
+    memcpy(instance_data + (i * instance_length + 16),
+           model_view_projection_matrix, sizeof(model_view_projection_matrix));
   }
 
   // Write the instance data to the instance buffer
   wgpu_queue_write_buffer(context->wgpu_context, instance_buffer, 0,
-                          &instance_data, sizeof(instance_data));
+                          instance_data,
+                          (instance_buffer_length / 4) * sizeof(float));
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
