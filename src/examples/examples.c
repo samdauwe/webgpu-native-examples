@@ -34,6 +34,7 @@ void example_reversed_z(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
 void example_shadow_mapping(int argc, char* argv[]);
 void example_skybox(int argc, char* argv[]);
+void example_terrain_mesh(int argc, char* argv[]);
 void example_texture_mipmap_gen(int argc, char* argv[]);
 void example_textured_cube(int argc, char* argv[]);
 void example_textured_quad(int argc, char* argv[]);
@@ -70,6 +71,7 @@ static examplecase_t g_example_cases[] = {
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
   {"skybox", example_skybox},
+  {"terrain_mesh", example_terrain_mesh},
   {"texture_mipmap_gen", example_texture_mipmap_gen},
   {"textured_cube", example_textured_cube},
   {"textured_quad", example_textured_quad},

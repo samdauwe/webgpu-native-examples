@@ -140,6 +140,7 @@ set(SOURCES
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c
     src/examples/skybox.c
+    src/examples/terrain_mesh.c
     src/examples/texture_mipmap_gen.c
     src/examples/textured_cube.c
     src/examples/textured_quad.c
