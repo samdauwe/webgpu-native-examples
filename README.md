@@ -148,9 +148,13 @@ Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGro
 
 ### Advanced
 
-#### [Multi sampling](src/examples/msaa_line.c)
+#### [MSAA line](src/examples/msaa_line.c)
 
 This example shows how to achieve [multisample anti-aliasing](https://en.wikipedia.org/wiki/Multisample_anti-aliasing)(MSAA) in WebGPU. The render pipeline is created with a sample count > 1. A new texture with a sample count > 1 is created and set as the color attachment instead of the swapchain. The swapchain is now specified as a resolve_target.
+
+#### [Multi sampling](src/examples/multi_sampling.c)
+
+Implements multisample anti-aliasing (MSAA) using a renderpass with multisampled attachments that get resolved into the visible frame buffer.
 
 #### [Cube reflection](src/examples/cube_reflection.c)
 
