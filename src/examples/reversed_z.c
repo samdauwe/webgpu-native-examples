@@ -23,6 +23,7 @@
  *
  * Ref:
  * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/reversedZ.ts
+ * https://developer.nvidia.com/content/depth-precision-visualized
  * -------------------------------------------------------------------------- */
 
 #define DEFAULT_CANVAS_WIDTH 600
