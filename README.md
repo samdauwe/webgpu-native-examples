@@ -8,13 +8,13 @@ WebGPU is designed for the Web, used by JavaScript and WASM applications, and dr
 
 From the very beginning, Google had both native and in-browser use of their implementation, which is now called [Dawn](https://dawn.googlesource.com/dawn). Mozilla has a shared interest in allowing developers to target a shared “WebGPU on native” target instead of a concrete “Dawn” or “[wgpu-native](https://github.com/gfx-rs/wgpu-native)”. This is achieved, by a [shared header](https://github.com/webgpu-native/webgpu-headers), and C-compatible libraries implementing it. However, this specification is still a moving target.
 
-<img src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/WebGPU_API.png"/>
+<img src="./doc/images/WebGPU_API.png"/>
 
 This repository contains a collection of open source C examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) the open-source and cross-platform implementation of the work-in-progress [WebGPU](https://gpuweb.github.io/gpuweb/) standard. 
 
 ## Supported Platforms
 
-* GNU/Linux
+* <img src="./doc/images/linuxlogo.png" alt="" height="16px"> GNU/Linux
 
 ## Get the Sources
 
@@ -32,6 +32,8 @@ $ git submodule update
 ```
 
 ## Building
+
+### For Native with Dawn
 
 The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard. Dawn uses the Chromium build system and dependency management and therefore needs [depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up).
 
@@ -52,6 +54,8 @@ $ make all
 ```
 
 ## Running the examples
+
+### Linux
 
 The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher <example_name>" like for example:
 
