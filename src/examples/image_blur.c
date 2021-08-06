@@ -336,7 +336,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .computeStage = blur_comp_shader.programmable_stage_descriptor,
+        .compute = blur_comp_shader.programmable_stage_descriptor,
       });
 
     // Partial clean-up

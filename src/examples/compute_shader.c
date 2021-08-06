@@ -497,8 +497,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     compute.pipelines[i] = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .layout       = compute.pipeline_layout,
-        .computeStage = comp_shader.programmable_stage_descriptor,
+        .layout  = compute.pipeline_layout,
+        .compute = comp_shader.programmable_stage_descriptor,
       });
     // Clean-up
     wgpu_shader_release(&comp_shader);

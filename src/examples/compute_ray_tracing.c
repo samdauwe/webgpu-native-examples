@@ -512,8 +512,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .layout       = compute.pipeline_layout,
-      .computeStage = particle_comp_shader.programmable_stage_descriptor,
+      .layout  = compute.pipeline_layout,
+      .compute = particle_comp_shader.programmable_stage_descriptor,
     });
 
   /* Partial clean-up */

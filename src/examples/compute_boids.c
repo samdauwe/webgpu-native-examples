@@ -364,8 +364,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   compute_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .layout       = compute_pipeline_layout,
-      .computeStage = boids_comp_shader.programmable_stage_descriptor,
+      .layout  = compute_pipeline_layout,
+      .compute = boids_comp_shader.programmable_stage_descriptor,
     });
 
   // Create rendering pipeline using the specified states
