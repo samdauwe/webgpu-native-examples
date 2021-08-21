@@ -27,7 +27,7 @@
  * -------------------------------------------------------------------------- */
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // Other variables
@@ -41,7 +41,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

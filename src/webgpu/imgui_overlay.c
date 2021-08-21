@@ -50,7 +50,7 @@ typedef struct imgui_overlay {
   WGPUBindGroup bind_group;
   WGPUBindGroupLayout bind_group_layout;
   // Render pass descriptor for frame buffer writes
-  WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+  WGPURenderPassColorAttachment rp_color_att_descriptors[1];
   WGPURenderPassDescriptor render_pass_desc;
   struct {
     struct {
@@ -233,7 +233,7 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
   wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
 
   // Color attachment
-  imgui_overlay->rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  imgui_overlay->rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Load,

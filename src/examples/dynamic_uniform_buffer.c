@@ -74,7 +74,7 @@ static WGPUBindGroupLayout bind_group_layout;
 static WGPUBindGroup bind_group;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 static float animation_timer = 0.0f;
@@ -284,7 +284,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired in render loop.
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

@@ -87,7 +87,7 @@ static struct ubo_env_t {
   .light_pos = {0.0f, 0.0f, 0.0f, 0.0f},
 };
 
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 static struct {
@@ -521,7 +521,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

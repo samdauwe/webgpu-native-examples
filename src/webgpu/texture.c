@@ -424,8 +424,8 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
                        .arrayLayerCount = 1,
                      });
 
-      const  WGPURenderPassColorAttachmentDescriptor color_attachment_desc
-        = (WGPURenderPassColorAttachmentDescriptor){
+      const  WGPURenderPassColorAttachment color_attachment_desc
+        = (WGPURenderPassColorAttachment){
            .view          = views[target_mip],
            .attachment    = NULL,
            .resolveTarget = NULL,

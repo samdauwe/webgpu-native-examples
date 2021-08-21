@@ -49,7 +49,7 @@ static WGPURenderPipeline dynamic_pipeline;
 
 // Render pass descriptor for frame buffer writes
 static uint32_t dynamic_offsets[1] = {0};
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 static WGPURenderBundle render_bundle;
 
@@ -177,7 +177,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // Assigned later
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

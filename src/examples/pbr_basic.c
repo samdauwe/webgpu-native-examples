@@ -122,7 +122,7 @@ static struct object_params_dynamic_t {
   uint8_t padding[244];
 } object_params_dynamic[GRID_DIM * GRID_DIM] = {0};
 
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 static WGPUPipelineLayout pipeline_layout;
@@ -274,7 +274,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

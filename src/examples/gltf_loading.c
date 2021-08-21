@@ -798,7 +798,7 @@ static WGPUPipelineLayout pipeline_layout;
 static WGPURenderPipeline solid_pipeline;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // The glTF model
@@ -856,7 +856,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired in render loop.
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,

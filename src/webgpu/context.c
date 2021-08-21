@@ -113,16 +113,15 @@ void wgpu_setup_deph_stencil(
   wgpu_context->depth_stencil.texture_view = wgpuTextureCreateView(
     wgpu_context->depth_stencil.texture, &depth_texture_view_dec);
 
-  wgpu_context->depth_stencil.att_desc
-    = (WGPURenderPassDepthStencilAttachmentDescriptor){
-      .view           = wgpu_context->depth_stencil.texture_view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
-    };
+  wgpu_context->depth_stencil.att_desc = (WGPURenderPassDepthStencilAttachment){
+    .view           = wgpu_context->depth_stencil.texture_view,
+    .depthLoadOp    = WGPULoadOp_Clear,
+    .depthStoreOp   = WGPUStoreOp_Store,
+    .clearDepth     = 1.0f,
+    .stencilLoadOp  = WGPULoadOp_Clear,
+    .stencilStoreOp = WGPUStoreOp_Store,
+    .clearStencil   = 0,
+  };
 }
 
 void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context)

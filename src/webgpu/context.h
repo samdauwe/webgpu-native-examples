@@ -70,7 +70,7 @@ typedef struct wgpu_context_t {
   struct {
     WGPUTexture texture;
     WGPUTextureView texture_view;
-    WGPURenderPassDepthStencilAttachmentDescriptor att_desc;
+    WGPURenderPassDepthStencilAttachment att_desc;
   } depth_stencil;
   struct {
     uint32_t command_buffer_count;

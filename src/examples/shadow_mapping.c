@@ -43,10 +43,10 @@ static WGPURenderPipeline shadow_pipeline;
 static WGPURenderPipeline color_render_pipeline;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachmentDescriptor sp_color_att_descriptors = {0};
-static WGPURenderPassColorAttachmentDescriptor rp_color_att_descriptors[1];
-static WGPURenderPassDepthStencilAttachmentDescriptor sp_ds_att_descriptor;
-static WGPURenderPassDepthStencilAttachmentDescriptor rp_ds_att_descriptor;
+static WGPURenderPassColorAttachment sp_color_att_descriptors = {0};
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
+static WGPURenderPassDepthStencilAttachment sp_ds_att_descriptor;
+static WGPURenderPassDepthStencilAttachment rp_ds_att_descriptor;
 static WGPURenderPassDescriptor render_pass_descriptor;
 static WGPURenderPassDescriptor shadow_pass_descriptor;
 
@@ -302,7 +302,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Shadow rendering
   {
     // Shadow pass descriptor
-    sp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachmentDescriptor){
+    sp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
       .view           = shadow_depth_texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,
@@ -323,7 +323,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Color rendering
   {
     // Color attachment
-    rp_color_att_descriptors[0] = (WGPURenderPassColorAttachmentDescriptor) {
+    rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired and set in render loop.
       .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,
@@ -337,7 +337,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     };
 
     // Render pass descriptor
-    rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachmentDescriptor){
+    rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
       .view           = depth_texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,

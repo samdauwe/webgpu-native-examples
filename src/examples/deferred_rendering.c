@@ -97,13 +97,13 @@ static WGPUPipelineLayout light_update_compute_pipeline_layout;
 
 // Render pass descriptor
 static struct write_gbuffer_pass_t {
-  WGPURenderPassColorAttachmentDescriptor color_attachments[3];
-  WGPURenderPassDepthStencilAttachmentDescriptor depth_stencil_attachment;
+  WGPURenderPassColorAttachment color_attachments[3];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } write_gbuffer_pass = {0};
 
 static struct texture_quad_pass_t {
-  WGPURenderPassColorAttachmentDescriptor color_attachments[1];
+  WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } texture_quad_pass = {0};
 
@@ -766,7 +766,7 @@ static void setup_render_passes()
   {
     // Color attachments
     write_gbuffer_pass.color_attachments[0] =
-      (WGPURenderPassColorAttachmentDescriptor) {
+      (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[0],
         .attachment = NULL,
         .loadOp     = WGPULoadOp_Clear,
@@ -780,7 +780,7 @@ static void setup_render_passes()
       };
 
     write_gbuffer_pass.color_attachments[1] =
-      (WGPURenderPassColorAttachmentDescriptor) {
+      (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[1],
         .attachment = NULL,
         .loadOp     = WGPULoadOp_Clear,
@@ -794,7 +794,7 @@ static void setup_render_passes()
       };
 
     write_gbuffer_pass.color_attachments[2] =
-      (WGPURenderPassColorAttachmentDescriptor) {
+      (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[2],
         .attachment = NULL,
         .loadOp     = WGPULoadOp_Clear,
@@ -809,7 +809,7 @@ static void setup_render_passes()
 
     // Render pass depth stencil attachment descriptor
     write_gbuffer_pass.depth_stencil_attachment
-      = (WGPURenderPassDepthStencilAttachmentDescriptor){
+      = (WGPURenderPassDepthStencilAttachment){
         .view           = depth_texture_view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
@@ -831,7 +831,7 @@ static void setup_render_passes()
   {
     // Color attachment
     texture_quad_pass.color_attachments[0] =
-      (WGPURenderPassColorAttachmentDescriptor) {
+      (WGPURenderPassColorAttachment) {
         .view       = NULL, // attachment is acquired and set in render loop.
         .attachment = NULL,
         .loadOp     = WGPULoadOp_Clear,
