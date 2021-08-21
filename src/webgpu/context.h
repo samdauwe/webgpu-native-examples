@@ -18,7 +18,7 @@
 #define WGPU_VERTBUFFERLAYOUT_DESC(s, a)                                       \
   {                                                                            \
     .arrayStride    = s,                                                       \
-    .stepMode       = WGPUInputStepMode_Vertex,                                \
+    .stepMode       = WGPUVertexStepMode_Vertex,                               \
     .attributeCount = sizeof(a) / sizeof(a[0]),                                \
     .attributes     = a,                                                       \
   };

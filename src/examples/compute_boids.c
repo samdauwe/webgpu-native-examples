@@ -311,14 +311,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     [0] = (WGPUVertexBufferLayout) {
       // instanced particles buffer
       .arrayStride = 4 * 4,
-      .stepMode = WGPUInputStepMode_Instance,
+      .stepMode = WGPUVertexStepMode_Instance,
       .attributeCount = 2,
       .attributes = vert_buff_attrs_0,
     },
     [1] = (WGPUVertexBufferLayout) {
       // vertex buffer
       .arrayStride = 2 * 4,
-      .stepMode = WGPUInputStepMode_Vertex,
+      .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vert_buff_attrs_1,
     },
