@@ -284,6 +284,10 @@ A huge thanks to the authors of the folowing repositories who demonstrated the u
 * [Vulkan C++ examples and demos](https://github.com/SaschaWillems/Vulkan)
 * [Awesome WebGPU](https://github.com/mikbry/awesome-webgpu)
 
+## References
+
+* [Changelog for WebGPU in Chromium / Dawn 94](https://t.co/s87U4pi4tr?amp=1)
+
 ## License
 
 Open-source under [Apache 2.0 license](http://www.tldrlegal.com/license/apache-license-2.0-%28apache-2.0%29).
