@@ -134,7 +134,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
     .sampleCount   = 1,
     .dimension     = WGPUTextureDimension_2D,
     .format        = format,
-    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding
                      | WGPUTextureUsage_RenderAttachment,
   };
   texture.texture

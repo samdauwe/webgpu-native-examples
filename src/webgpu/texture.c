@@ -373,7 +373,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
         .depthOrArrayLayers = array_layer_count,
       },
       .format        = texture_desc->format,
-      .usage         = WGPUTextureUsage_CopySrc | WGPUTextureUsage_Sampled
+      .usage         = WGPUTextureUsage_CopySrc | WGPUTextureUsage_TextureBinding
                        | WGPUTextureUsage_RenderAttachment,
       .dimension     = WGPUTextureDimension_2D,
       .mipLevelCount = texture_desc->mipLevelCount - 1,
@@ -588,7 +588,7 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
     = generate_mipmaps ? calculate_mip_level_count(width, height) : 1u;
 
   const WGPUTextureUsage usage
-    = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled;
+    = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
 
   WGPUExtent3D texture_size = {
     .width              = width,
@@ -683,8 +683,8 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
   const WGPUTextureUsage usage
     = options ? (options->usage != WGPUTextureUsage_None ?
                    options->usage :
-                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled) :
-                WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled;
+                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding) :
+                WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
 
   WGPUExtent3D texture_size = {
     .width              = width,
@@ -775,7 +775,7 @@ wgpu_texture_load_from_ktx_file(struct wgpu_texture_client_t* texture_client,
     .sampleCount   = 1,
     .dimension     = WGPUTextureDimension_2D,
     .format        = texture_format,
-    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
   };
   WGPUTexture texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
@@ -1096,7 +1096,7 @@ texture_t wgpu_create_empty_texture(wgpu_context_t* wgpu_context)
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
     .dimension     = WGPUTextureDimension_2D,
     .size          = texture_size,
     .format        = WGPUTextureFormat_RGBA8Unorm,

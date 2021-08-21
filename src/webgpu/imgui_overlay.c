@@ -142,11 +142,11 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "imgui-font-texture",
-      .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
-      .dimension     = WGPUTextureDimension_2D,
-      .size          = texture_size,
-      .format        = WGPUTextureFormat_RGBA8Unorm,
+      .label     = "imgui-font-texture",
+      .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+      .dimension = WGPUTextureDimension_2D,
+      .size      = texture_size,
+      .format    = WGPUTextureFormat_RGBA8Unorm,
       .mipLevelCount = 1,
       .sampleCount   = 1,
     };

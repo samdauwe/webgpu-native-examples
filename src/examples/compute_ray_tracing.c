@@ -127,7 +127,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   tex->texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
-      .usage         = WGPUTextureUsage_Sampled | WGPUTextureUsage_Storage,
+      .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
       .dimension     = WGPUTextureDimension_2D,
       .size          = (WGPUExtent3D){
         .width               = tex->size.width,

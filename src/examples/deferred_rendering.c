@@ -235,7 +235,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_RGBA32Float,
-      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_Sampled,
+      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     };
     gbuffer.texture_2d_float
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
@@ -252,7 +252,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_BGRA8Unorm,
-      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_Sampled,
+      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     };
     gbuffer.texture_albedo
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);

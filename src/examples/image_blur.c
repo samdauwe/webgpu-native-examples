@@ -108,8 +108,8 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     textures[i] = wgpuDeviceCreateTexture(
       wgpu_context->device,
       &(WGPUTextureDescriptor){
-        .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Storage
-                 | WGPUTextureUsage_Sampled,
+        .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
+                 | WGPUTextureUsage_TextureBinding,
         .dimension     = WGPUTextureDimension_2D,
         .size          = (WGPUExtent3D) {
           .width               = texture.size.width,

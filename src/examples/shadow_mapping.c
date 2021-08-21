@@ -166,7 +166,8 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_Depth32Float,
-      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_Sampled,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     };
     shadow_depth_texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);

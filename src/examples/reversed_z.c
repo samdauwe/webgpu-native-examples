@@ -556,7 +556,7 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
   // Create the depth texture.
   {
     WGPUTextureDescriptor texture_desc = {
-      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_Sampled,
+      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension     = WGPUTextureDimension_2D,
       .format        = depth_buffer_format,
       .mipLevelCount = 1,

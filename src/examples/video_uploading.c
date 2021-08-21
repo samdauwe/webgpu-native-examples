@@ -91,7 +91,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_RGBA8Unorm,
-      .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_Sampled,
+      .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
   });
 
   // Create the texture view
