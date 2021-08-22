@@ -14,7 +14,7 @@
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/imageBlur
  * -------------------------------------------------------------------------- */
 
-static const uint32_t tile_dim = 256;
+static const uint32_t tile_dim = 128;
 static const uint32_t batch[2] = {4, 4};
 
 // Vertex buffer
