@@ -6,6 +6,21 @@
 #include "../core/log.h"
 #include "../core/macro.h"
 
+static void
+wgpu_compilation_info_callback(WGPUCompilationInfoRequestStatus status,
+                               WGPUCompilationInfo const* compilationInfo,
+                               void* userdata)
+{
+  UNUSED_VAR(userdata);
+  if (status == WGPUCompilationInfoRequestStatus_Error) {
+    for (uint32_t m; m < compilationInfo->messageCount; ++m) {
+      WGPUCompilationMessage message = compilationInfo->messages[m];
+      log_error("lineNum: %u, linePos: %u, Error: %s", message.lineNum,
+                message.linePos, message.message);
+    }
+  }
+}
+
 WGPUShaderModule wgpu_create_shader_module_from_spirv_file(WGPUDevice device,
                                                            const char* filename)
 {
@@ -34,7 +49,12 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
     .nextInChain = (WGPUChainedStruct const*)&shader_module_spirv_desc,
   };
 
-  return wgpuDeviceCreateShaderModule(device, &shader_module_desc);
+  WGPUShaderModule shader_module
+    = wgpuDeviceCreateShaderModule(device, &shader_module_desc);
+  wgpuShaderModuleGetCompilationInfo(shader_module,
+                                     wgpu_compilation_info_callback, NULL);
+
+  return shader_module;
 }
 
 wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
