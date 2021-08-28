@@ -520,24 +520,20 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
   };
 
   // Color target state
-  WGPUBlendState blend_state = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state_descs[3] = {
     // position
     [0] = (WGPUColorTargetState){
       .format = WGPUTextureFormat_RGBA32Float,
-      .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     },
     // normal
     [1] = (WGPUColorTargetState){
       .format = WGPUTextureFormat_RGBA32Float,
-      .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     },
     // albedo
     [2] = (WGPUColorTargetState){
-      .format = WGPUTextureFormat_BGRA8Unorm,
-      .blend     = &blend_state,
+      .format = WGPUTextureFormat_RGBA32Float,
       .writeMask = WGPUColorWriteMask_All,
     },
   };
