@@ -4,6 +4,19 @@
 #include <assert.h>
 #include <stdio.h>
 
+/* Define bool, false, true if not defined */
+#ifndef __bool_true_false_are_defined
+#define bool int
+#define false 0
+#define true 1
+#define size_t uint64_t
+#endif
+
+/* Define NULL if not defined */
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
+
 #define EPSILON 1e-5f              /* epsilon */
 #define PI 3.14159265358979323846f /* pi */
 
@@ -21,7 +34,8 @@
 #define UNUSED_VAR(x) ((void)(x))
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
-#define GET_DEFAULT_IF_ZERO(value, default_value) (value != NULL) ? value : default_value
+#define GET_DEFAULT_IF_ZERO(value, default_value)                              \
+  (value != NULL) ? value : default_value
 
 #ifndef NDEBUG
 #define ASSERT(expression)                                                     \
