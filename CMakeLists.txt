@@ -117,6 +117,7 @@ set(SOURCES
     src/examples/clear_screen.c
     src/examples/compute_boids.c
     src/examples/compute_n_body.c
+    src/examples/compute_particles_easing.c
     src/examples/compute_particles.c
     src/examples/compute_ray_tracing.c
     src/examples/compute_shader.c
