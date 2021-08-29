@@ -216,6 +216,10 @@ Uses a compute shader to apply different convolution kernels (and effects) on an
 
 Attraction based 2D GPU particle system using compute shaders. Particle data is stored in a shader storage buffer and only modified on the GPU using compute particle updates with graphics pipeline vertex access.
 
+#### [GPU particle system easing](src/examples/compute_particles_easing.c)
+
+Particle system using compute shaders. Particle data is stored in a shader storage buffer, particle movement is implemented using easing functions.
+
 #### [N-body simulation](src/examples/compute_n_body.c)
 
 N-body simulation based particle system with multiple attractors and particle-to-particle interaction using two passes separating particle movement calculation and final integration. Shared compute shader memory is used to speed up compute calculations.
