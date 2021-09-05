@@ -107,10 +107,10 @@ examplecase_t* get_random_example()
 void log_example_names()
 {
   const int num_examplecases = get_number_of_examples();
-  log_info("available examples: ");
+  log_info("Available examples:\n");
   for (int i = 0; i < num_examplecases; i++) {
     if (i != num_examplecases - 1) {
-      log_info("%s, ", g_example_cases[i].example_name);
+      log_info("%s,\n", g_example_cases[i].example_name);
     }
     else {
       log_info("%s\n", g_example_cases[i].example_name);
