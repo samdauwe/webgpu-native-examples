@@ -83,13 +83,20 @@ wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
   ASSERT(wgpu_context && wgpu_context->device);
 
   wgpu_shader_t shader;
-  if (desc->file) {
+  if (desc->file != NULL) {
+    // WebGPU Shader from file
     shader.module = wgpu_create_shader_module_from_spirv_file(
       wgpu_context->device, desc->file);
   }
-  else {
+  else if ((desc->byte_code.data != NULL) && (desc->byte_code.size != 0)) {
+    // WebGPU Shader from SPIR-V bytecode
     shader.module = wgpu_create_shader_module_from_spirv_bytecode(
       wgpu_context->device, desc->byte_code.data, desc->byte_code.size);
+  }
+  else if (desc->wgsl_code.source != NULL) {
+    // WebGPU Shader from WGSL code
+    shader.module = wgpu_create_shader_module_from_wgsl(wgpu_context->device,
+                                                        desc->wgsl_code.source);
   }
   ASSERT(shader.module);
 
