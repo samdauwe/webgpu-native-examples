@@ -13,7 +13,7 @@ wgpu_compilation_info_callback(WGPUCompilationInfoRequestStatus status,
 {
   UNUSED_VAR(userdata);
   if (status == WGPUCompilationInfoRequestStatus_Error) {
-    for (uint32_t m; m < compilationInfo->messageCount; ++m) {
+    for (uint32_t m = 0; m < compilationInfo->messageCount; ++m) {
       WGPUCompilationMessage message = compilationInfo->messages[m];
       log_error("lineNum: %u, linePos: %u, Error: %s", message.lineNum,
                 message.linePos, message.message);
@@ -47,6 +47,25 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
 
   WGPUShaderModuleDescriptor shader_module_desc = {
     .nextInChain = (WGPUChainedStruct const*)&shader_module_spirv_desc,
+  };
+
+  WGPUShaderModule shader_module
+    = wgpuDeviceCreateShaderModule(device, &shader_module_desc);
+  wgpuShaderModuleGetCompilationInfo(shader_module,
+                                     wgpu_compilation_info_callback, NULL);
+
+  return shader_module;
+}
+
+WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
+                                                     const char* source)
+{
+  WGPUShaderModuleWGSLDescriptor shader_module_wgsl_desc = {
+    .source = source,
+  };
+
+  WGPUShaderModuleDescriptor shader_module_desc = {
+    .nextInChain = (WGPUChainedStruct const*)&shader_module_wgsl_desc,
   };
 
   WGPUShaderModule shader_module
@@ -94,9 +113,10 @@ WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
   ASSERT(desc);
   wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
 
-  ASSERT(shader_desc);
-  ASSERT(shader_desc->file
-         || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0));
+  ASSERT(
+    shader_desc
+    && (shader_desc->file
+        || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)));
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUVertexState vertex_state = {0};
@@ -124,9 +144,10 @@ WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
   ASSERT(desc);
   wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
 
-  ASSERT(shader_desc);
-  ASSERT(shader_desc->file
-         || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0));
+  ASSERT(
+    shader_desc
+    && (shader_desc->file
+        || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)));
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUFragmentState vertex_state = {0};
