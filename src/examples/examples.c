@@ -49,7 +49,7 @@ static examplecase_t g_example_cases[] = {
   {"compute_boids", example_compute_boids},
   {"compute_n_body", example_compute_n_body},
   {"compute_particles", example_compute_particles},
-  {"example_compute_particles_easing", example_compute_particles_easing},
+  {"compute_particles_easing", example_compute_particles_easing},
   {"compute_ray_tracing", example_compute_ray_tracing},
   {"compute_shader", example_compute_shader},
   {"coordinate_system", example_coordinate_system},
