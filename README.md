@@ -134,6 +134,16 @@ Loads a cube map texture from disk containing six different faces. All faces and
 
 This example shows the use of reversed z technique for better utilization of depth buffer precision. The left column uses regular method, while the right one uses reversed z technique. Both are using depth32float as their depth buffer format. A set of red and green planes are positioned very close to each other. Higher sets are placed further from camera (and are scaled for better visual purpose). To use  reversed z to render your scene, you will need depth store value to be 0.0, depth compare function to be greater, and remap depth range by multiplying an additional matrix to your projection matrix.
 
+#### [Conservative rasterization](src/examples/conservative_raster.c)
+
+This example shows how to render with conservative rasterization (native extension with limited support).
+
+When enabled, any pixel touched by a triangle primitive is rasterized. This is useful for various advanced techniques, most prominently for implementing realtime voxelization.
+
+The demonstration here is implemented by rendering a triangle to a low-resolution target and then upscaling it with nearest-neighbor filtering. The outlines of the triangle are then rendered in the original solution, using the same vertex shader as the triangle. Pixels only drawn with conservative rasterization enabled are colored red.
+
+Note: Conservative rasterization not supported in Google Dawn.
+
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
