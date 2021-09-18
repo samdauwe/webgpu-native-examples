@@ -32,10 +32,11 @@ static WGPUBuffer index_buffer;
 static uint32_t index_count;
 
 // Uniform buffers
-static WGPUBuffer model_uniform_buffer;
 static WGPUBuffer scene_uniform_buffer;
+static WGPUBuffer model_uniform_buffer;
 
 // The pipeline layout
+static WGPUPipelineLayout shadow_pipeline_layout;
 static WGPUPipelineLayout pipeline_layout;
 
 // Pipelines
@@ -52,10 +53,12 @@ static WGPURenderPassDescriptor shadow_pass_descriptor;
 
 // Bind groups
 static WGPUBindGroup scene_bind_group_for_shadow;
-static WGPUBindGroup scene_bind_group_for_render;
 static WGPUBindGroup model_bind_group;
+static WGPUBindGroup shadow_bind_group_for_render;
 
 // Bind group layout
+static WGPUBindGroupLayout uniform_buffer_bind_group_layout_for_scene;
+static WGPUBindGroupLayout uniform_buffer_bind_group_layout_for_model;
 static WGPUBindGroupLayout bind_group_layout_for_render;
 
 // Texture and sampler
@@ -237,10 +240,76 @@ static void prepare_sampler(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
+  // Bind group layout for unform buffers in shadow pipeline
+  {
+    // Bind group layout for scene uniform
+    {
+      WGPUBindGroupLayoutEntry bgl_entries[1] = {
+        [0] = (WGPUBindGroupLayoutEntry) {
+          // Binding 0: Uniform
+          .binding = 0,
+          .visibility = WGPUShaderStage_Vertex,
+          .buffer = (WGPUBufferBindingLayout) {
+            .type = WGPUBufferBindingType_Uniform,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+          },
+          .sampler = {0},
+        },
+      };
+      uniform_buffer_bind_group_layout_for_scene
+        = wgpuDeviceCreateBindGroupLayout(
+          wgpu_context->device,
+          &(WGPUBindGroupLayoutDescriptor){
+            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+            .entries    = bgl_entries,
+          });
+      ASSERT(uniform_buffer_bind_group_layout_for_scene != NULL)
+    }
+
+    // Bind group layout for model uniform
+    {
+      WGPUBindGroupLayoutEntry bgl_entries[1] = {
+        [0] = (WGPUBindGroupLayoutEntry) {
+          // Binding 0: Uniform
+          .binding = 0,
+          .visibility = WGPUShaderStage_Vertex,
+          .buffer = (WGPUBufferBindingLayout) {
+            .type = WGPUBufferBindingType_Uniform,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(mat4),
+          },
+          .sampler = {0},
+        },
+      };
+      uniform_buffer_bind_group_layout_for_model
+        = wgpuDeviceCreateBindGroupLayout(
+          wgpu_context->device,
+          &(WGPUBindGroupLayoutDescriptor){
+            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+            .entries    = bgl_entries,
+          });
+      ASSERT(uniform_buffer_bind_group_layout_for_model != NULL)
+    }
+
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      uniform_buffer_bind_group_layout_for_scene,
+      uniform_buffer_bind_group_layout_for_model,
+    };
+    shadow_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(shadow_pipeline_layout != NULL)
+  }
+
   // Create a bind group layout which holds the scene uniforms and
   // the texture+sampler for depth. We create it manually because the WebPU
   // implementation doesn't infer this from the shader (yet).
-  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform
       .binding = 0,
@@ -248,7 +317,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = 2 * 4 * 16 + 3 * 4,
+        .minBindingSize = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
       .sampler = {0},
     },
@@ -273,26 +342,27 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     }
   };
-  bind_group_layout_for_render = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                            .entries    = bgl_entries,
-                          });
-  ASSERT(bind_group_layout_for_render != NULL)
+    bind_group_layout_for_render = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(bind_group_layout_for_render != NULL)
 
-  // Specify the pipeline layout. The layout for the model is the same, so
-  // reuse it from the shadow pipeline.
-  WGPUBindGroupLayout bind_group_layouts[2] = {
-    bind_group_layout_for_render,
-    wgpuRenderPipelineGetBindGroupLayout(shadow_pipeline, 1),
-  };
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-      .bindGroupLayouts     = bind_group_layouts,
-    });
-  ASSERT(pipeline_layout != NULL)
+    // Specify the pipeline layout. The layout for the model is the same, so
+    // reuse it from the shadow pipeline.
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      bind_group_layout_for_render,
+      uniform_buffer_bind_group_layout_for_model,
+    };
+    pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(pipeline_layout != NULL)
+  }
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -479,17 +549,6 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Model uniform buffer
-  {
-    const WGPUBufferDescriptor buffer_desc = {
-      .size  = 4 * 16, // 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    };
-    model_uniform_buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(model_uniform_buffer)
-  }
-
   // Scene uniform buffer
   {
     scene_uniform_buffer = wgpuDeviceCreateBuffer(
@@ -498,10 +557,21 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         // Two 4x4 viewProj matrices,
         // one for the camera and one for the light.
         // Then a vec3 for the light position.
-        .size  = 2 * 4 * 16 + 3 * 4,
+        .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
     ASSERT(scene_uniform_buffer)
+  }
+
+  // Model uniform buffer
+  {
+    const WGPUBufferDescriptor buffer_desc = {
+      .size  = sizeof(mat4), // 4x4 matrix
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+    };
+    model_uniform_buffer
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(model_uniform_buffer)
   }
 
   // Scene bind group for shadow
@@ -510,17 +580,36 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer = scene_uniform_buffer,
-        .size = 2 * 4 * 16 + 3 * 4,
+        .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
     };
     scene_bind_group_for_shadow = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .layout     = wgpuRenderPipelineGetBindGroupLayout(shadow_pipeline, 0),
+        .layout     = uniform_buffer_bind_group_layout_for_scene,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
     ASSERT(scene_bind_group_for_shadow != NULL)
+  }
+
+  // Model bind group
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer = model_uniform_buffer,
+        .size = sizeof(mat4),
+      },
+    };
+    model_bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .layout     = uniform_buffer_bind_group_layout_for_model,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(model_bind_group != NULL)
   }
 
   // Scene bind group for render
@@ -529,7 +618,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer = scene_uniform_buffer,
-        .size = 2 * 4 * 16 + 3 * 4,
+        .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
@@ -540,32 +629,13 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .sampler = sampler,
       },
     };
-    scene_bind_group_for_render = wgpuDeviceCreateBindGroup(
+    shadow_bind_group_for_render = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .layout     = bind_group_layout_for_render,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(scene_bind_group_for_render != NULL)
-  }
-
-  // Model bind group
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .buffer = model_uniform_buffer,
-        .size = 4 * 16,
-      },
-    };
-    model_bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = wgpuRenderPipelineGetBindGroupLayout(shadow_pipeline, 1),
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(model_bind_group != NULL)
+    ASSERT(shadow_bind_group_for_render != NULL)
   }
 }
 
@@ -588,6 +658,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       .format              = WGPUTextureFormat_Depth32Float,
       .depth_write_enabled = true,
     });
+  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
   /// Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -630,6 +701,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
   shadow_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "shadow_render_pipeline",
+                            .layout       = shadow_pipeline_layout,
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
                             .fragment     = &fragment_state_desc,
@@ -689,6 +761,8 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
   };
 
   // Vertex buffer layout
+  // Create some common descriptors used for both the shadow pipeline and the
+  // color rendering pipeline.
   WGPU_VERTEX_BUFFER_LAYOUT(
     color, sizeof(float) * 6,
     // Attribute location 0: Position
@@ -750,8 +824,8 @@ static int example_initialize(wgpu_example_context_t* context)
                                      &stanford_dragon_mesh);
     prepare_texture(context->wgpu_context);
     prepare_sampler(context->wgpu_context);
-    prepare_shadow_pipeline(context->wgpu_context);
     setup_pipeline_layout(context->wgpu_context);
+    prepare_shadow_pipeline(context->wgpu_context);
     prepare_color_rendering_pipeline(context->wgpu_context);
     prepare_uniform_buffers(context->wgpu_context);
     prepare_view_matrices(context->wgpu_context);
@@ -799,7 +873,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpu_context->cmd_enc, &render_pass_descriptor);
     wgpuRenderPassEncoderSetPipeline(render_pass, color_render_pipeline);
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                      scene_bind_group_for_render, 0, 0);
+                                      shadow_bind_group_for_render, 0, 0);
     wgpuRenderPassEncoderSetBindGroup(render_pass, 1, model_bind_group, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, vertex_buffer, 0, 0);
     wgpuRenderPassEncoderSetIndexBuffer(render_pass, index_buffer,
@@ -862,12 +936,17 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, model_uniform_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, scene_uniform_buffer)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, shadow_pipeline_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, shadow_pipeline);
   WGPU_RELEASE_RESOURCE(RenderPipeline, color_render_pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, scene_bind_group_for_shadow)
-  WGPU_RELEASE_RESOURCE(BindGroup, scene_bind_group_for_render)
   WGPU_RELEASE_RESOURCE(BindGroup, model_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, shadow_bind_group_for_render)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        uniform_buffer_bind_group_layout_for_scene)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        uniform_buffer_bind_group_layout_for_model)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout_for_render)
   WGPU_RELEASE_RESOURCE(Sampler, sampler)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
