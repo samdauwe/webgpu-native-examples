@@ -76,6 +76,11 @@ static struct vertices_t {
   uint32_t count;
 } vertices = {0};
 
+static WGPUPipelineLayout depth_prepass_render_pipeline_layout;
+static WGPUPipelineLayout precision_pass_render_pipeline_layout;
+static WGPUPipelineLayout color_pass_render_pipeline_layout;
+static WGPUPipelineLayout texture_quad_pass_pipline_layout;
+
 static WGPURenderPipeline depth_pre_pass_pipelines[2] = {0};
 static WGPURenderPipeline precision_pass_pipelines[2] = {0};
 static WGPURenderPipeline color_pass_pipelines[2]     = {0};
@@ -95,6 +100,7 @@ static WGPURenderPassColorAttachment tqd_rp_color_att_descriptors[2][1];
 static WGPURenderPassDescriptor texture_quad_pass_descriptors[2] = {0};
 
 static WGPUBindGroupLayout depth_texture_bind_group_layout;
+static WGPUBindGroupLayout uniform_bind_group_layout;
 static WGPUBindGroup depth_texture_bind_group;
 
 static WGPUBuffer uniform_buffer;
@@ -265,6 +271,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPURenderPipelineDescriptor depth_pre_pass_render_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
       .label        = "depth_pre_pass_render_pipeline",
+      .layout       = depth_prepass_render_pipeline_layout,
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
       .fragment     = &fragment_state_desc,
@@ -361,6 +368,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPURenderPipelineDescriptor precision_pass_render_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
       .label        = "precision_error_pass_render_pipeline",
+      .layout       = precision_pass_render_pipeline_layout,
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
       .fragment     = &fragment_state_desc,
@@ -455,6 +463,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPURenderPipelineDescriptor color_passRender_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
       .label        = "color_pass_render_pipeline",
+      .layout       = color_pass_render_pipeline_layout,
       .primitive    = primitive_state_desc,
       .vertex       = vertex_state_desc,
       .fragment     = &fragment_state_desc,
@@ -536,6 +545,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
   texture_quad_pass_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "texture_quad_pass_render_pipeline",
+                            .layout      = texture_quad_pass_pipline_layout,
                             .primitive   = primitive_state_desc,
                             .vertex      = vertex_state_desc,
                             .fragment    = &fragment_state_desc,
@@ -796,6 +806,98 @@ prepare_depth_texture_bind_group_layout(wgpu_context_t* wgpu_context)
   ASSERT(depth_texture_bind_group_layout != NULL)
 }
 
+// Model, view, projection matrices
+static void prepare_uniform_bind_group_layout(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      // Uniform buffer
+      .binding = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type = WGPUBufferBindingType_Uniform,
+        .minBindingSize = uniform_buffer_size,
+      },
+      .sampler = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      // Uniform buffer
+      .binding = 1,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(mat4), // 4x4 matrix
+      },
+      .sampler = {0},
+    }
+  };
+  WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+    .entries    = bgl_entries,
+  };
+  uniform_bind_group_layout
+    = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+  ASSERT(uniform_bind_group_layout != NULL)
+}
+
+static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+{
+  // Depth Pre-pass render pipeline layout
+  {
+    WGPUBindGroupLayout bind_group_layouts[1] = {
+      uniform_bind_group_layout,
+    };
+    depth_prepass_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(depth_prepass_render_pipeline_layout != NULL)
+  }
+
+  // Precision pass render pipeline layout
+  {
+    WGPUBindGroupLayout bind_group_layouts[2]
+      = {uniform_bind_group_layout, depth_texture_bind_group_layout};
+    precision_pass_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(precision_pass_render_pipeline_layout != NULL)
+  }
+
+  // Color pass render pipeline layout
+  {
+    WGPUBindGroupLayout bind_group_layouts[1] = {
+      uniform_bind_group_layout,
+    };
+    color_pass_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(color_pass_render_pipeline_layout != NULL)
+  }
+
+  // Texture quad pass pipline layout
+  {
+    WGPUBindGroupLayout bind_group_layouts[1] = {
+      depth_texture_bind_group_layout,
+    };
+    texture_quad_pass_pipline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(texture_quad_pass_pipline_layout != NULL)
+  }
+}
+
 static void prepare_depth_texture_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[2] = {
@@ -846,7 +948,6 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
 {
   // 1st uniform bind group
   {
-    const uint32_t mode = (uint32_t)DepthBufferMode_Default;
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
@@ -859,14 +960,12 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
         .size  = sizeof(mat4), // 4x4 matrix
       }
     };
-    WGPURenderPipeline pipeline = depth_pre_pass_pipelines[mode];
-    uniform_bind_groups[0]      = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
+    uniform_bind_groups[0] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .layout     = uniform_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
   }
 
   // 2nd uniform bind group
@@ -884,14 +983,12 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
         .size  = sizeof(mat4), // 4x4 matrix
       }
     };
-    WGPURenderPipeline pipeline = depth_pre_pass_pipelines[mode];
-    uniform_bind_groups[mode]   = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
+    uniform_bind_groups[mode] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .layout     = uniform_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
   }
 }
 
@@ -977,6 +1074,9 @@ static int example_initialize(wgpu_example_context_t* context)
 
   if (context) {
     prepare_vertex_buffer(context->wgpu_context);
+    prepare_depth_texture_bind_group_layout(context->wgpu_context);
+    prepare_uniform_bind_group_layout(context->wgpu_context);
+    setup_pipeline_layout(context->wgpu_context);
     prepare_depth_pre_pass_render_pipeline(context->wgpu_context);
     prepare_precision_pass_render_pipeline(context->wgpu_context);
     prepare_color_pass_render_pipeline(context->wgpu_context);
@@ -985,7 +1085,6 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_depth_pre_pass_descriptor();
     prepare_draw_pass_descriptors();
     prepare_texture_quad_pass_descriptors();
-    prepare_depth_texture_bind_group_layout(context->wgpu_context);
     prepare_depth_texture_bind_group(context->wgpu_context);
     prepare_uniform_buffers(context->wgpu_context);
     setup_uniform_bind_groups(context->wgpu_context);
@@ -1176,11 +1275,17 @@ static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
 
+  WGPU_RELEASE_RESOURCE(PipelineLayout, depth_prepass_render_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, precision_pass_render_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, color_pass_render_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, texture_quad_pass_pipline_layout)
+
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, camera_matrix_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, camera_matrix_reversed_depth_buffer)
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, depth_texture_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, uniform_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, depth_texture_bind_group)
   for (uint32_t i = 0; i < 2; ++i) {
     WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_groups[i])
