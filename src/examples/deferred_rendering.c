@@ -47,7 +47,6 @@ static struct gbuffer_t {
   WGPUTexture texture_2d_float;
   WGPUTexture texture_albedo;
   WGPUTextureView texture_views[3];
-  WGPUSampler sampler;
 } gbuffer = {0};
 
 // Depth texture
@@ -415,22 +414,23 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
 
   // GBuffer textures bind group layout
   {
-    WGPUBindGroupLayoutEntry bgl_entries[4] = {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Sampler
+        // Binding 0: Texture view
         .binding = 0,
         .visibility = WGPUShaderStage_Fragment,
-        .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .viewDimension = WGPUTextureViewDimension_2D,
         },
-        .texture = {0},
+        .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Texture view
         .binding = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
@@ -440,17 +440,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-        .storageTexture = {0},
-      },
-      [3] = (WGPUBindGroupLayoutEntry) {
-        // Binding 3: Texture view
-        .binding = 3,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
@@ -533,7 +523,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
     },
     // albedo
     [2] = (WGPUColorTargetState){
-      .format = WGPUTextureFormat_RGBA32Float,
+      .format = WGPUTextureFormat_BGRA8Unorm,
       .writeMask = WGPUColorWriteMask_All,
     },
   };
@@ -848,22 +838,6 @@ static void setup_render_passes()
   }
 }
 
-static void prepare_sampler(wgpu_context_t* wgpu_context)
-{
-  gbuffer.sampler = wgpuDeviceCreateSampler(
-    wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .addressModeU  = WGPUAddressMode_ClampToEdge,
-                            .addressModeV  = WGPUAddressMode_ClampToEdge,
-                            .addressModeW  = WGPUAddressMode_ClampToEdge,
-                            .minFilter     = WGPUFilterMode_Nearest,
-                            .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Nearest,
-                            .lodMinClamp   = 0.0f,
-                            .lodMaxClamp   = 1.0f,
-                            .maxAnisotropy = 1,
-                          });
-}
-
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Config uniform buffer
@@ -952,8 +926,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     surface_size_uniform_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                gbuffers_debug_view_pipeline, 1),
+                              .layout = surface_size_uniform_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
@@ -962,21 +935,17 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 
   // GBuffer textures bind group
   {
-    WGPUBindGroupEntry bg_entries[4] = {
+    WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .sampler = gbuffer.sampler,
+        .textureView = gbuffer.texture_views[0],
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .textureView = gbuffer.texture_views[0],
+        .textureView = gbuffer.texture_views[1],
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .textureView = gbuffer.texture_views[1],
-      },
-      [3] = (WGPUBindGroupEntry) {
-        .binding = 3,
         .textureView = gbuffer.texture_views[2],
       },
     };
@@ -1109,8 +1078,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     };
     lights.buffer_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                deferred_render_pipeline, 1),
+                              .layout     = lights.buffer_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
@@ -1266,7 +1234,6 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_gbuffers_debug_view_pipeline(context->wgpu_context);
     prepare_deferred_render_pipeline(context->wgpu_context);
     setup_render_passes();
-    prepare_sampler(context->wgpu_context);
     prepare_uniform_buffers(context->wgpu_context);
     prepare_compute_pipeline_layout(context->wgpu_context);
     prepare_light_update_compute_pipeline(context->wgpu_context);
@@ -1303,6 +1270,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+#if 10
   {
     // Write position, normal, albedo etc. data to gBuffers
     WGPURenderPassEncoder gbuffer_pass = wgpuCommandEncoderBeginRenderPass(
@@ -1317,6 +1285,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderEndPass(gbuffer_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, gbuffer_pass)
   }
+#endif
+#if 10
   {
     // Update lights position
     WGPUComputePassEncoder light_pass
@@ -1329,6 +1299,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuComputePassEncoderEndPass(light_pass);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, light_pass)
   }
+#endif
   {
     if (settings.current_render_mode == RenderMode_GBuffer_View) {
       // GBuffers debug view
@@ -1425,7 +1396,6 @@ static void example_destroy(wgpu_example_context_t* context)
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(gbuffer.texture_views); ++i) {
     WGPU_RELEASE_RESOURCE(TextureView, gbuffer.texture_views[i])
   }
-  WGPU_RELEASE_RESOURCE(Sampler, gbuffer.sampler)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
   WGPU_RELEASE_RESOURCE(TextureView, depth_texture_view)
   WGPU_RELEASE_RESOURCE(Buffer, model_uniform_buffer)
