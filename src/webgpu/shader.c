@@ -34,6 +34,18 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_file(WGPUDevice device,
   return shader_module;
 }
 
+WGPUShaderModule wgpu_create_shader_module_from_wgsl_file(WGPUDevice device,
+                                                          const char* filename)
+{
+  file_read_result_t result;
+  read_file(filename, &result);
+  log_debug("Read file: %s, size: %d bytes\n", filename, result.size);
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module_from_wgsl(device, (char*)result.data);
+  free(result.data);
+  return shader_module;
+}
+
 WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
   WGPUDevice device, const uint8_t* data, const uint32_t size)
 {
@@ -64,8 +76,12 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
     .source = source,
   };
 
+  WGPUChainedStruct* chained_struct
+    = (WGPUChainedStruct*)&shader_module_wgsl_desc;
+  chained_struct->sType = WGPUSType_ShaderModuleWGSLDescriptor;
+
   WGPUShaderModuleDescriptor shader_module_desc = {
-    .nextInChain = (WGPUChainedStruct const*)&shader_module_wgsl_desc,
+    .nextInChain = (WGPUChainedStruct const*)chained_struct,
   };
 
   WGPUShaderModule shader_module
@@ -85,8 +101,14 @@ wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
   wgpu_shader_t shader;
   if (desc->file != NULL) {
     /* WebGPU Shader from file */
-    shader.module = wgpu_create_shader_module_from_spirv_file(
-      wgpu_context->device, desc->file);
+    if (filename_has_extension(desc->file, "spv")) {
+      shader.module = wgpu_create_shader_module_from_spirv_file(
+        wgpu_context->device, desc->file);
+    }
+    else if (filename_has_extension(desc->file, "wgsl")) {
+      shader.module = wgpu_create_shader_module_from_wgsl_file(
+        wgpu_context->device, desc->file);
+    }
   }
   else if ((desc->byte_code.data != NULL) && (desc->byte_code.size != 0)) {
     /* WebGPU Shader from SPIR-V bytecode */
@@ -127,9 +149,15 @@ WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUVertexState vertex_state = {0};
-  if (shader_desc->file) {
-    vertex_state.module = wgpu_create_shader_module_from_spirv_file(
-      wgpu_context->device, shader_desc->file);
+  if (shader_desc->file != NULL) {
+    if (filename_has_extension(shader_desc->file, "spv")) {
+      vertex_state.module = wgpu_create_shader_module_from_spirv_file(
+        wgpu_context->device, shader_desc->file);
+    }
+    else if (filename_has_extension(shader_desc->file, "wgsl")) {
+      vertex_state.module = wgpu_create_shader_module_from_wgsl_file(
+        wgpu_context->device, shader_desc->file);
+    }
   }
   else {
     vertex_state.module = wgpu_create_shader_module_from_spirv_bytecode(
@@ -158,9 +186,15 @@ WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUFragmentState vertex_state = {0};
-  if (shader_desc->file) {
-    vertex_state.module = wgpu_create_shader_module_from_spirv_file(
-      wgpu_context->device, shader_desc->file);
+  if (shader_desc->file != NULL) {
+    if (filename_has_extension(shader_desc->file, "spv")) {
+      vertex_state.module = wgpu_create_shader_module_from_spirv_file(
+        wgpu_context->device, shader_desc->file);
+    }
+    else if (filename_has_extension(shader_desc->file, "wgsl")) {
+      vertex_state.module = wgpu_create_shader_module_from_wgsl_file(
+        wgpu_context->device, shader_desc->file);
+    }
   }
   else {
     vertex_state.module = wgpu_create_shader_module_from_spirv_bytecode(
