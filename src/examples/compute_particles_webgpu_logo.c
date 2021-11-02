@@ -169,9 +169,10 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
     };
     vertexBufferLayout[0] = (WGPUVertexBufferLayout){
       // instanced particles buffer
-      .arrayStride = particle_instance_byte_size,
-      .stepMode    = WGPUVertexStepMode_Instance,
-      .attributes  = attributes,
+      .arrayStride    = particle_instance_byte_size,
+      .stepMode       = WGPUVertexStepMode_Instance,
+      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
+      .attributes     = attributes,
     };
   }
   {
@@ -185,9 +186,10 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
     };
     vertexBufferLayout[1] = (WGPUVertexBufferLayout){
       // quad vertex buffer
-      .arrayStride = 2 * 4, // vec2<f32>
-      .stepMode    = WGPUVertexStepMode_Vertex,
-      .attributes  = attributes,
+      .arrayStride    = 2 * 4, // vec2<f32>
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
+      .attributes     = attributes,
     };
   }
 
@@ -199,7 +201,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "vs_main",
             },
-            .buffer_count = 1,
+            .buffer_count = (uint32_t)ARRAY_SIZE(vertexBufferLayout),
             .buffers = vertexBufferLayout,
           });
 
