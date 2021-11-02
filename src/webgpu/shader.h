@@ -31,6 +31,9 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
   WGPUDevice device, const uint8_t* data, const uint32_t size);
 WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
                                                      const char* source);
+WGPUShaderModule
+wgpu_create_shader_module(wgpu_context_t* wgpu_context,
+                          const wgpu_shader_desc_t* shader_desc);
 
 /* Shader creating/releasing */
 wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
