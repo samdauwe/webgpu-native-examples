@@ -711,6 +711,10 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
   stbi_image_free(pixel_data);
 
   if (generate_mipmaps) {
+    if (texture_client->wgpu_mipmap_generator == NULL) {
+      texture_client->wgpu_mipmap_generator
+        = wgpu_mipmap_generator_create(texture_client->wgpu_context);
+    }
     texture = wgpu_mipmap_generator_generate_mipmap(
       texture_client->wgpu_mipmap_generator, texture, &texture_desc);
   }
@@ -1034,7 +1038,11 @@ wgpu_texture_client_create(wgpu_context_t* wgpu_context)
 
 void wgpu_texture_client_destroy(struct wgpu_texture_client_t* texture_client)
 {
-  if (texture_client) {
+  if (texture_client != NULL) {
+    if (texture_client->wgpu_mipmap_generator != NULL) {
+      wgpu_mipmap_generator_destroy(texture_client->wgpu_mipmap_generator);
+      texture_client->wgpu_mipmap_generator = NULL;
+    }
     free(texture_client);
     texture_client = NULL;
   }
