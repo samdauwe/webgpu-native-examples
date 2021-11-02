@@ -1,6 +1,7 @@
 #include "shader.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "../core/file.h"
 #include "../core/log.h"
@@ -40,8 +41,11 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl_file(WGPUDevice device,
   file_read_result_t result;
   read_file(filename, &result);
   log_debug("Read file: %s, size: %d bytes\n", filename, result.size);
+  char* wgsl = malloc(result.size);
+  memcpy(wgsl, (char*)result.data, result.size);
   WGPUShaderModule shader_module
-    = wgpu_create_shader_module_from_wgsl(device, (char*)result.data);
+    = wgpu_create_shader_module_from_wgsl(device, wgsl);
+  free(wgsl);
   free(result.data);
   return shader_module;
 }
