@@ -297,6 +297,7 @@ A huge thanks to the authors of the folowing repositories who demonstrated the u
 ## References
 
 * [Changelog for WebGPU in Chromium / Dawn 94](https://t.co/s87U4pi4tr?amp=1)
+* [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw?amp=1)
 
 ## License
 
