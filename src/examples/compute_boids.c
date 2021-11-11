@@ -444,10 +444,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     // render dst particles
     wgpuRenderPassEncoderSetVertexBuffer(
       wgpu_context->rpass_enc, 0,
-      particle_buffers[(context->frame.index + 1) % 2], 0, 0);
+      particle_buffers[(context->frame.index + 1) % 2], 0, WGPU_WHOLE_SIZE);
     // the three instance-local vertices
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         sprite_vertex_buffer, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      wgpu_context->rpass_enc, 1, sprite_vertex_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, NUM_PARTICLES, 0, 0);
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)

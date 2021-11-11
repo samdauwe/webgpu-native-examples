@@ -461,7 +461,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetPipeline(rpass_enc, pipeline);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bind_group[0], 0, 0);
       wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, cube_vertices.buffer,
-                                           0, 0);
+                                           0, WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, indices.buffer,
                                           WGPUIndexFormat_Uint32, 0, 0);
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 36, 1, 0, 0, 0);
@@ -473,7 +473,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetPipeline(rpass_enc, plane_pipeline);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bind_group[0], 0, 0);
       wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, plane_vertices.buffer,
-                                           0, 0);
+                                           0, WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 6, 1, 0, 0, 0);
     }
 
@@ -482,7 +482,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetPipeline(rpass_enc, reflection_pipeline);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bind_group[1], 0, 0);
       wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, cube_vertices.buffer,
-                                           0, 0);
+                                           0, WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 36, 1, 0, 0, 0);
     }
 

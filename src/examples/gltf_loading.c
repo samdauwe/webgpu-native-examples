@@ -758,7 +758,8 @@ static void gltf_model_draw(gltf_model_t* gltf_model)
   // All vertices and indices are stored in single buffers, so we only need to
   // bind once
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       gltf_model->vertices.buffer, 0, 0);
+                                       gltf_model->vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
                                       gltf_model->indices.buffer,
                                       WGPUIndexFormat_Uint32, 0, 0);

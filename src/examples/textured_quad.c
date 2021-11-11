@@ -409,7 +409,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Bind triangle vertex buffer (contains position and colors)
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, 0);
+                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
   // Bind triangle index buffer
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,

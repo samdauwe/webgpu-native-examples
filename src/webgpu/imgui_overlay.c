@@ -114,7 +114,7 @@ static void imgui_overlay_setup_render_state(imgui_overlay_t* imgui_overlay)
   wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, imgui_overlay->bind_group, 0,
                                     NULL);
   wgpuRenderPassEncoderSetVertexBuffer(
-    rpass_enc, 0, imgui_overlay->vertex_buffer.buffer, 0, 0);
+    rpass_enc, 0, imgui_overlay->vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(rpass_enc,
                                       imgui_overlay->index_buffer.buffer,
                                       WGPUIndexFormat_Uint16, 0, 0);

@@ -1125,7 +1125,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetBindGroup(color_pass, 0, uniform_bind_groups[m],
                                         0, 0);
       wgpuRenderPassEncoderSetVertexBuffer(color_pass, 0, vertices.buffer, 0,
-                                           0);
+                                           WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderSetViewport(color_pass, viewport_width * m, 0.0f,
                                        viewport_width, default_canvas_height,
                                        0.0f, 1.0f);
@@ -1148,7 +1148,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
         wgpuRenderPassEncoderSetBindGroup(depth_pre_pass, 0,
                                           uniform_bind_groups[m], 0, 0);
         wgpuRenderPassEncoderSetVertexBuffer(depth_pre_pass, 0, vertices.buffer,
-                                             0, 0);
+                                             0, WGPU_WHOLE_SIZE);
         wgpuRenderPassEncoderSetViewport(depth_pre_pass, viewport_width * m,
                                          0.0f, viewport_width,
                                          default_canvas_height, 0.0f, 1.0f);
@@ -1170,8 +1170,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                           uniform_bind_groups[m], 0, 0);
         wgpuRenderPassEncoderSetBindGroup(precision_error_pass, 1,
                                           depth_texture_bind_group, 0, 0);
-        wgpuRenderPassEncoderSetVertexBuffer(precision_error_pass, 0,
-                                             vertices.buffer, 0, 0);
+        wgpuRenderPassEncoderSetVertexBuffer(
+          precision_error_pass, 0, vertices.buffer, 0, WGPU_WHOLE_SIZE);
         wgpuRenderPassEncoderSetViewport(
           precision_error_pass, viewport_width * m, 0.0f, viewport_width,
           default_canvas_height, 0.0f, 1.0f);
@@ -1196,7 +1196,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
         wgpuRenderPassEncoderSetBindGroup(depth_pre_pass, 0,
                                           uniform_bind_groups[m], 0, 0);
         wgpuRenderPassEncoderSetVertexBuffer(depth_pre_pass, 0, vertices.buffer,
-                                             0, 0);
+                                             0, WGPU_WHOLE_SIZE);
         wgpuRenderPassEncoderSetViewport(depth_pre_pass, viewport_width * m,
                                          0.0f, viewport_width,
                                          default_canvas_height, 0.0f, 1.0f);

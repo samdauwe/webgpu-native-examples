@@ -349,7 +349,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Bind vertex buffer (contains position)
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, 0);
+                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
   // Bind index buffer
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,

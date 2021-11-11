@@ -373,7 +373,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Bind cube vertex buffer (contains position and colors)
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, 0);
+                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
   // Set the bind group
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,

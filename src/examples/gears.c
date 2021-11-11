@@ -393,7 +393,8 @@ static void webgpu_gear_draw(webgpu_gear_t* gear)
   WGPURenderPassEncoder rpass = gear->wgpu_context->rpass_enc;
 
   wgpuRenderPassEncoderSetBindGroup(rpass, 0, gear->bind_group, 0, 0);
-  wgpuRenderPassEncoderSetVertexBuffer(rpass, 0, gear->vbo.buffer, 0, 0);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass, 0, gear->vbo.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(rpass, gear->ibo.buffer,
                                       WGPUIndexFormat_Uint32, 0, 0);
   wgpuRenderPassEncoderDrawIndexed(rpass, gear->ibo.count, 1, 0, 0, 1);

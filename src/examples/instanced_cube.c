@@ -323,7 +323,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpu_context->cmd_enc, &render_pass_desc);
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, 0);
+                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     uniform_buffer.bind_group, 0, 0);
