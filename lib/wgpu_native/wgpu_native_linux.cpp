@@ -206,7 +206,6 @@ WGPUDevice wgpu_create_device(WGPUBackendType type)
     wgpu::AdapterProperties properties;
     adapter.GetProperties(&properties);
     dawn_native::DeviceDescriptor devDesc;
-    devDesc.requiredExtensions.push_back("texture_compression_bc");
     impl::adapterName = properties.name;
     impl::backend = static_cast<WGPUBackendType>(properties.backendType);
     impl::backendTypeStr = impl::backendTypeName(properties.backendType);
