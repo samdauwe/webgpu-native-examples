@@ -122,7 +122,8 @@ static void setup_render_bundle(wgpu_context_t* wgpu_context)
   WGPURenderBundleEncoder encoder
     = wgpuDeviceCreateRenderBundleEncoder(wgpu_context->device, &rbe_desc);
   wgpuRenderBundleEncoderSetPipeline(encoder, pipeline);
-  wgpuRenderBundleEncoderSetVertexBuffer(encoder, 0, vertices.buffer, 0, 0);
+  wgpuRenderBundleEncoderSetVertexBuffer(encoder, 0, vertices.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
   wgpuRenderBundleEncoderDraw(encoder, vertices.count, 1, 0, 0);
   render_bundle
     = wgpuRenderBundleEncoderFinish(encoder, &(WGPURenderBundleDescriptor){

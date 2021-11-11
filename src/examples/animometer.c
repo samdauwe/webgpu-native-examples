@@ -308,7 +308,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     else {                                                                     \
       wgpu##Type##SetPipeline(Name, pipeline);                                 \
     }                                                                          \
-    wgpu##Type##SetVertexBuffer(Name, 0, vertices.buffer, 0, 0);               \
+    wgpu##Type##SetVertexBuffer(Name, 0, vertices.buffer, 0, WGPU_WHOLE_SIZE); \
     wgpu##Type##SetBindGroup(Name, 0, time_bind_group, 0, 0);                  \
     for (uint64_t i = 0; i < settings.num_triangles; ++i) {                    \
       if (settings.dynamic_offsets) {                                          \
