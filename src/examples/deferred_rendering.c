@@ -1276,8 +1276,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(gbuffer_pass, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(gbuffer_pass, index_buffer,
-                                        WGPUIndexFormat_Uint16, 0, 0);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      gbuffer_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(gbuffer_pass, index_count, 1, 0, 0, 0);
     wgpuRenderPassEncoderEndPass(gbuffer_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, gbuffer_pass)

@@ -115,9 +115,9 @@ static void imgui_overlay_setup_render_state(imgui_overlay_t* imgui_overlay)
                                     NULL);
   wgpuRenderPassEncoderSetVertexBuffer(
     rpass_enc, 0, imgui_overlay->vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc,
-                                      imgui_overlay->index_buffer.buffer,
-                                      WGPUIndexFormat_Uint16, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    rpass_enc, imgui_overlay->index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
+    WGPU_WHOLE_SIZE);
 }
 
 static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)

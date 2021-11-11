@@ -859,8 +859,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetBindGroup(shadow_pass, 1, model_bind_group, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(shadow_pass, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(shadow_pass, index_buffer,
-                                        WGPUIndexFormat_Uint16, 0, 0);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      shadow_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(shadow_pass, index_count, 1, 0, 0, 0);
 
     wgpuRenderPassEncoderEndPass(shadow_pass);
@@ -877,8 +877,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetBindGroup(render_pass, 1, model_bind_group, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(render_pass, index_buffer,
-                                        WGPUIndexFormat_Uint16, 0, 0);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      render_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(render_pass, index_count, 1, 0, 0, 0);
 
     wgpuRenderPassEncoderEndPass(render_pass);

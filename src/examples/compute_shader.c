@@ -597,7 +597,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                          vertex_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, index_buffer,
-                                        WGPUIndexFormat_Uint32, 0, 0);
+                                        WGPUIndexFormat_Uint32, 0,
+                                        WGPU_WHOLE_SIZE);
 
     // Left (pre compute)
     {

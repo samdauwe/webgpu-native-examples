@@ -637,7 +637,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
                                     bind_groups.instance_buffer, 0, 0);
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0, 0);
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
                                    (uint32_t)PATCH_INDEX_COUNT, instance_count,
                                    0, 0, 0);

@@ -1409,9 +1409,9 @@ static void gltf_model_bind_buffers(gltf_model_t* model)
   wgpu_context_t* wgpu_context = model->wgpu_context;
   wgpuRenderPassEncoderSetVertexBuffer(
     wgpu_context->rpass_enc, 0, model->vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
-                                      model->indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, model->indices.buffer, WGPUIndexFormat_Uint32, 0,
+    WGPU_WHOLE_SIZE);
   // model->buffers_bound = true;
 }
 

@@ -379,7 +379,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Bind triangle index buffer
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint16, 0, 0);
+                                      WGPUIndexFormat_Uint16, 0,
+                                      WGPU_WHOLE_SIZE);
 
   // Draw indexed triangle
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,

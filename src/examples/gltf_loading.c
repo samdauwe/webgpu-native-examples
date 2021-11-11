@@ -760,9 +760,9 @@ static void gltf_model_draw(gltf_model_t* gltf_model)
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        gltf_model->vertices.buffer, 0,
                                        WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc,
-                                      gltf_model->indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, gltf_model->indices.buffer, WGPUIndexFormat_Uint32,
+    0, WGPU_WHOLE_SIZE);
   // Render all nodes at top-level
   for (uint32_t i = 0; i < gltf_model->node_count; ++i) {
     gltf_model_draw_node(gltf_model, &gltf_model->nodes[i]);

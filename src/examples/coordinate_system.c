@@ -372,7 +372,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.cw,
                                     0, 0);
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, quad.indices_cw,
-                                      WGPUIndexFormat_Uint32, 0, 0);
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
     wgpu_context->rpass_enc, 0,
     settings.quad_type == 0 ? quad.vertices_y_down : quad.vertices_y_up, 0,
@@ -382,7 +383,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.ccw,
                                     0, 0);
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, quad.indices_ccw,
-                                      WGPUIndexFormat_Uint32, 0, 0);
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, 6, 1, 0, 0, 0);
 
   // End render pass
