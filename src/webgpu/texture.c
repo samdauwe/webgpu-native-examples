@@ -427,7 +427,6 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       const  WGPURenderPassColorAttachment color_attachment_desc
         = (WGPURenderPassColorAttachment){
            .view          = views[target_mip],
-           .attachment    = NULL,
            .resolveTarget = NULL,
            .loadOp        = WGPULoadOp_Clear,
            .storeOp       = WGPUStoreOp_Store,

@@ -681,7 +681,6 @@ static void prepare_draw_pass_descriptors()
     // Color attachment
     dpd_rp_color_att_descriptors[0][0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired and set in render loop.
-      .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -741,7 +740,6 @@ static void prepare_texture_quad_pass_descriptors()
     tqd_rp_color_att_descriptors[0][0]
      = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired and set in render loop.
-      .attachment = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
