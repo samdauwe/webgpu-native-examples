@@ -422,7 +422,6 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
-          .access=WGPUStorageTextureAccess_ReadOnly,
           .format=WGPUTextureFormat_RGBA8Unorm,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
