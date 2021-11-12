@@ -421,8 +421,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         // Binding 0: Input image (read-only)
         .binding = 0,
         .visibility = WGPUShaderStage_Compute,
-        .storageTexture = (WGPUStorageTextureBindingLayout) {
-          .format=WGPUTextureFormat_RGBA8Unorm,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType=WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .sampler = {0},
