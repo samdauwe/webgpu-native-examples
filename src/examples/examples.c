@@ -46,7 +46,7 @@ void example_video_uploading(int argc, char* argv[]);
 
 static examplecase_t g_example_cases[] = {
   {"animometer", example_animometer},
-  /* {"bind_groups", example_bind_groups}, */
+  {"bind_groups", example_bind_groups},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},
   /* {"compute_n_body", example_compute_n_body}, */
@@ -54,7 +54,7 @@ static examplecase_t g_example_cases[] = {
   {"compute_particles_easing", example_compute_particles_easing},
   /* {"compute_particles_webgpu_logo", example_compute_particles_webgpu_logo},*/
   {"compute_ray_tracing", example_compute_ray_tracing},
-  /* {"compute_shader", example_compute_shader}, */
+  {"compute_shader", example_compute_shader},
   {"conservative_raster", example_conservative_raster},
   {"coordinate_system", example_coordinate_system},
   {"cube_reflection", example_cube_reflection},
