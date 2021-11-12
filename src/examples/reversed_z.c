@@ -680,7 +680,7 @@ static void prepare_draw_pass_descriptors()
   {
     // Color attachment
     dpd_rp_color_att_descriptors[0][0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // attachment is acquired and set in render loop.
+      .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -739,7 +739,7 @@ static void prepare_texture_quad_pass_descriptors()
   {
     tqd_rp_color_att_descriptors[0][0]
      = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // attachment is acquired and set in render loop.
+      .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -968,7 +968,6 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
 
   // 2nd uniform bind group
   {
-    const uint32_t mode = (uint32_t)DepthBufferMode_Reversed;
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
@@ -981,7 +980,7 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
         .size  = sizeof(mat4), // 4x4 matrix
       }
     };
-    uniform_bind_groups[mode] = wgpuDeviceCreateBindGroup(
+    uniform_bind_groups[1] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .layout     = uniform_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
@@ -1015,9 +1014,8 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
   mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
   glm_translate(view_matrix, (vec3){0.0f, 0.0f, -12.0f});
 
-  const float aspect
-    = ((float)wgpu_context->surface.width / (float)wgpu_context->surface.height)
-      * 0.5f;
+  const float aspect = (0.5f * (float)wgpu_context->surface.width)
+                       / (float)wgpu_context->surface.height;
   float projection_matrix_as_array[16] = {
     1.0f, 0.0f, 0.0f, 0.0f, //
     0.0f, 1.0f, 0.0f, 0.0f, //
@@ -1053,7 +1051,7 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 
   for (uint32_t i = 0, m = 0; i < num_instances; ++i, m += matrix_float_count) {
     glm_mat4_copy(model_matrices[i], tmp_mat4);
-    glm_rotate(tmp_mat4, (PI / 180) * 30.0f, (vec3){sin_now, cos_now, 0.0f});
+    glm_rotate(tmp_mat4, (PI / 180.f) * 30.0f, (vec3){sin_now, cos_now, 0.0f});
     memcpy(&mvp_matrices_data[m], tmp_mat4, sizeof(mat4));
   }
 }
