@@ -35,6 +35,7 @@ int filename_has_extension(const char* filename, const char* extension);
  * @param filename the name of the file
  * @param result the file read result
  */
-void read_file(const char* filename, file_read_result_t* result);
+void read_file(const char* filename, file_read_result_t* result,
+               int is_text_file);
 
 #endif

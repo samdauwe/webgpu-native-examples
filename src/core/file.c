@@ -32,7 +32,8 @@ int filename_has_extension(const char* filename, const char* extension)
   return strcmp(filename_extension, extension) == 0 ? 1 : 0;
 }
 
-void read_file(const char* filename, file_read_result_t* result)
+void read_file(const char* filename, file_read_result_t* result,
+               int is_text_file)
 {
   ASSERT(filename && result);
   FILE* file = fopen(filename, "rb");
@@ -44,7 +45,10 @@ void read_file(const char* filename, file_read_result_t* result)
   result->size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  result->data = malloc(result->size);
+  result->data = malloc(result->size + (is_text_file == 0 ? 0 : 1));
   fread(result->data, 1, result->size, file);
   fclose(file);
+  if (is_text_file != 0) {
+    result->data[result->size] = 0;
+  }
 }
