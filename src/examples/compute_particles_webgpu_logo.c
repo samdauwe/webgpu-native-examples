@@ -15,7 +15,7 @@
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/particles
  * -------------------------------------------------------------------------- */
 
-const uint32_t num_particles               = 1000000;
+const uint32_t num_particles               = 100000;
 const uint32_t particle_position_offset    = 0;
 const uint32_t particle_color_offset       = 4 * 4;
 const uint32_t particle_instance_byte_size = 3 * 4 + // position
@@ -57,6 +57,7 @@ static WGPURenderPipeline render_pipeline;
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassDepthStencilAttachment render_pass_depth_stencil_att_desc;
 
 // Probability map generation
 static WGPUComputePipeline probability_map_import_level_pipeline;
@@ -80,7 +81,7 @@ static struct simulation_params_t {
 static struct simulation_ubo_buffer_t {
   struct {
     float delta_time;
-    float padding[3];
+    vec3 padding;
     struct {
       float x;
       float y;
@@ -306,7 +307,7 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   ASSERT(uniform_bind_group != NULL)
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void setup_render_pass()
 {
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
@@ -322,13 +323,21 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
+  render_pass_depth_stencil_att_desc = (WGPURenderPassDepthStencilAttachment){
+    .view           = depth_texture.view,
+    .depthLoadOp    = WGPULoadOp_Clear,
+    .depthStoreOp   = WGPUStoreOp_Store,
+    .clearDepth     = 1.0f,
+    .stencilLoadOp  = WGPULoadOp_Clear,
+    .stencilStoreOp = WGPUStoreOp_Store,
+    .clearStencil   = 0,
+  };
 
   // Render pass descriptor
   render_pass_desc = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
+    .depthStencilAttachment = &render_pass_depth_stencil_att_desc,
   };
 }
 
@@ -416,10 +425,8 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
     ASSERT(probability_ubo_buffer.buffer)
 
     probability_ubo_buffer.data[0] = texture.size.width;
-    memcpy(&probability_ubo_buffer.data, probability_ubo_buffer.data,
-           probability_ubo_buffer.size);
     wgpu_queue_write_buffer(wgpu_context, probability_ubo_buffer.buffer, 0,
-                            &probability_ubo_buffer.data,
+                            probability_ubo_buffer.data,
                             probability_ubo_buffer.size);
   }
 
@@ -524,7 +531,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
                                            probability_map_bind_groups[level],
                                            0, NULL);
         wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                       ceil(level_width / 64), level_height, 0);
+                                       ceil(level_width / 64), level_height, 1);
         wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
       }
@@ -537,7 +544,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
                                            probability_map_bind_groups[level],
                                            0, NULL);
         wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                       ceil(level_width / 64), level_height, 0);
+                                       ceil(level_width / 64), level_height, 1);
         wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
       }
@@ -648,7 +655,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_mat4_identity(view_matrices.projection);
   glm_mat4_identity(view_matrices.view);
   glm_mat4_identity(view_matrices.model_view_projection);
-  glm_perspective((2 * PI) / 5.0f, aspect_ratio, 1.0f, 100.0f,
+  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.0f, 100.0f,
                   view_matrices.projection);
 }
 
@@ -676,7 +683,7 @@ static void update_transformation_matrix()
 {
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -3.0f});
-  glm_rotate(view_matrices.view, 1.0f, (vec3){PI * -0.2f, 0.0f, 0.0f});
+  glm_rotate(view_matrices.view, PI * -0.2f, (vec3){1.0f, 0.0f, 0.0f});
   glm_mat4_mul(view_matrices.projection, view_matrices.view,
                view_matrices.model_view_projection);
 }
@@ -689,10 +696,10 @@ static void update_uniform_buffer_vs_data()
                 uniform_buffer_vs.data.model_view_projection_matrix);
   glm_vec3_copy((vec3){(*view)[0][0], (*view)[1][0], (*view)[2][0]},
                 uniform_buffer_vs.data.right);
-  glm_vec3_zero(&uniform_buffer_vs.data.padding1);
+  uniform_buffer_vs.data.padding1 = 0.f;
   glm_vec3_copy((vec3){(*view)[0][1], (*view)[1][1], (*view)[2][1]},
                 uniform_buffer_vs.data.up);
-  glm_vec3_zero(&uniform_buffer_vs.data.padding2);
+  uniform_buffer_vs.data.padding2 = 0.f;
 }
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
@@ -717,7 +724,7 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_depth_texture(context->wgpu_context);
     prepare_uniform_buffer(context->wgpu_context);
     prepare_uniform_bind_group(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
+    setup_render_pass();
     prepare_quad_vertex_buffer(context->wgpu_context);
     prepare_texture(context->wgpu_context);
     generate_probability_map(context->wgpu_context);
@@ -758,7 +765,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
                                        compute_bind_group, 0, NULL);
     wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                   ceil(num_particles / 64), 0, 0);
+                                   ceil(num_particles / 64), 1, 1);
     wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
@@ -770,7 +777,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       uniform_bind_group, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 0, quad_vertices.buffer, 0, WGPU_WHOLE_SIZE);
+      wgpu_context->rpass_enc, 0, particles_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      wgpu_context->rpass_enc, 1, quad_vertices.buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, num_particles, 0, 0);
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
@@ -817,9 +826,7 @@ static int example_render(wgpu_example_context_t* context)
   update_simulation_ubo_data(context->wgpu_context);
   update_uniform_buffers(context->wgpu_context);
 
-  int result = example_draw(context);
-
-  return result;
+  return example_draw(context);
 }
 
 static void example_destroy(wgpu_example_context_t* context)
