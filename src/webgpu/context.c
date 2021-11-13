@@ -22,15 +22,16 @@ wgpu_context_t* wgpu_context_create()
 
 void wgpu_context_release(wgpu_context_t* wgpu_context)
 {
+  if (wgpu_context->texture_client != NULL) {
+    wgpu_texture_client_destroy(wgpu_context->texture_client);
+    wgpu_context->texture_client = NULL;
+  }
+
   WGPU_RELEASE_RESOURCE(TextureView, wgpu_context->depth_stencil.texture_view);
   WGPU_RELEASE_RESOURCE(Texture, wgpu_context->depth_stencil.texture);
   WGPU_RELEASE_RESOURCE(SwapChain, wgpu_context->swap_chain.instance);
   WGPU_RELEASE_RESOURCE(Queue, wgpu_context->queue);
   WGPU_RELEASE_RESOURCE(Device, wgpu_context->device);
-
-  if (wgpu_context->texture_client != NULL) {
-    wgpu_texture_client_destroy(wgpu_context->texture_client);
-  }
 
   free(wgpu_context);
 }
