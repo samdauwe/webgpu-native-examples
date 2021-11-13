@@ -52,7 +52,7 @@ static examplecase_t g_example_cases[] = {
   /* {"compute_n_body", example_compute_n_body}, */
   /* {"compute_particles", example_compute_particles}, */
   {"compute_particles_easing", example_compute_particles_easing},
-  /* {"compute_particles_webgpu_logo", example_compute_particles_webgpu_logo},*/
+  {"compute_particles_webgpu_logo", example_compute_particles_webgpu_logo},
   {"compute_ray_tracing", example_compute_ray_tracing},
   {"compute_shader", example_compute_shader},
   {"conservative_raster", example_conservative_raster},
