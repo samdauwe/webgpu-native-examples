@@ -652,7 +652,7 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
   };
 
   int width = 0, height = 0;
-  // Force loading 3 channel images to 4 channel by stb becasue Dawn doesn't
+  // Force loading 4 channel images to 3 channel by stb becasue Dawn doesn't
   // support 3 channel formats currently. The group is discussing on whether
   // webgpu shoud support 3 channel format.
   // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
