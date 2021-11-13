@@ -26,7 +26,7 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_file(WGPUDevice device,
                                                            const char* filename)
 {
   file_read_result_t result;
-  read_file(filename, &result);
+  read_file(filename, &result, 0);
   log_debug("Read file: %s, size: %d bytes\n", filename, result.size);
   WGPUShaderModule shader_module
     = wgpu_create_shader_module_from_spirv_bytecode(device, result.data,
@@ -39,13 +39,10 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl_file(WGPUDevice device,
                                                           const char* filename)
 {
   file_read_result_t result;
-  read_file(filename, &result);
+  read_file(filename, &result, 1);
   log_debug("Read file: %s, size: %d bytes\n", filename, result.size);
-  char* wgsl = malloc(result.size);
-  memcpy(wgsl, (char*)result.data, result.size);
   WGPUShaderModule shader_module
-    = wgpu_create_shader_module_from_wgsl(device, wgsl);
-  free(wgsl);
+    = wgpu_create_shader_module_from_wgsl(device, (char*)result.data);
   free(result.data);
   return shader_module;
 }
