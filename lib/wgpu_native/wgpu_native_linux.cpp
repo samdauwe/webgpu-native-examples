@@ -107,6 +107,7 @@ static dawn_native::Adapter requestAdapter(WGPUBackendType type1st,
 static const char* backendTypeName(wgpu::BackendType t) {
   switch (t) {
     case wgpu::BackendType::Null:     return "Null";
+    case wgpu::BackendType::WebGPU:   return "WebGPU";
     case wgpu::BackendType::D3D11:    return "D3D11";
     case wgpu::BackendType::D3D12:    return "D3D12";
     case wgpu::BackendType::Metal:    return "Metal";
