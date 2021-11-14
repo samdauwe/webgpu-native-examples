@@ -13,17 +13,21 @@
  */
 #define PLAY_SPEED (1.0);
 
-static pthread_t s_decode_thread;
-static AVFormatContext* s_fmt_ctx;
-static AVCodecContext* s_dec_ctx;
-static AVStream* s_video_st;
-static int s_video_stream_index = -1;
-static int s_video_w, s_video_h;
-static int s_crop_w, s_crop_h;
-static unsigned int s_video_fmt;
-static int64_t s_duration_base;
-
-static void* s_decode_buf = NULL;
+static struct video_decode_state_t {
+  pthread_t decode_thread;
+  AVFormatContext* fmt_ctx;
+  AVCodecContext* dec_ctx;
+  AVStream* video_st;
+  int video_stream_index;
+  int video_w, video_h;
+  int crop_w, crop_h;
+  unsigned int video_fmt;
+  int64_t duration_base;
+  void* decode_buf;
+} s_state = {
+  .video_stream_index = -1,
+  .decode_buf         = NULL,
+};
 
 int init_video_decode()
 {
@@ -76,14 +80,14 @@ int open_video_file(const char* fname)
     return ret;
   }
 
-  s_fmt_ctx            = fmt_ctx;
-  s_dec_ctx            = dec_ctx;
-  s_video_st           = fmt_ctx->streams[video_stream_index];
-  s_video_stream_index = video_stream_index;
+  s_state.fmt_ctx            = fmt_ctx;
+  s_state.dec_ctx            = dec_ctx;
+  s_state.video_st           = fmt_ctx->streams[video_stream_index];
+  s_state.video_stream_index = video_stream_index;
 
-  s_video_w   = dec_ctx->width;
-  s_video_h   = dec_ctx->height;
-  s_video_fmt = s_dec_ctx->pix_fmt;
+  s_state.video_w   = dec_ctx->width;
+  s_state.video_h   = dec_ctx->height;
+  s_state.video_fmt = s_state.dec_ctx->pix_fmt;
 
 #if 0
   if (s_video_w > s_video_h) {
@@ -93,15 +97,15 @@ int open_video_file(const char* fname)
     s_crop_w = s_crop_h = s_video_w;
   }
 #else
-  s_crop_w = s_video_w;
-  s_crop_h = s_video_h;
+  s_state.crop_w = s_state.video_w;
+  s_state.crop_h = s_state.video_h;
 #endif
 
   fprintf(stdout, "-------------------------------------------\n");
   fprintf(stdout, " file  : %s\n", fname);
-  fprintf(stdout, " format: %s\n", av_get_pix_fmt_name(s_video_fmt));
-  fprintf(stdout, " size  : (%d, %d)\n", s_video_w, s_video_h);
-  fprintf(stdout, " crop  : (%d, %d)\n", s_crop_w, s_crop_h);
+  fprintf(stdout, " format: %s\n", av_get_pix_fmt_name(s_state.video_fmt));
+  fprintf(stdout, " size  : (%d, %d)\n", s_state.video_w, s_state.video_h);
+  fprintf(stdout, " crop  : (%d, %d)\n", s_state.crop_w, s_state.crop_h);
   fprintf(stdout, "-------------------------------------------\n");
 
   return 0;
@@ -109,21 +113,21 @@ int open_video_file(const char* fname)
 
 int get_video_dimension(int* width, int* height)
 {
-  *width  = s_crop_w;
-  *height = s_crop_h;
+  *width  = s_state.crop_w;
+  *height = s_state.crop_h;
 
   return 0;
 }
 
 int get_video_pixformat(int* pixformat)
 {
-  *pixformat = s_video_fmt;
+  *pixformat = s_state.video_fmt;
   return 0;
 }
 
 int get_video_buffer(void** buf)
 {
-  *buf = s_decode_buf;
+  *buf = s_state.decode_buf;
   return 0;
 }
 
@@ -161,16 +165,16 @@ static int save_to_ppm(AVFrame* frame, int width, int height, int icnt)
 static int convert_to_rgba8888(AVFrame* frame, int ofstx, int ofsty, int width,
                                int height)
 {
-  if (s_decode_buf == NULL) {
-    s_decode_buf = (unsigned char*)malloc(width * height * 4);
+  if (s_state.decode_buf == NULL) {
+    s_state.decode_buf = (unsigned char*)malloc(width * height * 4);
   }
 
   if (ofstx == 0 && ofsty == 0) {
-    memcpy(s_decode_buf, frame->data[0], width * height * 4);
+    memcpy(s_state.decode_buf, frame->data[0], width * height * 4);
   }
   else {
     for (int y = 0; y < height; y++) {
-      unsigned char* dst8 = s_decode_buf + y * width * 4;
+      unsigned char* dst8 = (unsigned char*)s_state.decode_buf + y * width * 4;
       unsigned char* src8 = frame->data[0] + (y + ofsty) * frame->linesize[0];
       src8 += ofstx * 4;
 
@@ -185,31 +189,31 @@ static int convert_to_rgba8888(AVFrame* frame, int ofstx, int ofsty, int width,
   return 0;
 }
 
-static int on_frame_decoded(AVFrame* frame)
+static int on_frame_decoded(AVFrame* frame, int write_debug_frames)
 {
-  int dec_w = s_video_w;
-  int dec_h = s_video_h;
-  int ofstx = (s_video_w - s_crop_w) * 0.5f;
-  int ofsty = (s_video_h - s_crop_h) * 0.5f;
+  int dec_w = s_state.video_w;
+  int dec_h = s_state.video_h;
+  int ofstx = (s_state.video_w - s_state.crop_w) * 0.5f;
+  int ofsty = (s_state.video_h - s_state.crop_h) * 0.5f;
 
-  if (0) {
+  if (write_debug_frames) {
     static int i = 0;
     save_to_ppm(frame, dec_w, dec_h, i++);
   }
 
-  convert_to_rgba8888(frame, ofstx, ofsty, s_crop_w, s_crop_h);
+  convert_to_rgba8888(frame, ofstx, ofsty, s_state.crop_w, s_state.crop_h);
 
   return 0;
 }
 
 static void init_duration()
 {
-  s_duration_base = av_gettime();
+  s_state.duration_base = av_gettime();
 }
 
 static int64_t get_duration_us()
 {
-  int64_t duration = av_gettime() - s_duration_base;
+  int64_t duration = av_gettime() - s_state.duration_base;
   return duration;
 }
 
@@ -220,7 +224,7 @@ static void sleep_to_pts(AVPacket* packet)
     pts_us = packet->dts;
   }
 
-  pts_us *= (av_q2d(s_video_st->time_base) * 1000 * 1000);
+  pts_us *= (av_q2d(s_state.video_st->time_base) * 1000 * 1000);
   pts_us /= PLAY_SPEED;
 
   int64_t delay_us = pts_us - get_duration_us();
@@ -238,8 +242,8 @@ static void* decode_thread_main()
     return 0;
   }
 
-  int dec_w    = s_dec_ctx->width;
-  int dec_h    = s_dec_ctx->height;
+  int dec_w    = s_state.dec_ctx->width;
+  int dec_h    = s_state.dec_ctx->height;
   int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dec_w, dec_h, 1);
 
   uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
@@ -248,7 +252,7 @@ static void* decode_thread_main()
                        AV_PIX_FMT_RGBA, dec_w, dec_h, 1);
 
   struct SwsContext* sws_ctx
-    = sws_getContext(dec_w, dec_h, s_dec_ctx->pix_fmt, dec_w, dec_h,
+    = sws_getContext(dec_w, dec_h, s_state.dec_ctx->pix_fmt, dec_w, dec_h,
                      AV_PIX_FMT_RGBA, SWS_FAST_BILINEAR, NULL, NULL, NULL);
   if (sws_ctx == NULL) {
     fprintf(stderr, "Cannot initialize the sws context\n");
@@ -261,16 +265,16 @@ static void* decode_thread_main()
 
     init_duration();
 
-    while (av_read_frame(s_fmt_ctx, &packet) >= 0) {
-      if (packet.stream_index == s_video_stream_index) {
-        ret = avcodec_send_packet(s_dec_ctx, &packet);
+    while (av_read_frame(s_state.fmt_ctx, &packet) >= 0) {
+      if (packet.stream_index == s_state.video_stream_index) {
+        ret = avcodec_send_packet(s_state.dec_ctx, &packet);
         if (ret < 0) {
           fprintf(stderr, "ERR: %s(%d)\n", __FILE__, __LINE__);
           break;
         }
 
         while (ret >= 0) {
-          ret = avcodec_receive_frame(s_dec_ctx, frame);
+          ret = avcodec_receive_frame(s_state.dec_ctx, frame);
           if (ret == AVERROR(EAGAIN)) {
             // fprintf (stderr, "retry.\n");
             break;
@@ -289,7 +293,7 @@ static void* decode_thread_main()
                     framergb->linesize);
 
           sleep_to_pts(&packet);
-          on_frame_decoded(framergb);
+          on_frame_decoded(framergb, 0);
         }
       }
 
@@ -297,22 +301,22 @@ static void* decode_thread_main()
     }
 
     /* flush decoder */
-    ret = avcodec_send_packet(s_dec_ctx, &packet);
+    ret = avcodec_send_packet(s_state.dec_ctx, &packet);
     if (ret < 0) {
       fprintf(stderr, "ERR: %s(%d)\n", __FILE__, __LINE__);
     }
 
-    while (avcodec_receive_frame(s_dec_ctx, frame) == 0) {
+    while (avcodec_receive_frame(s_state.dec_ctx, frame) == 0) {
       sws_scale(sws_ctx, (const uint8_t* const*)frame->data, frame->linesize, 0,
                 dec_h, framergb->data, framergb->linesize);
 
       sleep_to_pts(&packet);
-      on_frame_decoded(framergb);
+      on_frame_decoded(framergb, 0);
     }
 
     /* rewind to restart */
-    av_seek_frame(s_fmt_ctx, -1, 0, AVSEEK_FLAG_BACKWARD);
-    avcodec_flush_buffers(s_dec_ctx);
+    av_seek_frame(s_state.fmt_ctx, -1, 0, AVSEEK_FLAG_BACKWARD);
+    avcodec_flush_buffers(s_state.dec_ctx);
   }
 
   av_free(buffer);
@@ -324,6 +328,6 @@ static void* decode_thread_main()
 
 int start_video_decode()
 {
-  pthread_create(&s_decode_thread, NULL, decode_thread_main, NULL);
+  pthread_create(&s_state.decode_thread, NULL, decode_thread_main, NULL);
   return 0;
 }
