@@ -10,7 +10,6 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wignored-qualifiers"
-#pragma GCC diagnostic ignored "-Wimplicit-fallthrough="
 #pragma GCC diagnostic ignored "-Wparentheses"
 #endif
 #include <ktx.h>
