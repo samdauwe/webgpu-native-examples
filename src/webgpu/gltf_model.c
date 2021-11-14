@@ -74,7 +74,8 @@ static void gltf_texture_from_gltf_image(const char* model_uri,
       texture->wgpu_texture = wgpu_create_texture_from_file(
         texture->wgpu_context, image_uri,
         &(struct wgpu_texture_load_options_t){
-          .address_mode = WGPUAddressMode_Repeat,
+          .generate_mipmaps = true,
+          .address_mode     = WGPUAddressMode_Repeat,
         });
     }
   }
