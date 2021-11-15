@@ -116,7 +116,7 @@ static int vertex_cb(p_ply_argument argument)
   value *= STANFORD_DRAGON_MESH_SCALE;
 
   // Store value
-  ASSERT((size_t)vertex_index < pdata->positions.count);
+  ASSERT(pdata && (size_t)vertex_index < pdata->positions.count);
   ASSERT(index_data >= 0 && index_data < 3);
   pdata->positions.data[vertex_index][index_data] = value;
 
@@ -142,7 +142,7 @@ static int face_cb(p_ply_argument argument)
     uint16_t value = (uint16_t)ply_get_argument_value(argument);
 
     // Store value
-    ASSERT((size_t)face_index < pdata->triangles.count);
+    ASSERT(pdata && (size_t)face_index < pdata->triangles.count);
     pdata->triangles.data[face_index][value_index] = value;
   }
 
