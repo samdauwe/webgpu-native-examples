@@ -95,8 +95,8 @@ typedef struct wgpu_gltf_materials_t {
   uint32_t material_count;
 } wgpu_gltf_materials_t;
 
-/*
- * glTF model load options
+/**
+ * @brief glTF model load options
  */
 typedef struct wgpu_gltf_model_load_options_t {
   struct wgpu_context_t* wgpu_context;
