@@ -64,9 +64,9 @@ typedef struct wgpu_context_t {
     WGPUTextureFormat format;
     WGPUTextureView frame_buffer;
   } swap_chain;
-  WGPUCommandEncoder cmd_enc;       // Command encoder
-  WGPURenderPassEncoder rpass_enc;  // Render pass encoder
-  WGPUComputePassEncoder cpass_enc; // Compute pass encoder
+  WGPUCommandEncoder cmd_enc;       /* Command encoder */
+  WGPURenderPassEncoder rpass_enc;  /* Render pass encoder */
+  WGPUComputePassEncoder cpass_enc; /* Compute pass encoder */
   struct {
     WGPUTexture texture;
     WGPUTextureView texture_view;

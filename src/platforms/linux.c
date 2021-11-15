@@ -308,8 +308,8 @@ static void handle_key_event(window_t* window, int virtual_key, char pressed)
     case XK_Alt_L:
       key = KEY_LEFT_ALT;
       break;
-    case XK_Mode_switch:      // Mapped to Alt_R on many keyboards
-    case XK_ISO_Level3_Shift: // AltGr on at least some machines
+    case XK_Mode_switch:      /* Mapped to Alt_R on many keyboards */
+    case XK_ISO_Level3_Shift: /* AltGr on at least some machines */
     case XK_Meta_R:
     case XK_Alt_R:
       key = KEY_RIGHT_ALT;
@@ -450,7 +450,7 @@ static void handle_key_event(window_t* window, int virtual_key, char pressed)
       key = KEY_F25;
       break;
 
-    // Numeric keypad
+    /* Numeric keypad */
     case XK_KP_Divide:
       key = KEY_KP_DIVIDE;
       break;
@@ -464,7 +464,7 @@ static void handle_key_event(window_t* window, int virtual_key, char pressed)
       key = KEY_KP_ADD;
       break;
 
-    // These should have been detected in secondary keysym test above!
+    /* These should have been detected in secondary keysym test above! */
     case XK_KP_Insert:
       key = KEY_KP_0;
       break;
@@ -502,10 +502,12 @@ static void handle_key_event(window_t* window, int virtual_key, char pressed)
       key = KEY_KP_ENTER;
       break;
 
-    // Last resort: Check for printable keys (should not happen if the XKB
-    // extension is available). This will give a layout dependent mapping
-    // (which is wrong, and we may miss some keys, especially on non-US
-    // keyboards), but it's better than nothing...
+    /*
+     * Last resort: Check for printable keys (should not happen if the XKB
+     * extension is available). This will give a layout dependent mapping
+     * (which is wrong, and we may miss some keys, especially on non-US
+     * keyboards), but it's better than nothing...
+     */
     case XK_a:
       key = KEY_A;
       break;
@@ -651,10 +653,10 @@ static void handle_key_event(window_t* window, int virtual_key, char pressed)
       key = KEY_SLASH;
       break;
     case XK_less:
-      key = KEY_WORLD_1; // At least in some layouts...
+      key = KEY_WORLD_1; /* At least in some layouts... */
       break;
     default:
-      key = KEY_UNKNOWN; // No matching translation was found
+      key = KEY_UNKNOWN; /* No matching translation was found */
       break;
   }
 
