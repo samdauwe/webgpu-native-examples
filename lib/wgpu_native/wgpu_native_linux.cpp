@@ -85,6 +85,13 @@ static dawn_native::Adapter requestAdapter(WGPUBackendType type1st,
 {
   static dawn_native::Instance instance;
   instance.DiscoverDefaultAdapters();
+#ifdef DEBUG
+  instance.EnableBackendValidation(true);
+  instance.SetBackendValidationLevel(dawn_native::BackendValidationLevel::Full);
+#elif defined(WGPU_DAWN_DISABLE_VALIDATION)
+  instance.EnableBackendValidation(false);
+  instance.SetBackendValidationLevel(dawn_native::BackendValidationLevel::Disabled);
+#endif
   wgpu::AdapterProperties properties;
   std::vector<dawn_native::Adapter> adapters = instance.GetAdapters();
   for (auto it = adapters.begin(); it != adapters.end(); ++it) {
@@ -214,6 +221,7 @@ WGPUDevice wgpu_create_device(WGPUBackendType type)
     if (!impl::device) {
       impl::device = adapter.CreateDevice();
     }
+    // Set up the native procs for the global proctable
     DawnProcTable procs(dawn_native::GetProcs());
     procs.deviceSetUncapturedErrorCallback(impl::device, impl::printError, nullptr);
     dawnProcSetProcs(&procs);
