@@ -35,9 +35,11 @@ $ git submodule update
 
 ### For Native with Dawn
 
-The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard. Dawn uses the Chromium build system and dependency management and therefore needs [depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up).
+The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard. 
 
-A helper bash script was created to fetch the latest version of "depot_tools" and "Dawn". With this approach only the Dawn source is fetched in order to build the WebGPU implementation without [GN](https://gn.googlesource.com/gn/) and using [CMake](https://cmake.org/) build files. The first step into building the WebGPU examples is running this script as follows:
+A helper bash script was created to fetch the latest version of "[depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up)" and "[Dawn](https://dawn.googlesource.com/dawn)". With this approach only the Dawn code base is fetched in order to build the WebGPU implementation using [CMake](https://cmake.org/) and without using the Chromium build system and dependency management.
+
+The first step into building the WebGPU examples is running this script as follows:
 
 ```bash
 $ cd external/dawn
