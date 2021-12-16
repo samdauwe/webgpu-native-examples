@@ -1,4 +1,5 @@
-# !/bin/bash
+#!/bin/bash
+set -e
 
 ## ---------------------------------------------------------------------------------------------- #
  # Build script for Dawn, a WebGPU implementation.
@@ -112,83 +113,5 @@ pull_dawn() {
     cd "$WORKING_DIR"
 }
 
-execute_build() {
-    WORKING_DIR=`pwd`
-    cd "$DAWN_ROOT"
-
-    # Set architecture
-    if [ "$DAWN_ARCH" = "x86" ] ;
-    then
-        ARCH="x86"
-    elif [ "$DAWN_ARCH" = "x86_64" ] ;
-    then
-        ARCH="x64"
-    fi
-
-    # Set build mode
-    if [ "$DAWN_DEBUG" = "true" ] ;
-    then
-        BUILD_TYPE="Debug"
-        DEBUG_ARG='is_debug=true symbol_level=1'
-    else
-        BUILD_TYPE="Release"
-        DEBUG_ARG='is_debug=false symbol_level=0 dcheck_always_on=true'
-    fi
-
-    # Generate build files
-    ARCH_OUT="out-linux-${DAWN_ARCH}"
-    export DAWN_BUILD_DIR="$DAWN_ROOT/$ARCH_OUT/$BUILD_TYPE"
-    echo "Generate projects using GN"
-    gn gen "$ARCH_OUT/$BUILD_TYPE" --args="$DEBUG_ARG target_os=\"linux\" target_cpu=\"${ARCH}\" is_component_build=true is_clang=true"
-
-    # Build dawn
-    echo "Build Dawn in $BUILD_TYPE mode (arch: ${DAWN_ARCH})"
-    exec_ninja "$ARCH_OUT/$BUILD_TYPE"
-
-    # Verify the build actually worked
-    if [ $? -eq 0 ]; then
-        cd "$WORKING_DIR"
-        echo "$BUILD_TYPE build for Dawn complete!"
-    else
-        echo "$BUILD_TYPE build for Dawn failed!"
-    fi
-}
-
-install_dawn() {
-    # Install headers
-    echo "Install Dawn headers"
-    create_directory_if_not_found "include/dawn"
-    cp "$DAWN_BUILD_DIR/gen/src/include/dawn/webgpu.h" "include/dawn"
-    cp "$DAWN_BUILD_DIR/gen/src/include/dawn/dawn_proc_table.h" "include/dawn"
-    cp "$DAWN_BUILD_DIR/gen/src/include/dawn/webgpu_cpp.h" "include/dawn"
-    cp "$DAWN_ROOT/src/include/dawn/EnumClassBitmasks.h" "include/dawn"
-    cp "$DAWN_ROOT/src/include/dawn/dawn_proc.h" "include/dawn"
-    cp "$DAWN_ROOT/src/include/dawn/dawn_wsi.h" "include/dawn"
-
-    create_directory_if_not_found "include/dawn_native"
-    cp "$DAWN_ROOT/src/include/dawn_native/DawnNative.h" "include/dawn_native"
-    cp "$DAWN_ROOT/src/include/dawn_native/dawn_native_export.h" "include/dawn_native"
-    cp "$DAWN_ROOT/src/include/dawn_native/VulkanBackend.h" "include/dawn_native"
-    cp "$DAWN_ROOT/src/include/dawn_native/NullBackend.h" "include/dawn_native"
-
-    # Install shared libraries
-    echo "Install Dawn shared libraries"
-    create_directory_if_not_found "lib"
-    cp "$DAWN_BUILD_DIR/libc++.so" "lib"
-    cp "$DAWN_BUILD_DIR/libdawn_native.so" "lib"
-    cp "$DAWN_BUILD_DIR/libdawn_platform.so" "lib"
-    cp "$DAWN_BUILD_DIR/libdawn_proc.so" "lib"
-}
-
-# Build google Dawn
-# Ref: https://dawn.googlesource.com/dawn/+/HEAD/docs/building.md
-build_dawn() {
-    pull_depot_tools
-    pull_dawn
-
-    export DAWN_DEBUG=false
-    export DAWN_ARCH=x86_64
-    execute_build
-    install_dawn
-}
-build_dawn
+pull_depot_tools
+pull_dawn

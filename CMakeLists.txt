@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.17)
 set(NAME webgpu-native-examples)
 project(${NAME} LANGUAGES C CXX)
 
+# Build type
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 # Architecture string.
 set(ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Override CPU architecture")
 string(REGEX REPLACE "amd64" "x86_64" KERNEL_ARCH "${ARCH}")
@@ -19,8 +24,63 @@ set(BUILD_DIR ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}${ARCH})
 # Dependencies
 # ==============================================================================
 
+# Google Dawn
+set(DAWN_ENABLE_PIC        ON CACHE BOOL "Position-Independent-Code")
+set(DAWN_ENABLE_DESKTOP_GL OFF CACHE BOOL "OpenGL backend")
+set(DAWN_ENABLE_OPENGLES   OFF CACHE BOOL "OpenGL ES backend")
+set(DAWN_BUILD_EXAMPLES    OFF CACHE BOOL "Dawn examples")
+set(TINT_BUILD_SAMPLES     OFF CACHE BOOL "Tint examples")
+set(TINT_BUILD_GLSL_WRITER OFF CACHE BOOL "OpenGL SL writer")
+
+if (WIN32)
+  set(TINT_BUILD_MSL_WRITER  OFF CACHE BOOL "Metal SL writer")
+  set(TINT_BUILD_SPV_WRITER  OFF CACHE BOOL "SPIR-V writer")
+elseif(UNIX)
+  set(TINT_BUILD_MSL_WRITER  OFF CACHE BOOL "Metal SL writer")
+  set(TINT_BUILD_HLSL_WRITER OFF CACHE BOOL "DirectX SL writer")
+endif()
+
+add_subdirectory(external/dawn/dawn dawn EXCLUDE_FROM_ALL)
+set(DAWN_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/dawn)
+
 # WebGPU native
-add_subdirectory(lib/wgpu_native)
+set(HEADERS
+  lib/wgpu_native/wgpu_native.h
+)
+
+if(WIN32)
+    # nothing to do for now
+elseif(APPLE)
+    # nothing to do for now
+else()
+    set(SOURCES ${SOURCES} lib/wgpu_native/wgpu_native_linux.cpp)
+endif()
+
+set(TARGET wgpu_native)
+
+add_library(${TARGET} SHARED ${HEADERS} ${SOURCES})
+set_property(TARGET ${TARGET} PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(${TARGET} PROPERTIES
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY ${BUILD_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR}
+    SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
+)
+target_include_directories(${TARGET}
+  PRIVATE
+    ${DAWN_BINARY_DIR}/gen/src/include/dawn # <webgpu.h>
+)
+
+target_link_libraries(${TARGET}
+  PRIVATE
+    dawncpp
+    dawn_proc
+    dawn_common
+    dawn_platform
+    dawn_native
+    dawn_utils
+    dawn_internal_config  # for definitions DAWN_ENABLE_BACKEND_*
+)
 
 # pthread
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -219,7 +279,7 @@ elseif(APPLE)
     # nothing to do for now
 else()
     target_include_directories(${TARGET}
-        PRIVATE "../lib/wgpu_native"
+        PRIVATE ${DAWN_BINARY_DIR}/gen/src/include
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cimgui
@@ -236,15 +296,19 @@ endif()
 
 if(WIN32)
     # nothing to do for now
-elseif(APPLE)
-    target_link_libraries(${TARGET} PRIVATE "-framework Cocoa")
 else()
+    set_target_properties(${TARGET} PROPERTIES LINK_FLAGS "-Wl,-rpath,./")
     target_link_libraries(${TARGET} PRIVATE
       m
       X11
       ${Vulkan_LIBRARIES}
       Threads::Threads
       PkgConfig::LIBAV
+      dawncpp
+      dawn_proc
+      dawn_common
+      dawn_platform
+      dawn_native
       wgpu_native
     )
 endif()

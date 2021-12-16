@@ -2,10 +2,6 @@
 
 #include <string.h>
 
-#if __has_include("vulkan/vulkan.h")
-#define DAWN_ENABLE_BACKEND_VULKAN
-#endif
-
 #ifdef DAWN_ENABLE_BACKEND_VULKAN
 #include <vulkan/vulkan.h>
 #endif
@@ -213,11 +209,10 @@ WGPUDevice wgpu_create_device(WGPUBackendType type)
   if (dawn_native::Adapter adapter = impl::requestAdapter(type)) {
     wgpu::AdapterProperties properties;
     adapter.GetProperties(&properties);
-    dawn_native::DeviceDescriptor devDesc;
     impl::adapterName = properties.name;
     impl::backend = static_cast<WGPUBackendType>(properties.backendType);
     impl::backendTypeStr = impl::backendTypeName(properties.backendType);
-    impl::device  = adapter.CreateDevice(&devDesc);
+    impl::device  = adapter.CreateDevice();
     if (!impl::device) {
       impl::device = adapter.CreateDevice();
     }
