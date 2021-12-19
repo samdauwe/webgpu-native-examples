@@ -148,6 +148,24 @@ The demonstration here is implemented by rendering a triangle to a low-resolutio
 
 Note: Conservative rasterization not supported in Google Dawn.
 
+#### [Wireframe and Thick-Line Rendering](src/examples/wireframe_vertex_pulling.c)
+
+This example shows how to render a single indexed triangle model as mesh, wireframe, or wireframe with thick lines, without the need to generate additional buffers for line rendering.
+
+Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to let the vertex shader decide which vertices to load, which allows us to render indexed triangle meshes as wireframes or even thick-wireframes.
+
+<ul>
+    <li>
+        A normal wireframe is obtained by drawing 3 lines (6 vertices) per triangle.
+        The vertex shader then uses the index buffer to load the triangle vertices in the order in which we need them to draw lines.
+    </li>
+    <li>
+        A thick wireframe is obtained by rendering each of the 3 lines of a triangle as a quad (comprising 2 triangles).
+        For each triangle of the indexed model, we are drawing a total of 3 lines/quads = 6 triangles = 18 vertices.
+        Each of these 18 vertices belongs to one of three lines, and each vertex shader invocation loads the start and end of the corresponding line. The line is then projected to screen space, and the orthoginal of the screen-space line direction is used to shift the vertices of each quad into the appropriate directions to obtain a thick line.
+    </li>
+</ul>
+
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
@@ -297,6 +315,7 @@ A huge thanks to the authors of the folowing repositories who demonstrated the u
 * [webgpu-samples](https://github.com/austinEng/webgpu-samples)
 * [Vulkan C++ examples and demos](https://github.com/SaschaWillems/Vulkan)
 * [Awesome WebGPU](https://github.com/mikbry/awesome-webgpu)
+* [Markus Schütz](https://github.com/m-schuetz) ([@m_schuetz](https://twitter.com/m_schuetz))
 
 ## References
 

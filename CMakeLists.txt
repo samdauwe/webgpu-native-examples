@@ -209,6 +209,7 @@ set(SOURCES
     src/examples/triangle.c
     src/examples/two_cubes.c
     src/examples/video_uploading.c
+    src/examples/wireframe_vertex_pulling.c
 )
 
 if(WIN32)

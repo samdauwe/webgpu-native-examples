@@ -43,6 +43,7 @@ void example_textured_quad(int argc, char* argv[]);
 void example_triangle(int argc, char* argv[]);
 void example_two_cubes(int argc, char* argv[]);
 void example_video_uploading(int argc, char* argv[]);
+void example_wireframe_vertex_pulling(int argc, char* argv[]);
 
 static examplecase_t g_example_cases[] = {
   {"animometer", example_animometer},
@@ -82,6 +83,7 @@ static examplecase_t g_example_cases[] = {
   {"triangle", example_triangle},
   {"two_cubes", example_two_cubes},
   {"video_uploading", example_video_uploading},
+  {"wireframe_vertex_pulling", example_wireframe_vertex_pulling},
 };
 
 static int get_number_of_examples()
