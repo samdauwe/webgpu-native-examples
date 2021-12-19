@@ -16,6 +16,21 @@ typedef struct cube_mesh_t {
 void cube_mesh_init(cube_mesh_t* cube_mesh);
 
 /* -------------------------------------------------------------------------- *
+ * Indexed cube mesh
+ * -------------------------------------------------------------------------- */
+
+typedef struct indexed_cube_mesh_t {
+  uint64_t vertex_count;
+  uint64_t index_count;
+  uint64_t color_count;
+  float vertex_array[3 * 8];
+  uint32_t index_array[2 * 3 * 6];
+  uint8_t color_array[4 * 8];
+} indexed_cube_mesh_t;
+
+void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh);
+
+/* -------------------------------------------------------------------------- *
  * Stanford Dragon
  * -------------------------------------------------------------------------- */
 

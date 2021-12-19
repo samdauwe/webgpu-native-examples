@@ -66,6 +66,57 @@ void cube_mesh_init(cube_mesh_t* cube_mesh)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Indexed cube mesh
+ * -------------------------------------------------------------------------- */
+
+void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh)
+{
+  (*cube_mesh) = (indexed_cube_mesh_t) {
+    .vertex_count = 8,
+    .index_count = 2 * 3 * 6,
+    .color_count = 8,
+    .vertex_array = {
+      -1.0f, -1.0f, -1.0f, // 0
+       1.0f, -1.0f, -1.0f, // 1
+       1.0f, -1.0f,  1.0f, // 2
+      -1.0f, -1.0f,  1.0f, // 3
+      -1.0f,  1.0f, -1.0f, // 4
+       1.0f,  1.0f, -1.0f, // 5
+       1.0f,  1.0f,  1.0f, // 6
+      -1.0f,  1.0f,  1.0f, // 7
+    },
+    .index_array = {
+      // BOTTOM
+      0, 1, 2, /* */  0, 2, 3,
+      // TOP
+      4, 5, 6,  /* */  4, 6, 7,
+      // FRONT
+      3, 2, 6,  /* */  3, 6, 7,
+      // BACK
+      1, 0, 4,  /* */  1, 4, 5,
+      // LEFT
+      3, 0, 7,  /* */  0, 7, 4,
+      // RIGHT
+      2, 1, 6,  /* */  1, 6, 5,
+    },
+  };
+
+  float* vertices = cube_mesh->vertex_array;
+  uint8_t* colors = cube_mesh->color_array;
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  for (uint8_t i = 0; i < 8; ++i) {
+    x = vertices[3 * i + 0];
+    y = vertices[3 * i + 1];
+    z = vertices[3 * i + 2];
+
+    colors[4 * i + 0] = 255 * (x + 1) / 2;
+    colors[4 * i + 1] = 255 * (y + 1) / 2;
+    colors[4 * i + 2] = 255 * (z + 1) / 2;
+    colors[4 * i + 3] = 255;
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Stanford Dragon
  * -------------------------------------------------------------------------- */
 
