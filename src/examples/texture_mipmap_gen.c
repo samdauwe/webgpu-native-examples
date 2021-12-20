@@ -75,8 +75,8 @@ static void setup_camera(wgpu_example_context_t* context)
   context->camera->type = CameraType_FirstPerson;
   camera_set_perspective(context->camera, 60.0f,
                          context->window_size.aspect_ratio, 0.1f, 1024.0f);
-  camera_set_rotation(context->camera, (vec3){90.0f, 90.0f, 0.0f});
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, 0.0f});
+  camera_set_rotation(context->camera, (vec3){0.0f, 90.0f, 0.0f});
+  camera_set_translation(context->camera, (vec3){40.75f, 0.0f, 0.0f});
   camera_set_movement_speed(context->camera, 2.5f);
   camera_set_rotation_speed(context->camera, 0.5f);
   context->timer_speed *= 0.05f;
@@ -244,7 +244,6 @@ static void load_assets(wgpu_context_t* wgpu_context)
 {
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
-      | WGPU_GLTF_FileLoadingFlags_FlipY
       | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   model = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
     .wgpu_context       = wgpu_context,
@@ -478,7 +477,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.view);
   glm_mat4_identity(ubo_vs.model);
   glm_rotate(ubo_vs.model, glm_rad(context->timer * 360.0f),
-             (vec3){0.0f, 1.0f, 0.0f});
+             (vec3){1.0f, 0.0f, 0.0f});
   glm_vec4(context->camera->position, 0.0f, ubo_vs.view_pos);
   glm_vec4_mul(ubo_vs.view_pos, (vec4){-1.0f, 0.0f, 0.0f, 0.0f},
                ubo_vs.view_pos);

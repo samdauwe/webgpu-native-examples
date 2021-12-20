@@ -89,7 +89,6 @@ static void load_assets(wgpu_context_t* wgpu_context)
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
       | WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors
-      | WGPU_GLTF_FileLoadingFlags_FlipY
       | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   models.plane
     = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
@@ -420,7 +419,6 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   identity_mtx[1][1] = scale;
   identity_mtx[2][2] = scale;
   glm_mat4_copy(identity_mtx, ubo_vs.model);
-  glm_rotate(ubo_vs.model, glm_rad(90), (vec3){1.0f, 0.0f, 0.0f});
   glm_vec4_copy((vec4){0.0f, 0.0f, 1.0f, 0.5f}, ubo_vs.color);
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.occluder, 0,
                           &ubo_vs, sizeof(ubo_vs));
