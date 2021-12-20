@@ -726,12 +726,13 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
       if (primitive->indices == NULL) {
         continue;
       }
-      uint32_t index_start      = *index_count;
-      uint32_t vertex_start     = *vertex_count;
-      uint32_t prim_index_count = 0;
-      vec3 pos_min              = GLM_VEC3_ZERO_INIT;
-      vec3 pos_max              = GLM_VEC3_ZERO_INIT;
-      bool has_skin             = false;
+      uint32_t index_start       = *index_count;
+      uint32_t vertex_start      = *vertex_count;
+      uint32_t prim_index_count  = 0;
+      uint32_t prim_vertex_count = 0;
+      vec3 pos_min               = GLM_VEC3_ZERO_INIT;
+      vec3 pos_max               = GLM_VEC3_ZERO_INIT;
+      bool has_skin              = false;
 
       // Vertices
       {
@@ -833,7 +834,9 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
         // Position attribute is required
         ASSERT(pos_accessor != NULL);
 
-        *vertex_count += (uint32_t)pos_accessor->count;
+        prim_vertex_count = (uint32_t)pos_accessor->count;
+
+        *vertex_count += prim_vertex_count;
         *vertices = realloc(*vertices, (*vertex_count) * sizeof(gltf_vertex_t));
 
         // Append data to model's vertex buffer
@@ -940,6 +943,8 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
       gltf_primitive_init(
         &new_primitive, index_start, prim_index_count,
         &model->materials[primitive->material - data->materials]);
+      new_primitive.first_vertex = vertex_start;
+      new_primitive.vertex_count = prim_vertex_count;
       gltf_primitive_set_dimensions(&new_primitive, pos_min, pos_max);
       new_mesh->primitives[i] = new_primitive;
     }
