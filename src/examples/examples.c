@@ -30,6 +30,7 @@ void example_instanced_cube(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
 void example_multi_sampling(int argc, char* argv[]);
 void example_occlusion_query(int argc, char* argv[]);
+void example_offscreen_rendering(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
 void example_reversed_z(int argc, char* argv[]);
@@ -70,6 +71,7 @@ static examplecase_t g_example_cases[] = {
   {"msaa_line", example_msaa_line},
   {"multi_sampling", example_multi_sampling},
   {"occlusion_query", example_occlusion_query},
+  {"offscreen_rendering", example_offscreen_rendering},
   {"parallax_mapping", example_parallax_mapping},
   {"pbr_basic", example_pbr_basic},
   /* {"reversed_z", example_reversed_z}, */
