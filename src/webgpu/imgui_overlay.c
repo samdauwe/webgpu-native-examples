@@ -787,6 +787,15 @@ bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
   return res;
 }
 
+bool imgui_overlay_button(imgui_overlay_t* imgui_overlay, const char* caption)
+{
+  bool res = igSmallButton(caption);
+  if (res) {
+    imgui_overlay->updated = true;
+  };
+  return res;
+}
+
 void imgui_overlay_text(const char* format_str, ...)
 {
   va_list args;

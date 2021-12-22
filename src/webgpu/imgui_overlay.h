@@ -40,6 +40,7 @@ bool imgui_overlay_slider_int(imgui_overlay_t* imgui_overlay,
 bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
                              const char* caption, int32_t* item_index,
                              const char** items, uint32_t item_count);
+bool imgui_overlay_button(imgui_overlay_t* imgui_overlay, const char* caption);
 void imgui_overlay_text(const char* format_str, ...);
 
 #endif
