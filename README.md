@@ -204,6 +204,10 @@ This example shows how to sample from a depth texture to render shadows from a d
 
 Generating a complete mip-chain at runtime instead of loading it from a file, by blitting from one mip level, starting with the actual texture image, down to the next smaller size until the lower 1x1 pixel end of the mip chain.
 
+#### [Capturing screenshots](src/examples/screenshot.c)
+
+This example shows how to capture an image by rendering a scene to a texture, copying the texture to a buffer, and retrieving the image from the buffer so that it can be stored into a png image. Two render pipelines are used in this example: one for rendering the scene in a window and another pipeline for offscreen rendering. Note that a single offscreen render pipeline would be sufficient for "taking a screenshot," with the added benefit that this method would not require a window to be created.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)

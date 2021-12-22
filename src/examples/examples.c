@@ -34,6 +34,7 @@ void example_offscreen_rendering(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
 void example_reversed_z(int argc, char* argv[]);
+void example_screenshot(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
 void example_shadow_mapping(int argc, char* argv[]);
 void example_skybox(int argc, char* argv[]);
@@ -75,6 +76,7 @@ static examplecase_t g_example_cases[] = {
   {"parallax_mapping", example_parallax_mapping},
   {"pbr_basic", example_pbr_basic},
   /* {"reversed_z", example_reversed_z}, */
+  {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
   {"skybox", example_skybox},

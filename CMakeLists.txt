@@ -200,6 +200,7 @@ set(SOURCES
     src/examples/parallax_mapping.c
     src/examples/pbr_basic.c
     src/examples/reversed_z.c
+    src/examples/screenshot.c
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c
     src/examples/skybox.c
