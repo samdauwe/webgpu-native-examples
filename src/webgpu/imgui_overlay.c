@@ -186,8 +186,9 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
     // Submit to the queue
     wgpuQueueSubmit(wgpu_context->queue, 1, &copy_command);
 
-    // Release command buffer
+    // Release command buffer and staging buffer
     WGPU_RELEASE_RESOURCE(CommandBuffer, copy_command)
+    wgpu_destroy_buffer(&gpu_buffer);
 
     // Create texture view
     WGPUTextureViewDescriptor texture_view_desc = {
@@ -297,7 +298,7 @@ static void imgui_overlay_setup_pipeline_layout(imgui_overlay_t* imgui_overlay)
       }
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .entryCount = 3,
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
     imgui_overlay->bind_group_layout
