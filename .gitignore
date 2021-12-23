@@ -61,3 +61,6 @@ __pycache__
 
 # Backup example files
 /src/examples/*.bak
+
+# Docker related files
+.Xauthority
