@@ -81,6 +81,11 @@ void wgpu_setup_deph_stencil(
   wgpu_context_t* wgpu_context,
   struct deph_stencil_texture_creation_options_t* options)
 {
+  if ((wgpu_context->depth_stencil.texture != NULL)
+      && (wgpu_context->depth_stencil.texture_view != NULL)) {
+    return;
+  }
+
   WGPUTextureFormat format = options != NULL ?
                                (options->format != WGPUTextureFormat_Undefined ?
                                   options->format :
