@@ -65,7 +65,7 @@ pull_depot_tools() {
         cd "$DEPOT_TOOLS"
 
         echo "Pull the depot tools down to the latest"
-        git pull
+        git pull origin main
     fi
 
     # Navigate back
