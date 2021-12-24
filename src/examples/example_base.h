@@ -21,6 +21,8 @@ typedef struct {
   char example_title[STRMAX];
   // Backend info
   char adapter_info[2][256]; // 0: adapter name, 1: backend name
+  // Frame counter to display fps
+  uint32_t frame_counter;
   // Used to display fps
   uint32_t last_fps;
   // ImGui overlay
@@ -61,6 +63,7 @@ typedef int renderfunc_t(wgpu_example_context_t* context);
 typedef void destroyfunc_t(wgpu_example_context_t* context);
 typedef void onviewchangedfunc_t(wgpu_example_context_t* context);
 typedef void onupdateuioverlayfunc_t(wgpu_example_context_t* context);
+typedef void onkeypressedfunc_t(keycode_t key);
 
 typedef struct {
   wgpu_example_settings_t example_settings;
@@ -69,6 +72,7 @@ typedef struct {
   renderfunc_t* example_render_func;
   destroyfunc_t* example_destroy_func;
   onviewchangedfunc_t* example_on_view_changed_func;
+  onkeypressedfunc_t* example_on_key_pressed_func;
 } refexport_t;
 
 /* Helper functions */

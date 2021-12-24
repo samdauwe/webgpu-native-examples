@@ -32,6 +32,7 @@ typedef struct {
   /* key press */
   bool keys[KEY_NUM];
   bool keys_changed;
+  int32_t last_key_pressed;
   /* timings */
   uint32_t frame_counter;
   float last_timestamp;
@@ -64,6 +65,9 @@ static void key_callback(window_t* window, keycode_t key, int pressed)
   record_t* record     = (record_t*)window_get_userdata(window);
   record->keys[key]    = pressed ? true : false;
   record->keys_changed = true;
+  if (!pressed) {
+    record->last_key_pressed = key;
+  }
 }
 
 static void scroll_callback(window_t* window, float offset)
@@ -180,6 +184,16 @@ static void update_input_state(wgpu_example_context_t* context,
 }
 
 static void
+notify_key_input_state(record_t* record,
+                       onkeypressedfunc_t* example_on_key_pressed_func)
+{
+  if (record->last_key_pressed != KEY_UNKNOWN) {
+    example_on_key_pressed_func(record->last_key_pressed);
+    record->last_key_pressed = KEY_UNKNOWN;
+  }
+}
+
+static void
 intialize_wgpu_example_context(wgpu_example_context_t* context,
                                wgpu_example_settings_t* example_settings)
 {
@@ -190,7 +204,8 @@ intialize_wgpu_example_context(wgpu_example_context_t* context,
            example_settings->title);
 
   // FPS
-  context->last_fps = 0;
+  context->frame_counter = 0;
+  context->last_fps      = 0;
 
   // Timers
   context->run_time    = 0.0f;
@@ -298,7 +313,8 @@ update_overlay(wgpu_example_context_t* context,
 
 static void render_loop(wgpu_example_context_t* context,
                         renderfunc_t* render_func,
-                        onviewchangedfunc_t* view_changed_func)
+                        onviewchangedfunc_t* view_changed_func,
+                        onkeypressedfunc_t* example_on_key_pressed_func)
 {
   record_t record;
   memset(&record, 0, sizeof(record_t));
@@ -326,6 +342,9 @@ static void render_loop(wgpu_example_context_t* context,
     context->run_time += context->frame_timer;
     update_camera(context, &record);
     update_input_state(context, &record);
+    if (example_on_key_pressed_func) {
+      notify_key_input_state(&record, example_on_key_pressed_func);
+    }
     // Convert to clamped timer value
     if (!context->paused) {
       context->timer += context->timer_speed * record.frame_timer;
@@ -343,6 +362,7 @@ static void render_loop(wgpu_example_context_t* context,
       record.frame_counter  = 0;
       record.last_timestamp = time_end;
     }
+    context->frame_counter = record.frame_counter;
   }
 }
 
@@ -398,7 +418,8 @@ void example_run(int argc, char* argv[], refexport_t* ref_export)
   ref_export->example_initialize_func(&context);
   // Render loop
   render_loop(&context, ref_export->example_render_func,
-              ref_export->example_on_view_changed_func);
+              ref_export->example_on_view_changed_func,
+              ref_export->example_on_key_pressed_func);
   // Cleanup
   ref_export->example_destroy_func(&context);
   release_imgui(&context);
