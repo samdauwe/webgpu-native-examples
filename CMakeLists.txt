@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.16)
 set(NAME webgpu-native-examples)
 project(${NAME} LANGUAGES C CXX)
 
@@ -148,6 +148,7 @@ set(HEADERS
     src/webgpu/gltf_model.h
     src/webgpu/imgui_overlay.h
     src/webgpu/shader.h
+    src/webgpu/text_overlay.h
     src/webgpu/texture.h
 )
 
@@ -166,6 +167,7 @@ set(SOURCES
     src/webgpu/gltf_model.c
     src/webgpu/imgui_overlay.c
     src/webgpu/shader.c
+    src/webgpu/text_overlay.c
     src/webgpu/texture.c
 )
 
@@ -205,6 +207,7 @@ set(SOURCES
     src/examples/shadow_mapping.c
     src/examples/skybox.c
     src/examples/terrain_mesh.c
+    src/examples/text_overlay.c
     src/examples/texture_mipmap_gen.c
     src/examples/textured_cube.c
     src/examples/textured_quad.c

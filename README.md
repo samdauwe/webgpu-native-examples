@@ -270,6 +270,10 @@ Simple GPU ray tracer with shadows and reflections using a compute shader. No sc
 
 ### User Interface
 
+#### [Text rendering](src/examples/text_overlay.c)
+
+Load and render a 2D text overlay created from the bitmap glyph data of a [stb font file](https://nothings.org/stb/font/). This data is uploaded as a texture and used for displaying text on top of a 3D scene in a second pass.
+
 #### [ImGui overlay](src/examples/imgui_overlay.c)
 
 Generates and renders a complex user interface with multiple windows, controls and user interaction on top of a 3D scene. The UI is generated using [Dear ImGUI](https://github.com/ocornut/imgui) and updated each frame.
