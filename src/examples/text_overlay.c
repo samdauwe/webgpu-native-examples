@@ -232,6 +232,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+
+  // Shader modules are no longer needed once the graphics pipeline has been
+  // created
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
@@ -368,7 +373,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
 
-  // Draw plane
+  // Draw model
   wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
