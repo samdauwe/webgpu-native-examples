@@ -206,6 +206,7 @@ set(SOURCES
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c
     src/examples/skybox.c
+    src/examples/stencil_buffer.c
     src/examples/terrain_mesh.c
     src/examples/text_overlay.c
     src/examples/texture_mipmap_gen.c

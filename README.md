@@ -170,6 +170,10 @@ Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to
 
 Basic offscreen rendering in two passes. First pass renders the mirrored scene to a separate framebuffer with color and depth attachments, second pass samples from that color attachment for rendering a mirror surface.
 
+#### [Stencil buffer](src/examples/stencil_buffer.c)
+
+Uses the stencil buffer and its compare functionality for rendering a 3D model with dynamic outlines.
+
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
