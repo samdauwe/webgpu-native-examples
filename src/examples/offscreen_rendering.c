@@ -485,7 +485,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .targets = &color_target_state_desc,
             });
 
-    // Create solid pipeline
+    // Create debug pipeline
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.debug
@@ -521,7 +521,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .targets = &color_target_state_desc,
             });
 
-    // Create solid pipeline
+    // Create mirror pipeline
     pipeline_desc.vertex   = vertex_state_desc;
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.mirror
