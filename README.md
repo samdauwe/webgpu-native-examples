@@ -31,11 +31,11 @@ $ git submodule init
 $ git submodule update
 ```
 
-## Building
+## Building for native with Dawn
 
-### For Native with Dawn
+The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard.
 
-The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard. 
+### GNU/Linux
 
 A helper bash script was created to fetch the latest version of "[depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up)" and "[Dawn](https://dawn.googlesource.com/dawn)". With this approach only the Dawn code base is fetched in order to build the WebGPU implementation using [CMake](https://cmake.org/) and without using the Chromium build system and dependency management.
 
@@ -57,6 +57,34 @@ $ cmake ..
 $ make all
 ```
 
+### Docker container
+
+To build and run the examples inside a [Docker](https://www.docker.com/) container, follow the steps as described below.
+
+Build the Docker image:
+
+```bash
+$ bash ./build.sh -docker_build
+```
+
+Run the Docker container:
+
+```bash
+$ bash ./build.sh -docker_run
+```
+
+Once the docker container is running, update to the latest version of "depot_tools" and "Dawn":
+
+```bash
+$ bash ./build.sh -update_dawn
+```
+
+Finally, build the samples
+
+```bash
+$ bash ./build.sh -webgpu_native_examples
+```
+
 ## Running the examples
 
 ### Linux
@@ -73,6 +101,7 @@ $ ./wgpu_sample_launcher shadertoy
 ├─ 📂 assets/         # Assets (models, textures, shaders, etc.)
 ├─ 📂 doc/            # Documentation files
 │  └─ 📁 images         # WebGPU diagram, logo
+├─ 📂 docker/         # Contains the Dockerfile for building Docker image
 ├─ 📂 external/       # Dependencies dependencies
 │  ├─ 📁 cglm           # Highly Optimized Graphics Math (glm) for C
 │  ├─ 📁 dawn           # WebGPU implementation
