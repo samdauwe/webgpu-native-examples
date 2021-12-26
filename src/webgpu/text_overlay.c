@@ -1,5 +1,6 @@
 #include "text_overlay.h"
 
+#include <stdarg.h>
 #include <string.h>
 
 #include <cglm/cglm.h>
