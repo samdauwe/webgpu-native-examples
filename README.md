@@ -79,6 +79,14 @@ Once the docker container is running, update to the latest version of "depot_too
 $ bash ./build.sh -update_dawn
 ```
 
+Note: The build toolchain from depot_tools will not be used for building Dawn. Therefore, if this steps fails when extracting the build toolchains (i.e. debian_sid_i386_sysroot.tar.xz) and you see an error similar to this:
+
+```
+tar: .: Cannot change ownership to uid 416578, gid 89939: Invalid argument
+```
+
+then just ignore this error, because the required Dawn source code is already fetched at this point.
+
 Finally, build the samples
 
 ```bash
