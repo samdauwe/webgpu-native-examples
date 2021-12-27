@@ -10,7 +10,7 @@ int main(int argc, char* argv[])
   examplecase_t* example = NULL;
 
   srand((unsigned int)time(NULL));
-  platform_initialize();
+  initialize_default_path();
 
   const char* example_name = argv[1];
   example = argc > 1 ? get_example_by_name(example_name) : get_random_example();
@@ -23,8 +23,6 @@ int main(int argc, char* argv[])
     log_error("Example not found: %s\n", example_name);
     log_example_names();
   }
-
-  platform_terminate();
 
   return EXIT_SUCCESS;
 }

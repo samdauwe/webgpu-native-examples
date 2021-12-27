@@ -129,6 +129,19 @@ typedef enum keycode_t {
   KEY_NUM,
 } keycode_t;
 
-typedef enum button_t { BUTTON_L, BUTTON_M, BUTTON_R, BUTTON_NUM } button_t;
+typedef enum button_t {
+  BUTTON_UNDEFINED,
+  BUTTON_LEFT,
+  BUTTON_MIDDLE,
+  BUTTON_RIGHT,
+  BUTTON_NUM
+} button_t;
+
+typedef enum button_action_t {
+  BUTTON_ACTION_UNDEFINED,
+  BUTTON_ACTION_PRESS,
+  BUTTON_ACTION_RELEASE,
+  BUTTON_ACTION_NUM,
+} button_action_t;
 
 #endif

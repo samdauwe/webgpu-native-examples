@@ -50,31 +50,52 @@ static void get_cursor_pos(window_t* window, vec2* result)
   input_query_cursor(window, &(*result)[0], &(*result)[1]);
 }
 
-static void button_callback(window_t* window, button_t button, int pressed)
+static void mouse_button_callback(window_t* window, int ctrl_key, int shift_key,
+                                  float mouse_x, float mouse_y, button_t button,
+                                  button_action_t button_action)
 {
-  record_t* record = (record_t*)window_get_userdata(window);
-  get_cursor_pos(window, &record->cursor_pos);
+  UNUSED_VAR(ctrl_key);
+  UNUSED_VAR(shift_key);
 
-  record->buttons[BUTTON_L] = (button == BUTTON_L) && pressed;
-  record->buttons[BUTTON_M] = (button == BUTTON_M) && pressed;
-  record->buttons[BUTTON_R] = (button == BUTTON_R) && pressed;
+  record_t* record = (record_t*)window_get_userdata(window);
+
+  record->cursor_pos[0] = mouse_x;
+  record->cursor_pos[1] = mouse_y;
+  bool pressed          = button_action == BUTTON_ACTION_PRESS;
+
+  record->buttons[BUTTON_LEFT]   = (button == BUTTON_LEFT) && pressed;
+  record->buttons[BUTTON_MIDDLE] = (button == BUTTON_MIDDLE) && pressed;
+  record->buttons[BUTTON_RIGHT]  = (button == BUTTON_RIGHT) && pressed;
 }
 
-static void key_callback(window_t* window, keycode_t key, int pressed)
+static void key_callback(window_t* window, int ctrl_key, int shift_key,
+                         keycode_t key_code, button_action_t button_action)
 {
-  record_t* record     = (record_t*)window_get_userdata(window);
-  record->keys[key]    = pressed ? true : false;
-  record->keys_changed = true;
+  UNUSED_VAR(ctrl_key);
+  UNUSED_VAR(shift_key);
+
+  record_t* record = (record_t*)window_get_userdata(window);
+  bool pressed     = button_action == BUTTON_ACTION_PRESS;
+
+  record->keys[key_code] = pressed ? true : false;
+  record->keys_changed   = true;
   if (!pressed) {
-    record->last_key_pressed = key;
+    record->last_key_pressed = key_code;
   }
 }
 
-static void scroll_callback(window_t* window, float offset)
+static void scroll_callback(window_t* window, int ctrl_key, int shift_key,
+                            float mouse_x, float mouse_y, float wheel_delta_y)
 {
-  record_t* record       = (record_t*)window_get_userdata(window);
+  UNUSED_VAR(ctrl_key);
+  UNUSED_VAR(shift_key);
+
+  record_t* record = (record_t*)window_get_userdata(window);
+
+  record->cursor_pos[0]  = mouse_x;
+  record->cursor_pos[1]  = mouse_y;
   record->mouse_scrolled = true;
-  record->wheel_delta += offset;
+  record->wheel_delta += wheel_delta_y;
 }
 
 static void resize_callback(window_t* window, int width, int height)
@@ -86,6 +107,7 @@ static void resize_callback(window_t* window, int width, int height)
   record->window_resized = true;
 }
 
+#if 0
 static void update_window_size(wgpu_example_context_t* context,
                                record_t* record)
 {
@@ -104,6 +126,7 @@ static void update_window_size(wgpu_example_context_t* context,
     record->window_resized = false;
   }
 }
+#endif
 
 static void update_camera(wgpu_example_context_t* context, record_t* record)
 {
@@ -133,19 +156,19 @@ static void update_camera(wgpu_example_context_t* context, record_t* record)
   }
 
   /* Mouse clicks */
-  if (record->buttons[BUTTON_L]) {
+  if (record->buttons[BUTTON_LEFT]) {
     camera_rotate(camera, (vec3){pos_delta[1] * camera->rotation_speed,
                                  -pos_delta[0] * camera->rotation_speed, 0.0f});
     record->view_updated = true;
   }
 
-  if (record->buttons[BUTTON_M]) {
+  if (record->buttons[BUTTON_MIDDLE]) {
     camera_translate(
       camera, (vec3){-pos_delta[0] * 0.01f, -pos_delta[1] * 0.01f, 0.0f});
     record->view_updated = true;
   }
 
-  if (record->buttons[BUTTON_R]) {
+  if (record->buttons[BUTTON_RIGHT]) {
     camera_translate(camera, (vec3){-0.0f, 0.0f, pos_delta[1] * 0.005f});
     record->view_updated = true;
   }
@@ -178,9 +201,9 @@ static void update_input_state(wgpu_example_context_t* context,
   get_cursor_pos(context->window, &context->mouse_position);
 
   // Mouse buttons state
-  context->mouse_buttons.left   = record->buttons[BUTTON_L];
-  context->mouse_buttons.right  = record->buttons[BUTTON_M];
-  context->mouse_buttons.middle = record->buttons[BUTTON_R];
+  context->mouse_buttons.left   = record->buttons[BUTTON_LEFT];
+  context->mouse_buttons.right  = record->buttons[BUTTON_MIDDLE];
+  context->mouse_buttons.middle = record->buttons[BUTTON_RIGHT];
 }
 
 static void
@@ -228,21 +251,23 @@ static void setup_window(wgpu_example_context_t* context,
   snprintf(window_title,
            strlen("WebGPU Example - ") + strlen(context->example_title) + 1,
            "WebGPU Example - %s", context->example_title);
-  context->window = window_create(
-    GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),            // title
-    GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH),   // width
-    GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT), // height
-    windows_config->resizable                                   // resizable
-  );
+  window_config_t config = {
+    .title = GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),          // title
+    .width = GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH), // width
+    .height
+    = GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT), // height
+    .resizable = windows_config->resizable                        // resizable
+  };
+  context->window = window_create(&config);
   window_get_size(context->window, &context->window_size.width,
                   &context->window_size.height);
   window_get_aspect_ratio(context->window, &context->window_size.aspect_ratio);
 
   memset(&context->callbacks, 0, sizeof(callbacks_t));
-  context->callbacks.button_callback = button_callback;
-  context->callbacks.key_callback    = key_callback;
-  context->callbacks.scroll_callback = scroll_callback;
-  context->callbacks.resize_callback = resize_callback;
+  context->callbacks.mouse_button_callback = mouse_button_callback;
+  context->callbacks.key_callback          = key_callback;
+  context->callbacks.scroll_callback       = scroll_callback;
+  context->callbacks.resize_callback       = resize_callback;
 
   input_set_callbacks(context->window, context->callbacks);
 }
@@ -253,9 +278,9 @@ static void intialize_webgpu(wgpu_example_context_t* context)
   context->wgpu_context->context = context;
 
   wgpu_create_device_and_queue(context->wgpu_context);
-  wgpu_create_surface(context->wgpu_context, context->window);
+  wgpu_setup_window_surface(context->wgpu_context, context->window);
   wgpu_setup_swap_chain(context->wgpu_context);
-  wgpu_get_context_info(context->adapter_info);
+  wgpu_get_context_info(context->wgpu_context, context->adapter_info);
 }
 
 static void intialize_imgui(wgpu_example_context_t* context,

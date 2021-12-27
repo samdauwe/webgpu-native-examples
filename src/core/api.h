@@ -5,8 +5,9 @@
 #include "file.h"
 #include "frustum.h"
 #include "input.h"
-#include "macro.h"
 #include "log.h"
+#include "macro.h"
 #include "platform.h"
+#include "window.h"
 
 #endif

@@ -6,6 +6,7 @@
 #include "../core/log.h"
 #include "../core/macro.h"
 #include "../core/platform.h"
+#include "../core/window.h"
 
 #include "../webgpu/buffer.h"
 #include "../webgpu/texture.h"
@@ -37,9 +38,22 @@ void wgpu_context_release(wgpu_context_t* wgpu_context)
 }
 
 /* WebGPU info functions */
-void wgpu_get_context_info(char (*adapter_info)[256])
+void wgpu_get_context_info(wgpu_context_t* wgpu_context,
+                           char (*adapter_info)[256])
 {
-  wgpu_get_adapter_info(adapter_info);
+  WGPUAdapterProperties adapterProperties = {0};
+  wgpuAdapterGetProperties(wgpu_context->adapter, &adapterProperties);
+
+  strncpy(adapter_info[0], adapterProperties.name, 256);
+#if defined(DAWN_ENABLE_BACKEND_D3D12)
+  strncpy(adapter_info[1], "D3D12", 256);
+#elif defined(DAWN_ENABLE_BACKEND_METAL)
+  strncpy(adapter_info[1], "Metal", 256);
+#elif defined(DAWN_ENABLE_BACKEND_VULKAN)
+  strncpy(adapter_info[1], "Vulkan", 256);
+#elif defined(DAWN_ENABLE_BACKEND_OPENGL)
+  strncpy(adapter_info[1], "OpenGL", 256);
+#endif
 }
 
 /* WebGPU context helper functions */
@@ -60,8 +74,14 @@ WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
 void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
 {
   wgpu_log_available_adapters();
+
+  /* WebGPU adapter creation */
+  wgpu_context->adapter = wgpu_request_adapter(NULL);
+
   /* WebGPU device creation */
-  wgpu_context->device = wgpu_create_device(WGPUBackendType_Vulkan);
+  WGPUDeviceDescriptor deviceDescriptor = {0};
+  wgpu_context->device
+    = wgpuAdapterCreateDevice(wgpu_context->adapter, &deviceDescriptor);
   wgpuDeviceSetUncapturedErrorCallback(
     wgpu_context->device, &wgpu_error_callback, (void*)wgpu_context);
 
@@ -69,10 +89,9 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   wgpu_context->queue = wgpuDeviceGetQueue(wgpu_context->device);
 }
 
-void wgpu_create_surface(wgpu_context_t* wgpu_context, void* window)
+void wgpu_setup_window_surface(wgpu_context_t* wgpu_context, void* window)
 {
-  wgpu_context->surface.instance
-    = window_get_surface(wgpu_context->device, (window_t*)window);
+  wgpu_context->surface.instance = window_get_surface((window_t*)window);
   window_get_size((window_t*)window, &wgpu_context->surface.width,
                   &wgpu_context->surface.height);
 }
@@ -132,13 +151,24 @@ void wgpu_setup_deph_stencil(
 
 void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context)
 {
-  wgpu_context->swap_chain.instance = wgpu_create_swap_chain(
+  /* Create the swap chain */
+  WGPUSwapChainDescriptor swap_chain_descriptor = {
+    .usage       = WGPUTextureUsage_RenderAttachment,
+    .format      = WGPUTextureFormat_BGRA8Unorm,
+    .width       = wgpu_context->surface.width,
+    .height      = wgpu_context->surface.height,
+    .presentMode = WGPUPresentMode_Mailbox,
+  };
+  if (wgpu_context->swap_chain.instance) {
+    wgpuSwapChainRelease(wgpu_context->swap_chain.instance);
+  }
+  wgpu_context->swap_chain.instance = wgpuDeviceCreateSwapChain(
     wgpu_context->device, wgpu_context->surface.instance,
-    wgpu_context->surface.width, wgpu_context->surface.height);
+    &swap_chain_descriptor);
+  ASSERT(wgpu_context->swap_chain.instance);
 
   /* Find a suitable depth format */
-  wgpu_context->swap_chain.format
-    = wgpu_get_swap_chain_preferred_format(wgpu_context->device);
+  wgpu_context->swap_chain.format = swap_chain_descriptor.format;
 }
 
 void wgpu_error_callback(WGPUErrorType error_type, char const* message,

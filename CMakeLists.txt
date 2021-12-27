@@ -48,13 +48,10 @@ set(HEADERS
   lib/wgpu_native/wgpu_native.h
 )
 
-if(WIN32)
-    # nothing to do for now
-elseif(APPLE)
-    # nothing to do for now
-else()
-    set(SOURCES ${SOURCES} lib/wgpu_native/wgpu_native_linux.cpp)
-endif()
+set(SOURCES
+  ${SOURCES}
+  lib/wgpu_native/wgpu_native.cpp
+)
 
 set(TARGET wgpu_native)
 
@@ -139,6 +136,7 @@ set(HEADERS
     src/core/macro.h
     src/core/platform.h
     src/core/video_decode.h
+    src/core/window.h
     src/examples/examples.h
     src/examples/example_base.h
     src/examples/meshes.h
@@ -159,6 +157,7 @@ set(SOURCES
     src/core/frustum.c
     src/core/log.c
     src/core/video_decode.c
+    src/core/window.c
     src/examples/example_base.c
     src/examples/examples.c
     src/examples/meshes.c
@@ -307,7 +306,6 @@ else()
     set_target_properties(${TARGET} PROPERTIES LINK_FLAGS "-Wl,-rpath,./")
     target_link_libraries(${TARGET} PRIVATE
       m
-      X11
       ${Vulkan_LIBRARIES}
       Threads::Threads
       PkgConfig::LIBAV
@@ -317,6 +315,7 @@ else()
       dawn_platform
       dawn_native
       wgpu_native
+      glfw
     )
 endif()
 
