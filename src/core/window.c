@@ -24,7 +24,7 @@
 struct window {
   GLFWwindow* handle;
   struct {
-    void* handle;
+    WGPUSurface handle;
     uint32_t width, height;
     float dpscale;
   } surface;
@@ -57,7 +57,7 @@ window_t* window_create(window_config_t* config)
 
   window_t* window = (window_t*)malloc(sizeof(window_t));
   memset(window, 0, sizeof(window_t));
-  window->mouse_scroll_scale_factor = 120.0f;
+  window->mouse_scroll_scale_factor = 1.0f;
 
   // Initialize error handling
   glfwSetErrorCallback(glfw_window_error_callback);
@@ -87,7 +87,7 @@ window_t* window_create(window_config_t* config)
 
   surface_update_framebuffer_size(window);
 
-  // -- Set user pointer to window class --
+  // Set user pointer to window class
   glfwSetWindowUserPointer(window->handle, (void*)window);
 
   // -- Setup callbacks --
