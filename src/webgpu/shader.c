@@ -86,7 +86,9 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
   ASSERT(data && size > 0 && size % 4 == 0);
 
   WGPUShaderModuleSPIRVDescriptor shader_module_spirv_desc = {
-    .chain.sType = WGPUSType_ShaderModuleSPIRVDescriptor,
+    .chain  = {
+      .sType = WGPUSType_ShaderModuleSPIRVDescriptor,
+    },
     .codeSize    = size / sizeof(uint32_t),
     .code        = (const uint32_t*)data,
   };
@@ -107,15 +109,14 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
                                                      const char* source)
 {
   WGPUShaderModuleWGSLDescriptor shader_module_wgsl_desc = {
+    .chain  = {
+      .sType = WGPUSType_ShaderModuleWGSLDescriptor,
+    },
     .source = source,
   };
 
-  WGPUChainedStruct* chained_struct
-    = (WGPUChainedStruct*)&shader_module_wgsl_desc;
-  chained_struct->sType = WGPUSType_ShaderModuleWGSLDescriptor;
-
   WGPUShaderModuleDescriptor shader_module_desc = {
-    .nextInChain = (WGPUChainedStruct const*)chained_struct,
+    .nextInChain = &shader_module_wgsl_desc.chain,
   };
 
   WGPUShaderModule shader_module
