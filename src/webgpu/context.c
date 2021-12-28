@@ -38,22 +38,9 @@ void wgpu_context_release(wgpu_context_t* wgpu_context)
 }
 
 /* WebGPU info functions */
-void wgpu_get_context_info(wgpu_context_t* wgpu_context,
-                           char (*adapter_info)[256])
+void wgpu_get_context_info(char (*adapter_info)[256])
 {
-  WGPUAdapterProperties adapterProperties = {0};
-  wgpuAdapterGetProperties(wgpu_context->adapter, &adapterProperties);
-
-  strncpy(adapter_info[0], adapterProperties.name, 256);
-#if defined(DAWN_ENABLE_BACKEND_D3D12)
-  strncpy(adapter_info[1], "D3D12", 256);
-#elif defined(DAWN_ENABLE_BACKEND_METAL)
-  strncpy(adapter_info[1], "Metal", 256);
-#elif defined(DAWN_ENABLE_BACKEND_VULKAN)
-  strncpy(adapter_info[1], "Vulkan", 256);
-#elif defined(DAWN_ENABLE_BACKEND_OPENGL)
-  strncpy(adapter_info[1], "OpenGL", 256);
-#endif
+  wgpu_get_adapter_info(adapter_info);
 }
 
 /* WebGPU context helper functions */

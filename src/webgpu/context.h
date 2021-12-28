@@ -85,8 +85,7 @@ wgpu_context_t* wgpu_context_create();
 void wgpu_context_release(wgpu_context_t* wgpu_context);
 
 /* WebGPU info functions */
-void wgpu_get_context_info(wgpu_context_t* wgpu_context,
-                           char (*adapter_info)[256]);
+void wgpu_get_context_info(char (*adapter_info)[256]);
 
 /* WebGPU context helper functions */
 typedef struct deph_stencil_texture_creation_options_t {

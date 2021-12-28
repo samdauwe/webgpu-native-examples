@@ -280,7 +280,7 @@ static void intialize_webgpu(wgpu_example_context_t* context)
   wgpu_create_device_and_queue(context->wgpu_context);
   wgpu_setup_window_surface(context->wgpu_context, context->window);
   wgpu_setup_swap_chain(context->wgpu_context);
-  wgpu_get_context_info(context->wgpu_context, context->adapter_info);
+  wgpu_get_context_info(context->adapter_info);
 }
 
 static void intialize_imgui(wgpu_example_context_t* context,
@@ -323,7 +323,7 @@ update_overlay(wgpu_example_context_t* context,
             | ImGuiWindowFlags_NoMove);
   igTextUnformatted(context->example_title, NULL);
   igTextUnformatted(context->adapter_info[0], NULL);
-  igText("%s backend", context->adapter_info[1]);
+  igText("%s backend - %s", context->adapter_info[2], context->adapter_info[1]);
   igText("%.2f ms/frame (%.1d fps)", (1000.0f / context->last_fps),
          context->last_fps);
   if (example_on_update_ui_overlay_func) {

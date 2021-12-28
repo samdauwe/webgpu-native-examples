@@ -6,6 +6,8 @@
 #include <dawn/webgpu_cpp.h>
 #include <dawn_native/DawnNative.h>
 
+#include <string.h>
+
 #include <memory>
 
 //****************************** Implementation *******************************/
@@ -36,6 +38,11 @@ static struct {
   struct {
     dawn_native::Adapter handle;
     wgpu::BackendType backendType;
+    struct {
+      const char* name;
+      const char* typeName;
+      const char* backendName;
+    } info;
   } adapter;
   bool initialized = false;
 } gpuContext = {};
@@ -76,6 +83,13 @@ static void Initialize()
   gpuContext.initialized = true;
 }
 
+static void SetAdapterInfo(const wgpu::AdapterProperties& ap)
+{
+  gpuContext.adapter.info.name        = ap.name;
+  gpuContext.adapter.info.typeName    = AdapterTypeName(ap.adapterType);
+  gpuContext.adapter.info.backendName = BackendTypeName(ap.backendType);
+}
+
 static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
 {
   Initialize();
@@ -87,7 +101,7 @@ static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
            WGPUPowerPreference_LowPower) :
         WGPUPowerPreference_LowPower;
 
-  // search available adapters for a good match, in the following priority
+  // Search available adapters for a good match, in the following priority
   // order
   std::vector<wgpu::AdapterType> typePriority;
   if (powerPreference == WGPUPowerPreference_LowPower) {
@@ -116,10 +130,12 @@ static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
       if (ap.adapterType == reqType
           && (reqType == wgpu::AdapterType::CPU
               || ap.backendType == gpuContext.adapter.backendType)) {
-        dlog("selected adapter %s (device=0x%x vendor=0x%x type=%s/%s)",
-             ap.name, ap.deviceID, ap.vendorID, AdapterTypeName(ap.adapterType),
-             BackendTypeName(ap.backendType));
         gpuContext.adapter.handle = adapter;
+        SetAdapterInfo(ap);
+        dlog("selected adapter %s (device=0x%x vendor=0x%x type=%s/%s)",
+             ap.name, ap.deviceID, ap.vendorID,
+             gpuContext.adapter.info.typeName,
+             gpuContext.adapter.info.backendName);
         return gpuContext.adapter.handle.Get();
       }
     }
@@ -143,6 +159,13 @@ static void LogAvailableAdapters()
       p.name, p.driverDescription, p.deviceID, p.vendorID,
       BackendTypeName(p.backendType), AdapterTypeName(p.adapterType));
   }
+}
+
+static void GetAdapterInfo(char (*adapter_info)[256])
+{
+  strncpy(adapter_info[0], gpuContext.adapter.info.name, 256);
+  strncpy(adapter_info[1], gpuContext.adapter.info.typeName, 256);
+  strncpy(adapter_info[2], gpuContext.adapter.info.backendName, 256);
 }
 
 static std::unique_ptr<wgpu::ChainedStruct> SurfaceDescriptor(void* display,
@@ -198,7 +221,7 @@ static const char* BackendTypeName(wgpu::BackendType t)
     case wgpu::BackendType::OpenGL:
       return "OpenGL";
     case wgpu::BackendType::OpenGLES:
-      return "OpenGLES";
+      return "OpenGL ES";
   }
   return "?";
 }
@@ -206,9 +229,9 @@ static const char* AdapterTypeName(wgpu::AdapterType t)
 {
   switch (t) {
     case wgpu::AdapterType::DiscreteGPU:
-      return "DiscreteGPU";
+      return "Discrete GPU";
     case wgpu::AdapterType::IntegratedGPU:
-      return "IntegratedGPU";
+      return "Integrated GPU";
     case wgpu::AdapterType::CPU:
       return "CPU";
     case wgpu::AdapterType::Unknown:
@@ -224,6 +247,11 @@ static const char* AdapterTypeName(wgpu::AdapterType t)
 void wgpu_log_available_adapters()
 {
   WGPUImpl::LogAvailableAdapters();
+}
+
+void wgpu_get_adapter_info(char (*adapter_info)[256])
+{
+  WGPUImpl::GetAdapterInfo(adapter_info);
 }
 
 WGPUAdapter wgpu_request_adapter(WGPURequestAdapterOptions* options)

@@ -19,8 +19,11 @@ typedef struct {
   } frame;
   // Title of the example
   char example_title[STRMAX];
-  // Backend info
-  char adapter_info[2][256]; // 0: adapter name, 1: backend name
+  // Backend info:
+  //  0: adapter name
+  //  1: adapter type name
+  //  2: backend name
+  char adapter_info[3][256];
   // Frame counter to display fps
   uint32_t frame_counter;
   // Used to display fps
