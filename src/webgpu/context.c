@@ -14,10 +14,16 @@
 #include "../../lib/wgpu_native/wgpu_native.h"
 
 /* WebGPU context creating/releasing */
-wgpu_context_t* wgpu_context_create()
+wgpu_context_t* wgpu_context_create(wgpu_context_create_options_t* options)
 {
   wgpu_context_t* context = (wgpu_context_t*)malloc(sizeof(wgpu_context_t));
   memset(context, 0, sizeof(wgpu_context_t));
+
+  context->swap_chain.present_mode
+    = options ?
+        (options->vsync ? WGPUPresentMode_Fifo : WGPUPresentMode_Mailbox) :
+        WGPUPresentMode_Mailbox;
+
   return context;
 }
 
@@ -144,7 +150,7 @@ void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context)
     .format      = WGPUTextureFormat_BGRA8Unorm,
     .width       = wgpu_context->surface.width,
     .height      = wgpu_context->surface.height,
-    .presentMode = WGPUPresentMode_Mailbox,
+    .presentMode = wgpu_context->swap_chain.present_mode,
   };
   if (wgpu_context->swap_chain.instance) {
     wgpuSwapChainRelease(wgpu_context->swap_chain.instance);

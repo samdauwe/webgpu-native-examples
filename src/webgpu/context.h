@@ -48,6 +48,11 @@
 struct wgpu_buffer_t;
 struct wgpu_texture_client_t;
 
+/* WebGPU context create options */
+typedef struct wgpu_context_create_options_t {
+  bool vsync;
+} wgpu_context_create_options_t;
+
 /* WebGPU context */
 typedef struct wgpu_context_t {
   void* context;
@@ -64,6 +69,7 @@ typedef struct wgpu_context_t {
     WGPUSwapChain instance;
     WGPUTextureFormat format;
     WGPUTextureView frame_buffer;
+    WGPUPresentMode present_mode;
   } swap_chain;
   WGPUCommandEncoder cmd_enc;       /* Command encoder */
   WGPURenderPassEncoder rpass_enc;  /* Render pass encoder */
@@ -81,7 +87,7 @@ typedef struct wgpu_context_t {
 } wgpu_context_t;
 
 /* WebGPU context creating/releasing */
-wgpu_context_t* wgpu_context_create();
+wgpu_context_t* wgpu_context_create(wgpu_context_create_options_t* options);
 void wgpu_context_release(wgpu_context_t* wgpu_context);
 
 /* WebGPU info functions */

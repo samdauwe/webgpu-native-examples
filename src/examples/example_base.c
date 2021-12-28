@@ -226,6 +226,9 @@ intialize_wgpu_example_context(wgpu_example_context_t* context,
   snprintf(context->example_title, strlen(example_settings->title) + 1, "%s",
            example_settings->title);
 
+  // V-Sync setting for the swapchain
+  context->vsync = example_settings->vsync;
+
   // FPS
   context->frame_counter = 0;
   context->last_fps      = 0;
@@ -256,7 +259,6 @@ static void setup_window(wgpu_example_context_t* context,
     .width     = GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH),
     .height    = GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT),
     .resizable = windows_config->resizable,
-    .vsync     = windows_config->vsync,
   };
   context->window = window_create(&config);
   window_get_size(context->window, &context->window_size.width,
@@ -274,7 +276,9 @@ static void setup_window(wgpu_example_context_t* context,
 
 static void intialize_webgpu(wgpu_example_context_t* context)
 {
-  context->wgpu_context          = wgpu_context_create();
+  context->wgpu_context = wgpu_context_create(&(wgpu_context_create_options_t){
+    .vsync = context->vsync,
+  });
   context->wgpu_context->context = context;
 
   wgpu_create_device_and_queue(context->wgpu_context);

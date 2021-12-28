@@ -13,6 +13,7 @@ typedef struct {
   } window_size;
   callbacks_t callbacks;
   wgpu_context_t* wgpu_context;
+  bool vsync;
   struct {
     size_t index;
     float timestamp_millis;
@@ -54,6 +55,8 @@ typedef struct {
 typedef struct {
   /** @brief Example title */
   const char* title;
+  /** @brief Set to true if v-sync will be forced for the swapchain */
+  bool vsync;
   /** @brief Enable UI overlay */
   bool overlay;
   /** @brief Create texture client */
