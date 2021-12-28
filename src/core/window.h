@@ -10,6 +10,7 @@ typedef struct window_config_t {
   uint32_t width;
   uint32_t height;
   int resizable;
+  int vsync;
 } window_config_t;
 
 typedef struct window window_t;

@@ -252,11 +252,11 @@ static void setup_window(wgpu_example_context_t* context,
            strlen("WebGPU Example - ") + strlen(context->example_title) + 1,
            "WebGPU Example - %s", context->example_title);
   window_config_t config = {
-    .title = GET_DEFAULT_IF_ZERO(window_title, WINDOW_TITLE),          // title
-    .width = GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH), // width
-    .height
-    = GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT), // height
-    .resizable = windows_config->resizable                        // resizable
+    .title     = GET_DEFAULT_IF_ZERO((const char*)window_title, WINDOW_TITLE),
+    .width     = GET_DEFAULT_IF_ZERO(windows_config->width, WINDOW_WIDTH),
+    .height    = GET_DEFAULT_IF_ZERO(windows_config->height, WINDOW_HEIGHT),
+    .resizable = windows_config->resizable,
+    .vsync     = windows_config->vsync,
   };
   context->window = window_create(&config);
   window_get_size(context->window, &context->window_size.width,
