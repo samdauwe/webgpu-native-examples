@@ -33,6 +33,7 @@ void example_occlusion_query(int argc, char* argv[]);
 void example_offscreen_rendering(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
+void example_radial_blur(int argc, char* argv[]);
 void example_reversed_z(int argc, char* argv[]);
 void example_screenshot(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
@@ -77,6 +78,7 @@ static examplecase_t g_example_cases[] = {
   {"offscreen_rendering", example_offscreen_rendering},
   {"parallax_mapping", example_parallax_mapping},
   {"pbr_basic", example_pbr_basic},
+  {"radial_blur", example_radial_blur},
   /* {"reversed_z", example_reversed_z}, */
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},

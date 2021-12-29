@@ -174,6 +174,7 @@ set(SOURCES
 set(SOURCES
     ${SOURCES}
     src/examples/animometer.c
+    #src/examples/aquarium.c
     src/examples/bind_groups.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
@@ -200,6 +201,7 @@ set(SOURCES
     src/examples/offscreen_rendering.c
     src/examples/parallax_mapping.c
     src/examples/pbr_basic.c
+    src/examples/radial_blur.c
     src/examples/reversed_z.c
     src/examples/screenshot.c
     src/examples/shadertoy.c

@@ -321,6 +321,10 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 ### Effects
 
+#### [Fullscreen radial blur](src/examples/radial_blur.c)
+
+Demonstrates the basics of fullscreen shader effects. The scene is rendered into an offscreen framebuffer at lower resolution and rendered as a fullscreen quad atop the scene using a radial blur fragment shader.
+
 #### [Parallax mapping](src/examples/parallax_mapping.c)
 
 Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).
