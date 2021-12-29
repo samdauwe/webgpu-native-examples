@@ -132,7 +132,7 @@ static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
               || ap.backendType == gpuContext.adapter.backendType)) {
         gpuContext.adapter.handle = adapter;
         SetAdapterInfo(ap);
-        dlog("selected adapter %s (device=0x%x vendor=0x%x type=%s/%s)",
+        dlog("Selected adapter %s (device=0x%x vendor=0x%x type=%s/%s)",
              ap.name, ap.deviceID, ap.vendorID,
              gpuContext.adapter.info.typeName,
              gpuContext.adapter.info.backendName);

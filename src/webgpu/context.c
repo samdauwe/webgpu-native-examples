@@ -69,7 +69,9 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   wgpu_log_available_adapters();
 
   /* WebGPU adapter creation */
-  wgpu_context->adapter = wgpu_request_adapter(NULL);
+  wgpu_context->adapter = wgpu_request_adapter(&(WGPURequestAdapterOptions){
+    .powerPreference = WGPUPowerPreference_HighPerformance,
+  });
 
   /* WebGPU device creation */
   WGPUDeviceDescriptor deviceDescriptor = {0};
