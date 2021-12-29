@@ -25,8 +25,8 @@ webgpu_native_examples() {
     echo "---------- Building WebGPU Native Examples ----------"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    cmake ..
-    make all
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    make all -j8
 
     cd "$WORKING_DIR"
 }
