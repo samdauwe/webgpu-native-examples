@@ -70,14 +70,13 @@ static void setup_camera(wgpu_example_context_t* context)
   camera_set_perspective(context->camera, 60.0f,
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
   camera_set_rotation(context->camera, (vec3){0.0f, -90.0f, 0.0f});
-  camera_set_translation(context->camera, (vec3){2.5f, 2.5f, -7.5f});
+  camera_set_translation(context->camera, (vec3){2.5f, -1.5f, -7.5f});
 }
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
   const uint32_t gltf_loading_flags
-    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
-      | WGPU_GLTF_FileLoadingFlags_FlipY;
+    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices;
   gltf_model = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
     .wgpu_context       = wgpu_context,
     .filename           = "models/voyager.gltf",

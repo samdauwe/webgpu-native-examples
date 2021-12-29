@@ -185,7 +185,7 @@ void camera_set_position(camera_t* camera, vec3 position)
 
 void camera_set_rotation(camera_t* camera, vec3 rotation)
 {
-  glm_vec3_copy((vec3){-rotation[0], rotation[1], rotation[2]},
+  glm_vec3_copy((vec3){rotation[0], rotation[1], rotation[2]},
                 camera->rotation);
   camera_update_view_matrix(camera);
 }

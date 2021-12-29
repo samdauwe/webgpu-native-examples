@@ -89,7 +89,7 @@ static void setup_camera(wgpu_example_context_t* context)
   context->camera       = camera_create();
   context->camera->type = CameraType_FirstPerson;
   camera_set_position(context->camera, (vec3){0.0f, 1.25f, -1.5f});
-  camera_set_rotation(context->camera, (vec3){-45.0f, 0.0f, 0.0f});
+  camera_set_rotation(context->camera, (vec3){45.0f, 0.0f, 0.0f});
   camera_set_perspective(context->camera, 60.0f,
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
 }
@@ -99,7 +99,6 @@ static void load_assets(wgpu_context_t* wgpu_context)
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
       | WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors
-      | WGPU_GLTF_FileLoadingFlags_FlipY
       | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   plane = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
     .wgpu_context       = wgpu_context,
