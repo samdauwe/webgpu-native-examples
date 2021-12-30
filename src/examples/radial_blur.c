@@ -151,7 +151,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
     // Create the texture view
-    WGPUTextureViewDescriptor texture_view_dec = {
+    WGPUTextureViewDescriptor texture_view_desc = {
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -160,7 +160,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .arrayLayerCount = 1,
     };
     offscreen_pass.color.texture_view
-      = wgpuTextureCreateView(offscreen_pass.color.texture, &texture_view_dec);
+      = wgpuTextureCreateView(offscreen_pass.color.texture, &texture_view_desc);
   }
 
   // Create sampler to sample from the attachment in the fragment shader
@@ -191,7 +191,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
     // Create the texture view
-    WGPUTextureViewDescriptor texture_view_dec = {
+    WGPUTextureViewDescriptor texture_view_desc = {
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -201,7 +201,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .aspect          = WGPUTextureAspect_All,
     };
     offscreen_pass.depth_stencil.texture_view = wgpuTextureCreateView(
-      offscreen_pass.depth_stencil.texture, &texture_view_dec);
+      offscreen_pass.depth_stencil.texture, &texture_view_desc);
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
