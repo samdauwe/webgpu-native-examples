@@ -176,6 +176,7 @@ set(SOURCES
     src/examples/animometer.c
     #src/examples/aquarium.c
     src/examples/bind_groups.c
+    src/examples/bloom.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
     src/examples/compute_n_body.c

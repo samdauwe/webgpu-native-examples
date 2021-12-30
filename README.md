@@ -325,6 +325,10 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 Demonstrates the basics of fullscreen shader effects. The scene is rendered into an offscreen framebuffer at lower resolution and rendered as a fullscreen quad atop the scene using a radial blur fragment shader.
 
+#### [Bloom](src/examples/bloom.c)
+
+Advanced fullscreen effect example adding a bloom effect to a scene. Glowing scene parts are rendered to a low res offscreen framebuffer that is applied atop the scene using a two pass separated gaussian blur.
+
 #### [Parallax mapping](src/examples/parallax_mapping.c)
 
 Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).

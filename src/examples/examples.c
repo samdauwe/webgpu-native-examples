@@ -8,6 +8,7 @@
 
 void example_animometer(int argc, char* argv[]);
 void example_bind_groups(int argc, char* argv[]);
+void example_bloom(int argc, char* argv[]);
 void example_clear_screen(int argc, char* argv[]);
 void example_compute_boids(int argc, char* argv[]);
 void example_compute_n_body(int argc, char* argv[]);
@@ -53,6 +54,7 @@ void example_wireframe_vertex_pulling(int argc, char* argv[]);
 static examplecase_t g_example_cases[] = {
   {"animometer", example_animometer},
   {"bind_groups", example_bind_groups},
+  {"bloom", example_bloom},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},
   /* {"compute_n_body", example_compute_n_body}, */
