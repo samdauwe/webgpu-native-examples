@@ -687,7 +687,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 }
 
 // Update uniform buffers for rendering the 3D scene
-void update_uniform_buffers_scene(wgpu_example_context_t* context)
+static void update_uniform_buffers_scene(wgpu_example_context_t* context)
 {
   camera_t* camera = context->camera;
 
