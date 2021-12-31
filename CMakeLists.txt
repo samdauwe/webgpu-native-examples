@@ -189,8 +189,9 @@ set(SOURCES
     src/examples/coordinate_system.c
     src/examples/cube_reflection.c
     src/examples/deferred_rendering.c
-    src/examples/gears.c
     src/examples/dynamic_uniform_buffer.c
+    src/examples/equirectangular_image.c
+    src/examples/gears.c
     src/examples/gltf_loading.c
     src/examples/gltf_scene_rendering.c
     src/examples/image_blur.c

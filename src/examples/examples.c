@@ -22,6 +22,7 @@ void example_coordinate_system(int argc, char* argv[]);
 void example_cube_reflection(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
 void example_dynamic_uniform_buffer(int argc, char* argv[]);
+void example_equirectangular_image(int argc, char* argv[]);
 void example_gears(int argc, char* argv[]);
 void example_gltf_loading(int argc, char* argv[]);
 void example_gltf_scene_rendering(int argc, char* argv[]);
@@ -68,6 +69,7 @@ static examplecase_t g_example_cases[] = {
   {"cube_reflection", example_cube_reflection},
   {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
+  {"equirectangular_image", example_equirectangular_image},
   {"gears", example_gears},
   {"gltf_loading", example_gltf_loading},
   {"gltf_scene_rendering", example_gltf_scene_rendering},
