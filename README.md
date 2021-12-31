@@ -225,7 +225,7 @@ Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosG
 
 #### [glTF scene rendering](src/examples/gltf_scene_rendering.c)
 
-Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The sample uses the glTF model loading functions, and adds data structures, functions and shaders required to render a more complex scene using Crytek's Sponza model with per-material pipelines and normal mapping.
+Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The sample uses the glTF model loading functions, and adds data structures, functions and shaders required to render a more complex scene using [Crytek's Sponza model](https://casual-effects.com/data/) with per-material pipelines and normal mapping.
 
 ### Advanced
 
