@@ -25,9 +25,6 @@ typedef struct texture_t {
 void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
                           void* pixels, WGPUExtent3D size, uint32_t channels);
 
-/* Texture creation with dimension 1x1 */
-texture_t wgpu_create_empty_texture(wgpu_context_t* wgpu_context);
-
 /* Texture destruction */
 void wgpu_destroy_texture(texture_t* texture);
 
@@ -71,6 +68,7 @@ typedef struct wgpu_texture_client_t {
 } wgpu_texture_client;
 
 typedef struct wgpu_texture_load_options_t {
+  bool flip_y;
   bool generate_mipmaps;
   WGPUTextureUsage usage;
   WGPUTextureFormat format;
@@ -83,7 +81,7 @@ wgpu_texture_client_create(wgpu_context_t* wgpu_context);
 void wgpu_texture_client_destroy(struct wgpu_texture_client_t* texture_client);
 
 /* -------------------------------------------------------------------------- *
- * Helper functions
+ * Texture creation functions
  * -------------------------------------------------------------------------- */
 
 /* Texture creation from memory */
@@ -98,4 +96,12 @@ wgpu_create_texture_from_file(wgpu_context_t* wgpu_context,
                               const char* filename,
                               struct wgpu_texture_load_options_t* options);
 
-#endif
+/* Texture cubemap creation from 6 individual image files */
+texture_t wgpu_create_texture_cubemap_from_files(
+  wgpu_context_t* wgpu_context, const char* filenames[6],
+  struct wgpu_texture_load_options_t* options);
+
+/* Texture creation with dimension 1x1 */
+texture_t wgpu_create_empty_texture(wgpu_context_t* wgpu_context);
+
+#endif /* TEXTURE_H */

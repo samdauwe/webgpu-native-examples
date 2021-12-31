@@ -626,16 +626,16 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
   };
 }
 
-static texture_result_t
-wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
-                           const char* filename,
-                           struct wgpu_texture_load_options_t* options)
-{
-  if (!texture_client->wgpu_context) {
-    log_error("Cannot create new textures after object has been destroyed.");
-    return (texture_result_t){0};
-  }
+typedef struct {
+  int32_t image_width;
+  int32_t image_height;
+  int32_t channel_count;
+  stbi_uc* pixel_data;
+} stb_image_load_result_t;
 
+static stb_image_load_result_t
+stb_image_load_image_from_file(const char* filename, bool flip_y)
+{
   static const uint8_t comp_map[5] = {
     0, //
     1, //
@@ -657,7 +657,7 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
   // webgpu shoud support 3 channel format.
   // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
   int read_comps = 4;
-  stbi_set_flip_vertically_on_load(false);
+  stbi_set_flip_vertically_on_load(flip_y);
   stbi_uc* pixel_data = stbi_load(filename,            //
                                   &width,              //
                                   &height,             //
@@ -667,14 +667,43 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
 
   if (pixel_data == NULL) {
     log_error("Couldn't load '%s'\n", filename);
+  }
+  else {
+    log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width, height,
+              read_comps, comp_map[read_comps]);
+  }
+
+  return (stb_image_load_result_t){
+    .image_width   = width,
+    .image_height  = height,
+    .channel_count = comp_map[read_comps],
+    .pixel_data    = pixel_data,
+  };
+}
+
+static texture_result_t
+wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
+                           const char* filename,
+                           struct wgpu_texture_load_options_t* options)
+{
+  if (!texture_client->wgpu_context) {
+    log_error("Cannot create new textures after object has been destroyed.");
+    return (texture_result_t){0};
+  }
+
+  const bool flip_y = options ? options->flip_y : false;
+  stb_image_load_result_t image_load_result
+    = stb_image_load_image_from_file(filename, flip_y);
+
+  stbi_uc* pixel_data = image_load_result.pixel_data;
+  if (pixel_data == NULL) {
     return (texture_result_t){0};
   }
   ASSERT(pixel_data);
 
-  const uint8_t comps = comp_map[read_comps];
-  log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width, height,
-            read_comps, comps);
-
+  const int width             = image_load_result.image_width;
+  const int height            = image_load_result.image_height;
+  const int channel_count     = image_load_result.channel_count;
   const bool generate_mipmaps = options ? options->generate_mipmaps : false;
   const uint32_t mip_level_count
     = generate_mipmaps ? calculate_mip_level_count(width, height) : 1u;
@@ -706,7 +735,7 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
 
   // Copy pixel data to texture and free allocated memory
   wgpu_image_to_texure(texture_client->wgpu_context, texture, pixel_data,
-                       texture_size, comps);
+                       texture_size, channel_count);
   stbi_image_free(pixel_data);
 
   if (generate_mipmaps) {
@@ -716,6 +745,143 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
     }
     texture = wgpu_mipmap_generator_generate_mipmap(
       texture_client->wgpu_mipmap_generator, texture, &texture_desc);
+  }
+
+  return (texture_result_t){
+    .texture         = texture,
+    .width           = texture_desc.size.width,
+    .height          = texture_desc.size.height,
+    .depth           = texture_desc.size.depthOrArrayLayers,
+    .mip_level_count = texture_desc.mipLevelCount,
+    .format          = texture_desc.format,
+    .dimension       = texture_desc.dimension,
+  };
+}
+
+static texture_result_t
+wgpu_texture_cubemap_load_with_stb(wgpu_context_t* wgpu_context,
+                                   const char* filenames[6],
+                                   struct wgpu_texture_load_options_t* options)
+{
+  // Swap top and bottom when images should be flipped vertically
+  const bool flip_y         = options ? options->flip_y : false;
+  const uint16_t mapping[6] = {0, 1, flip_y ? 3 : 2, flip_y ? 2 : 3, 4, 5};
+
+  // Load images into memory
+  stb_image_load_result_t image_load_results[6] = {0};
+  for (uint32_t face = 0; face < 6; ++face) {
+    image_load_results[face]
+      = stb_image_load_image_from_file(filenames[mapping[face]], flip_y);
+    if (image_load_results[face].pixel_data == NULL) {
+      // Free pixel data for already loaded images
+      for (uint32_t prev_face = 0; prev_face < face; ++prev_face) {
+        stbi_image_free(image_load_results[prev_face].pixel_data);
+      }
+      return (texture_result_t){0};
+    }
+  }
+
+  // Use first image to determine the width and height of the image
+  const uint32_t width           = image_load_results[0].image_width;
+  const uint32_t height          = image_load_results[0].image_height;
+  const uint32_t channel_count   = image_load_results[0].channel_count;
+  const uint32_t depth           = 6u;
+  const uint32_t mip_level_count = 1;
+  const WGPUTextureFormat texture_format
+    = options ? (options->format != WGPUTextureFormat_Undefined ?
+                   options->format :
+                   WGPUTextureFormat_RGBA8Unorm) :
+                WGPUTextureFormat_RGBA8Unorm;
+  const size_t texture_size = width * height * channel_count * sizeof(uint8_t);
+
+  // Create cubemap texture
+  WGPUTextureDescriptor texture_desc = {
+    .size          = (WGPUExtent3D) {
+      .width               = width,
+      .height              = height,
+      .depthOrArrayLayers  = depth,
+     },
+    .mipLevelCount = mip_level_count,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = texture_format,
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+  };
+  WGPUTexture texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+
+  WGPUCommandEncoder cmd_encoder
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  // Create a host-visible staging buffers that contains the raw image data for
+  // each face of the cubemap
+  WGPUBuffer staging_buffers[6] = {0};
+  for (uint32_t face = 0; face < depth; ++face) {
+    WGPUBufferDescriptor staging_buffer_desc = {
+      .usage            = WGPUBufferUsage_CopySrc | WGPUBufferUsage_MapWrite,
+      .size             = texture_size,
+      .mappedAtCreation = true,
+    };
+    staging_buffers[face]
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &staging_buffer_desc);
+    ASSERT(staging_buffers[face])
+  }
+
+  for (uint32_t face = 0; face < depth; ++face) {
+    // Copy texture data into staging buffer
+    void* mapping
+      = wgpuBufferGetMappedRange(staging_buffers[face], 0, texture_size);
+    ASSERT(mapping)
+    memcpy(mapping, image_load_results[face].pixel_data, texture_size);
+    wgpuBufferUnmap(staging_buffers[face]);
+
+    // Upload staging buffer to texture
+    wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
+      // Source
+      &(WGPUImageCopyBuffer) {
+        .buffer = staging_buffers[face],
+        .layout = (WGPUTextureDataLayout) {
+          .offset = 0,
+          .bytesPerRow = width * channel_count,
+          .rowsPerImage= height,
+        },
+      },
+      // Destination
+      &(WGPUImageCopyTexture){
+        .texture = texture,
+        .mipLevel = 0,
+        .origin = (WGPUOrigin3D) {
+          .x=0,
+          .y=0,
+          .z=face,
+        },
+        .aspect = WGPUTextureAspect_All,
+      },
+      // Copy size
+      &(WGPUExtent3D){
+        .width               = width,
+        .height              = height,
+        .depthOrArrayLayers  = 1,
+      });
+  }
+
+  WGPUCommandBuffer command_buffer
+    = wgpuCommandEncoderFinish(cmd_encoder, NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
+
+  // Sumbit commmand buffer and cleanup
+  ASSERT(command_buffer != NULL)
+
+  // Submit to the queue
+  wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
+
+  // Release command buffer
+  WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
+
+  // Clean up staging resources and pixel data
+  for (uint32_t face = 0; face < depth; ++face) {
+    WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face]);
+    stbi_image_free(image_load_results[face].pixel_data);
   }
 
   return (texture_result_t){
@@ -741,11 +907,9 @@ static ktxResult load_ktx_file(const char* filename, ktxTexture** target)
 }
 
 static texture_result_t
-wgpu_texture_load_from_ktx_file(struct wgpu_texture_client_t* texture_client,
+wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
                                 const char* filename)
 {
-  wgpu_context_t* wgpu_context = texture_client->wgpu_context;
-
   ktxTexture* ktx_texture;
   ktxResult result = load_ktx_file(filename, &ktx_texture);
   assert(result == KTX_SUCCESS);
@@ -950,13 +1114,13 @@ static texture_result_t wgpu_texture_client_load_texture_from_file(
   struct wgpu_texture_client_t* texture_client, const char* filename,
   struct wgpu_texture_load_options_t* options)
 {
-
   if (filename_has_extension(filename, "jpg")
       || filename_has_extension(filename, "png")) {
     return wgpu_texture_load_with_stb(texture_client, filename, options);
   }
   if (filename_has_extension(filename, "ktx")) {
-    return wgpu_texture_load_from_ktx_file(texture_client, filename);
+    return wgpu_texture_load_from_ktx_file(texture_client->wgpu_context,
+                                           filename);
   }
 
   return (texture_result_t){0};
@@ -1089,6 +1253,20 @@ wgpu_create_texture_from_file(wgpu_context_t* wgpu_context,
   if (texture_result.texture) {
     return wgpu_create_texture(texture_client->wgpu_context, &texture_result,
                                options);
+  }
+
+  return (texture_t){0};
+}
+
+texture_t wgpu_create_texture_cubemap_from_files(
+  wgpu_context_t* wgpu_context, const char* filenames[6],
+  struct wgpu_texture_load_options_t* options)
+{
+  texture_result_t texture_result
+    = wgpu_texture_cubemap_load_with_stb(wgpu_context, filenames, options);
+
+  if (texture_result.texture) {
+    return wgpu_create_texture(wgpu_context, &texture_result, options);
   }
 
   return (texture_t){0};
