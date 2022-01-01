@@ -347,6 +347,10 @@ WebGPU interpretation of [glxgears](https://linuxreviews.org/Glxgears). Procedur
 
 This example shows how to upload video frames to WebGPU. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding.
 
+#### [Immersive video](src/examples/immersive_video.c)
+
+This example shows how to display a 360-degree video where the viewer has control of the viewing direction. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding.
+
 #### [Shadertoy](src/examples/video_uploading.c)
 
 Minimal "shadertoy launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Cube lines](https://www.shadertoy.com/view/NslGRN)'.

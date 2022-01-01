@@ -196,6 +196,7 @@ set(SOURCES
     src/examples/gltf_scene_rendering.c
     src/examples/image_blur.c
     src/examples/imgui_overlay.c
+    src/examples/immersive_video.c
     src/examples/instanced_cube.c
     src/examples/msaa_line.c
     src/examples/multi_sampling.c

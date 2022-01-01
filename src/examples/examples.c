@@ -28,6 +28,7 @@ void example_gltf_loading(int argc, char* argv[]);
 void example_gltf_scene_rendering(int argc, char* argv[]);
 void example_image_blur(int argc, char* argv[]);
 void example_imgui_overlay(int argc, char* argv[]);
+void example_immersive_video(int argc, char* argv[]);
 void example_instanced_cube(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
 void example_multi_sampling(int argc, char* argv[]);
@@ -75,6 +76,7 @@ static examplecase_t g_example_cases[] = {
   {"gltf_scene_rendering", example_gltf_scene_rendering},
   {"image_blur", example_image_blur},
   {"imgui_overlay", example_imgui_overlay},
+  {"immersive_video", example_immersive_video},
   {"instanced_cube", example_instanced_cube},
   {"msaa_line", example_msaa_line},
   {"multi_sampling", example_multi_sampling},
