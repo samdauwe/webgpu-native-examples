@@ -203,7 +203,7 @@ Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to
     <li>
         A thick wireframe is obtained by rendering each of the 3 lines of a triangle as a quad (comprising 2 triangles).
         For each triangle of the indexed model, we are drawing a total of 3 lines/quads = 6 triangles = 18 vertices.
-        Each of these 18 vertices belongs to one of three lines, and each vertex shader invocation loads the start and end of the corresponding line. The line is then projected to screen space, and the orthoginal of the screen-space line direction is used to shift the vertices of each quad into the appropriate directions to obtain a thick line.
+        Each of these 18 vertices belongs to one of three lines, and each vertex shader invocation loads the start and end of the corresponding line. The line is then projected to screen space, and the orthogonal of the screen-space line direction is used to shift the vertices of each quad into the appropriate directions to obtain a thick line.
     </li>
 </ul>
 
@@ -379,7 +379,7 @@ Just like all software, WebGPU Native Examples and Demos are built on the should
 
 ## Credits
 
-A huge thanks to the authors of the folowing repositories who demonstrated the use of the [WebGPU API](https://webgpu.dev/) and how to create a minimal example framework:
+A huge thanks to the authors of the following repositories who demonstrated the use of the [WebGPU API](https://webgpu.dev/) and how to create a minimal example framework:
 * [wgpu-rs](https://github.com/gfx-rs/wgpu-rs)
 * [webgpu-samples](https://github.com/austinEng/webgpu-samples)
 * [Vulkan C++ examples and demos](https://github.com/SaschaWillems/Vulkan)
