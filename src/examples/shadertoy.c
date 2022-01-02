@@ -37,6 +37,19 @@ static struct shader_inputs_ubo_t {
   float iSampleRate; // sound sample rate (i.e., 44100)
 } shader_inputs_ubo = {0};
 
+// Used for mouse pixel coordinates calculation
+static struct {
+  vec2 initial_mouse_position;
+  vec2 prev_mouse_position;
+  vec2 mouse_drag_distance;
+  bool dragging;
+} mouse_state = {
+  .initial_mouse_position = GLM_VEC2_ZERO_INIT,
+  .prev_mouse_position    = GLM_VEC2_ZERO_INIT,
+  .mouse_drag_distance    = GLM_VEC2_ZERO_INIT,
+  .dragging               = false,
+};
+
 // The pipeline layout
 static WGPUPipelineLayout pipeline_layout;
 
@@ -199,10 +212,21 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   shader_inputs_ubo.iFrame = (int)context->frame.index;
 
   // iMouse: mouse pixel coords. xy: current (if MLB down), zw: click
-  if (context->mouse_buttons.left) {
-    shader_inputs_ubo.iMouse[0] = context->mouse_position[0];
-    shader_inputs_ubo.iMouse[1]
-      = context->wgpu_context->surface.height - context->mouse_position[1];
+  context->mouse_position[1]
+    = context->wgpu_context->surface.height - context->mouse_position[1];
+  if (!mouse_state.dragging && context->mouse_buttons.left) {
+    glm_vec2_copy(context->mouse_position, mouse_state.prev_mouse_position);
+    mouse_state.dragging = true;
+  }
+  else if (mouse_state.dragging && context->mouse_buttons.left) {
+    glm_vec2_sub(context->mouse_position, mouse_state.prev_mouse_position,
+                 mouse_state.mouse_drag_distance);
+    glm_vec2_add(shader_inputs_ubo.iMouse, mouse_state.mouse_drag_distance,
+                 shader_inputs_ubo.iMouse);
+    glm_vec2_copy(context->mouse_position, mouse_state.prev_mouse_position);
+  }
+  else if (mouse_state.dragging && !context->mouse_buttons.left) {
+    mouse_state.dragging = false;
   }
 
   // iDate: year, month, day, time in seconds
