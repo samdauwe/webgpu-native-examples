@@ -388,6 +388,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## References
 
+* [WebGPU - Chrome Platform Status](https://chromestatus.com/feature/6213121689518080#details)
 * [Changelog for WebGPU in Chromium / Dawn 94](https://t.co/s87U4pi4tr)
 * [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw)
 * [Changelog for WebGPU in Chromium / Dawn 98](https://t.co/fS1NR5bog0)
