@@ -18,7 +18,7 @@ static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // Other variables
-static const char* example_title = "Basic Indexed Triangle";
+static const char* example_title = "Clear Screen";
 static bool prepared             = false;
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
