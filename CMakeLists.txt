@@ -194,6 +194,7 @@ set(SOURCES
     src/examples/gears.c
     src/examples/gltf_loading.c
     src/examples/gltf_scene_rendering.c
+    src/examples/hdr.c
     src/examples/image_blur.c
     src/examples/imgui_overlay.c
     src/examples/immersive_video.c

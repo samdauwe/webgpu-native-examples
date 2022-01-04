@@ -26,6 +26,7 @@ void example_equirectangular_image(int argc, char* argv[]);
 void example_gears(int argc, char* argv[]);
 void example_gltf_loading(int argc, char* argv[]);
 void example_gltf_scene_rendering(int argc, char* argv[]);
+void example_hdr(int argc, char* argv[]);
 void example_image_blur(int argc, char* argv[]);
 void example_imgui_overlay(int argc, char* argv[]);
 void example_immersive_video(int argc, char* argv[]);
@@ -74,6 +75,7 @@ static examplecase_t g_example_cases[] = {
   {"gears", example_gears},
   {"gltf_loading", example_gltf_loading},
   {"gltf_scene_rendering", example_gltf_scene_rendering},
+  {"hdr", example_hdr},
   {"image_blur", example_image_blur},
   {"imgui_overlay", example_imgui_overlay},
   {"immersive_video", example_immersive_video},

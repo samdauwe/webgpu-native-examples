@@ -237,6 +237,10 @@ This example shows how to achieve [multisample anti-aliasing](https://en.wikiped
 
 Implements multisample anti-aliasing (MSAA) using a renderpass with multisampled attachments that get resolved into the visible frame buffer.
 
+#### [High dynamic range](src/examples/hdr.c)
+
+Implements a high dynamic range rendering pipeline using 16/32 bit floating point precision for all internal formats, textures and calculations, including a bloom pass, manual exposure and tone mapping.
+
 #### [Cube reflection](src/examples/cube_reflection.c)
 
 This example shows how to create a basic reflection pipeline.
