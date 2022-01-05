@@ -18,11 +18,10 @@ static const uint32_t tile_dim = 128;
 static const uint32_t batch[2] = {4, 4};
 
 // Vertex buffer
-typedef struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
-} vertices_t;
-static vertices_t vertices = {0};
+} vertices = {0};
 
 // Uniform buffers
 static WGPUBuffer uniform_buffers[2];
