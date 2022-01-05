@@ -321,6 +321,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
+
   // Vertex buffer layout
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     sphere,
