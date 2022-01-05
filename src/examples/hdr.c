@@ -28,7 +28,24 @@ static struct {
 
 static struct {
   struct gltf_model_t* skybox;
-} models;
+  struct {
+    const char* name;
+    const char* filelocation;
+    struct gltf_model_t* object;
+  } objects[4];
+  int32_t object_index;
+} models = {
+  .objects = {
+    // clang-format off
+    { .name = "Sphere", .filelocation = "models/sphere.gltf" },
+    { .name = "Teapot", .filelocation = "models/teapot.gltf" },
+    { .name = "Torusknot", .filelocation = "models/torusknot.gltf" },
+    { .name = "Venus", .filelocation = "models/venus.gltf" },
+    // clang-format on
+  },
+  .object_index = 1,
+};
+static const char* object_names[4] = {"Sphere", "Teapot", "Torusknot", "Venus"};
 
 static struct {
   WGPUBuffer matrices;
@@ -59,6 +76,7 @@ static struct {
 
 static struct {
   WGPURenderPipeline skybox;
+  WGPURenderPipeline reflect;
 } pipelines;
 
 static struct {
@@ -66,6 +84,7 @@ static struct {
 } pipeline_layouts;
 
 static struct {
+  WGPUBindGroup object;
   WGPUBindGroup skybox;
 } bind_groups;
 
@@ -100,6 +119,14 @@ static void load_assets(wgpu_context_t* wgpu_context)
       .filename           = "models/cube.gltf",
       .file_loading_flags = gltf_loading_flags,
     });
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models.objects); ++i) {
+    models.objects[i].object
+      = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
+        .wgpu_context       = wgpu_context,
+        .filename           = models.objects[i].filelocation,
+        .file_loading_flags = gltf_loading_flags,
+      });
+  }
   // Load cube map
   static const char* cubemap[6] = {
     "textures/cubemaps/uffizi_cube_px.jpg", // Right
@@ -232,6 +259,18 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
     };
 
+    // 3D object descriptor set
+    {
+      WGPUBindGroupDescriptor bg_desc = {
+        .layout     = bind_group_layouts.models,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      };
+      bind_groups.object
+        = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+      ASSERT(bind_groups.object != NULL)
+    }
+
     // Sky box bind group
     {
       WGPUBindGroupDescriptor bg_desc = {
@@ -295,18 +334,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         .sample_count = 1,
       });
 
-  // Vertex buffer layout
-  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
-    gltf_model,
-    // Location 0: Position
-    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Vertex normal
-    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal));
-
-  // Skybox pipeline (background cube)
+  // Object rendering pipelines
   {
-    primitive_state_desc.cullMode              = WGPUCullMode_Front;
-    depth_stencil_state_desc.depthWriteEnabled = false;
+    // Use vertex input state from glTF model setup
+    WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+      gltf_model,
+      // Location 0: Position
+      WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
+      // Location 1: Vertex normal
+      WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal));
 
     // Color target state
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
@@ -318,38 +354,65 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
-                .file = "shaders/hdr/gbuffer.vert.spv",
-              },
-              .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
-            });
+          wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/hdr/gbuffer.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &gltf_model_vertex_buffer_layout,
+          });
 
     // Fragment state
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .file = "shaders/hdr/gbuffer.frag.spv",
-              },
-              .target_count = 1,
-              .targets = &color_target_state_desc,
-            });
+          wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/hdr/gbuffer.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
 
-    // Create rendering pipeline using the specified states
-    pipelines.skybox = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "skybox_render_pipeline",
-                              .layout       = pipeline_layouts.models,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
-                            });
-    ASSERT(pipelines.skybox);
+    // Skybox pipeline (background cube)
+    {
+      primitive_state_desc.cullMode              = WGPUCullMode_Front;
+      depth_stencil_state_desc.depthWriteEnabled = false;
+
+      // Create rendering pipeline using the specified states
+      pipelines.skybox = wgpuDeviceCreateRenderPipeline(
+        wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                                .label        = "skybox_render_pipeline",
+                                .layout       = pipeline_layouts.models,
+                                .primitive    = primitive_state_desc,
+                                .vertex       = vertex_state_desc,
+                                .fragment     = &fragment_state_desc,
+                                .depthStencil = &depth_stencil_state_desc,
+                                .multisample  = multisample_state_desc,
+                              });
+      ASSERT(pipelines.skybox);
+    }
+
+    // Object rendering pipeline
+    {
+      // Enable depth write
+      depth_stencil_state_desc.depthWriteEnabled = true;
+      // Flip cull mode
+      primitive_state_desc.cullMode = WGPUCullMode_Back;
+
+      // Create rendering pipeline using the specified states
+      pipelines.reflect = wgpuDeviceCreateRenderPipeline(
+        wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                                .label        = "reflect_render_pipeline",
+                                .layout       = pipeline_layouts.models,
+                                .primitive    = primitive_state_desc,
+                                .vertex       = vertex_state_desc,
+                                .fragment     = &fragment_state_desc,
+                                .depthStencil = &depth_stencil_state_desc,
+                                .multisample  = multisample_state_desc,
+                              });
+      ASSERT(pipelines.reflect);
+    }
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -446,6 +509,10 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Object type",
+                                &models.object_index, object_names, 4)) {
+      update_uniform_buffers(context);
+    }
     imgui_overlay_checkBox(context->imgui_overlay, "Skybox", &display_skybox);
   }
 }
@@ -475,11 +542,24 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                         wgpu_context->surface.height);
 
     // Skybox
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.skybox);
-    uint32_t dynamic_offset = 0 * (uint32_t)ALIGNMENT;
+    if (display_skybox) {
+      wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                       pipelines.skybox);
+      uint32_t dynamic_offset = 0 * (uint32_t)ALIGNMENT;
+      wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                        bind_groups.skybox, 1, &dynamic_offset);
+      wgpu_gltf_model_draw(models.skybox,
+                           (wgpu_gltf_model_render_options_t){0});
+    }
+
+    // 3D oject
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     pipelines.reflect);
+    uint32_t dynamic_offset = 1 * (uint32_t)ALIGNMENT;
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      bind_groups.skybox, 1, &dynamic_offset);
-    wgpu_gltf_model_draw(models.skybox, (wgpu_gltf_model_render_options_t){0});
+                                      bind_groups.object, 1, &dynamic_offset);
+    wgpu_gltf_model_draw(models.objects[models.object_index].object,
+                         (wgpu_gltf_model_render_options_t){0});
 
     // End render pass
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
@@ -536,15 +616,20 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_destroy_texture(&textures.envmap);
 
   wgpu_gltf_model_destroy(models.skybox);
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models.objects); ++i) {
+    wgpu_gltf_model_destroy(models.objects[i].object);
+  }
 
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.matrices)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.params)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.dynamic.buffer)
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.skybox)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.reflect)
 
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.models)
 
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.object)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.skybox)
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.models)
