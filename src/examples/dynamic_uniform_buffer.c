@@ -21,19 +21,19 @@
 #define ALIGNMENT 256 // 256-byte alignment
 
 // Vertex layout for this example
-typedef struct vertex_t {
+typedef struct {
   vec3 pos;
   vec3 color;
 } vertex_t;
 
 // Vertex buffer and attributes
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
 // Index buffer
-static struct indices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
@@ -60,7 +60,7 @@ static vec3 rotations[OBJECT_INSTANCES]       = {0};
 static vec3 rotation_speeds[OBJECT_INSTANCES] = {0};
 
 // One big uniform buffer that contains all matrices
-static struct ubo_data_dynamic_t {
+static struct {
   mat4 model;
   uint8_t padding[192];
 } ubo_data_dynamic[OBJECT_INSTANCES] = {0};
