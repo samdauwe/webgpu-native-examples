@@ -15,24 +15,24 @@
  * -------------------------------------------------------------------------- */
 
 // Index buffer
-static struct indices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
 
 // Cube vertex buffer
-static struct cube_vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } cube_vertices = {0};
 
 // Plane vertex buffer
-static struct plane_vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } plane_vertices = {0};
 
-static struct camera_data_t {
+static struct {
   mat4 view;
   mat4 proj;
 } camera_data = {0};
@@ -58,7 +58,7 @@ static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // Render state
-static struct render_state_t {
+static struct {
   uint32_t a;
   float b;
 } render_state = {0};
@@ -188,23 +188,23 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform buffer (Vertex shader) => cameraData
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(camera_data),
+        .minBindingSize   = sizeof(camera_data),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: Uniform buffer (Vertex shader) => modelData
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(mat4),
+        .minBindingSize   = sizeof(mat4),
       },
       .sampler = {0},
     },
