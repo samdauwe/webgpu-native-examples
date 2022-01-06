@@ -28,7 +28,7 @@ static const uint8_t light_data_stride = 8;
 static vec3 light_extent_min           = {-50.f, -30.f, -50.f};
 static vec3 light_extent_max           = {50.f, 30.f, 50.f};
 
-static struct view_matrices_t {
+static struct {
   vec3 up_vector;
   vec3 origin;
   mat4 projection_matrix;
@@ -43,7 +43,7 @@ static WGPUBuffer index_buffer;
 static uint32_t index_count;
 
 // GBuffer
-static struct gbuffer_t {
+static struct {
   WGPUTexture texture_2d_float;
   WGPUTexture texture_albedo;
   WGPUTextureView texture_views[3];
@@ -59,7 +59,7 @@ static WGPUBuffer camera_uniform_buffer;
 static WGPUBuffer surface_size_uniform_buffer;
 
 // Lights
-static struct lights_t {
+static struct {
   WGPUBuffer buffer;
   uint64_t buffer_size;
   WGPUBuffer extent_buffer;
@@ -95,13 +95,13 @@ static WGPUPipelineLayout deferred_render_pipeline_layout;
 static WGPUPipelineLayout light_update_compute_pipeline_layout;
 
 // Render pass descriptor
-static struct write_gbuffer_pass_t {
+static struct {
   WGPURenderPassColorAttachment color_attachments[3];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } write_gbuffer_pass = {0};
 
-static struct texture_quad_pass_t {
+static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } texture_quad_pass = {0};
@@ -111,7 +111,7 @@ typedef enum render_mode_enum {
   RenderMode_GBuffer_View = 1,
 } render_mode_enum;
 
-static struct settings_t {
+static struct {
   render_mode_enum current_render_mode;
   int32_t num_lights;
 } settings = {
