@@ -77,23 +77,66 @@ static struct {
 static struct {
   WGPURenderPipeline skybox;
   WGPURenderPipeline reflect;
+  WGPURenderPipeline composition;
+  WGPURenderPipeline bloom[2];
 } pipelines;
 
 static struct {
   WGPUPipelineLayout models;
+  WGPUPipelineLayout composition;
+  WGPUPipelineLayout bloom_filter;
 } pipeline_layouts;
 
 static struct {
   WGPUBindGroup object;
   WGPUBindGroup skybox;
+  WGPUBindGroup composition;
+  WGPUBindGroup bloom_filter;
 } bind_groups;
 
 static struct {
   WGPUBindGroupLayout models;
+  WGPUBindGroupLayout composition;
+  WGPUBindGroupLayout bloom_filter;
 } bind_group_layouts;
+
+typedef enum wgpu_render_pass_attachment_type_t {
+  WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE         = 0x00000001,
+  WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE = 0x00000002,
+} wgpu_render_pass_attachment_type_t;
+
+// Framebuffer for offscreen rendering
+typedef struct {
+  WGPUTexture texture;
+  WGPUTextureView texture_view;
+} frame_buffer_attachment_t;
+
+static struct {
+  uint32_t width, height;
+  frame_buffer_attachment_t color[2];
+  frame_buffer_attachment_t depth;
+  struct {
+    WGPURenderPassColorAttachment color_attachment[2];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor render_pass_descriptor;
+  } render_pass_desc;
+  WGPUSampler sampler;
+} offscreen_pass;
+
+static struct {
+  uint32_t width, height;
+  frame_buffer_attachment_t color[1];
+  struct {
+    WGPURenderPassColorAttachment color_attachment[1];
+    WGPURenderPassDescriptor render_pass_descriptor;
+  } render_pass_desc;
+  WGPUSampler sampler;
+} filter_pass;
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
+
+static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24PlusStencil8;
 
 static const char* example_title = "High Dynamic Range Rendering";
 static bool prepared             = false;
@@ -141,6 +184,181 @@ static void load_assets(wgpu_context_t* wgpu_context)
     &(struct wgpu_texture_load_options_t){
       .flip_y = false,
     });
+}
+
+void create_attachment(wgpu_context_t* wgpu_context, WGPUTextureFormat format,
+                       wgpu_render_pass_attachment_type_t attachment_type,
+                       frame_buffer_attachment_t* attachment)
+{
+  // Create the texture extent
+  WGPUExtent3D texture_extent = {
+    .width              = offscreen_pass.width,
+    .height             = offscreen_pass.height,
+    .depthOrArrayLayers = 1,
+  };
+
+  // Texture usage flags
+  WGPUTextureUsageFlags usage_flags = WGPUTextureUsage_RenderAttachment;
+  if (attachment_type == WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE) {
+    usage_flags = usage_flags | WGPUTextureUsage_TextureBinding;
+  }
+  else if (attachment_type == WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE) {
+    usage_flags = usage_flags | WGPUTextureUsage_CopySrc;
+  }
+
+  // Create the texture
+  WGPUTextureDescriptor texture_desc = {
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = format,
+    .usage         = usage_flags,
+  };
+  attachment->texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(attachment->texture)
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+    .aspect          = WGPUTextureAspect_All,
+  };
+  attachment->texture_view
+    = wgpuTextureCreateView(attachment->texture, &texture_view_dec);
+  ASSERT(attachment->texture_view)
+}
+
+// Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
+static void prepare_offscreen(wgpu_context_t* wgpu_context)
+{
+  {
+    offscreen_pass.width  = wgpu_context->surface.width;
+    offscreen_pass.height = wgpu_context->surface.height;
+
+    // Color attachments
+
+    // Two floating point color buffers
+    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
+                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
+                      &offscreen_pass.color[0]);
+    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
+                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
+                      &offscreen_pass.color[1]);
+    // Depth attachment
+    create_attachment(wgpu_context, depth_format,
+                      WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE,
+                      &offscreen_pass.depth);
+
+    // Init attachment properties
+
+    // Color attachment
+    for (uint32_t i = 0; i < 2; ++i) {
+      offscreen_pass.render_pass_desc.color_attachment[i]
+          = (WGPURenderPassColorAttachment) {
+            .view       = offscreen_pass.color[i].texture_view,
+            .loadOp     = WGPULoadOp_Clear,
+            .storeOp    = WGPUStoreOp_Store,
+            .clearColor = (WGPUColor) {
+              .r = 0.0f,
+              .g = 0.0f,
+              .b = 0.0f,
+              .a = 0.0f,
+            },
+        };
+    }
+
+    // Depth stencil attachment
+    offscreen_pass.render_pass_desc.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view           = offscreen_pass.depth.texture_view,
+        .depthLoadOp    = WGPULoadOp_Clear,
+        .depthStoreOp   = WGPUStoreOp_Store,
+        .clearDepth     = 1.0f,
+        .stencilLoadOp  = WGPULoadOp_Clear,
+        .stencilStoreOp = WGPUStoreOp_Store,
+        .clearStencil   = 0,
+      };
+
+    // Render pass descriptor
+    offscreen_pass.render_pass_desc.render_pass_descriptor
+      = (WGPURenderPassDescriptor){
+        .colorAttachmentCount = 2,
+        .colorAttachments = offscreen_pass.render_pass_desc.color_attachment,
+        .depthStencilAttachment
+        = &offscreen_pass.render_pass_desc.depth_stencil_attachment,
+      };
+
+    // Create sampler to sample from the color attachments
+    offscreen_pass.sampler = wgpuDeviceCreateSampler(
+      wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .addressModeU  = WGPUAddressMode_ClampToEdge,
+                              .addressModeV  = WGPUAddressMode_ClampToEdge,
+                              .addressModeW  = WGPUAddressMode_ClampToEdge,
+                              .minFilter     = WGPUFilterMode_Nearest,
+                              .magFilter     = WGPUFilterMode_Nearest,
+                              .mipmapFilter  = WGPUFilterMode_Linear,
+                              .lodMinClamp   = 0.0f,
+                              .lodMaxClamp   = 1.0f,
+                              .maxAnisotropy = 1,
+                            });
+  }
+
+  // Bloom separable filter pass
+  {
+    filter_pass.width  = wgpu_context->surface.width;
+    filter_pass.height = wgpu_context->surface.height;
+
+    // Color attachments
+
+    // Floating point color buffer
+    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
+                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
+                      &filter_pass.color[0]);
+
+    // Init attachment properties
+
+    // Color attachment
+    filter_pass.render_pass_desc.color_attachment[0]
+          = (WGPURenderPassColorAttachment) {
+            .view       = offscreen_pass.color[0].texture_view,
+            .loadOp     = WGPULoadOp_Clear,
+            .storeOp    = WGPUStoreOp_Store,
+            .clearColor = (WGPUColor) {
+              .r = 0.0f,
+              .g = 0.0f,
+              .b = 0.0f,
+              .a = 0.0f,
+            },
+        };
+
+    // Render pass descriptor
+    filter_pass.render_pass_desc.render_pass_descriptor
+      = (WGPURenderPassDescriptor){
+        .colorAttachmentCount   = 1,
+        .colorAttachments       = filter_pass.render_pass_desc.color_attachment,
+        .depthStencilAttachment = NULL,
+      };
+
+    // Create sampler to sample from the color attachment
+    filter_pass.sampler = wgpuDeviceCreateSampler(
+      wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .addressModeU  = WGPUAddressMode_ClampToEdge,
+                              .addressModeV  = WGPUAddressMode_ClampToEdge,
+                              .addressModeW  = WGPUAddressMode_ClampToEdge,
+                              .minFilter     = WGPUFilterMode_Nearest,
+                              .magFilter     = WGPUFilterMode_Nearest,
+                              .mipmapFilter  = WGPUFilterMode_Linear,
+                              .lodMinClamp   = 0.0f,
+                              .lodMaxClamp   = 1.0f,
+                              .maxAnisotropy = 1,
+                            });
+  }
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -219,6 +437,103 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(pipeline_layouts.models != NULL)
   }
+
+  // Bind group layout for bloom filter & G-Buffer composition
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[5] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Fragment shader image view
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Fragment shader image sampler
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: Fragment shader image view
+        .binding = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [3] = (WGPUBindGroupLayoutEntry) {
+        // Binding 3: Fragment shader image sampler
+        .binding = 3,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [4] = (WGPUBindGroupLayoutEntry) {
+        // Binding 4: fragment shader dynamic uniform buffer
+        .binding = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = true,
+          .minBindingSize = sizeof(ubo_constants[0].value),
+        },
+        .sampler = {0},
+      },
+    };
+
+    // Bloom filter pipeline layout
+    {
+      // Create the bind group layout
+      bind_group_layouts.bloom_filter = wgpuDeviceCreateBindGroupLayout(
+        wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                                .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                                .entries    = bgl_entries,
+                              });
+      ASSERT(bind_group_layouts.bloom_filter != NULL)
+
+      // Create the pipeline layout
+      pipeline_layouts.bloom_filter = wgpuDeviceCreatePipelineLayout(
+        wgpu_context->device,
+        &(WGPUPipelineLayoutDescriptor){
+          .bindGroupLayoutCount = 1,
+          .bindGroupLayouts     = &bind_group_layouts.bloom_filter,
+        });
+      ASSERT(pipeline_layouts.bloom_filter != NULL)
+    }
+
+    // G-Buffer composition
+    {
+      // Create the bind group layout
+      bind_group_layouts.composition = wgpuDeviceCreateBindGroupLayout(
+        wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                                .entryCount = 4u,
+                                .entries    = bgl_entries,
+                              });
+      ASSERT(bind_group_layouts.composition != NULL)
+
+      // Create the pipeline layout
+      pipeline_layouts.composition = wgpuDeviceCreatePipelineLayout(
+        wgpu_context->device,
+        &(WGPUPipelineLayoutDescriptor){
+          .bindGroupLayoutCount = 1,
+          .bindGroupLayouts     = &bind_group_layouts.composition,
+        });
+      ASSERT(pipeline_layouts.composition != NULL)
+    }
+  }
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -234,7 +549,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .size = sizeof(ubo_matrices),
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        // Binding 1: Fragment shader image view
         .binding = 1,
         .textureView = textures.envmap.view,
       },
@@ -259,7 +574,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
     };
 
-    // 3D object descriptor set
+    // 3D object bind group
     {
       WGPUBindGroupDescriptor bg_desc = {
         .layout     = bind_group_layouts.models,
@@ -271,7 +586,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       ASSERT(bind_groups.object != NULL)
     }
 
-    // Sky box bind group
+    // Skybox bind group
     {
       WGPUBindGroupDescriptor bg_desc = {
         .layout     = bind_group_layouts.models,
@@ -282,6 +597,83 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
       ASSERT(bind_groups.skybox != NULL)
     }
+  }
+
+  // Bloom filter bind group
+  {
+    WGPUBindGroupEntry bg_entries[5] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: Fragment shader image view
+        .binding = 0,
+        .textureView = offscreen_pass.color[0].texture_view
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: Fragment shader image sampler
+        .binding = 1,
+        .sampler = offscreen_pass.sampler,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        // Binding 2: Fragment shader image view
+        .binding = 2,
+        .textureView = offscreen_pass.color[1].texture_view
+      },
+      [3] = (WGPUBindGroupEntry) {
+        // Binding 3: Fragment shader image sampler
+        .binding = 3,
+        .sampler = offscreen_pass.sampler,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        // Binding 4: fragment shader dynamic uniform buffer
+        .binding = 4,
+        .buffer = uniform_buffers.dynamic.buffer,
+        .offset = 0,
+        .size = sizeof(ubo_constants[0].value),
+      },
+    };
+
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout     = bind_group_layouts.bloom_filter,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    bind_groups.bloom_filter
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(bind_groups.bloom_filter != NULL)
+  }
+
+  // Composition bind group
+  {
+    WGPUBindGroupEntry bg_entries[4] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: Fragment shader image view
+        .binding = 0,
+        .textureView = offscreen_pass.color[0].texture_view
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: Fragment shader image sampler
+        .binding = 1,
+        .sampler = offscreen_pass.sampler,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        // Binding 2: Fragment shader image view
+        .binding = 2,
+        .textureView = filter_pass.color[0].texture_view
+      },
+      [3] = (WGPUBindGroupEntry) {
+        // Binding 3: Fragment shader image sampler
+        .binding = 3,
+        .sampler = filter_pass.sampler,
+      },
+    };
+
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout     = bind_group_layouts.composition,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    bind_groups.composition
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(bind_groups.composition != NULL)
   }
 }
 
@@ -333,6 +725,133 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
+
+  // Full screen pipelines
+
+  // Final fullscreen composition pass pipeline
+  {
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state_desc[2] = {
+      [0] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_RGBA8Unorm,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+      [1] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_RGBA8Unorm,
+        .blend     = &blend_state,
+      },
+    };
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+          wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/hdr/composition.vert.spv",
+            },
+            // Empty vertex input state, full screen triangles are generated by
+            // the vertex shader
+            .buffer_count = 0,
+            .buffers = NULL,
+          });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+          wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/hdr/composition.frag.spv",
+            },
+            .target_count = 2,
+            .targets = color_target_state_desc,
+          });
+
+    // Create rendering pipeline using the specified states
+    pipelines.composition = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "composition_render_pipeline",
+                              .layout       = pipeline_layouts.composition,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipelines.composition);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
+
+  // Bloom pass
+  {
+    // Additive blending
+    WGPUBlendState blend_state_radial_blur = {
+      .color.operation = WGPUBlendOperation_Add,
+      .color.srcFactor = WGPUBlendFactor_One,
+      .color.dstFactor = WGPUBlendFactor_One,
+      .alpha.operation = WGPUBlendOperation_Add,
+      .alpha.srcFactor = WGPUBlendFactor_SrcAlpha,
+      .alpha.dstFactor = WGPUBlendFactor_DstAlpha,
+    };
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = WGPUTextureFormat_RGBA8Unorm,
+      .blend     = &blend_state_radial_blur,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+          wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/hdr/bloom.vert.spv",
+            },
+            // Empty vertex input state, full screen triangles are generated by
+            // the vertex shader
+            .buffer_count = 0,
+            .buffers = NULL,
+          });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+          wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/hdr/bloom.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+    // First bloom filter pass (into separate framebuffer)
+    pipelines.bloom[0] = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "bloom_1_render_pipeline",
+                              .layout       = pipeline_layouts.bloom_filter,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = NULL,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipelines.bloom[0]);
+
+    // Second bloom filter pass (into separate framebuffer)
+    pipelines.bloom[1] = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "bloom_2_render_pipeline",
+                              .layout       = pipeline_layouts.bloom_filter,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = NULL,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipelines.bloom[1]);
+  }
 
   // Object rendering pipelines
   {
@@ -495,6 +1014,7 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_camera(context);
     load_assets(context->wgpu_context);
     prepare_uniform_buffers(context);
+    prepare_offscreen(context->wgpu_context);
     setup_pipeline_layout(context->wgpu_context);
     prepare_pipelines(context->wgpu_context);
     setup_bind_groups(context->wgpu_context);
@@ -624,15 +1144,36 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.params)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.dynamic.buffer)
 
+  WGPU_RELEASE_RESOURCE(Texture, offscreen_pass.color[0].texture)
+  WGPU_RELEASE_RESOURCE(Texture, offscreen_pass.color[1].texture)
+  WGPU_RELEASE_RESOURCE(Texture, offscreen_pass.depth.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, offscreen_pass.color[0].texture_view)
+  WGPU_RELEASE_RESOURCE(TextureView, offscreen_pass.color[1].texture_view)
+  WGPU_RELEASE_RESOURCE(TextureView, offscreen_pass.depth.texture_view)
+  WGPU_RELEASE_RESOURCE(Sampler, offscreen_pass.sampler)
+
+  WGPU_RELEASE_RESOURCE(Texture, filter_pass.color[0].texture)
+  WGPU_RELEASE_RESOURCE(TextureView, filter_pass.color[0].texture_view)
+  WGPU_RELEASE_RESOURCE(Sampler, filter_pass.sampler)
+
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.skybox)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.reflect)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.composition)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.bloom[0])
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.bloom[1])
 
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.models)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.composition)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.bloom_filter)
 
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.object)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.skybox)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.composition)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.bloom_filter)
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.models)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.composition)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.bloom_filter)
 }
 
 void example_hdr(int argc, char* argv[])
