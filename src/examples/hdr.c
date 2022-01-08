@@ -20,6 +20,7 @@
 #define NUMBER_OF_CONSTANTS 3
 #define ALIGNMENT 256 // 256-byte alignment
 
+static bool bloom          = true;
 static bool display_skybox = true;
 
 static struct {
@@ -109,6 +110,7 @@ typedef enum wgpu_render_pass_attachment_type_t {
 typedef struct {
   WGPUTexture texture;
   WGPUTextureView texture_view;
+  WGPUTextureFormat format;
 } frame_buffer_attachment_t;
 
 static struct {
@@ -186,7 +188,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
     });
 }
 
-void create_attachment(wgpu_context_t* wgpu_context, WGPUTextureFormat format,
+void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
+                       WGPUTextureFormat format,
                        wgpu_render_pass_attachment_type_t attachment_type,
                        frame_buffer_attachment_t* attachment)
 {
@@ -206,13 +209,17 @@ void create_attachment(wgpu_context_t* wgpu_context, WGPUTextureFormat format,
     usage_flags = usage_flags | WGPUTextureUsage_CopySrc;
   }
 
+  // Texture format
+  attachment->format = format;
+
   // Create the texture
   WGPUTextureDescriptor texture_desc = {
+    .label         = texture_label,
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = format,
+    .format        = attachment->format,
     .usage         = usage_flags,
   };
   attachment->texture
@@ -244,14 +251,14 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     // Color attachments
 
     // Two floating point color buffers
-    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
-                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
-                      &offscreen_pass.color[0]);
-    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
-                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
-                      &offscreen_pass.color[1]);
+    create_attachment(
+      wgpu_context, "offscreen_color_tex_1", WGPUTextureFormat_RGBA8Unorm,
+      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &offscreen_pass.color[0]);
+    create_attachment(
+      wgpu_context, "offscreen_color_tex_2", WGPUTextureFormat_RGBA8Unorm,
+      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &offscreen_pass.color[1]);
     // Depth attachment
-    create_attachment(wgpu_context, depth_format,
+    create_attachment(wgpu_context, "offscreen_tex_depth", depth_format,
                       WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE,
                       &offscreen_pass.depth);
 
@@ -317,16 +324,16 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     // Color attachments
 
     // Floating point color buffer
-    create_attachment(wgpu_context, WGPUTextureFormat_RGBA8Unorm,
-                      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE,
-                      &filter_pass.color[0]);
+    create_attachment(
+      wgpu_context, "bloom_color_tex", WGPUTextureFormat_RGBA8Unorm,
+      WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &filter_pass.color[0]);
 
     // Init attachment properties
 
     // Color attachment
     filter_pass.render_pass_desc.color_attachment[0]
           = (WGPURenderPassColorAttachment) {
-            .view       = offscreen_pass.color[0].texture_view,
+            .view       = filter_pass.color[0].texture_view,
             .loadOp     = WGPULoadOp_Clear,
             .storeOp    = WGPUStoreOp_Store,
             .clearColor = (WGPUColor) {
@@ -695,6 +702,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Depth attachment
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
+  // Set clear sample for this example
+  wgpu_context->depth_stencil.att_desc.clearStencil = 1;
+
   // Render pass descriptor
   render_pass_desc = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
@@ -731,16 +741,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Final fullscreen composition pass pipeline
   {
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc[2] = {
-      [0] = (WGPUColorTargetState){
-        .format    = WGPUTextureFormat_RGBA8Unorm,
-        .blend     = &blend_state,
-        .writeMask = WGPUColorWriteMask_All,
-      },
-      [1] = (WGPUColorTargetState){
-        .format    = WGPUTextureFormat_RGBA8Unorm,
-        .blend     = &blend_state,
-      },
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
     };
 
     // Vertex state
@@ -763,8 +767,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               // Fragment shader SPIR-V
               .file = "shaders/hdr/composition.frag.spv",
             },
-            .target_count = 2,
-            .targets = color_target_state_desc,
+            .target_count = 1,
+            .targets = &color_target_state_desc,
           });
 
     // Create rendering pipeline using the specified states
@@ -797,7 +801,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .alpha.dstFactor = WGPUBlendFactor_DstAlpha,
     };
     WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-      .format    = WGPUTextureFormat_RGBA8Unorm,
       .blend     = &blend_state_radial_blur,
       .writeMask = WGPUColorWriteMask_All,
     };
@@ -827,20 +830,22 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
           });
 
     // First bloom filter pass (into separate framebuffer)
-    pipelines.bloom[0] = wgpuDeviceCreateRenderPipeline(
+    color_target_state_desc.format = wgpu_context->swap_chain.format;
+    pipelines.bloom[0]             = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "bloom_1_render_pipeline",
                               .layout       = pipeline_layouts.bloom_filter,
                               .primitive    = primitive_state_desc,
                               .vertex       = vertex_state_desc,
                               .fragment     = &fragment_state_desc,
-                              .depthStencil = NULL,
+                              .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
     ASSERT(pipelines.bloom[0]);
 
     // Second bloom filter pass (into separate framebuffer)
-    pipelines.bloom[1] = wgpuDeviceCreateRenderPipeline(
+    color_target_state_desc.format = filter_pass.color[0].format;
+    pipelines.bloom[1]             = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "bloom_2_render_pipeline",
                               .layout       = pipeline_layouts.bloom_filter,
@@ -865,10 +870,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
     // Color target state
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
-      .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
+    WGPUColorTargetState color_target_state_desc[2] = {
+      [0] = (WGPUColorTargetState){
+        .format    = offscreen_pass.color[0].format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+      [1] = (WGPUColorTargetState){
+        .format    = offscreen_pass.color[1].format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
     };
 
     // Vertex state
@@ -889,8 +901,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               // Fragment shader SPIR-V
               .file = "shaders/hdr/gbuffer.frag.spv",
             },
-            .target_count = 1,
-            .targets = &color_target_state_desc,
+            .target_count = 2,
+            .targets = color_target_state_desc,
           });
 
     // Skybox pipeline (background cube)
@@ -1033,6 +1045,11 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
                                 &models.object_index, object_names, 4)) {
       update_uniform_buffers(context);
     }
+    if (imgui_overlay_input_float(context->imgui_overlay, "Exposure",
+                                  &ubo_params.exposure, 0.025f, "%.3f")) {
+      update_params(context);
+    }
+    imgui_overlay_checkBox(context->imgui_overlay, "Bloom", &bloom);
     imgui_overlay_checkBox(context->imgui_overlay, "Skybox", &display_skybox);
   }
 }
@@ -1043,23 +1060,24 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
+  /*
+   * First pass: Render scene to offscreen framebuffer
+   */
   {
-    // Set target frame buffer
-    rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
-
     // Create render pass encoder for encoding drawing commands
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_desc);
+      wgpu_context->cmd_enc,
+      &offscreen_pass.render_pass_desc.render_pass_descriptor);
 
     // Set viewport
-    wgpuRenderPassEncoderSetViewport(
-      wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-      (float)wgpu_context->surface.height, 0.0f, 1.0f);
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, 0.0f, 0.0f,
+                                     (float)offscreen_pass.width,
+                                     (float)offscreen_pass.height, 0.0f, 1.0f);
 
     // Set scissor rectangle
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                        wgpu_context->surface.width,
-                                        wgpu_context->surface.height);
+                                        offscreen_pass.width,
+                                        offscreen_pass.height);
 
     // Skybox
     if (display_skybox) {
@@ -1085,6 +1103,86 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
+
+  /*
+   * Second render pass: First bloom pass
+   */
+  if (bloom) {
+    // Bloom filter
+
+    // Create render pass encoder for encoding drawing commands
+    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc,
+      &filter_pass.render_pass_desc.render_pass_descriptor);
+
+    // Set viewport
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, 0.0f, 0.0f,
+                                     (float)filter_pass.width,
+                                     (float)filter_pass.height, 0.0f, 1.0f);
+
+    // Set scissor rectangle
+    wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
+                                        filter_pass.width, filter_pass.height);
+
+    // Render
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     pipelines.bloom[1]);
+    uint32_t dynamic_offset = 0 * (uint32_t)ALIGNMENT;
+    wgpuRenderPassEncoderSetBindGroup(
+      wgpu_context->rpass_enc, 0, bind_groups.bloom_filter, 1, &dynamic_offset);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+
+    // End render pass
+    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  }
+
+  /*
+   * Third render pass: Scene rendering with applied second bloom pass (when
+   * enabled)
+   */
+  {
+    // Final composition
+
+    // Set target frame buffer
+    rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+
+    // Create render pass encoder for encoding drawing commands
+    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc, &render_pass_desc);
+
+    // Set viewport
+    wgpuRenderPassEncoderSetViewport(
+      wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
+      (float)wgpu_context->surface.height, 0.0f, 1.0f);
+
+    // Set scissor rectangle
+    wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
+                                        wgpu_context->surface.width,
+                                        wgpu_context->surface.height);
+
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.composition, 0, 0);
+
+    // Scene
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     pipelines.composition);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+
+    // Bloom
+    if (bloom) {
+      wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                       pipelines.bloom[0]);
+      uint32_t dynamic_offset = 1 * (uint32_t)ALIGNMENT;
+      wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                        bind_groups.bloom_filter, 1,
+                                        &dynamic_offset);
+      wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+    }
+  }
+  // End render pass
+  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw ui overlay
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
