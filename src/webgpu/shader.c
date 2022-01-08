@@ -157,10 +157,10 @@ WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
   ASSERT(desc);
   wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
 
-  ASSERT(
-    shader_desc
-    && (shader_desc->file
-        || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)));
+  ASSERT(shader_desc
+         && (shader_desc->file
+             || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)
+             || shader_desc->wgsl_code.source));
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUVertexState vertex_state = {0};
@@ -180,10 +180,10 @@ WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
   ASSERT(desc);
   wgpu_shader_desc_t const* shader_desc = &desc->shader_desc;
 
-  ASSERT(
-    shader_desc
-    && (shader_desc->file
-        || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)));
+  ASSERT(shader_desc
+         && (shader_desc->file
+             || (shader_desc->byte_code.data && shader_desc->byte_code.size > 0)
+             || shader_desc->wgsl_code.source));
   ASSERT(wgpu_context && wgpu_context->device);
 
   WGPUFragmentState fragment_state = {0};
