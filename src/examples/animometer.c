@@ -14,14 +14,66 @@
  * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/animometer.ts
  * -------------------------------------------------------------------------- */
 
+// Shaders
+// clang-format off
+static const char* vertex_shader_wgsl =
+  "[[block]] struct Time {\n"
+  "  value : f32;\n"
+  "};\n"
+  "\n"
+  "[[block]] struct Uniforms {\n"
+  "  scale : f32;\n"
+  "  offsetX : f32;\n"
+  "  offsetY : f32;\n"
+  "  scalar : f32;\n"
+  "  scalarOffset : f32;\n"
+  "};\n"
+  "\n"
+  "[[binding(0), group(0)]] var<uniform> time : Time;\n"
+  "[[binding(0), group(1)]] var<uniform> uniforms : Uniforms;\n"
+  "\n"
+  "struct VertexOutput {\n"
+  "  [[builtin(position)]] Position : vec4<f32>;\n"
+  "  [[location(0)]] v_color : vec4<f32>;\n"
+  "};\n"
+  "\n"
+  "[[stage(vertex)]]\n"
+  "fn main([[location(0)]] position : vec4<f32>,\n"
+  "        [[location(1)]] color : vec4<f32>) -> VertexOutput {\n"
+  "    var fade : f32 = (uniforms.scalarOffset + time.value * uniforms.scalar / 10.0) % 1.0;\n"
+  "    if (fade < 0.5) {\n"
+  "        fade = fade * 2.0;\n"
+  "    } else {\n"
+  "        fade = (1.0 - fade) * 2.0;\n"
+  "    }\n"
+  "    var xpos : f32 = position.x * uniforms.scale;\n"
+  "    var ypos : f32 = position.y * uniforms.scale;\n"
+  "    var angle : f32 = 3.14159 * 2.0 * fade;\n"
+  "    var xrot : f32 = xpos * cos(angle) - ypos * sin(angle);\n"
+  "    var yrot : f32 = xpos * sin(angle) + ypos * cos(angle);\n"
+  "    xpos = xrot + uniforms.offsetX;\n"
+  "    ypos = yrot + uniforms.offsetY;\n"
+  "    var output : VertexOutput;\n"
+  "    output.v_color = vec4<f32>(fade, 1.0 - fade, 0.0, 1.0) + color;\n"
+  "    output.Position = vec4<f32>(xpos, ypos, 0.0, 1.0);\n"
+  "    return output;\n"
+  "}";
+
+static const char* fragment_shader_wgsl =
+  "[[stage(fragment)]]\n"
+  "fn main([[location(0)]] v_color : vec4<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "  return v_color;\n"
+  "}";
+// clang-format on
+
 // Settings
 static struct settings_t {
   uint64_t num_triangles;
   bool render_bundles;
   bool dynamic_offsets;
 } settings = {
-  .num_triangles   = 10000,
-  .render_bundles  = false,
+  .num_triangles   = 20000,
+  .render_bundles  = true,
   .dynamic_offsets = false,
 };
 static uint64_t uniform_bytes          = 0;
@@ -48,7 +100,6 @@ static WGPURenderPipeline pipeline;
 static WGPURenderPipeline dynamic_pipeline;
 
 // Render pass descriptor for frame buffer writes
-static uint32_t dynamic_offsets[1] = {0};
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 static WGPURenderBundle render_bundle;
@@ -101,7 +152,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor time_bgl_desc = {
-    .entryCount = 1,
+    .entryCount = (uint32_t)ARRAY_SIZE(time_bgl_entries),
     .entries    = time_bgl_entries,
   };
   time_bind_group_layout
@@ -121,7 +172,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .entryCount = 1,
+    .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
   bind_group_layout
@@ -142,7 +193,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor dynamic_bgl_desc = {
-    .entryCount = 1,
+    .entryCount = (uint32_t)ARRAY_SIZE(dynamic_bgl_entries),
     .entries    = dynamic_bgl_entries,
   };
   dynamic_bind_group_layout
@@ -154,7 +205,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout bgl_pipeline[2]
     = {time_bind_group_layout, bind_group_layout};
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-    .bindGroupLayoutCount = 2,
+    .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bgl_pipeline),
     .bindGroupLayouts     = bgl_pipeline,
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
@@ -164,7 +215,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout bgl_dynamic_pipeline[2]
     = {time_bind_group_layout, dynamic_bind_group_layout};
   WGPUPipelineLayoutDescriptor _dynamic_pipeline_layout_desc = {
-    .bindGroupLayoutCount = 2,
+    .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bgl_dynamic_pipeline),
     .bindGroupLayouts     = bgl_dynamic_pipeline,
   };
   dynamic_pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -249,12 +300,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
           },
         };
 
-    bind_groups[i] = wgpuDeviceCreateBindGroup(wgpu_context->device,
-                                               (&(WGPUBindGroupDescriptor){
-                                                 .layout = bind_group_layout,
-                                                 .entryCount = 1,
-                                                 .entries    = bg_entries,
-                                               }));
+    bind_groups[i] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, (&(WGPUBindGroupDescriptor){
+                              .layout     = bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            }));
   }
 
   WGPUBindGroupEntry dynamic_bg_entries[1] = {
@@ -266,11 +317,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         },
       };
   dynamic_bind_group = wgpuDeviceCreateBindGroup(
-    wgpu_context->device, (&(WGPUBindGroupDescriptor){
-                            .layout     = dynamic_bind_group_layout,
-                            .entryCount = 1,
-                            .entries    = dynamic_bg_entries,
-                          }));
+    wgpu_context->device,
+    (&(WGPUBindGroupDescriptor){
+      .layout     = dynamic_bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(dynamic_bg_entries),
+      .entries    = dynamic_bg_entries,
+    }));
 
   time_offset = settings.num_triangles * aligned_uniform_bytes;
   WGPUBindGroupEntry time_bg_entries[1] = {
@@ -284,18 +336,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   time_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, (&(WGPUBindGroupDescriptor){
                             .layout     = time_bind_group_layout,
-                            .entryCount = 1,
+                            .entryCount = (uint32_t)ARRAY_SIZE(time_bg_entries),
                             .entries    = time_bg_entries,
                           }));
 
-  const uint64_t max_mapping_length = 14 * 1024 * 1024 / sizeof(float);
+  const uint64_t max_mapping_length = (14 * 1024 * 1024) / sizeof(float);
   for (uint64_t offset = 0; offset < ARRAY_SIZE(uniform_buffer_data);
        offset += max_mapping_length) {
     const uint64_t upload_count
       = MIN(ARRAY_SIZE(uniform_buffer_data) - offset, max_mapping_length);
 
     wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffer,
-                         offset * sizeof(float), uniform_buffer_data,
+                         offset * sizeof(float), &uniform_buffer_data[offset],
                          upload_count * sizeof(float));
   }
 }
@@ -310,11 +362,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     }                                                                          \
     wgpu##Type##SetVertexBuffer(Name, 0, vertices.buffer, 0, WGPU_WHOLE_SIZE); \
     wgpu##Type##SetBindGroup(Name, 0, time_bind_group, 0, 0);                  \
+    uint32_t dynamic_offsets[1] = {0};                                         \
     for (uint64_t i = 0; i < settings.num_triangles; ++i) {                    \
       if (settings.dynamic_offsets) {                                          \
         dynamic_offsets[0] = i * aligned_uniform_bytes;                        \
-        wgpu##Type##SetBindGroup(Name, 1, dynamic_bind_group,                  \
-                                 dynamic_offsets[0], 0);                       \
+        wgpu##Type##SetBindGroup(Name, 1, dynamic_bind_group, 1,               \
+                                 dynamic_offsets);                             \
       }                                                                        \
       else {                                                                   \
         wgpu##Type##SetBindGroup(Name, 1, bind_groups[i], 0, 0);               \
@@ -329,11 +382,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
@@ -353,8 +406,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/animometer/shader.vert.spv",
+                  // Vertex shader WGSL
+                  .wgsl_code.source = vertex_shader_wgsl,
                 },
                 .buffer_count = 1,
                 .buffers = &animometer_vertex_buffer_layout,
@@ -364,8 +417,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/animometer/shader.frag.spv",
+                  // Fragment shader WGSL
+                  .wgsl_code.source = fragment_shader_wgsl,
                 },
                 .target_count = 1,
                 .targets = &color_target_state_desc,
@@ -437,6 +490,10 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+    imgui_overlay_checkBox(context->imgui_overlay, "Render bundles",
+                           &settings.render_bundles);
+    imgui_overlay_checkBox(context->imgui_overlay, "Dynamic offsets",
+                           &settings.dynamic_offsets);
   }
 }
 
@@ -452,6 +509,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     // Render pass
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
+
     if (settings.render_bundles) {
       const WGPURenderBundle render_bundles[1] = {render_bundle};
       wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
@@ -460,6 +518,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     else {
       RECORD_RENDER_PASS(RenderPassEncoder, wgpu_context->rpass_enc)
     }
+
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
@@ -506,7 +565,6 @@ static int example_render(wgpu_example_context_t* context)
     update_uniform_buffers(context);
   }
   return draw_result;
-  ;
 }
 
 // Clean up used resources
@@ -536,8 +594,9 @@ void example_animometer(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title  = example_title,
+      .title   = example_title,
       .overlay = true,
+      .vsync   = false,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
