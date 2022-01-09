@@ -18,8 +18,36 @@
  * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/videoUploading.ts
  * -------------------------------------------------------------------------- */
 
+// Shaders
+// clang-format off
+static const char* vertex_shader_wgsl =
+  "struct VertexInput {\n"
+  "  [[location(0)]] position : vec3<f32>;\n"
+  "  [[location(1)]] uv : vec2<f32>;\n"
+  "};\n"
+  "\n"
+  "struct VertexOutput {\n"
+  "  [[builtin(position)]] Position : vec4<f32>;\n"
+  "  [[location(0)]] fragUV : vec2<f32>;\n"
+  "};\n"
+  "\n"
+  "[[stage(vertex)]]\n"
+  "fn main(input : VertexInput) -> VertexOutput {\n"
+  "  return VertexOutput(vec4<f32>(input.position, 1.0), input.uv);\n"
+  "}";
+
+static const char* fragment_shader_wgsl =
+  "[[binding(0), group(0)]] var mySampler: sampler;\n"
+  "[[binding(1), group(0)]] var myTexture: texture_2d<f32>;\n"
+  "\n"
+  "[[stage(fragment)]]\n"
+  "fn main([[location(0)]] fragUV : vec2<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "  return textureSample(myTexture, mySampler, fragUV);\n"
+  "}";
+// clang-format on
+
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint64_t count;
   uint64_t size;
@@ -36,13 +64,13 @@ static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
 
 // Texture and sampler
-static struct video_texture_t {
+static struct {
   WGPUSampler sampler;
   WGPUTexture texture;
   WGPUTextureView view;
 } video_texture = {0};
 
-static struct video_info_t {
+static struct {
   struct {
     int32_t width;
     int32_t height;
@@ -194,8 +222,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/video_uploading/shader.vert.spv",
+                  // Vertex shader WGSL
+                  .wgsl_code.source = vertex_shader_wgsl,
                 },
                 .buffer_count = 1,
                 .buffers = &video_uploading_vertex_buffer_layout,
@@ -205,8 +233,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/video_uploading/shader.frag.spv",
+                  // Fragment shader WGSL
+                  .wgsl_code.source = fragment_shader_wgsl,
                 },
                 .target_count = 1,
                 .targets = &color_target_state_desc,
