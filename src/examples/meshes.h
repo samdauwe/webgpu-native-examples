@@ -1,3 +1,6 @@
+#ifndef MESHES_H
+#define MESHES_H
+
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------- *
@@ -96,3 +99,5 @@ void stanford_dragon_mesh_compute_normals(
 void stanford_dragon_mesh_compute_projected_plane_uvs(
   stanford_dragon_mesh_t* stanford_dragon_mesh,
   projected_plane_enum projected_plane);
+
+#endif /* MESHES_H */
