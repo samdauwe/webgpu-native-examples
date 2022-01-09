@@ -11,4 +11,4 @@ examplecase_t* get_random_example();
 examplecase_t* get_example_by_name(const char* example_name);
 void log_example_names();
 
-#endif
+#endif /* EXAMPLES_H */
