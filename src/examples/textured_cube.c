@@ -1,4 +1,5 @@
-﻿#include "example_base.h"
+﻿#include "common_shaders.h"
+#include "example_base.h"
 #include "examples.h"
 #include "meshes.h"
 
@@ -18,28 +19,6 @@
 
 // Shaders
 // clang-format off
-static const char* basic_vertex_shader_wgsl =
-  "[[block]] struct Uniforms {\n"
-  "  modelViewProjectionMatrix : mat4x4<f32>;\n"
-  "};\n"
-  "[[binding(0), group(0)]] var<uniform> uniforms : Uniforms;\n"
-  "\n"
-  "struct VertexOutput {\n"
-  "  [[builtin(position)]] Position : vec4<f32>;\n"
-  "  [[location(0)]] fragUV : vec2<f32>;\n"
-  "  [[location(1)]] fragPosition: vec4<f32>;\n"
-  "};\n"
-  "\n"
-  "[[stage(vertex)]]\n"
-  "fn main([[location(0)]] position : vec4<f32>,\n"
-  "        [[location(1)]] uv : vec2<f32>) -> VertexOutput {\n"
-  "  var output : VertexOutput;\n"
-  "  output.Position = uniforms.modelViewProjectionMatrix * position;\n"
-  "  output.fragUV = uv;\n"
-  "  output.fragPosition = 0.5 * (position + vec4<f32>(1.0, 1.0, 1.0, 1.0));\n"
-  "  return output;\n"
-  "}";
-
 static const char* sampled_texture_mix_color_fragment_shader_wgsl =
   "[[group(0), binding(1)]] var mySampler: sampler;\n"
   "[[group(0), binding(2)]] var myTexture: texture_2d<f32>;\n"

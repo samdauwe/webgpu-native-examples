@@ -137,6 +137,7 @@ set(HEADERS
     src/core/platform.h
     src/core/video_decode.h
     src/core/window.h
+    src/examples/common_shaders.h
     src/examples/examples.h
     src/examples/example_base.h
     src/examples/meshes.h
