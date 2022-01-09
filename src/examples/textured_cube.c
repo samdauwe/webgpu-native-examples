@@ -16,32 +16,66 @@
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/cube
  * -------------------------------------------------------------------------- */
 
+// Shaders
+// clang-format off
+static const char* basic_vertex_shader_wgsl =
+  "[[block]] struct Uniforms {\n"
+  "  modelViewProjectionMatrix : mat4x4<f32>;\n"
+  "};\n"
+  "[[binding(0), group(0)]] var<uniform> uniforms : Uniforms;\n"
+  "\n"
+  "struct VertexOutput {\n"
+  "  [[builtin(position)]] Position : vec4<f32>;\n"
+  "  [[location(0)]] fragUV : vec2<f32>;\n"
+  "  [[location(1)]] fragPosition: vec4<f32>;\n"
+  "};\n"
+  "\n"
+  "[[stage(vertex)]]\n"
+  "fn main([[location(0)]] position : vec4<f32>,\n"
+  "        [[location(1)]] uv : vec2<f32>) -> VertexOutput {\n"
+  "  var output : VertexOutput;\n"
+  "  output.Position = uniforms.modelViewProjectionMatrix * position;\n"
+  "  output.fragUV = uv;\n"
+  "  output.fragPosition = 0.5 * (position + vec4<f32>(1.0, 1.0, 1.0, 1.0));\n"
+  "  return output;\n"
+  "}";
+
+static const char* sampled_texture_mix_color_fragment_shader_wgsl =
+  "[[group(0), binding(1)]] var mySampler: sampler;\n"
+  "[[group(0), binding(2)]] var myTexture: texture_2d<f32>;\n"
+  "\n"
+  "[[stage(fragment)]]\n"
+  "fn main([[location(0)]] fragUV: vec2<f32>,\n"
+  "        [[location(1)]] fragPosition: vec4<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "  return textureSample(myTexture, mySampler, fragUV) * fragPosition;\n"
+  "}";
+// clang-format on
+
 // Cube mesh
 static cube_mesh_t cube_mesh = {0};
 
 // Cube struct
-typedef struct cube_t {
+static struct {
   WGPUBindGroup uniform_buffer_bind_group;
   WGPUBindGroupLayout bind_group_layout;
   struct {
     mat4 model_view_projection;
   } view_mtx;
-} cube_t;
-static cube_t cube = {0};
+} cube = {0};
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t size;
 } vertices = {0};
 
 // Uniform buffer block object
-static struct uniform_buffer_vs_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t size;
 } uniform_buffer_vs = {0};
 
-static struct view_matrices_t {
+static struct {
   mat4 projection;
   mat4 view;
 } view_matrices = {0};
@@ -148,7 +182,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL,
+      .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -257,7 +291,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    // Backface culling since the cube is solid piece of geometry.
+    // Faces pointing away from the camera will be occluded by faces
+    // pointing toward the camera.
+    .cullMode = WGPUCullMode_Back,
   };
 
   // Color target state
@@ -269,11 +306,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Depth stencil state
+  // Enable depth testing so that the fragment closest to the camera
+  // is rendered in front.
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
+  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -286,25 +326,25 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-             wgpu_context, &(wgpu_vertex_state_t){
-             .shader_desc = (wgpu_shader_desc_t){
-               // Vertex shader SPIR-V
-               .file = "shaders/textured_cube/shader.vert.spv",
-             },
-             .buffer_count = 1,
-             .buffers = &textured_cube_vertex_buffer_layout,
-           });
+         wgpu_context, &(wgpu_vertex_state_t){
+         .shader_desc = (wgpu_shader_desc_t){
+            // Vertex shader WGSL
+            .wgsl_code.source = basic_vertex_shader_wgsl,
+         },
+         .buffer_count = 1,
+         .buffers = &textured_cube_vertex_buffer_layout,
+       });
 
   // Fragment state
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-             wgpu_context, &(wgpu_fragment_state_t){
-             .shader_desc = (wgpu_shader_desc_t){
-               // Fragment shader SPIR-V
-               .file = "shaders/textured_cube/shader.frag.spv",
-             },
-             .target_count = 1,
-             .targets = &color_target_state_desc,
-           });
+         wgpu_context, &(wgpu_fragment_state_t){
+         .shader_desc = (wgpu_shader_desc_t){
+            // Fragment shader WGSL
+            .wgsl_code.source = sampled_texture_mix_color_fragment_shader_wgsl,
+         },
+         .target_count = 1,
+         .targets = &color_target_state_desc,
+       });
 
   // Multisample state
   WGPUMultisampleState multisample_state_desc
