@@ -14,8 +14,10 @@
  * -------------------------------------------------------------------------- */
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Other variables
 static const char* example_title = "Clear Screen";
@@ -26,7 +28,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -39,9 +41,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
+    .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = NULL,
   };
 }
@@ -70,14 +72,14 @@ static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 {
-  rp_color_att_descriptors[0].view
+  render_pass.color_attachments[0].view
     = context->wgpu_context->swap_chain.frame_buffer;
 
   // Figure out how far along duration we are, between 0.0 and 1.0
   const float t = cos(context->frame.timestamp_millis * 0.001f) * 0.5f + 0.5f;
 
   // Interpolate between two colors
-  rp_color_att_descriptors[0].clearColor = lerp(
+  render_pass.color_attachments[0].clearColor = lerp(
     &(WGPUColor){
       .r = 0.0f,
       .g = 0.0f,
@@ -96,7 +98,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 
   // Create render pass
   WGPURenderPassEncoder rpass
-    = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass_desc);
+    = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass.descriptor);
 
   // End render pass
   wgpuRenderPassEncoderEndPass(rpass);
