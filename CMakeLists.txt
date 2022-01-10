@@ -206,6 +206,7 @@ set(SOURCES
     src/examples/offscreen_rendering.c
     src/examples/parallax_mapping.c
     src/examples/pbr_basic.c
+    src/examples/prng.c
     src/examples/radial_blur.c
     src/examples/reversed_z.c
     src/examples/screenshot.c
