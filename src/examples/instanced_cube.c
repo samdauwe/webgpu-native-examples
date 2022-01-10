@@ -1,3 +1,4 @@
+#include "common_shaders.h"
 #include "example_base.h"
 #include "examples.h"
 #include "meshes.h"
@@ -17,6 +18,33 @@
 
 #define MAX_NUM_INSTANCES 16
 
+// Shaders
+// clang-format off
+static const char* instanced_vertex_shader_wgsl =
+  "[[block]] struct Uniforms {\n"
+  "  modelViewProjectionMatrix : [[stride(64)]] array<mat4x4<f32>, 16>;\n"
+  "};\n"
+  "\n"
+  "[[binding(0), group(0)]] var<uniform> uniforms : Uniforms;\n"
+  "\n"
+  "struct VertexOutput {\n"
+  "  [[builtin(position)]] Position : vec4<f32>;\n"
+  "  [[location(0)]] fragUV : vec2<f32>;\n"
+  "  [[location(1)]] fragPosition: vec4<f32>;\n"
+  "};\n"
+  "\n"
+  "[[stage(vertex)]]\n"
+  "fn main([[builtin(instance_index)]] instanceIdx : u32,\n"
+  "        [[location(0)]] position : vec4<f32>,\n"
+  "        [[location(1)]] uv : vec2<f32>) -> VertexOutput {\n"
+  "  var output : VertexOutput;\n"
+  "  output.Position = uniforms.modelViewProjectionMatrix[instanceIdx] * position;\n"
+  "  output.fragUV = uv;\n"
+  "  output.fragPosition = 0.5 * (position + vec4<f32>(1.0, 1.0, 1.0, 1.0));\n"
+  "  return output;\n"
+  "}";
+// clang-format on
+
 static const uint32_t x_count             = 4;
 static const uint32_t y_count             = 4;
 static const uint32_t num_instances       = x_count * y_count;
@@ -25,22 +53,23 @@ static const uint32_t matrix_size         = 4 * matrix_float_count;
 static const uint32_t uniform_buffer_size = num_instances * matrix_size;
 
 // Cube mesh
-static cube_mesh_t cube_mesh = {0};
+static cube_mesh_t cube_mesh      = {0};
+static uint32_t cube_vertex_count = 36;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t size;
 } vertices = {0};
 
 // Uniform buffer object
-static struct uniform_buffer_t {
+static struct {
   WGPUBuffer buffer;
   uint64_t size;
   WGPUBindGroup bind_group;
 } uniform_buffer = {0};
 
-static struct view_matrices_t {
+static struct {
   mat4 projection;
   mat4 view;
   mat4 model[MAX_NUM_INSTANCES];
@@ -52,8 +81,10 @@ static struct view_matrices_t {
 static WGPURenderPipeline pipeline;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Other variables
 static const char* example_title = "Instanced Cube";
@@ -65,7 +96,7 @@ static void prepare_cube_mesh()
   cube_mesh_init(&cube_mesh);
 }
 
-// Prepare vertex buffer
+// Create a vertex buffer from the cube data.
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   vertices.size                    = sizeof(cube_mesh.vertex_array);
@@ -85,8 +116,8 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // attachment is acquired in render loop.
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, // view is acquired in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -101,9 +132,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
+    .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
   };
 }
@@ -164,6 +195,7 @@ static void prepare_model_matrices()
 {
   const float step = 4.0f;
 
+  // Initialize the matrix data for every instance.
   uint32_t m = 0;
   for (uint32_t x = 0; x < x_count; x++) {
     for (uint32_t y = 0; y < y_count; y++) {
@@ -181,7 +213,8 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   // Camera
   prepare_view_matrices(wgpu_context);
 
-  // Unform buffer
+  // Unform buffer: allocate a buffer large enough to hold transforms for every
+  // instance.
   uniform_buffer.size   = uniform_buffer_size;
   uniform_buffer.buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
@@ -218,7 +251,10 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    // Backface culling since the cube is solid piece of geometry.
+    // Faces pointing away from the camera will be occluded by faces
+    // pointing toward the camera.
+    .cullMode = WGPUCullMode_Back,
   };
 
   // Color target state
@@ -249,8 +285,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/instanced_cube/shader.vert.spv",
+              // Vertex shader WGSL
+              .wgsl_code.source = instanced_vertex_shader_wgsl,
             },
             .buffer_count = 1,
             .buffers = &instanced_cube_vertex_buffer_layout,
@@ -260,8 +296,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/instanced_cube/shader.frag.spv",
+              // Fragment shader WGSL
+              .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
             },
             .target_count = 1,
             .targets = &color_target_state_desc,
@@ -315,19 +351,20 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+    wgpu_context->cmd_enc, &render_pass.descriptor);
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     uniform_buffer.bind_group, 0, 0);
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 36, num_instances, 0, 0);
+  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_vertex_count,
+                            num_instances, 0, 0);
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
