@@ -1,3 +1,4 @@
+#include "common_shaders.h"
 #include "example_base.h"
 #include "examples.h"
 #include "meshes.h"
@@ -37,20 +38,20 @@ static cube_t cubes[NUMBER_OF_CUBES] = {0};
 static const uint64_t number_of_cubes = (uint64_t)NUMBER_OF_CUBES;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t size;
 } vertices = {0};
 
 // Uniform buffer object
-static struct uniform_buffer_t {
+static struct {
   WGPUBuffer buffer;
   uint64_t offset;
   uint64_t size;
   uint64_t size_with_offset;
 } uniform_buffer = {0};
 
-static struct view_matrices_t {
+static struct {
   mat4 projection;
   mat4 view;
 } view_matrices = {0};
@@ -59,8 +60,10 @@ static struct view_matrices_t {
 static WGPURenderPipeline pipeline;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Other variables
 static const char* example_title = "Two Cubes";
@@ -72,7 +75,7 @@ static void prepare_cube_mesh()
   cube_mesh_init(&cube_mesh);
 }
 
-// Prepare vertex buffer
+// Create a vertex buffer from the cube data.
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   vertices.size                    = sizeof(cube_mesh.vertex_array);
@@ -92,8 +95,8 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // attachment is acquired in render loop.
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -108,9 +111,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
+    .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
   };
 }
@@ -262,8 +265,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-          // Vertex shader SPIR-V
-          .file = "shaders/two_cubes/shader.vert.spv",
+           // Vertex shader WGSL
+           .wgsl_code.source = basic_vertex_shader_wgsl,
         },
         .buffer_count = 1,
         .buffers = &two_cubes_vertex_buffer_layout,
@@ -273,8 +276,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-          // Fragment shader SPIR-V
-          .file = "shaders/two_cubes/shader.frag.spv",
+          // Fragment shader WGSL
+          .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
         },
         .target_count = 1,
         .targets = &color_target_state_desc,
@@ -330,13 +333,13 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+    wgpu_context->cmd_enc, &render_pass.descriptor);
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
