@@ -60,8 +60,10 @@ static WGPURenderPipeline pipeline;
 static WGPUBindGroup uniform_bind_group;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Texture and sampler
 static struct {
@@ -151,7 +153,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -164,9 +166,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
+    .colorAttachments     = render_pass.color_attachments,
   };
 }
 
@@ -317,7 +319,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc
@@ -325,7 +327,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Create render pass
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+    wgpu_context->cmd_enc, &render_pass.descriptor);
 
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
