@@ -1,4 +1,5 @@
-﻿#include "example_base.h"
+﻿#include "common_shaders.h"
+#include "example_base.h"
 #include "examples.h"
 
 #include <string.h>
@@ -14,14 +15,9 @@
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/imageBlur
  * -------------------------------------------------------------------------- */
 
+// Contants from the blur.wgsl shader.
 static const uint32_t tile_dim = 128;
 static const uint32_t batch[2] = {4, 4};
-
-// Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
 
 // Uniform buffers
 static WGPUBuffer uniform_buffers[2];
@@ -30,16 +26,12 @@ static WGPUBuffer blur_params_buffer;
 
 // Pipelines
 static WGPUComputePipeline blur_pipeline;
-static WGPURenderPipeline render_pipeline;
-
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPipeline fullscreen_quad_pipeline;
 
 // Bind groups
 static WGPUBindGroup compute_constants_bind_group;
 static WGPUBindGroup compute_bind_groups[3];
-static WGPUBindGroup uniform_bind_group;
+static WGPUBindGroup show_result_bind_group;
 
 // Texture and sampler
 static texture_t texture;
@@ -58,45 +50,15 @@ static uint32_t block_dim = 1;
 static uint32_t image_width;
 static uint32_t image_height;
 
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
+
 // Other variables
 static const char* example_title = "Image Blur";
 static bool prepared             = false;
-
-// Prepare vertex buffers
-static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
-{
-  static const float vertices_data[(3 + 2) * 6] = {
-    // position data  /**/ uv data
-    1.0f,  1.0f,  0.0f, /**/ 1.0f, 0.0f, //
-    1.0f,  -1.0f, 0.0f, /**/ 1.0f, 1.0f, //
-    -1.0f, -1.0f, 0.0f, /**/ 0.0f, 1.0f, //
-    1.0f,  1.0f,  0.0f, /**/ 1.0f, 0.0f, //
-    -1.0f, -1.0f, 0.0f, /**/ 0.0f, 1.0f, //
-    -1.0f, 1.0f,  0.0f, /**/ 0.0f, 0.0f, //
-  };
-
-  vertices.count              = 6u;
-  uint64_t vertex_buffer_size = (uint64_t)sizeof(vertices_data);
-
-  // Create a host-visible staging buffer that contains the raw image data
-  WGPUBufferDescriptor vertices_buffer_desc = {
-    .usage            = WGPUBufferUsage_Vertex,
-    .size             = vertex_buffer_size,
-    .mappedAtCreation = true,
-  };
-  WGPUBuffer vertices_buffer
-    = wgpuDeviceCreateBuffer(wgpu_context->device, &vertices_buffer_desc);
-  ASSERT(vertices_buffer)
-
-  // Copy vertices data into staging buffer
-  void* mapping
-    = wgpuBufferGetMappedRange(vertices_buffer, 0, vertex_buffer_size);
-  ASSERT(mapping)
-  memcpy(mapping, vertices_data, vertex_buffer_size);
-  wgpuBufferUnmap(vertices_buffer);
-
-  vertices.buffer = vertices_buffer;
-}
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
 {
@@ -139,7 +101,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -152,16 +114,16 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
+    .colorAttachments     = render_pass.color_attachments,
   };
 }
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // buffer 0 and buffer 1
-  for (uint32_t i = 0; i < ARRAY_SIZE(uniform_buffers); ++i) {
+  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(uniform_buffers); ++i) {
     const WGPUBufferDescriptor buffer_desc = {
       .usage            = WGPUBufferUsage_Uniform,
       .size             = 4,
@@ -308,13 +270,14 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
+      .layout
+      = wgpuRenderPipelineGetBindGroupLayout(fullscreen_quad_pipeline, 0),
       .entryCount = 2,
       .entries    = bg_entries,
     };
-    uniform_bind_group
+    show_result_bind_group
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(uniform_bind_group != NULL)
+    ASSERT(show_result_bind_group != NULL)
   }
 }
 
@@ -326,14 +289,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Compute shader
     wgpu_shader_t blur_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader SPIR-V
-                      .file = "shaders/image_blur/blur.comp.spv",
+                      // Compute shader WGSL
+                      .file = "shaders/image_blur/blur.wgsl",
                     });
 
     // Compute pipeline
     blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
+        .label   = "image_blur_render_pipeline",
         .compute = blur_comp_shader.programmable_stage_descriptor,
       });
 
@@ -358,31 +322,23 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex buffer layout
-    WGPU_VERTEX_BUFFER_LAYOUT(
-      image_blur, 20,
-      // Attribute location 0: Position
-      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-      // Attribute location 1: UV
-      WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 12))
-
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                   wgpu_context, &(wgpu_vertex_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
-                    // Vertex shader SPIR-V
-                    .file = "shaders/image_blur/shader.vert.spv",
+                    // Vertex shader WGSL
+                    .wgsl_code.source = fullscreen_textured_quad_wgsl,
+                    .entry            = "vert_main"
                   },
-                  .buffer_count = 1,
-                  .buffers = &image_blur_vertex_buffer_layout,
                 });
 
     // Fragment state
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
                   wgpu_context, &(wgpu_fragment_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
-                    // Fragment shader SPIR-V
-                    .file = "shaders/image_blur/shader.frag.spv",
+                    // Fragment shader WGSL
+                    .wgsl_code.source = fullscreen_textured_quad_wgsl,
+                    .entry            = "frag_main"
                   },
                   .target_count = 1,
                   .targets = &color_target_state_desc,
@@ -396,9 +352,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         });
 
     // Create rendering pipeline using the specified states
-    render_pipeline = wgpuDeviceCreateRenderPipeline(
+    fullscreen_quad_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "image_blur_render_pipeline",
+                              .label       = "fullscreen_quad_pipeline",
                               .primitive   = primitive_state_desc,
                               .vertex      = vertex_state_desc,
                               .fragment    = &fragment_state_desc,
@@ -444,7 +400,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc
@@ -488,16 +444,15 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
-  // Render pass
+  // Fullscreen quad pipeline
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_desc);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         vertices.buffer, 0, WGPU_WHOLE_SIZE);
+      wgpu_context->cmd_enc, &render_pass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     fullscreen_quad_pipeline);
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      uniform_bind_group, 0, NULL);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, vertices.count, 1, 0, 0);
+                                      show_result_bind_group, 0, NULL);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
@@ -536,7 +491,6 @@ static int example_draw(wgpu_example_context_t* context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    prepare_vertex_buffer(context->wgpu_context);
     prepare_texture(context->wgpu_context);
     prepare_pipelines(context->wgpu_context);
     prepare_uniform_buffers(context->wgpu_context);
@@ -571,13 +525,12 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroup, compute_bind_groups[0])
   WGPU_RELEASE_RESOURCE(BindGroup, compute_bind_groups[1])
   WGPU_RELEASE_RESOURCE(BindGroup, compute_bind_groups[2])
-  WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, show_result_bind_group)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[0])
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[1])
   WGPU_RELEASE_RESOURCE(Buffer, blur_params_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
   WGPU_RELEASE_RESOURCE(ComputePipeline, blur_pipeline)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, fullscreen_quad_pipeline)
 }
 
 void example_image_blur(int argc, char* argv[])
@@ -587,6 +540,7 @@ void example_image_blur(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
       .title = example_title,
       .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
