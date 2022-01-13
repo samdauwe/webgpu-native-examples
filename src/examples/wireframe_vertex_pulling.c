@@ -79,8 +79,10 @@ static cube_t cube = {0};
 static WGPUPipelineLayout pipeline_layout;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Render modes
 typedef enum render_mode_enum {
@@ -198,7 +200,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -214,9 +216,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
+    .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
   };
 }
@@ -563,7 +565,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc
@@ -571,7 +573,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Create render pass
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+    wgpu_context->cmd_enc, &render_pass.descriptor);
 
   // Bind the rendering pipeline
   wgpuRenderPassEncoderSetPipeline(
@@ -681,8 +683,9 @@ void example_wireframe_vertex_pulling(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title                 = example_title,
-     .overlay               = true,
+     .title   = example_title,
+     .overlay = true,
+     .vsync   = true
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
