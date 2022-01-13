@@ -28,7 +28,7 @@ static const uint32_t NUM_PARTICLES = 1500;
 static const uint32_t PARTICLES_PER_GROUP = 64;
 
 // Sim parameters
-typedef struct sim_params_t {
+static struct sim_params_t {
   float delta_t;        // deltaT
   float rule1_distance; // rule1Distance
   float rule2_distance; // rule2Distance
@@ -36,10 +36,9 @@ typedef struct sim_params_t {
   float rule1_scale;    // rule1Scale
   float rule2_scale;    // rule2Scale
   float rule3_scale;    // rule3Scale
-} sim_params_t;
-static sim_params_t sim_param_data = {
+} sim_param_data = {
   .delta_t        = 0.04f,  // deltaT
-  .rule1_distance = 0.1f,   // rule1Distance
+  .rule1_distance = 0.10f,  // rule1Distance
   .rule2_distance = 0.025f, // rule2Distance
   .rule3_distance = 0.025f, // rule3Distance
   .rule1_scale    = 0.02f,  // rule1Scale
@@ -84,13 +83,15 @@ static WGPUPipelineLayout render_pipeline_layout;
 static WGPUComputePipeline compute_pipeline;
 static WGPURenderPipeline render_pipeline;
 
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
-
 // Bind groups and layouts
 static WGPUBindGroup particle_bind_groups[2];
 static WGPUBindGroupLayout compute_bind_group_layout;
+
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Other variables
 static const char* example_title = "Compute Boids";
@@ -126,7 +127,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(sim_params_t),
+        .minBindingSize = sizeof(sim_param_data),
       },
       .sampler = {0},
     },
@@ -177,8 +178,8 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL,
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -190,9 +191,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
+    .colorAttachments     = render_pass.color_attachments,
   };
 }
 
@@ -200,7 +201,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Buffer for simulation parameters uniform
   sim_param_buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &sim_param_data, sizeof(sim_params_t),
+    context->wgpu_context, &sim_param_data, sizeof(sim_param_data),
     WGPUBufferUsage_Uniform);
 
   // Buffer for all particles data of type [(posx,posy,velx,vely),...]
@@ -209,10 +210,10 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   srand((unsigned int)time(NULL)); // randomize seed
   for (uint32_t i = 0; i < NUM_PARTICLES; i += 4) {
     const size_t chunk               = i * 4;
-    initial_particle_data[chunk + 0] = 2.f * (rand_float() - 0.5);       // posx
-    initial_particle_data[chunk + 1] = 2.f * (rand_float() - 0.5);       // posy
-    initial_particle_data[chunk + 2] = 2.f * (rand_float() - 0.5) * 0.1; // velx
-    initial_particle_data[chunk + 3] = 2.f * (rand_float() - 0.5) * 0.1; // vely
+    initial_particle_data[chunk + 0] = 2 * (rand_float() - 0.5f);        // posx
+    initial_particle_data[chunk + 1] = 2 * (rand_float() - 0.5f);        // posy
+    initial_particle_data[chunk + 2] = 2 * (rand_float() - 0.5f) * 0.1f; // velx
+    initial_particle_data[chunk + 3] = 2 * (rand_float() - 0.5f) * 0.1f; // vely
   }
 
   // Creates two buffers of particle data each of size NUM_PARTICLES the two
@@ -232,7 +233,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
         .binding = 0,
         .buffer = sim_param_buffer,
         .offset = 0,
-        .size = sizeof(sim_params_t),
+        .size = sizeof(sim_param_data),
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
@@ -249,7 +250,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     WGPUBindGroupDescriptor bg_desc = {
       .layout     = compute_bind_group_layout,
-      .entryCount = 3,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
     particle_bind_groups[i]
@@ -264,7 +265,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 static void update_sim_params(wgpu_context_t* wgpu_context)
 {
   wgpu_queue_write_buffer(wgpu_context, sim_param_buffer, 0, &sim_param_data,
-                          sizeof(sim_params_t));
+                          sizeof(sim_param_data));
 }
 
 // Create the compute & graphics pipelines
@@ -326,16 +327,18 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Compute shader
   wgpu_shader_t boids_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader SPIR-V
-                    .file = "shaders/compute_boids/boids.comp.spv",
+                    // Compute shader WGSL
+                    .file  = "shaders/compute_boids/updateSprites.wgsl",
+                    .entry = "main",
                   });
 
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/compute_boids/shader.vert.spv",
+              // Vertex shader WGSL
+              .file = "shaders/compute_boids/sprite.wgsl",
+              .entry = "vert_main",
             },
             .buffer_count = 2,
             .buffers = vert_buf_desc,
@@ -345,8 +348,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/compute_boids/shader.frag.spv",
+              // Fragment shader WGSL
+              .file = "shaders/compute_boids/sprite.wgsl",
+              .entry = "frag_main",
             },
             .target_count = 1,
             .targets = &color_target_state_desc,
@@ -414,8 +418,8 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 {
-  wgpu_context_t* wgpu_context     = context->wgpu_context;
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  wgpu_context_t* wgpu_context          = context->wgpu_context;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc
@@ -439,7 +443,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   // Render pass
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_desc);
+      wgpu_context->cmd_enc, &render_pass.descriptor);
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
     // render dst particles
     wgpuRenderPassEncoderSetVertexBuffer(
