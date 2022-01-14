@@ -4,6 +4,39 @@
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------- *
+ * Plane mesh
+ * -------------------------------------------------------------------------- */
+
+#define MAX_PLANE_VERTEX_COUNT 1024
+
+typedef struct plane_vertex_t {
+  float position[3];
+  float normal[3];
+  float uv[2];
+} plane_vertex_t;
+
+typedef struct plane_mesh_t {
+  float width;
+  float height;
+  uint32_t rows;
+  uint32_t columns;
+  uint64_t vertex_count;
+  uint64_t index_count;
+  plane_vertex_t vertices[MAX_PLANE_VERTEX_COUNT];
+  uint32_t indices[MAX_PLANE_VERTEX_COUNT * 6];
+} plane_mesh_t;
+
+typedef struct plane_mesh_init_options_t {
+  float width;
+  float height;
+  uint32_t rows;
+  uint32_t columns;
+} plane_mesh_init_options_t;
+
+void plane_mesh_init(plane_mesh_t* plane_mesh,
+                     plane_mesh_init_options_t* options);
+
+/* -------------------------------------------------------------------------- *
  * Cube mesh
  * -------------------------------------------------------------------------- */
 
