@@ -97,7 +97,7 @@ $ bash ./build.sh -webgpu_native_examples
 
 ### Linux
 
-The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher <example_name>" like for example:
+The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher <example_name>" where <example_name> is the filename of the example without the extension, like for example:
 
 ```bash
 $ ./wgpu_sample_launcher shadertoy
