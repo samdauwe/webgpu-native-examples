@@ -126,6 +126,7 @@ $ ./wgpu_sample_launcher shadertoy
 ├─ 📄 .clang-format   # Clang-format file for automatically formatting C code
 ├─ 📄 .gitmodules     # Used Git submodules
 ├─ 📄 .gitignore      # Ignore certain files in git repo
+├─ 📄 build.sh        # bash script to automate different aspects of the build process
 ├─ 📄 CMakeLists.txt  # CMake build file
 ├─ 📄 LICENSE         # Repository License (Apache-2.0 License)
 └─ 📃 README.md       # Read Me!
