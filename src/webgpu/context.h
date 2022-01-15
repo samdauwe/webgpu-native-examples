@@ -96,6 +96,7 @@ void wgpu_get_context_info(char (*adapter_info)[256]);
 /* WebGPU context helper functions */
 typedef struct deph_stencil_texture_creation_options_t {
   WGPUTextureFormat format;
+  uint32_t sample_count;
 } deph_stencil_texture_creation_options;
 
 WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,

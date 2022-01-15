@@ -105,13 +105,14 @@ void wgpu_setup_deph_stencil(
                                   options->format :
                                   WGPUTextureFormat_Depth24PlusStencil8) :
                                WGPUTextureFormat_Depth24PlusStencil8;
+  uint32_t sample_count = options != NULL ? MAX(1, options->sample_count) : 1;
 
   WGPUTextureDescriptor depth_texture_desc = {
     .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
     .format        = format,
     .dimension     = WGPUTextureDimension_2D,
     .mipLevelCount = 1,
-    .sampleCount   = 1,
+    .sampleCount   = sample_count,
     .size          = (WGPUExtent3D) {
       .width               = wgpu_context->surface.width,
       .height              = wgpu_context->surface.height,
