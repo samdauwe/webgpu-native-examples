@@ -70,6 +70,14 @@ typedef void destroyfunc_t(wgpu_example_context_t* context);
 typedef void onviewchangedfunc_t(wgpu_example_context_t* context);
 typedef void onupdateuioverlayfunc_t(wgpu_example_context_t* context);
 typedef void onkeypressedfunc_t(keycode_t key);
+typedef void onpointerdownfunc_t(button_t button);
+typedef void onpointerupfunc_t(button_t button);
+
+typedef struct {
+  onkeypressedfunc_t* example_on_key_pressed_func;
+  onpointerdownfunc_t* example_on_pointer_down_func;
+  onpointerupfunc_t* example_on_pointer_up_func;
+} user_input_event_listener_export_t;
 
 typedef struct {
   wgpu_example_settings_t example_settings;
