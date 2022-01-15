@@ -7,7 +7,7 @@
  * Plane mesh
  * -------------------------------------------------------------------------- */
 
-#define MAX_PLANE_VERTEX_COUNT 1024
+#define MAX_PLANE_VERTEX_COUNT 1024 * 1024 * 4
 
 typedef struct plane_vertex_t {
   float position[3];

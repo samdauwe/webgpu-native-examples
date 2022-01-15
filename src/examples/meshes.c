@@ -13,30 +13,30 @@
 void plane_mesh_generate_vertices(plane_mesh_t* plane_mesh)
 {
   plane_mesh->vertex_count = 0;
-  float row_height = 0.0f, col_width = 0.0f, x = 0.0f, y = 0.0f;
+  float row_height         = plane_mesh->height / (float)plane_mesh->rows;
+  float col_width          = plane_mesh->width / (float)plane_mesh->columns;
+  float x = 0.0f, y = 0.0f;
   for (uint32_t row = 0; row <= plane_mesh->rows; ++row) {
-    row_height = plane_mesh->height / (float)plane_mesh->rows;
-    y          = row * row_height;
+    y = row * row_height;
 
     for (uint32_t col = 0; col <= plane_mesh->columns; ++col) {
-      col_width = plane_mesh->width / (float)plane_mesh->columns;
-      x         = col * col_width;
+      x = col * col_width;
 
-      plane_vertex_t vertex = plane_mesh->vertices[plane_mesh->vertex_count];
+      plane_vertex_t* vertex = &plane_mesh->vertices[plane_mesh->vertex_count];
       {
         // Vertex position
-        vertex.position[0] = x;
-        vertex.position[1] = y;
-        vertex.position[2] = 0.0f;
+        vertex->position[0] = x;
+        vertex->position[1] = y;
+        vertex->position[2] = 0.0f;
 
         // Vertex normal
-        vertex.normal[0] = 0.0f;
-        vertex.normal[1] = 0.0f;
-        vertex.normal[2] = 1.0f;
+        vertex->normal[0] = 0.0f;
+        vertex->normal[1] = 0.0f;
+        vertex->normal[2] = 1.0f;
 
         // Vertex uv
-        vertex.uv[0] = col / plane_mesh->columns;
-        vertex.uv[1] = 1 - row / plane_mesh->rows;
+        vertex->uv[0] = col / plane_mesh->columns;
+        vertex->uv[1] = 1 - row / plane_mesh->rows;
       }
       ++plane_mesh->vertex_count;
     }
@@ -45,15 +45,15 @@ void plane_mesh_generate_vertices(plane_mesh_t* plane_mesh)
 
 void plane_mesh_generate_indices(plane_mesh_t* plane_mesh)
 {
-  plane_mesh->index_count      = 0;
-  const uint32_t columnsOffset = plane_mesh->columns + 1;
+  plane_mesh->index_count       = 0;
+  const uint32_t columns_offset = plane_mesh->columns + 1;
   uint32_t left_bottom = 0, right_bottom = 0, left_up = 0, right_up = 0;
   for (uint32_t row = 0; row < plane_mesh->rows; ++row) {
     for (uint32_t col = 0; col < plane_mesh->columns; ++col) {
-      left_bottom  = columnsOffset * row + col;
-      right_bottom = columnsOffset * row + (col + 1);
-      left_up      = columnsOffset * (row + 1) + col;
-      right_up     = columnsOffset * (row + 1) + (col + 1);
+      left_bottom  = columns_offset * row + col;
+      right_bottom = columns_offset * row + (col + 1);
+      left_up      = columns_offset * (row + 1) + col;
+      right_up     = columns_offset * (row + 1) + (col + 1);
 
       // CCW frontface
       plane_mesh->indices[plane_mesh->index_count++] = left_up;
@@ -75,6 +75,9 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
   plane_mesh->height  = options ? options->height : 1.0f;
   plane_mesh->rows    = options ? options->rows : 1;
   plane_mesh->columns = options ? options->columns : 1;
+
+  ASSERT((plane_mesh->rows + 1) * (plane_mesh->columns + 1)
+         < MAX_PLANE_VERTEX_COUNT)
 
   // Generate vertices and indices
   plane_mesh_generate_vertices(plane_mesh);
