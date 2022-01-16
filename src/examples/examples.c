@@ -24,6 +24,7 @@ void example_deferred_rendering(int argc, char* argv[]);
 void example_dynamic_uniform_buffer(int argc, char* argv[]);
 void example_equirectangular_image(int argc, char* argv[]);
 void example_gears(int argc, char* argv[]);
+void example_gerstner_waves(int argc, char* argv[]);
 void example_gltf_loading(int argc, char* argv[]);
 void example_gltf_scene_rendering(int argc, char* argv[]);
 void example_hdr(int argc, char* argv[]);
@@ -74,6 +75,7 @@ static examplecase_t g_example_cases[] = {
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
   {"equirectangular_image", example_equirectangular_image},
   {"gears", example_gears},
+  {"gerstner_waves", example_gerstner_waves},
   {"gltf_loading", example_gltf_loading},
   {"gltf_scene_rendering", example_gltf_scene_rendering},
   {"hdr", example_hdr},

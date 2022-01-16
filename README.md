@@ -360,6 +360,10 @@ This example shows how to display a 360-degree video where the viewer has contro
 
 Minimal "shadertoy launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Cube lines](https://www.shadertoy.com/view/NslGRN)'.
 
+#### [Gerstner Waves](src/examples/gerstner_waves.c)
+
+WebGPU [Gerstner Waves](https://en.wikipedia.org/wiki/Trochoidal_wave) implementation. This example has been ported from [this JavaScript implementation](https://github.com/artemhlezin/webgpu-gerstner-waves) to native code.
+
 #### [Terrain Mesh](src/examples/terrain_mesh.c)
 
 This example shows how to render an infinite landscape for the camera to meander around in. The terrain consists of a tiled planar mesh that is displaced with a heightmap. More technical details can be found on [this page](https://metalbyexample.com/webgpu-part-two/) and [this one](https://blogs.igalia.com/itoral/2016/10/13/opengl-terrain-renderer-rendering-the-terrain-mesh/).

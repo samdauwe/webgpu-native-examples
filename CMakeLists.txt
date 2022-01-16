@@ -193,6 +193,7 @@ set(SOURCES
     src/examples/dynamic_uniform_buffer.c
     src/examples/equirectangular_image.c
     src/examples/gears.c
+    src/examples/gerstner_waves.c
     src/examples/gltf_loading.c
     src/examples/gltf_scene_rendering.c
     src/examples/hdr.c
