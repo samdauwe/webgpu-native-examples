@@ -362,7 +362,7 @@ Minimal "shadertoy launcher" using WebGPU, demonstrating how to load an example 
 
 #### [Gerstner Waves](src/examples/gerstner_waves.c)
 
-WebGPU [Gerstner Waves](https://en.wikipedia.org/wiki/Trochoidal_wave) implementation. This example has been ported from [this JavaScript implementation](https://github.com/artemhlezin/webgpu-gerstner-waves) to native code.
+WebGPU implementation of the [Gerstner Waves algorithm](https://en.wikipedia.org/wiki/Trochoidal_wave). This example has been ported from [this JavaScript implementation](https://github.com/artemhlezin/webgpu-gerstner-waves) to native code.
 
 #### [Terrain Mesh](src/examples/terrain_mesh.c)
 
