@@ -49,7 +49,7 @@ typedef struct {
     bool left;
     bool right;
     bool middle;
-  } mouse_buttons;
+  } mouse_buttons, mouse_dragging;
 } wgpu_example_context_t;
 
 typedef struct {

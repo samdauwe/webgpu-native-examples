@@ -200,10 +200,18 @@ static void update_input_state(wgpu_example_context_t* context,
   // Mouse position
   get_cursor_pos(context->window, &context->mouse_position);
 
-  // Mouse buttons state
+  // Mouse buttons press state
   context->mouse_buttons.left   = record->buttons[BUTTON_LEFT];
   context->mouse_buttons.right  = record->buttons[BUTTON_MIDDLE];
   context->mouse_buttons.middle = record->buttons[BUTTON_RIGHT];
+
+  // Mouse buttons dragging state
+  if (!context->mouse_dragging.left && context->mouse_buttons.left) {
+    context->mouse_dragging.left = true;
+  }
+  else if (context->mouse_dragging.left && !context->mouse_buttons.left) {
+    context->mouse_dragging.left = false;
+  }
 }
 
 static void
@@ -241,10 +249,13 @@ intialize_wgpu_example_context(wgpu_example_context_t* context,
   context->paused      = false;
 
   // Input
-  memset(context->mouse_position, 0, sizeof(float) * 2);
-  context->mouse_buttons.left   = false;
-  context->mouse_buttons.right  = false;
-  context->mouse_buttons.middle = false;
+  glm_vec2_zero(context->mouse_position);
+  context->mouse_buttons.left    = false;
+  context->mouse_buttons.right   = false;
+  context->mouse_buttons.middle  = false;
+  context->mouse_dragging.left   = false;
+  context->mouse_dragging.right  = false;
+  context->mouse_dragging.middle = false;
 }
 
 static void setup_window(wgpu_example_context_t* context,
