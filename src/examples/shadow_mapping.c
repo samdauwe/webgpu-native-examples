@@ -33,8 +33,8 @@ static uint32_t index_count;
 
 // Uniform buffers
 static struct {
-  WGPUBuffer scene;
   WGPUBuffer model;
+  WGPUBuffer scene;
 } uniform_buffers;
 
 // The pipeline layout
@@ -64,8 +64,8 @@ static struct {
 // Bind groups
 static struct {
   WGPUBindGroup scene_shadow;
-  WGPUBindGroup model;
   WGPUBindGroup scene_render;
+  WGPUBindGroup model;
 } bind_groups;
 
 // Bind group layouts
@@ -122,13 +122,13 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       {-100.0f, 20.0f, -100.0f}, //
       {100.0f, 20.0f, 100.0f},   //
       {-100.0f, 20.0f, 100.0f},  //
-      {100.0f, 20.0f, -100.0f}   //
+      {100.0f, 20.0f, -100.0f},  //
     };
     static const vec3 ground_plane_normals[4] = {
       {0.0f, 1.0f, 0.0f}, //
       {0.0f, 1.0f, 0.0f}, //
       {0.0f, 1.0f, 0.0f}, //
-      {0.0f, 1.0f, 0.0f}  //
+      {0.0f, 1.0f, 0.0f}, //
     };
     const uint64_t offset = dragon_mesh->positions.count * 6;
     for (uint64_t i = 0; i < ground_plane_vertex_count; ++i) {
@@ -415,7 +415,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   {
     // Color attachment
     color_render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // attachment is acquired and set in render loop.
+      .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearColor = (WGPUColor) {
@@ -570,6 +570,17 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
+  // Model uniform buffer
+  {
+    const WGPUBufferDescriptor buffer_desc = {
+      .size  = sizeof(mat4), // 4x4 matrix
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+    };
+    uniform_buffers.model
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(uniform_buffers.model)
+  }
+
   // Scene uniform buffer
   {
     uniform_buffers.scene = wgpuDeviceCreateBuffer(
@@ -582,17 +593,6 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
     ASSERT(uniform_buffers.scene)
-  }
-
-  // Model uniform buffer
-  {
-    const WGPUBufferDescriptor buffer_desc = {
-      .size  = sizeof(mat4), // 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    };
-    uniform_buffers.model
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(uniform_buffers.model)
   }
 
   // Scene bind group for shadow
@@ -612,25 +612,6 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .entries    = bg_entries,
       });
     ASSERT(bind_groups.scene_shadow != NULL)
-  }
-
-  // Model bind group
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .buffer = uniform_buffers.model,
-        .size = sizeof(mat4),
-      },
-    };
-    bind_groups.model = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .layout     = bind_groups_layouts.uniform_buffer_model,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(bind_groups.model != NULL)
   }
 
   // Scene bind group for render
@@ -657,6 +638,25 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                               .entries    = bg_entries,
                             });
     ASSERT(bind_groups.scene_render != NULL)
+  }
+
+  // Model bind group
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer = uniform_buffers.model,
+        .size = sizeof(mat4),
+      },
+    };
+    bind_groups.model = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .layout     = bind_groups_layouts.uniform_buffer_model,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(bind_groups.model != NULL)
   }
 }
 
@@ -855,8 +855,6 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  color_render_pass.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
@@ -878,8 +876,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, shadow_pass)
   }
 
-  /* Render pass */
+  /* Color render pass */
   {
+    color_render_pass.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
     WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &color_render_pass.descriptor);
     wgpuRenderPassEncoderSetPipeline(render_pass, render_pipelines.color);
@@ -946,15 +946,15 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.model)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.shadow)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.color)
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.shadow);
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.color)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.scene_shadow)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.model)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.scene_render)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.model)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
                         bind_groups_layouts.uniform_buffer_scene)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
@@ -972,7 +972,7 @@ void example_shadow_mapping(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title  = example_title,
+      .title   = example_title,
       .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
