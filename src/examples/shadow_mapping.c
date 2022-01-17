@@ -32,41 +32,61 @@ static WGPUBuffer index_buffer;
 static uint32_t index_count;
 
 // Uniform buffers
-static WGPUBuffer scene_uniform_buffer;
-static WGPUBuffer model_uniform_buffer;
+static struct {
+  WGPUBuffer scene;
+  WGPUBuffer model;
+} uniform_buffers;
 
 // The pipeline layout
-static WGPUPipelineLayout shadow_pipeline_layout;
-static WGPUPipelineLayout pipeline_layout;
+static struct {
+  WGPUPipelineLayout shadow;
+  WGPUPipelineLayout color;
+} pipeline_layouts;
 
 // Pipelines
-static WGPURenderPipeline shadow_pipeline;
-static WGPURenderPipeline color_render_pipeline;
+static struct {
+  WGPURenderPipeline shadow;
+  WGPURenderPipeline color;
+} render_pipelines;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment sp_color_att_descriptors = {0};
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDepthStencilAttachment sp_ds_att_descriptor;
-static WGPURenderPassDepthStencilAttachment rp_ds_att_descriptor;
-static WGPURenderPassDescriptor render_pass_descriptor;
-static WGPURenderPassDescriptor shadow_pass_descriptor;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor descriptor;
+} shadow_render_pass;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor descriptor;
+} color_render_pass;
 
 // Bind groups
-static WGPUBindGroup scene_bind_group_for_shadow;
-static WGPUBindGroup model_bind_group;
-static WGPUBindGroup shadow_bind_group_for_render;
+static struct {
+  WGPUBindGroup scene_shadow;
+  WGPUBindGroup model;
+  WGPUBindGroup scene_render;
+} bind_groups;
 
-// Bind group layout
-static WGPUBindGroupLayout uniform_buffer_bind_group_layout_for_scene;
-static WGPUBindGroupLayout uniform_buffer_bind_group_layout_for_model;
-static WGPUBindGroupLayout bind_group_layout_for_render;
+// Bind group layouts
+static struct {
+  WGPUBindGroupLayout uniform_buffer_scene;
+  WGPUBindGroupLayout uniform_buffer_model;
+  WGPUBindGroupLayout render;
+} bind_groups_layouts;
 
 // Texture and sampler
-static WGPUSampler sampler;
-static WGPUTexture depth_texture;
-static WGPUTextureView depth_texture_view;
-static WGPUTexture shadow_depth_texture;
-static WGPUTextureView shadow_depth_texture_view;
+static struct {
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } depth_texture;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } shadow_depth_texture;
+  WGPUSampler sampler;
+} textures;
 
 // Other variables
 static const char* example_title = "Shadow Mapping";
@@ -172,7 +192,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     };
-    shadow_depth_texture
+    textures.shadow_depth_texture.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
     // Create the texture view
@@ -184,8 +204,8 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .baseArrayLayer  = 0,
       .arrayLayerCount = 1,
     };
-    shadow_depth_texture_view
-      = wgpuTextureCreateView(shadow_depth_texture, &texture_view_dec);
+    textures.shadow_depth_texture.view = wgpuTextureCreateView(
+      textures.shadow_depth_texture.texture, &texture_view_dec);
   }
 
   // Create a depth/stencil texture for the color rendering pipeline
@@ -203,7 +223,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .format        = WGPUTextureFormat_Depth24PlusStencil8,
       .usage         = WGPUTextureUsage_RenderAttachment,
     };
-    depth_texture
+    textures.depth_texture.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
     // Create the texture view
@@ -216,14 +236,14 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .arrayLayerCount = 1,
       .aspect          = WGPUTextureAspect_All,
     };
-    depth_texture_view
-      = wgpuTextureCreateView(depth_texture, &texture_view_dec);
+    textures.depth_texture.view = wgpuTextureCreateView(
+      textures.depth_texture.texture, &texture_view_dec);
   }
 }
 
 static void prepare_sampler(wgpu_context_t* wgpu_context)
 {
-  sampler = wgpuDeviceCreateSampler(
+  textures.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
@@ -257,14 +277,14 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .sampler = {0},
         },
       };
-      uniform_buffer_bind_group_layout_for_scene
+      bind_groups_layouts.uniform_buffer_scene
         = wgpuDeviceCreateBindGroupLayout(
           wgpu_context->device,
           &(WGPUBindGroupLayoutDescriptor){
             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
             .entries    = bgl_entries,
           });
-      ASSERT(uniform_buffer_bind_group_layout_for_scene != NULL)
+      ASSERT(bind_groups_layouts.uniform_buffer_scene != NULL)
     }
 
     // Bind group layout for model uniform
@@ -282,27 +302,27 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .sampler = {0},
         },
       };
-      uniform_buffer_bind_group_layout_for_model
+      bind_groups_layouts.uniform_buffer_model
         = wgpuDeviceCreateBindGroupLayout(
           wgpu_context->device,
           &(WGPUBindGroupLayoutDescriptor){
             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
             .entries    = bgl_entries,
           });
-      ASSERT(uniform_buffer_bind_group_layout_for_model != NULL)
+      ASSERT(bind_groups_layouts.uniform_buffer_model != NULL)
     }
 
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      uniform_buffer_bind_group_layout_for_scene,
-      uniform_buffer_bind_group_layout_for_model,
+      bind_groups_layouts.uniform_buffer_scene,
+      bind_groups_layouts.uniform_buffer_model,
     };
-    shadow_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    pipeline_layouts.shadow = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(shadow_pipeline_layout != NULL)
+    ASSERT(pipeline_layouts.shadow != NULL)
   }
 
   // Create a bind group layout which holds the scene uniforms and
@@ -342,26 +362,26 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     }
   };
-    bind_group_layout_for_render = wgpuDeviceCreateBindGroupLayout(
+    bind_groups_layouts.render = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layout_for_render != NULL)
+    ASSERT(bind_groups_layouts.render != NULL)
 
     // Specify the pipeline layout. The layout for the model is the same, so
     // reuse it from the shadow pipeline.
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      bind_group_layout_for_render,
-      uniform_buffer_bind_group_layout_for_model,
+      bind_groups_layouts.render,               // Group 0
+      bind_groups_layouts.uniform_buffer_model, // Group 1
     };
-    pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    pipeline_layouts.color = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(pipeline_layout != NULL)
+    ASSERT(pipeline_layouts.color != NULL)
   }
 }
 
@@ -372,20 +392,21 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Shadow rendering
   {
     // Shadow pass descriptor
-    sp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
-      .view           = shadow_depth_texture_view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
-    };
+    shadow_render_pass.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view           = textures.shadow_depth_texture.view,
+        .depthLoadOp    = WGPULoadOp_Clear,
+        .depthStoreOp   = WGPUStoreOp_Store,
+        .clearDepth     = 1.0f,
+        .stencilLoadOp  = WGPULoadOp_Clear,
+        .stencilStoreOp = WGPUStoreOp_Store,
+        .clearStencil   = 0,
+      };
 
-    shadow_pass_descriptor = (WGPURenderPassDescriptor){
+    shadow_render_pass.descriptor = (WGPURenderPassDescriptor){
       .colorAttachmentCount   = 0,
-      .colorAttachments       = &sp_color_att_descriptors,
-      .depthStencilAttachment = &sp_ds_att_descriptor,
+      .colorAttachments       = shadow_render_pass.color_attachments,
+      .depthStencilAttachment = &shadow_render_pass.depth_stencil_attachment,
       .occlusionQuerySet      = NULL,
     };
   }
@@ -393,7 +414,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Color rendering
   {
     // Color attachment
-    rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+    color_render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -406,19 +427,20 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     };
 
     // Render pass descriptor
-    rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
-      .view           = depth_texture_view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
-    };
-    render_pass_descriptor = (WGPURenderPassDescriptor){
+    color_render_pass.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view           = textures.depth_texture.view,
+        .depthLoadOp    = WGPULoadOp_Clear,
+        .depthStoreOp   = WGPUStoreOp_Store,
+        .clearDepth     = 1.0f,
+        .stencilLoadOp  = WGPULoadOp_Clear,
+        .stencilStoreOp = WGPUStoreOp_Store,
+        .clearStencil   = 0,
+      };
+    color_render_pass.descriptor = (WGPURenderPassDescriptor){
       .colorAttachmentCount   = 1,
-      .colorAttachments       = rp_color_att_descriptors,
-      .depthStencilAttachment = &rp_ds_att_descriptor,
+      .colorAttachments       = color_render_pass.color_attachments,
+      .depthStencilAttachment = &color_render_pass.depth_stencil_attachment,
       .occlusionQuerySet      = NULL,
     };
   }
@@ -476,16 +498,16 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
   // The camera/light aren't moving, so write them into buffers now.
   {
-    wgpuQueueWriteBuffer(wgpu_context->queue, scene_uniform_buffer, 0,
+    wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffers.scene, 0,
                          light_view_proj_matrix, sizeof(mat4));
 
-    wgpuQueueWriteBuffer(wgpu_context->queue, scene_uniform_buffer, 64,
+    wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffers.scene, 64,
                          view_matrices.view_proj_matrix, sizeof(mat4));
 
-    wgpuQueueWriteBuffer(wgpu_context->queue, scene_uniform_buffer, 128,
+    wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffers.scene, 128,
                          light_position, sizeof(vec3));
 
-    wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer, 0,
+    wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffers.model, 0,
                          model_matrix, sizeof(mat4));
   }
 }
@@ -542,7 +564,7 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   mat4* camera_view_proj = get_camera_view_proj_matrix(context);
-  wgpuQueueWriteBuffer(context->wgpu_context->queue, scene_uniform_buffer, 64,
+  wgpuQueueWriteBuffer(context->wgpu_context->queue, uniform_buffers.scene, 64,
                        *camera_view_proj, sizeof(mat4));
 }
 
@@ -550,7 +572,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Scene uniform buffer
   {
-    scene_uniform_buffer = wgpuDeviceCreateBuffer(
+    uniform_buffers.scene = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
         // Two 4x4 viewProj matrices,
@@ -559,7 +581,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
-    ASSERT(scene_uniform_buffer)
+    ASSERT(uniform_buffers.scene)
   }
 
   // Model uniform buffer
@@ -568,9 +590,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       .size  = sizeof(mat4), // 4x4 matrix
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     };
-    model_uniform_buffer
+    uniform_buffers.model
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(model_uniform_buffer)
+    ASSERT(uniform_buffers.model)
   }
 
   // Scene bind group for shadow
@@ -578,18 +600,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = scene_uniform_buffer,
+        .buffer = uniform_buffers.scene,
         .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
     };
-    scene_bind_group_for_shadow = wgpuDeviceCreateBindGroup(
+    bind_groups.scene_shadow = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .layout     = uniform_buffer_bind_group_layout_for_scene,
+        .layout     = bind_groups_layouts.uniform_buffer_scene,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(scene_bind_group_for_shadow != NULL)
+    ASSERT(bind_groups.scene_shadow != NULL)
   }
 
   // Model bind group
@@ -597,18 +619,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = model_uniform_buffer,
+        .buffer = uniform_buffers.model,
         .size = sizeof(mat4),
       },
     };
-    model_bind_group = wgpuDeviceCreateBindGroup(
+    bind_groups.model = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .layout     = uniform_buffer_bind_group_layout_for_model,
+        .layout     = bind_groups_layouts.uniform_buffer_model,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(model_bind_group != NULL)
+    ASSERT(bind_groups.model != NULL)
   }
 
   // Scene bind group for render
@@ -616,25 +638,25 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = scene_uniform_buffer,
+        .buffer = uniform_buffers.scene,
         .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .textureView = shadow_depth_texture_view,
+        .textureView = textures.shadow_depth_texture.view,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .sampler = sampler,
+        .sampler = textures.sampler,
       },
     };
-    shadow_bind_group_for_render = wgpuDeviceCreateBindGroup(
+    bind_groups.scene_render = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout     = bind_group_layout_for_render,
+                              .layout     = bind_groups_layouts.render,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(shadow_bind_group_for_render != NULL)
+    ASSERT(bind_groups.scene_render != NULL)
   }
 }
 
@@ -647,9 +669,6 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
-
-  // Color target state
-  WGPUColorTargetState color_target_state_desc = {0};
 
   // Depth stencil state
   WGPUDepthStencilState depth_stencil_state_desc
@@ -671,22 +690,12 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/shadow_mapping/shadow.vert.spv",
+                  // Vertex shader WGSL
+                  .file  = "shaders/shadow_mapping/vertexShadow.wgsl",
+                  .entry = "main",
                 },
                 .buffer_count = 1,
                 .buffers = &shadow_vertex_buffer_layout,
-              });
-
-  // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/shadow_mapping/shadow.frag.spv",
-                },
-                .target_count = 0,
-                .targets = &color_target_state_desc,
               });
 
   // Multisample state
@@ -697,20 +706,19 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  shadow_pipeline = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.shadow = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "shadow_render_pipeline",
-                            .layout       = shadow_pipeline_layout,
+                            .layout       = pipeline_layouts.shadow,
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
+                            .fragment     = NULL,
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
 // Create the color rendering pipeline
@@ -773,8 +781,9 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/shadow_mapping/shader.vert.spv",
+                  // Vertex shader WGSL
+                  .file  = "shaders/shadow_mapping/vertex.wgsl",
+                  .entry = "main",
                 },
                 .buffer_count = 1,
                 .buffers = &color_vertex_buffer_layout,
@@ -784,8 +793,9 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/shadow_mapping/shader.frag.spv",
+                  // Fragment shader WGSL
+                  .file  = "shaders/shadow_mapping/fragment.wgsl",
+                  .entry = "main",
                 },
                 .target_count = 1,
                 .targets = &color_target_state_desc,
@@ -799,10 +809,10 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  color_render_pipeline = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.color = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "colo_render_pipeline",
-                            .layout       = pipeline_layout,
+                            .label        = "color_render_pipeline",
+                            .layout       = pipeline_layouts.color,
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
                             .fragment     = &fragment_state_desc,
@@ -845,18 +855,19 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  color_render_pass.color_attachments[0].view
+    = wgpu_context->swap_chain.frame_buffer;
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   /* Shadow pass */
   {
     WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &shadow_pass_descriptor);
-    wgpuRenderPassEncoderSetPipeline(shadow_pass, shadow_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(shadow_pass, 0,
-                                      scene_bind_group_for_shadow, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(shadow_pass, 1, model_bind_group, 0, 0);
+      wgpu_context->cmd_enc, &shadow_render_pass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(shadow_pass, render_pipelines.shadow);
+    wgpuRenderPassEncoderSetBindGroup(shadow_pass, 0, bind_groups.scene_shadow,
+                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(shadow_pass, 1, bind_groups.model, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(shadow_pass, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(
@@ -870,11 +881,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   /* Render pass */
   {
     WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_descriptor);
-    wgpuRenderPassEncoderSetPipeline(render_pass, color_render_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                      shadow_bind_group_for_render, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(render_pass, 1, model_bind_group, 0, 0);
+      wgpu_context->cmd_enc, &color_render_pass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(render_pass, render_pipelines.color);
+    wgpuRenderPassEncoderSetBindGroup(render_pass, 0, bind_groups.scene_render,
+                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(render_pass, 1, bind_groups.model, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(
@@ -935,25 +946,25 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, model_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, scene_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, shadow_pipeline_layout)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, shadow_pipeline);
-  WGPU_RELEASE_RESOURCE(RenderPipeline, color_render_pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroup, scene_bind_group_for_shadow)
-  WGPU_RELEASE_RESOURCE(BindGroup, model_bind_group)
-  WGPU_RELEASE_RESOURCE(BindGroup, shadow_bind_group_for_render)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.model)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.shadow)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.color)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.shadow);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.color)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.scene_shadow)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.scene_render)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
-                        uniform_buffer_bind_group_layout_for_scene)
+                        bind_groups_layouts.uniform_buffer_scene)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
-                        uniform_buffer_bind_group_layout_for_model)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout_for_render)
-  WGPU_RELEASE_RESOURCE(Sampler, sampler)
-  WGPU_RELEASE_RESOURCE(Texture, depth_texture)
-  WGPU_RELEASE_RESOURCE(TextureView, depth_texture_view)
-  WGPU_RELEASE_RESOURCE(Texture, shadow_depth_texture)
-  WGPU_RELEASE_RESOURCE(TextureView, shadow_depth_texture_view)
+                        bind_groups_layouts.uniform_buffer_model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_groups_layouts.render)
+  WGPU_RELEASE_RESOURCE(Sampler, textures.sampler)
+  WGPU_RELEASE_RESOURCE(Texture, textures.depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.depth_texture.view)
+  WGPU_RELEASE_RESOURCE(Texture, textures.shadow_depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.shadow_depth_texture.view)
 }
 
 void example_shadow_mapping(int argc, char* argv[])
