@@ -91,7 +91,7 @@ static examplecase_t g_example_cases[] = {
   {"pbr_basic", example_pbr_basic},
   {"prng", example_prng},
   {"radial_blur", example_radial_blur},
-  /* {"reversed_z", example_reversed_z}, */
+  {"reversed_z", example_reversed_z},
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
