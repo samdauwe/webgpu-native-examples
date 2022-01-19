@@ -231,21 +231,21 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = sim_param_buffer,
-        .offset = 0,
-        .size = sizeof(sim_param_data),
+        .buffer  = sim_param_buffer,
+        .offset  = 0,
+        .size    = sizeof(sim_param_data),
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = particle_buffers[i],
-        .offset = 0,
-        .size = sizeof(initial_particle_data),
+        .buffer  = particle_buffers[i],
+        .offset  = 0,
+        .size    = sizeof(initial_particle_data),
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer = particle_buffers[(i + 1) % 2],
-        .offset = 0,
-        .size = sizeof(initial_particle_data), // bind to opposite buffer
+        .buffer  = particle_buffers[(i + 1) % 2],
+        .offset  = 0,
+        .size    = sizeof(initial_particle_data), // bind to opposite buffer
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
