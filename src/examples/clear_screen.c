@@ -149,7 +149,8 @@ void example_clear_screen(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
+     .title = example_title,
+     .vsync = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
