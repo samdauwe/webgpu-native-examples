@@ -284,13 +284,55 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
 
 static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
+  // GBuffer textures bind group layout
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Texture view
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Texture view
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+        .storageTexture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: Texture view
+        .binding = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+        .storageTexture = {0},
+      }
+    };
+    gbuffer_textures_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(gbuffer_textures_bind_group_layout != NULL)
+  }
+
   // Lights buffer bind group layout
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Storage buffer (Fragment shader) - LightsBuffer
         .binding = 0,
-        .visibility = WGPUShaderStage_Fragment,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Storage,
           .minBindingSize = sizeof(float) * light_data_stride * max_num_lights,
@@ -300,7 +342,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Uniform buffer (Fragment shader) - Config
         .binding = 1,
-        .visibility = WGPUShaderStage_Fragment,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(uint32_t),
@@ -314,6 +356,60 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entries    = bgl_entries,
                             });
     ASSERT(lights.buffer_bind_group_layout != NULL)
+  }
+
+  // Surface size uniform bind group layout
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Uniform buffer (Fragment shader) - SurfaceConstants
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(vec2),
+        },
+        .sampler = {0},
+      }
+    };
+    surface_size_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(surface_size_uniform_bind_group_layout != NULL)
+  }
+
+  // Scene uniform bind group layout
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Uniform buffer (Vertex shader) - Uniforms
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = 4 * 16 * 2, // two 4x4 matrix
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Uniform buffer (Vertex shader) - Camera
+        .binding = 1,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = 4 * 16, // 4x4 matrix
+        },
+        .storageTexture = {0},
+      },
+    };
+    scene_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(scene_uniform_bind_group_layout != NULL)
   }
 
   // Lights buffer compute bind group layout
@@ -356,102 +452,6 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entries    = bgl_entries,
                             });
     ASSERT(lights.buffer_compute_bind_group_layout != NULL)
-  }
-
-  // Scene uniform bind group layout
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Vertex shader) - Uniforms
-        .binding = 0,
-        .visibility = WGPUShaderStage_Vertex,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = 4 * 16 * 2, // two 4x4 matrix
-        },
-        .sampler = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Uniform buffer (Vertex shader) - Camera
-        .binding = 1,
-        .visibility = WGPUShaderStage_Vertex,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = 4 * 16, // 4x4 matrix
-        },
-        .storageTexture = {0},
-      },
-    };
-    scene_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(scene_uniform_bind_group_layout != NULL)
-  }
-
-  // Surface size uniform bind group layout
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Fragment shader) - SurfaceConstants
-        .binding = 0,
-        .visibility = WGPUShaderStage_Fragment,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(vec2),
-        },
-        .sampler = {0},
-      }
-    };
-    surface_size_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(surface_size_uniform_bind_group_layout != NULL)
-  }
-
-  // GBuffer textures bind group layout
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[3] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Texture view
-        .binding = 0,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-        .storageTexture = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Texture view
-        .binding = 1,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-        .storageTexture = {0},
-      },
-      [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Texture view
-        .binding = 2,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-        .storageTexture = {0},
-      }
-    };
-    gbuffer_textures_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(gbuffer_textures_bind_group_layout != NULL)
   }
 }
 
@@ -548,25 +548,27 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
 
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/deferred_rendering/write_gbuffers.vert.spv",
-                },
-                .buffer_count = 1,
-                .buffers = &write_gbuffers_vertex_buffer_layout,
-              });
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader WGSL
+              .file  = "shaders/deferred_rendering/vertexWriteGBuffers.wgsl",
+              .entry = "main",
+            },
+            .buffer_count = 1,
+            .buffers = &write_gbuffers_vertex_buffer_layout,
+          });
 
   // Fragment state
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/deferred_rendering/write_gbuffers.frag.spv",
-                },
-                .target_count = 3,
-                .targets = color_target_state_descs,
-              });
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader WGSL
+              .file  = "shaders/deferred_rendering/fragmentWriteGBuffers.wgsl",
+              .entry = "main",
+             },
+            .target_count = (uint32_t)ARRAY_SIZE(color_target_state_descs),
+            .targets = color_target_state_descs,
+          });
 
   // Multisample state
   WGPUMultisampleState multisample_state_desc
@@ -611,25 +613,27 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
 
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-            wgpu_context, &(wgpu_vertex_state_t){
-            .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/deferred_rendering/texture_quad.vert.spv",
-            },
-            .buffer_count = 0,
-            .buffers = NULL,
-          });
+        wgpu_context, &(wgpu_vertex_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Vertex shader WGSL
+          .file  = "shaders/deferred_rendering/vertexTextureQuad.wgsl",
+          .entry = "main",
+        },
+        .buffer_count = 0,
+        .buffers = NULL,
+      });
 
   // Fragment state
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-            wgpu_context, &(wgpu_fragment_state_t){
-            .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/deferred_rendering/gbuffers_debug_view.frag.spv",
-            },
-            .target_count = 1,
-            .targets = &color_target_state_desc,
-          });
+        wgpu_context, &(wgpu_fragment_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Fragment shader WGSL
+          .file  = "shaders/deferred_rendering/fragmentGBuffersDebugView.wgsl",
+          .entry = "main",
+        },
+        .target_count = 1,
+        .targets = &color_target_state_desc,
+      });
 
   // Multisample state
   WGPUMultisampleState multisample_state_desc
@@ -673,25 +677,27 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
 
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-            wgpu_context, &(wgpu_vertex_state_t){
-            .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/deferred_rendering/texture_quad.vert.spv",
-            },
-            .buffer_count = 0,
-            .buffers = NULL,
-          });
+        wgpu_context, &(wgpu_vertex_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Vertex shader WGSL
+          .file  = "shaders/deferred_rendering/vertexTextureQuad.wgsl",
+          .entry = "main",
+        },
+        .buffer_count = 0,
+        .buffers = NULL,
+      });
 
   // Fragment state
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-            wgpu_context, &(wgpu_fragment_state_t){
-            .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/deferred_rendering/deferred_rendering.frag.spv",
-            },
-            .target_count = 1,
-            .targets = &color_target_state_desc,
-          });
+        wgpu_context, &(wgpu_fragment_state_t){
+        .shader_desc = (wgpu_shader_desc_t){
+          // Fragment shader WGSL
+          .file  = "shaders/deferred_rendering/fragmentDeferredRendering.wgsl",
+          .entry = "main",
+        },
+        .target_count = 1,
+        .targets = &color_target_state_desc,
+      });
 
   // Multisample state
   WGPUMultisampleState multisample_state_desc
@@ -736,7 +742,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
     .dimension       = WGPUTextureViewDimension_2D,
-    .format          = WGPUTextureFormat_Depth24Plus,
+    .format          = texture_desc.format,
     .baseMipLevel    = 0,
     .mipLevelCount   = 1,
     .baseArrayLayer  = 0,
@@ -815,7 +821,7 @@ static void setup_render_passes()
     // Color attachment
     texture_quad_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
-        .view       = NULL, // attachment is acquired and set in render loop.
+        .view       = NULL, // view is acquired and set in render loop.
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
@@ -982,7 +988,8 @@ static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
   wgpu_shader_t light_update_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader SPIR-V
-                    .file = "shaders/deferred_rendering/light_update.comp.spv",
+                    .file  = "shaders/deferred_rendering/lightUpdate.wgsl",
+                    .entry = "main",
                   });
 
   /* Create pipeline */
@@ -1266,7 +1273,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-#if 10
+
   {
     // Write position, normal, albedo etc. data to gBuffers
     WGPURenderPassEncoder gbuffer_pass = wgpuCommandEncoderBeginRenderPass(
@@ -1282,8 +1289,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderEndPass(gbuffer_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, gbuffer_pass)
   }
-#endif
-#if 10
+
   {
     // Update lights position
     WGPUComputePassEncoder light_pass
@@ -1292,11 +1298,12 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       light_update_compute_pipeline);
     wgpuComputePassEncoderSetBindGroup(
       light_pass, 0, lights.buffer_compute_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatch(light_pass, max_num_lights, 1, 1);
+    wgpuComputePassEncoderDispatch(light_pass, ceil(max_num_lights / 64.f), 1,
+                                   1);
     wgpuComputePassEncoderEndPass(light_pass);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, light_pass)
   }
-#endif
+
   {
     if (settings.current_render_mode == RenderMode_GBuffer_View) {
       // GBuffers debug view
