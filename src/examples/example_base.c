@@ -137,6 +137,8 @@ static void update_camera(wgpu_example_context_t* context, record_t* record)
     return;
   }
 
+  camera->updated = false;
+
   vec2 cursor_pos;
   get_cursor_pos(window, &cursor_pos);
 
