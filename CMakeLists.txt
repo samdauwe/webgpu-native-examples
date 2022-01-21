@@ -175,7 +175,7 @@ set(SOURCES
 set(SOURCES
     ${SOURCES}
     src/examples/animometer.c
-    #src/examples/aquarium.c
+    src/examples/aquarium.c
     src/examples/bind_groups.c
     src/examples/bloom.c
     src/examples/clear_screen.c
@@ -217,6 +217,7 @@ set(SOURCES
     src/examples/stencil_buffer.c
     src/examples/terrain_mesh.c
     src/examples/text_overlay.c
+    src/examples/texture_3d.c
     src/examples/texture_mipmap_gen.c
     src/examples/textured_cube.c
     src/examples/textured_quad.c
