@@ -41,8 +41,8 @@
 void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
                           void* pixels, WGPUExtent3D size, uint32_t channels)
 {
-  const uint64_t data_size
-    = size.width * size.height * channels * sizeof(uint8_t);
+  const uint64_t data_size = size.width * size.height * size.depthOrArrayLayers
+                             * channels * sizeof(uint8_t);
   wgpuQueueWriteTexture(wgpu_context->queue,
     &(WGPUImageCopyTexture) {
       .texture = texture,
