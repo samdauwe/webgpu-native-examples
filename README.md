@@ -314,9 +314,9 @@ Attraction based 2D GPU particle system using compute shaders. Particle data is 
 
 Particle system using compute shaders. Particle data is stored in a shader storage buffer, particle movement is implemented using easing functions.
 
-#### [N-body simulation](src/examples/compute_n_body.c)
+#### [N-body simulation](src/examples/n_body_simulation.c)
 
-N-body simulation based particle system with multiple attractors and particle-to-particle interaction using two passes separating particle movement calculation and final integration. Shared compute shader memory is used to speed up compute calculations.
+A simple N-body simulation based particle system implemented using WebGPU.
 
 #### [Ray tracing](src/examples/compute_ray_tracing.c)
 
