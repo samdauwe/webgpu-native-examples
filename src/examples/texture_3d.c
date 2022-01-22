@@ -143,8 +143,8 @@ static void fractal_noise_init(fractal_noise_t* fractal_noise,
   fractal_noise->persistence  = 0.5f;
 }
 
-float fractal_noise_generate(fractal_noise_t* fractal_noise, float x, float y,
-                             float z)
+static float fractal_noise_generate(fractal_noise_t* fractal_noise, float x,
+                                    float y, float z)
 {
   float sum       = 0.0f;
   float frequency = 1.0f;
@@ -174,7 +174,7 @@ float fractal_noise_generate(fractal_noise_t* fractal_noise, float x, float y,
   (NOISE_TEXTURE_WIDTH * NOISE_TEXTURE_HEIGHT * NOISE_TEXTURE_DEPTH)
 
 // Contains all Vulkan objects that are required to store and use a 3D texture
-struct {
+static struct {
   WGPUSampler sampler;
   WGPUTexture texture;
   WGPUTextureView view;
@@ -226,7 +226,7 @@ static struct {
 static WGPUPipelineLayout pipeline_layout; // solid
 
 // Pipeline
-struct {
+static struct {
   WGPURenderPipeline solid;
 } pipelines;
 
