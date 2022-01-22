@@ -414,6 +414,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
+* [ ] [Square](https://github.com/cx20/webgpu-test/tree/master/examples/webgpu_wgsl/square)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
