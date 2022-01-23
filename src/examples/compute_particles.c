@@ -13,6 +13,7 @@
  *
  * Ref:
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles/computeparticles.cpp
+ * https://github.com/gpuweb/gpuweb/issues/332
  * -------------------------------------------------------------------------- */
 
 #define PARTICLE_COUNT 256 * 1024
