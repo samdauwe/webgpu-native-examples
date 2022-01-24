@@ -175,7 +175,7 @@ set(SOURCES
 set(SOURCES
     ${SOURCES}
     src/examples/animometer.c
-    src/examples/aquarium.c
+    # src/examples/aquarium.c
     src/examples/bind_groups.c
     src/examples/bloom.c
     src/examples/clear_screen.c
