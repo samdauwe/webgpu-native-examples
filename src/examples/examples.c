@@ -46,6 +46,7 @@ void example_screenshot(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
 void example_shadow_mapping(int argc, char* argv[]);
 void example_skybox(int argc, char* argv[]);
+void example_square(int argc, char* argv[]);
 void example_stencil_buffer(int argc, char* argv[]);
 void example_terrain_mesh(int argc, char* argv[]);
 void example_text_overlay(int argc, char* argv[]);
@@ -98,6 +99,7 @@ static examplecase_t g_example_cases[] = {
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
   {"skybox", example_skybox},
+  {"square", example_square},
   {"stencil_buffer", example_stencil_buffer},
   {"terrain_mesh", example_terrain_mesh},
   {"text_overlay", example_text_overlay},

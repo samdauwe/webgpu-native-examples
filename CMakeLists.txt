@@ -214,6 +214,7 @@ set(SOURCES
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c
     src/examples/skybox.c
+    src/examples/square.c
     src/examples/stencil_buffer.c
     src/examples/terrain_mesh.c
     src/examples/text_overlay.c
