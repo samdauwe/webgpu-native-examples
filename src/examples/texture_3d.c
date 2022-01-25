@@ -401,7 +401,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context,
     glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
     glm_vec4_copy(context->camera->view_pos, ubo_vs.view_pos);
   }
-  else {
+  /* else */ {
     ubo_vs.depth += context->frame_timer * 0.15f;
     if (ubo_vs.depth > 1.0f) {
       ubo_vs.depth = ubo_vs.depth - 1.0f;
