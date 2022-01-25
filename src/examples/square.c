@@ -162,7 +162,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Vertex buffer layout
-  WGPUVertexBufferLayout vertex_buffer_layout[2] = {0};
+  WGPUVertexBufferLayout vertex_buffer_layouts[2] = {0};
   {
     WGPUVertexAttribute attribute = {
       // Shader location 0 : position
@@ -170,7 +170,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
     };
-    vertex_buffer_layout[0] = (WGPUVertexBufferLayout){
+    vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
       // instanced particles buffer
       .arrayStride    = 3 * 4,
       .stepMode       = WGPUVertexStepMode_Vertex,
@@ -185,7 +185,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x4,
     };
-    vertex_buffer_layout[1] = (WGPUVertexBufferLayout){
+    vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
       // instanced particles buffer
       .arrayStride    = 4 * 4,
       .stepMode       = WGPUVertexStepMode_Vertex,
@@ -201,8 +201,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       // Vertex shader WGSL
                       .wgsl_code.source = vertex_shader_wgsl,
                     },
-                    .buffer_count = (uint32_t) ARRAY_SIZE(vertex_buffer_layout),
-                    .buffers = vertex_buffer_layout,
+                    .buffer_count = (uint32_t) ARRAY_SIZE(vertex_buffer_layouts),
+                    .buffers = vertex_buffer_layouts,
                   });
 
   // Fragment state

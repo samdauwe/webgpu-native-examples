@@ -152,7 +152,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
   depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
-  WGPUVertexBufferLayout vertexBufferLayout[2] = {0};
+  WGPUVertexBufferLayout vertex_buffer_layouts[2] = {0};
   {
     WGPUVertexAttribute attributes[2] = {
       [0] = (WGPUVertexAttribute) {
@@ -168,7 +168,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
         .format = WGPUVertexFormat_Float32x4,
       },
     };
-    vertexBufferLayout[0] = (WGPUVertexBufferLayout){
+    vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
       // instanced particles buffer
       .arrayStride    = particle_instance_byte_size,
       .stepMode       = WGPUVertexStepMode_Instance,
@@ -185,7 +185,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
         .format = WGPUVertexFormat_Float32x2,
       },
     };
-    vertexBufferLayout[1] = (WGPUVertexBufferLayout){
+    vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
       // quad vertex buffer
       .arrayStride    = 2 * 4, // vec2<f32>
       .stepMode       = WGPUVertexStepMode_Vertex,
@@ -202,8 +202,8 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "vs_main",
             },
-            .buffer_count = (uint32_t)ARRAY_SIZE(vertexBufferLayout),
-            .buffers = vertexBufferLayout,
+            .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts),
+            .buffers = vertex_buffer_layouts,
           });
 
   // Fragment state
