@@ -144,6 +144,10 @@ This example shows how to set up a swap chain and clearing the screen. The scree
 
 Illustrates the coordinate systems used in WebGPU. WebGPU’s coordinate systems match DirectX and Metal’s coordinate systems in a graphics pipeline. Y-axis is up in normalized device coordinate (NDC): point(-1.0, -1.0) in NDC is located at the bottom-left corner of NDC. This example has several options for changing relevant pipeline state, and displaying meshes with WebGPU or Vulkan style coordinates.
 
+#### [Square](src/examples/square.c)
+
+This example shows how to render a static colored square in WebGPU with only using vertex buffers.
+
 #### [Triangle](src/examples/triangle.c)
 
 Basic and verbose example for getting a colored triangle rendered to the screen using WebGPU. This is meant as a starting point for learning WebGPU from the ground up.
