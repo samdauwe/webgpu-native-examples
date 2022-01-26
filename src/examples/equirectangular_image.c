@@ -378,8 +378,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "immersive_video_render_pipeline",
-                            .layout      = pipeline_layout,
+                            .label  = "equirectangular_image_render_pipeline",
+                            .layout = pipeline_layout,
                             .primitive   = primitive_state_desc,
                             .vertex      = vertex_state_desc,
                             .fragment    = &fragment_state_desc,
