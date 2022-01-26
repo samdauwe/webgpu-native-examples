@@ -450,8 +450,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Depth stencil state
-  // Enable depth testing so that the fragment closest to the camera
-  // is rendered in front.
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth32Float,
