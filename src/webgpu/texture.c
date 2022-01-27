@@ -281,12 +281,47 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
     // only create once.
     if (!mipmap_generator->vertex_state_desc.module
         || !mipmap_generator->fragment_state_desc.module) {
+#if 0
+      // clang-format off
+      static const char* mipmap_shader_wgsl =
+        "var<private> pos : array<vec2<f32>, 3> = array<vec2<f32>, 3>(\n"
+        "  vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 3.0), vec2<f32>(3.0, -1.0));\n"
+        "\n"
+        "struct VertexOutput {\n"
+        "  @builtin(position) position : vec4<f32>;\n"
+        "  @location(0) texCoord : vec2<f32>;\n"
+        "};\n"
+        "\n"
+        "@stage(vertex)\n"
+        "fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n"
+        "  var output : VertexOutput;\n"
+        "  output.texCoord = pos[vertexIndex] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);\n"
+        "  output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);\n"
+        "  return output;\n"
+        "}\n"
+        "\n"
+        "@group(0) @binding(0) var imgSampler : sampler;\n"
+        "@group(0) @binding(1) var img : texture_2d<f32>;\n"
+        "\n"
+        "@stage(fragment)\n"
+        "fn fragmentMain(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {\n"
+        "  return textureSample(img, imgSampler, texCoord);\n"
+        "}\n";
+      // clang-format on
+#endif
+
       // Vertex state
       mipmap_generator->vertex_state_desc = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
+#if 0
+                // Vertex shader WGSL
+                .wgsl_code.source = mipmap_shader_wgsl,
+                .entry = "vertexMain",
+#else
                 // Vertex shader SPIR-V
                 .file = "shaders/blit/blit.vert.spv",
+#endif
               },
               .buffer_count = 0,
               .buffers = NULL,
@@ -295,8 +330,14 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
       mipmap_generator->fragment_state_desc = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
+#if 0
+                // Vertex shader WGSL
+                .wgsl_code.source = mipmap_shader_wgsl,
+                .entry = "fragmentMain",
+#else
                 // Fragment shader SPIR-V
                 .file = "shaders/blit/blit.frag.spv",
+#endif
               },
               .target_count = 1,
               .targets = &color_target_state_desc,
@@ -444,6 +485,18 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
                        .depthStencilAttachment = NULL,
                      });
 
+#if 0
+      WGPUBindGroupEntry bg_entries[2] = {
+        [0] = (WGPUBindGroupEntry){
+          .binding = 0,
+          .sampler = mipmap_generator->sampler,
+        },
+        [1] = (WGPUBindGroupEntry){
+          .binding     = 1,
+          .textureView = views[target_mip - 1],
+        },
+      };
+#else
       WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry){
           .binding     = 0,
@@ -454,6 +507,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
           .sampler = mipmap_generator->sampler,
         },
       };
+#endif
       uint32_t bind_group_index = array_layer * (mip_level_count - 1) + i - 1;
       bind_groups[bind_group_index] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
@@ -465,7 +519,11 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       wgpuRenderPassEncoderSetPipeline(pass_encoder, pipeline);
       wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
                                         bind_groups[bind_group_index], 0, NULL);
+#if 0
+      wgpuRenderPassEncoderDraw(pass_encoder, 3, 1, 0, 0);
+#else
       wgpuRenderPassEncoderDraw(pass_encoder, 4, 1, 0, 0);
+#endif
       wgpuRenderPassEncoderEndPass(pass_encoder);
 
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
