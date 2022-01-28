@@ -178,8 +178,8 @@ static std::unique_ptr<wgpu::ChainedStruct> SurfaceDescriptor(void* display,
   desc->hinstance = GetModuleHandle(nullptr);
   return std::move(desc);
 #elif defined(__linux__) // X11
-  std::unique_ptr<wgpu::SurfaceDescriptorFromXlib> desc
-    = std::make_unique<wgpu::SurfaceDescriptorFromXlib>();
+  std::unique_ptr<wgpu::SurfaceDescriptorFromXlibWindow> desc
+    = std::make_unique<wgpu::SurfaceDescriptorFromXlibWindow>();
   desc->display = display;
   desc->window  = *((uint32_t*)window);
   return std::move(desc);
