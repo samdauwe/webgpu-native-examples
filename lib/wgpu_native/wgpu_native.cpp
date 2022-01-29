@@ -1,7 +1,5 @@
 #include "wgpu_native.h"
 
-#include <dawn/webgpu.h>
-
 #include <dawn/dawn_proc.h>
 #include <dawn/webgpu_cpp.h>
 #include <dawn_native/DawnNative.h>
