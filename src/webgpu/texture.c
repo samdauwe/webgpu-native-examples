@@ -109,6 +109,59 @@ static void copy_padding_buffer(unsigned char* dst, unsigned char* src,
   }
 }
 
+static WGPUTextureFormat linear_to_sgrb_format(WGPUTextureFormat format)
+{
+  switch (format) {
+    case WGPUTextureFormat_RGBA8Unorm:
+      return WGPUTextureFormat_RGBA8UnormSrgb;
+    case WGPUTextureFormat_BGRA8Unorm:
+      return WGPUTextureFormat_BGRA8UnormSrgb;
+    case WGPUTextureFormat_BC1RGBAUnorm:
+      return WGPUTextureFormat_BC1RGBAUnormSrgb;
+    case WGPUTextureFormat_BC2RGBAUnorm:
+      return WGPUTextureFormat_BC2RGBAUnormSrgb;
+    case WGPUTextureFormat_BC3RGBAUnorm:
+      return WGPUTextureFormat_BC3RGBAUnormSrgb;
+    case WGPUTextureFormat_BC7RGBAUnorm:
+      return WGPUTextureFormat_BC7RGBAUnormSrgb;
+    default:
+      return format;
+  }
+}
+
+static WGPUTextureFormat srgb_to_linear_format(WGPUTextureFormat format)
+{
+  switch (format) {
+    case WGPUTextureFormat_RGBA8UnormSrgb:
+      return WGPUTextureFormat_RGBA8Unorm;
+    case WGPUTextureFormat_BGRA8UnormSrgb:
+      return WGPUTextureFormat_BGRA8Unorm;
+    case WGPUTextureFormat_BC1RGBAUnormSrgb:
+      return WGPUTextureFormat_BC1RGBAUnorm;
+    case WGPUTextureFormat_BC2RGBAUnormSrgb:
+      return WGPUTextureFormat_BC2RGBAUnorm;
+    case WGPUTextureFormat_BC3RGBAUnormSrgb:
+      return WGPUTextureFormat_BC3RGBAUnorm;
+    case WGPUTextureFormat_BC7RGBAUnormSrgb:
+      return WGPUTextureFormat_BC7RGBAUnorm;
+    default:
+      return format;
+  }
+}
+
+static WGPUTextureFormat format_for_color_space(WGPUTextureFormat format,
+                                                color_space_enum_t colorSpace)
+{
+  switch (colorSpace) {
+    case COLOR_SPACE_SRGB:
+      return linear_to_sgrb_format(format);
+    case COLOR_SPACE_LINEAR:
+      return srgb_to_linear_format(format);
+    default:
+      return format;
+  }
+}
+
 /**
  * @brief Determines the number of mip levels needed for a full mip chain given
  * the width and height of texture level 0.
@@ -628,7 +681,11 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
     .usage         = usage,
     .dimension     = WGPUTextureDimension_2D,
     .size          = texture_size,
-    .format        = options ? options->format : WGPUTextureFormat_RGBA8Unorm,
+    .format        = options ? (options->format != WGPUTextureFormat_Undefined ?
+                                  format_for_color_space(options->format,
+                                                  options->color_space) :
+                                  WGPUTextureFormat_RGBA8Unorm) :
+                               WGPUTextureFormat_RGBA8Unorm,
     .mipLevelCount = mip_level_count,
     .sampleCount   = 1,
   };
@@ -754,7 +811,8 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
     .dimension     = WGPUTextureDimension_2D,
     .size          = texture_size,
     .format        = options ? (options->format != WGPUTextureFormat_Undefined ?
-                                  options->format :
+                                  format_for_color_space(options->format,
+                                                  options->color_space) :
                                   WGPUTextureFormat_RGBA8Unorm) :
                                WGPUTextureFormat_RGBA8Unorm,
     .mipLevelCount = mip_level_count,
@@ -818,10 +876,11 @@ wgpu_texture_cubemap_load_with_stb(wgpu_context_t* wgpu_context,
   const uint32_t depth           = 6u;
   const uint32_t mip_level_count = 1;
   const WGPUTextureFormat texture_format
-    = options ? (options->format != WGPUTextureFormat_Undefined ?
-                   options->format :
-                   WGPUTextureFormat_RGBA8Unorm) :
-                WGPUTextureFormat_RGBA8Unorm;
+    = options ?
+        (options->format != WGPUTextureFormat_Undefined ?
+           format_for_color_space(options->format, options->color_space) :
+           WGPUTextureFormat_RGBA8Unorm) :
+        WGPUTextureFormat_RGBA8Unorm;
   const size_t texture_size = width * height * channel_count * sizeof(uint8_t);
 
   // Create cubemap texture

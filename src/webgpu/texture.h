@@ -3,6 +3,12 @@
 
 #include "context.h"
 
+typedef enum color_space_enum_t {
+  COLOR_SPACE_UNDEFINED,
+  COLOR_SPACE_SRGB,
+  COLOR_SPACE_LINEAR,
+} color_space_enum_t;
+
 typedef struct texture_t {
   struct {
     uint32_t width;
@@ -82,6 +88,7 @@ typedef struct wgpu_texture_load_options_t {
   WGPUTextureUsage usage;
   WGPUTextureFormat format;
   WGPUAddressMode address_mode;
+  color_space_enum_t color_space;
 } wgpu_texture_load_options;
 
 /* Texture client construction / destruction */
