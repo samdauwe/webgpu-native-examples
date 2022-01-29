@@ -74,7 +74,13 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   });
 
   /* WebGPU device creation */
-  WGPUDeviceDescriptor deviceDescriptor = {0};
+  WGPUFeatureName required_features[1] = {
+    WGPUFeatureName_TextureCompressionBC,
+  };
+  WGPUDeviceDescriptor deviceDescriptor = {
+    .requiredFeaturesCount = (uint32_t)ARRAY_SIZE(required_features),
+    .requiredFeatures      = required_features,
+  };
   wgpu_context->device
     = wgpuAdapterCreateDevice(wgpu_context->adapter, &deviceDescriptor);
   wgpuDeviceSetUncapturedErrorCallback(
