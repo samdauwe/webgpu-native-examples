@@ -65,6 +65,15 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
 typedef struct wgpu_texture_client_t {
   wgpu_context_t* wgpu_context;
   wgpu_mipmap_generator_t* wgpu_mipmap_generator;
+  bool allow_compressed_formats;
+  struct {
+    WGPUTextureFormat values[4];
+    size_t count;
+  } uncompressed_format_list;
+  struct {
+    WGPUTextureFormat values[12];
+    size_t count;
+  } supported_format_list;
 } wgpu_texture_client;
 
 typedef struct wgpu_texture_load_options_t {
@@ -79,6 +88,17 @@ typedef struct wgpu_texture_load_options_t {
 struct wgpu_texture_client_t*
 wgpu_texture_client_create(wgpu_context_t* wgpu_context);
 void wgpu_texture_client_destroy(struct wgpu_texture_client_t* texture_client);
+
+/* Texture client functions*/
+
+/**
+ * @brief Returns a list of the WebGPU texture formats that this client can
+ * support.
+ * @param supported_formats output pointer to assign
+ * @param count number of supported formats
+ */
+void get_supported_formats(struct wgpu_texture_client_t* texture_client,
+                           WGPUTextureFormat* supported_formats, size_t* count);
 
 /* -------------------------------------------------------------------------- *
  * Texture creation functions

@@ -1226,6 +1226,43 @@ wgpu_texture_client_create(wgpu_context_t* wgpu_context)
   memset(texture_client, 0, sizeof(struct wgpu_texture_client_t));
   texture_client->wgpu_context = wgpu_context;
 
+  {
+    static const WGPUTextureFormat uncompressed_format_list[4] = {
+      WGPUTextureFormat_RGBA8Unorm,
+      WGPUTextureFormat_RGBA8UnormSrgb,
+      WGPUTextureFormat_BGRA8Unorm,
+      WGPUTextureFormat_BGRA8UnormSrgb,
+    };
+    memcpy(texture_client->uncompressed_format_list.values,
+           uncompressed_format_list, sizeof(uncompressed_format_list));
+    texture_client->uncompressed_format_list.count = 4;
+  }
+
+  {
+    static const WGPUTextureFormat supported_format_list[12] = {
+      // Uncompressed format list
+      WGPUTextureFormat_RGBA8Unorm,
+      WGPUTextureFormat_RGBA8UnormSrgb,
+      WGPUTextureFormat_BGRA8Unorm,
+      WGPUTextureFormat_BGRA8UnormSrgb,
+      // Compressed format list
+      WGPUTextureFormat_BC1RGBAUnorm,
+      WGPUTextureFormat_BC1RGBAUnormSrgb,
+      WGPUTextureFormat_BC2RGBAUnorm,
+      WGPUTextureFormat_BC2RGBAUnormSrgb,
+      WGPUTextureFormat_BC3RGBAUnorm,
+      WGPUTextureFormat_BC3RGBAUnormSrgb,
+      WGPUTextureFormat_BC7RGBAUnorm,
+      WGPUTextureFormat_BC7RGBAUnormSrgb,
+    };
+    memcpy(texture_client->supported_format_list.values, supported_format_list,
+           sizeof(supported_format_list));
+    texture_client->allow_compressed_formats = wgpuDeviceHasFeature(
+      wgpu_context->device, WGPUFeatureName_TextureCompressionBC);
+    texture_client->supported_format_list.count
+      = texture_client->allow_compressed_formats ? 12 : 4;
+  }
+
   return texture_client;
 }
 
@@ -1238,6 +1275,21 @@ void wgpu_texture_client_destroy(struct wgpu_texture_client_t* texture_client)
     }
     free(texture_client);
     texture_client = NULL;
+  }
+}
+
+void get_supported_formats(struct wgpu_texture_client_t* texture_client,
+                           WGPUTextureFormat* supported_formats, size_t* count)
+{
+  UNUSED_VAR(supported_formats);
+
+  if (texture_client->allow_compressed_formats) {
+    supported_formats = texture_client->supported_format_list.values;
+    *count            = texture_client->supported_format_list.count;
+  }
+  else {
+    supported_formats = texture_client->uncompressed_format_list.values;
+    *count            = texture_client->uncompressed_format_list.count;
   }
 }
 
