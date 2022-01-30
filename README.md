@@ -1,4 +1,4 @@
-<img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu_logo.png">
+<img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu-logo.png">
 
 # WebGPU Native Examples and Demos
 
