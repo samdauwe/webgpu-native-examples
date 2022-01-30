@@ -414,11 +414,12 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw)
 * [Changelog for WebGPU in Chromium / Dawn 98](https://t.co/fS1NR5bog0)
 
-## Roadmap: January - April 2022
+## Roadmap: February - April 2022
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
 * [ ] Basis Universal supercompressed GPU textures example
+* [ ] [Postprocessing](https://github.com/gnikoloff/webgpu-dojo)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
