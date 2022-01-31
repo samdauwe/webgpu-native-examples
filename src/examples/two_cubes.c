@@ -20,6 +20,15 @@
 
 #define NUMBER_OF_CUBES 2
 
+// Settings
+static struct settings_t {
+  uint64_t number_of_cubes;
+  bool render_bundles;
+} settings = {
+  .number_of_cubes = (uint64_t)NUMBER_OF_CUBES,
+  .render_bundles  = true,
+};
+
 // Cube mesh
 static cube_mesh_t cube_mesh = {0};
 
@@ -33,9 +42,6 @@ typedef struct cube_t {
   } view_mtx;
 } cube_t;
 static cube_t cubes[NUMBER_OF_CUBES] = {0};
-
-// The number of cubes
-static const uint64_t number_of_cubes = (uint64_t)NUMBER_OF_CUBES;
 
 // Vertex buffer
 static struct {
@@ -58,6 +64,9 @@ static struct {
 
 // Pipeline
 static WGPURenderPipeline pipeline;
+
+// Render bundle
+static WGPURenderBundle render_bundle;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -125,7 +134,7 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
   const float sin_now = sin(now);
   const float cos_now = cos(now);
 
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+  for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     cube_t* cube = &cubes[i];
     glm_mat4_copy(cube->view_mtx.model, cube->view_mtx.tmp);
     if (i % 2 == 0) {
@@ -145,7 +154,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   update_transformation_matrix(context);
 
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+  for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     wgpu_queue_write_buffer(
       context->wgpu_context, uniform_buffer.buffer, i * uniform_buffer.offset,
       &cubes[i].view_mtx.model_view_projection, sizeof(mat4));
@@ -167,7 +176,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -7.0f});
 
   const float start_x = -2.0f, increment_x = 4.0f;
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+  for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     cube_t* cube  = &cubes[i];
     const float x = start_x + i * increment_x;
 
@@ -193,7 +202,8 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   uniform_buffer.offset
     = 256; // uniformBindGroup offset must be 256-byte aligned
   uniform_buffer.size_with_offset
-    = ((number_of_cubes - 1) * uniform_buffer.offset) + uniform_buffer.size;
+    = ((settings.number_of_cubes - 1) * uniform_buffer.offset)
+      + uniform_buffer.size;
 
   uniform_buffer.buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
@@ -205,7 +215,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+  for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     cubes[i].uniform_buffer_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
@@ -307,6 +317,37 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
+#define RECORD_RENDER_PASS(Type, rpass_enc)                                    \
+  if (rpass_enc) {                                                             \
+    wgpu##Type##SetPipeline(rpass_enc, pipeline);                              \
+    wgpu##Type##SetVertexBuffer(rpass_enc, 0, vertices.buffer, 0,              \
+                                WGPU_WHOLE_SIZE);                              \
+    for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {                  \
+      wgpu##Type##SetBindGroup(rpass_enc, 0,                                   \
+                               cubes[i].uniform_buffer_bind_group, 0, 0);      \
+      wgpu##Type##Draw(rpass_enc, cube_mesh.vertex_count, 1, 0, 0);            \
+    }                                                                          \
+  }
+
+static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
+{
+  WGPUTextureFormat color_formats[1] = {wgpu_context->swap_chain.format};
+  WGPURenderBundleEncoder render_bundle_encoder
+    = wgpuDeviceCreateRenderBundleEncoder(
+      wgpu_context->device,
+      &(WGPURenderBundleEncoderDescriptor){
+        .label              = "two_cubes_render_bundle_encoder",
+        .colorFormatsCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormats       = color_formats,
+        .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
+        .sampleCount        = 1,
+      });
+  RECORD_RENDER_PASS(RenderBundleEncoder, render_bundle_encoder)
+  render_bundle = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
+
+  WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
+}
+
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
@@ -316,6 +357,7 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_uniform_buffer(context->wgpu_context);
     setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
+    prepare_render_bundle_encoder(context->wgpu_context);
     prepared = true;
     return 0;
   }
@@ -327,6 +369,8 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+    imgui_overlay_checkBox(context->imgui_overlay, "Render bundles",
+                           &settings.render_bundles);
   }
 }
 
@@ -340,16 +384,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      cubes[i].uniform_buffer_bind_group, 0, 0);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_mesh.vertex_count,
-                              1, 0, 0);
+  if (settings.render_bundles) {
+    const WGPURenderBundle render_bundles[1] = {render_bundle};
+    wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
+                                        render_bundles);
+  }
+  else {
+    RECORD_RENDER_PASS(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
   // End render pass
@@ -404,10 +446,11 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer)
-  for (uint64_t i = 0; i < number_of_cubes; ++i) {
+  for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     WGPU_RELEASE_RESOURCE(BindGroup, cubes[i].uniform_buffer_bind_group)
   }
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+  WGPU_RELEASE_RESOURCE(RenderBundle, render_bundle)
 }
 
 void example_two_cubes(int argc, char* argv[])
