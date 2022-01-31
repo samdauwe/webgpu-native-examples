@@ -21,7 +21,7 @@
 #define NUMBER_OF_CUBES 2
 
 // Settings
-static struct settings_t {
+static struct {
   uint64_t number_of_cubes;
   bool render_bundles;
 } settings = {
@@ -386,9 +386,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
   if (settings.render_bundles) {
-    const WGPURenderBundle render_bundles[1] = {render_bundle};
     wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
-                                        render_bundles);
+                                        &render_bundle);
   }
   else {
     RECORD_RENDER_PASS(RenderPassEncoder, wgpu_context->rpass_enc)
