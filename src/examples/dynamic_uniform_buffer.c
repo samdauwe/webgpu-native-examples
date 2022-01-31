@@ -79,6 +79,11 @@ static struct {
   WGPURenderPassDescriptor descriptor;
 } render_pass;
 
+// Render bundle
+static WGPURenderBundle render_bundle;
+
+// Render bundle setting & animation timer
+static bool render_bundles   = true;
 static float animation_timer = 0.0f;
 
 // Other variables
@@ -309,6 +314,44 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 }
 
+#define RECORD_RENDER_PASS(Type, rpass_enc)                                    \
+  if (rpass_enc) {                                                             \
+    wgpu##Type##SetPipeline(rpass_enc, pipeline);                              \
+    wgpu##Type##SetVertexBuffer(rpass_enc, 0, vertices.buffer, 0,              \
+                                WGPU_WHOLE_SIZE);                              \
+    wgpu##Type##SetIndexBuffer(rpass_enc, indices.buffer,                      \
+                               WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);    \
+    /* Render multiple objects using different model matrices by dynamically   \
+     * offsetting into one uniform buffer */                                   \
+    for (uint32_t i = 0; i < OBJECT_INSTANCES; ++i) {                          \
+      /* One dynamic offset per dynamic bind group to offset into the ubo      \
+       * containing all model matrices*/                                       \
+      uint32_t dynamic_offset = i * (uint32_t)ALIGNMENT;                       \
+      /* Bind the bind group for rendering a mesh using the dynamic offset */  \
+      wgpu##Type##SetBindGroup(rpass_enc, 0, bind_group, 1, &dynamic_offset);  \
+      wgpu##Type##DrawIndexed(rpass_enc, indices.count, 1, 0, 0, 0);           \
+    }                                                                          \
+  }
+
+static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
+{
+  WGPUTextureFormat color_formats[1] = {wgpu_context->swap_chain.format};
+  WGPURenderBundleEncoder render_bundle_encoder
+    = wgpuDeviceCreateRenderBundleEncoder(
+      wgpu_context->device,
+      &(WGPURenderBundleEncoderDescriptor){
+        .label              = "dynamic_uniform_buffer_render_bundle_encoder",
+        .colorFormatsCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormats       = color_formats,
+        .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
+        .sampleCount        = 1,
+      });
+  RECORD_RENDER_PASS(RenderBundleEncoder, render_bundle_encoder)
+  render_bundle = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
+
+  WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
+}
+
 static float rand_float_min_max(float min, float max)
 {
   /* [min, max] */
@@ -430,6 +473,7 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_pipeline(context->wgpu_context);
     setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
+    prepare_render_bundle_encoder(context->wgpu_context);
     prepared = true;
     return 0;
   }
@@ -441,6 +485,8 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+    imgui_overlay_checkBox(context->imgui_overlay, "Render bundles",
+                           &render_bundles);
   }
 }
 
@@ -454,26 +500,13 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0,
-                                      WGPU_WHOLE_SIZE);
-
-  // Render multiple objects using different model matrices by dynamically
-  // offsetting into one uniform buffer
-  for (uint32_t i = 0; i < OBJECT_INSTANCES; ++i) {
-    // One dynamic offset per dynamic bind group to offset into the ubo
-    // containing all model matrices
-    uint32_t dynamic_offset = i * (uint32_t)ALIGNMENT;
-    // Bind the bind group for rendering a mesh using the dynamic offset
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 1,
-                                      &dynamic_offset);
-
-    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1,
-                                     0, 0, 0);
+  if (render_bundles) {
+    wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
+                                        &render_bundle);
+  }
+  else {
+    RECORD_RENDER_PASS(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
   // End render pass
@@ -539,6 +572,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
+  WGPU_RELEASE_RESOURCE(RenderBundle, render_bundle)
 }
 
 void example_dynamic_uniform_buffer(int argc, char* argv[])
