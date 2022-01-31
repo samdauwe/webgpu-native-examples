@@ -357,27 +357,28 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   }
 }
 
-#define RECORD_RENDER_PASS(Type, Name)                                         \
-  if (Name) {                                                                  \
+#define RECORD_RENDER_PASS(Type, rpass_enc)                                    \
+  if (rpass_enc) {                                                             \
     if (settings.dynamic_offsets) {                                            \
-      wgpu##Type##SetPipeline(Name, dynamic_pipeline);                         \
+      wgpu##Type##SetPipeline(rpass_enc, dynamic_pipeline);                    \
     }                                                                          \
     else {                                                                     \
-      wgpu##Type##SetPipeline(Name, pipeline);                                 \
+      wgpu##Type##SetPipeline(rpass_enc, pipeline);                            \
     }                                                                          \
-    wgpu##Type##SetVertexBuffer(Name, 0, vertices.buffer, 0, WGPU_WHOLE_SIZE); \
-    wgpu##Type##SetBindGroup(Name, 0, time_bind_group, 0, 0);                  \
+    wgpu##Type##SetVertexBuffer(rpass_enc, 0, vertices.buffer, 0,              \
+                                WGPU_WHOLE_SIZE);                              \
+    wgpu##Type##SetBindGroup(rpass_enc, 0, time_bind_group, 0, 0);             \
     uint32_t dynamic_offsets[1] = {0};                                         \
     for (uint64_t i = 0; i < settings.num_triangles; ++i) {                    \
       if (settings.dynamic_offsets) {                                          \
         dynamic_offsets[0] = i * aligned_uniform_bytes;                        \
-        wgpu##Type##SetBindGroup(Name, 1, dynamic_bind_group, 1,               \
+        wgpu##Type##SetBindGroup(rpass_enc, 1, dynamic_bind_group, 1,          \
                                  dynamic_offsets);                             \
       }                                                                        \
       else {                                                                   \
-        wgpu##Type##SetBindGroup(Name, 1, bind_groups[i], 0, 0);               \
+        wgpu##Type##SetBindGroup(rpass_enc, 1, bind_groups[i], 0, 0);          \
       }                                                                        \
-      wgpu##Type##Draw(Name, 3, 1, 0, 0);                                      \
+      wgpu##Type##Draw(rpass_enc, 3, 1, 0, 0);                                 \
     }                                                                          \
   }
 
