@@ -77,8 +77,7 @@ static void Initialize()
 #error
 #endif
   gpuContext.adapter.handle = nullptr;
-
-  gpuContext.initialized = true;
+  gpuContext.initialized    = true;
 }
 
 static void SetAdapterInfo(const wgpu::AdapterProperties& ap)
