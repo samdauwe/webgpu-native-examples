@@ -395,7 +395,6 @@ static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
   uint32_t index = 0;
   for (uint32_t y = 0; y < GRID_DIM; y++) {
     for (uint32_t x = 0; x < GRID_DIM; x++) {
-      // uint32_t index = x * GRID_DIM + y * GRID_DIM;
 
       // Set object position
       vec3* pos = &object_params_dynamic[index].position;
