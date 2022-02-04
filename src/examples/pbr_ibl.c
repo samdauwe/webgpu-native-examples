@@ -66,19 +66,19 @@ static struct {
     WGPUBuffer buffer;
     uint64_t size;
   } ubo_params;
+  // Material parameter uniform buffer
+  struct {
+    WGPUBuffer buffer;
+    uint64_t buffer_size;
+    uint64_t model_size;
+  } material_params;
+  // Object parameter uniform buffer
+  struct {
+    WGPUBuffer buffer;
+    uint64_t buffer_size;
+    uint64_t model_size;
+  } object_params;
 } uniform_buffers;
-
-static struct matrial_params_dynamic_t {
-  float roughness;
-  float metallic;
-  vec3 color;
-  uint8_t padding[236];
-} material_params_dynamic[SINGLE_ROW_OBJECT_COUNT] = {0};
-
-static struct object_params_dynamic_t {
-  vec3 position;
-  uint8_t padding[244];
-} object_params_dynamic[SINGLE_ROW_OBJECT_COUNT] = {0};
 
 static struct {
   mat4 projection;
@@ -96,21 +96,43 @@ static struct {
   .gamma    = 2.2f,
 };
 
+static struct matrial_params_dynamic_t {
+  float roughness;
+  float metallic;
+  float specular;
+  vec3 color;
+  uint8_t padding[232];
+} material_params_dynamic[SINGLE_ROW_OBJECT_COUNT] = {0};
+
+static struct object_params_dynamic_t {
+  vec3 position;
+  uint8_t padding[244];
+} object_params_dynamic[SINGLE_ROW_OBJECT_COUNT] = {0};
+
 static struct {
-  WGPURenderPipeline skybox;
   WGPURenderPipeline pbr;
+  WGPURenderPipeline skybox;
 } pipelines;
 
 static struct {
-  WGPUBindGroup object;
+  WGPUBindGroup objects;
   WGPUBindGroup skybox;
 } bind_groups;
 
 static struct {
+  WGPUBindGroupLayout objects;
   WGPUBindGroupLayout skybox;
 } bind_group_layouts;
 
-WGPUPipelineLayout pipeline_layout;
+static struct {
+  WGPUPipelineLayout pbr;
+  WGPUPipelineLayout skybox;
+} pipeline_layouts;
+
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Default materials to select from
 static struct {
@@ -192,12 +214,12 @@ static void load_assets(wgpu_context_t* wgpu_context)
   }
   // Cube map
   static const char* cubemap[6] = {
-    "textures/cubemaps/pisa_cube_px.jpg", // Right
-    "textures/cubemaps/pisa_cube_nx.jpg", // Left
-    "textures/cubemaps/pisa_cube_py.jpg", // Top
-    "textures/cubemaps/pisa_cube_ny.jpg", // Bottom
-    "textures/cubemaps/pisa_cube_pz.jpg", // Back
-    "textures/cubemaps/pisa_cube_nz.jpg", // Front
+    "textures/cubemaps/pisa_cube_px.png", // Right
+    "textures/cubemaps/pisa_cube_nx.png", // Left
+    "textures/cubemaps/pisa_cube_py.png", // Top
+    "textures/cubemaps/pisa_cube_ny.png", // Bottom
+    "textures/cubemaps/pisa_cube_pz.png", // Back
+    "textures/cubemaps/pisa_cube_nz.png", // Front
   };
   textures.environment_cube = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
@@ -206,8 +228,62 @@ static void load_assets(wgpu_context_t* wgpu_context)
     });
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
+  // Bind group layout for objects
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[4] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = uniform_buffers.object.size,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Uniform buffer (Fragment shader)
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = uniform_buffers.ubo_params.size,
+        },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: Dynamic uniform buffer (Fragment shader)
+        .binding = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = true,
+          .minBindingSize = uniform_buffers.material_params.model_size,
+        },
+        .sampler = {0},
+      },
+      [3] = (WGPUBindGroupLayoutEntry) {
+        // Binding 3: Dynamic uniform buffer (Vertex shader)
+        .binding = 3,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = true,
+          .minBindingSize = uniform_buffers.object_params.model_size,
+        },
+        .sampler = {0},
+      },
+    };
+    bind_group_layouts.objects = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(bind_group_layouts.objects != NULL)
+  }
+
   // Bind group layout for skybox
   {
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
@@ -218,7 +294,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_matrices),
+          .minBindingSize = uniform_buffers.skybox.size,
         },
         .sampler = {0},
       },
@@ -228,8 +304,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
-          .hasDynamicOffset = true,
-          .minBindingSize = sizeof(ubo_params),
+          .hasDynamicOffset = false,
+          .minBindingSize = uniform_buffers.ubo_params.size,
         },
         .sampler = {0},
       },
@@ -265,8 +341,73 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   }
 }
 
+static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
+{
+  // Create the pipeline layout for objects
+  {
+    pipeline_layouts.pbr = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .bindGroupLayoutCount = 1,
+                              .bindGroupLayouts = &bind_group_layouts.objects,
+                            });
+    ASSERT(pipeline_layouts.pbr != NULL)
+  }
+
+  // Create the pipeline layout for skybox
+  {
+    pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .bindGroupLayoutCount = 1,
+                              .bindGroupLayouts = &bind_group_layouts.skybox,
+                            });
+    ASSERT(pipeline_layouts.skybox != NULL)
+  }
+}
+
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
+  // Bind group for objects
+  {
+    WGPUBindGroupEntry bg_entries[4] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
+        .binding = 0,
+        .buffer = uniform_buffers.object.buffer,
+        .offset = 0,
+        .size = uniform_buffers.object.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: Uniform buffer (Fragment shader)
+        .binding = 1,
+        .buffer = uniform_buffers.ubo_params.buffer,
+        .offset = 0,
+        .size = uniform_buffers.ubo_params.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        // Binding 2: Dynamic uniform buffer (Fragment shader)
+        .binding = 2,
+        .buffer = uniform_buffers.material_params.buffer,
+        .offset = 0,
+        .size = uniform_buffers.material_params.model_size,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        // Binding 3: Dynamic uniform buffer (Vertex shader)
+        .binding = 3,
+        .buffer = uniform_buffers.object_params.buffer,
+        .offset = 0,
+        .size = uniform_buffers.object_params.model_size,
+      },
+    };
+
+    bind_groups.objects = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .layout     = bind_group_layouts.objects,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(bind_groups.objects != NULL)
+  }
+
   // Bind group for skybox
   {
     WGPUBindGroupEntry bg_entries[4] = {
@@ -307,6 +448,168 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   }
 }
 
+static void setup_render_pass(wgpu_context_t* wgpu_context)
+{
+  // Color attachment
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = 0.1f,
+        .g = 0.1f,
+        .b = 0.1f,
+        .a = 1.0f,
+      },
+  };
+
+  // Depth attachment
+  wgpu_setup_deph_stencil(wgpu_context, NULL);
+
+  // Render pass descriptor
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
+  };
+}
+
+static void prepare_pipelines(wgpu_context_t* wgpu_context)
+{
+  // Construct the different states making up the pipeline
+
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
+    });
+
+  // Vertex buffer layout
+  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+    sphere,
+    // Location 0: Position
+    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
+    // Location 1: Vertex normal
+    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
+    // Location 2: UV
+    WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV));
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Skybox pipeline (background cube)
+  {
+    primitive_state_desc.cullMode              = WGPUCullMode_Front;
+    depth_stencil_state_desc.depthWriteEnabled = false;
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/pbr_ibl/skybox.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &sphere_vertex_buffer_layout,
+          });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/pbr_ibl/skybox.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+    // Create rendering pipeline using the specified states
+    pipelines.skybox = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "skybox_render_pipeline",
+                              .layout       = pipeline_layouts.skybox,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipelines.skybox != NULL)
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
+
+  // PBR pipeline
+  {
+    primitive_state_desc.cullMode = WGPUCullMode_None;
+
+    // Enable depth write
+    depth_stencil_state_desc.depthWriteEnabled = true;
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/pbr_ibl/pbr.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &sphere_vertex_buffer_layout,
+          });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/pbr_ibl/pbr.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+    // Create rendering pipeline using the specified states
+    pipelines.pbr = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "pbr_render_pipeline",
+                              .layout       = pipeline_layouts.pbr,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipelines.pbr != NULL)
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
+}
+
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   // 3D object
@@ -330,7 +633,34 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           0, &ubo_matrices, uniform_buffers.skybox.size);
 }
 
-static void update_params(wgpu_example_context_t* context)
+static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  // Set objects positions and material properties
+  uint32_t obj_count = (uint32_t)SINGLE_ROW_OBJECT_COUNT;
+  for (uint32_t x = 0; x < obj_count; x++) {
+    // Set object position
+    vec3* pos = &object_params_dynamic[x].position;
+    glm_vec3_copy((vec3){((float)(x - (obj_count / 2.0f))) * 2.15f, 0.0f, 0.0f},
+                  *pos);
+    // Set material metallic and roughness properties
+    struct matrial_params_dynamic_t* mat_params = &material_params_dynamic[x];
+    mat_params->roughness
+      = 1.0f - glm_clamp((float)x / (float)obj_count, 0.005f, 1.0f);
+    mat_params->metallic = glm_clamp((float)x / (float)obj_count, 0.005f, 1.0f);
+    glm_vec3_copy(materials[current_material_index].params.color,
+                  (*mat_params).color);
+  }
+
+  // Update buffers
+  wgpu_queue_write_buffer(wgpu_context, uniform_buffers.object_params.buffer, 0,
+                          &object_params_dynamic,
+                          uniform_buffers.object_params.buffer_size);
+  wgpu_queue_write_buffer(wgpu_context, uniform_buffers.material_params.buffer,
+                          0, &material_params_dynamic,
+                          uniform_buffers.material_params.buffer_size);
+}
+
+static void update_params(wgpu_context_t* wgpu_context)
 {
   const float p = 15.0f;
   glm_vec4_copy((vec4){-p, -p * 0.5f, -p, 1.0f}, ubo_params.lights[0]);
@@ -338,9 +668,13 @@ static void update_params(wgpu_example_context_t* context)
   glm_vec4_copy((vec4){p, -p * 0.5f, p, 1.0f}, ubo_params.lights[2]);
   glm_vec4_copy((vec4){p, -p * 0.5f, -p, 1.0f}, ubo_params.lights[3]);
 
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          uniform_buffers.ubo_params.buffer, 0, &ubo_params,
-                          uniform_buffers.ubo_params.size);
+  wgpu_queue_write_buffer(wgpu_context, uniform_buffers.ubo_params.buffer, 0,
+                          &ubo_params, uniform_buffers.ubo_params.size);
+}
+
+static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
+{
+  return (byte_size + 255) & ~255;
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
@@ -382,8 +716,37 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
   }
 
+  // Material parameter uniform buffer
+  {
+    uniform_buffers.material_params.model_size = sizeof(vec3) + sizeof(vec3);
+    uniform_buffers.material_params.buffer_size
+      = calc_constant_buffer_byte_size(sizeof(material_params_dynamic));
+    WGPUBufferDescriptor ubo_desc = {
+      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size             = uniform_buffers.material_params.buffer_size,
+      .mappedAtCreation = false,
+    };
+    uniform_buffers.material_params.buffer
+      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+  }
+
+  // Object parameter uniform buffer
+  {
+    uniform_buffers.object_params.model_size = sizeof(vec3);
+    uniform_buffers.object_params.buffer_size
+      = calc_constant_buffer_byte_size(sizeof(object_params_dynamic));
+    WGPUBufferDescriptor ubo_desc = {
+      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size             = uniform_buffers.object_params.buffer_size,
+      .mappedAtCreation = false,
+    };
+    uniform_buffers.object_params.buffer
+      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+  }
+
   update_uniform_buffers(context);
-  update_params(context);
+  update_dynamic_uniform_buffer(context->wgpu_context);
+  update_params(context->wgpu_context);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -392,9 +755,10 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_camera(context);
     load_assets(context->wgpu_context);
     prepare_uniform_buffers(context);
-    setup_pipeline_layout(context->wgpu_context);
+    setup_bind_group_layouts(context->wgpu_context);
+    setup_pipeline_layouts(context->wgpu_context);
     prepare_pipelines(context->wgpu_context);
-    setup_bind_group(context->wgpu_context);
+    setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
     return 0;
@@ -416,12 +780,146 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
     }
     if (imgui_overlay_input_float(context->imgui_overlay, "Exposure",
                                   &ubo_params.exposure, 0.1f, "%.2f")) {
-      update_params(context);
+      update_params(context->wgpu_context);
     }
     if (imgui_overlay_input_float(context->imgui_overlay, "Gamma",
                                   &ubo_params.gamma, 0.1f, "%.2f")) {
-      update_params(context);
+      update_params(context->wgpu_context);
     }
     imgui_overlay_checkBox(context->imgui_overlay, "Skybox", &display_skybox);
   }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  // Set target frame buffer
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+
+  // Create command encoder
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  // Create render pass encoder for encoding drawing commands
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass.descriptor);
+
+  // Set viewport
+  wgpuRenderPassEncoderSetViewport(
+    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
+    (float)wgpu_context->surface.height, 0.0f, 1.0f);
+
+  // Set scissor rectangle
+  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
+                                      wgpu_context->surface.width,
+                                      wgpu_context->surface.height);
+
+  // Skybox
+  if (display_skybox) {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.skybox);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.skybox, 0, 0);
+    wgpu_gltf_model_draw(models.skybox, (wgpu_gltf_model_render_options_t){0});
+  }
+
+  // Objects
+  {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.pbr);
+
+    for (uint32_t i = 0; i < (uint32_t)SINGLE_ROW_OBJECT_COUNT; ++i) {
+      uint32_t dynamic_offset     = i * (uint32_t)ALIGNMENT;
+      uint32_t dynamic_offsets[2] = {dynamic_offset, dynamic_offset};
+      // Bind the bind group for rendering a mesh using the dynamic offset
+      wgpuRenderPassEncoderSetBindGroup(
+        wgpu_context->rpass_enc, 0, bind_groups.objects, 2, dynamic_offsets);
+      // Draw object
+      wgpu_gltf_model_draw(models.objects[models.object_index].object,
+                           (wgpu_gltf_model_render_options_t){0});
+    }
+  }
+
+  // End render pass
+  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  return example_draw(context);
+}
+
+static void example_on_view_changed(wgpu_example_context_t* context)
+{
+  update_uniform_buffers(context);
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+  camera_release(context->camera);
+  wgpu_destroy_texture(&textures.environment_cube);
+  wgpu_gltf_model_destroy(models.skybox);
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models.objects); ++i) {
+    wgpu_gltf_model_destroy(models.objects[i].object);
+  }
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.object.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.skybox.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.ubo_params.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.material_params.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.object_params.buffer)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.pbr)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.skybox)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.objects)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.skybox)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.objects)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.skybox)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.pbr)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.skybox)
+}
+
+void example_pbr_ibl(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title = example_title,
+      .overlay = true,
+    },
+    .example_initialize_func      = &example_initialize,
+    .example_render_func          = &example_render,
+    .example_destroy_func         = &example_destroy,
+    .example_on_view_changed_func = &example_on_view_changed,
+  });
+  // clang-format on
 }
