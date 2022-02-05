@@ -371,6 +371,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -465,6 +466,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     uniform_buffers.ubo_matrices.size = ubo_desc.size;
     uniform_buffers.ubo_matrices.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+    ASSERT(uniform_buffers.ubo_matrices.buffer != NULL)
   }
 
   // Shared parameter uniform buffer
@@ -477,6 +479,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     uniform_buffers.ubo_params.size = ubo_desc.size;
     uniform_buffers.ubo_params.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+    ASSERT(uniform_buffers.ubo_params.buffer != NULL)
   }
 
   // Material parameter uniform buffer
@@ -491,6 +494,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     uniform_buffers.material_params.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+    ASSERT(uniform_buffers.material_params.buffer != NULL)
   }
 
   // Object parameter uniform buffer
@@ -505,6 +509,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     uniform_buffers.object_params.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+    ASSERT(uniform_buffers.object_params.buffer != NULL)
   }
 
   update_uniform_buffers(context);
