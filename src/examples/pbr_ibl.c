@@ -28,6 +28,8 @@ static bool display_skybox = true;
 
 static struct {
   texture_t environment_cube;
+  // Generated at runtime
+  texture_t lut_brdf;
 } textures;
 
 static struct {
@@ -610,6 +612,185 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   }
 }
 
+// Generate a BRDF integration map used as a look-up-table (stores roughness /
+// NdotV)
+static void generate_brdf_lut(wgpu_context_t* wgpu_context)
+{
+  const WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
+  const int32_t dim              = 512;
+
+  // Texture dimensions
+  WGPUExtent3D texture_extent = {
+    .width              = dim,
+    .height             = dim,
+    .depthOrArrayLayers = 1,
+  };
+
+  // Create the texture
+  {
+    WGPUTextureDescriptor texture_desc = {
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = format,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    textures.lut_brdf.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(textures.lut_brdf.texture != NULL)
+  }
+
+  // Create the texture view
+  {
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    textures.lut_brdf.view
+      = wgpuTextureCreateView(textures.lut_brdf.texture, &texture_view_dec);
+    ASSERT(textures.lut_brdf.view != NULL)
+  }
+
+  // Create the sampler
+  {
+    textures.lut_brdf.sampler = wgpuDeviceCreateSampler(
+      wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .addressModeU  = WGPUAddressMode_ClampToEdge,
+                              .addressModeV  = WGPUAddressMode_ClampToEdge,
+                              .addressModeW  = WGPUAddressMode_ClampToEdge,
+                              .minFilter     = WGPUFilterMode_Linear,
+                              .magFilter     = WGPUFilterMode_Linear,
+                              .mipmapFilter  = WGPUFilterMode_Linear,
+                              .lodMinClamp   = 0.0f,
+                              .lodMaxClamp   = 1.0f,
+                              .maxAnisotropy = 1,
+                            });
+    ASSERT(textures.lut_brdf.sampler != NULL)
+  }
+
+  // Look-up-table (from BRDF) pipeline
+  WGPURenderPipeline pipeline = NULL;
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state_desc = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Multisample state
+    WGPUMultisampleState multisample_state_desc
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .file = "shaders/pbr_ibl/genbrdflut.vert.spv",
+              },
+              .buffer_count = 0,
+              .buffers = NULL,
+            });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .file = "shaders/pbr_ibl/genbrdflut.frag.spv",
+              },
+              .target_count = 1,
+              .targets = &color_target_state_desc,
+            });
+
+    // Create rendering pipeline using the specified states
+    pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "genbrdflut_render_pipeline",
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = NULL,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(pipeline != NULL)
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
+
+  // Create the actual renderpass
+  struct {
+    WGPURenderPassColorAttachment color_attachment[1];
+    WGPURenderPassDescriptor render_pass_descriptor;
+  } render_pass = {
+    .color_attachment[0]= (WGPURenderPassColorAttachment) {
+        .view       = textures.lut_brdf.view,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearColor = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 1.0f,
+        },
+     },
+  };
+  render_pass.render_pass_descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachment,
+    .depthStencilAttachment = NULL,
+  };
+
+  // Render
+  {
+    wgpu_context->cmd_enc
+      = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc, &render_pass.render_pass_descriptor);
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, 0.0f, 0.0f,
+                                     (float)dim, (float)dim, 0.0f, 1.0f);
+    wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u, dim,
+                                        dim);
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+    WGPUCommandBuffer command_buffer
+      = wgpuCommandEncoderFinish(wgpu_context->cmd_enc, NULL);
+    ASSERT(command_buffer != NULL);
+    WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+    // Sumbit commmand buffer and cleanup
+    wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
+    WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
+  }
+
+  // Cleanup
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline);
+}
+
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   // 3D object
@@ -754,6 +935,7 @@ static int example_initialize(wgpu_example_context_t* context)
   if (context) {
     setup_camera(context);
     load_assets(context->wgpu_context);
+    generate_brdf_lut(context->wgpu_context);
     prepare_uniform_buffers(context);
     setup_bind_group_layouts(context->wgpu_context);
     setup_pipeline_layouts(context->wgpu_context);
@@ -889,6 +1071,7 @@ static void example_destroy(wgpu_example_context_t* context)
 {
   camera_release(context->camera);
   wgpu_destroy_texture(&textures.environment_cube);
+  wgpu_destroy_texture(&textures.lut_brdf);
   wgpu_gltf_model_destroy(models.skybox);
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models.objects); ++i) {
     wgpu_gltf_model_destroy(models.objects[i].object);
