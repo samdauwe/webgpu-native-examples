@@ -509,7 +509,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Vertex buffer layout
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
-    sphere,
+    skybox,
     // Location 0: Position
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
     // Location 1: Vertex normal
@@ -537,7 +537,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_ibl/skybox.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &sphere_vertex_buffer_layout,
+            .buffers = &skybox_vertex_buffer_layout,
           });
 
     // Fragment state
@@ -584,7 +584,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_ibl/pbr.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &sphere_vertex_buffer_layout,
+            .buffers = &skybox_vertex_buffer_layout,
           });
 
     // Fragment state
@@ -804,28 +804,30 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
 // Generate an irradiance cube map from the environment cube map
 static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
 {
-  const WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
-  const int32_t dim              = (int32_t)IRRADIANCE_CUBE_DIM;
-  const uint32_t num_mips        = (uint32_t)IRRADIANCE_CUBE_NUM_MIPS;
+  const WGPUTextureFormat format   = WGPUTextureFormat_RGBA8Unorm;
+  const int32_t dim                = (int32_t)IRRADIANCE_CUBE_DIM;
+  const uint32_t num_mips          = (uint32_t)IRRADIANCE_CUBE_NUM_MIPS;
+  const uint32_t array_layer_count = 6; // Cube map
 
   /** Pre-filtered cube map **/
   // Texture dimensions
   WGPUExtent3D texture_extent = {
     .width              = dim,
     .height             = dim,
-    .depthOrArrayLayers = 6,
+    .depthOrArrayLayers = array_layer_count,
   };
 
   // Create the texture
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "irradiance_cube_texture",
       .size          = texture_extent,
       .mipLevelCount = num_mips,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = format,
-      .usage
-      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_TextureBinding,
     };
     textures.irradiance_cube.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
@@ -835,6 +837,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   // Create the texture view
   {
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "irradiance_cube_texture_view",
       .dimension       = WGPUTextureViewDimension_Cube,
       .format          = format,
       .baseMipLevel    = 0,
@@ -851,14 +854,15 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   {
     textures.irradiance_cube.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .addressModeU  = WGPUAddressMode_ClampToEdge,
-                              .addressModeV  = WGPUAddressMode_ClampToEdge,
-                              .addressModeW  = WGPUAddressMode_ClampToEdge,
-                              .minFilter     = WGPUFilterMode_Linear,
-                              .magFilter     = WGPUFilterMode_Linear,
-                              .mipmapFilter  = WGPUFilterMode_Linear,
-                              .lodMinClamp   = 0.0f,
-                              .lodMaxClamp   = (float)num_mips,
+                              .label        = "irradiance_cube_texture_sampler",
+                              .addressModeU = WGPUAddressMode_ClampToEdge,
+                              .addressModeV = WGPUAddressMode_ClampToEdge,
+                              .addressModeW = WGPUAddressMode_ClampToEdge,
+                              .minFilter    = WGPUFilterMode_Linear,
+                              .magFilter    = WGPUFilterMode_Linear,
+                              .mipmapFilter = WGPUFilterMode_Linear,
+                              .lodMinClamp  = 0.0f,
+                              .lodMaxClamp  = (float)num_mips,
                               .maxAnisotropy = 1,
                             });
     ASSERT(textures.irradiance_cube.sampler != NULL)
@@ -867,7 +871,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   // Framebuffer for offscreen rendering
   struct {
     WGPUTexture texture;
-    WGPUTextureView texture_view;
+    WGPUTextureView texture_views[6 * (uint32_t)IRRADIANCE_CUBE_NUM_MIPS];
   } offscreen;
 
   // Offscreen framebuffer
@@ -876,34 +880,44 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     {
       // Create the texture
       WGPUTextureDescriptor texture_desc = {
+        .label         = "irradiance_cube_offscreen_texture",
         .size          = (WGPUExtent3D) {
           .width              = dim,
           .height             = dim,
-          .depthOrArrayLayers = 1,
+          .depthOrArrayLayers = array_layer_count,
         },
-        .mipLevelCount = 1,
+        .mipLevelCount = num_mips,
         .sampleCount   = 1,
         .dimension     = WGPUTextureDimension_2D,
         .format        = format,
-        .usage
-        = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+        .usage = WGPUTextureUsage_CopySrc | WGPUTextureUsage_TextureBinding
+                 | WGPUTextureUsage_RenderAttachment,
       };
       offscreen.texture
         = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
       ASSERT(offscreen.texture != NULL)
 
-      // Create the texture view
-      WGPUTextureViewDescriptor texture_view_dec = {
-        .dimension       = WGPUTextureViewDimension_2D,
-        .format          = texture_desc.format,
-        .baseMipLevel    = 0,
-        .mipLevelCount   = 1,
-        .baseArrayLayer  = 0,
-        .arrayLayerCount = 1,
-      };
-      offscreen.texture_view
-        = wgpuTextureCreateView(offscreen.texture, &texture_view_dec);
-      ASSERT(offscreen.texture_view != NULL)
+      // Create the texture views
+      uint32_t idx = 0;
+      for (uint32_t array_layer = 0; array_layer < array_layer_count;
+           ++array_layer) {
+        for (uint32_t i = 0; i < num_mips; ++i) {
+          idx = (array_layer * num_mips) + i;
+          WGPUTextureViewDescriptor texture_view_dec = {
+            .label           = "irradiance_cube_offscreen_texture_view",
+            .aspect          = WGPUTextureAspect_All,
+            .dimension       = WGPUTextureViewDimension_2D,
+            .format          = texture_desc.format,
+            .baseMipLevel    = i,
+            .mipLevelCount   = 1,
+            .baseArrayLayer  = array_layer,
+            .arrayLayerCount = 1,
+          };
+          offscreen.texture_views[idx]
+            = wgpuTextureCreateView(offscreen.texture, &texture_view_dec);
+          ASSERT(offscreen.texture_views[idx] != NULL)
+        }
+      }
     }
   }
 
@@ -981,13 +995,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     irradiance_cube_ubos.vs.model_size = sizeof(mat4);
     irradiance_cube_ubos.vs.buffer_size
       = calc_constant_buffer_byte_size(sizeof(push_block_vs));
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = uniform_buffers.material_params.buffer_size,
-      .mappedAtCreation = false,
-    };
-    irradiance_cube_ubos.vs.buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &ubo_desc);
+    irradiance_cube_ubos.vs.buffer = wgpu_create_buffer_from_data(
+      wgpu_context, push_block_vs, irradiance_cube_ubos.vs.buffer_size,
+      WGPUBufferUsage_Uniform);
   }
 
   // Fragment shader parameter uniform buffer
@@ -995,13 +1005,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     irradiance_cube_ubos.fs.model_size = sizeof(float) * 2;
     irradiance_cube_ubos.fs.buffer_size
       = calc_constant_buffer_byte_size(sizeof(push_block_fs));
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = uniform_buffers.material_params.buffer_size,
-      .mappedAtCreation = false,
-    };
-    irradiance_cube_ubos.fs.buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &ubo_desc);
+    irradiance_cube_ubos.fs.buffer = wgpu_create_buffer_from_data(
+      wgpu_context, push_block_fs, irradiance_cube_ubos.fs.buffer_size,
+      WGPUBufferUsage_Uniform);
   }
 
   // Bind group layout
@@ -1126,12 +1132,11 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Multisample state
-    WGPUMultisampleState multisample_state_desc
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
+    // Vertex buffer layout
+    WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+      skybox,
+      // Location 0: Position
+      WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position));
 
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
@@ -1140,8 +1145,8 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                 // Vertex shader SPIR-V
                 .file = "shaders/pbr_ibl/filtercube.vert.spv",
               },
-              .buffer_count = 0,
-              .buffers = NULL,
+             .buffer_count = 1,
+             .buffers = &skybox_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -1154,6 +1159,13 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
               .target_count = 1,
               .targets = &color_target_state_desc,
             });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state_desc
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
 
     // Create rendering pipeline using the specified states
     pipeline = wgpuDeviceCreateRenderPipeline(
@@ -1179,14 +1191,14 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass = {
     .color_attachment[0]= (WGPURenderPassColorAttachment) {
-        .view       = textures.lut_brdf.view,
+        .view       = NULL,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
-          .b = 0.0f,
-          .a = 1.0f,
+          .b = 0.2f,
+          .a = 0.0f,
         },
      },
   };
@@ -1207,6 +1219,8 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       viewport_width  = (float)(dim * pow(0.5f, m));
       viewport_height = (float)(dim * pow(0.5f, m));
       for (uint32_t f = 0; f < 6; ++f) {
+        render_pass.color_attachment[0].view
+          = offscreen.texture_views[(f * num_mips) + m];
         idx = (m * 6) + f;
         // Render scene from cube face's point of view
         wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
@@ -1230,28 +1244,30 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
         // End render pass
         wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-        // Copy region for transfer from framebuffer to cube face
-        WGPUExtent3D copy_size = (WGPUExtent3D){
-          .width              = viewport_width,
-          .height             = viewport_height,
-          .depthOrArrayLayers = 1,
-        };
-        wgpuCommandEncoderCopyTextureToTexture(
-          wgpu_context->cmd_enc,
-          // source
-          &(WGPUImageCopyTexture){
-            .texture  = offscreen.texture,
-            .mipLevel = 0,
-          },
-          // destination
-          &(WGPUImageCopyTexture){
-            .texture  = textures.irradiance_cube.texture,
-            .mipLevel = m,
-          },
-          // copySize
-          &copy_size);
       }
+    }
+
+    // Copy region for transfer from framebuffer to cube face
+    for (uint32_t m = 0; m < num_mips; ++m) {
+      WGPUExtent3D copy_size = (WGPUExtent3D){
+        .width              = (float)(dim * pow(0.5f, m)),
+        .height             = (float)(dim * pow(0.5f, m)),
+        .depthOrArrayLayers = array_layer_count,
+      };
+      wgpuCommandEncoderCopyTextureToTexture(
+        wgpu_context->cmd_enc,
+        // source
+        &(WGPUImageCopyTexture){
+          .texture  = offscreen.texture,
+          .mipLevel = m,
+        },
+        // destination
+        &(WGPUImageCopyTexture){
+          .texture  = textures.irradiance_cube.texture,
+          .mipLevel = m,
+        },
+        // copySize
+        &copy_size);
     }
 
     WGPUCommandBuffer command_buffer
@@ -1266,7 +1282,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
 
   // Cleanup
   WGPU_RELEASE_RESOURCE(Texture, offscreen.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, offscreen.texture_view)
+  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(offscreen.texture_views); ++i) {
+    WGPU_RELEASE_RESOURCE(TextureView, offscreen.texture_views[i])
+  }
   WGPU_RELEASE_RESOURCE(Buffer, irradiance_cube_ubos.vs.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, irradiance_cube_ubos.fs.buffer)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
