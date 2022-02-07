@@ -234,7 +234,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
   textures.environment_cube = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
     &(struct wgpu_texture_load_options_t){
-      .flip_y = false,
+      .flip_y = true, // Flip y to match pisa_cube.ktx hdr cubemap
     });
 }
 
@@ -242,7 +242,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
   // Bind group layout for objects
   {
-    WGPUBindGroupLayoutEntry bgl_entries[4] = {
+    WGPUBindGroupLayoutEntry bgl_entries[10] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
         .binding = 0,
@@ -284,6 +284,66 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
           .minBindingSize = uniform_buffers.object_params.model_size,
         },
         .sampler = {0},
+      },
+      [4] = (WGPUBindGroupLayoutEntry) {
+        // Binding 4: Fragment shader image view
+        .binding = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_Cube,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [5] = (WGPUBindGroupLayoutEntry) {
+        // Binding 5: Fragment shader image sampler
+        .binding = 5,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [6] = (WGPUBindGroupLayoutEntry) {
+        // Binding 6: Fragment shader image view
+        .binding = 6,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [7] = (WGPUBindGroupLayoutEntry) {
+        // Binding 7: Fragment shader image sampler
+        .binding = 7,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [8] = (WGPUBindGroupLayoutEntry) {
+        // Binding 8: Fragment shader image view
+        .binding = 8,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_Cube,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [9] = (WGPUBindGroupLayoutEntry) {
+        // Binding 9: Fragment shader image sampler
+        .binding = 9,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
       },
     };
     bind_group_layouts.objects = wgpuDeviceCreateBindGroupLayout(
@@ -378,7 +438,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Bind group for objects
   {
-    WGPUBindGroupEntry bg_entries[4] = {
+    WGPUBindGroupEntry bg_entries[10] = {
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
         .binding = 0,
@@ -406,6 +466,36 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .buffer = uniform_buffers.object_params.buffer,
         .offset = 0,
         .size = uniform_buffers.object_params.model_size,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        // Binding 4: Fragment shader image view
+        .binding = 4,
+        .textureView = textures.irradiance_cube.view
+      },
+      [5] = (WGPUBindGroupEntry) {
+        // Binding 5: Fragment shader image sampler
+        .binding = 5,
+        .sampler = textures.irradiance_cube.sampler,
+      },
+      [6] = (WGPUBindGroupEntry) {
+        // Binding 6: Fragment shader image view
+        .binding = 6,
+        .textureView = textures.lut_brdf.view
+      },
+      [7] = (WGPUBindGroupEntry) {
+        // Binding 7: Fragment shader image sampler
+        .binding = 7,
+        .sampler = textures.lut_brdf.sampler,
+      },
+      [8] = (WGPUBindGroupEntry) {
+        // Binding 8: Fragment shader image view
+        .binding = 8,
+        .textureView = textures.prefiltered_cube.view
+      },
+      [9] = (WGPUBindGroupEntry) {
+        // Binding 9: Fragment shader image sampler
+        .binding = 9,
+        .sampler = textures.prefiltered_cube.sampler,
       },
     };
 
@@ -584,7 +674,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
-              .file = "shaders/pbr_ibl/pbr.vert.spv",
+              .file = "shaders/pbr_ibl/pbribl.vert.spv",
             },
             .buffer_count = 1,
             .buffers = &skybox_vertex_buffer_layout,
@@ -595,7 +685,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .file = "shaders/pbr_ibl/pbr.frag.spv",
+              .file = "shaders/pbr_ibl/pbribl.frag.spv",
             },
             .target_count = 1,
             .targets = &color_target_state_desc,
@@ -953,9 +1043,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     glm_rotate(matrices[1], glm_rad(-90.0f), (vec3){0.0f, 1.0f, 0.0f});
     glm_rotate(matrices[1], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
     // POSITIVE_Y
-    glm_rotate(matrices[2], glm_rad(-90.0f), (vec3){1.0f, 0.0f, 0.0f});
+    glm_rotate(matrices[2], glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
     // NEGATIVE_Y
-    glm_rotate(matrices[3], glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
+    glm_rotate(matrices[3], glm_rad(-90.0f), (vec3){1.0f, 0.0f, 0.0f});
     // POSITIVE_Z
     glm_rotate(matrices[4], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
     // NEGATIVE_Z
@@ -1448,9 +1538,9 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     glm_rotate(matrices[1], glm_rad(-90.0f), (vec3){0.0f, 1.0f, 0.0f});
     glm_rotate(matrices[1], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
     // POSITIVE_Y
-    glm_rotate(matrices[2], glm_rad(-90.0f), (vec3){1.0f, 0.0f, 0.0f});
+    glm_rotate(matrices[2], glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
     // NEGATIVE_Y
-    glm_rotate(matrices[3], glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
+    glm_rotate(matrices[3], glm_rad(-90.0f), (vec3){1.0f, 0.0f, 0.0f});
     // POSITIVE_Z
     glm_rotate(matrices[4], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
     // NEGATIVE_Z
@@ -1817,7 +1907,7 @@ static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   // Set objects positions and material properties
   uint32_t obj_count = (uint32_t)SINGLE_ROW_OBJECT_COUNT;
-  for (uint32_t x = 0; x < obj_count; x++) {
+  for (uint32_t x = 0; x < obj_count; ++x) {
     // Set object position
     vec3* pos = &object_params_dynamic[x].position;
     glm_vec3_copy((vec3){((float)(x - (obj_count / 2.0f))) * 2.15f, 0.0f, 0.0f},
