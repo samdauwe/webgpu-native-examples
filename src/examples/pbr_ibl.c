@@ -732,6 +732,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   // Create the texture
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "lut_brdf_texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -748,6 +749,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   // Create the texture view
   {
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "lut_brdf_texture_view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = format,
       .baseMipLevel    = 0,
@@ -764,6 +766,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   {
     textures.lut_brdf.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .label         = "lut_brdf_texture_sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
