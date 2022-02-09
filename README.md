@@ -422,6 +422,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
+* [ ] [Textured PBR with IBL](http://artisaverb.info/Cerberus.html)
 * [ ] Basis Universal supercompressed GPU textures example
 * [ ] [Postprocessing](https://github.com/gnikoloff/webgpu-dojo)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
