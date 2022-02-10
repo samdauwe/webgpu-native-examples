@@ -20,7 +20,7 @@
 #define NUMBER_OF_CONSTANTS 3
 #define ALIGNMENT 256 // 256-byte alignment
 
-static bool bloom          = true;
+static bool bloom          = false;
 static bool display_skybox = true;
 
 static struct {
@@ -157,7 +157,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
 {
   // Load glTF models
   const uint32_t gltf_loading_flags
-    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices;
+    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
+      | WGPU_GLTF_FileLoadingFlags_FlipY;
   models.skybox
     = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
       .wgpu_context       = wgpu_context,
@@ -174,17 +175,17 @@ static void load_assets(wgpu_context_t* wgpu_context)
   }
   // Load cube map
   static const char* cubemap[6] = {
-    "textures/cubemaps/uffizi_cube_px.jpg", // Right
-    "textures/cubemaps/uffizi_cube_nx.jpg", // Left
-    "textures/cubemaps/uffizi_cube_py.jpg", // Top
-    "textures/cubemaps/uffizi_cube_ny.jpg", // Bottom
-    "textures/cubemaps/uffizi_cube_pz.jpg", // Back
-    "textures/cubemaps/uffizi_cube_nz.jpg", // Front
+    "textures/cubemaps/uffizi_cube_px.png", // Right
+    "textures/cubemaps/uffizi_cube_nx.png", // Left
+    "textures/cubemaps/uffizi_cube_py.png", // Top
+    "textures/cubemaps/uffizi_cube_ny.png", // Bottom
+    "textures/cubemaps/uffizi_cube_pz.png", // Back
+    "textures/cubemaps/uffizi_cube_nz.png", // Front
   };
   textures.envmap = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
     &(struct wgpu_texture_load_options_t){
-      .flip_y = false,
+      .flip_y = true, // Flip y to match uffizi_cube_nz.ktx hdr cubemap
     });
 }
 
@@ -719,7 +720,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
+    .cullMode  = WGPUCullMode_Back,
   };
 
   // Depth stencil state
@@ -907,7 +908,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
     // Skybox pipeline (background cube)
     {
-      primitive_state_desc.cullMode              = WGPUCullMode_Front;
+      primitive_state_desc.cullMode              = WGPUCullMode_Back;
       depth_stencil_state_desc.depthWriteEnabled = false;
 
       // Create rendering pipeline using the specified states
@@ -929,7 +930,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       // Enable depth write
       depth_stencil_state_desc.depthWriteEnabled = true;
       // Flip cull mode
-      primitive_state_desc.cullMode = WGPUCullMode_Back;
+      primitive_state_desc.cullMode = WGPUCullMode_Front;
 
       // Create rendering pipeline using the specified states
       pipelines.reflect = wgpuDeviceCreateRenderPipeline(
