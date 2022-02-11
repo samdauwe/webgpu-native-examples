@@ -40,6 +40,7 @@ void example_offscreen_rendering(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
 void example_pbr_ibl(int argc, char* argv[]);
+void example_pbr_texture(int argc, char* argv[]);
 void example_prng(int argc, char* argv[]);
 void example_radial_blur(int argc, char* argv[]);
 void example_reversed_z(int argc, char* argv[]);
@@ -94,6 +95,7 @@ static examplecase_t g_example_cases[] = {
   {"parallax_mapping", example_parallax_mapping},
   {"pbr_basic", example_pbr_basic},
   {"pbr_ibl", example_pbr_ibl},
+  {"pbr_texture", example_pbr_texture},
   {"prng", example_prng},
   {"radial_blur", example_radial_blur},
   {"reversed_z", example_reversed_z},
