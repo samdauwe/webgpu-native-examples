@@ -86,11 +86,11 @@ WGPUShaderModule wgpu_create_shader_module_from_spirv_bytecode(
   ASSERT(data && size > 0 && size % 4 == 0);
 
   WGPUShaderModuleSPIRVDescriptor shader_module_spirv_desc = {
-    .chain  = {
+    .chain   = {
       .sType = WGPUSType_ShaderModuleSPIRVDescriptor,
     },
-    .codeSize    = size / sizeof(uint32_t),
-    .code        = (const uint32_t*)data,
+    .codeSize = size / sizeof(uint32_t),
+    .code     = (const uint32_t*)data,
   };
 
   WGPUShaderModuleDescriptor shader_module_desc = {
