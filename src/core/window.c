@@ -59,12 +59,12 @@ window_t* window_create(window_config_t* config)
   memset(window, 0, sizeof(window_t));
   window->mouse_scroll_scale_factor = 1.0f;
 
-  // Initialize error handling
+  /* Initialize error handling */
   glfwSetErrorCallback(glfw_window_error_callback);
 
-  // Initialize the library
+  /* Initialize the library */
   if (!glfwInit()) {
-    // Handle initialization failure
+    /* Handle initialization failure */
     fprintf(stderr, "Failed to initialize GLFW\n");
     fflush(stderr);
     return window;
@@ -73,11 +73,11 @@ window_t* window_create(window_config_t* config)
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, config->resizable ? GLFW_TRUE : GLFW_FALSE);
 
-  // Create GLFW window
+  /* Create GLFW window */
   window->handle = glfwCreateWindow(config->width, config->height,
                                     config->title, NULL, NULL);
 
-  // Confirm that GLFW window was created successfully
+  /* Confirm that GLFW window was created successfully */
   if (!window->handle) {
     glfwTerminate();
     fprintf(stderr, "Failed to create window\n");
@@ -87,24 +87,24 @@ window_t* window_create(window_config_t* config)
 
   surface_update_framebuffer_size(window);
 
-  // Set user pointer to window class
+  /* Set user pointer to window class */
   glfwSetWindowUserPointer(window->handle, (void*)window);
 
-  // -- Setup callbacks --
-  // clang-format off
-  // Key input events
+  /* -- Setup callbacks -- */
+  /* clang-format off */
+  /* Key input events */
   glfwSetKeyCallback(window->handle, glfw_window_key_callback);
-  // Cursor position
+  /* Cursor position */
   glfwSetCursorPosCallback(window->handle, glfw_window_cursor_position_callback);
-  // Mouse button input
+  /* Mouse button input */
   glfwSetMouseButtonCallback(window->handle, glfw_window_mouse_button_callback);
-  // Scroll input
+  /* Scroll input */
   glfwSetScrollCallback(window->handle, glfw_window_scroll_callback);
-  // Window resize events
+  /* Window resize events */
   glfwSetWindowSizeCallback(window->handle, glfw_window_size_callback);
-  // clang-format on
+  /* clang-format on */
 
-  // Change the state of the window to intialized
+  /* Change the state of the window to intialized */
   window->intialized = 1;
 
   return window;
@@ -112,17 +112,17 @@ window_t* window_create(window_config_t* config)
 
 void window_destroy(window_t* window)
 {
-  // Cleanup window(s)
+  /* Cleanup window(s) */
   if (window) {
     if (window->handle) {
       glfwDestroyWindow(window->handle);
       window->handle = NULL;
 
-      // Terminate GLFW
+      /* Terminate GLFW */
       glfwTerminate();
     }
 
-    // Free allocated memory
+    /* Free allocated memory */
     free(window);
     window = NULL;
   }
@@ -153,7 +153,7 @@ void* window_get_surface(window_t* window)
 #if defined(WIN32)
   void* display         = NULL;
   uint32_t windowHandle = glfwGetWin32Window(window->handle);
-#elif defined(__linux__) // X11
+#elif defined(__linux__) /* X11 */
   void* display         = glfwGetX11Display();
   uint32_t windowHandle = glfwGetX11Window(window->handle);
 #endif
@@ -220,12 +220,12 @@ static void glfw_window_key_callback(GLFWwindow* src_window, int key,
     }
 
     if (window->callbacks.key_callback) {
-      // Determine modifier
+      /* Determine modifier */
       int ctrl_key = (mods & GLFW_MOD_CONTROL);
       int alt_key  = (mods & GLFW_MOD_ALT);
-      // Remap GLFW keycode to internal code
+      /* Remap GLFW keycode to internal code */
       keycode_t key_code = remap_glfw_key_code(key);
-      // Determine button action
+      /* Determine button action */
       button_action_t button_action = BUTTON_ACTION_UNDEFINED;
       if (action == GLFW_PRESS) {
         button_action = BUTTON_ACTION_PRESS;
@@ -233,7 +233,7 @@ static void glfw_window_key_callback(GLFWwindow* src_window, int key,
       else if (action == GLFW_RELEASE) {
         button_action = BUTTON_ACTION_RELEASE;
       }
-      // Raise event
+      /* Raise event */
       window->callbacks.key_callback(window, ctrl_key, alt_key, key_code,
                                      button_action);
     }
@@ -246,12 +246,12 @@ static void glfw_window_cursor_position_callback(GLFWwindow* src_window,
   window_t* window = (window_t*)glfwGetWindowUserPointer(src_window);
   if (window && window->handle && window->callbacks.cursor_position_callback) {
     GLFWwindow* glfw_window = window->handle;
-    // Determine modifier
+    /* Determine modifier */
     int ctrl_key = (glfwGetKey(glfw_window, GLFW_KEY_LEFT_CONTROL) == 1)
                    || (glfwGetKey(glfw_window, GLFW_KEY_RIGHT_CONTROL) == 1);
     int shift_key = (glfwGetKey(glfw_window, GLFW_KEY_LEFT_SHIFT) == 1)
                     || (glfwGetKey(glfw_window, GLFW_KEY_RIGHT_SHIFT) == 1);
-    // Raise event
+    /* Raise event */
     window->callbacks.cursor_position_callback(window, ctrl_key, shift_key,
                                                (float)xpos, (float)ypos);
   }
@@ -263,7 +263,7 @@ static void glfw_window_mouse_button_callback(GLFWwindow* src_window,
   window_t* window = (window_t*)glfwGetWindowUserPointer(src_window);
   if (window && window->handle && window->callbacks.mouse_button_callback) {
     GLFWwindow* glfw_window = window->handle;
-    // Determine mouse button type
+    /* Determine mouse button type */
     button_t button_type = BUTTON_UNDEFINED;
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
       button_type = BUTTON_LEFT;
@@ -274,13 +274,13 @@ static void glfw_window_mouse_button_callback(GLFWwindow* src_window,
     else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
       button_type = BUTTON_RIGHT;
     }
-    // Get cursor position
+    /* Get cursor position */
     double xpos, ypos;
     glfwGetCursorPos(glfw_window, &xpos, &ypos);
-    // Determine modifier
+    /* Determine modifier */
     int ctrl_key  = (mods & GLFW_MOD_CONTROL);
     int shift_key = (mods & GLFW_MOD_SHIFT);
-    // Determine button action
+    /* Determine button action */
     button_action_t button_action = BUTTON_ACTION_UNDEFINED;
     if (action == GLFW_PRESS) {
       button_action = BUTTON_ACTION_PRESS;
@@ -288,7 +288,7 @@ static void glfw_window_mouse_button_callback(GLFWwindow* src_window,
     else if (action == GLFW_RELEASE) {
       button_action = BUTTON_ACTION_RELEASE;
     }
-    // Raise event
+    /* Raise event */
     window->callbacks.mouse_button_callback(window, ctrl_key, shift_key,
                                             (float)xpos, (float)ypos,
                                             button_type, button_action);
@@ -308,15 +308,15 @@ static void glfw_window_scroll_callback(GLFWwindow* src_window, double xoffset,
   window_t* window = (window_t*)glfwGetWindowUserPointer(src_window);
   if (window && window->handle && window->callbacks.scroll_callback) {
     GLFWwindow* glfw_window = window->handle;
-    // Get cursor position
+    /* Get cursor position */
     double xpos, ypos;
     glfwGetCursorPos(glfw_window, &xpos, &ypos);
-    // Determine modifier
+    /* Determine modifier */
     int ctrl_key = (glfwGetKey(glfw_window, GLFW_KEY_LEFT_CONTROL) == 1)
                    || (glfwGetKey(glfw_window, GLFW_KEY_RIGHT_CONTROL) == 1);
     int shift_key = (glfwGetKey(glfw_window, GLFW_KEY_LEFT_SHIFT) == 1)
                     || (glfwGetKey(glfw_window, GLFW_KEY_RIGHT_SHIFT) == 1);
-    // Raise event
+    /* Raise event */
     window->callbacks.scroll_callback(
       window, ctrl_key, shift_key, (float)xpos, (float)ypos,
       rescale_mouse_scroll(yoffset, window->mouse_scroll_scale_factor));
