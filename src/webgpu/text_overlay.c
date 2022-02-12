@@ -117,11 +117,12 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
   // Staging buffer
   wgpu_buffer_t gpu_buffer = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
+        .label   = "text-overlay-font-texture_staging_buffer",
         .usage   = WGPUBufferUsage_CopySrc,
         .size    = font24pixels_size,
         .initial = {
-          .data = font24pixels,
-          .size = font24pixels_size,
+          .data  = font24pixels,
+          .size  = font24pixels_size,
         },
     });
 
