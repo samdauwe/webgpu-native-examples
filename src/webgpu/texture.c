@@ -61,9 +61,9 @@ void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
       .rowsPerImage = size.height,
     },
     &(WGPUExtent3D){
-      .width               = size.width,
-      .height              = size.height,
-      .depthOrArrayLayers  = size.depthOrArrayLayers,
+      .width              = size.width,
+      .height             = size.height,
+      .depthOrArrayLayers = size.depthOrArrayLayers,
     });
 }
 
