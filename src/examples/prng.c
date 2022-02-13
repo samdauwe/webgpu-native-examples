@@ -62,7 +62,7 @@ typedef struct {
 } vertex_t;
 
 // Vertex buffer and attributes
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
