@@ -228,7 +228,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .size          = (WGPUExtent3D) {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
-        .depthOrArrayLayers  = 3,
+        .depthOrArrayLayers  = 2,
       },
       .mipLevelCount = 1,
       .sampleCount   = 1,
