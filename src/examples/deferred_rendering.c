@@ -810,7 +810,8 @@ static void setup_render_passes()
 
     // Render pass descriptor
     write_gbuffer_pass.descriptor = (WGPURenderPassDescriptor){
-      .colorAttachmentCount   = 3,
+      .colorAttachmentCount
+      = (uint32_t)ARRAY_SIZE(write_gbuffer_pass.color_attachments),
       .colorAttachments       = write_gbuffer_pass.color_attachments,
       .depthStencilAttachment = &write_gbuffer_pass.depth_stencil_attachment,
     };
@@ -1298,8 +1299,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       light_update_compute_pipeline);
     wgpuComputePassEncoderSetBindGroup(
       light_pass, 0, lights.buffer_compute_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatch(light_pass, ceil(max_num_lights / 64.f), 1,
-                                   1);
+    wgpuComputePassEncoderDispatch(light_pass,
+                                   (uint32_t)ceil(max_num_lights / 64.f), 1, 1);
     wgpuComputePassEncoderEndPass(light_pass);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, light_pass)
   }
