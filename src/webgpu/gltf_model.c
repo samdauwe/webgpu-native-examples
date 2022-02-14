@@ -317,8 +317,10 @@ static void gltf_node_get_local_matrix(gltf_node_t* node, mat4* dest)
     *dest);
 }
 
-// Traverse the node hierarchy to the top-most parent to get the local matrix of
-// the given node
+/*
+ * Traverse the node hierarchy to the top-most parent to get the local matrix of
+ * the given node
+ */
 static void gltf_node_get_matrix(gltf_node_t* node, mat4* dest)
 {
   gltf_node_get_local_matrix(node, dest);
@@ -564,7 +566,7 @@ typedef struct gltf_model_t {
   char path[STRMAX];
 } gltf_model_t;
 
-/**
+/*
  * In this WebGPU glTF model, each texture is represented by a single image,
  * therefore WebGPU texture = glTF image. This function maps a glTF texture to a
  * WebGPU texture (= glTF image).
@@ -622,6 +624,9 @@ static void gltf_model_init(gltf_model_t* model,
   model->animation_count = 0;
 }
 
+/*
+ * Release all WebGPU resources acquired for the model
+ */
 void wgpu_gltf_model_destroy(gltf_model_t* model)
 {
   if (model == NULL) {
@@ -630,6 +635,15 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
 
   WGPU_RELEASE_RESOURCE(Buffer, model->vertices.buffer);
   WGPU_RELEASE_RESOURCE(Buffer, model->indices.buffer);
+
+  if (model->skin_count > 0) {
+    for (uint32_t i = 0; i < model->skin_count; ++i) {
+      if (model->skins[i].joint_count > 0) {
+        free(model->skins[i].joints);
+      }
+    }
+    free(model->skins);
+  }
 
   for (uint32_t i = 0; i < model->texture_count; ++i) {
     gltf_texture_destroy(&model->textures[i]);
@@ -1082,7 +1096,9 @@ static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
                      model->wgpu_context);
 }
 
-// Load the animations from the glTF model
+/*
+ * Load the animations from the glTF model
+ */
 static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
 {
   model->animation_count = (uint32_t)data->animations_count;

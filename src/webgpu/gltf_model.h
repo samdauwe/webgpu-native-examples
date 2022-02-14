@@ -106,7 +106,7 @@ typedef struct wgpu_gltf_model_load_options_t {
 } wgpu_gltf_model_load_options_t;
 
 /**
- *  @brief glTF model creation/destruction
+ * @brief glTF model creation/destruction
  */
 struct gltf_model_t* wgpu_gltf_model_load_from_file(
   struct wgpu_gltf_model_load_options_t* load_options);
