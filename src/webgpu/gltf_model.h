@@ -22,28 +22,28 @@ struct wgpu_context_t;
 /*
  * glTF model loading options
  */
-typedef enum wgpu_gltf_file_loading_flags_enum {
+typedef enum wgpu_gltf_file_loading_flags_enum_t {
   WGPU_GLTF_FileLoadingFlags_None                    = 0x00000000,
   WGPU_GLTF_FileLoadingFlags_PreTransformVertices    = 0x00000001,
   WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors = 0x00000002,
   WGPU_GLTF_FileLoadingFlags_FlipY                   = 0x00000004,
   WGPU_GLTF_FileLoadingFlags_DontLoadImages          = 0x00000008
-} wgpu_gltf_file_loading_flags_enum;
+} wgpu_gltf_file_loading_flags_enum_t;
 
 /*
  * glTF model render options
  */
-typedef enum wgpu_gltf_render_flags_enum {
+typedef enum wgpu_gltf_render_flags_enum_t {
   WGPU_GLTF_RenderFlags_BindImages              = 0x00000001,
   WGPU_GLTF_RenderFlags_RenderOpaqueNodes       = 0x00000002,
   WGPU_GLTF_RenderFlags_RenderAlphaMaskedNodes  = 0x00000004,
   WGPU_GLTF_RenderFlags_RenderAlphaBlendedNodes = 0x00000008
-} wgpu_gltf_render_flags_enum;
+} wgpu_gltf_render_flags_enum_t;
 
 /*
  * glTF default vertex layout with easy WebGPU mapping functions
  */
-typedef enum wgpu_gltf_vertex_component_enum {
+typedef enum wgpu_gltf_vertex_component_enum_t {
   WGPU_GLTF_VertexComponent_Position = 0,
   WGPU_GLTF_VertexComponent_Normal   = 1,
   WGPU_GLTF_VertexComponent_UV       = 2,
@@ -51,13 +51,13 @@ typedef enum wgpu_gltf_vertex_component_enum {
   WGPU_GLTF_VertexComponent_Tangent  = 4,
   WGPU_GLTF_VertexComponent_Joint0   = 5,
   WGPU_GLTF_VertexComponent_Weight0  = 6,
-} wgpu_gltf_vertex_component_enum;
+} wgpu_gltf_vertex_component_enum_t;
 
-typedef enum wgpu_gltf_alpha_mode_enum {
+typedef enum wgpu_gltf_alpha_mode_enum_t {
   AlphaMode_OPAQUE = 0,
   AlphaMode_MASK   = 1,
   AlphaMode_BLEND  = 2,
-} wgpu_gltf_alpha_mode_enum;
+} wgpu_gltf_alpha_mode_enum_t;
 
 /*
  * glTF texture
@@ -72,7 +72,7 @@ typedef struct wgpu_gltf_texture_t {
  */
 typedef struct wgpu_gltf_material_t {
   wgpu_context_t* wgpu_context;
-  wgpu_gltf_alpha_mode_enum alpha_mode;
+  wgpu_gltf_alpha_mode_enum_t alpha_mode;
   bool blend;
   bool double_sided;
   float alpha_cutoff;
@@ -117,7 +117,7 @@ void wgpu_gltf_model_destroy(struct gltf_model_t* model);
  * and component.
  */
 WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
-  uint32_t shader_location, wgpu_gltf_vertex_component_enum component);
+  uint32_t shader_location, wgpu_gltf_vertex_component_enum_t component);
 
 /** glTF helper functions */
 uint64_t wgpu_gltf_get_vertex_size();

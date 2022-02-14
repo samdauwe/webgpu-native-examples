@@ -22,7 +22,7 @@ static void gltf_model_get_scene_dimensions(struct gltf_model_t* model);
 /*
  * glTF enums
  */
-typedef wgpu_gltf_alpha_mode_enum alpha_mode_enum;
+typedef wgpu_gltf_alpha_mode_enum_t alpha_mode_enum;
 
 /*
  * glTF texture loading
@@ -458,7 +458,7 @@ typedef struct gltf_vertex_t {
 } gltf_vertex_t;
 
 WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
-  uint32_t shader_location, wgpu_gltf_vertex_component_enum component)
+  uint32_t shader_location, wgpu_gltf_vertex_component_enum_t component)
 {
   switch (component) {
     case WGPU_GLTF_VertexComponent_Position:

@@ -466,7 +466,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                     0);
 
   // Draw model
-  static wgpu_gltf_render_flags_enum render_flags
+  static wgpu_gltf_render_flags_enum_t render_flags
     = WGPU_GLTF_RenderFlags_BindImages;
   wgpu_gltf_model_draw(gltf_model, (wgpu_gltf_model_render_options_t){
                                      .render_flags   = render_flags,
