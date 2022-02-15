@@ -1,0 +1,489 @@
+#include "example_base.h"
+#include "examples.h"
+
+#include <string.h>
+
+#include "../webgpu/gltf_model.h"
+#include "../webgpu/imgui_overlay.h"
+#include "../webgpu/texture.h"
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - glTF Vertex Skinning
+ *
+ * Shows how to load and display an animated scene from a glTF file using vertex
+ * skinning.
+ *
+ * Ref:
+ * https://github.com/SaschaWillems/Vulkan/blob/master/examples/gltfskinning/gltfskinning.cpp
+ * -------------------------------------------------------------------------- */
+
+static struct gltf_model_t* gltf_model;
+
+static struct {
+  struct {
+    WGPUBuffer buffer;
+    uint64_t size;
+  } ubo_scene_matrices;
+  struct {
+    mat4 projection;
+    mat4 view;
+    vec4 light_pos;
+  } scene_matrices;
+} shader_data = {
+  .scene_matrices.projection = GLM_MAT4_IDENTITY_INIT,
+  .scene_matrices.view       = GLM_MAT4_IDENTITY_INIT,
+  .scene_matrices.light_pos  = {5.0f, 5.0f, 5.0f, 1.0f},
+};
+
+static struct {
+  WGPUBindGroupLayout scene_matrices;
+  WGPUBindGroupLayout primitive_matrices;
+  WGPUBindGroupLayout joint_matrices;
+  WGPUBindGroupLayout textures;
+} bind_group_layouts;
+static WGPUBindGroup bind_group;
+
+static WGPUPipelineLayout pipeline_layout;
+static WGPURenderPipeline solid_pipeline;
+
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
+
+// Other variables
+static const char* example_title = "glTF Vertex Skinning";
+static bool prepared             = false;
+
+static void setup_camera(wgpu_example_context_t* context)
+{
+  context->camera         = camera_create();
+  context->camera->type   = CameraType_LookAt;
+  context->camera->flip_y = true;
+  camera_set_position(context->camera, (vec3){0.0f, 0.75f, -2.0f});
+  camera_set_rotation(context->camera, (vec3){0.0f, 0.0f, 0.0f});
+  camera_set_perspective(context->camera, 60.0f,
+                         context->window_size.aspect_ratio, 0.1f, 256.0f);
+}
+
+static void load_assets(wgpu_context_t* wgpu_context)
+{
+  const uint32_t gltf_loading_flags = WGPU_GLTF_FileLoadingFlags_None;
+  gltf_model = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
+    .wgpu_context       = wgpu_context,
+    .filename           = "models/CesiumMan/glTF/CesiumMan.gltf",
+    .file_loading_flags = gltf_loading_flags,
+  });
+}
+
+static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+{
+  /*
+   * This sample uses separate descriptor sets (and layouts) for the matrices
+   * and materials (textures)
+   */
+
+  // Bind group layout to pass scene data to the shader
+  {
+    WGPUBindGroupLayoutEntry bgl_entry= {
+        // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout){
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(shader_data.scene_matrices),
+        },
+        .sampler = {0},
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .entryCount = 1,
+      .entries    = &bgl_entry,
+    };
+    bind_group_layouts.scene_matrices
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(bind_group_layouts.scene_matrices != NULL);
+  }
+
+  // Bind group layout to pass the local matrices of a primitive to the shader
+  {
+    WGPUBindGroupLayoutEntry bgl_entry = {
+        // Binding 0: Uniform buffer (Vertex shader) => Primitive
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout){
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(mat4),
+        },
+        .texture = {0},
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .entryCount = 1,
+      .entries    = &bgl_entry,
+    };
+    bind_group_layouts.primitive_matrices
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(bind_group_layouts.primitive_matrices != NULL);
+  }
+
+  // Bind group layout to pass skin joint matrices to the shader
+  {
+    WGPUBindGroupLayoutEntry bgl_entry= {
+        // Binding 0: Uniform buffer (Vertex shader) => JointMatrices
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout){
+          .type = WGPUBufferBindingType_Storage,
+          .minBindingSize = sizeof(mat4),
+        },
+        .sampler = {0},
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .entryCount = 1,
+      .entries    = &bgl_entry,
+    };
+    bind_group_layouts.scene_matrices
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(bind_group_layouts.scene_matrices != NULL);
+  }
+
+  // Bind group layout for passing material textures
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: texture2D (Fragment shader) => Color map
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: sampler (Fragment shader) => Color map
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    bind_group_layouts.textures
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(bind_group_layouts.textures != NULL);
+  }
+
+  // Pipeline layout using the bind group layouts
+  {
+    // The pipeline layout uses three sets:
+    // Set 0 = Scene matrices (VS)
+    // Set 1 = Primitive matrices (VS)
+    // Set 2 = Joint matrices (VS)
+    // Set 3 = Material texture (FS)
+    WGPUBindGroupLayout bind_group_layout_sets[4] = {
+      bind_group_layouts.scene_matrices,     // set 0
+      bind_group_layouts.primitive_matrices, // set 1
+      bind_group_layouts.joint_matrices,     // set 2
+      bind_group_layouts.textures,           // set 3
+    };
+    // Pipeline layout
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_sets),
+      .bindGroupLayouts     = bind_group_layout_sets,
+    };
+    pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
+                                                     &pipeline_layout_desc);
+    ASSERT(pipeline_layout != NULL)
+  }
+}
+
+static void update_uniform_buffers(wgpu_example_context_t* context)
+{
+  // Pass matrices to the shaders
+  camera_t* camera = context->camera;
+  glm_mat4_copy(camera->matrices.perspective,
+                shader_data.scene_matrices.projection);
+  glm_mat4_copy(camera->matrices.view, shader_data.scene_matrices.view);
+
+  // Map uniform buffer and update it
+  wgpu_queue_write_buffer(
+    context->wgpu_context, shader_data.ubo_scene_matrices.buffer, 0,
+    &shader_data.scene_matrices, shader_data.ubo_scene_matrices.size);
+}
+
+static void prepare_uniform_buffers(wgpu_example_context_t* context)
+{
+  // Matrices vertex shader uniform buffer
+  shader_data.ubo_scene_matrices.size   = sizeof(shader_data.scene_matrices);
+  shader_data.ubo_scene_matrices.buffer = wgpuDeviceCreateBuffer(
+    context->wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size             = shader_data.ubo_scene_matrices.size,
+      .mappedAtCreation = false,
+    });
+
+  // Initialize uniform buffers
+  update_uniform_buffers(context);
+}
+
+static void setup_render_pass(wgpu_context_t* wgpu_context)
+{
+  // Color attachment
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = 0.025f,
+        .g = 0.025f,
+        .b = 0.025f,
+        .a = 1.0f,
+      },
+  };
+
+  // Depth attachment
+  wgpu_setup_deph_stencil(wgpu_context, NULL);
+
+  // Set clear sample for this example
+  wgpu_context->depth_stencil.att_desc.clearStencil = 1;
+
+  // Render pass descriptor
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
+  };
+}
+
+static void prepare_pipelines(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state_desc = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  WGPUDepthStencilState depth_stencil_state_desc
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .depth_write_enabled = true,
+    });
+
+  // Vertex buffer layout
+  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
+    gltf_scene,
+    // Location 0: Position
+    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
+    // Location 1: Vertex normal
+    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
+    // Location 2: Texture coordinates
+    WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV),
+    // Location 3: Vertex color
+    WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Color),
+    // Location 4: Per-Vertex Joint indices
+    WGPU_GLTF_VERTATTR_DESC(4, WGPU_GLTF_VertexComponent_Joint0),
+    // Location 5: Per-Vertex Joint weights
+    WGPU_GLTF_VERTATTR_DESC(5, WGPU_GLTF_VertexComponent_Weight0));
+
+  // Vertex state
+  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+            wgpu_context, &(wgpu_vertex_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Vertex shader SPIR-V
+              .file = "shaders/gltf_skinning/skinnedmodel.vert.spv",
+            },
+            .buffer_count = 1,
+            .buffers = &gltf_scene_vertex_buffer_layout,
+          });
+
+  // Fragment state
+  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+            wgpu_context, &(wgpu_fragment_state_t){
+            .shader_desc = (wgpu_shader_desc_t){
+              // Fragment shader SPIR-V
+              .file = "shaders/gltf_skinning/skinnedmodel.frag.spv",
+            },
+            .target_count = 1,
+            .targets = &color_target_state_desc,
+          });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state_desc
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Render pipeline descriptor
+  solid_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label        = "gltf_skinning_render_pipeline",
+                            .layout       = pipeline_layout,
+                            .primitive    = primitive_state_desc,
+                            .vertex       = vertex_state_desc,
+                            .fragment     = &fragment_state_desc,
+                            .depthStencil = &depth_stencil_state_desc,
+                            .multisample  = multisample_state_desc,
+                          });
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    setup_camera(context);
+    load_assets(context->wgpu_context);
+    prepare_uniform_buffers(context);
+    setup_pipeline_layout(context->wgpu_context);
+    prepare_pipelines(context->wgpu_context);
+    setup_render_pass(context->wgpu_context);
+    prepared = true;
+    return 0;
+  }
+
+  return 1;
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  // Set target frame buffer
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+
+  // Create command encoder
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  // Create render pass encoder for encoding drawing commands
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass.descriptor);
+
+  // Set the bind group
+  // wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+  //                                   bind_groups.ubo_scene, 0, 0);
+
+  // Set viewport
+  wgpuRenderPassEncoderSetViewport(
+    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
+    (float)wgpu_context->surface.height, 0.0f, 1.0f);
+
+  // Set scissor rectangle
+  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
+                                      wgpu_context->surface.width,
+                                      wgpu_context->surface.height);
+
+  // Draw plane
+  static wgpu_gltf_render_flags_enum_t render_flags
+    = WGPU_GLTF_RenderFlags_BindImages;
+  wgpu_gltf_model_draw(gltf_model, (wgpu_gltf_model_render_options_t){
+                                     .render_flags        = render_flags,
+                                     .bind_image_set      = 1,
+                                     .bind_mesh_model_set = 2,
+                                   });
+
+  // End render pass
+  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  int draw_result = example_draw(context);
+  if (context->camera->updated) {
+    update_uniform_buffers(context);
+  }
+  if (!context->paused) {
+    gltf_model_update_animation(gltf_model, 0, context->frame_timer);
+  }
+  return draw_result;
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+  camera_release(context->camera);
+  wgpu_gltf_model_destroy(gltf_model);
+
+  WGPU_RELEASE_RESOURCE(Buffer, shader_data.ubo_scene_matrices.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.scene_matrices)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.primitive_matrices)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.joint_matrices)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.textures)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, solid_pipeline)
+}
+
+void example_gltf_skinning(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true
+    },
+    .example_initialize_func      = &example_initialize,
+    .example_render_func          = &example_render,
+    .example_destroy_func         = &example_destroy,
+  });
+  // clang-format on
+}
