@@ -62,7 +62,7 @@ static void gltf_texture_from_gltf_image(const char* model_uri,
                                          gltf_texture_t* texture,
                                          cgltf_image* gltf_image)
 {
-  ASSERT(texture && texture->wgpu_context);
+  ASSERT(texture && texture->wgpu_context != NULL);
 
   if (gltf_image->uri != NULL) {
     /* Load image data from file */
@@ -97,6 +97,8 @@ typedef wgpu_gltf_material_t gltf_material_t;
 static void gltf_material_init(gltf_material_t* material,
                                wgpu_context_t* wgpu_context)
 {
+  ASSERT(material != NULL);
+
   material->wgpu_context     = wgpu_context;
   material->alpha_mode       = AlphaMode_OPAQUE;
   material->blend            = false;
@@ -1343,6 +1345,8 @@ gltf_model_t* wgpu_gltf_model_load_from_file(
               load_options->filename, result);
     return NULL;
   }
+
+  ASSERT(gltf_model != NULL);
 
   // Pre-Calculations for requested features
   if ((file_loading_flags & WGPU_GLTF_FileLoadingFlags_PreTransformVertices)
