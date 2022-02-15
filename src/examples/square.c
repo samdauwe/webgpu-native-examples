@@ -171,7 +171,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .format         = WGPUVertexFormat_Float32x3,
     };
     vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      // instanced particles buffer
       .arrayStride    = 3 * 4,
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -186,7 +185,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .format         = WGPUVertexFormat_Float32x4,
     };
     vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
-      // instanced particles buffer
       .arrayStride    = 4 * 4,
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
