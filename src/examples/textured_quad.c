@@ -16,31 +16,31 @@
  * -------------------------------------------------------------------------- */
 
 // Vertex layout for this example
-typedef struct vertex_t {
+typedef struct {
   vec3 pos;
   vec2 uv;
   vec3 normal;
 } vertex_t;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
 // Index buffer
-static struct indices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
 
 // Uniform buffer block object
-static struct uniform_buffer_vs_t {
+static struct {
   WGPUBuffer buffer;
   uint64_t size;
 } uniform_buffer_vs = {0};
 
-static struct ubo_vs_t {
+static struct {
   mat4 projection;
   mat4 model_view;
   vec4 view_pos;
