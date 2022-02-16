@@ -424,7 +424,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType=WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .sampler = {0},
@@ -434,8 +434,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         .binding = 1,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
-          .access=WGPUStorageTextureAccess_WriteOnly,
-          .format=WGPUTextureFormat_RGBA8Unorm,
+          .access        = WGPUStorageTextureAccess_WriteOnly,
+          .format        = WGPUTextureFormat_RGBA8Unorm,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .sampler = {0},
