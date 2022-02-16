@@ -65,13 +65,13 @@ static float* instance_data    = NULL;
 static uint32_t instance_count = 1;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
 // Index buffer
-static struct indices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
@@ -80,7 +80,7 @@ static struct indices_t {
 static WGPUBuffer instance_buffer;
 
 // Textures
-static struct textures_t {
+static struct {
   texture_t color;
   texture_t heightmap;
 } textures;
@@ -91,13 +91,13 @@ static WGPURenderPipeline render_pipeline;
 static WGPUPipelineLayout pipeline_layout;
 
 // Bind group layouts
-static struct bind_group_layouts_t {
+static struct {
   WGPUBindGroupLayout frame_constants;
   WGPUBindGroupLayout instance_buffer;
 } bind_group_layouts;
 
 // Bind groups
-static struct bind_groups_t {
+static struct {
   WGPUBindGroup frame_constants;
   WGPUBindGroup instance_buffer;
 } bind_groups;
