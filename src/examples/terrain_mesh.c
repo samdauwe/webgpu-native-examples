@@ -35,11 +35,11 @@
 // Camera parameters
 static const float fov_y  = 60.0f * RADIANS_PER_DEGREE;
 static const float near_z = 0.1f, far_z = 150.0f;
-static vec3 camera_position               = {0.0f, 5.0f, 0.0f};
-static float camera_heading               = PI / 2.0f; // radians
-static float camera_target_heading        = PI / 2.0f; // radians
-static float camera_angular_easing_factor = 0.01f;
-static float camera_speed                 = 8.0f; // meters per second
+static vec3 camera_position                     = {0.0f, 5.0f, 0.0f};
+static float camera_heading                     = PI / 2.0f; // radians
+static float camera_target_heading              = PI / 2.0f; // radians
+static const float camera_angular_easing_factor = 0.01f;
+static const float camera_speed                 = 8.0f; // meters per second
 
 // Used to calculate view and projection matrices
 static float rot_y[16], trans[16], view_matrix[16], projection_matrix[16];
