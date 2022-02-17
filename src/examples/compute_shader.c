@@ -167,10 +167,12 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 {
   // Setup vertices for a single uv-mapped quad made from two triangles
   struct vertex_t vertices[4] = {
-    {.pos = {1.0f, -1.0f, 0.0f}, .uv = {1.0f, 1.0f}},  //
+    // clang-format off
+    {.pos = { 1.0f, -1.0f, 0.0f}, .uv = {1.0f, 1.0f}}, //
     {.pos = {-1.0f, -1.0f, 0.0f}, .uv = {0.0f, 1.0f}}, //
-    {.pos = {-1.0f, 1.0f, 0.0f}, .uv = {0.0f, 0.0f}},  //
-    {.pos = {1.0f, 1.0f, 0.0f}, .uv = {1.0f, 0.0f}},   //
+    {.pos = {-1.0f,  1.0f, 0.0f}, .uv = {0.0f, 0.0f}}, //
+    {.pos = { 1.0f,  1.0f, 0.0f}, .uv = {1.0f, 0.0f}}, //
+    // clang-format on
   };
 
   // Setup indices
