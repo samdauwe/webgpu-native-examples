@@ -81,7 +81,7 @@ static uint64_t aligned_uniform_bytes  = 0;
 static uint64_t aligned_uniform_floats = 0;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
