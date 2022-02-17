@@ -13,7 +13,7 @@
 // https://www.nothings.org/stb/font/latin1/consolas/
 #include <stb_font_consolas_24_latin1.h>
 
-// Max. number of chars the text overlay buffer can hold
+/* Max. number of chars the text overlay buffer can hold */
 #define TEXTOVERLAY_MAX_CHAR_COUNT 2048
 
 /**
@@ -54,7 +54,7 @@ typedef struct text_overlay {
   } draw_buffer;
   stb_fontchar stb_font_data[STB_FONT_consolas_24_latin1_NUM_CHARS];
   uint32_t num_letters;
-  bool flip_y; // false: Y-axis up / true: Y-axis down
+  bool flip_y; /* false: Y-axis up / true: Y-axis down */
 } text_overlay;
 
 static void text_overlay_init(text_overlay_t* text_overlay,
@@ -91,7 +91,7 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
                                    [STB_FONT_consolas_24_latin1_BITMAP_WIDTH];
   stb_font_consolas_24_latin1(text_overlay->stb_font_data, font24pixels,
                               font_height);
-  // Size of the font texture is WIDTH * HEIGHT * 1 byte (only one channel)
+  /* Size of the font texture is WIDTH * HEIGHT * 1 byte (only one channel) */
   size_t bytes_per_pixel   = 1;
   size_t font24pixels_size = font_width * font_height * bytes_per_pixel;
 
@@ -114,7 +114,7 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   ASSERT(text_overlay->font.texture);
 
-  // Staging buffer
+  /* Staging buffer */
   wgpu_buffer_t gpu_buffer = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
         .label   = "text-overlay-font-texture_staging_buffer",
@@ -126,7 +126,7 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
         },
     });
 
-  // Copy buffer to texture
+  /* Copy buffer to texture */
   WGPUImageCopyBuffer buffer_copy_view    = {
       .buffer = gpu_buffer.buffer,
       .layout = (WGPUTextureDataLayout){
@@ -149,14 +149,14 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
 
   WGPUCommandBuffer copy_command = wgpu_copy_buffer_to_texture(
     wgpu_context, &buffer_copy_view, &texture_copy_view, &texture_size);
-  // Submit to the queue
+  /* Submit to the queue */
   wgpuQueueSubmit(wgpu_context->queue, 1, &copy_command);
 
-  // Release command buffer and staging buffer
+  /* Release command buffer and staging buffer */
   WGPU_RELEASE_RESOURCE(CommandBuffer, copy_command)
   wgpu_destroy_buffer(&gpu_buffer);
 
-  // Create texture view
+  /* Create texture view */
   WGPUTextureViewDescriptor texture_view_desc = {
     .label           = "text-overlay-texture-view",
     .format          = texture_desc.format,
@@ -172,7 +172,7 @@ static void text_overlay_create_fonts_texture(text_overlay_t* text_overlay)
     = wgpuTextureCreateView(text_overlay->font.texture, &texture_view_desc);
   ASSERT(text_overlay->font.texture_view);
 
-  // Create the sampler
+  /* Create the sampler */
   WGPUSamplerDescriptor sampler_desc = {
     .label         = "imgui-font-sampler",
     .addressModeU  = WGPUAddressMode_Repeat,
