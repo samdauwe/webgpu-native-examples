@@ -56,8 +56,8 @@ void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
     },
     pixels, data_size,
     &(WGPUTextureDataLayout){
-      .offset      = 0,
-      .bytesPerRow = size.width * channels * sizeof(uint8_t),
+      .offset       = 0,
+      .bytesPerRow  = size.width * channels * sizeof(uint8_t),
       .rowsPerImage = size.height,
     },
     &(WGPUExtent3D){
