@@ -20,6 +20,7 @@
 // Offscreen frame buffer properties
 #define FB_DIM 512
 #define FB_COLOR_FORMAT WGPUTextureFormat_RGBA8Unorm
+#define FB_DEPTH_STENCIL_FORMAT WGPUTextureFormat_Depth24PlusStencil8
 
 static bool blur            = true;
 static bool display_texture = false;
@@ -184,7 +185,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = WGPUTextureFormat_Depth24PlusStencil8,
+      .format        = FB_DEPTH_STENCIL_FORMAT,
       .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
     };
     offscreen_pass.depth_stencil.texture
@@ -453,7 +454,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Depth stencil state
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = FB_DEPTH_STENCIL_FORMAT,
       .depth_write_enabled = true,
     });
 
