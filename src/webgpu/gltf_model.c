@@ -20,6 +20,61 @@ gltf_model_node_from_index(struct gltf_model_t* model, uint32_t index);
 static void gltf_model_get_scene_dimensions(struct gltf_model_t* model);
 
 /*
+ * glTF Bounding box
+ */
+typedef struct bounding_box_t {
+  vec3 min;
+  vec3 max;
+  bool valid;
+} bounding_box_t;
+
+static void bounding_box_init(bounding_box_t* bounding_box, vec3 min, vec3 max)
+{
+  glm_vec3_copy(min, bounding_box->min);
+  glm_vec3_copy(max, bounding_box->max);
+  bounding_box->valid = false;
+}
+
+static vec3* vec3_min(vec3* x, vec3* y)
+{
+  return ((*y)[0] < (*x)[0] && (*y)[1] < (*x)[1] && (*y)[2] < (*x)[2]) ? y : x;
+}
+
+static vec3* vec3_max(vec3* x, vec3* y)
+{
+  return ((*x)[0] < (*y)[0] && (*x)[1] < (*y)[1] && (*x)[2] < (*y)[2]) ? y : x;
+}
+
+static void bounding_get_aabb(bounding_box_t* bounding_box, mat4 m,
+                              bounding_box_t* dest)
+{
+  vec3 min = {m[0][3], m[0][3], m[0][3]};
+  vec3 max = GLM_VEC3_ZERO_INIT;
+  glm_vec3_copy(min, max);
+  vec3 v0 = GLM_VEC3_ZERO_INIT, v1 = GLM_VEC3_ZERO_INIT;
+
+  vec3 right = {m[0][0], m[0][0], m[0][0]};
+  glm_vec3_scale(right, bounding_box->min[0], v0);
+  glm_vec3_scale(right, bounding_box->max[0], v1);
+  glm_vec3_add(min, *vec3_min(&v0, &v1), min);
+  glm_vec3_add(max, *vec3_max(&v0, &v1), max);
+
+  vec3 up = {m[0][1], m[0][1], m[0][1]};
+  glm_vec3_scale(up, bounding_box->min[1], v0);
+  glm_vec3_scale(up, bounding_box->max[1], v1);
+  glm_vec3_add(min, *vec3_min(&v0, &v1), min);
+  glm_vec3_add(max, *vec3_max(&v0, &v1), max);
+
+  vec3 back = {m[0][2], m[0][2], m[0][2]};
+  glm_vec3_scale(back, bounding_box->min[1], v0);
+  glm_vec3_scale(back, bounding_box->max[1], v1);
+  glm_vec3_add(min, *vec3_min(&v0, &v1), min);
+  glm_vec3_add(max, *vec3_max(&v0, &v1), max);
+
+  bounding_box_init(dest, min, max);
+}
+
+/*
  * glTF enums
  */
 typedef wgpu_gltf_alpha_mode_enum_t alpha_mode_enum;
