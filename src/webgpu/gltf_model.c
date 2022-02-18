@@ -1622,6 +1622,10 @@ static void gltf_model_get_scene_dimensions(gltf_model_t* model)
 void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
                                  float time)
 {
+  if (model->animation_count == 0) {
+    log_warn(".glTF does not contain animations.");
+    return;
+  }
   if ((int32_t)index > ((int32_t)model->animation_count) - 1) {
     log_warn("No animation with index %u", index);
     return;
