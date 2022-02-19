@@ -624,7 +624,6 @@ typedef struct gltf_model_t {
     vec3 max;
   } dimensions;
 
-  bool metallic_roughness_workflow;
   bool buffers_bound;
   char path[STRMAX];
 } gltf_model_t;
