@@ -181,6 +181,7 @@ static void gltf_material_init(gltf_material_t* material,
   material->pbr_workflows.metallic_roughness  = true;
   material->pbr_workflows.specular_glossiness = false;
   material->bind_group                        = NULL;
+  material->pipeline                          = NULL;
 }
 
 static void gltf_material_destroy(gltf_material_t* material)
@@ -198,13 +199,8 @@ typedef struct gltf_primitive_t {
   uint32_t first_vertex;
   uint32_t vertex_count;
   gltf_material_t* material;
-  struct dimensions_t {
-    vec3 min;
-    vec3 max;
-    vec3 size;
-    vec3 center;
-    float radius;
-  } dimensions;
+  bool has_indices;
+  bounding_box_t bb;
 } gltf_primitive_t;
 
 static void gltf_primitive_init(gltf_primitive_t* primitive,
@@ -216,24 +212,16 @@ static void gltf_primitive_init(gltf_primitive_t* primitive,
   primitive->first_vertex = 0;
   primitive->vertex_count = 0;
   primitive->material     = material;
-  glm_vec3_copy((vec3){FLT_MAX, FLT_MAX, FLT_MAX}, primitive->dimensions.min);
-  glm_vec3_copy((vec3){-FLT_MAX, -FLT_MAX, -FLT_MAX},
-                primitive->dimensions.max);
-  glm_vec3_zero(primitive->dimensions.size);
-  glm_vec3_zero(primitive->dimensions.center);
-  primitive->dimensions.radius = 0.0f;
+  primitive->has_indices  = index_count > 0;
+  bounding_box_init(&primitive->bb, GLM_VEC3_ZERO, GLM_VEC3_ZERO);
 }
 
-static void gltf_primitive_set_dimensions(gltf_primitive_t* primitive, vec3 min,
-                                          vec3 max)
+static void gltf_primitive_set_bounding_box(gltf_primitive_t* primitive,
+                                            vec3 min, vec3 max)
 {
-  glm_vec3_copy(min, primitive->dimensions.min);
-  glm_vec3_copy(max, primitive->dimensions.max);
-  glm_vec3_sub(max, min, primitive->dimensions.size);
-  vec3 sum = GLM_VEC3_ZERO_INIT;
-  glm_vec3_add(min, max, sum);
-  glm_vec3_scale(sum, 0.5f, primitive->dimensions.center);
-  primitive->dimensions.radius = glm_vec3_distance(min, max) / 2.0f;
+  glm_vec3_copy(min, primitive->bb.min);
+  glm_vec3_copy(max, primitive->bb.max);
+  primitive->bb.valid = true;
 }
 
 /*
@@ -250,6 +238,8 @@ typedef struct gltf_mesh_t {
   gltf_primitive_t* primitives;
   uint32_t primitive_count;
   char name[STRMAX];
+  bounding_box_t bb;
+  bounding_box_t aabb;
   struct {
     WGPUBuffer buffer;
     uint64_t size;
@@ -261,6 +251,8 @@ typedef struct gltf_mesh_t {
 static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
                            mat4 matrix)
 {
+  memset(mesh, 0, sizeof(gltf_mesh_t));
+
   mesh->wgpu_context = wgpu_context;
   glm_mat4_copy(matrix, mesh->uniform_block.matrix);
   mesh->uniform_buffer.size   = sizeof(mesh->uniform_block);
@@ -317,6 +309,8 @@ typedef struct gltf_node_t {
   vec3 translation;
   vec3 scale;
   versor rotation;
+  bounding_box_t bvh;
+  bounding_box_t aabb;
 } gltf_node_t;
 
 static void gltf_node_init(gltf_node_t* node)
@@ -332,6 +326,8 @@ static void gltf_node_init(gltf_node_t* node)
   glm_vec3_zero(node->translation);
   glm_vec3_one(node->scale);
   glm_quat_identity(node->rotation);
+  bounding_box_init(&node->bvh, GLM_VEC3_ZERO, GLM_VEC3_ZERO);
+  bounding_box_init(&node->aabb, GLM_VEC3_ZERO, GLM_VEC3_ZERO);
 }
 
 static void glm_cast_versor_to_mat3(versor q, mat3* result)
@@ -598,6 +594,8 @@ typedef struct gltf_model_t {
     uint32_t count;
   } indices;
 
+  mat4 aabb;
+
   gltf_node_t* nodes;
   uint32_t node_count;
 
@@ -624,9 +622,6 @@ typedef struct gltf_model_t {
   struct {
     vec3 min;
     vec3 max;
-    vec3 size;
-    vec3 center;
-    float radius;
   } dimensions;
 
   bool metallic_roughness_workflow;
@@ -668,6 +663,8 @@ static void gltf_model_init(gltf_model_t* model,
 
   snprintf(model->uri, strlen(options->filename) + 1, "%s", options->filename);
 
+  glm_mat4_zero(model->aabb);
+
   model->nodes      = NULL;
   model->node_count = 0;
 
@@ -690,6 +687,9 @@ static void gltf_model_init(gltf_model_t* model,
 
   model->animations      = NULL;
   model->animation_count = 0;
+
+  glm_vec3_copy((vec3){FLT_MAX, FLT_MAX, FLT_MAX}, model->dimensions.min);
+  glm_vec3_copy((vec3){-FLT_MAX, -FLT_MAX, -FLT_MAX}, model->dimensions.max);
 }
 
 /*
@@ -1027,7 +1027,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
         &model->materials[primitive->material - data->materials]);
       new_primitive.first_vertex = vertex_start;
       new_primitive.vertex_count = prim_vertex_count;
-      gltf_primitive_set_dimensions(&new_primitive, pos_min, pos_max);
+      gltf_primitive_set_bounding_box(&new_primitive, pos_min, pos_max);
       new_mesh->primitives[i] = new_primitive;
     }
     if (node->mesh != NULL) {
@@ -1640,49 +1640,64 @@ void wgpu_gltf_model_prepare_skins_bind_group(
   }
 }
 
-static void gltf_model_get_node_dimensions(gltf_node_t* node, vec3* min,
-                                           vec3* max)
+static void gltf_model_node_calculate_bounding_box(gltf_node_t* node,
+                                                   gltf_node_t* parent)
 {
-  if (node->mesh != NULL) {
-    vec4 loc_min, loc_max;
-    mat4 node_matrix;
-    gltf_node_get_matrix(node, &node_matrix);
-    for (uint32_t i = 0; i < node->mesh->primitive_count; ++i) {
-      gltf_primitive_t* primitive = &node->mesh->primitives[i];
-      glm_vec4(primitive->dimensions.min, 1.0f, loc_min);
-      glm_mat4_mulv(node_matrix, loc_min, loc_min);
-      glm_vec4(primitive->dimensions.max, 1.0f, loc_max);
-      glm_mat4_mulv(node_matrix, loc_max, loc_max);
-      // clang-format off
-      if (loc_min[0] < (*min)[0]) { (*min)[0] = loc_min[0]; }
-      if (loc_min[1] < (*min)[1]) { (*min)[1] = loc_min[1]; }
-      if (loc_min[2] < (*min)[2]) { (*min)[2] = loc_min[2]; }
-      if (loc_max[0] > (*max)[0]) { (*max)[0] = loc_max[0]; }
-      if (loc_max[1] > (*max)[1]) { (*max)[1] = loc_max[1]; }
-      if (loc_max[2] > (*max)[2]) { (*max)[2] = loc_max[2]; }
-      // clang-format on
+  if (node->mesh) {
+    if (node->mesh->bb.valid) {
+      mat4 node_matrix;
+      gltf_node_get_matrix(node, &node_matrix);
+      bounding_get_aabb(&node->mesh->bb, node_matrix, &node->aabb);
+      if (node->child_count == 0) {
+        glm_vec3_copy(node->aabb.min, node->bvh.min);
+        glm_vec3_copy(node->aabb.max, node->bvh.max);
+        node->bvh.valid = true;
+      }
     }
   }
+
+  if (parent) {
+    bounding_box_t* parent_bvh = &parent->bvh;
+    glm_vec3_copy(*vec3_min(&parent_bvh->min, &node->bvh.min), node->bvh.min);
+    glm_vec3_copy(*vec3_min(&parent_bvh->max, &node->bvh.max), node->bvh.max);
+  }
+
   for (uint32_t i = 0; i < node->child_count; ++i) {
-    gltf_model_get_node_dimensions(node->children[i], min, max);
+    gltf_model_node_calculate_bounding_box(node->children[i], node);
   }
 }
 
 static void gltf_model_get_scene_dimensions(gltf_model_t* model)
 {
+  // Calculate binary volume hierarchy for all nodes in the scene
+  for (uint32_t i = 0; i < model->linear_node_count; ++i) {
+    gltf_model_node_calculate_bounding_box(model->linear_nodes[i], NULL);
+  }
+
   glm_vec3_copy((vec3){FLT_MAX, FLT_MAX, FLT_MAX}, model->dimensions.min);
   glm_vec3_copy((vec3){-FLT_MAX, -FLT_MAX, -FLT_MAX}, model->dimensions.max);
-  for (uint32_t i = 0; i < model->node_count; ++i) {
-    gltf_model_get_node_dimensions(&model->nodes[i], &model->dimensions.min,
-                                   &model->dimensions.max);
+
+  for (uint32_t i = 0; i < model->linear_node_count; ++i) {
+    gltf_node_t* node = model->linear_nodes[i];
+    if (node->bvh.valid) {
+      glm_vec3_copy(*vec3_min(&model->dimensions.min, &node->bvh.min),
+                    model->dimensions.min);
+      glm_vec3_copy(*vec3_max(&model->dimensions.max, &node->bvh.max),
+                    model->dimensions.max);
+    }
   }
-  glm_vec3_sub(model->dimensions.max, model->dimensions.min,
-               model->dimensions.size);
-  vec3 sum = GLM_VEC3_ZERO_INIT;
-  glm_vec3_add(model->dimensions.min, model->dimensions.max, sum);
-  glm_vec3_scale(sum, 0.5f, model->dimensions.center);
-  model->dimensions.radius
-    = glm_vec3_distance(model->dimensions.min, model->dimensions.max) / 2.0f;
+
+  // Calculate scene aabb
+  glm_mat4_identity(model->aabb);
+  vec3 scale = {
+    model->dimensions.max[0] - model->dimensions.min[0], // x
+    model->dimensions.max[1] - model->dimensions.min[1], // y
+    model->dimensions.max[2] - model->dimensions.min[2]  // z
+  };
+  glm_scale(model->aabb, scale);
+  model->aabb[3][0] = model->dimensions.min[0];
+  model->aabb[3][1] = model->dimensions.min[1];
+  model->aabb[3][2] = model->dimensions.min[2];
 }
 
 void gltf_model_update_animation(gltf_model_t* model, uint32_t index,
