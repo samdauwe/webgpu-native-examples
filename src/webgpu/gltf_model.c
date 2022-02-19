@@ -20,7 +20,12 @@ gltf_model_node_from_index(struct gltf_model_t* model, uint32_t index);
 static void gltf_model_get_scene_dimensions(struct gltf_model_t* model);
 
 /*
- * glTF Bounding box
+ * glTF enums
+ */
+typedef wgpu_gltf_alpha_mode_enum_t alpha_mode_enum;
+
+/*
+ * Bounding box
  */
 typedef struct bounding_box_t {
   vec3 min;
@@ -66,18 +71,13 @@ static void bounding_get_aabb(bounding_box_t* bounding_box, mat4 m,
   glm_vec3_add(max, *vec3_max(&v0, &v1), max);
 
   vec3 back = {m[0][2], m[0][2], m[0][2]};
-  glm_vec3_scale(back, bounding_box->min[1], v0);
-  glm_vec3_scale(back, bounding_box->max[1], v1);
+  glm_vec3_scale(back, bounding_box->min[2], v0);
+  glm_vec3_scale(back, bounding_box->max[2], v1);
   glm_vec3_add(min, *vec3_min(&v0, &v1), min);
   glm_vec3_add(max, *vec3_max(&v0, &v1), max);
 
   bounding_box_init(dest, min, max);
 }
-
-/*
- * glTF enums
- */
-typedef wgpu_gltf_alpha_mode_enum_t alpha_mode_enum;
 
 /*
  * glTF texture loading
@@ -162,14 +162,25 @@ static void gltf_material_init(gltf_material_t* material,
   material->metallic_factor  = 1.0f;
   material->roughness_factor = 1.0f;
   glm_vec4_one(material->base_color_factor);
-  material->base_color_texture          = NULL;
-  material->metallic_roughness_texture  = NULL;
-  material->normal_texture              = NULL;
-  material->occlusion_texture           = NULL;
-  material->emissive_texture            = NULL;
-  material->specular_glossiness_texture = NULL;
-  material->diffuse_texture             = NULL;
-  material->bind_group                  = NULL;
+  glm_vec4_one(material->emissive_factor);
+  material->base_color_texture                    = NULL;
+  material->metallic_roughness_texture            = NULL;
+  material->normal_texture                        = NULL;
+  material->occlusion_texture                     = NULL;
+  material->emissive_texture                      = NULL;
+  material->tex_coord_sets.base_color             = 0;
+  material->tex_coord_sets.metallic_roughness     = 0;
+  material->tex_coord_sets.specular_glossiness    = 0;
+  material->tex_coord_sets.normal                 = 0;
+  material->tex_coord_sets.occlusion              = 0;
+  material->tex_coord_sets.emissive               = 0;
+  material->extension.specular_glossiness_texture = NULL;
+  material->extension.diffuse_texture             = NULL;
+  glm_vec4_one(material->extension.diffuse_factor);
+  glm_vec4_one(material->extension.specular_factor);
+  material->pbr_workflows.metallic_roughness  = true;
+  material->pbr_workflows.specular_glossiness = false;
+  material->bind_group                        = NULL;
 }
 
 static void gltf_material_destroy(gltf_material_t* material)

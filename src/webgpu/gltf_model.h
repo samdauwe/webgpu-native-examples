@@ -79,13 +79,30 @@ typedef struct wgpu_gltf_material_t {
   float metallic_factor;
   float roughness_factor;
   vec4 base_color_factor;
+  vec4 emissive_factor;
   wgpu_gltf_texture_t* base_color_texture;
   wgpu_gltf_texture_t* metallic_roughness_texture;
   wgpu_gltf_texture_t* normal_texture;
   wgpu_gltf_texture_t* occlusion_texture;
   wgpu_gltf_texture_t* emissive_texture;
-  wgpu_gltf_texture_t* specular_glossiness_texture;
-  wgpu_gltf_texture_t* diffuse_texture;
+  struct {
+    uint8_t base_color;
+    uint8_t metallic_roughness;
+    uint8_t specular_glossiness;
+    uint8_t normal;
+    uint8_t occlusion;
+    uint8_t emissive;
+  } tex_coord_sets;
+  struct {
+    wgpu_gltf_texture_t* specular_glossiness_texture;
+    wgpu_gltf_texture_t* diffuse_texture;
+    vec4 diffuse_factor;
+    vec3 specular_factor;
+  } extension;
+  struct {
+    bool metallic_roughness;
+    bool specular_glossiness;
+  } pbr_workflows;
   WGPUBindGroup bind_group;
   WGPURenderPipeline pipeline;
 } wgpu_gltf_material_t;
