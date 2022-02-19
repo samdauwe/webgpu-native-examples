@@ -91,8 +91,11 @@ static struct {
   } render_pass;
 } offscreen_pass;
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 static const char* example_title = "Full Screen Radial Blur Effect";
 static bool prepared             = false;
@@ -419,7 +422,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -435,9 +438,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
+    .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
   };
 }
@@ -811,11 +814,12 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
    */
   {
     // Set target frame buffer
-    rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+    render_pass.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
 
     // Create render pass encoder for encoding drawing commands
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_desc);
+      wgpu_context->cmd_enc, &render_pass.descriptor);
 
     // Set viewport
     wgpuRenderPassEncoderSetViewport(
