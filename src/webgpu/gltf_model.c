@@ -80,6 +80,51 @@ static void bounding_get_aabb(bounding_box_t* bounding_box, mat4 m,
 }
 
 /*
+ * glTF texture sampler
+ */
+typedef struct gltf_texture_sampler_t {
+  WGPUFilterMode mag_filter;
+  WGPUFilterMode min_filter;
+  WGPUAddressMode address_mode_u;
+  WGPUAddressMode address_mode_v;
+  WGPUAddressMode address_mode_w;
+} gltf_texture_sampler_t;
+
+static WGPUAddressMode get_wgpu_wrap_mode(int32_t wrap_mode)
+{
+  switch (wrap_mode) {
+    case 10497:
+      return WGPUAddressMode_Repeat;
+    case 33071:
+      return WGPUAddressMode_ClampToEdge;
+    case 33648:
+      return WGPUAddressMode_MirrorRepeat;
+    default:
+      return WGPUAddressMode_Repeat;
+  }
+}
+
+static WGPUFilterMode get_wgpu_filter_mode(int32_t filterMode)
+{
+  switch (filterMode) {
+    case 9728:
+      return WGPUFilterMode_Nearest;
+    case 9729:
+      return WGPUFilterMode_Linear;
+    case 9984:
+      return WGPUFilterMode_Nearest;
+    case 9985:
+      return WGPUFilterMode_Nearest;
+    case 9986:
+      return WGPUFilterMode_Linear;
+    case 9987:
+      return WGPUFilterMode_Linear;
+    default:
+      return WGPUFilterMode_Linear;
+  }
+}
+
+/*
  * glTF texture loading
  */
 typedef wgpu_gltf_texture_t gltf_texture_t;
@@ -227,12 +272,6 @@ static void gltf_primitive_set_bounding_box(gltf_primitive_t* primitive,
 /*
  * glTF mesh
  */
-typedef struct gltf_mesh_uniform_block_t {
-  mat4 matrix;
-  mat4 joint_matrix[WGPU_GLTF_MAX_NUM_JOINTS];
-  float joint_count;
-} gltf_mesh_uniform_block_t;
-
 typedef struct gltf_mesh_t {
   wgpu_context_t* wgpu_context;
   gltf_primitive_t* primitives;
@@ -245,7 +284,11 @@ typedef struct gltf_mesh_t {
     uint64_t size;
     WGPUBindGroup bind_group;
   } uniform_buffer;
-  gltf_mesh_uniform_block_t uniform_block;
+  struct {
+    mat4 matrix;
+    mat4 joint_matrix[WGPU_GLTF_MAX_NUM_JOINTS];
+    float joint_count;
+  } uniform_block;
 } gltf_mesh_t;
 
 static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
@@ -256,12 +299,9 @@ static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
   mesh->wgpu_context = wgpu_context;
   glm_mat4_copy(matrix, mesh->uniform_block.matrix);
   mesh->uniform_buffer.size   = sizeof(mesh->uniform_block);
-  mesh->uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = mesh->uniform_buffer.size,
-    });
+  mesh->uniform_buffer.buffer = wgpu_create_buffer_from_data(
+    wgpu_context, &mesh->uniform_block, mesh->uniform_buffer.size,
+    WGPUBufferUsage_Uniform);
 }
 
 static void gltf_mesh_destroy(gltf_mesh_t* mesh)
@@ -272,6 +312,13 @@ static void gltf_mesh_destroy(gltf_mesh_t* mesh)
   if (mesh->primitives != NULL) {
     free(mesh->primitives);
   }
+}
+
+static void gltf_mesh_set_bounding_box(gltf_mesh_t* mesh, vec3 min, vec3 max)
+{
+  glm_vec3_copy(min, mesh->bb.min);
+  glm_vec3_copy(max, mesh->bb.max);
+  mesh->bb.valid = true;
 }
 
 /*
@@ -403,21 +450,22 @@ static void gltf_node_update(wgpu_context_t* wgpu_context, gltf_node_t* node)
     mat4 m = GLM_MAT4_ZERO_INIT;
     gltf_node_get_local_matrix(node, &m);
     if (node->skin != NULL) {
+      gltf_skin_t* skin = node->skin;
       glm_mat4_copy(m, node->mesh->uniform_block.matrix);
       // Update the joint matrices
       mat4 inverse_transform = GLM_MAT4_ZERO_INIT;
       glm_mat4_inv(m, inverse_transform);
-      for (size_t i = 0; i < node->skin->joint_count; ++i) {
-        gltf_node_t* joint_node = node->skin->joints[i];
+      size_t num_joints = MIN(skin->joint_count, WGPU_GLTF_MAX_NUM_JOINTS);
+      for (size_t i = 0; i < num_joints; ++i) {
+        gltf_node_t* joint_node = skin->joints[i];
         mat4 joint_mat          = GLM_MAT4_ZERO_INIT;
         mat4 joint_node_mat     = GLM_MAT4_ZERO_INIT;
         gltf_node_get_matrix(joint_node, &joint_node_mat);
-        glm_mat4_mul(joint_node_mat, node->skin->inverse_bind_matrices[i],
-                     joint_mat);
+        glm_mat4_mul(joint_node_mat, skin->inverse_bind_matrices[i], joint_mat);
         glm_mat4_mul(inverse_transform, joint_mat, joint_mat);
         glm_mat4_copy(joint_mat, node->mesh->uniform_block.joint_matrix[i]);
       }
-      node->mesh->uniform_block.joint_count = (float)node->skin->joint_count;
+      node->mesh->uniform_block.joint_count = (float)skin->joint_count;
       wgpu_queue_write_buffer(wgpu_context, node->mesh->uniform_buffer.buffer,
                               0, &node->mesh->uniform_block,
                               sizeof(node->mesh->uniform_buffer));
@@ -610,6 +658,9 @@ typedef struct gltf_model_t {
 
   gltf_texture_t* empty_texture;
 
+  gltf_texture_sampler_t* texture_samplers;
+  uint32_t texture_sampler_count;
+
   gltf_material_t* materials;
   uint32_t material_count;
 
@@ -678,6 +729,9 @@ static void gltf_model_init(gltf_model_t* model,
 
   model->empty_texture = NULL;
 
+  model->texture_samplers      = NULL;
+  model->texture_sampler_count = 0;
+
   model->materials      = NULL;
   model->material_count = 0;
 
@@ -716,6 +770,10 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
     gltf_texture_destroy(&model->textures[i]);
   }
   free(model->textures);
+
+  if (model->texture_count > 0) {
+    free(model->texture_samplers);
+  }
 
   for (uint32_t i = 0; i < model->mesh_count; ++i) {
     gltf_mesh_destroy(&model->meshes[i]);
@@ -763,7 +821,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
     glm_translate(new_node->matrix, translation);
   }
   if (node->has_rotation) {
-    versor q = GLM_VEC4_ZERO_INIT;
+    versor q = GLM_VEC4_ONE_INIT;
     memcpy(q, node->rotation, sizeof(node->rotation));
     glm_quat_copy(q, new_node->rotation);
   }
@@ -1029,6 +1087,16 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
       gltf_primitive_set_bounding_box(&new_primitive, pos_min, pos_max);
       new_mesh->primitives[i] = new_primitive;
     }
+    // Mesh BB from BBs of primitives
+    for (uint32_t pi = 0; pi < new_mesh->primitive_count; ++pi) {
+      gltf_primitive_t* p = &new_mesh->primitives[pi];
+      if (p->bb.valid && !new_mesh->bb.valid) {
+        memcpy(&new_mesh->bb, &p->bb, sizeof(p->bb));
+        new_mesh->bb.valid = true;
+      }
+      glm_vec3_copy(*vec3_min(&new_mesh->bb.min, &p->bb.min), new_mesh->bb.min);
+      glm_vec3_copy(*vec3_min(&new_mesh->bb.max, &p->bb.max), new_mesh->bb.max);
+    }
     if (node->mesh != NULL) {
       new_node->mesh = &model->meshes[node->mesh - data->meshes];
     }
@@ -1100,6 +1168,25 @@ static void gltf_model_load_images(gltf_model_t* model, cgltf_data* data)
   }
   // Create an empty texture to be used for empty material images
   gltf_model_create_empty_texture(model);
+}
+
+static void gltf_model_load_texture_samplers(gltf_model_t* model,
+                                             cgltf_data* data)
+{
+  model->texture_sampler_count = (uint32_t)data->samplers_count;
+  model->texture_samplers
+    = model->texture_sampler_count > 0 ?
+        calloc(model->texture_sampler_count, sizeof(*model->texture_samplers)) :
+        NULL;
+  for (uint32_t i = 0; i < data->materials_count; ++i) {
+    cgltf_sampler* smpl                     = &data->samplers[i];
+    gltf_texture_sampler_t* texture_sampler = &model->texture_samplers[i];
+    texture_sampler->min_filter     = get_wgpu_filter_mode(smpl->min_filter);
+    texture_sampler->mag_filter     = get_wgpu_filter_mode(smpl->mag_filter);
+    texture_sampler->address_mode_u = get_wgpu_wrap_mode(smpl->wrap_s);
+    texture_sampler->address_mode_v = get_wgpu_wrap_mode(smpl->wrap_t);
+    texture_sampler->address_mode_w = texture_sampler->address_mode_v;
+  }
 }
 
 static void gltf_model_load_materials(gltf_model_t* model, cgltf_data* data)
@@ -1346,8 +1433,9 @@ gltf_model_t* wgpu_gltf_model_load_from_file(
       gltf_model = calloc(1, sizeof(gltf_model_t));
       gltf_model_init(gltf_model, load_options);
 
-      // Load images
+      // Load samplers and images
       if (!(file_loading_flags & WGPU_GLTF_FileLoadingFlags_DontLoadImages)) {
+        gltf_model_load_texture_samplers(gltf_model, gltf_data);
         gltf_model_load_images(gltf_model, gltf_data);
       }
 
