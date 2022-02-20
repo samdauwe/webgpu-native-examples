@@ -10,6 +10,9 @@
 struct gltf_model_t;
 struct wgpu_context_t;
 
+// Changing this value here also requires changing it in the vertex shader
+#define WGPU_GLTF_MAX_NUM_JOINTS 128u
+
 #define WGPU_GLTF_VERTATTR_DESC(l, c)                                          \
   wgpu_gltf_get_vertex_attribute_description(l, c)
 

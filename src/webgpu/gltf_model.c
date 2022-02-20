@@ -229,7 +229,7 @@ static void gltf_primitive_set_bounding_box(gltf_primitive_t* primitive,
  */
 typedef struct gltf_mesh_uniform_block_t {
   mat4 matrix;
-  mat4 joint_matrix[64];
+  mat4 joint_matrix[WGPU_GLTF_MAX_NUM_JOINTS];
   float joint_count;
 } gltf_mesh_uniform_block_t;
 
