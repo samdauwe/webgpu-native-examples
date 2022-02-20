@@ -205,18 +205,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = texture_views[0],
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = texture_views[1],
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer = uniform_buffers[1],
-        .offset = 0,
-        .size = 4,
+        .buffer  = uniform_buffers[1],
+        .offset  = 0,
+        .size    = 4,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -233,18 +233,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = texture_views[1],
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = texture_views[0],
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer = uniform_buffers[0],
-        .offset = 0,
-        .size = 4,
+        .buffer  = uniform_buffers[0],
+        .offset  = 0,
+        .size    = 4,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -265,7 +265,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .sampler = texture.sampler,
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = texture_views[1],
       },
     };
