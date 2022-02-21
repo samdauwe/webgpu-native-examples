@@ -25,6 +25,9 @@ static struct video_decode_state_t {
   int64_t duration_base;
   void* decode_buf;
 } s_state = {
+  .fmt_ctx            = NULL,
+  .dec_ctx            = NULL,
+  .video_st           = NULL,
   .video_stream_index = -1,
   .decode_buf         = NULL,
 };
