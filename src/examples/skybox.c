@@ -15,13 +15,13 @@
  * -------------------------------------------------------------------------- */
 
 // Uniform block vertex shader
-static struct ubo_vs_t {
+static struct {
   mat4 projection_matrix;
   mat4 view_matrix;
 } ubo_vs = {0};
 
 // Uniform buffer block object
-static struct uniform_buffer_vs_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t size;
 } uniform_buffer_vs = {0};
