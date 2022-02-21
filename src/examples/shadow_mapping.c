@@ -16,7 +16,7 @@
  * stanford-dragon: https://github.com/hughsk/stanford-dragon
  * -------------------------------------------------------------------------- */
 
-static struct view_matrices_t {
+static struct {
   vec3 up_vector;
   vec3 origin;
   mat4 projection_matrix;
