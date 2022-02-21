@@ -64,32 +64,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Transform
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = 128,
+        .minBindingSize   = 128,
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Texture view
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_Cube,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Sampler
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
@@ -169,12 +169,12 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer = uniform_buffer_vs.buffer,
-      .offset = 0,
-      .size = uniform_buffer_vs.size,
+      .buffer  = uniform_buffer_vs.buffer,
+      .offset  = 0,
+      .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      .binding = 1,
+      .binding     = 1,
       .textureView = texture.view,
     },
     [2] = (WGPUBindGroupEntry) {
