@@ -39,10 +39,12 @@ static WGPUBindGroup bind_group_upscale;
 static WGPUPipelineLayout pipeline_layout;
 
 // Render pipelines
-static WGPURenderPipeline pipeline_triangle_conservative;
-static WGPURenderPipeline pipeline_triangle_regular;
-static WGPURenderPipeline pipeline_lines;
-static WGPURenderPipeline pipeline_upscale;
+static struct {
+  WGPURenderPipeline triangle_conservative;
+  WGPURenderPipeline triangle_regular;
+  WGPURenderPipeline lines;
+  WGPURenderPipeline upscale;
+} render_pipelines;
 
 // Other variables
 static const char* example_title = "Conservative-raster";
@@ -164,7 +166,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline_triangle_conservative = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.triangle_conservative = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Conservative Rasterization",
                             .primitive   = primitive_state_desc,
@@ -172,7 +174,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
-  ASSERT(pipeline_triangle_conservative != NULL)
+  ASSERT(render_pipelines.triangle_conservative != NULL)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -226,7 +228,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline_triangle_regular = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.triangle_regular = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Regular Rasterization",
                             .primitive   = primitive_state_desc,
@@ -234,7 +236,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
-  ASSERT(pipeline_triangle_regular != NULL)
+  ASSERT(render_pipelines.triangle_regular != NULL)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -289,7 +291,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline_lines = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.lines = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Lines",
                             .primitive   = primitive_state_desc,
@@ -297,7 +299,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
-  ASSERT(pipeline_lines != NULL)
+  ASSERT(render_pipelines.lines != NULL)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -393,7 +395,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline_upscale = wgpuDeviceCreateRenderPipeline(
+  render_pipelines.upscale = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Upscale",
                             .layout      = pipeline_layout,
@@ -402,7 +404,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
-  ASSERT(pipeline_upscale != NULL)
+  ASSERT(render_pipelines.upscale != NULL)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -456,10 +458,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPURenderPassEncoder rpass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
 
-    wgpuRenderPassEncoderSetPipeline(rpass, pipeline_triangle_conservative);
+    wgpuRenderPassEncoderSetPipeline(rpass,
+                                     render_pipelines.triangle_conservative);
     wgpuRenderPassEncoderDraw(rpass, 3, 1, 0, 0);
 
-    wgpuRenderPassEncoderSetPipeline(rpass, pipeline_triangle_regular);
+    wgpuRenderPassEncoderSetPipeline(rpass, render_pipelines.triangle_regular);
     wgpuRenderPassEncoderDraw(rpass, 3, 1, 0, 0);
 
     wgpuRenderPassEncoderEndPass(rpass);
@@ -489,11 +492,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPURenderPassEncoder rpass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
 
-    wgpuRenderPassEncoderSetPipeline(rpass, pipeline_upscale);
+    wgpuRenderPassEncoderSetPipeline(rpass, render_pipelines.upscale);
     wgpuRenderPassEncoderSetBindGroup(rpass, 0, bind_group_upscale, 0, 0);
     wgpuRenderPassEncoderDraw(rpass, 3, 1, 0, 0);
 
-    wgpuRenderPassEncoderSetPipeline(rpass, pipeline_lines);
+    wgpuRenderPassEncoderSetPipeline(rpass, render_pipelines.lines);
     wgpuRenderPassEncoderDraw(rpass, 4, 1, 0, 0);
 
     wgpuRenderPassEncoderEndPass(rpass);
@@ -543,10 +546,10 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout_upscale)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group_upscale)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline_triangle_conservative)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline_triangle_regular)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline_lines)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline_upscale)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.triangle_conservative)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.triangle_regular)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.lines)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines.upscale)
 }
 
 void example_conservative_raster(int argc, char* argv[])
