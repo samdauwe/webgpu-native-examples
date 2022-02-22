@@ -61,10 +61,11 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   uint32_t vertex_count = (uint32_t)NUMBER_OF_LINES * 2;
   vertex_t vertex_data[vertex_count];
+  float percent = 0, sin_value = 0, cos_value = 0;
   for (uint32_t i = 0; i < (uint32_t)NUMBER_OF_LINES; ++i) {
-    const float percent    = (float)i / (float)NUMBER_OF_LINES;
-    const float sin_value  = sinf(percent * 2.f * PI);
-    const float cos_value  = cosf(percent * 2.f * PI);
+    percent                = (float)i / (float)NUMBER_OF_LINES;
+    sin_value              = sinf(percent * 2.f * PI);
+    cos_value              = cosf(percent * 2.f * PI);
     vertex_data[i * 2 + 0] = (vertex_t){
       .position = {0.f, 0.f},
       .color    = {1.f, -sin_value, cos_value, 1.f},
