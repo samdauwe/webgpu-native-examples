@@ -4,30 +4,30 @@
 #include <string.h>
 
 // Vertex layout used in this example
-typedef struct vertex_t {
+typedef struct {
   vec3 position;
 } vertex_t;
 
 // Vertex buffer
-static struct vertices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
 // Index buffer
-static struct indices_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
 
 // Uniform buffer block object
-static struct uniform_buffer_vs_t {
+static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } uniform_buffer_vs = {0};
 
 // Uniform block data - inputs of the ShaderToy shader
-static struct shader_inputs_ubo_t {
+static struct {
   vec2 iResolution;  // viewport resolution (in pixels)
   float iTime;       // shader playback time (in seconds)
   float iTimeDelta;  // render time (in seconds)
