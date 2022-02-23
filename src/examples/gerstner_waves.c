@@ -303,9 +303,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(scene_data),
+          .minBindingSize   = sizeof(scene_data),
         },
         .sampler = {0},
       },
@@ -314,9 +314,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 1,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(gerstner_wave_params),
+          .minBindingSize   = sizeof(gerstner_wave_params),
         },
         .sampler = {0},
       },
