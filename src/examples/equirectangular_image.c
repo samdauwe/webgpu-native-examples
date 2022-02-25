@@ -14,28 +14,12 @@
  * convincing real-time effects.
  *
  * Ref:
+ * https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers
  * https://onix-systems.com/blog/how-to-use-360-equirectangular-panoramas-for-greater-realism-in-games
  * https://threejs.org/examples/webgl_panorama_equirectangular.html
  * https://www.shadertoy.com/view/4lK3DK
  * http://www.hdrlabs.com/sibl/archive.html
  * -------------------------------------------------------------------------- */
-
-// Vertex layout used in this example
-typedef struct {
-  vec3 position;
-} vertex_t;
-
-// Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
-
-// Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
 
 // Uniform buffer block object
 static struct {
@@ -93,59 +77,6 @@ static WGPUBindGroup bind_group;
 // Other variables
 static const char* example_title = "Equirectangular Image";
 static bool prepared             = false;
-
-static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
-{
-  // Setup vertices (x, y, z)
-  // Square data
-  //             1.0 y
-  //              ^  -1.0
-  //              | / z
-  //              |/       x
-  // -1.0 -----------------> +1.0
-  //            / |
-  //      +1.0 /  |
-  //           -1.0
-  //
-  //        [0]------[1]
-  //         |        |
-  //         |        |
-  //         |        |
-  //        [2]------[3]
-  //
-  static const vertex_t vertex_buffer[4] = {
-    {
-      .position = {-1.0f, 1.0f, 0.0f}, // Vertex 0
-    },
-    {
-      .position = {1.0f, 1.0f, 0.0f}, // Vertex 1
-    },
-    {
-      .position = {-1.0f, -1.0f, 0.0f}, // Vertex 2
-    },
-    {
-      .position = {1.0f, -1.0f, 0.0f}, // Vertex 3
-    },
-  };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
-
-  // Setup indices
-  static const uint16_t index_buffer[6] = {
-    0, 1, 2, // Triangle 0
-    2, 1, 3  // Triangle 1
-  };
-  indices.count              = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
-
-  // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
-
-  // Create index buffer
-  indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
-}
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
@@ -331,7 +262,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Front,
+    .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
@@ -342,12 +273,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex buffer layout
-  WGPU_VERTEX_BUFFER_LAYOUT(shadertoy, sizeof(vertex_t),
-                            // Attribute location 0: Position
-                            WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
-                                               offsetof(vertex_t, position)))
-
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                     wgpu_context, &(wgpu_vertex_state_t){
@@ -355,8 +280,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       // Vertex shader SPIR-V
                       .file = "shaders/equirectangular_image/main.vert.spv",
                     },
-                    .buffer_count = 1,
-                    .buffers = &shadertoy_vertex_buffer_layout,
+                    .buffer_count = 0,
+                    .buffers = NULL,
                   });
 
   // Fragment state
@@ -396,7 +321,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    prepare_vertex_and_index_buffers(context->wgpu_context);
     prepare_texture(context->wgpu_context);
     prepare_mouse_state(context->wgpu_context);
     prepare_uniform_buffers(context);
@@ -471,18 +395,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind vertex buffer (contains position)
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-
-  // Bind index buffer
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint16, 0,
-                                      WGPU_WHOLE_SIZE);
-
   // Draw indexed quad
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
-                                   0, 0);
+  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
 
   // End render pass
   wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
@@ -535,8 +449,6 @@ static void example_destroy(wgpu_example_context_t* context)
 {
   camera_release(context->camera);
   wgpu_destroy_texture(&texture);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
