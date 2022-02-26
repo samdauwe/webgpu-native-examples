@@ -33,7 +33,7 @@ static struct {
   uint64_t size;
 } uniform_buffer;
 
-static struct ubo_vs_t {
+static struct {
   mat4 projection;
   mat4 model;
   vec4 light_pos;
@@ -41,7 +41,7 @@ static struct ubo_vs_t {
   .light_pos = {5.0f, -5.0f, 5.0f, 1.0f},
 };
 
-static struct bind_group_layout_t {
+static struct {
   WGPUBindGroupLayout ubo_vs;
   WGPUBindGroupLayout textures;
 } bind_group_layouts;
