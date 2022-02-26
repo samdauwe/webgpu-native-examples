@@ -15,18 +15,18 @@
  * https://en.wikipedia.org/wiki/N-body_simulation
  * -------------------------------------------------------------------------- */
 
-#define NUM_BODIES 8192
-#define WORKGROUP_SIZE 64
+#define NUM_BODIES 8192u
+#define WORKGROUP_SIZE 64u
 #define INITIAL_EYE_POSITION                                                   \
   {                                                                            \
     0.0f, 0.0f, -1.5f                                                          \
   }
 
 // Simulation parameters
-static uint32_t num_bodies = (uint32_t)NUM_BODIES;
+static uint32_t num_bodies = NUM_BODIES;
 
 // Shader parameters.
-static uint32_t workgroup_size = (uint32_t)WORKGROUP_SIZE;
+static uint32_t workgroup_size = WORKGROUP_SIZE;
 
 // Render parameters
 static vec3 eye_position = INITIAL_EYE_POSITION;
