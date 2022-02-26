@@ -385,16 +385,16 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Uniforms
         .binding = 0,
-        .buffer = uniform_buffers.scene,
-        .offset = 0,
-        .size = sizeof(scene_data),
+        .buffer  = uniform_buffers.scene,
+        .offset  = 0,
+        .size    = sizeof(scene_data),
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: GerstnerWavesUniforms
         .binding = 1,
-        .buffer = uniform_buffers.gerstner_wave_params,
-        .offset = 0,
-        .size = sizeof(gerstner_wave_params),
+        .buffer  = uniform_buffers.gerstner_wave_params,
+        .offset  = 0,
+        .size    = sizeof(gerstner_wave_params),
       },
     };
 
@@ -417,7 +417,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Texture view
-        .binding = 1,
+        .binding     = 1,
         .textureView = sea_color_texture.view,
       }
     };
