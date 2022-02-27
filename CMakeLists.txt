@@ -134,6 +134,7 @@ set(HEADERS
     src/core/input.h
     src/core/log.h
     src/core/macro.h
+    src/core/math.h
     src/core/platform.h
     src/core/video_decode.h
     src/core/window.h
@@ -157,6 +158,7 @@ set(SOURCES
     src/core/file.c
     src/core/frustum.c
     src/core/log.c
+    src/core/math.c
     src/core/video_decode.c
     src/core/window.c
     src/examples/example_base.c
@@ -195,6 +197,7 @@ set(SOURCES
     src/examples/gerstner_waves.c
     src/examples/gltf_loading.c
     src/examples/gltf_scene_rendering.c
+    # src/examples/gltf_skinning.c
     src/examples/hdr.c
     src/examples/image_blur.c
     src/examples/imgui_overlay.c

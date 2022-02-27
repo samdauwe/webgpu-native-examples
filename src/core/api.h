@@ -7,6 +7,7 @@
 #include "input.h"
 #include "log.h"
 #include "macro.h"
+#include "math.h"
 #include "platform.h"
 #include "window.h"
 
