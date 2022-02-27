@@ -1178,7 +1178,7 @@ static void gltf_model_load_texture_samplers(gltf_model_t* model,
     = model->texture_sampler_count > 0 ?
         calloc(model->texture_sampler_count, sizeof(*model->texture_samplers)) :
         NULL;
-  for (uint32_t i = 0; i < data->materials_count; ++i) {
+  for (uint32_t i = 0; i < model->texture_sampler_count; ++i) {
     cgltf_sampler* smpl                     = &data->samplers[i];
     gltf_texture_sampler_t* texture_sampler = &model->texture_samplers[i];
     texture_sampler->min_filter     = get_wgpu_filter_mode(smpl->min_filter);
