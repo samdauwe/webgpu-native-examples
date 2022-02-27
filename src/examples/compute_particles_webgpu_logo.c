@@ -659,20 +659,15 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
                   view_matrices.projection);
 }
 
-static float rand_float()
-{
-  return rand() / (float)RAND_MAX; /* [0, 1.0] */
-}
-
 static void update_simulation_ubo_data(wgpu_context_t* wgpu_context)
 {
   simulation_ubo_buffer.data.delta_time
     = simulation_params.simulate ? simulation_params.delta_time : 0.0f;
   glm_vec3_zero(simulation_ubo_buffer.data.padding);
-  simulation_ubo_buffer.data.seed.x = rand_float() * 100.0f;
-  simulation_ubo_buffer.data.seed.y = rand_float() * 100.0f;
-  simulation_ubo_buffer.data.seed.z = 1.0f + rand_float();
-  simulation_ubo_buffer.data.seed.w = 1.0f + rand_float();
+  simulation_ubo_buffer.data.seed.x = random_float() * 100.0f;
+  simulation_ubo_buffer.data.seed.y = random_float() * 100.0f;
+  simulation_ubo_buffer.data.seed.z = 1.0f + random_float();
+  simulation_ubo_buffer.data.seed.w = 1.0f + random_float();
 
   wgpu_queue_write_buffer(wgpu_context, simulation_ubo_buffer.buffer, 0,
                           &simulation_ubo_buffer.data,

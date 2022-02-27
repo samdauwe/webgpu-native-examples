@@ -98,11 +98,6 @@ static const char* example_title = "Compute Boids";
 static bool prepared             = false;
 static uint32_t work_group_count;
 
-static float rand_float()
-{
-  return rand() / (float)RAND_MAX; /* [0, 1.0] */
-}
-
 // Prepare vertex buffers
 static void prepare_vertices(wgpu_context_t* wgpu_context)
 {
@@ -205,23 +200,22 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     WGPUBufferUsage_Uniform);
 
   // Buffer for all particles data of type [(posx,posy,velx,vely),...]
-  float initial_particle_data[NUM_PARTICLES * 4];
-  memset(initial_particle_data, 0.f, sizeof(initial_particle_data));
+  float particle_data[NUM_PARTICLES * 4];
+  memset(particle_data, 0.f, sizeof(particle_data));
   srand((unsigned int)time(NULL)); // randomize seed
   for (uint32_t i = 0; i < NUM_PARTICLES; i += 4) {
-    const size_t chunk               = i * 4;
-    initial_particle_data[chunk + 0] = 2 * (rand_float() - 0.5f);        // posx
-    initial_particle_data[chunk + 1] = 2 * (rand_float() - 0.5f);        // posy
-    initial_particle_data[chunk + 2] = 2 * (rand_float() - 0.5f) * 0.1f; // velx
-    initial_particle_data[chunk + 3] = 2 * (rand_float() - 0.5f) * 0.1f; // vely
+    const size_t chunk       = i * 4;
+    particle_data[chunk + 0] = 2 * (random_float() - 0.5f);        // posx
+    particle_data[chunk + 1] = 2 * (random_float() - 0.5f);        // posy
+    particle_data[chunk + 2] = 2 * (random_float() - 0.5f) * 0.1f; // velx
+    particle_data[chunk + 3] = 2 * (random_float() - 0.5f) * 0.1f; // vely
   }
 
   // Creates two buffers of particle data each of size NUM_PARTICLES the two
   // buffers alternate as dst and src for each frame
   for (uint32_t i = 0; i < 2; ++i) {
     particle_buffers[i] = wgpu_create_buffer_from_data(
-      context->wgpu_context, &initial_particle_data,
-      sizeof(initial_particle_data),
+      context->wgpu_context, &particle_data, sizeof(particle_data),
       WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
   }
 
@@ -239,13 +233,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
         .binding = 1,
         .buffer  = particle_buffers[i],
         .offset  = 0,
-        .size    = sizeof(initial_particle_data),
+        .size    = sizeof(particle_data),
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
         .buffer  = particle_buffers[(i + 1) % 2],
         .offset  = 0,
-        .size    = sizeof(initial_particle_data), // bind to opposite buffer
+        .size    = sizeof(particle_data), // bind to opposite buffer
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
