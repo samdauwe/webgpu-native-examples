@@ -963,12 +963,6 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   }
 }
 
-static float rand_float_min_max(float min, float max)
-{
-  /* [min, max] */
-  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
-}
-
 static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   // Light update compute pipeline layout

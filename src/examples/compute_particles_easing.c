@@ -65,17 +65,6 @@ static WGPURenderPassDescriptor render_pass_desc;
 static const char* example_title = "Compute Shader Particle Easing";
 static bool prepared             = false;
 
-static float rand_float_min_max(float min, float max)
-{
-  /* [min, max] */
-  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
-}
-
-static float random_float()
-{
-  return rand_float_min_max(0.0f, 1.0f);
-}
-
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const float t_scale                     = 0.005f;

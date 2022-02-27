@@ -72,12 +72,6 @@ typedef struct particle_t {
 static const char* example_title = "Compute Shader Particle System";
 static bool prepared             = false;
 
-static float rand_float_min_max(float min, float max)
-{
-  /* [min, max] */
-  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
-}
-
 static void load_assets(wgpu_context_t* wgpu_context)
 {
   textures.particle = wgpu_create_texture_from_file(

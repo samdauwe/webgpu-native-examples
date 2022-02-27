@@ -198,17 +198,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 }
 
-static float rand_float_min_max(float min, float max)
-{
-  /* [min, max] */
-  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
-}
-
-static float random_float()
-{
-  return rand_float_min_max(0.0f, 1.0f);
-}
-
 void update_uniform_buffers(wgpu_example_context_t* context)
 {
   ubo_fs.offset = (uint32_t)roundf(random_float() * 4294967295.f);

@@ -352,12 +352,6 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
 }
 
-static float rand_float_min_max(float min, float max)
-{
-  /* [min, max] */
-  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
-}
-
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   // Fixed ubo with projection and view matrices
