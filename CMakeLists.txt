@@ -203,6 +203,7 @@ set(SOURCES
     src/examples/imgui_overlay.c
     src/examples/immersive_video.c
     src/examples/instanced_cube.c
+    src/examples/minimal.c
     src/examples/msaa_line.c
     src/examples/multi_sampling.c
     src/examples/n_body_simulation.c

@@ -32,6 +32,7 @@ void example_image_blur(int argc, char* argv[]);
 void example_imgui_overlay(int argc, char* argv[]);
 void example_immersive_video(int argc, char* argv[]);
 void example_instanced_cube(int argc, char* argv[]);
+void example_minimal(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
 void example_multi_sampling(int argc, char* argv[]);
 void example_n_body_simulation(int argc, char* argv[]);
@@ -87,6 +88,7 @@ static examplecase_t g_example_cases[] = {
   {"imgui_overlay", example_imgui_overlay},
   {"immersive_video", example_immersive_video},
   {"instanced_cube", example_instanced_cube},
+  {"minimal", example_minimal},
   {"msaa_line", example_msaa_line},
   {"multi_sampling", example_multi_sampling},
   {"n_body_simulation", example_n_body_simulation},
