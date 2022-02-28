@@ -94,13 +94,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   static bool show_another_window = true;
   static ImVec4 clearColor        = {0.45f, 0.55f, 0.60f, 1.00f};
 
+  // Show the ImGui demo window
   {
     if (show_demo_window) {
       igShowDemoWindow(&show_demo_window);
     }
   }
 
-  // show a simple window that we created ourselves.
+  // Show a simple window that we created ourselves.
   {
     static float f     = 0.0f;
     static int counter = 0;
