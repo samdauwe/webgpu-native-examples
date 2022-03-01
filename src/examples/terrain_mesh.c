@@ -35,7 +35,7 @@ static const float near_z = 0.1f, far_z = 150.0f;
 static vec3 camera_position                     = {0.0f, 5.0f, 0.0f};
 static float camera_heading                     = PI / 2.0f; // radians
 static float camera_target_heading              = PI / 2.0f; // radians
-static const float camera_angular_easing_factor = 0.01f;
+static const float camera_angular_easing_factor = 0.005f;
 static const float camera_speed                 = 8.0f; // meters per second
 
 // Used to calculate view and projection matrices
@@ -391,32 +391,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Sampler
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Texture view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Texture view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Vertex,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       }
@@ -477,11 +477,11 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .sampler = linear_sampler,
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = textures.color.view,
       },
       [2] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = textures.heightmap.view,
       }
     };
@@ -500,9 +500,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = instance_buffer,
-        .offset = 0,
-        .size = instance_buffer_length,
+        .buffer  = instance_buffer,
+        .offset  = 0,
+        .size    = instance_buffer_length,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
