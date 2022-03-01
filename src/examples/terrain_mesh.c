@@ -22,9 +22,6 @@
  * https://blogs.igalia.com/itoral/2016/10/13/opengl-terrain-renderer-rendering-the-terrain-mesh/
  * -------------------------------------------------------------------------- */
 
-// Math macros
-#define RADIANS_PER_DEGREE (PI / 180.0f)
-
 // Terrain patch parameters
 #define PATCH_SIZE 50
 #define PATCH_SEGMENT_COUNT 40
@@ -33,7 +30,7 @@
 #define PATCH_FLOATS_PER_VERTEX 6
 
 // Camera parameters
-static const float fov_y  = 60.0f * RADIANS_PER_DEGREE;
+static const float fov_y  = TO_RADIANS(60.0f);
 static const float near_z = 0.1f, far_z = 150.0f;
 static vec3 camera_position                     = {0.0f, 5.0f, 0.0f};
 static float camera_heading                     = PI / 2.0f; // radians
