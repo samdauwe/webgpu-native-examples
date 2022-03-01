@@ -176,7 +176,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
 {
-  // Create the depth texture for rendering/sampling the shadow map.
+  // Create the depth texture for rendering/sampling the shadow map
   {
     WGPUExtent3D texture_extent = {
       .width              = shadow_depth_texture_size,
