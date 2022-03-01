@@ -426,7 +426,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw)
 * [Changelog for WebGPU in Chromium / Dawn 98](https://t.co/fS1NR5bog0)
 
-## Roadmap: February - April 2022
+## Roadmap: March - May 2022
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
