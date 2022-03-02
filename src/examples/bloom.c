@@ -347,7 +347,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_scene_t),
+          .minBindingSize   = sizeof(ubo_scene_t),
         },
         .sampler = {0},
       },
@@ -391,7 +391,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .texture = (WGPUTextureBindingLayout) {
           .sampleType = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -400,7 +400,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       }
@@ -433,13 +433,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Fragment shader uniform buffer
           .binding = 0,
-          .buffer = uniform_buffers.blur_params,
-          .offset = 0,
-          .size = sizeof(ubo_blur_params_t),
+          .buffer  = uniform_buffers.blur_params,
+          .offset  = 0,
+          .size    = sizeof(ubo_blur_params_t),
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
-          .binding = 1,
+          .binding     = 1,
           .textureView = offscreen_pass.frame_buffers[0].color.texture_view,
         },
         [2] = (WGPUBindGroupEntry) {
@@ -463,13 +463,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Fragment shader uniform buffer
           .binding = 0,
-          .buffer = uniform_buffers.blur_params,
-          .offset = 0,
-          .size = sizeof(ubo_blur_params_t),
+          .buffer  = uniform_buffers.blur_params,
+          .offset  = 0,
+          .size    = sizeof(ubo_blur_params_t),
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
-          .binding = 1,
+          .binding     = 1,
           .textureView = offscreen_pass.frame_buffers[1].color.texture_view,
         },
         [2] = (WGPUBindGroupEntry) {
@@ -494,9 +494,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.scene,
-        .offset = 0,
-        .size = sizeof(ubo_scene_t),
+        .buffer  = uniform_buffers.scene,
+        .offset  = 0,
+        .size    = sizeof(ubo_scene_t),
       },
     };
 
@@ -515,13 +515,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Vertex shader uniform buffer
           .binding = 0,
-          .buffer = uniform_buffers.skybox,
-          .offset = 0,
-          .size = sizeof(ubo_scene_t),
+          .buffer  = uniform_buffers.skybox,
+          .offset  = 0,
+          .size    = sizeof(ubo_scene_t),
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
-          .binding = 1,
+          .binding     = 1,
           .textureView = cubemap.view,
         },
         [2] = (WGPUBindGroupEntry) {
