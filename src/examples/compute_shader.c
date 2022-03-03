@@ -58,6 +58,7 @@ static uint32_t index_count;
 
 static WGPUBuffer uniform_buffer_vs;
 
+// Compute shaders containing convolution kernels (and effects)
 static struct {
   const char* name;
   const char* location;
