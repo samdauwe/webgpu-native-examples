@@ -100,7 +100,6 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
    *    layout (set = 0, binding = 1) uniform texture2D ...;
    *    layout (set = 0, binding = 2) uniform sampler ...;
    */
-
   WGPUBindGroupLayoutEntry bind_group_layout_entries[3] = {0};
 
   /*
