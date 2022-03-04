@@ -130,7 +130,8 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
 wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
                                  const wgpu_shader_desc_t* desc)
 {
-  ASSERT(desc->file || (desc->byte_code.data && desc->byte_code.size > 0));
+  ASSERT(desc->file || (desc->byte_code.data && desc->byte_code.size > 0)
+         || desc->wgsl_code.source);
   ASSERT(wgpu_context && wgpu_context->device);
 
   wgpu_shader_t shader = {0};
