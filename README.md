@@ -392,6 +392,10 @@ This example shows how to render an infinite landscape for the camera to meander
 
 A WebGPU example demonstrating pseudorandom number generation on the GPU. A [32-bit PCG hash](https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/) is used which is fast enough to be useful for real-time, while also being high-quality enough for almost any graphics use-case.
 
+#### [A Conway Game Of Life](src/examples/conway.c)
+
+A binary Conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life). This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway.ts) to native code.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
