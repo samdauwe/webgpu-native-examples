@@ -152,8 +152,8 @@ static bool prepared             = false;
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Update unfirms data
-  uniforms.desc.compute_height = wgpu_context->surface.width;
-  uniforms.desc.compute_width  = wgpu_context->surface.height;
+  uniforms.desc.compute_width  = wgpu_context->surface.width;
+  uniforms.desc.compute_height = wgpu_context->surface.height;
 
   // Uplaad buffer to the GPU
   wgpu_queue_write_buffer(wgpu_context, uniforms.buffer.handle, 0,
@@ -178,6 +178,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   update_uniform_buffers(wgpu_context);
 }
 
+// Textures, used for compute part
 static void prepare_textures(wgpu_context_t* wgpu_context)
 {
   const uint32_t compute_width  = wgpu_context->surface.width;
@@ -220,7 +221,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     tex->view = wgpuTextureCreateView(tex->texture, &texture_view_dec);
     ASSERT(tex->view)
 
-    // Create sampler to sample from
+    // Create sampler to sample to pick from the texture and write to the screen
     tex->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
@@ -396,11 +397,11 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         },
         [1] = (WGPUBindGroupEntry) {
           .binding = 1,
-          .textureView = (i == 0) ? textures[1].view : textures[2].view,
+          .textureView = (i == 0) ? textures[0].view : textures[1].view,
         },
         [2] = (WGPUBindGroupEntry) {
           .binding = 2,
-          .textureView = (i == 0) ? textures[2].view : textures[1].view,
+          .textureView = (i == 0) ? textures[1].view : textures[0].view,
         },
       };
 
@@ -416,8 +417,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
   // Create 2 bind group for the render pipeline, depending on what is the
   // current src & dst texture.
-  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(textures); ++i) {
-    texture_t* tex = &textures[(i + 1) % (uint32_t)ARRAY_SIZE(textures)];
+  const uint32_t nbTextures = (uint32_t)ARRAY_SIZE(textures);
+  for (uint32_t i = 0; i < nbTextures; ++i) {
+    texture_t* tex = &textures[(i + 1) % nbTextures];
     WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry) {
           .binding = 0,
@@ -456,6 +458,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     compute.pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
+        .label   = "Effect pipeline",
         .layout  = compute.pipeline_layout,
         .compute = conway_comp_shader.programmable_stage_descriptor,
       });
@@ -470,7 +473,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUPrimitiveState primitive_state_desc = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
-      .cullMode  = WGPUCullMode_Back,
+      .cullMode  = WGPUCullMode_None,
     };
 
     // Color target state
@@ -564,8 +567,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       wgpu_context->cpass_enc, 0,
       is_forward ? compute.bind_groups[0] : compute.bind_groups[1], 0, NULL);
     wgpuComputePassEncoderDispatch(
-      wgpu_context->cpass_enc, ceil(uniforms.desc.compute_width / 8.0f),
-      ceil(uniforms.desc.compute_height / 8.0f), 1);
+      wgpu_context->cpass_enc,
+      (uint32_t)ceil(uniforms.desc.compute_width / 8.0f),
+      (uint32_t)ceil(uniforms.desc.compute_height / 8.0f), 1);
     wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
@@ -576,9 +580,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       wgpu_context->cmd_enc, &render_pass.descriptor);
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                      graphics.pipeline);
-    wgpuComputePassEncoderSetBindGroup(
-      wgpu_context->cpass_enc, 0,
+    wgpuRenderPassEncoderSetBindGroup(
+      wgpu_context->rpass_enc, 0,
       is_forward ? graphics.bind_groups[0] : graphics.bind_groups[1], 0, NULL);
+    // Double-triangle for fullscreen has 6 vertices
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
     wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
