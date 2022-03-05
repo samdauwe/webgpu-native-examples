@@ -83,7 +83,22 @@ target_link_libraries(${TARGET}
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# ktx
+# cimgui + Dear ImGui
+set(CIMGUI_SOURCES
+    external/cimgui/cimgui.cpp
+    external/cimgui/imgui/imgui.cpp
+    external/cimgui/imgui/imgui_draw.cpp
+    external/cimgui/imgui/imgui_widgets.cpp
+    external/cimgui/imgui/imgui_tables.cpp
+    external/cimgui/imgui/imgui_demo.cpp
+)
+
+# cJSON: Ultralightweight JSON parser in ANSI C.
+set(CJSON_SOURCES
+    external/cJSON/cJSON.c
+)
+
+# KTX (Khronos Texture) Library and Tools
 set(KTX_SOURCES
     external/ktx/lib/checkheader.c
     external/ktx/lib/filestream.c
@@ -97,16 +112,6 @@ set(KTX_SOURCES
 # rply
 set(RPLY_SOURCES
     external/rply/rply.c
-)
-
-# cimgui + Dear ImGui
-set(CIMGUI_SOURCES
-    external/cimgui/cimgui.cpp
-    external/cimgui/imgui/imgui.cpp
-    external/cimgui/imgui/imgui_draw.cpp
-    external/cimgui/imgui/imgui_widgets.cpp
-    external/cimgui/imgui/imgui_tables.cpp
-    external/cimgui/imgui/imgui_demo.cpp
 )
 
 # ffmpeg
@@ -252,9 +257,10 @@ set(TARGET wgpu_sample_launcher)
 add_executable(${TARGET}
     ${HEADERS}
     ${SOURCES}
+    ${CIMGUI_SOURCES}
+    ${CJSON_SOURCES}
     ${KTX_SOURCES}
     ${RPLY_SOURCES}
-    ${CIMGUI_SOURCES}
 )
 set_target_properties(${TARGET} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR}
@@ -307,6 +313,7 @@ else()
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cimgui
+        PRIVATE external/cJSON
         PRIVATE external/dawn/include
         PRIVATE external/ktx/include
         PRIVATE external/rply
