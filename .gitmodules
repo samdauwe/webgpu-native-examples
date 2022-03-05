@@ -10,3 +10,6 @@
 [submodule "external/cimgui"]
 	path = external/cimgui
 	url = https://github.com/cimgui/cimgui
+[submodule "external/cJSON"]
+	path = external/cJSON
+	url = https://github.com/DaveGamble/cJSON.git
