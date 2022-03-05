@@ -410,6 +410,7 @@ Just like all software, WebGPU Native Examples and Demos are built on the should
 * [cglm](https://github.com/recp/cglm): Highly Optimized Graphics Math (glm) for C.
 * [cgltf](https://github.com/jkuhlmann/cgltf): Single-file glTF 2.0 loader and writer written in C99.
 * [cimgui](https://github.com/cimgui/cimgui): c-api for [Dear ImGui](https://github.com/ocornut/imgui)
+* [cJSON](https://github.com/DaveGamble/cJSON): Ultralightweight JSON parser in ANSI C.
 * [ktx](https://github.com/KhronosGroup/KTX-Software): KTX (Khronos Texture) Library and Tools
 * [rply](http://w3.impa.br/~diego/software/rply/): ANSI C Library for PLY file format input and output
 * [stb](https://github.com/nothings/stb): stb single-file public domain libraries for C/C++
