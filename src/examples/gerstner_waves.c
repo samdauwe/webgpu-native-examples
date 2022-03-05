@@ -50,8 +50,8 @@ static void update_controls(wgpu_example_context_t* context)
   }
 
   // Limit x and y
-  int x = (int)controls.current_mouse_position[0];
-  int y = (int)controls.current_mouse_position[1];
+  const int x = (int)controls.current_mouse_position[0];
+  const int y = (int)controls.current_mouse_position[1];
 
   controls.current_mouse_position[0] = x % 360;
   controls.current_mouse_position[1] = MAX(-90, MIN(-10, y));
@@ -91,18 +91,18 @@ static void position_from_view_matrix(mat4 view_matrix, vec3* dest)
  */
 static void from_euler(float x, float y, float z, versor* dest)
 {
-  float halfToRad = (0.5f * PI) / 180.0f;
+  const float halfToRad = (0.5f * PI) / 180.0f;
 
   x *= halfToRad;
   y *= halfToRad;
   z *= halfToRad;
 
-  float sx = sin(x);
-  float cx = cos(x);
-  float sy = sin(y);
-  float cy = cos(y);
-  float sz = sin(z);
-  float cz = cos(z);
+  const float sx = sin(x);
+  const float cx = cos(x);
+  const float sy = sin(y);
+  const float cy = cos(y);
+  const float sz = sin(z);
+  const float cz = cos(z);
 
   (*dest)[0] = sx * cy * cz - cx * sy * sz;
   (*dest)[1] = cx * sy * cz + sx * cy * sz;
