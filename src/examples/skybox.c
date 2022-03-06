@@ -12,6 +12,9 @@
  *
  * Ref:
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/texturecubemap
+ *
+ * Cubemap texture: Yokohama 3
+ * http://www.humus.name/index.php?page=Textures&ID=139
  * -------------------------------------------------------------------------- */
 
 // Uniform block vertex shader
