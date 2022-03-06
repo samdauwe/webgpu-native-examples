@@ -144,6 +144,10 @@ This example shows how to set up a swap chain and clearing the screen. The scree
 
 Illustrates the coordinate systems used in WebGPU. WebGPU’s coordinate systems match DirectX and Metal’s coordinate systems in a graphics pipeline. Y-axis is up in normalized device coordinate (NDC): point(-1.0, -1.0) in NDC is located at the bottom-left corner of NDC. This example has several options for changing relevant pipeline state, and displaying meshes with WebGPU or Vulkan style coordinates.
 
+Render | Depth | Texture
+-------|-------|--------
+![render_coordinates](https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/render_coordinates.png) | ![depth_coordinates](https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/depth_coordinates.png) | ![texture_coordinates](https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/texture_coordinates.png)
+
 #### [Minimal](src/examples/minimal.c)
 
 Minimalistic render pipeline demonstrating how to render a full-screen colored quad.
