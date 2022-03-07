@@ -61,7 +61,7 @@ static void mouse_button_callback(window_t* window, int ctrl_key, int shift_key,
 
   record->cursor_pos[0] = mouse_x;
   record->cursor_pos[1] = mouse_y;
-  bool pressed          = button_action == BUTTON_ACTION_PRESS;
+  const bool pressed    = button_action == BUTTON_ACTION_PRESS;
 
   record->buttons[BUTTON_LEFT]   = (button == BUTTON_LEFT) && pressed;
   record->buttons[BUTTON_MIDDLE] = (button == BUTTON_MIDDLE) && pressed;
@@ -74,8 +74,8 @@ static void key_callback(window_t* window, int ctrl_key, int shift_key,
   UNUSED_VAR(ctrl_key);
   UNUSED_VAR(shift_key);
 
-  record_t* record = (record_t*)window_get_userdata(window);
-  bool pressed     = button_action == BUTTON_ACTION_PRESS;
+  record_t* record   = (record_t*)window_get_userdata(window);
+  const bool pressed = button_action == BUTTON_ACTION_PRESS;
 
   record->keys[key_code] = pressed ? true : false;
   record->keys_changed   = true;
