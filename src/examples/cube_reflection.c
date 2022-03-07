@@ -302,7 +302,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/cube_reflection/shader.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
   WGPUFragmentState fragment_state_reflection_desc = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
@@ -311,7 +311,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/cube_reflection/reflection.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
