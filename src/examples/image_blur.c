@@ -158,9 +158,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = blur_params_buffer,
-        .offset = 0,
-        .size = blur_params_buffer_desc.size,
+        .buffer  = blur_params_buffer,
+        .offset  = 0,
+        .size    = blur_params_buffer_desc.size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -177,18 +177,18 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = texture.view,
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = texture_views[0],
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer = uniform_buffers[0],
-        .offset = 0,
-        .size = 4,
+        .buffer  = uniform_buffers[0],
+        .offset  = 0,
+        .size    = 4,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
