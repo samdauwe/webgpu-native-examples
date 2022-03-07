@@ -334,7 +334,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Storage,
+          .type = WGPUBufferBindingType_ReadOnlyStorage,
           .minBindingSize = sizeof(float) * light_data_stride * max_num_lights,
         },
         .sampler = {0},
