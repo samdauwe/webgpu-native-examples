@@ -295,7 +295,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "compute pipeline main layout",
+      .label      = "Compute pipeline main layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -305,7 +305,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 
     // Compute pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "compute pipeline layouts",
+      .label                = "Compute pipeline layouts",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &compute.bind_group_layout,
     };
@@ -339,7 +339,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       }
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "rendering pipeline main layout",
+      .label      = "Rendering pipeline main layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -518,7 +518,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     graphics.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "conway_graphics_pipeline",
+                              .label       = "Conway graphics pipeline",
                               .layout      = graphics.pipeline_layout,
                               .primitive   = primitive_state_desc,
                               .vertex      = vertex_state_desc,
