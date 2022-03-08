@@ -9,7 +9,7 @@
  * A binary Conway game of life.
  *
  * Ref:
- * https://github.com/Palats/webgpu/blob/main/src/demos/conway.ts
+ * https://github.com/Palats/webgpu/blob/main/src/demos/conway2.ts
  * https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
  * -------------------------------------------------------------------------- */
 
