@@ -194,6 +194,7 @@ set(SOURCES
     src/examples/compute_shader.c
     src/examples/conservative_raster.c
     src/examples/conway.c
+    src/examples/conway_paletted_blurring.c
     src/examples/coordinate_system.c
     src/examples/cube_reflection.c
     src/examples/deferred_rendering.c

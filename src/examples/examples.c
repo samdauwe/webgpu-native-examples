@@ -19,6 +19,7 @@ void example_compute_ray_tracing(int argc, char* argv[]);
 void example_compute_shader(int argc, char* argv[]);
 void example_conservative_raster(int argc, char* argv[]);
 void example_conway(int argc, char* argv[]);
+void example_conway_paletted_blurring(int argc, char* argv[]);
 void example_coordinate_system(int argc, char* argv[]);
 void example_cube_reflection(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
@@ -76,6 +77,7 @@ static examplecase_t g_example_cases[] = {
   {"compute_shader", example_compute_shader},
   {"conservative_raster", example_conservative_raster},
   {"conway", example_conway},
+  {"conway_paletted_blurring", example_conway_paletted_blurring},
   {"coordinate_system", example_coordinate_system},
   {"cube_reflection", example_cube_reflection},
   {"deferred_rendering", example_deferred_rendering},

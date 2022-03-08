@@ -400,6 +400,10 @@ A WebGPU example demonstrating pseudorandom number generation on the GPU. A [32-
 
 A binary Conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life). This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway.ts) to native code.
 
+#### [A Conway Game Of Life With Paletted Blurring Over Time](src/examples/conway_paletted_blurring.c)
+
+A conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) with paletted blurring over time. This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway2.ts) to native code.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
