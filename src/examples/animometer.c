@@ -17,11 +17,11 @@
 // Shaders
 // clang-format off
 static const char* vertex_shader_wgsl =
-  "[[block]] struct Time {\n"
+  "struct Time {\n"
   "  value : f32;\n"
   "};\n"
   "\n"
-  "[[block]] struct Uniforms {\n"
+  "struct Uniforms {\n"
   "  scale : f32;\n"
   "  offsetX : f32;\n"
   "  offsetY : f32;\n"
@@ -29,39 +29,39 @@ static const char* vertex_shader_wgsl =
   "  scalarOffset : f32;\n"
   "};\n"
   "\n"
-  "[[binding(0), group(0)]] var<uniform> time : Time;\n"
-  "[[binding(0), group(1)]] var<uniform> uniforms : Uniforms;\n"
+  "@binding(0) @group(0) var<uniform> time : Time;\n"
+  "@binding(0) @group(1) var<uniform> uniforms : Uniforms;\n"
   "\n"
   "struct VertexOutput {\n"
-  "  [[builtin(position)]] Position : vec4<f32>;\n"
-  "  [[location(0)]] v_color : vec4<f32>;\n"
+  "  @builtin(position) Position : vec4<f32>;\n"
+  "  @location(0) v_color : vec4<f32>;\n"
   "};\n"
   "\n"
-  "[[stage(vertex)]]\n"
-  "fn main([[location(0)]] position : vec4<f32>,\n"
-  "        [[location(1)]] color : vec4<f32>) -> VertexOutput {\n"
-  "    var fade : f32 = (uniforms.scalarOffset + time.value * uniforms.scalar / 10.0) % 1.0;\n"
-  "    if (fade < 0.5) {\n"
-  "        fade = fade * 2.0;\n"
-  "    } else {\n"
-  "        fade = (1.0 - fade) * 2.0;\n"
-  "    }\n"
-  "    var xpos : f32 = position.x * uniforms.scale;\n"
-  "    var ypos : f32 = position.y * uniforms.scale;\n"
-  "    var angle : f32 = 3.14159 * 2.0 * fade;\n"
-  "    var xrot : f32 = xpos * cos(angle) - ypos * sin(angle);\n"
-  "    var yrot : f32 = xpos * sin(angle) + ypos * cos(angle);\n"
-  "    xpos = xrot + uniforms.offsetX;\n"
-  "    ypos = yrot + uniforms.offsetY;\n"
-  "    var output : VertexOutput;\n"
-  "    output.v_color = vec4<f32>(fade, 1.0 - fade, 0.0, 1.0) + color;\n"
-  "    output.Position = vec4<f32>(xpos, ypos, 0.0, 1.0);\n"
-  "    return output;\n"
+  "@stage(vertex)\n"
+  "fn vert_main(@location(0) position : vec4<f32>,\n"
+  "             @location(1) color : vec4<f32>) -> VertexOutput {\n"
+  "  var fade : f32 = (uniforms.scalarOffset + time.value * uniforms.scalar / 10.0) % 1.0;\n"
+  "  if (fade < 0.5) {\n"
+  "    fade = fade * 2.0;\n"
+  "  } else {\n"
+  "    fade = (1.0 - fade) * 2.0;\n"
+  "  }\n"
+  "  var xpos : f32 = position.x * uniforms.scale;\n"
+  "  var ypos : f32 = position.y * uniforms.scale;\n"
+  "  var angle : f32 = 3.14159 * 2.0 * fade;\n"
+  "  var xrot : f32 = xpos * cos(angle) - ypos * sin(angle);\n"
+  "  var yrot : f32 = xpos * sin(angle) + ypos * cos(angle);\n"
+  "  xpos = xrot + uniforms.offsetX;\n"
+  "  ypos = yrot + uniforms.offsetY;\n"
+  "  var output : VertexOutput;\n"
+  "  output.v_color = vec4<f32>(fade, 1.0 - fade, 0.0, 1.0) + color;\n"
+  "  output.Position = vec4<f32>(xpos, ypos, 0.0, 1.0);\n"
+  "  return output;\n"
   "}";
 
 static const char* fragment_shader_wgsl =
-  "[[stage(fragment)]]\n"
-  "fn main([[location(0)]] v_color : vec4<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "@stage(fragment)\n"
+  "fn frag_main(@location(0) v_color : vec4<f32>) -> @location(0) vec4<f32> {\n"
   "  return v_color;\n"
   "}";
 // clang-format on
@@ -414,6 +414,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
                   .wgsl_code.source = vertex_shader_wgsl,
+                  .entry            = "vert_main",
                 },
                 .buffer_count = 1,
                 .buffers      = &animometer_vertex_buffer_layout,
@@ -425,6 +426,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
                   .wgsl_code.source = fragment_shader_wgsl,
+                  .entry            = "frag_main",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state_desc,
