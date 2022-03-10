@@ -41,9 +41,9 @@ static float lerp(float t, float a, float b)
 static float grad(int hash, float x, float y, float z)
 {
   // Convert LO 4 bits of hash code into 12 gradient directions
-  int h   = hash & 15;
-  float u = h < 8 ? x : y;
-  float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+  const int h   = hash & 15;
+  const float u = h < 8 ? x : y;
+  const float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
   return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
 }
 
@@ -95,9 +95,9 @@ static float perlin_noise_generate(perlin_noise_t* perlin_noise, float x,
   z -= floor(z);
 
   // Compute fade curves for each of x,y,z
-  float u = fade(x);
-  float v = fade(y);
-  float w = fade(z);
+  const float u = fade(x);
+  const float v = fade(y);
+  const float w = fade(z);
 
   // Hash coordinates of the 8 cube corners
   uint32_t A  = perlin_noise->permutations[X] + Y;
@@ -108,7 +108,7 @@ static float perlin_noise_generate(perlin_noise_t* perlin_noise, float x,
   uint32_t BB = perlin_noise->permutations[B + 1] + Z;
 
   // And add blended results for 8 corners of the cube;
-  float res = lerp(
+  const float res = lerp(
     w,
     lerp(v,
          lerp(u, grad(perlin_noise->permutations[AA], x, y, z),
