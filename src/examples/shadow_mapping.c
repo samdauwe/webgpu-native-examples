@@ -858,7 +858,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  /* Shadow pass */
+  // Shadow pass
   {
     WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &shadow_render_pass.descriptor);
@@ -876,7 +876,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, shadow_pass)
   }
 
-  /* Color render pass */
+  // Color render pass
   {
     color_render_pass.color_attachments[0].view
       = wgpu_context->swap_chain.frame_buffer;
