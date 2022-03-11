@@ -25,9 +25,9 @@ static const char* basic_vertex_shader_wgsl =
   "}";
 
 static const char* vertex_position_color_fragment_shader_wgsl =
-  "[[stage(fragment)]]\n"
-  "fn main([[location(0)]] fragUV: vec2<f32>,\n"
-  "        [[location(1)]] fragPosition: vec4<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "@stage(fragment)\n"
+  "fn main(@location(0) fragUV: vec2<f32>,\n"
+  "        @location(1) fragPosition: vec4<f32>) -> @location(0) vec4<f32> {\n"
   "  return fragPosition;\n"
   "}";
 
