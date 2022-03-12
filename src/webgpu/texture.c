@@ -1222,7 +1222,7 @@ wgpu_create_texture(wgpu_context_t* wgpu_context,
 {
   ASSERT(texture_result);
 
-  bool is_cubemap = texture_result->depth == 6u;
+  const bool is_cubemap = texture_result->depth == 6u;
 
   // Create texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -1238,8 +1238,8 @@ wgpu_create_texture(wgpu_context_t* wgpu_context,
   WGPUTextureView texture_view
     = wgpuTextureCreateView(texture_result->texture, &texture_view_dec);
 
-  bool is_size_power_of_2 = is_power_of_2(texture_result->width)
-                            && is_power_of_2(texture_result->height);
+  const bool is_size_power_of_2 = is_power_of_2(texture_result->width)
+                                  && is_power_of_2(texture_result->height);
   WGPUFilterMode mipmapFilter = is_size_power_of_2 && !is_cubemap ?
                                   WGPUFilterMode_Linear :
                                   WGPUFilterMode_Nearest;
