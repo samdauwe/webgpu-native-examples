@@ -9,10 +9,10 @@ typedef struct wgpu_shader_desc_t {
   struct {
     const uint8_t* data;
     const uint32_t size;
-  } byte_code;
+  } byte_code; /* SPIR-V bytecode */
   struct {
     const char* source;
-  } wgsl_code;
+  } wgsl_code; /* WGSL source code ( ref: https://www.w3.org/TR/WGSL ) */
   const char* entry;
 } wgpu_shader_desc_t;
 
