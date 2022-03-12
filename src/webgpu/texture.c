@@ -330,7 +330,7 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex state and  Fragment state are shared between all pipelines, so
+    // Vertex state and Fragment state are shared between all pipelines, so
     // only create once.
     if (!mipmap_generator->vertex_state_desc.module
         || !mipmap_generator->fragment_state_desc.module) {
@@ -930,9 +930,9 @@ wgpu_texture_cubemap_load_with_stb(wgpu_context_t* wgpu_context,
       &(WGPUImageCopyBuffer) {
         .buffer = staging_buffers[face],
         .layout = (WGPUTextureDataLayout) {
-          .offset = 0,
-          .bytesPerRow = width * channel_count,
-          .rowsPerImage= height,
+          .offset       = 0,
+          .bytesPerRow  = width * channel_count,
+          .rowsPerImage = height,
         },
       },
       // Destination
@@ -940,17 +940,17 @@ wgpu_texture_cubemap_load_with_stb(wgpu_context_t* wgpu_context,
         .texture = texture,
         .mipLevel = 0,
         .origin = (WGPUOrigin3D) {
-          .x=0,
-          .y=0,
-          .z=face,
+          .x = 0,
+          .y = 0,
+          .z = face,
         },
         .aspect = WGPUTextureAspect_All,
       },
       // Copy size
       &(WGPUExtent3D){
-        .width               = width,
-        .height              = height,
-        .depthOrArrayLayers  = 1,
+        .width              = width,
+        .height             = height,
+        .depthOrArrayLayers = 1,
       });
   }
 
