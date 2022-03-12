@@ -31,7 +31,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
 
 /*
- * Copies data into dest.buffer via a temporary staging buffer, doesn't submit
+ * Copies data into buff.buffer via a temporary staging buffer, doesn't submit
  * the resulting command
  */
 void wgpu_record_copy_data_to_buffer(struct wgpu_context_t* wgpu_context,
