@@ -98,4 +98,11 @@ void projection_matrix_convert_clip_space_near_z(mat4* proj_mtx,
                                                  clip_space_near_z_enum dest,
                                                  clip_space_near_z_enum src);
 
+/**
+ * @brief Creates a perspective matrix [near = 1, far = 0]
+ * @ref http://dev.theomader.com/depth-precision/
+ */
+void perspective_matrix_reversed_z(float fovy, float aspect, float near,
+                                   float far, mat4 dest);
+
 #endif
