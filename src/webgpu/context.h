@@ -41,6 +41,7 @@
     = WGPU_VERTBUFFERLAYOUT_DESC(bind_size, vert_attr_desc_##name);
 
 #define MAX_COMMAND_BUFFER_COUNT 256
+#define WGPU_FEATURE_COUNT 12u
 
 /* Initializers */
 
@@ -60,6 +61,10 @@ typedef struct wgpu_context_t {
   WGPUDevice device;
   WGPUQueue queue;
   WGPUInstance instance;
+  struct {
+    WGPUFeatureName feature_name;
+    bool is_supported;
+  } features[WGPU_FEATURE_COUNT];
   struct {
     void* instance;
     uint32_t width;

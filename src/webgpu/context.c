@@ -86,6 +86,27 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   wgpuDeviceSetUncapturedErrorCallback(
     wgpu_context->device, &wgpu_error_callback, (void*)wgpu_context);
 
+  /* Query device features */
+  static const WGPUFeatureName feature_names[WGPU_FEATURE_COUNT] = {
+    WGPUFeatureName_Depth24UnormStencil8,
+    WGPUFeatureName_Depth32FloatStencil8,
+    WGPUFeatureName_TimestampQuery,
+    WGPUFeatureName_PipelineStatisticsQuery,
+    WGPUFeatureName_TextureCompressionBC,
+    WGPUFeatureName_TextureCompressionETC2,
+    WGPUFeatureName_TextureCompressionASTC,
+    WGPUFeatureName_IndirectFirstInstance,
+    WGPUFeatureName_DepthClamping,
+    WGPUFeatureName_DawnShaderFloat16,
+    WGPUFeatureName_DawnInternalUsages,
+    WGPUFeatureName_DawnMultiPlanarFormats,
+  };
+  for (uint32_t i = 0; i < WGPU_FEATURE_COUNT; ++i) {
+    wgpu_context->features[i].feature_name = feature_names[i];
+    wgpu_context->features[i].is_supported
+      = wgpuDeviceHasFeature(wgpu_context->device, feature_names[i]);
+  }
+
   /* Get the default queue from the device */
   wgpu_context->queue = wgpuDeviceGetQueue(wgpu_context->device);
 }
