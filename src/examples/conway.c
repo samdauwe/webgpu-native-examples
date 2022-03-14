@@ -16,7 +16,7 @@
 // Shaders
 // clang-format off
 static const char* compute_shader_wgsl =
-  "[[block]] struct UniformsDesc {\n"
+  "struct UniformsDesc {\n"
   "  computeWidth : u32;\n"
   "  computeHeight : u32;\n"
   "};\n"
