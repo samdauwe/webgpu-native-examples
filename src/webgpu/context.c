@@ -111,6 +111,19 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   wgpu_context->queue = wgpuDeviceGetQueue(wgpu_context->device);
 }
 
+bool wgpu_has_feature(wgpu_context_t* wgpu_context,
+                      WGPUFeatureName feature_name)
+{
+  bool has_feature = false;
+  for (uint32_t i = 0; i < WGPU_FEATURE_COUNT; ++i) {
+    if (wgpu_context->features[i].feature_name == feature_name) {
+      has_feature = wgpu_context->features[i].is_supported;
+      break;
+    }
+  }
+  return has_feature;
+}
+
 void wgpu_setup_window_surface(wgpu_context_t* wgpu_context, void* window)
 {
   wgpu_context->surface.instance = window_get_surface((window_t*)window);
