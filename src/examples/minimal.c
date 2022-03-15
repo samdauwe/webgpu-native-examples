@@ -44,8 +44,8 @@ static const char* vertex_shader_wgsl =
   "}";
 
 static const char* fragment_shader_wgsl =
-  "[[stage(fragment)]]\n"
-  "fn main([[location(0)]] coord: vec2<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "@stage(fragment)\n"
+  "fn main(@location(0) coord: vec2<f32>) -> @location(0) vec4<f32> {\n"
   "  return vec4<f32>(coord.x, coord.y, 0.5, 1.0);\n"
   "};";
 // clang-format on
