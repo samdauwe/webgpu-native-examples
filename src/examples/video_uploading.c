@@ -22,26 +22,26 @@
 // clang-format off
 static const char* vertex_shader_wgsl =
   "struct VertexInput {\n"
-  "  [[location(0)]] position : vec3<f32>;\n"
-  "  [[location(1)]] uv : vec2<f32>;\n"
+  "  @location(0) position : vec3<f32>;\n"
+  "  @location(1) uv : vec2<f32>;\n"
   "};\n"
   "\n"
   "struct VertexOutput {\n"
-  "  [[builtin(position)]] Position : vec4<f32>;\n"
-  "  [[location(0)]] fragUV : vec2<f32>;\n"
+  "  @builtin(position) Position : vec4<f32>;\n"
+  "  @location(0) fragUV : vec2<f32>;\n"
   "};\n"
   "\n"
-  "[[stage(vertex)]]\n"
+  "@stage(vertex)\n"
   "fn main(input : VertexInput) -> VertexOutput {\n"
   "  return VertexOutput(vec4<f32>(input.position, 1.0), input.uv);\n"
   "}";
 
 static const char* fragment_shader_wgsl =
-  "[[binding(0), group(0)]] var mySampler: sampler;\n"
-  "[[binding(1), group(0)]] var myTexture: texture_2d<f32>;\n"
+  "@group(0) @binding(0) var mySampler: sampler;\n"
+  "@group(0) @binding(1) var myTexture: texture_2d<f32>;\n"
   "\n"
-  "[[stage(fragment)]]\n"
-  "fn main([[location(0)]] fragUV : vec2<f32>) -> [[location(0)]] vec4<f32> {\n"
+  "@stage(fragment)\n"
+  "fn main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {\n"
   "  return textureSample(myTexture, mySampler, fragUV);\n"
   "}";
 // clang-format on
