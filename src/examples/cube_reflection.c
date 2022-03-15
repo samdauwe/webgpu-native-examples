@@ -342,6 +342,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
+    ASSERT(pipeline != NULL)
   }
 
   // Plane rendering pipeline
@@ -367,6 +368,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
+    ASSERT(plane_pipeline != NULL)
   }
 
   // Cube reflection rendering pipeline
@@ -394,6 +396,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
+    ASSERT(reflection_pipeline != NULL)
   }
 
   // Partial cleanup
