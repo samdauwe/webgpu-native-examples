@@ -34,6 +34,9 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 
+/* Basis Universal Supercompressed GPU Texture Codec */
+#include <wgpu_basisu.h>
+
 /* -------------------------------------------------------------------------- *
  * Helper functions
  * -------------------------------------------------------------------------- */
@@ -989,6 +992,7 @@ static ktxResult load_ktx_file(const char* filename, ktxTexture** target)
   ktxResult result = KTX_SUCCESS;
   if (!file_exists(filename)) {
     log_fatal("Could not load texture from %s", filename);
+    return KTX_FILE_OPEN_FAILED;
   }
   result = ktxTexture_CreateFromNamedFile(
     filename, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, target);
@@ -1199,6 +1203,141 @@ wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
   };
 }
 
+static texture_result_t
+wgpu_texture_load_from_basis_file(wgpu_context_t* wgpu_context,
+                                  const char* filename)
+{
+  // Read file into memory
+  if (!file_exists(filename)) {
+    log_fatal("Could not load texture from %s", filename);
+    return (texture_result_t){0};
+  }
+
+  file_read_result_t file_read_result = {0};
+  read_file(filename, &file_read_result, false);
+
+  struct wgpu_texture_client_t* texture_client = wgpu_context->texture_client;
+
+  // Transcode file
+  basisu_setup();
+  basisu_transcode_result_t transcode_result = basisu_transcode(
+    (basisu_data_t){
+      .ptr  = file_read_result.data,
+      .size = file_read_result.size,
+    },
+    &texture_client->supported_format_list.values,
+    texture_client->supported_format_list.count, false);
+  if (transcode_result.result_code != BASIS_TRANSCODE_RESULT_SUCCESS) {
+    log_fatal("Could not transcode texture from %s", filename);
+    return (texture_result_t){0};
+  }
+
+  // Create file
+  basisu_image_desc_t* image_desc = &transcode_result.image_desc;
+  WGPUTextureDescriptor texture_desc = {
+    .size          = (WGPUExtent3D) {
+      .width               = image_desc->width,
+      .height              = image_desc->height,
+      .depthOrArrayLayers  = 1,
+     },
+    .mipLevelCount = image_desc->level_count,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = image_desc->format,
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+  };
+  WGPUTexture texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+
+  WGPUCommandEncoder cmd_encoder
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  for (uint32_t level = 0; level < image_desc->level_count; ++level) {
+    uint32_t width  = image_desc->width >> level;
+    uint32_t height = image_desc->height >> level;
+    if (height == 0) {
+      height = 1;
+    }
+
+    // Create a host-visible staging buffer that contains the raw image data
+    size_t texture_size = image_desc->levels[level].size * 4;
+    WGPUBufferDescriptor staging_buffer_desc = {
+      .usage            = WGPUBufferUsage_CopySrc | WGPUBufferUsage_MapWrite,
+      .size             = texture_size,
+      .mappedAtCreation = true,
+    };
+    WGPUBuffer staging_buffer
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &staging_buffer_desc);
+    ASSERT(staging_buffer)
+
+    // Copy texture data into staging buffer
+    void* mapping = wgpuBufferGetMappedRange(staging_buffer, 0, texture_size);
+    ASSERT(mapping)
+    memcpy(mapping, image_desc->levels[level].ptr,
+           image_desc->levels[level].size);
+    wgpuBufferUnmap(staging_buffer);
+
+    // Upload statging buffer to texture
+    wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
+      // Source
+      &(WGPUImageCopyBuffer) {
+        .buffer = staging_buffer,
+        .layout = (WGPUTextureDataLayout) {
+          .offset = 0,
+          .bytesPerRow = texture_size / height,
+          .rowsPerImage= height,
+        },
+      },
+      // Destination
+      &(WGPUImageCopyTexture){
+        .texture = texture,
+        .mipLevel = level,
+        .origin = (WGPUOrigin3D) {
+          .x=0,
+          .y=0,
+          .z=0,
+        },
+        .aspect = WGPUTextureAspect_All,
+      },
+      // Copy size
+      &(WGPUExtent3D){
+        .width               = MAX(1u, width),
+        .height              = MAX(1u, height),
+        .depthOrArrayLayers  = 1,
+      });
+
+    WGPU_RELEASE_RESOURCE(Buffer, staging_buffer);
+  }
+
+  WGPUCommandBuffer command_buffer
+    = wgpuCommandEncoderFinish(cmd_encoder, NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
+
+  // Sumbit commmand buffer and cleanup
+  ASSERT(command_buffer != NULL)
+
+  // Submit to the queue
+  wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
+
+  // Release command buffer
+  WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
+
+  // Clean up staging resources
+  basisu_free(image_desc);
+  basisu_shutdown();
+  free(file_read_result.data);
+
+  return (texture_result_t){
+    .texture         = texture,
+    .width           = texture_desc.size.width,
+    .height          = texture_desc.size.height,
+    .depth           = texture_desc.size.depthOrArrayLayers,
+    .mip_level_count = texture_desc.mipLevelCount,
+    .format          = texture_desc.format,
+    .dimension       = texture_desc.dimension,
+  };
+}
+
 static texture_result_t wgpu_texture_client_load_texture_from_file(
   struct wgpu_texture_client_t* texture_client, const char* filename,
   struct wgpu_texture_load_options_t* options)
@@ -1207,9 +1346,13 @@ static texture_result_t wgpu_texture_client_load_texture_from_file(
       || filename_has_extension(filename, "png")) {
     return wgpu_texture_load_with_stb(texture_client, filename, options);
   }
-  if (filename_has_extension(filename, "ktx")) {
+  else if (filename_has_extension(filename, "ktx")) {
     return wgpu_texture_load_from_ktx_file(texture_client->wgpu_context,
                                            filename);
+  }
+  else if (filename_has_extension(filename, "basis")) {
+    return wgpu_texture_load_from_basis_file(texture_client->wgpu_context,
+                                             filename);
   }
 
   return (texture_result_t){0};
