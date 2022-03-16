@@ -192,6 +192,10 @@ Generates a 3D texture on the cpu (using perlin noise), uploads it to the device
 
 This example shows how to render an equirectangular panorama consisting of a single rectangular image. The equirectangular input can be used for a 360 degrees viewing experience to achieve more realistic surroundings and convincing real-time effects.
 
+#### [Basis Universal texture loading](src/examples/basisu.c)
+
+This example shows how to how to load [Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures in a WebGPU application.
+
 #### [Reversed Z](src/examples/reversed_z.c)
 
 This example shows the use of reversed z technique for better utilization of depth buffer precision. The left column uses regular method, while the right one uses reversed z technique. Both are using depth32float as their depth buffer format. A set of red and green planes are positioned very close to each other. Higher sets are placed further from camera (and are scaled for better visual purpose). To use  reversed z to render your scene, you will need depth store value to be 0.0, depth compare function to be greater, and remap depth range by multiplying an additional matrix to your projection matrix.
@@ -396,11 +400,11 @@ This example shows how to render an infinite landscape for the camera to meander
 
 A WebGPU example demonstrating pseudorandom number generation on the GPU. A [32-bit PCG hash](https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/) is used which is fast enough to be useful for real-time, while also being high-quality enough for almost any graphics use-case.
 
-#### [A Conway Game Of Life](src/examples/conway.c)
+#### [Conway Game Of Life](src/examples/conway.c)
 
 A binary Conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life). This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway.ts) to native code.
 
-#### [A Conway Game Of Life With Paletted Blurring Over Time](src/examples/conway_paletted_blurring.c)
+#### [Conway Game Of Life With Paletted Blurring Over Time](src/examples/conway_paletted_blurring.c)
 
 A conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) with paletted blurring over time. This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway2.ts) to native code.
 
@@ -444,7 +448,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
-* [ ] [Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example
+* [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
 * [ ] [Postprocessing](https://github.com/gnikoloff/webgpu-dojo)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)

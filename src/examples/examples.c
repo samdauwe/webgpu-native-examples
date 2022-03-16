@@ -7,6 +7,7 @@
 #include "../core/macro.h"
 
 void example_animometer(int argc, char* argv[]);
+void example_basisu(int argc, char* argv[]);
 void example_bind_groups(int argc, char* argv[]);
 void example_bloom(int argc, char* argv[]);
 void example_clear_screen(int argc, char* argv[]);
@@ -66,6 +67,7 @@ void example_wireframe_vertex_pulling(int argc, char* argv[]);
 
 static examplecase_t g_example_cases[] = {
   {"animometer", example_animometer},
+  {"basisu", example_basisu},
   {"bind_groups", example_bind_groups},
   {"bloom", example_bloom},
   {"clear_screen", example_clear_screen},

@@ -44,18 +44,18 @@ add_subdirectory(external/dawn/dawn dawn EXCLUDE_FROM_ALL)
 set(DAWN_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/dawn)
 
 # WebGPU native
-set(HEADERS
+set(WEBGPU_NATIVE_HEADERS
   lib/wgpu_native/wgpu_native.h
 )
 
-set(SOURCES
+set(WEBGPU_NATIVE_SOURCES
   ${SOURCES}
   lib/wgpu_native/wgpu_native.cpp
 )
 
 set(TARGET wgpu_native)
 
-add_library(${TARGET} SHARED ${HEADERS} ${SOURCES})
+add_library(${TARGET} SHARED ${WEBGPU_NATIVE_HEADERS} ${WEBGPU_NATIVE_SOURCES})
 set_property(TARGET ${TARGET} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(${TARGET} PROPERTIES
     PREFIX ""
@@ -82,6 +82,11 @@ target_link_libraries(${TARGET}
 # pthread
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
+# Basis Universal Supercompressed GPU Texture Codec
+set(BASISU_SOURCES
+  external/basisu/wgpu_basisu.cpp
+)
 
 # cimgui + Dear ImGui
 set(CIMGUI_SOURCES
@@ -183,6 +188,7 @@ set(SOURCES
     ${SOURCES}
     src/examples/animometer.c
     # src/examples/aquarium.c
+    src/examples/basisu.c
     src/examples/bind_groups.c
     src/examples/bloom.c
     src/examples/clear_screen.c
@@ -258,6 +264,7 @@ set(TARGET wgpu_sample_launcher)
 add_executable(${TARGET}
     ${HEADERS}
     ${SOURCES}
+    ${BASISU_SOURCES}
     ${CIMGUI_SOURCES}
     ${CJSON_SOURCES}
     ${KTX_SOURCES}
@@ -311,6 +318,7 @@ elseif(APPLE)
 else()
     target_include_directories(${TARGET}
         PRIVATE ${DAWN_BINARY_DIR}/gen/src/include
+        PRIVATE external/basisu
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cimgui
@@ -351,6 +359,7 @@ endif()
 
 set_directory_properties(PROPERTIES VS_STARTUP_PROJECT ${TARGET})
 source_group(TREE "${CMAKE_SOURCE_DIR}/src" FILES ${HEADERS} ${SOURCES})
+source_group(external/basisu FILES ${BASISU_SOURCES})
 source_group(external/cimgui FILES ${CIMGUI_SOURCES})
 source_group(external/ktx FILES ${KTX_SOURCES})
 source_group(external/rply FILES ${RPLY_SOURCES})
