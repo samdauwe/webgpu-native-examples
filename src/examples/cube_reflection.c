@@ -491,7 +491,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 36, 1, 0, 0, 0);
     }
 
-    wgpuRenderPassEncoderEndPass(rpass_enc);
+    wgpuRenderPassEncoderEnd(rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
   }
 

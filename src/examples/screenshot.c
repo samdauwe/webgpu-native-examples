@@ -498,7 +498,7 @@ build_command_buffer(wgpu_context_t* wgpu_context,
   wgpu_gltf_model_draw(dragon, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw ui overlay

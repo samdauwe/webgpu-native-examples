@@ -1100,7 +1100,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                        default_canvas_height, 0.0f, 1.0f);
       wgpuRenderPassEncoderDraw(color_pass, geometry_draw_count, num_instances,
                                 0, 0);
-      wgpuRenderPassEncoderEndPass(color_pass);
+      wgpuRenderPassEncoderEnd(color_pass);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, color_pass)
     }
   }
@@ -1123,7 +1123,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
           viewport_width / 2.0f, default_canvas_height, 0.0f, 1.0f);
         wgpuRenderPassEncoderDraw(depth_pre_pass, geometry_draw_count,
                                   num_instances, 0, 0);
-        wgpuRenderPassEncoderEndPass(depth_pre_pass);
+        wgpuRenderPassEncoderEnd(depth_pre_pass);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, depth_pre_pass)
       }
       // precisionErrorPass
@@ -1146,7 +1146,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
           viewport_width / 2.0f, default_canvas_height, 0.0f, 1.0f);
         wgpuRenderPassEncoderDraw(precision_error_pass, geometry_draw_count,
                                   num_instances, 0, 0);
-        wgpuRenderPassEncoderEndPass(precision_error_pass);
+        wgpuRenderPassEncoderEnd(precision_error_pass);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, precision_error_pass)
       }
     }
@@ -1171,7 +1171,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
           viewport_width / 2.0f, default_canvas_height, 0.0f, 1.0f);
         wgpuRenderPassEncoderDraw(depth_pre_pass, geometry_draw_count,
                                   num_instances, 0, 0);
-        wgpuRenderPassEncoderEndPass(depth_pre_pass);
+        wgpuRenderPassEncoderEnd(depth_pre_pass);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, depth_pre_pass)
       }
       // depthTextureQuadPass
@@ -1188,7 +1188,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
           depth_texture_quad_pass, (viewport_width * m) / 2.0f, 0.0f,
           viewport_width / 2.0f, default_canvas_height, 0.0f, 1.0f);
         wgpuRenderPassEncoderDraw(depth_texture_quad_pass, 6, 1, 0, 0);
-        wgpuRenderPassEncoderEndPass(depth_texture_quad_pass);
+        wgpuRenderPassEncoderEnd(depth_texture_quad_pass);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, depth_texture_quad_pass)
       }
     }

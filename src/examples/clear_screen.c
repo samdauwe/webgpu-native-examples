@@ -101,7 +101,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass.descriptor);
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(rpass);
+  wgpuRenderPassEncoderEnd(rpass);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
 
   // Get command buffer

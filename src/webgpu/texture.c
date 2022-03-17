@@ -552,7 +552,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
       wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
                                         bind_groups[bind_group_index], 0, NULL);
       wgpuRenderPassEncoderDraw(pass_encoder, 3, 1, 0, 0);
-      wgpuRenderPassEncoderEndPass(pass_encoder);
+      wgpuRenderPassEncoderEnd(pass_encoder);
 
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
     }

@@ -618,7 +618,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
                                            storage_buffers.positions_out.buffer,
                                          0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, num_bodies, 0, 0);
-    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 

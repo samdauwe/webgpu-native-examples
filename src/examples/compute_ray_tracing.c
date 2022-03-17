@@ -620,7 +620,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       graphics.bind_group, 0, 0);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 

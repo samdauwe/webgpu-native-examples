@@ -380,7 +380,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw text overlay on frame

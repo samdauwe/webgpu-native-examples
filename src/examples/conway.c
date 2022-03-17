@@ -585,7 +585,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       is_forward ? graphics.bind_groups[0] : graphics.bind_groups[1], 0, NULL);
     // Double-triangle for fullscreen has 6 vertices
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
-    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 

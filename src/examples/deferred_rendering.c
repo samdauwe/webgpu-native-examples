@@ -1281,7 +1281,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetIndexBuffer(
       gbuffer_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(gbuffer_pass, index_count, 1, 0, 0, 0);
-    wgpuRenderPassEncoderEndPass(gbuffer_pass);
+    wgpuRenderPassEncoderEnd(gbuffer_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, gbuffer_pass)
   }
 
@@ -1316,7 +1316,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetBindGroup(debug_view_pass, 1,
                                         surface_size_uniform_bind_group, 0, 0);
       wgpuRenderPassEncoderDraw(debug_view_pass, 6, 1, 0, 0);
-      wgpuRenderPassEncoderEndPass(debug_view_pass);
+      wgpuRenderPassEncoderEnd(debug_view_pass);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, debug_view_pass)
     }
     else {
@@ -1335,7 +1335,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetBindGroup(deferred_rendering_pass, 2,
                                         surface_size_uniform_bind_group, 0, 0);
       wgpuRenderPassEncoderDraw(deferred_rendering_pass, 6, 1, 0, 0);
-      wgpuRenderPassEncoderEndPass(deferred_rendering_pass);
+      wgpuRenderPassEncoderEnd(deferred_rendering_pass);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, deferred_rendering_pass)
     }
   }

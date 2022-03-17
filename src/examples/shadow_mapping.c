@@ -872,7 +872,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       shadow_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(shadow_pass, index_count, 1, 0, 0, 0);
 
-    wgpuRenderPassEncoderEndPass(shadow_pass);
+    wgpuRenderPassEncoderEnd(shadow_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, shadow_pass)
   }
 
@@ -892,7 +892,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       render_pass, index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(render_pass, index_count, 1, 0, 0, 0);
 
-    wgpuRenderPassEncoderEndPass(render_pass);
+    wgpuRenderPassEncoderEnd(render_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
   }
 

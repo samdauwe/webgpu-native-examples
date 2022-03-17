@@ -465,7 +465,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetPipeline(rpass, render_pipelines.triangle_regular);
     wgpuRenderPassEncoderDraw(rpass, 3, 1, 0, 0);
 
-    wgpuRenderPassEncoderEndPass(rpass);
+    wgpuRenderPassEncoderEnd(rpass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
   }
 
@@ -499,7 +499,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetPipeline(rpass, render_pipelines.lines);
     wgpuRenderPassEncoderDraw(rpass, 4, 1, 0, 0);
 
-    wgpuRenderPassEncoderEndPass(rpass);
+    wgpuRenderPassEncoderEnd(rpass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
   }
 

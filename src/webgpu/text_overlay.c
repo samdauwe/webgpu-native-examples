@@ -545,6 +545,6 @@ void text_overlay_draw_frame(text_overlay_t* text_overlay, WGPUTextureView view)
     wgpuRenderPassEncoderDraw(rpass_enc, 4, 1, j * 4, 0);
   }
 
-  wgpuRenderPassEncoderEndPass(rpass_enc);
+  wgpuRenderPassEncoderEnd(rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
 }

@@ -504,7 +504,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw ui overlay

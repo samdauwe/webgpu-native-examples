@@ -606,7 +606,7 @@ void imgui_overlay_draw_frame(imgui_overlay_t* imgui_overlay,
     global_vtx_offset += cmd_list->VtxBuffer.Size;
   }
 
-  wgpuRenderPassEncoderEndPass(rpass_enc);
+  wgpuRenderPassEncoderEnd(rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
 }
 

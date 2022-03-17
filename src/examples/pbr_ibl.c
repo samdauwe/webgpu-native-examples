@@ -879,7 +879,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
                                         dim);
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
 
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
@@ -1339,7 +1339,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
         wgpu_gltf_model_draw(models.skybox,
                              (wgpu_gltf_model_render_options_t){0});
         // End render pass
-        wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+        wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
       }
     }
@@ -1832,7 +1832,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
         wgpu_gltf_model_draw(models.skybox,
                              (wgpu_gltf_model_render_options_t){0});
         // End render pass
-        wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+        wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
         WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
       }
     }
@@ -2109,7 +2109,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw ui overlay
