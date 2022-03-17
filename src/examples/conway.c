@@ -570,7 +570,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       wgpu_context->cpass_enc,
       (uint32_t)ceil(uniforms.desc.compute_width / 8.0f),
       (uint32_t)ceil(uniforms.desc.compute_height / 8.0f), 1);
-    wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 

@@ -532,7 +532,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
                                            0, NULL);
         wgpuComputePassEncoderDispatch(
           wgpu_context->cpass_enc, ceil(level_width / 64.f), level_height, 1);
-        wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+        wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
       }
       else {
@@ -545,7 +545,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
                                            0, NULL);
         wgpuComputePassEncoderDispatch(
           wgpu_context->cpass_enc, ceil(level_width / 64.f), level_height, 1);
-        wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+        wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
       }
     }
@@ -761,7 +761,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                        compute_bind_group, 0, NULL);
     wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
                                    ceil(num_particles / 64.f), 1, 1);
-    wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 

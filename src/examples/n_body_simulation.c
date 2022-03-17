@@ -600,7 +600,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
                                        bind_groups.compute[frame_idx], 0, NULL);
     wgpuComputePassEncoderDispatch(
       wgpu_context->cpass_enc, ceil(num_bodies / (float)workgroup_size), 1, 1);
-    wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
     frame_idx = (frame_idx + 1) % 2;
   }

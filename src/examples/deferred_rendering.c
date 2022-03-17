@@ -1295,7 +1295,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       light_pass, 0, lights.buffer_compute_bind_group, 0, NULL);
     wgpuComputePassEncoderDispatch(light_pass,
                                    (uint32_t)ceil(max_num_lights / 64.f), 1, 1);
-    wgpuComputePassEncoderEndPass(light_pass);
+    wgpuComputePassEncoderEnd(light_pass);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, light_pass)
   }
 

@@ -583,7 +583,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
                                    textures.compute_target.size.width / 16,
                                    textures.compute_target.size.height / 16, 1);
-    wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
