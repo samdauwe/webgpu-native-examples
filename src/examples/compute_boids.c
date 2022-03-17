@@ -130,7 +130,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type = WGPUBufferBindingType_ReadOnlyStorage,
         .minBindingSize = NUM_PARTICLES * 16,
       },
       .sampler = {0},
@@ -430,7 +430,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
       particle_bind_groups[context->frame.index % 2], 0, NULL);
     wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc, work_group_count, 1,
                                    1);
-    wgpuComputePassEncoderEndPass(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
@@ -447,7 +447,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     wgpuRenderPassEncoderSetVertexBuffer(
       wgpu_context->rpass_enc, 1, sprite_vertex_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, NUM_PARTICLES, 0, 0);
-    wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
