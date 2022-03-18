@@ -175,14 +175,20 @@ void wgpu_setup_deph_stencil(
     wgpu_context->depth_stencil.texture, &depth_texture_view_dec);
 
   wgpu_context->depth_stencil.att_desc = (WGPURenderPassDepthStencilAttachment){
-    .view           = wgpu_context->depth_stencil.texture_view,
-    .depthLoadOp    = WGPULoadOp_Clear,
-    .depthStoreOp   = WGPUStoreOp_Store,
-    .clearDepth     = 1.0f,
-    .stencilLoadOp  = WGPULoadOp_Clear,
-    .stencilStoreOp = WGPUStoreOp_Store,
-    .clearStencil   = 0,
+    .view            = wgpu_context->depth_stencil.texture_view,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+    .depthClearValue = 1.0f,
+    .clearDepth      = 1.0f,
+    .clearStencil    = 0,
   };
+
+  // stencilLoadOp & stencilStoreOp must be set if the attachment has stencil
+  // aspect or stencilReadOnly is false
+  if (format == WGPUTextureFormat_Depth24PlusStencil8) {
+    wgpu_context->depth_stencil.att_desc.stencilLoadOp  = WGPULoadOp_Clear;
+    wgpu_context->depth_stencil.att_desc.stencilStoreOp = WGPUStoreOp_Store;
+  }
 }
 
 void wgpu_setup_swap_chain(wgpu_context_t* wgpu_context)
