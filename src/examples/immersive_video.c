@@ -362,7 +362,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Front,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
@@ -374,7 +374,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Vertex buffer layout
-  WGPU_VERTEX_BUFFER_LAYOUT(shadertoy, sizeof(vertex_t),
+  WGPU_VERTEX_BUFFER_LAYOUT(immersive_video, sizeof(vertex_t),
                             // Attribute location 0: Position
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
                                                offsetof(vertex_t, position)))
@@ -384,10 +384,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
-                      .file = "shaders/equirectangular_image/main.vert.spv",
+                      .file = "shaders/immersive_video/main.vert.spv",
                     },
                     .buffer_count = 1,
-                    .buffers = &shadertoy_vertex_buffer_layout,
+                    .buffers = &immersive_video_vertex_buffer_layout,
                   });
 
   // Fragment state
@@ -395,7 +395,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
-                      .file = "shaders/equirectangular_image/main.frag.spv",
+                      .file = "shaders/immersive_video/main.frag.spv",
                     },
                     .target_count = 1,
                     .targets = &color_target_state_desc,
