@@ -22,7 +22,7 @@
  * https://thxforthefish.com/posts/reverse_z/
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/reversedZ.ts
+ * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/reversedZ/main.ts
  * https://developer.nvidia.com/content/depth-precision-visualized
  * -------------------------------------------------------------------------- */
 
@@ -191,7 +191,7 @@ static const WGPUCompareFunction depth_compare_funcs[2] = {
   WGPUCompareFunction_Greater, // Reversed
 };
 
-static const float depth_load_values[2] = {
+static const float depth_clear_values[2] = {
   1.0f, // Default
   0.0f, // Reversed
 };
@@ -631,13 +631,10 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
 static void prepare_depth_pre_pass_descriptor()
 {
   dppd_rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
-    .view           = textures.depth.view,
-    .depthLoadOp    = WGPULoadOp_Clear,
-    .depthStoreOp   = WGPUStoreOp_Store,
-    .clearDepth     = 1.0f,
-    .stencilLoadOp  = WGPULoadOp_Clear,
-    .stencilStoreOp = WGPUStoreOp_Store,
-    .clearStencil   = 0,
+    .view            = textures.depth.view,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+    .depthClearValue = 1.0f,
   };
 
   depth_pre_pass_descriptor = (WGPURenderPassDescriptor){
@@ -669,13 +666,10 @@ static void prepare_draw_pass_descriptors()
     };
 
     dpd_rp_ds_att_descriptors[0] = (WGPURenderPassDepthStencilAttachment){
-      .view           = textures.default_depth.view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
+      .view            = textures.default_depth.view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
     };
 
     draw_pass_descriptors[0] = (WGPURenderPassDescriptor){
@@ -694,13 +688,10 @@ static void prepare_draw_pass_descriptors()
     };
 
     dpd_rp_ds_att_descriptors[1] = (WGPURenderPassDepthStencilAttachment){
-      .view           = textures.default_depth.view,
-      .depthLoadOp    = WGPULoadOp_Load,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
+      .view            = textures.default_depth.view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
     };
 
     draw_pass_descriptors[1] = (WGPURenderPassDescriptor){
@@ -1085,8 +1076,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   if (current_render_mode == RenderMode_Color) {
     for (uint32_t m = 0; m < (uint32_t)ARRAY_SIZE(depth_buffer_modes); ++m) {
-      dpd_rp_color_att_descriptors[m][0].view  = attachment;
-      dpd_rp_ds_att_descriptors[m].depthLoadOp = depth_load_values[m];
+      dpd_rp_color_att_descriptors[m][0].view      = attachment;
+      dpd_rp_ds_att_descriptors[m].depthClearValue = depth_clear_values[m];
       WGPURenderPassEncoder color_pass = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc, &draw_pass_descriptors[m]);
       wgpuRenderPassEncoderSetPipeline(color_pass,
@@ -1108,7 +1099,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     for (uint32_t m = 0; m < (uint32_t)ARRAY_SIZE(depth_buffer_modes); ++m) {
       // depthPrePass
       {
-        dppd_rp_ds_att_descriptor.depthLoadOp = depth_load_values[m];
+        dppd_rp_ds_att_descriptor.depthClearValue = depth_clear_values[m];
         WGPURenderPassEncoder depth_pre_pass
           = wgpuCommandEncoderBeginRenderPass(wgpu_context->cmd_enc,
                                               &depth_pre_pass_descriptor);
@@ -1128,8 +1119,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       }
       // precisionErrorPass
       {
-        dpd_rp_color_att_descriptors[m][0].view  = attachment;
-        dpd_rp_ds_att_descriptors[m].depthLoadOp = depth_load_values[m];
+        dpd_rp_color_att_descriptors[m][0].view      = attachment;
+        dpd_rp_ds_att_descriptors[m].depthClearValue = depth_clear_values[m];
         WGPURenderPassEncoder precision_error_pass
           = wgpuCommandEncoderBeginRenderPass(wgpu_context->cmd_enc,
                                               &draw_pass_descriptors[m]);
@@ -1156,7 +1147,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     for (uint32_t m = 0; m < (uint32_t)ARRAY_SIZE(depth_buffer_modes); ++m) {
       // depthPrePass
       {
-        dppd_rp_ds_att_descriptor.depthLoadOp = depth_load_values[m];
+        dppd_rp_ds_att_descriptor.depthClearValue = depth_clear_values[m];
         WGPURenderPassEncoder depth_pre_pass
           = wgpuCommandEncoderBeginRenderPass(wgpu_context->cmd_enc,
                                               &depth_pre_pass_descriptor);

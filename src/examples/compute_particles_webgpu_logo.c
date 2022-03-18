@@ -324,13 +324,12 @@ static void setup_render_pass()
 
   // Depth attachment
   render_pass_depth_stencil_att_desc = (WGPURenderPassDepthStencilAttachment){
-    .view           = depth_texture.view,
-    .depthLoadOp    = WGPULoadOp_Clear,
-    .depthStoreOp   = WGPUStoreOp_Store,
-    .clearDepth     = 1.0f,
-    .stencilLoadOp  = WGPULoadOp_Clear,
-    .stencilStoreOp = WGPUStoreOp_Store,
-    .clearStencil   = 0,
+    .view            = depth_texture.view,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+    .depthClearValue = 1.0f,
+    .clearDepth      = 1.0f,
+    .clearStencil    = 0,
   };
 
   // Render pass descriptor

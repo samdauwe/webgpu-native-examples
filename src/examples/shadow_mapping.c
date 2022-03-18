@@ -394,13 +394,12 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     // Shadow pass descriptor
     shadow_render_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view           = textures.shadow_depth_texture.view,
-        .depthLoadOp    = WGPULoadOp_Clear,
-        .depthStoreOp   = WGPUStoreOp_Store,
-        .clearDepth     = 1.0f,
-        .stencilLoadOp  = WGPULoadOp_Clear,
-        .stencilStoreOp = WGPUStoreOp_Store,
-        .clearStencil   = 0,
+        .view            = textures.shadow_depth_texture.view,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
+        .clearDepth      = 1.0f,
+        .clearStencil    = 0,
       };
 
     shadow_render_pass.descriptor = (WGPURenderPassDescriptor){

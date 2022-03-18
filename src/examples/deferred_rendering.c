@@ -288,7 +288,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Texture view
+        // Binding 0: Position texture view
         .binding = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -298,7 +298,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Texture view
+        // Binding 1: Normal texture view
         .binding = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -308,7 +308,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Texture view
+        // Binding 2: Albedo texture view
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -799,13 +799,12 @@ static void setup_render_passes()
     // Render pass depth stencil attachment descriptor
     write_gbuffer_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view           = depth_texture_view,
-        .depthLoadOp    = WGPULoadOp_Clear,
-        .depthStoreOp   = WGPUStoreOp_Store,
-        .clearDepth     = 1.0f,
-        .stencilLoadOp  = WGPULoadOp_Clear,
-        .stencilStoreOp = WGPUStoreOp_Store,
-        .clearStencil   = 0,
+        .view            = depth_texture_view,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
+        .clearDepth      = 1.0f,
+        .clearStencil    = 0,
       };
 
     // Render pass descriptor
