@@ -10,7 +10,32 @@ From the very beginning, Google had both native and in-browser use of their impl
 
 <img src="./doc/images/WebGPU_API.png"/>
 
-This repository contains a collection of open source C examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) the open-source and cross-platform implementation of the work-in-progress [WebGPU](https://gpuweb.github.io/gpuweb/) standard. 
+This repository contains a collection of open source C examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) the open-source and cross-platform implementation of the work-in-progress [WebGPU](https://gpuweb.github.io/gpuweb/) standard.
+
+## Table of Contents
+
++ [Supported Platforms](#Supported-Platforms)
++ [Get the Sources](#Get-the-Sources)
++ [Building for native with Dawn](#Building-for-native-with-Dawn)
++ [Running the examples](#Running-the-examples)
++ [Project Layout](#Project-Layout)
++ [Examples](#Examples)
+    + [Basics](#Basics)
+    + [glTF](#glTF)
+    + [Advanced](#Advanced)
+    + [Performance](#Performance)
+    + [Physically Based Rendering](#Physically-Based-Rendering)
+    + [Deferred](#Deferred)
+    + [Compute Shader](#Compute-Shader)
+    + [User Interface](#User-Interface)
+    + [Effects](#Effects)
+    + [Extensions](#Extensions)
+    + [Misc](#Misc)
++ [Dependencies](#Dependencies)
++ [Credits](#Credits)
++ [References](#References)
++ [Roadmap](#Roadmap)
++ [License](#License)
 
 ## Supported Platforms
 
@@ -443,7 +468,9 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw)
 * [Changelog for WebGPU in Chromium / Dawn 98](https://t.co/fS1NR5bog0)
 
-## Roadmap: March - May 2022
+## Roadmap
+
+### March - May 2022
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
