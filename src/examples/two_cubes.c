@@ -18,14 +18,14 @@
  * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/twoCubes
  * -------------------------------------------------------------------------- */
 
-#define NUMBER_OF_CUBES 2
+#define NUMBER_OF_CUBES 2ull
 
 // Settings
 static struct {
   uint64_t number_of_cubes;
   bool render_bundles;
 } settings = {
-  .number_of_cubes = (uint64_t)NUMBER_OF_CUBES,
+  .number_of_cubes = NUMBER_OF_CUBES,
   .render_bundles  = true,
 };
 
