@@ -22,7 +22,7 @@
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/msaa-line
  * -------------------------------------------------------------------------- */
 
-#define NUMBER_OF_LINES 50
+#define NUMBER_OF_LINES 50u
 static const uint32_t sample_count = 4;
 
 typedef struct vertex_t {
@@ -59,10 +59,10 @@ static bool prepared             = false;
 
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  uint32_t vertex_count = (uint32_t)NUMBER_OF_LINES * 2;
+  uint32_t vertex_count = NUMBER_OF_LINES * 2;
   vertex_t vertex_data[vertex_count];
   float percent = 0, sin_value = 0, cos_value = 0;
-  for (uint32_t i = 0; i < (uint32_t)NUMBER_OF_LINES; ++i) {
+  for (uint32_t i = 0; i < NUMBER_OF_LINES; ++i) {
     percent                = (float)i / (float)NUMBER_OF_LINES;
     sin_value              = sinf(percent * 2.f * PI);
     cos_value              = cosf(percent * 2.f * PI);
