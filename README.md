@@ -444,6 +444,7 @@ Just like all software, WebGPU Native Examples and Demos are built on the should
 
 ### Available as git submodules ###
 
+* [basisu](https://github.com/BinomialLLC/basis_universal): Single File Basis Universal Transcoder.
 * [cglm](https://github.com/recp/cglm): Highly Optimized Graphics Math (glm) for C.
 * [cgltf](https://github.com/jkuhlmann/cgltf): Single-file glTF 2.0 loader and writer written in C99.
 * [cimgui](https://github.com/cimgui/cimgui): c-api for [Dear ImGui](https://github.com/ocornut/imgui)
