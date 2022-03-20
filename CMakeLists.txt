@@ -138,6 +138,7 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
 
 set(HEADERS
     src/core/api.h
+    src/core/argparse.h
     src/core/camera.h
     src/core/file.h
     src/core/frustum.h
@@ -164,6 +165,7 @@ set(HEADERS
 
 set(SOURCES
     src/main.c
+    src/core/argparse.c
     src/core/camera.c
     src/core/file.c
     src/core/frustum.c
@@ -226,6 +228,7 @@ set(SOURCES
     src/examples/pbr_basic.c
     src/examples/pbr_ibl.c
     src/examples/pbr_texture.c
+    # src/examples/post_processing.c
     src/examples/prng.c
     src/examples/radial_blur.c
     src/examples/reversed_z.c
