@@ -19,23 +19,6 @@
  * https://github.com/muimota/p5video360
  * -------------------------------------------------------------------------- */
 
-// Vertex layout used in this example
-typedef struct {
-  vec3 position;
-} vertex_t;
-
-// Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
-
-// Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
-
 // Uniform buffer block object
 static struct {
   WGPUBuffer buffer;
@@ -75,8 +58,10 @@ static WGPUPipelineLayout pipeline_layout;
 static WGPURenderPipeline pipeline;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // The bind group layout
 static WGPUBindGroupLayout bind_group_layout;
@@ -104,43 +89,6 @@ static const char* video_file_location
 // Other variables
 static const char* example_title = "Immersive Video";
 static bool prepared             = false;
-
-static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
-{
-  // Setup vertices (x, y, z)
-  static const vertex_t vertex_buffer[4] = {
-    {
-      .position = {-1.0f, 1.0f, 0.0f}, // Vertex 0
-    },
-    {
-      .position = {1.0f, 1.0f, 0.0f}, // Vertex 1
-    },
-    {
-      .position = {-1.0f, -1.0f, 0.0f}, // Vertex 2
-    },
-    {
-      .position = {1.0f, -1.0f, 0.0f}, // Vertex 3
-    },
-  };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
-
-  // Setup indices
-  static const uint16_t index_buffer[6] = {
-    0, 1, 2, // Triangle 0
-    2, 1, 3  // Triangle 1
-  };
-  indices.count              = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
-
-  // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
-
-  // Create index buffer
-  indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
-}
 
 static void prepare_video_texture(wgpu_context_t* wgpu_context)
 {
@@ -267,7 +215,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -280,9 +228,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 
   // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
+  render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
+    .colorAttachments     = render_pass.color_attachments,
   };
 }
 
@@ -373,12 +321,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex buffer layout
-  WGPU_VERTEX_BUFFER_LAYOUT(immersive_video, sizeof(vertex_t),
-                            // Attribute location 0: Position
-                            WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
-                                               offsetof(vertex_t, position)))
-
   // Vertex state
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                     wgpu_context, &(wgpu_vertex_state_t){
@@ -386,8 +328,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       // Vertex shader SPIR-V
                       .file = "shaders/immersive_video/main.vert.spv",
                     },
-                    .buffer_count = 1,
-                    .buffers = &immersive_video_vertex_buffer_layout,
+                    .buffer_count = 0,
+                    .buffers = NULL,
                   });
 
   // Fragment state
@@ -463,7 +405,6 @@ static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     prepare_video(video_file_location);
-    prepare_vertex_and_index_buffers(context->wgpu_context);
     prepare_video_texture(context->wgpu_context);
     prepare_mouse_state(context->wgpu_context);
     prepare_uniform_buffers(context);
@@ -511,7 +452,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   // Create command encoder
   wgpu_context->cmd_enc
@@ -519,7 +460,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Create render pass encoder for encoding drawing commands
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+    wgpu_context->cmd_enc, &render_pass.descriptor);
 
   // Bind the rendering pipeline
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
@@ -538,18 +479,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind vertex buffer (contains position)
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-
-  // Bind index buffer
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint16, 0,
-                                      WGPU_WHOLE_SIZE);
-
-  // Draw indexed quad
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
-                                   0, 0);
+  // Draw quad
+  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
 
   // End render pass
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
@@ -607,8 +538,6 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Texture, video_texture.texture)
   WGPU_RELEASE_RESOURCE(TextureView, video_texture.view)
   WGPU_RELEASE_RESOURCE(Sampler, video_texture.sampler)
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
