@@ -53,16 +53,8 @@ static const char* fragment_shader_wgsl =
 
 // Vertex buffers
 static struct {
-  // Positions
-  struct {
-    WGPUBuffer buffer;
-    uint32_t count;
-  } positions;
-  // Colors
-  struct {
-    WGPUBuffer buffer;
-    uint32_t count;
-  } colors;
+  wgpu_buffer_t positions; // Positions
+  wgpu_buffer_t colors;    // Colors
 } square = {0};
 
 // Pipeline
@@ -102,10 +94,13 @@ static void prepare_vertex_buffers(wgpu_context_t* wgpu_context)
     -0.5f, -0.5f, 0.0f, // v2
     0.5f,  -0.5f, 0.0f, // v3
   };
-  square.positions.count         = 4;
-  uint32_t square_positions_size = sizeof(positions);
-  square.positions.buffer        = wgpu_create_buffer_from_data(
-    wgpu_context, positions, square_positions_size, WGPUBufferUsage_Vertex);
+  square.positions = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(positions),
+                    .count = 4,
+                    .initial.data = positions,
+                  });
 
   static const float colors[16] = {
     1.0f, 0.0f, 0.0f, 1.0f, // v0
@@ -113,10 +108,13 @@ static void prepare_vertex_buffers(wgpu_context_t* wgpu_context)
     0.0f, 0.0f, 1.0f, 1.0f, // v2
     1.0f, 1.0f, 0.0f, 1.0f  // v3
   };
-  square.colors.count         = 4;
-  uint32_t square_colors_size = sizeof(colors);
-  square.colors.buffer        = wgpu_create_buffer_from_data(
-    wgpu_context, colors, square_colors_size, WGPUBufferUsage_Vertex);
+  square.colors = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(colors),
+                    .count = 4,
+                    .initial.data = colors,
+                  });
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
