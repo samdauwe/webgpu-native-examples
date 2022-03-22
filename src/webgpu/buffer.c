@@ -24,15 +24,17 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     .mappedAtCreation = false,
   };
 
-  if (desc->initial.data && desc->initial.size > 0
-      && desc->initial.size <= desc->size) {
+  const uint32_t initial_size
+    = (desc->initial.size == 0) ? desc->size : desc->initial.size;
+
+  if (desc->initial.data && initial_size > 0 && initial_size <= desc->size) {
     buffer_desc.mappedAtCreation = true;
     WGPUBuffer buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
     ASSERT(buffer);
     void* mapping = wgpuBufferGetMappedRange(buffer, 0, size);
     ASSERT(mapping);
-    memcpy(mapping, desc->initial.data, desc->initial.size);
+    memcpy(mapping, desc->initial.data, initial_size);
     wgpuBufferUnmap(buffer);
     wgpu_buffer.buffer = buffer;
   }
