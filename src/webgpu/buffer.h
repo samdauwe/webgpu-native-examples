@@ -13,6 +13,7 @@ typedef struct wgpu_buffer_desc_t {
   const char* label;
   WGPUBufferUsage usage;
   uint32_t size;
+  uint32_t count; /* numer of elements in the buffer (optional) */
   struct {
     const void* data;
     uint32_t size;
@@ -23,6 +24,7 @@ typedef struct wgpu_buffer_t {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
   uint32_t size;
+  uint32_t count; /* numer of elements in the buffer (optional) */
 } wgpu_buffer_t;
 
 /* WebGPU buffer creating  / destroy */

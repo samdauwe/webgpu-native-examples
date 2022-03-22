@@ -15,6 +15,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
   wgpu_buffer_t wgpu_buffer = {
     .usage = desc->usage,
     .size  = size,
+    .count = desc->count,
   };
 
   WGPUBufferDescriptor buffer_desc = {
