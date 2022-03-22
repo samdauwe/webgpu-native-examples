@@ -44,10 +44,7 @@ typedef struct cube_t {
 static cube_t cubes[NUMBER_OF_CUBES] = {0};
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t size;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Uniform buffer object
 static struct {
@@ -87,18 +84,12 @@ static void prepare_cube_mesh()
 // Create a vertex buffer from the cube data.
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  vertices.size                    = sizeof(cube_mesh.vertex_array);
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-    .size             = vertices.size,
-    .mappedAtCreation = true,
-  };
-  vertices.buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-  ASSERT(vertices.buffer)
-  void* mapping = wgpuBufferGetMappedRange(vertices.buffer, 0, vertices.size);
-  ASSERT(mapping)
-  memcpy(mapping, cube_mesh.vertex_array, vertices.size);
-  wgpuBufferUnmap(vertices.buffer);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(cube_mesh.vertex_array),
+                    .initial.data = cube_mesh.vertex_array,
+                  });
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
