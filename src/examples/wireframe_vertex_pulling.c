@@ -43,26 +43,13 @@ typedef struct cube_t {
   WGPUBindGroup uniform_buffer_bind_group;
   WGPUBindGroupLayout bind_group_layout;
   // Vertex buffer
-  struct position_t {
-    WGPUBuffer buffer;
-    uint32_t size;
-  } positions;
+  wgpu_buffer_t positions;
   // Colors
-  struct colors_t {
-    WGPUBuffer buffer;
-    uint32_t size;
-  } colors;
+  wgpu_buffer_t colors;
   // Index buffer
-  struct indices_t {
-    WGPUBuffer buffer;
-    uint32_t count;
-    uint32_t size;
-  } indices;
+  wgpu_buffer_t indices;
   // Uniform buffer block object
-  struct uniform_buffer_vs_t {
-    WGPUBuffer buffer;
-    uint32_t size;
-  } uniform_buffer_vs;
+  wgpu_buffer_t uniform_buffer_vs;
   // View matrices
   struct view_matrices_t {
     mat4 world;
@@ -110,26 +97,33 @@ static void prepare_cube_mesh()
 static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
 {
   // Create position buffer
-  cube.positions.size   = sizeof(indexed_cube_mesh.vertex_array);
-  cube.positions.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, indexed_cube_mesh.vertex_array, cube.positions.size,
-    WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  cube.positions = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
+                    .size  = sizeof(indexed_cube_mesh.vertex_array),
+                    .initial.data = indexed_cube_mesh.vertex_array,
+                  });
 
   // Create color buffer
-  cube.colors.size   = sizeof(indexed_cube_mesh.color_array);
-  cube.colors.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, indexed_cube_mesh.color_array, cube.colors.size,
-    WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  cube.colors = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
+                    .size  = sizeof(indexed_cube_mesh.color_array),
+                    .initial.data = indexed_cube_mesh.color_array,
+                  });
 }
 
 static void prepare_index_buffer(wgpu_context_t* wgpu_context)
 {
   // Create index buffer
-  cube.indices.count  = indexed_cube_mesh.index_count;
-  cube.indices.size   = sizeof(indexed_cube_mesh.index_array);
-  cube.indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, indexed_cube_mesh.index_array, cube.indices.size,
-    WGPUBufferUsage_Index | WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  cube.indices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Index | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size         = sizeof(indexed_cube_mesh.index_array),
+                    .count        = indexed_cube_mesh.index_count,
+                    .initial.data = indexed_cube_mesh.index_array,
+                  });
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -256,15 +250,13 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 static void prepare_uniform_buffer(wgpu_example_context_t* context)
 {
   /* Create uniform buffer */
-  cube.uniform_buffer_vs.size              = sizeof(cube.view_matrices);
-  WGPUBufferDescriptor texture_buffer_desc = {
-    .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    .size             = cube.uniform_buffer_vs.size,
-    .mappedAtCreation = false,
-  };
-  cube.uniform_buffer_vs.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device, &texture_buffer_desc);
-  ASSERT(cube.uniform_buffer_vs.buffer)
+  cube.uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = sizeof(cube.view_matrices),
+    });
+  ASSERT(cube.uniform_buffer_vs.buffer != NULL)
 
   /* Update uniform buffer */
   update_uniform_buffers(context);
