@@ -47,11 +47,7 @@ static const char* fragment_shader_wgsl =
 // clang-format on
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint64_t count;
-  uint64_t size;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Pipeline
 static WGPURenderPipeline pipeline;
@@ -98,12 +94,13 @@ static const float rectangle_vertices[30] = {
 // Prepare vertex buffer
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  vertices.count = 6;
-  vertices.size  = sizeof(rectangle_vertices);
-
-  // Vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, rectangle_vertices, vertices.size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(rectangle_vertices),
+                    .count = 6,
+                    .initial.data = rectangle_vertices,
+                  });
 }
 
 static void prepare_video_texture(wgpu_context_t* wgpu_context)
@@ -395,11 +392,11 @@ void example_video_uploading(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
+     .title           = example_title,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
