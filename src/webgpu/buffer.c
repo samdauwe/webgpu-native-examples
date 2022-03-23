@@ -32,9 +32,9 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     buffer_desc.mappedAtCreation = true;
     WGPUBuffer buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(buffer);
+    ASSERT(buffer != NULL);
     void* mapping = wgpuBufferGetMappedRange(buffer, 0, size);
-    ASSERT(mapping);
+    ASSERT(mapping != NULL);
     memcpy(mapping, desc->initial.data, initial_size);
     wgpuBufferUnmap(buffer);
     wgpu_buffer.buffer = buffer;
@@ -42,13 +42,14 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
   else {
     wgpu_buffer.buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(wgpu_buffer.buffer != NULL);
   }
   return wgpu_buffer;
 }
 
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
 {
-  ASSERT(buffer->buffer)
+  ASSERT(buffer->buffer);
   WGPU_RELEASE_RESOURCE(Buffer, buffer->buffer)
 }
 
@@ -57,7 +58,7 @@ void wgpu_record_copy_data_to_buffer(struct wgpu_context_t* wgpu_context,
                                      uint32_t buff_size, const void* data,
                                      uint32_t data_size)
 {
-  ASSERT(wgpu_context->cmd_enc);
+  ASSERT(wgpu_context->cmd_enc != NULL);
   ASSERT(data && data_size > 0);
   /*ASSERT(
     buff->buffer && buff_size >= buff_offset + data_size
@@ -72,9 +73,9 @@ void wgpu_record_copy_data_to_buffer(struct wgpu_context_t* wgpu_context,
 
   WGPUBuffer staging
     = wgpuDeviceCreateBuffer(wgpu_context->device, &staging_buffer_desc);
-  ASSERT(staging);
+  ASSERT(staging != NULL);
   void* mapping = wgpuBufferGetMappedRange(staging, 0, buff_size);
-  ASSERT(mapping);
+  ASSERT(mapping != NULL);
   memcpy(mapping, data, data_size);
   wgpuBufferUnmap(staging);
 
@@ -95,7 +96,7 @@ WGPUCommandBuffer wgpu_copy_buffer_to_texture(
     = wgpuCommandEncoderFinish(cmd_encoder, NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
 
   return command_buffer;
 }
