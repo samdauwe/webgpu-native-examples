@@ -43,16 +43,10 @@ static struct {
 } cube = {0};
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t size;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  uint32_t size;
-} uniform_buffer_vs = {0};
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 static struct {
   mat4 projection;
@@ -87,18 +81,12 @@ static void prepare_cube_mesh()
 // Prepare vertex buffer
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  vertices.size                    = sizeof(cube_mesh.vertex_array);
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-    .size             = vertices.size,
-    .mappedAtCreation = true,
-  };
-  vertices.buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-  ASSERT(vertices.buffer)
-  void* mapping = wgpuBufferGetMappedRange(vertices.buffer, 0, vertices.size);
-  ASSERT(mapping)
-  memcpy(mapping, cube_mesh.vertex_array, vertices.size);
-  wgpuBufferUnmap(vertices.buffer);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(cube_mesh.vertex_array),
+                    .initial.data = cube_mesh.vertex_array,
+                  });
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -202,15 +190,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   prepare_view_matrices(context->wgpu_context);
 
   /* Uniform buffer */
-  uniform_buffer_vs.size                   = sizeof(mat4); // 4x4 matrix
-  WGPUBufferDescriptor texture_buffer_desc = {
-    .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    .size             = uniform_buffer_vs.size,
-    .mappedAtCreation = false,
-  };
-  uniform_buffer_vs.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device, &texture_buffer_desc);
-  ASSERT(uniform_buffer_vs.buffer)
+  uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(mat4), // 4x4 matrix
+    });
+  ASSERT(uniform_buffer_vs.buffer != NULL);
 }
 
 static void update_transformation_matrix(wgpu_example_context_t* context)
