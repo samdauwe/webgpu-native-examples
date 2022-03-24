@@ -471,6 +471,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
