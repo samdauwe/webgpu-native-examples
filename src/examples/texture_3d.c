@@ -196,22 +196,13 @@ typedef struct vertex_t {
 } vertex_t;
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
+static wgpu_buffer_t indices = {0};
 
 // Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  uint64_t size;
-} uniform_buffer_vs = {0};
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 static struct {
   mat4 projection;
@@ -375,21 +366,30 @@ static void generate_quad(wgpu_context_t* wgpu_context)
       .normal = {0.0f, 0.0f, 1.0f},
     },
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertices_data);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
-
-  // Setup indices
-  static const uint16_t index_buffer[6] = {0, 1, 2, 2, 3, 0};
-  indices.count                         = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size            = indices.count * sizeof(uint16_t);
 
   // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertices_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertices_data),
+                    .count = (uint32_t)ARRAY_SIZE(vertices_data),
+                    .initial.data = vertices_data,
+                  });
+
+  // Setup indices
+  static const uint16_t index_buffer[6] = {
+    0, 1, 2, // Vertex 1
+    2, 3, 0  // Vertex 2
+  };
 
   // Create index buffer
-  indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
+  indices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(index_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(index_buffer),
+                    .initial.data = index_buffer,
+                  });
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context,
@@ -416,11 +416,15 @@ static void update_uniform_buffers(wgpu_example_context_t* context,
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer block
-  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &ubo_vs, sizeof(ubo_vs), WGPUBufferUsage_Uniform);
-  uniform_buffer_vs.size = sizeof(ubo_vs);
+  // Create vertex shader uniform buffer block
+  uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
+    });
 
+  // Set uniform buffer block data
   update_uniform_buffers(context, true);
 }
 
