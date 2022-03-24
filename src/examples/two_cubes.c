@@ -202,6 +202,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size  = uniform_buffer.size_with_offset,
     });
+  ASSERT(uniform_buffer.buffer != NULL);
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -301,6 +302,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
