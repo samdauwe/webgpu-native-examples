@@ -129,7 +129,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(cube.bind_group_layout != NULL)
+  ASSERT(cube.bind_group_layout != NULL);
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this bind group layout
@@ -138,7 +138,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &cube.bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
@@ -249,7 +249,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   };
   cube.uniform_buffer_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(cube.uniform_buffer_bind_group != NULL)
+  ASSERT(cube.uniform_buffer_bind_group != NULL);
 }
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
@@ -331,6 +331,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
