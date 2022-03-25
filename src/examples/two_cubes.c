@@ -337,6 +337,7 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
       });
   RECORD_RENDER_PASS(RenderBundleEncoder, render_bundle_encoder)
   render_bundle = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
+  ASSERT(render_bundle != NULL);
 
   WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
 }
