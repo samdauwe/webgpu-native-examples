@@ -29,7 +29,7 @@ static struct {
   .visible       = true,
 };
 
-static WGPUBuffer uniform_buffer_vs;
+static wgpu_buffer_t uniform_buffer_vs;
 
 static struct ubo_vs_t {
   mat4 projection;
@@ -118,9 +118,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
       .binding = 0,
-      .buffer = uniform_buffer_vs,
+      .buffer = uniform_buffer_vs.buffer,
       .offset = 0,
-      .size = sizeof(ubo_vs),
+      .size = uniform_buffer_vs.size,
     },
   };
 
@@ -249,21 +249,21 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_scale(model_view_scale, (vec3){0.1f, 0.1f, 0.1f});
   glm_mat4_mul(context->camera->matrices.view, model_view_scale,
                ubo_vs.model_view);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs, 0, &ubo_vs,
-                          sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
+                          &ubo_vs, uniform_buffer_vs.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer block
-  WGPUBufferDescriptor ubo_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-    .size             = sizeof(ubo_vs),
-    .mappedAtCreation = false,
-  };
-  uniform_buffer_vs
-    = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+  uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
+    });
+  ASSERT(uniform_buffer_vs.buffer != NULL);
 
   update_uniform_buffers(context);
 }
@@ -452,7 +452,7 @@ static void example_destroy(wgpu_example_context_t* context)
   text_overlay_release(text_overlay.handle);
   camera_release(context->camera);
   wgpu_gltf_model_destroy(model);
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
