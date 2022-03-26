@@ -140,6 +140,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
   };
   texture.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(texture.texture != NULL);
 
   // Copy the first mip of the chain, remaining mips will be generated
   // Upload staging buffer to texture
@@ -214,14 +215,17 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
   };
   // Without mip mapping
   samplers[0] = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(samplers[0] != NULL);
 
   // With mip mapping
   sampler_desc.lodMaxClamp = (float)texture.mip_levels - 1;
   samplers[1] = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(samplers[1] != NULL);
 
   // With mip mapping and anisotropic filtering
   sampler_desc.maxAnisotropy = 16;
   samplers[2] = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(samplers[2] != NULL);
 
   // Create texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -233,6 +237,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
     .arrayLayerCount = 1,
   };
   texture.view = wgpuTextureCreateView(texture.texture, &texture_view_dec);
+  ASSERT(texture.view != NULL);
 }
 
 // Free all WebGPU resources used a texture object
@@ -315,7 +320,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this descriptor set layout
@@ -324,7 +329,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
@@ -366,7 +371,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
