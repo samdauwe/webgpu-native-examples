@@ -131,6 +131,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                              .baseArrayLayer  = 0,
                              .arrayLayerCount = 1,
                            });
+  ASSERT(video_texture.view != NULL);
 
   // Create the sampler
   video_texture.sampler = wgpuDeviceCreateSampler(
@@ -143,6 +144,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                             .mipmapFilter  = WGPUFilterMode_Nearest,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(video_texture.sampler != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -255,6 +257,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
