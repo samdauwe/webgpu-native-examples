@@ -24,7 +24,7 @@
  * (http://mrl.nyu.edu/~perlin/noise/)
  * -------------------------------------------------------------------------- */
 
-typedef struct perlin_noise_t {
+typedef struct {
   uint32_t permutations[512];
 } perlin_noise_t;
 
