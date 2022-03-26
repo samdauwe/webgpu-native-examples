@@ -62,19 +62,13 @@ static float* instance_data    = NULL;
 static uint32_t instance_count = 1;
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
+static wgpu_buffer_t indices = {0};
 
 // Instance buffer
-static WGPUBuffer instance_buffer;
+static wgpu_buffer_t instance_buffer = {0};
 
 // Textures
 static struct {
@@ -218,16 +212,22 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
   }
 
   // Create vertex buffer
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertices_data);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(float);
-  vertices.buffer             = wgpu_create_buffer_from_data(
-    wgpu_context, vertices_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertices_data),
+                    .count = (uint32_t)ARRAY_SIZE(vertices_data),
+                    .initial.data = vertices_data,
+                  });
 
   // Create index buffer
-  indices.count              = (uint32_t)ARRAY_SIZE(indices_data);
-  uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
-  indices.buffer             = wgpu_create_buffer_from_data(
-    wgpu_context, indices_data, index_buffer_size, WGPUBufferUsage_Index);
+  indices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(indices_data),
+                    .count = (uint32_t)ARRAY_SIZE(indices_data),
+                    .initial.data = indices_data,
+                  });
 }
 
 static void prepare_textures(wgpu_context_t* wgpu_context)
@@ -368,20 +368,19 @@ static void update_uniforms(wgpu_example_context_t* context)
   }
 
   // Write the instance data to the instance buffer
-  wgpu_queue_write_buffer(context->wgpu_context, instance_buffer, 0,
+  wgpu_queue_write_buffer(context->wgpu_context, instance_buffer.buffer, 0,
                           instance_data,
                           (instance_buffer_length / 4) * sizeof(float));
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  WGPUBufferDescriptor ubo_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-    .size             = instance_buffer_length,
-    .mappedAtCreation = false,
-  };
-  instance_buffer
-    = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
+  instance_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = instance_buffer_length,
+    });
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -500,9 +499,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = instance_buffer,
+        .buffer  = instance_buffer.buffer,
         .offset  = 0,
-        .size    = instance_buffer_length,
+        .size    = instance_buffer.size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -694,7 +693,7 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, instance_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, instance_buffer.buffer)
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.frame_constants)
