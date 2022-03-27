@@ -163,7 +163,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexBufferLayout vertex_buffer_layouts[2] = {0};
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 0 : position
+      // Shader location 0 : vertex position
       .shaderLocation = 0,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
@@ -177,7 +177,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   }
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 1 : color
+      // Shader location 1 : vertex color
       .shaderLocation = 1,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x4,
