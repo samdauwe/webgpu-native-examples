@@ -24,10 +24,7 @@ static struct {
 } ubo_vs = {0};
 
 // Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  uint32_t size;
-} uniform_buffer_vs = {0};
+static struct wgpu_buffer_t uniform_buffer_vs = {0};
 
 // The pipeline layout
 static WGPUPipelineLayout pipeline_layout;
@@ -165,9 +162,12 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   wgpu_context_t* wgpu_context = context->wgpu_context;
 
   // Create the uniform bind group
-  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &ubo_vs, sizeof(ubo_vs), WGPUBufferUsage_Uniform);
-  uniform_buffer_vs.size = sizeof(ubo_vs);
+  uniform_buffer_vs = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(ubo_vs),
+                    .initial.data = &ubo_vs,
+                  });
 
   update_uniform_buffers(context);
 
