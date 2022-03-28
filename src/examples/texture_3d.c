@@ -316,6 +316,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
   };
   noise_texture.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(noise_texture.texture != NULL);
 
   // Create sampler
   noise_texture.sampler = wgpuDeviceCreateSampler(
@@ -325,6 +326,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(noise_texture.sampler != NULL);
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -337,6 +339,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
   };
   noise_texture.view
     = wgpuTextureCreateView(noise_texture.texture, &texture_view_dec);
+  ASSERT(noise_texture.view != NULL);
 
   update_noise_texture(wgpu_context);
 }
@@ -478,7 +481,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
@@ -510,7 +513,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
