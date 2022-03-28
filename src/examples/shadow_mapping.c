@@ -194,6 +194,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     };
     textures.shadow_depth_texture.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(textures.shadow_depth_texture.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -206,6 +207,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     };
     textures.shadow_depth_texture.view = wgpuTextureCreateView(
       textures.shadow_depth_texture.texture, &texture_view_dec);
+    ASSERT(textures.shadow_depth_texture.view != NULL);
   }
 
   // Create a depth/stencil texture for the color rendering pipeline
@@ -225,6 +227,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     };
     textures.depth_texture.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(textures.depth_texture.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -238,6 +241,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     };
     textures.depth_texture.view = wgpuTextureCreateView(
       textures.depth_texture.texture, &texture_view_dec);
+    ASSERT(textures.depth_texture.view != NULL);
   }
 }
 
@@ -256,6 +260,7 @@ static void prepare_sampler(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(textures.sampler != NULL);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -284,7 +289,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
             .entries    = bgl_entries,
           });
-      ASSERT(bind_groups_layouts.uniform_buffer_scene != NULL)
+      ASSERT(bind_groups_layouts.uniform_buffer_scene != NULL);
     }
 
     // Bind group layout for model uniform
@@ -309,7 +314,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
             .entries    = bgl_entries,
           });
-      ASSERT(bind_groups_layouts.uniform_buffer_model != NULL)
+      ASSERT(bind_groups_layouts.uniform_buffer_model != NULL);
     }
 
     WGPUBindGroupLayout bind_group_layouts[2] = {
@@ -322,7 +327,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(pipeline_layouts.shadow != NULL)
+    ASSERT(pipeline_layouts.shadow != NULL);
   }
 
   // Create a bind group layout which holds the scene uniforms and
@@ -367,7 +372,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_groups_layouts.render != NULL)
+    ASSERT(bind_groups_layouts.render != NULL);
 
     // Specify the pipeline layout. The layout for the model is the same, so
     // reuse it from the shadow pipeline.
@@ -381,7 +386,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(pipeline_layouts.color != NULL)
+    ASSERT(pipeline_layouts.color != NULL);
   }
 }
 
@@ -591,7 +596,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
-    ASSERT(uniform_buffers.scene)
+    ASSERT(uniform_buffers.scene);
   }
 
   // Scene bind group for shadow
@@ -610,7 +615,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(bind_groups.scene_shadow != NULL)
+    ASSERT(bind_groups.scene_shadow != NULL);
   }
 
   // Scene bind group for render
@@ -636,7 +641,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.scene_render != NULL)
+    ASSERT(bind_groups.scene_render != NULL);
   }
 
   // Model bind group
@@ -655,7 +660,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(bind_groups.model != NULL)
+    ASSERT(bind_groups.model != NULL);
   }
 }
 
@@ -715,6 +720,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(render_pipelines.shadow != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -818,6 +824,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(render_pipelines.color != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -974,9 +981,9 @@ void example_shadow_mapping(int argc, char* argv[])
       .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy
   });
   // clang-format on
 }
