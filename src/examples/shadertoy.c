@@ -15,10 +15,7 @@
  * -------------------------------------------------------------------------- */
 
 // Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} uniform_buffer_vs = {0};
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 // Uniform block data - inputs of the ShaderToy shader
 static struct {
@@ -105,7 +102,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
-      .size    = sizeof(shader_inputs_ubo),
+      .size    = uniform_buffer_vs.size,
     },
   };
 
@@ -185,18 +182,22 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
   // Map uniform buffer and update it
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &shader_inputs_ubo, uniform_buffer_vs.count);
+                          &shader_inputs_ubo, uniform_buffer_vs.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Create the uniform bind group (note 'rotDeg' is copied here, not bound in
   // any way)
-  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &shader_inputs_ubo, sizeof(shader_inputs_ubo),
-    WGPUBufferUsage_Uniform);
-  uniform_buffer_vs.count = sizeof(shader_inputs_ubo);
+  uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size         = sizeof(shader_inputs_ubo),
+      .initial.data = &shader_inputs_ubo,
+    });
 
+  // Update unform buffer data
   update_uniform_buffers(context);
 }
 
