@@ -569,7 +569,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
 
-  // Draw plane
+  // Draw model
   wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
 
   // End render pass
