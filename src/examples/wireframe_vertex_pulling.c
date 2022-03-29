@@ -136,7 +136,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = cube.uniform_buffer_vs.size,
+        .minBindingSize   = cube.uniform_buffer_vs.size,
       },
       .sampler = {0},
     },
@@ -147,7 +147,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize = cube.positions.size,
+        .minBindingSize   = cube.positions.size,
       },
       .sampler = {0},
     },
@@ -158,7 +158,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize = cube.colors.size,
+        .minBindingSize   = cube.colors.size,
       },
       .sampler = {0},
     },
@@ -169,7 +169,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize = cube.indices.size,
+        .minBindingSize   = cube.indices.size,
       },
       .sampler = {0},
     }
@@ -268,30 +268,30 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: uniform buffer
       .binding = 0,
-      .buffer = cube.uniform_buffer_vs.buffer,
-      .offset = 0,
-      .size = cube.uniform_buffer_vs.size,
+      .buffer  = cube.uniform_buffer_vs.buffer,
+      .offset  = 0,
+      .size    = cube.uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
        // Binding 1: positions
       .binding = 1,
-      .buffer = cube.positions.buffer,
-      .offset = 0,
-      .size = cube.positions.size,
+      .buffer  = cube.positions.buffer,
+      .offset  = 0,
+      .size    = cube.positions.size,
     },
     [2] = (WGPUBindGroupEntry) {
       //  Binding 2: colors
       .binding = 2,
-      .buffer = cube.colors.buffer,
-      .offset = 0,
-      .size = cube.colors.size,
+      .buffer  = cube.colors.buffer,
+      .offset  = 0,
+      .size    = cube.colors.size,
     },
     [3] = (WGPUBindGroupEntry) {
       //  Binding 3: indices
       .binding = 3,
-      .buffer = cube.indices.buffer,
-      .offset = 0,
-      .size = cube.indices.size,
+      .buffer  = cube.indices.buffer,
+      .offset  = 0,
+      .size    = cube.indices.size,
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
@@ -343,7 +343,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
          .entry = "main_vertex",
        },
        .buffer_count = 0,
@@ -355,7 +355,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
          .entry = "main_fragment",
        },
        .target_count = 1,
@@ -390,11 +390,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_points.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
          .entry = "main_vertex",
        },
        .buffer_count = 0,
-       .buffers = NULL,
+       .buffers      = NULL,
      });
 
     // Fragment state
@@ -402,11 +402,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_points.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets = &color_target_state_desc,
+       .targets      = &color_target_state_desc,
      });
 
     // Create rendering pipeline using the specified states
@@ -437,11 +437,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
          .entry = "main_vertex",
        },
        .buffer_count = 0,
-       .buffers = NULL,
+       .buffers      = NULL,
      });
 
     // Fragment state
@@ -449,11 +449,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .file = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets = &color_target_state_desc,
+       .targets      = &color_target_state_desc,
      });
 
     // Create rendering pipeline using the specified states
@@ -488,7 +488,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_vertex",
        },
        .buffer_count = 0,
-       .buffers = NULL,
+       .buffers      = NULL,
      });
 
     // Fragment state
@@ -500,7 +500,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets = &color_target_state_desc,
+       .targets      = &color_target_state_desc,
      });
 
     // Create rendering pipeline using the specified states
@@ -679,9 +679,9 @@ void example_wireframe_vertex_pulling(int argc, char* argv[])
      .overlay = true,
      .vsync   = true
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
