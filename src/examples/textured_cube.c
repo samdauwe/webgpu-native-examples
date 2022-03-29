@@ -94,32 +94,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Transform
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(mat4), // 4x4 matrix
+        .minBindingSize   = sizeof(mat4), // 4x4 matrix
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Sampler
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Texture view
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     }
@@ -229,16 +229,16 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer = uniform_buffer_vs.buffer,
-      .offset = 0,
-      .size = uniform_buffer_vs.size,
+      .buffer  = uniform_buffer_vs.buffer,
+      .offset  = 0,
+      .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
       .binding = 1,
       .sampler = texture.sampler,
     },
     [2] = (WGPUBindGroupEntry) {
-      .binding = 2,
+      .binding     = 2,
       .textureView = texture.view,
     }
   };
@@ -459,9 +459,9 @@ void example_textured_cube(int argc, char* argv[])
      .title                 = example_title,
      .overlay               = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
