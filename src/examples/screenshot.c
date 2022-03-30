@@ -167,6 +167,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_rendering.color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_rendering.color.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
@@ -179,6 +180,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_rendering.color.texture_view = wgpuTextureCreateView(
       offscreen_rendering.color.texture, &texture_view_desc);
+    ASSERT(offscreen_rendering.color.texture_view != NULL);
   }
 
   // Depth stencil attachment
@@ -193,6 +195,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_rendering.depth_stencil.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_rendering.depth_stencil.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
@@ -206,6 +209,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_rendering.depth_stencil.texture_view = wgpuTextureCreateView(
       offscreen_rendering.depth_stencil.texture, &texture_view_desc);
+    ASSERT(offscreen_rendering.depth_stencil.texture_view != NULL);
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
@@ -277,7 +281,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -298,7 +302,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -403,6 +407,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(scene_rendering.pipeline != NULL);
 
   // Create offscreen rendering pipeline using the specified states
   color_target_state_desc.format = offscreen_rendering.color.format;
@@ -416,6 +421,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(offscreen_rendering.pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -561,7 +567,7 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
     uint8_t const* mapping = (uint8_t*)wgpuBufferGetConstMappedRange(
       offscreen_rendering.pixel_data.buffer.buffer, 0,
       sizeof(offscreen_rendering.pixel_data.buffer.size));
-    ASSERT(mapping)
+    ASSERT(mapping);
     memcpy(pixels, mapping, pixels_size);
     stbi_write_png(screenshot_filename, w, h, channels_num, pixels,
                    w * sizeof(int));
