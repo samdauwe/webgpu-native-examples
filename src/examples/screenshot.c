@@ -28,7 +28,7 @@
 #define COPY_BYTES_PER_ROW_ALIGNMENT 256
 
 static struct gltf_model_t* dragon;
-static WGPUBuffer uniform_buffer;
+static wgpu_buffer_t uniform_buffer;
 
 static struct {
   mat4 projection;
@@ -67,8 +67,7 @@ static struct offscreen_rendering_t {
   } render_pass;
   // The pixel buffer lets us retrieve the framebuffer data as an array
   struct {
-    uint64_t buffer_size;
-    WGPUBuffer buffer;
+    wgpu_buffer_t buffer;
     bool buffer_mapped;
     struct {
       uint64_t width;
@@ -134,16 +133,14 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   calculate_buffer_dimensions(wgpu_context->surface.width,
                               wgpu_context->surface.height);
   // The output buffer lets us retrieve the data as an array
-  offscreen_rendering.pixel_data.buffer_size
-    = (uint64_t)(offscreen_rendering.pixel_data.buffer_dimensions
-                   .padded_bytes_per_row
-                 * offscreen_rendering.pixel_data.buffer_dimensions.height);
-  offscreen_rendering.pixel_data.buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-      .size             = offscreen_rendering.pixel_data.buffer_size,
-      .mappedAtCreation = false,
+  offscreen_rendering.pixel_data.buffer = wgpu_create_buffer(
+    wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+      .size
+      = (uint64_t)(offscreen_rendering.pixel_data.buffer_dimensions
+                     .padded_bytes_per_row
+                   * offscreen_rendering.pixel_data.buffer_dimensions.height),
     });
 
   // Attachment formats
@@ -289,9 +286,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffer,
+        .buffer = uniform_buffer.buffer,
         .offset = 0,
-        .size = sizeof(ubo_vs),
+        .size = uniform_buffer.size,
       },
     };
 
@@ -430,21 +427,21 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.view);
   glm_mat4_identity(ubo_vs.model);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer, 0, &ubo_vs,
-                          sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer.buffer, 0,
+                          &ubo_vs, uniform_buffer.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Mesh vertex shader uniform buffer block
-  uniform_buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_vs),
-      .mappedAtCreation = false,
+  uniform_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
     });
-  ASSERT(uniform_buffer != NULL)
+
+  // Updated uniform buffer block data
   update_uniform_buffers(context);
 }
 
@@ -528,7 +525,7 @@ build_copy_texture_to_buffer_command_buffer(wgpu_context_t* wgpu_context)
     },
     // Destination
     &(WGPUImageCopyBuffer){
-      .buffer  = offscreen_rendering.pixel_data.buffer,
+      .buffer  = offscreen_rendering.pixel_data.buffer.buffer,
       .layout = (WGPUTextureDataLayout) {
         .offset = 0,
         .bytesPerRow = offscreen_rendering.pixel_data.buffer_dimensions.padded_bytes_per_row,
@@ -562,13 +559,13 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
     size_t pixels_size     = w * h * channels_num;
     uint8_t* pixels        = (uint8_t*)malloc(pixels_size);
     uint8_t const* mapping = (uint8_t*)wgpuBufferGetConstMappedRange(
-      offscreen_rendering.pixel_data.buffer, 0,
-      sizeof(offscreen_rendering.pixel_data.buffer_size));
+      offscreen_rendering.pixel_data.buffer.buffer, 0,
+      sizeof(offscreen_rendering.pixel_data.buffer.size));
     ASSERT(mapping)
     memcpy(pixels, mapping, pixels_size);
     stbi_write_png(screenshot_filename, w, h, channels_num, pixels,
                    w * sizeof(int));
-    wgpuBufferUnmap(offscreen_rendering.pixel_data.buffer);
+    wgpuBufferUnmap(offscreen_rendering.pixel_data.buffer.buffer);
     free(pixels);
 
     offscreen_rendering.pixel_data.buffer_mapped = false;
@@ -614,9 +611,9 @@ static int example_draw(wgpu_example_context_t* context)
   // Read query results for displaying in next frame
   if (save_screenshot) {
     offscreen_rendering.pixel_data.buffer_mapped = true;
-    wgpuBufferMapAsync(offscreen_rendering.pixel_data.buffer, WGPUMapMode_Read,
-                       0, offscreen_rendering.pixel_data.buffer_size,
-                       read_buffer_map_cb, NULL);
+    wgpuBufferMapAsync(
+      offscreen_rendering.pixel_data.buffer.buffer, WGPUMapMode_Read, 0,
+      offscreen_rendering.pixel_data.buffer.size, read_buffer_map_cb, NULL);
   }
 
   return 0;
@@ -648,8 +645,8 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(TextureView,
                         offscreen_rendering.depth_stencil.texture_view)
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, offscreen_rendering.pixel_data.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, offscreen_rendering.pixel_data.buffer.buffer)
 
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
