@@ -45,6 +45,7 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #define UNUSED_VAR(x) ((void)(x))
+#define UNUSED_FUNCTION(x) ((void)(x))
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
 #define GET_DEFAULT_IF_ZERO(value, default_value)                              \
