@@ -71,10 +71,7 @@ static const WGPUTextureFormat depth_buffer_format
   = WGPUTextureFormat_Depth32Float;
 
 // Vertex buffer and attributes
-static struct vertices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static struct wgpu_buffer_t vertices = {0};
 
 static struct {
   WGPUPipelineLayout depth_prepass_render;
@@ -116,9 +113,9 @@ static struct {
 } bind_groups;
 
 static struct {
-  WGPUBuffer uniform;
-  WGPUBuffer camera_matrix;
-  WGPUBuffer camera_matrix_reversed_depth;
+  wgpu_buffer_t uniform;
+  wgpu_buffer_t camera_matrix;
+  wgpu_buffer_t camera_matrix_reversed_depth;
 } uniform_buffers;
 
 static uint32_t uniform_buffer_size = num_instances * matrix_stride;
@@ -214,13 +211,15 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     1 + o,  1,  -d, 1, 0, 1, 0, 1, //
     -1 + o, 1,  -d, 1, 0, 1, 0, 1, //
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(geometry_vertex_array);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(float);
 
   // Create vertex buffer
-  vertices.buffer
-    = wgpu_create_buffer_from_data(wgpu_context, geometry_vertex_array,
-                                   vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(geometry_vertex_array),
+                    .count = (uint32_t)ARRAY_SIZE(geometry_vertex_array),
+                    .initial.data = geometry_vertex_array,
+                  });
 }
 
 // depthPrePass is used to render scene to the depth texture
@@ -879,26 +878,23 @@ static void prepare_depth_texture_bind_group(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  uniform_buffers.uniform = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .size  = uniform_buffer_size,
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    });
+  uniform_buffers.uniform = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = uniform_buffer_size,
+                  });
 
-  uniform_buffers.camera_matrix = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .size  = sizeof(mat4), // 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    });
+  uniform_buffers.camera_matrix = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(mat4), // 4x4 matrix
+                  });
 
-  uniform_buffers.camera_matrix_reversed_depth = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .size  = sizeof(mat4), // 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    });
+  uniform_buffers.camera_matrix_reversed_depth = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(mat4), // 4x4 matrix
+                  });
 }
 
 static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
@@ -908,12 +904,12 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.uniform,
+        .buffer = uniform_buffers.uniform.buffer,
         .size  = uniform_buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = uniform_buffers.camera_matrix,
+        .buffer = uniform_buffers.camera_matrix.buffer,
         .size  = sizeof(mat4), // 4x4 matrix
       }
     };
@@ -930,12 +926,12 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.uniform,
+        .buffer = uniform_buffers.uniform.buffer,
         .size  = uniform_buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = uniform_buffers.camera_matrix_reversed_depth,
+        .buffer = uniform_buffers.camera_matrix_reversed_depth.buffer,
         .size  = sizeof(mat4), // 4x4 matrix
       }
     };
@@ -996,11 +992,11 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
   glm_mat4_mul(depth_range_remap_matrix, view_projection_matrix,
                reversed_range_view_projection_matrix);
 
-  wgpu_queue_write_buffer(wgpu_context, uniform_buffers.camera_matrix, 0,
+  wgpu_queue_write_buffer(wgpu_context, uniform_buffers.camera_matrix.buffer, 0,
                           view_projection_matrix, sizeof(mat4));
-  wgpu_queue_write_buffer(wgpu_context,
-                          uniform_buffers.camera_matrix_reversed_depth, 0,
-                          reversed_range_view_projection_matrix, sizeof(mat4));
+  wgpu_queue_write_buffer(
+    wgpu_context, uniform_buffers.camera_matrix_reversed_depth.buffer, 0,
+    reversed_range_view_projection_matrix, sizeof(mat4));
 }
 
 static void update_transformation_matrix(wgpu_example_context_t* context)
@@ -1021,8 +1017,8 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   update_transformation_matrix(context);
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.uniform, 0,
-                          &mvp_matrices_data, sizeof(mvp_matrices_data));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.uniform.buffer,
+                          0, &mvp_matrices_data, sizeof(mvp_matrices_data));
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -1238,9 +1234,10 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipline_layouts.color_pass_render)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipline_layouts.texture_quad_pass)
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.uniform)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.camera_matrix)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.camera_matrix_reversed_depth)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.uniform.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.camera_matrix.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer,
+                        uniform_buffers.camera_matrix_reversed_depth.buffer)
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.depth_texture)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.uniform)
