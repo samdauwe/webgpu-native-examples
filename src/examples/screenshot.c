@@ -101,6 +101,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
     .filename           = "models/chinesedragon.gltf",
     .file_loading_flags = gltf_loading_flags,
   });
+  ASSERT(dragon != NULL);
 }
 
 // It is a WebGPU requirement that ImageCopyBuffer.layout.bytes_per_row %
