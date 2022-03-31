@@ -153,6 +153,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_pass.color.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
@@ -165,6 +166,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.color.texture_view
       = wgpuTextureCreateView(offscreen_pass.color.texture, &texture_view_desc);
+    ASSERT(offscreen_pass.color.texture_view != NULL);
   }
 
   // Create sampler to sample from the attachment in the fragment shader
@@ -180,6 +182,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(offscreen_pass.sampler != NULL);
 
   // Depth stencil attachment
   {
@@ -193,6 +196,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.depth_stencil.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_pass.depth_stencil.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
@@ -206,6 +210,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.depth_stencil.texture_view = wgpuTextureCreateView(
       offscreen_pass.depth_stencil.texture, &texture_view_desc);
+    ASSERT(offscreen_pass.depth_stencil.texture_view != NULL);
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
@@ -288,7 +293,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.scene != NULL)
+    ASSERT(bind_group_layouts.scene != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
@@ -296,7 +301,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.scene,
                             });
-    ASSERT(pipeline_layouts.scene != NULL)
+    ASSERT(pipeline_layouts.scene != NULL);
   }
 
   // Bind group layout for fullscreen radial blur
@@ -341,7 +346,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.radial_blur != NULL)
+    ASSERT(bind_group_layouts.radial_blur != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.radial_blur = wgpuDeviceCreatePipelineLayout(
@@ -350,7 +355,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &bind_group_layouts.radial_blur,
       });
-    ASSERT(pipeline_layouts.radial_blur != NULL)
+    ASSERT(pipeline_layouts.radial_blur != NULL);
   }
 }
 
@@ -384,7 +389,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.scene != NULL)
+    ASSERT(bind_groups.scene != NULL);
   }
 
   // Bind group for fullscreen radial blur
@@ -415,7 +420,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.radial_blur != NULL)
+    ASSERT(bind_groups.radial_blur != NULL);
   }
 }
 
@@ -519,7 +524,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.radial_blur);
+    ASSERT(pipelines.radial_blur != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -570,7 +575,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.offscreen_display);
+    ASSERT(pipelines.offscreen_display != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -632,7 +637,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.phong_pass);
+    ASSERT(pipelines.phong_pass != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -682,7 +687,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.color_pass);
+    ASSERT(pipelines.color_pass != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -935,9 +940,9 @@ void example_radial_blur(int argc, char* argv[])
       .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
