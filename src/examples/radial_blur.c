@@ -32,9 +32,9 @@ static struct {
 static struct gltf_model_t* scene;
 
 static struct {
-  WGPUBuffer scene;
-  WGPUBuffer blur_params;
-} uniform_buffers;
+  wgpu_buffer_t scene;
+  wgpu_buffer_t blur_params;
+} ubo;
 
 static struct {
   mat4 projection;
@@ -362,9 +362,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.scene,
+        .buffer = ubo.scene.buffer,
         .offset = 0,
-        .size = sizeof(ubo_scene),
+        .size = ubo.scene.size,
       },
       [1] = (WGPUBindGroupEntry) {
        // Binding 1: Fragment shader image sampler
@@ -393,9 +393,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Fragment shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.blur_params,
+        .buffer = ubo.blur_params.buffer,
         .offset = 0,
-        .size = sizeof(ubo_blur_params),
+        .size = ubo.blur_params.size,
       },
       [1] = (WGPUBindGroupEntry) {
        // Binding 1: Fragment shader image sampler
@@ -708,36 +708,34 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
     ubo_scene.gradient_pos += context->frame_timer * 0.1f;
   }
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene, 0,
-                          &ubo_scene, sizeof(ubo_scene));
+  wgpu_queue_write_buffer(context->wgpu_context, ubo.scene.buffer, 0,
+                          &ubo_scene, ubo.scene.size);
 }
 
 // Update radial blur uniform buffer
 void update_uniform_buffer_radial_blur(wgpu_example_context_t* context)
 {
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.blur_params, 0,
-                          &ubo_blur_params, sizeof(ubo_blur_params));
+  wgpu_queue_write_buffer(context->wgpu_context, ubo.blur_params.buffer, 0,
+                          &ubo_blur_params, ubo.blur_params.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Phong and color pass vertex shader uniform buffer
-  uniform_buffers.scene = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_scene),
-      .mappedAtCreation = false,
+  ubo.scene = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_scene),
     });
 
   // Fullscreen radial blur parameters
-  uniform_buffers.blur_params = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_blur_params),
-      .mappedAtCreation = false,
+  ubo.blur_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_blur_params),
     });
 
   update_uniform_buffers_scene(context);
@@ -911,8 +909,8 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Sampler, offscreen_pass.sampler)
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.blur_params)
+  WGPU_RELEASE_RESOURCE(Buffer, ubo.scene.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, ubo.blur_params.buffer)
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.radial_blur)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.color_pass)
