@@ -226,7 +226,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/shadertoy/main.vert.spv",
                     },
                     .buffer_count = 0,
-                    .buffers = NULL,
+                    .buffers      = NULL,
                   });
 
   // Fragment state
@@ -237,7 +237,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/shadertoy/main.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Multisample state
@@ -373,9 +373,9 @@ void example_shadertoy(int argc, char* argv[])
      .title = example_title,
      .vsync = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
