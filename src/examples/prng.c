@@ -284,6 +284,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = NULL,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
