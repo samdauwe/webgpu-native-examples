@@ -62,16 +62,10 @@ typedef struct {
 } vertex_t;
 
 // Vertex buffer and attributes
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  size_t size;
-} uniform_buffer_fs = {0};
+static wgpu_buffer_t uniform_buffer_fs = {0};
 
 // Uniform block fragment shader
 static struct {
@@ -114,12 +108,15 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
       .position = {-1.0f, 1.0f},
     },
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
 
   // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
+                    .initial.data = vertex_buffer,
+                  });
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -166,7 +163,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
        .binding = 0,
        .buffer  = uniform_buffer_fs.buffer,
        .offset  = 0,
-       .size    = sizeof(ubo_fs),
+       .size    = uniform_buffer_fs.size,
      },
    }
   );
@@ -203,19 +200,17 @@ void update_uniform_buffers(wgpu_example_context_t* context)
   ubo_fs.offset = (uint32_t)roundf(random_float() * 4294967295.f);
 
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_fs.buffer, 0,
-                          &ubo_fs, sizeof(ubo_fs));
+                          &ubo_fs, uniform_buffer_fs.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Create a uniform buffer
-  uniform_buffer_fs.size   = sizeof(ubo_fs); // One u32, 4 bytes each
-  uniform_buffer_fs.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = uniform_buffer_fs.size,
-      .mappedAtCreation = false,
+  uniform_buffer_fs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_fs), // One u32, 4 bytes each
     });
 
   // Upload the uniform buffer to the GPU
@@ -405,9 +400,9 @@ void example_prng(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
