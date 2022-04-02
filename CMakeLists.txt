@@ -228,7 +228,7 @@ set(SOURCES
     src/examples/pbr_basic.c
     src/examples/pbr_ibl.c
     src/examples/pbr_texture.c
-    # src/examples/post_processing.c
+    src/examples/post_processing.c
     src/examples/prng.c
     src/examples/radial_blur.c
     src/examples/reversed_z.c
