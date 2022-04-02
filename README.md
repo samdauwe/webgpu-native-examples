@@ -395,6 +395,10 @@ Advanced fullscreen effect example adding a bloom effect to a scene. Glowing sce
 
 Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).
 
+#### [Post-processing](src/examples/parallax_mapping.c)
+
+This example shows how to use a post-processing effect to blend between two scenes. This example has been ported from [this JavaScript implementation](https://github.com/gnikoloff/webgpu-dojo/tree/master/src/examples/postprocessing-01) to native code.
+
 ### Misc
 
 #### [WebGPU Gears](src/examples/gears.c)
@@ -478,7 +482,7 @@ The list given below summarizes possible examples or functionality that will be 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
 * [ ] Extend command-line options
-* [ ] [Postprocessing](https://github.com/gnikoloff/webgpu-dojo)
+* [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
