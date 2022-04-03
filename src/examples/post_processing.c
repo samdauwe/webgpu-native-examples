@@ -1226,6 +1226,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     };
     offscreen_framebuffer.color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_framebuffer.color.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -1238,6 +1239,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     };
     offscreen_framebuffer.color.texture_view = wgpuTextureCreateView(
       offscreen_framebuffer.color.texture, &texture_view_dec);
+    ASSERT(offscreen_framebuffer.color.texture_view != NULL);
   }
 
   // Depth stencil attachment
@@ -1253,6 +1255,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     };
     offscreen_framebuffer.depth_stencil.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_framebuffer.depth_stencil.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -1267,6 +1270,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     };
     offscreen_framebuffer.depth_stencil.texture_view = wgpuTextureCreateView(
       offscreen_framebuffer.depth_stencil.texture, &texture_view_dec);
+    ASSERT(offscreen_framebuffer.depth_stencil.texture_view != NULL);
   }
 }
 
@@ -1308,7 +1312,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     };
     textures.post_fx0.view
       = wgpuTextureCreateView(textures.post_fx0.texture, &texture_view_desc);
-    ASSERT(textures.post_fx0.view)
+    ASSERT(textures.post_fx0.view);
   }
 
   /* Post-fx1 texture and view */
@@ -1340,7 +1344,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     };
     textures.post_fx1.view
       = wgpuTextureCreateView(textures.post_fx1.texture, &texture_view_desc);
-    ASSERT(textures.post_fx1.view)
+    ASSERT(textures.post_fx1.view);
   }
 
   /* Texture sampler */
@@ -1392,7 +1396,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
        },
      }
     );
-    ASSERT(bind_groups.persp_camera != NULL)
+    ASSERT(bind_groups.persp_camera != NULL);
   }
 
   /* Orthographic camera bind group */
@@ -1411,7 +1415,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
        },
      }
     );
-    ASSERT(bind_groups.ortho_camera != NULL)
+    ASSERT(bind_groups.ortho_camera != NULL);
   }
 
   /* Fullscreen quad transform uniform block */
@@ -1430,7 +1434,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
        },
      }
     );
-    ASSERT(bind_groups.quad_transform != NULL)
+    ASSERT(bind_groups.quad_transform != NULL);
   }
 
   /* Quad sampler uniform bind group */
@@ -1460,7 +1464,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.quad_sampler != NULL)
+    ASSERT(bind_groups.quad_sampler != NULL);
   }
 
   /* Quad tween uniform bind group */
@@ -1479,7 +1483,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
        },
      }
     );
-    ASSERT(bind_groups.quad_tween != NULL)
+    ASSERT(bind_groups.quad_tween != NULL);
   }
 
   /* Light position uniform bind group */
@@ -1519,7 +1523,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
              },
            }
           );
-      ASSERT(bind_groups.base_colors[i] != NULL)
+      ASSERT(bind_groups.base_colors[i] != NULL);
     }
   }
 }
@@ -1678,7 +1682,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
-  ASSERT(pipelines.fullscreen_quad != NULL)
+  ASSERT(pipelines.fullscreen_quad != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -1849,7 +1853,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
-  ASSERT(pipelines.scene_meshes != NULL)
+  ASSERT(pipelines.scene_meshes != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
