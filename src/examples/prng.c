@@ -251,7 +251,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .entry            = "vs_main",
     },
     .buffer_count = 1,
-    .buffers = &quad_vertex_buffer_layout,
+    .buffers      = &quad_vertex_buffer_layout,
   });
 
   // Fragment state
@@ -263,7 +263,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .entry            = "fs_main",
     },
     .target_count = 1,
-    .targets = &color_target_state_desc,
+    .targets      = &color_target_state_desc,
   });
 
   // Multisample state
