@@ -15,6 +15,7 @@
  *
  * Ref:
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/radialblur
+ * http://halisavakis.com/my-take-on-shaders-radial-blur/
  * -------------------------------------------------------------------------- */
 
 // Offscreen frame buffer properties
