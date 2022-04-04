@@ -62,20 +62,11 @@ static struct {
 
 static struct {
   // Object vertex shader uniform buffer
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } object;
+  wgpu_buffer_t object;
   // Skybox vertex shader uniform buffer
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } skybox;
+  wgpu_buffer_t skybox;
   // Shared parameter uniform buffer
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } ubo_params;
+  wgpu_buffer_t ubo_params;
   // Material parameter uniform buffer
   struct {
     WGPUBuffer buffer;
@@ -1949,40 +1940,28 @@ static void update_params(wgpu_context_t* wgpu_context)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Object vertex shader uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_matrices),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.object.size = ubo_desc.size;
-    uniform_buffers.object.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-  }
+  uniform_buffers.object = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_matrices),
+    });
 
   // Skybox vertex shader uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_matrices),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.skybox.size = ubo_desc.size;
-    uniform_buffers.skybox.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-  }
+  uniform_buffers.skybox = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_matrices),
+    });
 
   // Shared parameter uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_params),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.ubo_params.size = ubo_desc.size;
-    uniform_buffers.ubo_params.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-  }
+  uniform_buffers.ubo_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_params),
+    });
 
   // Material parameter uniform buffer
   {
