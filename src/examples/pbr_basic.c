@@ -210,7 +210,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -218,7 +218,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
@@ -261,7 +261,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -365,7 +365,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
-  ASSERT(pipeline != NULL)
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -478,7 +478,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     uniform_buffers.material_params.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-    ASSERT(uniform_buffers.material_params.buffer != NULL)
+    ASSERT(uniform_buffers.material_params.buffer != NULL);
   }
 
   // Object parameter uniform buffer
@@ -493,7 +493,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     uniform_buffers.object_params.buffer
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-    ASSERT(uniform_buffers.object_params.buffer != NULL)
+    ASSERT(uniform_buffers.object_params.buffer != NULL);
   }
 
   update_uniform_buffers(context);
