@@ -342,7 +342,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.objects != NULL)
+    ASSERT(bind_group_layouts.objects != NULL);
   }
 
   // Bind group layout for skybox
@@ -398,7 +398,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.skybox != NULL)
+    ASSERT(bind_group_layouts.skybox != NULL);
   }
 }
 
@@ -411,7 +411,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.objects,
                             });
-    ASSERT(pipeline_layouts.pbr != NULL)
+    ASSERT(pipeline_layouts.pbr != NULL);
   }
 
   // Create the pipeline layout for skybox
@@ -421,7 +421,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.skybox,
                             });
-    ASSERT(pipeline_layouts.skybox != NULL)
+    ASSERT(pipeline_layouts.skybox != NULL);
   }
 }
 
@@ -496,7 +496,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.objects != NULL)
+    ASSERT(bind_groups.objects != NULL);
   }
 
   // Bind group for skybox
@@ -535,7 +535,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.skybox
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.skybox != NULL)
+    ASSERT(bind_groups.skybox != NULL);
   }
 }
 
@@ -646,7 +646,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.skybox != NULL)
+    ASSERT(pipelines.skybox != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -693,7 +693,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.pbr != NULL)
+    ASSERT(pipelines.pbr != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -734,7 +734,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     };
     textures.lut_brdf.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(textures.lut_brdf.texture != NULL)
+    ASSERT(textures.lut_brdf.texture != NULL);
   }
 
   // Create the texture view
@@ -750,7 +750,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     };
     textures.lut_brdf.view
       = wgpuTextureCreateView(textures.lut_brdf.texture, &texture_view_dec);
-    ASSERT(textures.lut_brdf.view != NULL)
+    ASSERT(textures.lut_brdf.view != NULL);
   }
 
   // Create the sampler
@@ -768,7 +768,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
                               .lodMaxClamp   = 1.0f,
                               .maxAnisotropy = 1,
                             });
-    ASSERT(textures.lut_brdf.sampler != NULL)
+    ASSERT(textures.lut_brdf.sampler != NULL);
   }
 
   // Look-up-table (from BRDF) pipeline
@@ -828,7 +828,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
                               .depthStencil = NULL,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipeline != NULL)
+    ASSERT(pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -894,7 +894,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   const WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
   const int32_t dim              = (int32_t)IRRADIANCE_CUBE_DIM;
   const uint32_t num_mips        = (uint32_t)IRRADIANCE_CUBE_NUM_MIPS;
-  ASSERT(num_mips == ((uint32_t)(floor(log2(dim)))) + 1)
+  ASSERT(num_mips == ((uint32_t)(floor(log2(dim)))) + 1);
   const uint32_t array_layer_count = 6; // Cube map
 
   /** Pre-filtered cube map **/
@@ -919,7 +919,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     };
     textures.irradiance_cube.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(textures.irradiance_cube.texture != NULL)
+    ASSERT(textures.irradiance_cube.texture != NULL);
   }
 
   // Create the texture view
@@ -935,7 +935,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     };
     textures.irradiance_cube.view = wgpuTextureCreateView(
       textures.irradiance_cube.texture, &texture_view_dec);
-    ASSERT(textures.irradiance_cube.view != NULL)
+    ASSERT(textures.irradiance_cube.view != NULL);
   }
 
   // Create the sampler
@@ -953,7 +953,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                               .lodMaxClamp  = (float)num_mips,
                               .maxAnisotropy = 1,
                             });
-    ASSERT(textures.irradiance_cube.sampler != NULL)
+    ASSERT(textures.irradiance_cube.sampler != NULL);
   }
 
   // Framebuffer for offscreen rendering
@@ -983,7 +983,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       };
       offscreen.texture
         = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-      ASSERT(offscreen.texture != NULL)
+      ASSERT(offscreen.texture != NULL);
 
       // Create the texture views
       uint32_t idx = 0;
@@ -1003,7 +1003,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
           };
           offscreen.texture_views[idx]
             = wgpuTextureCreateView(offscreen.texture, &texture_view_dec);
-          ASSERT(offscreen.texture_views[idx] != NULL)
+          ASSERT(offscreen.texture_views[idx] != NULL);
         }
       }
     }
@@ -1150,7 +1150,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layout != NULL)
+    ASSERT(bind_group_layout != NULL);
   }
 
   // Bind group
@@ -1188,7 +1188,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_group != NULL)
+    ASSERT(bind_group != NULL);
   }
 
   // Pipeline layout
@@ -1199,7 +1199,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layout,
                             });
-    ASSERT(pipeline_layout != NULL)
+    ASSERT(pipeline_layout != NULL);
   }
 
   // Irradiance cube map pipeline
@@ -1266,7 +1266,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                               .depthStencil = NULL,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipeline != NULL)
+    ASSERT(pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -1414,7 +1414,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     };
     textures.prefiltered_cube.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(textures.prefiltered_cube.texture != NULL)
+    ASSERT(textures.prefiltered_cube.texture != NULL);
   }
 
   // Create the texture view
@@ -1430,7 +1430,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     };
     textures.prefiltered_cube.view = wgpuTextureCreateView(
       textures.prefiltered_cube.texture, &texture_view_dec);
-    ASSERT(textures.prefiltered_cube.view != NULL)
+    ASSERT(textures.prefiltered_cube.view != NULL);
   }
 
   // Create the sampler
@@ -1448,7 +1448,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                               .lodMaxClamp   = (float)num_mips,
                               .maxAnisotropy = 1,
                             });
-    ASSERT(textures.prefiltered_cube.sampler != NULL)
+    ASSERT(textures.prefiltered_cube.sampler != NULL);
   }
 
   // Framebuffer for offscreen rendering
@@ -1643,7 +1643,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layout != NULL)
+    ASSERT(bind_group_layout != NULL);
   }
 
   // Bind group
@@ -1681,7 +1681,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_group != NULL)
+    ASSERT(bind_group != NULL);
   }
 
   // Pipeline layout
@@ -1759,7 +1759,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                               .depthStencil = NULL,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipeline != NULL)
+    ASSERT(pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
