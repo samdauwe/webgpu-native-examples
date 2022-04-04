@@ -76,15 +76,9 @@ static int32_t current_object_index   = 0;
 
 static struct {
   // Object vertex shader uniform buffer
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } ubo_matrices;
+  wgpu_buffer_t ubo_matrices;
   // Shared parameter uniform buffer
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } ubo_params;
+  wgpu_buffer_t ubo_params;
   // Material parameter uniform buffer
   struct {
     WGPUBuffer buffer;
@@ -457,30 +451,20 @@ static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Object vertex shader uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_matrices),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.ubo_matrices.size = ubo_desc.size;
-    uniform_buffers.ubo_matrices.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-    ASSERT(uniform_buffers.ubo_matrices.buffer != NULL)
-  }
+  uniform_buffers.ubo_matrices = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_matrices),
+    });
 
   // Shared parameter uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_params),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.ubo_params.size = ubo_desc.size;
-    uniform_buffers.ubo_params.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-    ASSERT(uniform_buffers.ubo_params.buffer != NULL)
-  }
+  uniform_buffers.ubo_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_params),
+    });
 
   // Material parameter uniform buffer
   {
