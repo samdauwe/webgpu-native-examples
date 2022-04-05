@@ -286,7 +286,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = 1,
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.shaded != NULL)
+    ASSERT(bind_group_layouts.shaded != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.shaded = wgpuDeviceCreatePipelineLayout(
@@ -294,7 +294,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.shaded,
                             });
-    ASSERT(pipeline_layouts.shaded != NULL)
+    ASSERT(pipeline_layouts.shaded != NULL);
   }
 
   // Textured layouts (use all layout bindings)
@@ -304,7 +304,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.textured != NULL)
+    ASSERT(bind_group_layouts.textured != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.textured = wgpuDeviceCreatePipelineLayout(
@@ -312,7 +312,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.textured,
                             });
-    ASSERT(pipeline_layouts.textured != NULL)
+    ASSERT(pipeline_layouts.textured != NULL);
   }
 }
 
@@ -346,7 +346,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.mirror != NULL)
+    ASSERT(bind_groups.mirror != NULL);
   }
 
   // Bind group for Model
@@ -364,7 +364,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = 1,
                               .entries    = &bg_entry,
                             });
-    ASSERT(bind_groups.model != NULL)
+    ASSERT(bind_groups.model != NULL);
   }
 
   // Bind group for Offscreen
@@ -382,7 +382,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = 1,
                               .entries    = &bg_entry,
                             });
-    ASSERT(bind_groups.offscreen != NULL)
+    ASSERT(bind_groups.offscreen != NULL);
   }
 }
 
