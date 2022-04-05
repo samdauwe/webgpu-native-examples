@@ -27,8 +27,8 @@ static struct {
 struct gltf_model_t* plane;
 
 static struct {
-  WGPUBuffer vertex_shader;
-  WGPUBuffer fragment_shader;
+  wgpu_buffer_t vertex_shader;
+  wgpu_buffer_t fragment_shader;
 } uniform_buffers;
 
 static struct {
@@ -202,9 +202,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
       .binding = 0,
-      .buffer = uniform_buffers.vertex_shader,
+      .buffer = uniform_buffers.vertex_shader.buffer,
       .offset = 0,
-      .size = sizeof(ubos.vertex_shader),
+      .size = uniform_buffers.vertex_shader.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1: Fragment shader color map image view
@@ -229,9 +229,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [5] = (WGPUBindGroupEntry) {
       // Binding 5: Fragment shader uniform buffer
       .binding = 5,
-      .buffer = uniform_buffers.fragment_shader,
+      .buffer = uniform_buffers.fragment_shader.buffer,
       .offset = 0,
-      .size = sizeof(ubos.fragment_shader),
+      .size = uniform_buffers.fragment_shader.size,
     },
   };
 
@@ -372,38 +372,33 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_vec4(context->camera->position, -1.0f, ubos.vertex_shader.camera_pos);
   glm_vec4_scale(ubos.vertex_shader.camera_pos, -1.0f,
                  ubos.vertex_shader.camera_pos);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.vertex_shader,
-                          0, &ubos.vertex_shader, sizeof(ubos.vertex_shader));
+  wgpu_queue_write_buffer(
+    context->wgpu_context, uniform_buffers.vertex_shader.buffer, 0,
+    &ubos.vertex_shader, uniform_buffers.vertex_shader.size);
 
   // Fragment shader
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          uniform_buffers.fragment_shader, 0,
-                          &ubos.fragment_shader, sizeof(ubos.fragment_shader));
+  wgpu_queue_write_buffer(
+    context->wgpu_context, uniform_buffers.fragment_shader.buffer, 0,
+    &ubos.fragment_shader, uniform_buffers.fragment_shader.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubos.vertex_shader),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.vertex_shader
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-  }
+  uniform_buffers.vertex_shader = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubos.vertex_shader),
+    });
 
   // Fragment shader uniform buffer
-  {
-    WGPUBufferDescriptor ubo_desc = {
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubos.fragment_shader),
-      .mappedAtCreation = false,
-    };
-    uniform_buffers.fragment_shader
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
-  }
+  uniform_buffers.fragment_shader = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubos.fragment_shader),
+    });
 
   update_uniform_buffers(context);
 }
@@ -528,8 +523,8 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_gltf_model_destroy(plane);
   wgpu_destroy_texture(&textures.color_map);
   wgpu_destroy_texture(&textures.normal_height_map);
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.vertex_shader)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.fragment_shader)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.vertex_shader.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.fragment_shader.buffer)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
@@ -541,7 +536,7 @@ void example_parallax_mapping(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
