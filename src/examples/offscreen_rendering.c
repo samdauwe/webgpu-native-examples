@@ -29,9 +29,9 @@ static struct {
 } models;
 
 static struct {
-  WGPUBuffer shared;
-  WGPUBuffer mirror;
-  WGPUBuffer offScreen;
+  wgpu_buffer_t shared;
+  wgpu_buffer_t mirror;
+  wgpu_buffer_t offScreen;
 } uniform_buffers_vs;
 
 static struct ubo_vs_t {
@@ -324,13 +324,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers_vs.mirror,
-        .offset = 0,
-        .size = sizeof(ubo_shared_vs),
+        .buffer  = uniform_buffers_vs.mirror.buffer,
+        .offset  = 0,
+        .size    =  uniform_buffers_vs.mirror.size,
       },
       [1] = (WGPUBindGroupEntry) {
-       // Binding 1: Fragment shader image sampler
-        .binding = 1,
+        // Binding 1: Fragment shader image sampler
+        .binding     = 1,
         .textureView = offscreen_pass.color.texture_view,
       },
       [2] = (WGPUBindGroupEntry) {
@@ -354,9 +354,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entry = {
       // Binding 0 : Vertex shader uniform buffer
       .binding = 0,
-      .buffer  = uniform_buffers_vs.shared,
+      .buffer  = uniform_buffers_vs.shared.buffer,
       .offset  = 0,
-      .size    = sizeof(ubo_shared_vs),
+      .size    = uniform_buffers_vs.shared.size,
     };
     bind_groups.model = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
@@ -372,9 +372,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entry = {
       // Binding 0 : Vertex shader uniform buffer
       .binding = 0,
-      .buffer  = uniform_buffers_vs.offScreen,
+      .buffer  = uniform_buffers_vs.offScreen.buffer,
       .offset  = 0,
-      .size    = sizeof(ubo_shared_vs),
+      .size    = uniform_buffers_vs.offScreen.size,
     };
     bind_groups.offscreen = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
@@ -592,13 +592,15 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_rotate(ubo_shared_vs.model, glm_rad(model.rotation[1]),
              (vec3){0.0f, 1.0f, 0.0f});
   glm_translate(ubo_shared_vs.model, model.position);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers_vs.shared, 0,
-                          &ubo_shared_vs, sizeof(ubo_shared_vs));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers_vs.shared.buffer, 0, &ubo_shared_vs,
+                          uniform_buffers_vs.shared.size);
 
   // Mirror
   glm_mat4_identity(ubo_shared_vs.model);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers_vs.mirror, 0,
-                          &ubo_shared_vs, sizeof(ubo_shared_vs));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers_vs.mirror.buffer, 0, &ubo_shared_vs,
+                          uniform_buffers_vs.mirror.size);
 }
 
 static void update_uniform_buffer_offscreen(wgpu_example_context_t* context)
@@ -611,38 +613,36 @@ static void update_uniform_buffer_offscreen(wgpu_example_context_t* context)
              (vec3){0.0f, 1.0f, 0.0f});
   glm_scale(ubo_shared_vs.model, (vec3){1.0f, -1.0f, 1.0f});
   glm_translate(ubo_shared_vs.model, model.position);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers_vs.offScreen,
-                          0, &ubo_shared_vs, sizeof(ubo_shared_vs));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers_vs.offScreen.buffer, 0,
+                          &ubo_shared_vs, uniform_buffers_vs.offScreen.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Mesh vertex shader uniform buffer block
-  uniform_buffers_vs.shared = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_shared_vs),
-      .mappedAtCreation = false,
+  uniform_buffers_vs.shared = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_shared_vs),
     });
 
   // Mirror plane vertex shader uniform buffer block
-  uniform_buffers_vs.mirror = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_shared_vs),
-      .mappedAtCreation = false,
+  uniform_buffers_vs.mirror = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_shared_vs),
     });
 
   // Offscreen vertex shader uniform buffer block
-  uniform_buffers_vs.offScreen = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_shared_vs),
-      .mappedAtCreation = false,
+  uniform_buffers_vs.offScreen = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_shared_vs),
     });
 
   update_uniform_buffers(context);
@@ -826,9 +826,9 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Sampler, offscreen_pass.sampler)
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.shared)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.mirror)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.offScreen)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.shared.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.mirror.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers_vs.offScreen.buffer)
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.debug)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.shaded)
@@ -851,12 +851,12 @@ void example_offscreen_rendering(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
