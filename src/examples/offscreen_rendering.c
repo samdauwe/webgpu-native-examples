@@ -151,6 +151,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_pass.color.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -163,6 +164,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.color.texture_view
       = wgpuTextureCreateView(offscreen_pass.color.texture, &texture_view_dec);
+    ASSERT(offscreen_pass.color.texture_view != NULL);
   }
 
   // Create sampler to sample from the attachment in the fragment shader
@@ -178,6 +180,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(offscreen_pass.sampler != NULL);
 
   // Depth stencil attachment
   {
@@ -191,6 +194,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.depth_stencil.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(offscreen_pass.depth_stencil.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -204,6 +208,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     };
     offscreen_pass.depth_stencil.texture_view = wgpuTextureCreateView(
       offscreen_pass.depth_stencil.texture, &texture_view_dec);
+    ASSERT(offscreen_pass.depth_stencil.texture_view != NULL);
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
@@ -253,7 +258,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(ubo_shared_vs),
+        .minBindingSize   = sizeof(ubo_shared_vs),
       },
       .sampler = {0},
     },
@@ -262,18 +267,18 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Fragment shader image sampler
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
-      .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+      .sampler = (WGPUSamplerBindingLayout) {
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
