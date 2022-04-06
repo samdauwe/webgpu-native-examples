@@ -25,9 +25,9 @@ static struct {
 } models;
 
 static struct {
-  WGPUBuffer teapot;
-  WGPUBuffer occluder;
-  WGPUBuffer sphere;
+  wgpu_buffer_t teapot;
+  wgpu_buffer_t occluder;
+  wgpu_buffer_t sphere;
 } uniform_buffers;
 
 static struct ubo_vs_t {
@@ -150,9 +150,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.occluder,
+        .buffer = uniform_buffers.occluder.buffer,
         .offset = 0,
-        .size = sizeof(ubo_vs),
+        .size = uniform_buffers.occluder.size,
       },
     };
     bind_group = wgpuDeviceCreateBindGroup(
@@ -170,9 +170,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.teapot,
+        .buffer = uniform_buffers.teapot.buffer,
         .offset = 0,
-        .size = sizeof(ubo_vs),
+        .size = uniform_buffers.teapot.size,
       },
     };
     bind_groups.teapot = wgpuDeviceCreateBindGroup(
@@ -190,9 +190,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.sphere,
+        .buffer = uniform_buffers.sphere.buffer,
         .offset = 0,
-        .size = sizeof(ubo_vs),
+        .size = uniform_buffers.sphere.size,
       },
     };
     bind_groups.sphere = wgpuDeviceCreateBindGroup(
@@ -420,8 +420,9 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   identity_mtx[2][2] = scale;
   glm_mat4_copy(identity_mtx, ubo_vs.model);
   glm_vec4_copy((vec4){0.0f, 0.0f, 1.0f, 0.5f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.occluder, 0,
-                          &ubo_vs, sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers.occluder.buffer, 0, &ubo_vs,
+                          uniform_buffers.occluder.size);
 
   // Teapot
   // Toggle color depending on visibility
@@ -430,8 +431,8 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_translate(identity_mtx, (vec3){0.0f, 0.0f, -3.0f});
   glm_mat4_copy(identity_mtx, ubo_vs.model);
   glm_vec4_copy((vec4){1.0f, 0.0f, 0.0f, 1.0f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.teapot, 0,
-                          &ubo_vs, sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.teapot.buffer,
+                          0, &ubo_vs, uniform_buffers.teapot.size);
 
   // Sphere
   // Toggle color depending on visibility
@@ -440,38 +441,35 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_translate(identity_mtx, (vec3){0.0f, 0.0f, 3.0f});
   glm_mat4_copy(identity_mtx, ubo_vs.model);
   glm_vec4_copy((vec4){0.0f, 1.0f, 0.0f, 1.0f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.sphere, 0,
-                          &ubo_vs, sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.sphere.buffer,
+                          0, &ubo_vs, uniform_buffers.sphere.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer block
-  uniform_buffers.occluder = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_vs),
-      .mappedAtCreation = false,
+  uniform_buffers.occluder = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
     });
 
   // Teapot
-  uniform_buffers.teapot = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_vs),
-      .mappedAtCreation = false,
+  uniform_buffers.teapot = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
     });
 
   // Sphere
-  uniform_buffers.sphere = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_vs),
-      .mappedAtCreation = false,
+  uniform_buffers.sphere = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
     });
 
   update_uniform_buffers(context);
@@ -732,9 +730,9 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_gltf_model_destroy(models.plane);
   wgpu_gltf_model_destroy(models.sphere);
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.teapot)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.occluder)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.sphere)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.teapot.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.occluder.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.sphere.buffer)
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.solid);
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.occluder)
@@ -763,7 +761,7 @@ void example_occlusion_query(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
