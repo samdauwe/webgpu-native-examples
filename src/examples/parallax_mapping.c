@@ -117,63 +117,63 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[6] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(ubos.vertex_shader),
+        .minBindingSize   = sizeof(ubos.vertex_shader),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: Fragment shader color map image view
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Fragment shader color map image sampler
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3: Fragment combined normal and heightmap view
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [4] = (WGPUBindGroupLayoutEntry) {
       // Binding 4: Fragment combined normal and heightmap sampler
-      .binding = 4,
+      .binding    = 4,
       .visibility = WGPUShaderStage_Fragment,
-      .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+      .sampler = (WGPUSamplerBindingLayout) {
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [5] = (WGPUBindGroupLayoutEntry) {
       // Binding 5: Fragment shader uniform buffer
-      .binding = 5,
+      .binding    = 5,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(ubos.fragment_shader),
+        .minBindingSize   = sizeof(ubos.fragment_shader),
       },
       .sampler = {0},
     },
@@ -202,13 +202,13 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
       .binding = 0,
-      .buffer = uniform_buffers.vertex_shader.buffer,
-      .offset = 0,
-      .size = uniform_buffers.vertex_shader.size,
+      .buffer  = uniform_buffers.vertex_shader.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.vertex_shader.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1: Fragment shader color map image view
-      .binding = 1,
+      .binding     = 1,
       .textureView = textures.color_map.view,
     },
     [2] = (WGPUBindGroupEntry) {
@@ -218,7 +218,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
     [3] = (WGPUBindGroupEntry) {
       // Binding 3: Fragment combined normal and heightmap view
-      .binding = 3,
+      .binding     = 3,
       .textureView = textures.normal_height_map.view,
     },
     [4] = (WGPUBindGroupEntry) {
@@ -229,9 +229,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [5] = (WGPUBindGroupEntry) {
       // Binding 5: Fragment shader uniform buffer
       .binding = 5,
-      .buffer = uniform_buffers.fragment_shader.buffer,
-      .offset = 0,
-      .size = uniform_buffers.fragment_shader.size,
+      .buffer  = uniform_buffers.fragment_shader.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.fragment_shader.size,
     },
   };
 
