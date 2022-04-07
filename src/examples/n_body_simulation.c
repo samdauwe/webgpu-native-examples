@@ -33,10 +33,7 @@ static vec3 eye_position = INITIAL_EYE_POSITION;
 
 // Uniform buffer block object
 static struct {
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } render_params;
+  wgpu_buffer_t render_params;
 } uniform_buffers;
 
 static struct {
@@ -52,18 +49,11 @@ static struct {
 // Storage buffer block objects
 static struct {
   struct {
-    WGPUBuffer buffer;
-    uint64_t size;
+    wgpu_buffer_t buffer;
     float positions[NUM_BODIES * 4];
   } positions_in;
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } positions_out;
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } velocities;
+  wgpu_buffer_t positions_out;
+  wgpu_buffer_t velocities;
 } storage_buffers;
 
 // Bind group layouts
@@ -167,14 +157,12 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer block
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-    .size             = sizeof(mat4), // sizeof(mat4x4<f32>)
-    .mappedAtCreation = false,
-  };
-  uniform_buffers.render_params.buffer
-    = wgpuDeviceCreateBuffer(context->wgpu_context->device, &buffer_desc);
-  uniform_buffers.render_params.size = buffer_desc.size;
+  uniform_buffers.render_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(mat4), // sizeof(mat4x4<f32>)
+    });
 
   update_uniform_buffers(context);
 }
@@ -202,50 +190,37 @@ static void init_bodies(wgpu_context_t* wgpu_context)
   }
 
   // Write the render parameters to the uniform buffer
-  wgpu_queue_write_buffer(wgpu_context, storage_buffers.positions_in.buffer, 0,
+  wgpu_queue_write_buffer(wgpu_context,
+                          storage_buffers.positions_in.buffer.buffer, 0,
                           storage_buffers.positions_in.positions,
-                          storage_buffers.positions_in.size);
+                          storage_buffers.positions_in.buffer.size);
 }
 
 // Create buffers for body positions and velocities.
 static void prepare_storage_buffers(wgpu_example_context_t* context)
 {
-  {
-    WGPUBufferDescriptor buffer_desc = {
-      .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst
+  storage_buffers.positions_in.buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage
+               | WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+      .size = num_bodies * 4 * 4,
+    });
+
+  storage_buffers.positions_out = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage
                | WGPUBufferUsage_Vertex,
-      .size             = num_bodies * 4 * 4,
-      .mappedAtCreation = false,
-    };
-    storage_buffers.positions_in.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &buffer_desc);
-    storage_buffers.positions_in.size = buffer_desc.size;
-    ASSERT(storage_buffers.positions_in.buffer);
-  }
+      .size = num_bodies * 4 * 4,
+    });
 
-  {
-    WGPUBufferDescriptor buffer_desc = {
-      .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_Vertex,
-      .size             = num_bodies * 4 * 4,
-      .mappedAtCreation = false,
-    };
-    storage_buffers.positions_out.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &buffer_desc);
-    storage_buffers.positions_out.size = buffer_desc.size;
-    ASSERT(storage_buffers.positions_out.buffer);
-  }
-
-  {
-    WGPUBufferDescriptor buffer_desc = {
-      .usage            = WGPUBufferUsage_Storage,
-      .size             = num_bodies * 4 * 4,
-      .mappedAtCreation = false,
-    };
-    storage_buffers.velocities.buffer
-      = wgpuDeviceCreateBuffer(context->wgpu_context->device, &buffer_desc);
-    storage_buffers.velocities.size = buffer_desc.size;
-    ASSERT(storage_buffers.velocities.buffer);
-  }
+  storage_buffers.velocities = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
+      .size  = num_bodies * 4 * 4,
+    });
 
   // Generate initial positions on the surface of a sphere
   init_bodies(context->wgpu_context);
@@ -260,7 +235,7 @@ static void setup_compute_pipeline_layout(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_ReadOnlyStorage,
-        .minBindingSize = storage_buffers.positions_in.size,
+        .minBindingSize = storage_buffers.positions_in.buffer.size,
       },
       .sampler = {0},
     },
@@ -339,9 +314,9 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Input Positions
       .binding = 0,
-      .buffer = storage_buffers.positions_in.buffer,
+      .buffer = storage_buffers.positions_in.buffer.buffer,
       .offset = 0,
-      .size = storage_buffers.positions_in.size,
+      .size = storage_buffers.positions_in.buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1 : Output Positions
@@ -380,9 +355,9 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
       [1] = (WGPUBindGroupEntry) {
         // Binding 1 : Input Positions
         .binding = 1,
-        .buffer = storage_buffers.positions_in.buffer,
+        .buffer = storage_buffers.positions_in.buffer.buffer,
         .offset = 0,
-        .size = storage_buffers.positions_in.size,
+        .size = storage_buffers.positions_in.buffer.size,
       },
     [2] = (WGPUBindGroupEntry) {
       // Binding 2 : Velocities
@@ -612,11 +587,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.render);
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       bind_groups.render, 0, NULL);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         frame_idx == 0 ?
-                                           storage_buffers.positions_in.buffer :
-                                           storage_buffers.positions_out.buffer,
-                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      wgpu_context->rpass_enc, 0,
+      frame_idx == 0 ? storage_buffers.positions_in.buffer.buffer :
+                       storage_buffers.positions_out.buffer,
+      0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, num_bodies, 0, 0);
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
@@ -706,7 +681,7 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
 
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.render_params.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, storage_buffers.positions_in.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, storage_buffers.positions_in.buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, storage_buffers.positions_out.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, storage_buffers.velocities.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.compute)
