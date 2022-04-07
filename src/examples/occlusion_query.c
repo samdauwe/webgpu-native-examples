@@ -121,7 +121,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(ubo_vs),
+        .minBindingSize   = sizeof(ubo_vs),
       },
       .sampler = {0},
     },
@@ -150,9 +150,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.occluder.buffer,
-        .offset = 0,
-        .size = uniform_buffers.occluder.size,
+        .buffer  = uniform_buffers.occluder.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.occluder.size,
       },
     };
     bind_group = wgpuDeviceCreateBindGroup(
@@ -170,9 +170,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.teapot.buffer,
-        .offset = 0,
-        .size = uniform_buffers.teapot.size,
+        .buffer  = uniform_buffers.teapot.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.teapot.size,
       },
     };
     bind_groups.teapot = wgpuDeviceCreateBindGroup(
@@ -190,9 +190,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.sphere.buffer,
-        .offset = 0,
-        .size = uniform_buffers.sphere.size,
+        .buffer  = uniform_buffers.sphere.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.sphere.size,
       },
     };
     bind_groups.sphere = wgpuDeviceCreateBindGroup(
