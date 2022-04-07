@@ -264,7 +264,7 @@ static void setup_compute_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layouts.compute
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(bind_group_layouts.compute != NULL)
+  ASSERT(bind_group_layouts.compute != NULL);
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
     .bindGroupLayoutCount = 1,
@@ -272,7 +272,7 @@ static void setup_compute_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layouts.compute = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &compute_pipeline_layout_desc);
-  ASSERT(pipeline_layouts.compute != NULL)
+  ASSERT(pipeline_layouts.compute != NULL);
 }
 
 static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -295,7 +295,7 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layouts.render
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(bind_group_layouts.render != NULL)
+  ASSERT(bind_group_layouts.render != NULL);
 
   WGPUPipelineLayoutDescriptor render_pipeline_layout_desc = {
     .bindGroupLayoutCount = 1,
@@ -303,7 +303,7 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layouts.render = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &render_pipeline_layout_desc);
-  ASSERT(pipeline_layouts.render != NULL)
+  ASSERT(pipeline_layouts.render != NULL);
 }
 
 // Create the bind group for the compute shader.
@@ -340,7 +340,7 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.compute[0] != NULL)
+    ASSERT(bind_groups.compute[0] != NULL);
   }
 
   {
@@ -374,7 +374,7 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.compute[1] != NULL)
+    ASSERT(bind_groups.compute[1] != NULL);
   }
 }
 
@@ -397,7 +397,7 @@ static void setup_render_bind_group(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_groups.render != NULL)
+  ASSERT(bind_groups.render != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -443,6 +443,7 @@ static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
       .layout  = pipeline_layouts.compute,
       .compute = compute_shader.programmable_stage_descriptor,
     });
+  ASSERT(pipelines.compute != NULL);
 
   // Partial cleanup
   wgpu_shader_release(&compute_shader);
@@ -523,6 +524,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = NULL,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipelines.render != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
