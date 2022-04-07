@@ -495,7 +495,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.debug
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.debug);
+    ASSERT(pipelines.debug != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -531,7 +531,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.mirror
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.mirror);
+    ASSERT(pipelines.mirror != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -570,7 +570,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     pipeline_desc.fragment = &fragment_state_desc;
     pipelines.shaded
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.shaded);
+    ASSERT(pipelines.shaded != NULL);
 
     // Offscreen
     // Flip cull mode
@@ -578,7 +578,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     color_target_state_desc.format = FB_COLOR_FORMAT;
     pipelines.shaded_offscreen
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.shaded_offscreen);
+    ASSERT(pipelines.shaded_offscreen != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
