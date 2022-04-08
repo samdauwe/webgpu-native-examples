@@ -124,37 +124,6 @@ static uint32_t uniform_buffer_size = num_instances * matrix_stride;
 static const char* example_title = "Reversed Z";
 static bool prepared             = false;
 
-// https://github.com/toji/gl-matrix/commit/e906eb7bb02822a81b1d197c6b5b33563c0403c0
-static float* perspective_zo(float (*out)[16], float fovy, float aspect,
-                             float near, float* far)
-{
-  const float f = 1.0f / tan(fovy / 2.0f);
-  (*out)[0]     = f / aspect;
-  (*out)[1]     = 0.0f;
-  (*out)[2]     = 0.0f;
-  (*out)[3]     = 0.0f;
-  (*out)[4]     = 0.0f;
-  (*out)[5]     = f;
-  (*out)[6]     = 0.0f;
-  (*out)[7]     = 0.0f;
-  (*out)[8]     = 0.0f;
-  (*out)[9]     = 0.0f;
-  (*out)[11]    = -1.0f;
-  (*out)[12]    = 0.0f;
-  (*out)[13]    = 0.0f;
-  (*out)[15]    = 0.0f;
-  if (far != NULL && *far != INFINITY) {
-    const float nf = 1.0f / (near - *far);
-    (*out)[10]     = *far * nf;
-    (*out)[14]     = *far * near * nf;
-  }
-  else {
-    (*out)[10] = -1.0f;
-    (*out)[14] = -near;
-  }
-  return *out;
-}
-
 static void float_array_to_mat4(float (*float_array)[16], mat4* out)
 {
   uint32_t i = 0;
@@ -979,8 +948,8 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
     0.0f, 0.0f, 0.0f, 1.0f, //
   };
   float far = INFINITY;
-  perspective_zo(&projection_matrix_as_array, (2.0f * PI) / 5.0f, aspect, 5.0f,
-                 &far);
+  perspective_zo_float_array(&projection_matrix_as_array, (2.0f * PI) / 5.0f,
+                             aspect, 5.0f, &far);
   mat4 projection_matrix = GLM_MAT4_IDENTITY_INIT;
   float_array_to_mat4(&projection_matrix_as_array, &projection_matrix);
 
