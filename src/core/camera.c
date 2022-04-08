@@ -338,3 +338,27 @@ void perspective_matrix_reversed_z_infinite_far(float fovy, float aspect,
          },
          sizeof(mat4));
 }
+
+mat4* perspective_zo_mat4(mat4* out, float fovy, float aspect, float near,
+                          float far)
+{
+  const float f  = 1.0f / tan(fovy / 2.0f);
+  (*out)[0][0]   = f / aspect;
+  (*out)[0][1]   = 0.0f;
+  (*out)[0][2]   = 0.0f;
+  (*out)[0][3]   = 0.0f;
+  (*out)[1][0]   = 0.0f;
+  (*out)[1][1]   = f;
+  (*out)[1][2]   = 0.0f;
+  (*out)[1][3]   = 0.0f;
+  (*out)[2][0]   = 0.0f;
+  (*out)[2][1]   = 0.0f;
+  (*out)[2][3]   = -1.0f;
+  (*out)[3][0]   = 0.0f;
+  (*out)[3][1]   = 0.0f;
+  (*out)[3][3]   = 0.0f;
+  const float nf = 1.0f / (near - far);
+  (*out)[2][2]   = far * nf;
+  (*out)[3][2]   = far * near * nf;
+  return out;
+}

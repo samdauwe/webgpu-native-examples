@@ -113,4 +113,23 @@ void perspective_matrix_reversed_z(float fovy, float aspect, float near,
 void perspective_matrix_reversed_z_infinite_far(float fovy, float aspect,
                                                 float near, mat4 dest);
 
+/**
+ * @brief Generates a perspective projection matrix suitable for WebGPU with the
+ * given bounds. The near/far clip planes correspond to a normalized device
+ * coordinate Z range of [0, 1], which matches WebGPU/Vulkan/DirectX/Metal's
+ * clip volume. Passing null/undefined/no value for far will generate infinite
+ * projection matrix.
+ *
+ * @param out mat4 frustum matrix will be written into
+ * @param fovy Vertical field of view in radians
+ * @param aspect Aspect ratio. typically viewport width/height
+ * @param near Near bound of the frustum
+ * @param far Far bound of the frustum, can be null or Infinity
+ * @returns out perspective projection matrix
+ * @see
+ * https://github.com/toji/gl-matrix/commit/e906eb7bb02822a81b1d197c6b5b33563c0403c0
+ */
+mat4* perspective_zo_mat4(mat4* out, float fovy, float aspect, float near,
+                          float far);
+
 #endif
