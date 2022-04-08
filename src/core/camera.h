@@ -131,5 +131,7 @@ void perspective_matrix_reversed_z_infinite_far(float fovy, float aspect,
  */
 mat4* perspective_zo_mat4(mat4* out, float fovy, float aspect, float near,
                           float far);
+float* perspective_zo_float_array(float (*out)[16], float fovy, float aspect,
+                                  float near, float* far);
 
 #endif
