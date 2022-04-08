@@ -105,31 +105,6 @@ static uint32_t frame_idx = 0;
 static const char* example_title = "N-Body Simulation";
 static bool prepared             = false;
 
-// https://github.com/toji/gl-matrix/commit/e906eb7bb02822a81b1d197c6b5b33563c0403c0
-static mat4* perspective_zo(mat4* out, float fovy, float aspect, float near,
-                            float far)
-{
-  const float f  = 1.0f / tan(fovy / 2.0f);
-  (*out)[0][0]   = f / aspect;
-  (*out)[0][1]   = 0.0f;
-  (*out)[0][2]   = 0.0f;
-  (*out)[0][3]   = 0.0f;
-  (*out)[1][0]   = 0.0f;
-  (*out)[1][1]   = f;
-  (*out)[1][2]   = 0.0f;
-  (*out)[1][3]   = 0.0f;
-  (*out)[2][0]   = 0.0f;
-  (*out)[2][1]   = 0.0f;
-  (*out)[2][3]   = -1.0f;
-  (*out)[3][0]   = 0.0f;
-  (*out)[3][1]   = 0.0f;
-  (*out)[3][3]   = 0.0f;
-  const float nf = 1.0f / (near - far);
-  (*out)[2][2]   = far * nf;
-  (*out)[3][2]   = far * near * nf;
-  return out;
-}
-
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   wgpu_context_t* wgpu_context = context->wgpu_context;
@@ -139,7 +114,8 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_identity(render_params.view_projection_matrix);
   const float aspect
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
-  perspective_zo(&render_params.projection_matrix, 1.0f, aspect, 0.1f, 50.0f);
+  perspective_zo_mat4(&render_params.projection_matrix, 1.0f, aspect, 0.1f,
+                      50.0f);
   glm_translate(render_params.view_projection_matrix, eye_position);
   glm_mat4_mul(render_params.projection_matrix,
                render_params.view_projection_matrix,
