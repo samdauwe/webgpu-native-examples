@@ -290,23 +290,23 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Input Positions
       .binding = 0,
-      .buffer = storage_buffers.positions_in.buffer.buffer,
-      .offset = 0,
-      .size = storage_buffers.positions_in.buffer.size,
+      .buffer  = storage_buffers.positions_in.buffer.buffer,
+      .offset  = 0,
+      .size    = storage_buffers.positions_in.buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1 : Output Positions
       .binding = 1,
-      .buffer = storage_buffers.positions_out.buffer,
-      .offset = 0,
-      .size = storage_buffers.positions_out.size,
+      .buffer  = storage_buffers.positions_out.buffer,
+      .offset  = 0,
+      .size    = storage_buffers.positions_out.size,
     },
     [2] = (WGPUBindGroupEntry) {
       // Binding 2 : Velocities
       .binding = 2,
-      .buffer = storage_buffers.velocities.buffer,
-      .offset = 0,
-      .size = storage_buffers.velocities.size,
+      .buffer  = storage_buffers.velocities.buffer,
+      .offset  = 0,
+      .size    = storage_buffers.velocities.size,
     },
   };
 
@@ -324,23 +324,23 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0 : Output Positions
         .binding = 0,
-        .buffer = storage_buffers.positions_out.buffer,
-        .offset = 0,
-        .size = storage_buffers.positions_out.size,
+        .buffer  = storage_buffers.positions_out.buffer,
+        .offset  = 0,
+        .size    = storage_buffers.positions_out.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1 : Input Positions
         .binding = 1,
-        .buffer = storage_buffers.positions_in.buffer.buffer,
-        .offset = 0,
-        .size = storage_buffers.positions_in.buffer.size,
+        .buffer  = storage_buffers.positions_in.buffer.buffer,
+        .offset  = 0,
+        .size    = storage_buffers.positions_in.buffer.size,
       },
     [2] = (WGPUBindGroupEntry) {
       // Binding 2 : Velocities
       .binding = 2,
-      .buffer = storage_buffers.velocities.buffer,
-      .offset = 0,
-      .size = storage_buffers.velocities.size,
+      .buffer  = storage_buffers.velocities.buffer,
+      .offset  = 0,
+      .size    = storage_buffers.velocities.size,
     },
   };
 
@@ -361,9 +361,9 @@ static void setup_render_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Render params uniform buffer
       .binding = 0,
-      .buffer = uniform_buffers.render_params.buffer,
-      .offset = 0,
-      .size = uniform_buffers.render_params.size,
+      .buffer  = uniform_buffers.render_params.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.render_params.size,
     },
   };
 
@@ -463,7 +463,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
-                  .file = "shaders/n_body_simulation/n_body_simulation.wgsl",
+                  .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                   .entry = "vs_main",
                 },
                 .buffer_count = 1,
@@ -475,7 +475,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
-                  .file = "shaders/n_body_simulation/n_body_simulation.wgsl",
+                  .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                   .entry = "fs_main",
                 },
                 .target_count = 1,
@@ -681,10 +681,10 @@ void example_n_body_simulation(int argc, char* argv[])
       .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_key_pressed_func  = &example_on_key_pressed,
+    .example_initialize_func     = &example_initialize,
+    .example_render_func         = &example_render,
+    .example_destroy_func        = &example_destroy,
+    .example_on_key_pressed_func = &example_on_key_pressed,
   });
   // clang-format on
 }
