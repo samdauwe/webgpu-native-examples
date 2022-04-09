@@ -129,9 +129,7 @@ void perspective_matrix_reversed_z_infinite_far(float fovy, float aspect,
  * @see
  * https://github.com/toji/gl-matrix/commit/e906eb7bb02822a81b1d197c6b5b33563c0403c0
  */
-mat4* perspective_zo_mat4(mat4* out, float fovy, float aspect, float near,
-                          float far);
-float* perspective_zo_float_array(float (*out)[16], float fovy, float aspect,
-                                  float near, float* far);
+mat4* perspective_zo(mat4* out, float fovy, float aspect, float near,
+                     const float* far);
 
 #endif
