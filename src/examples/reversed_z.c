@@ -124,16 +124,6 @@ static uint32_t uniform_buffer_size = num_instances * matrix_stride;
 static const char* example_title = "Reversed Z";
 static bool prepared             = false;
 
-static void float_array_to_mat4(float (*float_array)[16], mat4* out)
-{
-  uint32_t i = 0;
-  for (uint32_t r = 0; r < 4; ++r) {
-    for (uint32_t c = 0; c < 4; ++c) {
-      (*out)[r][c] = (*float_array)[i++];
-    }
-  }
-}
-
 typedef enum render_mode_enum {
   RenderMode_Color              = 0,
   RenderMode_Precision_Error    = 1,
@@ -941,17 +931,9 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 
   const float aspect = (0.5f * (float)wgpu_context->surface.width)
                        / (float)wgpu_context->surface.height;
-  float projection_matrix_as_array[16] = {
-    1.0f, 0.0f, 0.0f, 0.0f, //
-    0.0f, 1.0f, 0.0f, 0.0f, //
-    0.0f, 0.0f, 1.0f, 0.0f, //
-    0.0f, 0.0f, 0.0f, 1.0f, //
-  };
-  float far = INFINITY;
-  perspective_zo_float_array(&projection_matrix_as_array, (2.0f * PI) / 5.0f,
-                             aspect, 5.0f, &far);
   mat4 projection_matrix = GLM_MAT4_IDENTITY_INIT;
-  float_array_to_mat4(&projection_matrix_as_array, &projection_matrix);
+  float far              = INFINITY;
+  perspective_zo(&projection_matrix, PI2 / 5.0f, aspect, 5.0f, &far);
 
   mat4 view_projection_matrix = GLM_MAT4_IDENTITY_INIT;
   glm_mat4_mul(projection_matrix, view_matrix, view_projection_matrix);
