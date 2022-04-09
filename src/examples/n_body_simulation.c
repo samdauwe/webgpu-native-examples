@@ -114,8 +114,8 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_identity(render_params.view_projection_matrix);
   const float aspect
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
-  perspective_zo_mat4(&render_params.projection_matrix, 1.0f, aspect, 0.1f,
-                      50.0f);
+  const float far = 50.0f;
+  perspective_zo(&render_params.projection_matrix, 1.0f, aspect, 0.1f, &far);
   glm_translate(render_params.view_projection_matrix, eye_position);
   glm_mat4_mul(render_params.projection_matrix,
                render_params.view_projection_matrix,
