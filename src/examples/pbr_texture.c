@@ -112,7 +112,7 @@ static void setup_camera(wgpu_example_context_t* context)
   camera_set_rotation_speed(context->camera, 0.25f);
 
   camera_set_rotation(context->camera, (vec3){7.75f, 150.25f, 0.0f});
-  camera_set_position(context->camera, (vec3){2.75f, -1.75f, 1.75f});
+  camera_set_position(context->camera, (vec3){0.7f, 0.1f, 1.7f});
 }
 
 static void load_assets(wgpu_context_t* wgpu_context)
