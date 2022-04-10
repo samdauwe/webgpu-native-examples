@@ -119,7 +119,7 @@ static void setup_camera(wgpu_example_context_t* context)
   context->timer_speed *= 0.5f;
   context->camera       = camera_create();
   context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, -10.25f});
+  camera_set_position(context->camera, (vec3){0.0f, -1.25f, -10.25f});
   camera_set_rotation(context->camera, (vec3){-7.5f, -343.0f, 0.0f});
   camera_set_perspective(context->camera, 45.0f,
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
