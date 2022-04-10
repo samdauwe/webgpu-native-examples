@@ -816,9 +816,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
   // Generate local node matrix
   // It's either made up from translation, rotation, scale or a 4x4 matrix
   if (node->has_translation) {
-    vec3 translation = GLM_VEC3_ZERO_INIT;
-    glm_vec3_copy(node->translation, translation);
-    glm_translate(new_node->matrix, translation);
+    glm_vec3_copy(node->translation, new_node->translation);
   }
   if (node->has_rotation) {
     versor q = GLM_VEC4_ONE_INIT;
