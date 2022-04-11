@@ -99,6 +99,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
   };
   multisampled_texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
+  ASSERT(multisampled_texture != NULL);
 
   // Create the multi-sampled texture view
   multisampled_framebuffer = wgpuTextureCreateView(
@@ -110,6 +111,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
                             .baseArrayLayer  = 0,
                             .arrayLayerCount = 1,
                           });
+  ASSERT(multisampled_framebuffer != NULL);
 }
 
 static void setup_render_bundle(wgpu_context_t* wgpu_context)
@@ -162,6 +164,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {0};
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                    &pipeline_layout_desc);
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
@@ -229,6 +232,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
