@@ -31,10 +31,7 @@ typedef struct vertex_t {
 } vertex_t;
 
 // Vertex buffer
-static struct vertices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // The pipeline layout
 static WGPUPipelineLayout pipeline_layout;
@@ -76,11 +73,13 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     };
   }
 
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_data);
-  uint64_t vertex_buffer_size = (uint64_t)vertices.count * sizeof(vertex_t);
-
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_data),
+                    .count = (uint32_t)ARRAY_SIZE(vertex_data),
+                    .initial.data = vertex_data,
+                  });
 }
 
 static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
@@ -336,12 +335,12 @@ void example_msaa_line(int argc, char* argv[])
      .title  = example_title,
     },
     .example_window_config = (window_config_t){
-     .width=800,
-     .height=600,
+     .width  = 800,
+     .height = 600,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
