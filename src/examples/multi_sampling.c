@@ -28,10 +28,7 @@ static struct {
 
 static struct gltf_model_t* gltf_model;
 
-static struct {
-  WGPUBuffer buffer;
-  uint64_t size;
-} uniform_buffer;
+static wgpu_buffer_t uniform_buffer;
 
 static struct {
   mat4 projection;
@@ -394,15 +391,12 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer block
-  uniform_buffer.size                      = sizeof(ubo_vs);
-  WGPUBufferDescriptor texture_buffer_desc = {
-    .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    .size             = uniform_buffer.size,
-    .mappedAtCreation = false,
-  };
-  uniform_buffer.buffer = wgpuDeviceCreateBuffer(context->wgpu_context->device,
-                                                 &texture_buffer_desc);
-  ASSERT(uniform_buffer.buffer);
+  uniform_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
+    });
 
   update_uniform_buffers(context);
 }
