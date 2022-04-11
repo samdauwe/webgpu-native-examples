@@ -102,6 +102,7 @@ static void setup_multisample_target(wgpu_context_t* wgpu_context)
     };
     multi_sample_target.color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
+    ASSERT(multi_sample_target.color.texture != NULL);
 
     // Create the multi-sampled texture view
     multi_sample_target.color.view
@@ -114,6 +115,7 @@ static void setup_multisample_target(wgpu_context_t* wgpu_context)
                                 .baseArrayLayer  = 0,
                                 .arrayLayerCount = 1,
                               });
+    ASSERT(multi_sample_target.color.view != NULL);
   }
 }
 
@@ -216,7 +218,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                      &pipeline_layout_desc);
-    ASSERT(pipeline_layout != NULL)
+    ASSERT(pipeline_layout != NULL);
   }
 }
 
@@ -237,7 +239,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = 1,
                               .entries    = &bg_entry,
                             });
-    ASSERT(bind_group != NULL)
+    ASSERT(bind_group != NULL);
   }
 
   // Bind group for materials
@@ -265,7 +267,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
             .entries    = bg_entries,
           });
-        ASSERT(material->bind_group != NULL)
+        ASSERT(material->bind_group != NULL);
       }
     }
   }
@@ -349,6 +351,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
+    ASSERT(pipelines.normal != NULL);
   }
 
   // MSAA rendering pipeline
@@ -371,6 +374,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
+    ASSERT(pipelines.msaa != NULL);
   }
 
   // Partial cleanup
@@ -536,7 +540,7 @@ void example_multi_sampling(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
+     .title   = example_title,
      .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
