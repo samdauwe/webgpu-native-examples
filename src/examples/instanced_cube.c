@@ -228,7 +228,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   };
   uniform_buffer.bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(uniform_buffer.bind_group != NULL)
+  ASSERT(uniform_buffer.bind_group != NULL);
 
   // Model matrices
   prepare_model_matrices();
@@ -309,6 +309,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
