@@ -57,15 +57,11 @@ static cube_mesh_t cube_mesh      = {0};
 static uint32_t cube_vertex_count = 36;
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t size;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Uniform buffer object
 static struct {
-  WGPUBuffer buffer;
-  uint64_t size;
+  wgpu_buffer_t buffer;
   WGPUBindGroup bind_group;
 } uniform_buffer = {0};
 
@@ -99,18 +95,12 @@ static void prepare_cube_mesh()
 // Create a vertex buffer from the cube data.
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  vertices.size                    = sizeof(cube_mesh.vertex_array);
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-    .size             = vertices.size,
-    .mappedAtCreation = true,
-  };
-  vertices.buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-  ASSERT(vertices.buffer)
-  void* mapping = wgpuBufferGetMappedRange(vertices.buffer, 0, vertices.size);
-  ASSERT(mapping)
-  memcpy(mapping, cube_mesh.vertex_array, vertices.size);
-  wgpuBufferUnmap(vertices.buffer);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(cube_mesh.vertex_array),
+                    .initial.data = cube_mesh.vertex_array,
+                  });
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -168,9 +158,9 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   update_transformation_matrix(context);
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer.buffer, 0,
-                          &view_matrices.model_view_projection,
-                          uniform_buffer_size);
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer.buffer.buffer,
+                          0, &view_matrices.model_view_projection,
+                          uniform_buffer.buffer.size);
 }
 
 static void prepare_view_matrices(wgpu_context_t* wgpu_context)
@@ -215,13 +205,11 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 
   // Unform buffer: allocate a buffer large enough to hold transforms for every
   // instance.
-  uniform_buffer.size   = uniform_buffer_size;
-  uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = uniform_buffer.size,
-    });
+  uniform_buffer.buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = uniform_buffer_size,
+                  });
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -233,9 +221,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     .entryCount = 1,
     .entries    = &(WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = uniform_buffer.buffer,
+      .buffer  = uniform_buffer.buffer.buffer,
       .offset  = 0,
-      .size    = uniform_buffer.size,
+      .size    = uniform_buffer.buffer.size,
     },
   };
   uniform_buffer.bind_group
@@ -418,7 +406,7 @@ static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(BindGroup, uniform_buffer.bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
 }
@@ -428,12 +416,12 @@ void example_instanced_cube(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
+     .title   = example_title,
      .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy
   });
   // clang-format on
 }
