@@ -115,6 +115,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                              .baseArrayLayer  = 0,
                              .arrayLayerCount = 1,
                            });
+  ASSERT(video_texture.view != NULL);
 
   // Create the sampler
   video_texture.sampler = wgpuDeviceCreateSampler(
@@ -127,6 +128,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                             .mipmapFilter  = WGPUFilterMode_Nearest,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(video_texture.sampler != NULL);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -169,7 +171,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -204,7 +206,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     .entries    = bg_entries,
   };
   bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -360,6 +362,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -554,9 +557,9 @@ void example_immersive_video(int argc, char* argv[])
      .overlay = true,
      .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
