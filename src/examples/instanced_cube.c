@@ -138,8 +138,11 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
     for (uint32_t y = 0; y < y_count; y++) {
       memcpy(view_matrices.tmp, view_matrices.model[i], sizeof(mat4));
       glm_rotate(view_matrices.tmp, 1.0f,
-                 (vec3){sin(((float)x + 0.5f) * now),
-                        cos(((float)y + 0.5f) * now), 0.0f});
+                 (vec3){
+                   sin(((float)x + 0.5f) * now), // x
+                   cos(((float)y + 0.5f) * now), // y
+                   0.0f                          // z
+                 });
 
       glm_mat4_mul(view_matrices.view, view_matrices.tmp, view_matrices.tmp);
       glm_mat4_mul(view_matrices.projection, view_matrices.tmp,
@@ -191,8 +194,11 @@ static void prepare_model_matrices()
     for (uint32_t y = 0; y < y_count; y++) {
       glm_mat4_identity(view_matrices.model[m]);
       glm_translate(view_matrices.model[m],
-                    (vec3){step * (x - x_count / 2.0f + 0.5f),
-                           step * (y - y_count / 2.0f + 0.5f), 0.0f});
+                    (vec3){
+                      step * (x - x_count / 2.0f + 0.5f), // x
+                      step * (y - y_count / 2.0f + 0.5f), // y
+                      0.0f                                // z
+                    });
       ++m;
     }
   }
