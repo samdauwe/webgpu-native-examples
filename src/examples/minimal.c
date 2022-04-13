@@ -205,7 +205,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Draw indexed quad
+  // Draw quad
   wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
 
   // End render pass
