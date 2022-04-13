@@ -26,46 +26,16 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/imgui
  * -------------------------------------------------------------------------- */
 
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
-
 // Other variables
 static const char* example_title = "ImGui Overlay";
 static bool prepared             = false;
 
 static imgui_overlay_t* imgui_overlay = NULL;
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
-
-  // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
-      },
-  };
-
-  // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = NULL,
-  };
-}
-
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     // Setup render pass
-    setup_render_pass(context->wgpu_context);
     prepared = true;
     return 0;
   }
@@ -75,9 +45,6 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
-
   if (imgui_overlay == NULL) {
     // Create and intialize ImGui ovelay
     imgui_overlay = imgui_overlay_create(wgpu_context);
