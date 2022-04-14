@@ -26,7 +26,6 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/imgui
  * -------------------------------------------------------------------------- */
 
-// Other variables
 static const char* example_title = "ImGui Overlay";
 static bool prepared             = false;
 
