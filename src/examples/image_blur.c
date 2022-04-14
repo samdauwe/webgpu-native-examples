@@ -81,6 +81,8 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
         .mipLevelCount = 1,
         .sampleCount   = 1,
       });
+    ASSERT(textures[i] != NULL);
+
     texture_views[i] = wgpuTextureCreateView(
       textures[i], &(WGPUTextureViewDescriptor){
                      .format          = texture.format,
@@ -90,6 +92,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
                      .baseArrayLayer  = 0,
                      .arrayLayerCount = 1,
                    });
+    ASSERT(texture_views[i] != NULL);
   }
 
   image_width  = texture.size.width;
@@ -161,7 +164,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     compute_constants_bind_group
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(compute_constants_bind_group != NULL)
+    ASSERT(compute_constants_bind_group != NULL);
   }
 
   // Compute bind group 0
@@ -189,7 +192,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     compute_bind_groups[0]
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(compute_bind_groups[0] != NULL)
+    ASSERT(compute_bind_groups[0] != NULL);
   }
 
   // Compute bind group 1
@@ -217,7 +220,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     compute_bind_groups[1]
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(compute_bind_groups[1] != NULL)
+    ASSERT(compute_bind_groups[1] != NULL);
   }
 
   // Compute bind group 2
@@ -245,7 +248,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     compute_bind_groups[2]
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(compute_bind_groups[2] != NULL)
+    ASSERT(compute_bind_groups[2] != NULL);
   }
 
   // Uniform bindgroup
@@ -268,7 +271,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     show_result_bind_group
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(show_result_bind_group != NULL)
+    ASSERT(show_result_bind_group != NULL);
   }
 }
 
@@ -291,6 +294,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         .label   = "image_blur_render_pipeline",
         .compute = blur_comp_shader.programmable_stage_descriptor,
       });
+    ASSERT(blur_pipeline != NULL);
 
     // Partial clean-up
     wgpu_shader_release(&blur_comp_shader);
@@ -351,6 +355,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .fragment    = &fragment_state_desc,
                               .multisample = multisample_state_desc,
                             });
+    ASSERT(fullscreen_quad_pipeline != NULL);
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
