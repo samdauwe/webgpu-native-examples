@@ -1,4 +1,4 @@
-#include "example_base.h"
+﻿#include "example_base.h"
 #include "examples.h"
 
 #include <string.h>
@@ -49,8 +49,8 @@ static struct {
 static const char* object_names[4] = {"Sphere", "Teapot", "Torusknot", "Venus"};
 
 static struct {
-  WGPUBuffer matrices;
-  WGPUBuffer params;
+  wgpu_buffer_t matrices;
+  wgpu_buffer_t params;
   struct {
     WGPUBuffer buffer;
     uint64_t buffer_size;
@@ -552,9 +552,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex / fragment shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.matrices,
+        .buffer = uniform_buffers.matrices.buffer,
         .offset = 0,
-        .size = sizeof(ubo_matrices),
+        .size = uniform_buffers.matrices.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Fragment shader image view
@@ -569,9 +569,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [3] = (WGPUBindGroupEntry) {
         // Binding 3: Fragment shader uniform buffer
         .binding = 3,
-        .buffer = uniform_buffers.params,
+        .buffer = uniform_buffers.params.buffer,
         .offset = 0,
-        .size = sizeof(ubo_params),
+        .size = uniform_buffers.params.size,
       },
       [4] = (WGPUBindGroupEntry) {
         // Binding 4: Vertex / fragment shader dynamic uniform buffer
@@ -960,14 +960,15 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_copy(camera->matrices.view, ubo_matrices.model_view);
   glm_mat4_inv(camera->matrices.view, ubo_matrices.inverse_modelview);
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.matrices, 0,
-                          &ubo_matrices, sizeof(ubo_matrices));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers.matrices.buffer, 0, &ubo_matrices,
+                          uniform_buffers.matrices.size);
 }
 
 static void update_params(wgpu_example_context_t* context)
 {
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.params, 0,
-                          &ubo_params, sizeof(ubo_params));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.params.buffer,
+                          0, &ubo_params, uniform_buffers.params.size);
 }
 
 static void update_dynamic_uniform_buffers(wgpu_example_context_t* context)
@@ -987,21 +988,19 @@ static void update_dynamic_uniform_buffers(wgpu_example_context_t* context)
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Matrices vertex shader uniform buffer
-  uniform_buffers.matrices = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_matrices),
-      .mappedAtCreation = false,
+  uniform_buffers.matrices = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_matrices),
     });
 
   // Params
-  uniform_buffers.params = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_params),
-      .mappedAtCreation = false,
+  uniform_buffers.params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_matrices),
     });
 
   // Uniform buffer object with constants
@@ -1239,8 +1238,8 @@ static void example_destroy(wgpu_example_context_t* context)
     wgpu_gltf_model_destroy(models.objects[i].object);
   }
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.matrices)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.params)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.matrices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.params.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.dynamic.buffer)
 
   WGPU_RELEASE_RESOURCE(Texture, offscreen_pass.color[0].texture)
