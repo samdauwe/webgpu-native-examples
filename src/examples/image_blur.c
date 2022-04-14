@@ -20,9 +20,9 @@ static const uint32_t tile_dim = 128;
 static const uint32_t batch[2] = {4, 4};
 
 // Uniform buffers
-static WGPUBuffer uniform_buffers[2];
+static wgpu_buffer_t uniform_buffers[2];
 static uint32_t uniform_buffer_data[2] = {0, 1};
-static WGPUBuffer blur_params_buffer;
+static wgpu_buffer_t blur_params_buffer;
 
 // Pipelines
 static WGPUComputePipeline blur_pipeline;
@@ -124,30 +124,21 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // buffer 0 and buffer 1
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(uniform_buffers); ++i) {
-    const WGPUBufferDescriptor buffer_desc = {
-      .usage            = WGPUBufferUsage_Uniform,
-      .size             = 4,
-      .mappedAtCreation = true,
-    };
-    uniform_buffers[i]
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(uniform_buffers[i])
-
-    void* mapping
-      = wgpuBufferGetMappedRange(uniform_buffers[i], 0, buffer_desc.size);
-    ASSERT(mapping)
-    memcpy(mapping, &uniform_buffer_data[i], buffer_desc.size);
-    wgpuBufferUnmap(uniform_buffers[i]);
+    uniform_buffers[i] = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+        .size         = 4,
+        .initial.data = &uniform_buffer_data[i],
+      });
   }
 
   // Compute shader blur parameters
-  WGPUBufferDescriptor blur_params_buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-    .size             = 8,
-    .mappedAtCreation = false,
-  };
-  blur_params_buffer
-    = wgpuDeviceCreateBuffer(wgpu_context->device, &blur_params_buffer_desc);
+  blur_params_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = 8,
+                  });
 
   // Compute constants bind group
   {
@@ -158,9 +149,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = blur_params_buffer,
+        .buffer  = blur_params_buffer.buffer,
         .offset  = 0,
-        .size    = blur_params_buffer_desc.size,
+        .size    = blur_params_buffer.size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -186,9 +177,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer  = uniform_buffers[0],
+        .buffer  = uniform_buffers[0].buffer,
         .offset  = 0,
-        .size    = 4,
+        .size    = uniform_buffers[0].size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -214,9 +205,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer  = uniform_buffers[1],
+        .buffer  = uniform_buffers[1].buffer,
         .offset  = 0,
-        .size    = 4,
+        .size    = uniform_buffers[1].size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -242,9 +233,9 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer  = uniform_buffers[0],
+        .buffer  = uniform_buffers[0].buffer,
         .offset  = 0,
-        .size    = 4,
+        .size    = uniform_buffers[0].size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -376,7 +367,7 @@ static void update_settings(wgpu_context_t* wgpu_context)
   uniform_buffer_data[1] = block_dim;
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, blur_params_buffer, 0,
+  wgpu_queue_write_buffer(wgpu_context, blur_params_buffer.buffer, 0,
                           &uniform_buffer_data, sizeof(uniform_buffer_data));
 }
 
@@ -526,9 +517,9 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroup, compute_bind_groups[1])
   WGPU_RELEASE_RESOURCE(BindGroup, compute_bind_groups[2])
   WGPU_RELEASE_RESOURCE(BindGroup, show_result_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[0])
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[1])
-  WGPU_RELEASE_RESOURCE(Buffer, blur_params_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[0].buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers[1].buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, blur_params_buffer.buffer)
   WGPU_RELEASE_RESOURCE(ComputePipeline, blur_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, fullscreen_quad_pipeline)
 }
@@ -542,9 +533,9 @@ void example_image_blur(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
