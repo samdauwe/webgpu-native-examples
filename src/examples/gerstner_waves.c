@@ -335,7 +335,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_NonFiltering,
+          .type = WGPUSamplerBindingType_NonFiltering,
         },
         .texture = {0},
       },
@@ -344,9 +344,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       }
