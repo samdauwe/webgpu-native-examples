@@ -118,23 +118,15 @@ static void from_euler(float x, float y, float z, versor* dest)
 static plane_mesh_t plane_mesh = {0};
 
 // Vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint64_t buffer_size;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint64_t buffer_size;
-  uint32_t count;
-} indices = {0};
+static wgpu_buffer_t indices = {0};
 
 // Uniform buffers
 static struct {
-  WGPUBuffer scene;
-  WGPUBuffer gerstner_wave_params;
+  wgpu_buffer_t scene;
+  wgpu_buffer_t gerstner_wave_params;
 } uniform_buffers;
 
 // Uniform buffer data
@@ -262,18 +254,22 @@ static void prepare_plane_mesh()
 static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
   // Create vertex buffer
-  vertices.count       = plane_mesh.vertex_count;
-  vertices.buffer_size = vertices.count * sizeof(plane_vertex_t);
-  vertices.buffer      = wgpu_create_buffer_from_data(
-    wgpu_context, plane_mesh.vertices, vertices.buffer_size,
-    WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = plane_mesh.vertex_count * sizeof(plane_vertex_t),
+                    .count = plane_mesh.vertex_count,
+                    .initial.data = plane_mesh.vertices,
+                  });
 
   // Create index buffer
-  indices.count       = plane_mesh.index_count;
-  indices.buffer_size = indices.count * sizeof(uint32_t);
-  indices.buffer
-    = wgpu_create_buffer_from_data(wgpu_context, plane_mesh.indices,
-                                   indices.buffer_size, WGPUBufferUsage_Index);
+  indices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = plane_mesh.index_count * sizeof(uint32_t),
+                    .count = plane_mesh.index_count,
+                    .initial.data = plane_mesh.indices,
+                  });
 }
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
@@ -385,16 +381,16 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Uniforms
         .binding = 0,
-        .buffer  = uniform_buffers.scene,
+        .buffer  = uniform_buffers.scene.buffer,
         .offset  = 0,
-        .size    = sizeof(scene_data),
+        .size    = uniform_buffers.scene.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: GerstnerWavesUniforms
         .binding = 1,
-        .buffer  = uniform_buffers.gerstner_wave_params,
+        .buffer  = uniform_buffers.gerstner_wave_params.buffer,
         .offset  = 0,
-        .size    = sizeof(gerstner_wave_params),
+        .size    = uniform_buffers.gerstner_wave_params.size,
       },
     };
 
@@ -625,8 +621,8 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
                scene_data.view_projection_matrix);
 
   // Update uniform buffer
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene, 0,
-                          &scene_data, sizeof(scene_data));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene.buffer,
+                          0, &scene_data, uniform_buffers.scene.size);
 }
 
 static void
@@ -648,29 +644,27 @@ update_uniform_buffers_gerstner_waves(wgpu_example_context_t* context)
   }
 
   // Update uniform buffer
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          uniform_buffers.gerstner_wave_params, 0,
-                          &gerstner_wave_params, sizeof(gerstner_wave_params));
+  wgpu_queue_write_buffer(
+    context->wgpu_context, uniform_buffers.gerstner_wave_params.buffer, 0,
+    &gerstner_wave_params, uniform_buffers.gerstner_wave_params.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Scene uniform buffer
-  uniform_buffers.scene = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(scene_data),
-      .mappedAtCreation = false,
+  uniform_buffers.scene = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(scene_data),
     });
 
   // Gerstner Waves parameters buffer
-  uniform_buffers.gerstner_wave_params = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(gerstner_wave_params),
-      .mappedAtCreation = false,
+  uniform_buffers.gerstner_wave_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(gerstner_wave_params),
     });
 
   // Initialize uniform buffers
@@ -783,8 +777,8 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_destroy_texture(&sea_color_texture);
   WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.gerstner_wave_params)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.gerstner_wave_params.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.uniforms)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.textures)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.uniforms)
