@@ -286,7 +286,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   };
   non_filtering_sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(non_filtering_sampler != NULL)
+  ASSERT(non_filtering_sampler != NULL);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -324,7 +324,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.uniforms != NULL)
+    ASSERT(bind_group_layouts.uniforms != NULL);
   }
 
   // Bind group layout for sea color texture
@@ -356,7 +356,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.textures != NULL)
+    ASSERT(bind_group_layouts.textures != NULL);
   }
 
   // Create the pipeline layout from bind group layouts
@@ -370,7 +370,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layout_array),
       .bindGroupLayouts     = bind_groups_layout_array,
     });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -400,7 +400,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.uniforms != NULL)
+    ASSERT(bind_groups.uniforms != NULL);
   }
 
   // Bind group layout for sea color texture
@@ -424,7 +424,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.textures
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.textures != NULL)
+    ASSERT(bind_groups.textures != NULL);
   }
 }
 
@@ -510,6 +510,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
@@ -567,6 +568,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
   };
   render_pass.multisampled_framebuffer.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
+  ASSERT(render_pass.multisampled_framebuffer.texture != NULL);
 
   // Create the multi-sampled texture view
   render_pass.multisampled_framebuffer.view
@@ -579,6 +581,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
                               .baseArrayLayer = 0,
                               .arrayLayerCount = 1,
                             });
+  ASSERT(render_pass.multisampled_framebuffer.view != NULL);
 }
 
 static void init_orbit_camera_matrices()
