@@ -59,8 +59,8 @@ void get_local_time(date_t* current_date)
 
 float platform_get_time(void)
 {
-  static double initial = -1;
-  if (initial < 0) {
+  static double initial = -1.0;
+  if (initial < 0.0) {
     initial = get_native_time();
   }
   return (float)(get_native_time() - initial);
