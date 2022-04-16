@@ -285,6 +285,7 @@ wgpu_mipmap_generator_create(wgpu_context_t* wgpu_context)
   };
   mipmap_generator->sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(mipmap_generator->sampler != NULL);
 
   return mipmap_generator;
 }
@@ -406,13 +407,13 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
           .fragment    = &mipmap_generator->fragment_state_desc,
           .multisample = multisample_state_desc,
         });
-    ASSERT(mipmap_generator->pipelines[pipeline_index]);
+    ASSERT(mipmap_generator->pipelines[pipeline_index] != NULL);
 
     // Store the bind group layout of the created pipeline
     mipmap_generator->pipeline_layouts[pipeline_index]
       = wgpuRenderPipelineGetBindGroupLayout(
         mipmap_generator->pipelines[pipeline_index], 0);
-    ASSERT(mipmap_generator->pipeline_layouts[pipeline_index])
+    ASSERT(mipmap_generator->pipeline_layouts[pipeline_index] != NULL)
 
     // Update active pipeline state
     mipmap_generator->active_pipelines[pipeline_index] = true;
@@ -466,6 +467,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
     };
     mip_texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &mip_texture_desc);
+    ASSERT(mip_texture != NULL);
   }
 
   WGPUCommandEncoder cmd_encoder
