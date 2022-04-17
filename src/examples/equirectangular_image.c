@@ -115,7 +115,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -150,7 +150,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     .entries    = bg_entries,
   };
   bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
@@ -312,6 +312,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state_desc,
                             .multisample = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
