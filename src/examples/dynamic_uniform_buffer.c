@@ -163,7 +163,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -171,7 +171,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
@@ -204,7 +204,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     .entries    = bg_entries,
   };
   bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
 }
 
 static void prepare_pipeline(wgpu_context_t* wgpu_context)
@@ -280,6 +280,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
+  ASSERT(pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
