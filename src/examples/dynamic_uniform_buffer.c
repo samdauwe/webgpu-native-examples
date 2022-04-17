@@ -27,22 +27,13 @@ typedef struct {
 } vertex_t;
 
 // Vertex buffer and attributes
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static wgpu_buffer_t vertices = {0};
 
 // Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
+static wgpu_buffer_t indices = {0};
 
 static struct {
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } view;
+  struct wgpu_buffer_t view;
   struct {
     WGPUBuffer buffer;
     uint64_t buffer_size;
@@ -103,7 +94,7 @@ static void setup_camera(wgpu_example_context_t* context)
 
 static void generate_cube(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices indices for a colored cube
+  // Setup vertices for a colored cube
   vertex_t vertex_buffer[8] = {
     {.pos = {-1.0f, -1.0f, 1.0f}, .color = {1.0f, 0.0f, 0.0f}},
     {.pos = {1.0f, -1.0f, 1.0f}, .color = {0.0f, 1.0f, 0.0f}},
@@ -114,23 +105,30 @@ static void generate_cube(wgpu_context_t* wgpu_context)
     {.pos = {1.0f, 1.0f, -1.0f}, .color = {0.0f, 0.0f, 1.0f}},
     {.pos = {-1.0f, 1.0f, -1.0f}, .color = {0.0f, 0.0f, 0.0f}},
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
 
+  // Create vertex buffer
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
+                    .initial.data = vertex_buffer,
+                  });
+
+  // Setup indices for a colored cube
   uint32_t index_buffer[36] = {
     0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
     4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
   };
-  indices.count              = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
-
-  // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
 
   // Create index buffer
-  indices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
+  indices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(index_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(index_buffer),
+                    .initial.data = index_buffer,
+                  });
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -421,12 +419,11 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   // Vertex shader uniform buffer block
 
   // Static shared uniform buffer object with projection and view matrix
-  uniform_buffers.view.size   = sizeof(ubo_vs);
-  uniform_buffers.view.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = uniform_buffers.view.size,
+  uniform_buffers.view = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
     });
 
   // Uniform buffer object with per-object matrices
