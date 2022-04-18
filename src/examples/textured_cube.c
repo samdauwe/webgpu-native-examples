@@ -215,7 +215,7 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  /* Update the model-view-projection matrix */
+  // Update the model-view-projection matrix
   update_transformation_matrix(context);
 
   // Map uniform buffer and update it
