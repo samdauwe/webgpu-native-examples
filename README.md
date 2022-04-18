@@ -481,8 +481,10 @@ The list given below summarizes possible examples or functionality that will be 
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
+* [ ] Use helper function for buffer creation to achieve more compact code
 * [ ] Extend command-line options
 * [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
+* [ ] [Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
