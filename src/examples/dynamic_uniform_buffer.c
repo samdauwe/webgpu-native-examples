@@ -142,7 +142,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = uniform_buffers.view.size,
+        .minBindingSize   = uniform_buffers.view.size,
       },
       .sampler = {0},
     },
@@ -153,7 +153,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = true,
-        .minBindingSize = (uint64_t)uniform_buffers.dynamic.model_size,
+        .minBindingSize   = (uint64_t)uniform_buffers.dynamic.model_size,
       },
       .sampler = {0},
     }
@@ -186,16 +186,16 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Projection/View matrix uniform buffer
       .binding = 0,
-      .buffer = uniform_buffers.view.buffer,
-      .offset = 0,
-      .size = uniform_buffers.view.size,
+      .buffer  = uniform_buffers.view.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.view.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1 : Instance matrix as dynamic uniform buffer
       .binding = 1,
-      .buffer = uniform_buffers.dynamic.buffer,
-      .offset = 0,
-      .size = uniform_buffers.dynamic.model_size,
+      .buffer  = uniform_buffers.dynamic.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.dynamic.model_size,
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
