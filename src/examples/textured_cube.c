@@ -243,6 +243,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
+    .label      = "cube_uniform_buffer_bind_group",
     .layout     = cube.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
@@ -456,8 +457,8 @@ void example_textured_cube(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title                 = example_title,
-     .overlay               = true,
+     .title   = example_title,
+     .overlay = true,
     },
     .example_initialize_func = &example_initialize,
     .example_render_func     = &example_render,
