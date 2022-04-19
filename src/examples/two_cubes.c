@@ -167,9 +167,11 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -7.0f});
 
   const float start_x = -2.0f, increment_x = 4.0f;
+  cube_t* cube = NULL;
+  float x      = 0.0f;
   for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
-    cube_t* cube  = &cubes[i];
-    const float x = start_x + i * increment_x;
+    cube = &cubes[i];
+    x    = start_x + i * increment_x;
 
     // Model matrices
     glm_mat4_identity(cube->view_mtx.model);
