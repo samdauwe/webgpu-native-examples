@@ -249,13 +249,11 @@ static void destroy_texture(void)
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
-  const uint32_t gltf_loading_flags
-    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
-      | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
   model = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
     .wgpu_context       = wgpu_context,
     .filename           = "models/tunnel_cylinder.gltf",
-    .file_loading_flags = gltf_loading_flags,
+    .file_loading_flags = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
+                          | WGPU_GLTF_FileLoadingFlags_DontLoadImages,
   });
   load_texture(wgpu_context, "textures/metalplate_nomips_rgba.ktx",
                WGPUTextureFormat_RGBA8Unorm);
