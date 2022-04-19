@@ -294,7 +294,7 @@ static void update_noise_texture(wgpu_context_t* wgpu_context)
 static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
                                   uint32_t height, uint32_t depth)
 {
-  // A 3D texture is described as width x height x depth
+  // A 3D texture is described as: width x height x depth
   noise_texture.width      = width;
   noise_texture.height     = height;
   noise_texture.depth      = depth;
