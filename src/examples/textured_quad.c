@@ -419,7 +419,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       WGPUIndexFormat_Uint16, 0,
                                       WGPU_WHOLE_SIZE);
 
-  // Draw indexed triangle
+  // Draw indexed quad
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
                                    0, 0);
 
