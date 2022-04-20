@@ -152,9 +152,9 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
     &(WGPUImageCopyBuffer) {
       .buffer = staging_buffer,
       .layout = (WGPUTextureDataLayout) {
-        .offset = 0,
-        .bytesPerRow = texture.width * 4,
-        .rowsPerImage= texture.height,
+        .offset       = 0,
+        .bytesPerRow  = texture.width * 4,
+        .rowsPerImage = texture.height,
       },
     },
     // Destination
@@ -162,9 +162,9 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
       .texture = texture.texture,
       .mipLevel = 0,
       .origin = (WGPUOrigin3D) {
-        .x=0,
-        .y=0,
-        .z=0,
+        .x = 0,
+        .y = 0,
+        .z = 0,
       },
       .aspect = WGPUTextureAspect_All,
     },
@@ -270,7 +270,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(ubo_vs),
+        .minBindingSize   = sizeof(ubo_vs),
       },
       .sampler = {0},
     },
@@ -279,36 +279,36 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Fragment shader texture image sampler 1
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3: Fragment shader texture image sampler 2
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [4] = (WGPUBindGroupLayoutEntry) {
       // Binding 4: Fragment shader texture image sampler 3
-      .binding = 4,
+      .binding    = 4,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
