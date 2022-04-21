@@ -112,7 +112,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .wgsl_code.source = vertex_shader_wgsl,
                     },
                     .buffer_count = 0,
-                    .buffers = NULL,
+                    .buffers      = NULL,
                   });
 
   // Fragment state
@@ -123,7 +123,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .wgsl_code.source = fragment_shader_wgsl,
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Multisample state
