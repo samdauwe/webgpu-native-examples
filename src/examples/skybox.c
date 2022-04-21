@@ -187,7 +187,6 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .sampler = texture.sampler,
     },
   };
-
   bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
                             .layout     = bind_group_layout,
