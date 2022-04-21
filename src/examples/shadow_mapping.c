@@ -452,7 +452,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 {
-  float aspect_ratio
+  const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
   vec3 eye_position = {0.0f, 50.0f, -100.0f};
