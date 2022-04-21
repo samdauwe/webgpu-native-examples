@@ -26,8 +26,8 @@
 static const uint32_t sample_count = 4;
 
 typedef struct vertex_t {
-  float position[2];
-  float color[4];
+  vec2 position;
+  vec4 color;
 } vertex_t;
 
 // Vertex buffer
