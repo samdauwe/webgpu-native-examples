@@ -298,7 +298,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/mesh.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -309,7 +309,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/mesh.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create solid pipeline
@@ -334,7 +334,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/simple.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -345,7 +345,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/simple.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create solid pipeline
@@ -379,7 +379,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/occluder.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -390,7 +390,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/occlusion_query/occluder.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create solid pipeline
