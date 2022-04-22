@@ -19,7 +19,7 @@
  * -------------------------------------------------------------------------- */
 
 // Offscreen frame buffer properties
-#define FB_DIM 512
+#define FB_DIM 512u
 #define FB_COLOR_FORMAT WGPUTextureFormat_RGBA8Unorm
 #define FB_DEPTH_STENCIL_FORMAT WGPUTextureFormat_Depth24PlusStencil8
 
@@ -131,8 +131,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
 // the fragment shader of the final pass
 static void prepare_offscreen(wgpu_context_t* wgpu_context)
 {
-  offscreen_pass.width  = (uint32_t)FB_DIM;
-  offscreen_pass.height = (uint32_t)FB_DIM;
+  offscreen_pass.width  = FB_DIM;
+  offscreen_pass.height = FB_DIM;
 
   // Create the texture
   WGPUExtent3D texture_extent = {
