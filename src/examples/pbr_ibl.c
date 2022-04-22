@@ -149,7 +149,7 @@ static struct {
   // clang-format off
   // Setup some default materials (source:
   // https://seblagarde.wordpress.com/2011/08/17/feeding-a-physical-based-lighting-mode/)
-  { .name = "Gold",     .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.0f, 0.765557f, 0.336057f } } },
+  { .name = "Gold",     .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.000000f, 0.765557f, 0.336057f } } },
   { .name = "Copper",   .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.955008f, 0.637427f, 0.538163f } } },
   { .name = "Chromium", .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.549585f, 0.556114f, 0.554256f } } },
   { .name = "Nickel",   .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.659777f, 0.608679f, 0.525649f } } },
@@ -157,11 +157,11 @@ static struct {
   { .name = "Cobalt",   .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.662124f, 0.654864f, 0.633732f } } },
   { .name = "Platinum", .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.672411f, 0.637331f, 0.585456f } } },
   // Testing materials
-  { .name = "White", .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.0f, 1.0f, 1.0f } } },
-  { .name = "Dark",  .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.1f, 0.1f, 0.1f } } },
-  { .name = "Black", .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.0f, 0.0f, 0.0f } } },
-  { .name = "Red",   .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.0f, 0.0f, 0.0f } } },
-  { .name = "Blue",  .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.0f, 0.0f, 1.0f } } },
+  { .name = "White",    .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.000000f, 1.000000f, 1.000000f } } },
+  { .name = "Dark",     .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.100000f, 0.100000f, 0.100000f } } },
+  { .name = "Black",    .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.000000f, 0.000000f, 0.000000f } } },
+  { .name = "Red",      .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 1.000000f, 0.000000f, 0.000000f } } },
+  { .name = "Blue",     .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.000000f, 0.000000f, 1.000000f } } },
   // clang-format on
 };
 static int32_t current_material_index = 9;
