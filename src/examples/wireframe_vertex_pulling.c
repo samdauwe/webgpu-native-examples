@@ -253,7 +253,7 @@ static void prepare_uniform_buffer(wgpu_example_context_t* context)
   cube.uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(cube.view_matrices),
     });
   ASSERT(cube.uniform_buffer_vs.buffer != NULL)
