@@ -307,30 +307,30 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
-  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -339,7 +339,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Render pipeline: Solid mesh
   {
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -351,7 +351,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
      });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -359,34 +359,34 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets = &color_target_state_desc,
+       .targets = &color_target_state,
      });
 
     // Create rendering pipeline using the specified states
     render_pipelines[(uint32_t)RenderMode_Solid_Mesh]
-      = wgpuDeviceCreateRenderPipeline(
-        wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label        = "solid_mesh_render_pipeline",
-                                .layout       = pipeline_layout,
-                                .primitive    = primitive_state_desc,
-                                .vertex       = vertex_state_desc,
-                                .fragment     = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
-                              });
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
+                                       &(WGPURenderPipelineDescriptor){
+                                         .label  = "solid_mesh_render_pipeline",
+                                         .layout = pipeline_layout,
+                                         .primitive    = primitive_state,
+                                         .vertex       = vertex_state,
+                                         .fragment     = &fragment_state,
+                                         .depthStencil = &depth_stencil_state,
+                                         .multisample  = multisample_state,
+                                       });
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
   // Render pipeline: Points
   {
-    primitive_state_desc.topology = WGPUPrimitiveTopology_PointList;
+    primitive_state.topology = WGPUPrimitiveTopology_PointList;
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -398,7 +398,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
      });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -406,34 +406,34 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets      = &color_target_state_desc,
+       .targets      = &color_target_state,
      });
 
     // Create rendering pipeline using the specified states
     render_pipelines[(uint32_t)RenderMode_Points]
-      = wgpuDeviceCreateRenderPipeline(
-        wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label        = "points_render_pipeline",
-                                .layout       = pipeline_layout,
-                                .primitive    = primitive_state_desc,
-                                .vertex       = vertex_state_desc,
-                                .fragment     = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
-                              });
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
+                                       &(WGPURenderPipelineDescriptor){
+                                         .label     = "points_render_pipeline",
+                                         .layout    = pipeline_layout,
+                                         .primitive = primitive_state,
+                                         .vertex    = vertex_state,
+                                         .fragment  = &fragment_state,
+                                         .depthStencil = &depth_stencil_state,
+                                         .multisample  = multisample_state,
+                                       });
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
   // Render pipeline: Wireframe
   {
-    primitive_state_desc.topology = WGPUPrimitiveTopology_LineList;
+    primitive_state.topology = WGPUPrimitiveTopology_LineList;
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -445,7 +445,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
      });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -453,34 +453,34 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets      = &color_target_state_desc,
+       .targets      = &color_target_state,
      });
 
     // Create rendering pipeline using the specified states
     render_pipelines[(uint32_t)RenderMode_Wireframe]
-      = wgpuDeviceCreateRenderPipeline(
-        wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label        = "wireframe_render_pipeline",
-                                .layout       = pipeline_layout,
-                                .primitive    = primitive_state_desc,
-                                .vertex       = vertex_state_desc,
-                                .fragment     = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
-                              });
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
+                                       &(WGPURenderPipelineDescriptor){
+                                         .label  = "wireframe_render_pipeline",
+                                         .layout = pipeline_layout,
+                                         .primitive    = primitive_state,
+                                         .vertex       = vertex_state,
+                                         .fragment     = &fragment_state,
+                                         .depthStencil = &depth_stencil_state,
+                                         .multisample  = multisample_state,
+                                       });
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
   // Render pipeline: Wireframe Thick
   {
-    primitive_state_desc.topology = WGPUPrimitiveTopology_TriangleList;
+    primitive_state.topology = WGPUPrimitiveTopology_TriangleList;
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -492,7 +492,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
      });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
@@ -500,7 +500,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_fragment",
        },
        .target_count = 1,
-       .targets      = &color_target_state_desc,
+       .targets      = &color_target_state,
      });
 
     // Create rendering pipeline using the specified states
@@ -509,17 +509,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                 .label     = "wireframe_thick_render_pipeline",
                                 .layout    = pipeline_layout,
-                                .primitive = primitive_state_desc,
-                                .vertex    = vertex_state_desc,
-                                .fragment  = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
+                                .primitive = primitive_state,
+                                .vertex    = vertex_state,
+                                .fragment  = &fragment_state,
+                                .depthStencil = &depth_stencil_state,
+                                .multisample  = multisample_state,
                               });
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 }
 
