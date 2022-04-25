@@ -388,7 +388,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     cube.uniform_buffer_bind_group, 0, 0);
 
-  // Draw cube
+  // Draw textured cube
   wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_mesh.vertex_count, 1,
                             0, 0);
 
