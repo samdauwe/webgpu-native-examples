@@ -337,13 +337,13 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
       .binding = 0,
-      .buffer = uniform_buffer_vs.buffer,
-      .offset = 0,
-      .size = uniform_buffer_vs.size,
+      .buffer  = uniform_buffer_vs.buffer,
+      .offset  = 0,
+      .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1: Fragment shader texture image view
-      .binding = 1,
+      .binding     = 1,
       .textureView = texture.view,
     },
     [2] = (WGPUBindGroupEntry) {
@@ -442,7 +442,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/texture_mipmap_gen/texture.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &tunnel_cylinder_vertex_buffer_layout,
+            .buffers      = &tunnel_cylinder_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -453,7 +453,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/texture_mipmap_gen/texture.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
