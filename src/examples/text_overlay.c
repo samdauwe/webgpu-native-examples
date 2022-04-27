@@ -203,7 +203,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/text_overlay/mesh.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &tunnel_cylinder_vertex_buffer_layout,
+            .buffers      = &tunnel_cylinder_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -214,7 +214,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/text_overlay/mesh.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state,
+            .targets      = &color_target_state,
           });
 
   // Multisample state
