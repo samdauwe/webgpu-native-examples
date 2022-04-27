@@ -557,7 +557,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/terrain_mesh/shader.vert.spv",
                     },
                     .buffer_count = 1,
-                    .buffers = &terrain_mesh_vertex_buffer_layout,
+                    .buffers      = &terrain_mesh_vertex_buffer_layout,
                   });
 
   // Fragment state
@@ -568,7 +568,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/terrain_mesh/shader.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state,
+                    .targets      = &color_target_state,
                   });
 
   // Multisample state
