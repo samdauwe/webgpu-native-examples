@@ -475,7 +475,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### March - May 2022
+### March - July 2022
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
