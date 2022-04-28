@@ -224,7 +224,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/skybox/shader.vert.spv",
                 },
                 .buffer_count = 1,
-                .buffers = &skybox_vertex_buffer_layout,
+                .buffers      = &skybox_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -235,7 +235,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/skybox/shader.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
