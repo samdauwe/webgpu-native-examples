@@ -277,7 +277,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .buffer = (WGPUBufferBindingLayout) {
             .type = WGPUBufferBindingType_Uniform,
             .hasDynamicOffset = false,
-            .minBindingSize = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+            .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
           },
           .sampler = {0},
         },
@@ -302,7 +302,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .buffer = (WGPUBufferBindingLayout) {
             .type = WGPUBufferBindingType_Uniform,
             .hasDynamicOffset = false,
-            .minBindingSize = sizeof(mat4),
+            .minBindingSize   = sizeof(mat4),
           },
           .sampler = {0},
         },
@@ -337,32 +337,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: Texture view
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Depth,
+        .sampleType    = WGPUTextureSampleType_Depth,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Sampler
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Comparison,
+        .type = WGPUSamplerBindingType_Comparison,
       },
       .texture = {0},
     }
@@ -604,8 +604,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.scene,
-        .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .buffer  = uniform_buffers.scene,
+        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
     };
     bind_groups.scene_shadow = wgpuDeviceCreateBindGroup(
@@ -623,11 +623,11 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.scene,
-        .size = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .buffer  = uniform_buffers.scene,
+        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = textures.shadow_depth_texture.view,
       },
       [2] = (WGPUBindGroupEntry) {
@@ -699,7 +699,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .buffer_count = 1,
-                .buffers = &shadow_vertex_buffer_layout,
+                .buffers      = &shadow_vertex_buffer_layout,
               });
 
   // Multisample state
@@ -754,21 +754,21 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
   // Depth stencil state
   WGPUDepthStencilState depth_stencil_state_desc = {
     .depthWriteEnabled = true,
-    .format = WGPUTextureFormat_Depth24PlusStencil8,
-    .depthCompare = WGPUCompareFunction_Less,
+    .format            = WGPUTextureFormat_Depth24PlusStencil8,
+    .depthCompare      = WGPUCompareFunction_Less,
     .stencilFront = {
-      .compare = WGPUCompareFunction_Always,
-      .failOp = WGPUStencilOperation_Keep,
+      .compare     = WGPUCompareFunction_Always,
+      .failOp      = WGPUStencilOperation_Keep,
       .depthFailOp = WGPUStencilOperation_Keep,
-      .passOp = WGPUStencilOperation_Keep,
+      .passOp      = WGPUStencilOperation_Keep,
     },
     .stencilBack = {
-      .compare = WGPUCompareFunction_Always,
-      .failOp = WGPUStencilOperation_Keep,
+      .compare     = WGPUCompareFunction_Always,
+      .failOp      = WGPUStencilOperation_Keep,
       .depthFailOp = WGPUStencilOperation_Keep,
-      .passOp = WGPUStencilOperation_Keep,
+      .passOp      = WGPUStencilOperation_Keep,
     },
-    .stencilReadMask = 0xFFFFFFFF,
+    .stencilReadMask  = 0xFFFFFFFF,
     .stencilWriteMask = 0xFFFFFFFF,
   };
 
