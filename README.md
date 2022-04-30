@@ -12,10 +12,7 @@ From the very beginning, Google had both native and in-browser use of their impl
 
 This repository contains a collection of open source C examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) the open-source and cross-platform implementation of the work-in-progress [WebGPU](https://gpuweb.github.io/gpuweb/) standard.
 
-<video width="320" height="240" controls>
-  <source src="https://raw.githubusercontent.com/samdauwe/webgpu-native-examples/master/screenshots/demo_selection_1.mp4" type="video/mp4">
-</video>
-
+![](https://raw.githubusercontent.com/samdauwe/webgpu-native-examples/master/screenshots/demo_selection_1.mp4)
 
 ## Table of Contents
 
