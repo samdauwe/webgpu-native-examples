@@ -1717,38 +1717,36 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
 
   // Vertex buffer layout
   WGPUVertexBufferLayout instanced_meshes_vertex_buffer_layouts[4] = {0};
-  {
-    WGPUVertexAttribute attribute = {
-      // Shader location 0 : position attribute
-      .shaderLocation = 0,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
-    };
-    instanced_meshes_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      .arrayStride    = 3 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Vertex,
-      .attributeCount = 1,
-      .attributes     = &attribute,
-    };
-  }
-  {
-    WGPUVertexAttribute attribute = {
-      // Shader location 1 : normal attribute
-      .shaderLocation = 1,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
-    };
-    instanced_meshes_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
-      .arrayStride    = 3 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Vertex,
-      .attributeCount = 1,
-      .attributes     = &attribute,
-    };
-  }
-  {
-    // We need to pass the mat4x4<f32> instance world matrix as 4 vec4<f32>()
-    // components It will occupy 4 input slots
-    WGPUVertexAttribute attributes[4] = {
+
+  WGPUVertexAttribute attribute_0 = {
+    // Shader location 0 : position attribute
+    .shaderLocation = 0,
+    .offset         = 0,
+    .format         = WGPUVertexFormat_Float32x3,
+  };
+  instanced_meshes_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
+    .arrayStride    = 3 * sizeof(float),
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = 1,
+    .attributes     = &attribute_0,
+  };
+
+  WGPUVertexAttribute attribute_1 = {
+    // Shader location 1 : normal attribute
+    .shaderLocation = 1,
+    .offset         = 0,
+    .format         = WGPUVertexFormat_Float32x3,
+  };
+  instanced_meshes_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
+    .arrayStride    = 3 * sizeof(float),
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = 1,
+    .attributes     = &attribute_1,
+  };
+
+  // We need to pass the mat4x4<f32> instance world matrix as 4 vec4<f32>()
+  // components It will occupy 4 input slots
+  WGPUVertexAttribute attributes_2[4] = {
        [0] = (WGPUVertexAttribute) {
          .shaderLocation = 2,
          .offset         = 0,
@@ -1770,17 +1768,16 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
          .format         = WGPUVertexFormat_Float32x4,
        }
      };
-    instanced_meshes_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
-      .arrayStride    = 16 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Instance,
-      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
-      .attributes     = attributes,
-    };
-  }
-  {
-    // We need to pass the mat4x4<f32> instance normal matrix as 4 vec4<f32>()
-    // components It will occupy 4 input slots
-    WGPUVertexAttribute attributes[4] = {
+  instanced_meshes_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
+    .arrayStride    = 16 * sizeof(float),
+    .stepMode       = WGPUVertexStepMode_Instance,
+    .attributeCount = (uint32_t)ARRAY_SIZE(attributes_2),
+    .attributes     = attributes_2,
+  };
+
+  // We need to pass the mat4x4<f32> instance normal matrix as 4 vec4<f32>()
+  // components It will occupy 4 input slots
+  WGPUVertexAttribute attributes_3[4] = {
        [0] = (WGPUVertexAttribute) {
          .shaderLocation = 6,
          .offset         = 0,
@@ -1802,13 +1799,12 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
          .format         = WGPUVertexFormat_Float32x4,
        }
      };
-    instanced_meshes_vertex_buffer_layouts[3] = (WGPUVertexBufferLayout){
-      .arrayStride    = 16 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Instance,
-      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
-      .attributes     = attributes,
-    };
-  }
+  instanced_meshes_vertex_buffer_layouts[3] = (WGPUVertexBufferLayout){
+    .arrayStride    = 16 * sizeof(float),
+    .stepMode       = WGPUVertexStepMode_Instance,
+    .attributeCount = (uint32_t)ARRAY_SIZE(attributes_3),
+    .attributes     = attributes_3,
+  };
 
   // Vertex state
   const uint32_t buffer_count
