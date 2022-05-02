@@ -9,6 +9,7 @@
 #include "macro.h"
 #include "math.h"
 #include "platform.h"
+#include "utils.h"
 #include "window.h"
 
 #endif
