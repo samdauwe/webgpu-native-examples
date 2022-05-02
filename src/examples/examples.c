@@ -129,9 +129,14 @@ static examplecase_t g_example_cases[] = {
   {"wireframe_vertex_pulling", example_wireframe_vertex_pulling},
 };
 
-static int get_number_of_examples()
+int get_number_of_examples()
 {
   return ARRAY_SIZE(g_example_cases);
+}
+
+examplecase_t* get_examples()
+{
+  return g_example_cases;
 }
 
 examplecase_t* get_example_by_name(const char* example_name)
@@ -156,13 +161,8 @@ examplecase_t* get_random_example()
 void log_example_names()
 {
   const int num_examplecases = get_number_of_examples();
-  log_info("Available examples:\n");
+  printf("Available examples (%d):\n", num_examplecases);
   for (int i = 0; i < num_examplecases; i++) {
-    if (i != num_examplecases - 1) {
-      log_info("%s,\n", g_example_cases[i].example_name);
-    }
-    else {
-      log_info("%s\n", g_example_cases[i].example_name);
-    }
+    printf("  |- %s\n", g_example_cases[i].example_name);
   }
 }
