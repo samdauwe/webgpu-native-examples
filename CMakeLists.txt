@@ -147,6 +147,7 @@ set(HEADERS
     src/core/macro.h
     src/core/math.h
     src/core/platform.h
+    src/core/utils.h
     src/core/video_decode.h
     src/core/window.h
     src/examples/common_shaders.h
@@ -171,6 +172,7 @@ set(SOURCES
     src/core/frustum.c
     src/core/log.c
     src/core/math.c
+    src/core/utils.c
     src/core/video_decode.c
     src/core/window.c
     src/examples/example_base.c
