@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "../core/argparse.h"
 #include "../webgpu/imgui_overlay.h"
 
 #ifdef __GNUC__
@@ -226,6 +227,41 @@ notify_key_input_state(record_t* record,
   }
 }
 
+static void parse_example_arguments(int argc, char* argv[],
+                                    refexport_t* ref_export)
+{
+  char* filters_short[2]           = {"-w", "-h"};
+  char* filtered_argv[1 + (2 * 2)] = {0};
+  char** argvc                     = (char**)argv;
+  int fargc                        = 1;
+  for (int32_t i = 0; i < argc; ++i) {
+    for (uint32_t j = 0; j < (uint32_t)ARRAY_SIZE(filters_short); ++j) {
+      if (strcmp(argvc[i], filters_short[j]) == 0) {
+        filtered_argv[fargc++] = filters_short[j];
+        filtered_argv[fargc++] = argvc[++i];
+      }
+    }
+  }
+
+  int window_width = 0, window_height = 0;
+  struct argparse_option options[] = {
+    OPT_INTEGER('w', "width", &window_width, "window width", NULL, 0, 0),
+    OPT_INTEGER('h', "height", &window_height, "window height", NULL, 0, 0),
+  };
+  struct argparse argparse;
+  const char* const usages[] = {NULL};
+  argparse_init(&argparse, options, usages, 0);
+  argparse_parse(&argparse, fargc, (const char**)filtered_argv);
+
+  // Override default example window dimensions
+  if (window_width > 100) {
+    ref_export->example_window_config.width = window_width;
+  }
+  if (window_height > 100) {
+    ref_export->example_window_config.height = window_height;
+  }
+}
+
 static void
 intialize_wgpu_example_context(wgpu_example_context_t* context,
                                wgpu_example_settings_t* example_settings)
@@ -444,9 +480,8 @@ void submit_frame(wgpu_example_context_t* context)
 
 void example_run(int argc, char* argv[], refexport_t* ref_export)
 {
-  UNUSED_VAR(argc);
-  UNUSED_VAR(argv);
-
+  // Parse the example arguments
+  parse_example_arguments(argc, argv, ref_export);
   // Initialize WebGPU example context
   wgpu_example_context_t context;
   intialize_wgpu_example_context(&context, &ref_export->example_settings);
