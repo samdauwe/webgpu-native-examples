@@ -668,19 +668,19 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
 {
   /// Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth32Float,
       .depth_write_enabled = true,
     });
-  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   /// Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -691,7 +691,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, sizeof(float) * 3))
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
@@ -703,7 +703,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
               });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -714,16 +714,16 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "shadow_render_pipeline",
                             .layout       = pipeline_layouts.shadow,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
                             .fragment     = NULL,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
                           });
   ASSERT(render_pipelines.shadow != NULL);
 
   // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
 }
 
 // Create the color rendering pipeline
