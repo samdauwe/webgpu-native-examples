@@ -17,13 +17,13 @@
 // clang-format off
 static const char* vertex_shader_wgsl =
   "struct VertexInput {\n"
-  "  @location(0) position : vec3<f32>;\n"
+  "  @location(0) position : vec3<f32>,\n"
   "  @location(1) color : vec4<f32>;\n"
   "};\n"
   "\n"
   "struct VertexOutput {\n"
-  "  @builtin(position) Position : vec4<f32>;\n"
-  "  @location(0) fragColor : vec4<f32>;\n"
+  "  @builtin(position) Position : vec4<f32>,\n"
+  "  @location(0) fragColor : vec4<f32>,\n"
   "};\n"
   "\n"
   "@stage(vertex)\n"
