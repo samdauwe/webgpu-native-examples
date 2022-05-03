@@ -231,6 +231,7 @@ static void parse_example_arguments(int argc, char* argv[],
                                     refexport_t* ref_export)
 {
   char* filters_short[2]           = {"-w", "-h"};
+  char* filters_eq[2]              = {"--width=", "--height="};
   char* filtered_argv[1 + (2 * 2)] = {0};
   char** argvc                     = (char**)argv;
   int fargc                        = 1;
@@ -241,12 +242,18 @@ static void parse_example_arguments(int argc, char* argv[],
         filtered_argv[fargc++] = argvc[++i];
       }
     }
+    for (uint32_t j = 0; j < (uint32_t)ARRAY_SIZE(filters_eq); ++j) {
+      if (has_prefix(argvc[i], filters_eq[j])) {
+        filtered_argv[fargc++] = argvc[i];
+      }
+    }
   }
 
   int window_width = 0, window_height = 0;
   struct argparse_option options[] = {
     OPT_INTEGER('w', "width", &window_width, "window width", NULL, 0, 0),
     OPT_INTEGER('h', "height", &window_height, "window height", NULL, 0, 0),
+    OPT_END(),
   };
   struct argparse argparse;
   const char* const usages[] = {NULL};
