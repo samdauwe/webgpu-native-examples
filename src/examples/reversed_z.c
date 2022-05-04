@@ -186,19 +186,19 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = depth_buffer_format,
       .depth_write_enabled = true,
     });
-  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -208,7 +208,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, geometry_position_offset))
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
@@ -216,11 +216,11 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .buffer_count = 1,
-                .buffers = &depth_pre_pass_vertex_buffer_layout,
+                .buffers      = &depth_pre_pass_vertex_buffer_layout,
               });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -232,23 +232,23 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
     = (WGPURenderPipelineDescriptor){
       .label        = "depth_pre_pass_render_pipeline",
       .layout       = pipline_layouts.depth_prepass_render,
-      .primitive    = primitive_state_desc,
-      .vertex       = vertex_state_desc,
+      .primitive    = primitive_state,
+      .vertex       = vertex_state,
       .fragment     = NULL,
-      .depthStencil = &depth_stencil_state_desc,
-      .multisample  = multisample_state_desc,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
     };
 
   // we need the depthCompare to fit the depth buffer mode we are using.
   // this is the same for other passes
   /* Default */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   render_pipelines.depth_pre_pass[(uint32_t)DepthBufferMode_Default]
     = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &depth_pre_pass_render_pipeline_descriptor_base);
   /* Reversed */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   render_pipelines.depth_pre_pass[(uint32_t)DepthBufferMode_Reversed]
     = wgpuDeviceCreateRenderPipeline(
@@ -256,7 +256,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
 }
 
 // precisionPass is to draw precision error as color of depth value stored in
@@ -264,27 +264,27 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
 static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = depth_buffer_format,
       .depth_write_enabled = true,
     });
-  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -294,7 +294,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, geometry_position_offset))
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
@@ -306,7 +306,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
               });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
@@ -314,11 +314,11 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .target_count = 1,
-                .targets      = &color_target_state_desc,
+                .targets      = &color_target_state,
               });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -330,21 +330,21 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
     = (WGPURenderPipelineDescriptor){
       .label        = "precision_error_pass_render_pipeline",
       .layout       = pipline_layouts.precision_pass_render,
-      .primitive    = primitive_state_desc,
-      .vertex       = vertex_state_desc,
-      .fragment     = &fragment_state_desc,
-      .depthStencil = &depth_stencil_state_desc,
-      .multisample  = multisample_state_desc,
+      .primitive    = primitive_state,
+      .vertex       = vertex_state,
+      .fragment     = &fragment_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
     };
 
   /* Default */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   render_pipelines.precision_pass[(uint32_t)DepthBufferMode_Default]
     = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &precision_pass_render_pipeline_descriptor_base);
   /* Reversed */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   render_pipelines.precision_pass[(uint32_t)DepthBufferMode_Reversed]
     = wgpuDeviceCreateRenderPipeline(
@@ -352,35 +352,35 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 // colorPass is the regular render pass to render the scene
 static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = depth_buffer_format,
       .depth_write_enabled = true,
     });
-  depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -392,7 +392,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4, geometry_color_offset))
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
@@ -404,7 +404,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
               });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
@@ -412,11 +412,11 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .target_count = 1,
-                .targets      = &color_target_state_desc,
+                .targets      = &color_target_state,
               });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -427,21 +427,21 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
     = (WGPURenderPipelineDescriptor){
       .label        = "color_pass_render_pipeline",
       .layout       = pipline_layouts.color_pass_render,
-      .primitive    = primitive_state_desc,
-      .vertex       = vertex_state_desc,
-      .fragment     = &fragment_state_desc,
-      .depthStencil = &depth_stencil_state_desc,
-      .multisample  = multisample_state_desc,
+      .primitive    = primitive_state,
+      .vertex       = vertex_state,
+      .fragment     = &fragment_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
     };
 
   /* Default */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Default];
   render_pipelines.color_pass[(uint32_t)DepthBufferMode_Default]
     = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &color_passRender_pipeline_descriptor_base);
   /* Reversed */
-  depth_stencil_state_desc.depthCompare
+  depth_stencil_state.depthCompare
     = depth_compare_funcs[(uint32_t)DepthBufferMode_Reversed];
   render_pipelines.color_pass[(uint32_t)DepthBufferMode_Reversed]
     = wgpuDeviceCreateRenderPipeline(
@@ -449,8 +449,8 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 // textureQuadPass is draw a full screen quad of depth texture
@@ -460,22 +460,22 @@ static void
 prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
   // Color blend state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
@@ -486,7 +486,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
           });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
@@ -494,11 +494,11 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
               .entry = "main",
             },
             .target_count = 1,
-            .targets      = &color_target_state_desc,
+            .targets      = &color_target_state,
           });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -511,16 +511,16 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "texture_quad_pass_render_pipeline",
                             .layout      = pipline_layouts.texture_quad_pass,
-                            .primitive   = primitive_state_desc,
-                            .vertex      = vertex_state_desc,
-                            .fragment    = &fragment_state_desc,
-                            .multisample = multisample_state_desc,
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
+                            .multisample = multisample_state,
                           });
 
   // Shader modules are no longer needed once the graphics pipeline has been
   // created
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 static void prepare_depth_textures(wgpu_context_t* wgpu_context)
