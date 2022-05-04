@@ -376,7 +376,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/screenshot/mesh.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
   // Fragment state
@@ -387,7 +387,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/screenshot/mesh.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
   // Multisample state
