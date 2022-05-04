@@ -337,22 +337,22 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
@@ -369,7 +369,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_Color));
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
@@ -380,18 +380,18 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
                 .file = "shaders/screenshot/mesh.frag.spv",
               },
               .target_count = 1,
-              .targets      = &color_target_state_desc,
+              .targets      = &color_target_state,
             });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -402,31 +402,31 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "gltf_model_render_pipeline",
                             .layout       = pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
                           });
   ASSERT(scene_rendering.pipeline != NULL);
 
   // Create offscreen rendering pipeline using the specified states
-  color_target_state_desc.format = offscreen_rendering.color.format;
-  offscreen_rendering.pipeline   = wgpuDeviceCreateRenderPipeline(
+  color_target_state.format    = offscreen_rendering.color.format;
+  offscreen_rendering.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "offscreen_render_pipeline",
                             .layout       = pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
                           });
   ASSERT(offscreen_rendering.pipeline != NULL);
 
   // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
@@ -599,8 +599,8 @@ static int example_draw(wgpu_example_context_t* context)
   bool save_screenshot = !buffer_mapped && screenshot_requested;
   wgpu_context->submit_info.command_buffer_count = save_screenshot ? 3 : 1;
   wgpu_context->submit_info.command_buffers[0]   = build_command_buffer(
-    wgpu_context, &scene_rendering.render_pass.render_pass_descriptor,
-    scene_rendering.pipeline, true);
+      wgpu_context, &scene_rendering.render_pass.render_pass_descriptor,
+      scene_rendering.pipeline, true);
   if (save_screenshot) {
     wgpu_context->submit_info.command_buffers[1] = build_command_buffer(
       wgpu_context, &offscreen_rendering.render_pass.render_pass_descriptor,
