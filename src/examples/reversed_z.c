@@ -302,7 +302,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .buffer_count = 1,
-                .buffers = &precision_error_pass_vertex_buffer_layout,
+                .buffers      = &precision_error_pass_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -314,7 +314,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
@@ -400,7 +400,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .buffer_count = 1,
-                .buffers = &color_pass_vertex_buffer_layout,
+                .buffers      = &color_pass_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -412,7 +412,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
@@ -494,7 +494,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
               .entry = "main",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
