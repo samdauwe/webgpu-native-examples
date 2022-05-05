@@ -260,9 +260,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_scene),
+          .minBindingSize   = sizeof(ubo_scene),
         },
         .sampler = {0},
       },
@@ -271,9 +271,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -282,7 +282,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       }
@@ -315,7 +315,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_blur_params),
+          .minBindingSize   = sizeof(ubo_blur_params),
         },
         .sampler = {0},
       },
@@ -324,9 +324,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -335,7 +335,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       }
@@ -368,13 +368,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer = ubo.scene.buffer,
-        .offset = 0,
-        .size = ubo.scene.size,
+        .buffer  = ubo.scene.buffer,
+        .offset  = 0,
+        .size    = ubo.scene.size,
       },
       [1] = (WGPUBindGroupEntry) {
        // Binding 1: Fragment shader image sampler
-        .binding = 1,
+        .binding     = 1,
         .textureView = textures.gradient.view,
       },
       [2] = (WGPUBindGroupEntry) {
@@ -399,13 +399,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Fragment shader uniform buffer
         .binding = 0,
-        .buffer = ubo.blur_params.buffer,
-        .offset = 0,
-        .size = ubo.blur_params.size,
+        .buffer  = ubo.blur_params.buffer,
+        .offset  = 0,
+        .size    = ubo.blur_params.size,
       },
       [1] = (WGPUBindGroupEntry) {
        // Binding 1: Fragment shader image sampler
-        .binding = 1,
+        .binding     = 1,
         .textureView = offscreen_pass.color.texture_view,
       },
       [2] = (WGPUBindGroupEntry) {
@@ -500,7 +500,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               },
               // Empty vertex input state
               .buffer_count = 0,
-              .buffers = NULL,
+              .buffers      = NULL,
             });
 
     // Fragment state
@@ -511,7 +511,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/radialblur.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
@@ -613,7 +613,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/phongpass.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -624,7 +624,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/phongpass.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
@@ -663,7 +663,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/colorpass.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -674,7 +674,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/colorpass.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
