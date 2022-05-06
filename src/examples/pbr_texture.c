@@ -1653,43 +1653,43 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform UBO
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = prefiltered_cube_ubos.vs.model_size,
+          .minBindingSize   = prefiltered_cube_ubos.vs.model_size,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader uniform UBO
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = prefiltered_cube_ubos.fs.model_size,
+          .minBindingSize   = prefiltered_cube_ubos.fs.model_size,
         },
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader image sampler
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -1709,20 +1709,20 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform UBO
         .binding = 0,
-        .buffer = prefiltered_cube_ubos.vs.buffer,
-        .offset = 0,
-        .size = prefiltered_cube_ubos.vs.model_size,
+        .buffer  = prefiltered_cube_ubos.vs.buffer,
+        .offset  = 0,
+        .size    = prefiltered_cube_ubos.vs.model_size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Fragment shader uniform UBO
         .binding = 1,
-        .buffer = prefiltered_cube_ubos.fs.buffer,
-        .offset = 0,
-        .size = prefiltered_cube_ubos.fs.model_size,
+        .buffer  = prefiltered_cube_ubos.fs.buffer,
+        .offset  = 0,
+        .size    = prefiltered_cube_ubos.fs.model_size,
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = textures.environment_cube.view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -1783,7 +1783,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/filtercube.vert.spv",
               },
              .buffer_count = 1,
-             .buffers = &skybox_vertex_buffer_layout,
+             .buffers      = &skybox_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -1794,7 +1794,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/prefilterenvmap.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Multisample state
@@ -2152,6 +2152,7 @@ void example_pbr_texture(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
       .title   = example_title,
       .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
