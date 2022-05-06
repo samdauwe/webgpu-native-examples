@@ -1651,7 +1651,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
                 .entry = "main"
               },
               .buffer_count = (uint32_t)ARRAY_SIZE(quad_vertex_buffer_layouts),
-              .buffers = quad_vertex_buffer_layouts,
+              .buffers      = quad_vertex_buffer_layouts,
             });
 
   // Fragment state
@@ -1663,7 +1663,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
                 .entry = "main"
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
   // Multisample state
@@ -1817,7 +1817,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
                 .entry = "main"
               },
               .buffer_count = buffer_count,
-              .buffers = instanced_meshes_vertex_buffer_layouts,
+              .buffers      = instanced_meshes_vertex_buffer_layouts,
             });
 
   // Fragment state
@@ -1829,7 +1829,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
                 .entry = "main"
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
   // Multisample state
