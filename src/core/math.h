@@ -15,4 +15,12 @@ float rand_float_min_max(float min, float max);
  */
 float random_float();
 
+/**
+ * @brief Returns if value v0 and v1 are approximately equal using epsilon as
+ * allowed error.
+ * @return if value v0 and v1 are approximately equal
+ */
+int approx_eq_fabs_eps(float v0, float v1, float epsilon);
+int approx_eq_fabs(float v0, float v1);
+
 #endif /* MATH_H */
