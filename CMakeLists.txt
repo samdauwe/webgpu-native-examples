@@ -232,6 +232,7 @@ set(SOURCES
     src/examples/pbr_texture.c
     src/examples/post_processing.c
     src/examples/prng.c
+    src/examples/procedural_mesh.c
     src/examples/radial_blur.c
     src/examples/reversed_z.c
     src/examples/screenshot.c
@@ -330,6 +331,7 @@ else()
         PRIVATE external/cJSON
         PRIVATE external/dawn/include
         PRIVATE external/ktx/include
+        PRIVATE external/par
         PRIVATE external/rply
         PRIVATE external/stb
     )
