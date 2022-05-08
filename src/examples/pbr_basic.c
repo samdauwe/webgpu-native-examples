@@ -164,43 +164,43 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = uniform_buffers.ubo_matrices.size,
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: Uniform buffer (Fragment shader)
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = uniform_buffers.ubo_params.size,
       },
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Dynamic uniform buffer (Fragment shader)
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = true,
-        .minBindingSize = uniform_buffers.material_params.model_size,
+        .minBindingSize   = uniform_buffers.material_params.model_size,
       },
       .sampler = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3: Dynamic uniform buffer (Vertex shader)
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = true,
-        .minBindingSize = uniform_buffers.object_params.model_size,
+        .minBindingSize   = uniform_buffers.object_params.model_size,
       },
       .sampler = {0},
     },
@@ -228,30 +228,30 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
       .binding = 0,
-      .buffer = uniform_buffers.ubo_matrices.buffer,
-      .offset = 0,
-      .size = uniform_buffers.ubo_matrices.size,
+      .buffer  = uniform_buffers.ubo_matrices.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.ubo_matrices.size,
     },
     [1] = (WGPUBindGroupEntry) {
       // Binding 1: Uniform buffer (Fragment shader)
       .binding = 1,
-      .buffer = uniform_buffers.ubo_params.buffer,
-      .offset = 0,
-      .size = uniform_buffers.ubo_params.size,
+      .buffer  = uniform_buffers.ubo_params.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.ubo_params.size,
     },
     [2] = (WGPUBindGroupEntry) {
       // Binding 2: Dynamic uniform buffer (Fragment shader)
       .binding = 2,
-      .buffer = uniform_buffers.material_params.buffer,
-      .offset = 0,
-      .size = uniform_buffers.material_params.model_size,
+      .buffer  = uniform_buffers.material_params.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.material_params.model_size,
     },
     [3] = (WGPUBindGroupEntry) {
       // Binding 3: Dynamic uniform buffer (Vertex shader)
       .binding = 3,
-      .buffer = uniform_buffers.object_params.buffer,
-      .offset = 0,
-      .size = uniform_buffers.object_params.model_size,
+      .buffer  = uniform_buffers.object_params.buffer,
+      .offset  = 0,
+      .size    = uniform_buffers.object_params.model_size,
     },
   };
 
@@ -333,7 +333,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_basic/pbr.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &sphere_vertex_buffer_layout,
+            .buffers      = &sphere_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -344,7 +344,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_basic/pbr.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
