@@ -253,10 +253,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Vertex shader uniform buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = sizeof(ubo_shared_vs),
       },
