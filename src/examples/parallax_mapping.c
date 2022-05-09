@@ -120,7 +120,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = sizeof(ubos.vertex_shader),
       },
@@ -314,7 +314,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/parallax_mapping/parallax.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &quad_vertex_buffer_layout,
+            .buffers      = &quad_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -325,7 +325,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/parallax_mapping/parallax.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
