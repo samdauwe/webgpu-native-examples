@@ -207,28 +207,28 @@ static void setup_compute_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Compute pipeline layout */
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_ReadOnlyStorage,
+        .type           = WGPUBufferBindingType_ReadOnlyStorage,
         .minBindingSize = storage_buffers.positions_in.buffer.size,
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = storage_buffers.positions_out.size,
       },
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = storage_buffers.velocities.size,
       },
       .sampler = {0},
