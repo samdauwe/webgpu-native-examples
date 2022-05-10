@@ -116,7 +116,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Vertex shader uniform buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
@@ -546,8 +546,8 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
   if (status == WGPUBufferMapAsyncStatus_Success) {
     int32_t mapped_dest_buffer_index = get_mapped_dest_buffer_index();
     uint64_t const* mapping          = (uint64_t*)wgpuBufferGetConstMappedRange(
-      occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
-      sizeof(passed_samples));
+               occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
+               sizeof(passed_samples));
     ASSERT(mapping)
     memcpy(passed_samples, mapping, sizeof(passed_samples));
     wgpuBufferUnmap(occlusion_query_set_dst_buffer[mapped_dest_buffer_index]);
