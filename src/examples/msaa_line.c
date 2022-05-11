@@ -201,7 +201,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/msaa_line/shader.vert.spv",
                     },
                     .buffer_count = 1,
-                    .buffers = &msaa_line_vertex_buffer_layout,
+                    .buffers      = &msaa_line_vertex_buffer_layout,
                   });
 
   // Fragment state
@@ -212,7 +212,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/msaa_line/shader.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Multisample state
