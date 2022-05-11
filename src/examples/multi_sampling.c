@@ -155,10 +155,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entry= {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(ubo_vs),
         },
         .sampler = {0},
@@ -177,7 +177,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: texture2D (Fragment shader) => Color map
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
@@ -251,7 +251,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         WGPUBindGroupEntry bg_entries[2] = {
             [0] = (WGPUBindGroupEntry) {
               // Binding 0: texture2D (Fragment shader) => Color map
-              .binding = 0,
+              .binding     = 0,
               .textureView = material->base_color_texture->wgpu_texture.view,
             },
             [1] = (WGPUBindGroupEntry) {
@@ -317,7 +317,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/multi_sampling/mesh.vert.spv",
                     },
                     .buffer_count = 1,
-                    .buffers = &multi_sampling_vertex_buffer_layout,
+                    .buffers      = &multi_sampling_vertex_buffer_layout,
                   });
 
   // Fragment state
@@ -328,7 +328,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/multi_sampling/mesh.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Normal non-MSAA rendering pipeline
