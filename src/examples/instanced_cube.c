@@ -247,8 +247,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     // Backface culling since the cube is solid piece of geometry.
-    // Faces pointing away from the camera will be occluded by faces
-    // pointing toward the camera.
+    // Faces pointing away from the camera will be occluded by faces pointing
+    // toward the camera.
     .cullMode = WGPUCullMode_Back,
   };
 
@@ -284,7 +284,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
               .wgsl_code.source = instanced_vertex_shader_wgsl,
             },
             .buffer_count = 1,
-            .buffers = &instanced_cube_vertex_buffer_layout,
+            .buffers      = &instanced_cube_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -295,7 +295,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
               .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
