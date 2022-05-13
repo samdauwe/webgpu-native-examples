@@ -38,10 +38,10 @@ static struct {
 } models = {
   .objects = {
     // clang-format off
-    { .name = "Sphere", .filelocation = "models/sphere.gltf" },
-    { .name = "Teapot", .filelocation = "models/teapot.gltf" },
+    { .name = "Sphere",    .filelocation = "models/sphere.gltf"    },
+    { .name = "Teapot",    .filelocation = "models/teapot.gltf"    },
     { .name = "Torusknot", .filelocation = "models/torusknot.gltf" },
-    { .name = "Venus", .filelocation = "models/venus.gltf" },
+    { .name = "Venus",     .filelocation = "models/venus.gltf"     },
     // clang-format on
   },
   .object_index = 1,
@@ -376,54 +376,54 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex / fragment shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_matrices),
+          .minBindingSize   = sizeof(ubo_matrices),
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image sampler
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader uniform buffer
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_params),
+          .minBindingSize   = sizeof(ubo_params),
         },
         .sampler = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
         // Binding 4:  Vertex / fragment shader dynamic uniform buffer
-        .binding = 4,
+        .binding    = 4,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = sizeof(ubo_constants[0].value),
+          .minBindingSize   = sizeof(ubo_constants[0].value),
         },
         .sampler = {0},
       },
@@ -451,52 +451,52 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Fragment shader image view
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image sampler
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader image sampler
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
         // Binding 4: fragment shader dynamic uniform buffer
-        .binding = 4,
+        .binding    = 4,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = sizeof(ubo_constants[0].value),
+          .minBindingSize   = sizeof(ubo_constants[0].value),
         },
         .sampler = {0},
       },
@@ -552,13 +552,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex / fragment shader uniform buffer
         .binding = 0,
-        .buffer = uniform_buffers.matrices.buffer,
-        .offset = 0,
-        .size = uniform_buffers.matrices.size,
+        .buffer  = uniform_buffers.matrices.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.matrices.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding     = 1,
         .textureView = textures.envmap.view,
       },
       [2] = (WGPUBindGroupEntry) {
@@ -569,16 +569,16 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [3] = (WGPUBindGroupEntry) {
         // Binding 3: Fragment shader uniform buffer
         .binding = 3,
-        .buffer = uniform_buffers.params.buffer,
-        .offset = 0,
-        .size = uniform_buffers.params.size,
+        .buffer  = uniform_buffers.params.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.params.size,
       },
       [4] = (WGPUBindGroupEntry) {
         // Binding 4: Vertex / fragment shader dynamic uniform buffer
         .binding = 4,
-        .buffer = uniform_buffers.dynamic.buffer,
-        .offset = 0,
-        .size = sizeof(ubo_constants[0].value),
+        .buffer  = uniform_buffers.dynamic.buffer,
+        .offset  = 0,
+        .size    = sizeof(ubo_constants[0].value),
       },
     };
 
@@ -612,7 +612,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[5] = {
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Fragment shader image view
-        .binding = 0,
+        .binding     = 0,
         .textureView = offscreen_pass.color[0].texture_view
       },
       [1] = (WGPUBindGroupEntry) {
@@ -622,7 +622,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = offscreen_pass.color[1].texture_view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -633,9 +633,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [4] = (WGPUBindGroupEntry) {
         // Binding 4: fragment shader dynamic uniform buffer
         .binding = 4,
-        .buffer = uniform_buffers.dynamic.buffer,
-        .offset = 0,
-        .size = sizeof(ubo_constants[0].value),
+        .buffer  = uniform_buffers.dynamic.buffer,
+        .offset  = 0,
+        .size    = sizeof(ubo_constants[0].value),
       },
     };
 
@@ -654,7 +654,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[4] = {
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Fragment shader image view
-        .binding = 0,
+        .binding    = 0,
         .textureView = offscreen_pass.color[0].texture_view
       },
       [1] = (WGPUBindGroupEntry) {
@@ -664,7 +664,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = filter_pass.color[0].texture_view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -758,7 +758,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             // Empty vertex input state, full screen triangles are generated by
             // the vertex shader
             .buffer_count = 0,
-            .buffers = NULL,
+            .buffers      = NULL,
           });
 
     // Fragment state
@@ -769,7 +769,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/hdr/composition.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
     // Create rendering pipeline using the specified states
@@ -833,28 +833,28 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // First bloom filter pass (into separate framebuffer)
     color_target_state_desc.format = wgpu_context->swap_chain.format;
     pipelines.bloom[0]             = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "bloom_1_render_pipeline",
-                              .layout       = pipeline_layouts.bloom_filter,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
+                  wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                                          .label        = "bloom_1_render_pipeline",
+                                          .layout       = pipeline_layouts.bloom_filter,
+                                          .primitive    = primitive_state_desc,
+                                          .vertex       = vertex_state_desc,
+                                          .fragment     = &fragment_state_desc,
+                                          .depthStencil = &depth_stencil_state_desc,
+                                          .multisample  = multisample_state_desc,
                             });
     ASSERT(pipelines.bloom[0]);
 
     // Second bloom filter pass (into separate framebuffer)
     color_target_state_desc.format = filter_pass.color[0].format;
     pipelines.bloom[1]             = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "bloom_2_render_pipeline",
-                              .layout       = pipeline_layouts.bloom_filter,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = NULL,
-                              .multisample  = multisample_state_desc,
+                  wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                                          .label        = "bloom_2_render_pipeline",
+                                          .layout       = pipeline_layouts.bloom_filter,
+                                          .primitive    = primitive_state_desc,
+                                          .vertex       = vertex_state_desc,
+                                          .fragment     = &fragment_state_desc,
+                                          .depthStencil = NULL,
+                                          .multisample  = multisample_state_desc,
                             });
     ASSERT(pipelines.bloom[1]);
   }
@@ -1007,11 +1007,11 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.dynamic.model_size  = sizeof(int);
   uniform_buffers.dynamic.buffer_size = sizeof(ubo_constants);
   uniform_buffers.dynamic.buffer      = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = uniform_buffers.dynamic.buffer_size,
-      .mappedAtCreation = false,
+         context->wgpu_context->device,
+         &(WGPUBufferDescriptor){
+           .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size             = uniform_buffers.dynamic.buffer_size,
+           .mappedAtCreation = false,
     });
 
   // Initialize uniform buffers
@@ -1283,9 +1283,9 @@ void example_hdr(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func= &example_initialize,
+    .example_render_func    = &example_render,
+    .example_destroy_func   = &example_destroy,
   });
   // clang-format on
 }
