@@ -384,7 +384,7 @@ static int round_up_to_odd(int value, int min, int max)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_slider_int(context->imgui_overlay, "Filter size",
+    if (imgui_overlay_slider_int(context->imgui_overlay, "Filter Size",
                                  &settings.filter_size, 1, 33)) {
       settings.filter_size = round_up_to_odd(settings.filter_size, 1, 33);
       update_settings(context->wgpu_context);
