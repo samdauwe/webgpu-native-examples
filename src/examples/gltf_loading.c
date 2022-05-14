@@ -667,7 +667,7 @@ static void gltf_model_setup_material_bind_groups(
 
     WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry) {
-          .binding = 0,
+          .binding     = 0,
           .textureView = image->texture.view,
         },
         [1] = (WGPUBindGroupEntry) {
@@ -695,7 +695,7 @@ static void gltf_model_setup_mesh_bind_groups(
     WGPUBindGroupDescriptor bg_desc = {
       .layout     = model_data_bind_group_layout,
       .entryCount = 1,
-      .entries    = &(WGPUBindGroupEntry) {
+      .entries = &(WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = mesh->uniform_buffer,
         .offset  = 0,
@@ -890,7 +890,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
           .type = WGPUBufferBindingType_Uniform,
@@ -909,21 +909,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: texture2D (Fragment shader) => baseColorTexture
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: sampler (Fragment shader) => defaultSampler
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type  =WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -943,7 +943,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => modelData
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
           .type = WGPUBufferBindingType_Uniform,
@@ -961,7 +961,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupDescriptor bg_desc = {
     .layout     = ubo_scene_bind_group_layout,
     .entryCount = 1,
-    .entries    = &(WGPUBindGroupEntry) {
+    .entries = &(WGPUBindGroupEntry) {
       .binding = 0,
       .buffer  = scene_uniform_buffer,
       .offset  = 0,
@@ -1036,7 +1036,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/gltf_loading/mesh.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &gltf_loading_vertex_buffer_layout,
+            .buffers      = &gltf_loading_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -1047,7 +1047,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/gltf_loading/mesh.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
