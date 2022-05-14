@@ -36,10 +36,7 @@ typedef struct ubo_material_consts_t {
 } ubo_material_consts_t;
 
 static struct ubo_buffers_t {
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } ubo_scene;
+  wgpu_buffer_t ubo_scene;
   struct {
     WGPUBuffer* buffers;
     uint32_t buffer_count;
@@ -427,15 +424,12 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Scene uniform buffer
   {
-    ubo_buffers.ubo_scene.size               = sizeof(ubo_scene);
-    WGPUBufferDescriptor texture_buffer_desc = {
-      .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size             = ubo_buffers.ubo_scene.size,
-      .mappedAtCreation = false,
-    };
-    ubo_buffers.ubo_scene.buffer = wgpuDeviceCreateBuffer(
-      context->wgpu_context->device, &texture_buffer_desc);
-    ASSERT(ubo_buffers.ubo_scene.buffer)
+    ubo_buffers.ubo_scene = wgpu_create_buffer(
+      context->wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+        .size  = sizeof(ubo_scene),
+      });
     update_uniform_buffers(context);
   }
 
