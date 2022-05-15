@@ -517,15 +517,15 @@ static void prepare_vertices(wgpu_context_t* wgpu_context)
     const float* gear_color    = gear_defs[i].color;
     const float* gear_position = gear_defs[i].position;
     gear_info_t gear_info      = {
-      .inner_radius = gear_defs[i].inner_radius,
-      .outer_radius = gear_defs[i].outer_radius,
-      .width        = gear_defs[i].width,
-      .num_teeth    = gear_defs[i].tooth_count,
-      .tooth_depth  = gear_defs[i].tooth_depth,
-      .color        = {gear_color[0], gear_color[1], gear_color[2]},
-      .pos          = {gear_position[0], gear_position[1], gear_position[2]},
-      .rot_speed    = gear_defs[i].rotation_speed,
-      .rot_offset   = gear_defs[i].rotation_offset,
+           .inner_radius = gear_defs[i].inner_radius,
+           .outer_radius = gear_defs[i].outer_radius,
+           .width        = gear_defs[i].width,
+           .num_teeth    = gear_defs[i].tooth_count,
+           .tooth_depth  = gear_defs[i].tooth_depth,
+           .color        = {gear_color[0], gear_color[1], gear_color[2]},
+           .pos          = {gear_position[0], gear_position[1], gear_position[2]},
+           .rot_speed    = gear_defs[i].rotation_speed,
+           .rot_offset   = gear_defs[i].rotation_offset,
     };
     wgpu_gears[i] = webgpu_gear_create(wgpu_context);
     webgpu_gear_generate(wgpu_gears[i], &gear_info);
@@ -572,12 +572,12 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     .entryCount = 1,
     .entries = &(WGPUBindGroupLayoutEntry) {
       // Binding 0: Vertex shader uniform buffer
-      .binding = 0,
+      .binding     = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize = sizeof(gear_ubo_t),
+        .minBindingSize   = sizeof(gear_ubo_t),
       },
       .sampler = {0},
     },
