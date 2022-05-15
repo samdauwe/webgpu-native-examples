@@ -296,7 +296,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniforms
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
@@ -307,7 +307,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: GerstnerWavesUniforms
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
@@ -332,7 +332,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Sampler
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
           .type = WGPUSamplerBindingType_NonFiltering,
@@ -341,7 +341,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Texture view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
@@ -591,9 +591,11 @@ static void init_orbit_camera_matrices()
   glm_rotate(scene_data.model_matrix, glm_rad(-90.0f),
              (vec3){1.0f, 0.0f, 0.0f});
   glm_translate(scene_data.model_matrix,
-                (vec3){-plane_mesh.width / 2.0f,  // center plane x
-                       -plane_mesh.height / 2.0f, // center plane y
-                       0.0f});
+                (vec3){
+                  -plane_mesh.width / 2.0f,  // center plane x
+                  -plane_mesh.height / 2.0f, // center plane y
+                  0.0f,                      // center plane z
+                });
 }
 
 static void update_uniform_buffers_scene(wgpu_example_context_t* context)
