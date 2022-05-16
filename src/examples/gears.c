@@ -75,23 +75,18 @@ typedef struct webgpu_gear_t {
   WGPUBindGroup bind_group;
   // Vertex buffer
   struct {
-    int32_t count;
-    size_t size;
-    vertex_t* vertex_buffer_data;
-    WGPUBuffer buffer;
+    wgpu_buffer_t buffer;
+    vertex_t* data;
   } vbo;
   // Index buffer
   struct {
-    int32_t count;
-    size_t size;
-    uint32_t* index_buffer_data;
-    WGPUBuffer buffer;
+    wgpu_buffer_t buffer;
+    uint32_t* data;
   } ibo;
   // Uniform buffer
   struct {
-    size_t size;
+    wgpu_buffer_t buffer;
     gear_ubo_t data;
-    WGPUBuffer buffer;
   } ubo;
   vec3 color;
   vec3 pos;
@@ -122,10 +117,10 @@ void webgpu_gear_new_face(uint32_t* index_buffer, int32_t* index_counter, int a,
 
 static webgpu_gear_t* webgpu_gear_create(wgpu_context_t* wgpu_context)
 {
-  webgpu_gear_t* gear          = (webgpu_gear_t*)malloc(sizeof(webgpu_gear_t));
-  gear->wgpu_context           = wgpu_context;
-  gear->vbo.vertex_buffer_data = NULL;
-  gear->ibo.index_buffer_data  = NULL;
+  webgpu_gear_t* gear = (webgpu_gear_t*)malloc(sizeof(webgpu_gear_t));
+  gear->wgpu_context  = wgpu_context;
+  gear->vbo.data      = NULL;
+  gear->ibo.data      = NULL;
 
   return gear;
 }
@@ -133,15 +128,15 @@ static webgpu_gear_t* webgpu_gear_create(wgpu_context_t* wgpu_context)
 static void webgpu_gear_destroy(webgpu_gear_t* gear)
 {
   // Clean up WebGPU resources
-  WGPU_RELEASE_RESOURCE(Buffer, gear->ubo.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, gear->vbo.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, gear->ibo.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, gear->ubo.buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, gear->vbo.buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, gear->ibo.buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroup, gear->bind_group)
-  if (gear->vbo.vertex_buffer_data) {
-    free(gear->vbo.vertex_buffer_data);
+  if (gear->vbo.data) {
+    free(gear->vbo.data);
   }
-  if (gear->ibo.index_buffer_data) {
-    free(gear->ibo.index_buffer_data);
+  if (gear->ibo.data) {
+    free(gear->ibo.data);
   }
   free(gear);
 }
@@ -154,30 +149,30 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   gear->rot_speed  = gearinfo->rot_speed;
 
   /* Vertex buffer */
-  gear->vbo.count = (6         // /* front face */
-                     + 4       // /* front sides of teeth */
-                     + 6       // /* back face */
-                     + 4       // /* back sides of teeth */
-                     + (4 * 5) // /* draw outward faces of teeth */
-                     )
-                    * gearinfo->num_teeth;
-  gear->vbo.size               = gear->vbo.count * sizeof(vertex_t);
-  gear->vbo.vertex_buffer_data = (vertex_t*)malloc(gear->vbo.size);
-  vertex_t* vbd                = gear->vbo.vertex_buffer_data; // alias
-  int32_t vertex_counter       = 0;
+  gear->vbo.buffer.count = (6         // /* front face */
+                            + 4       // /* front sides of teeth */
+                            + 6       // /* back face */
+                            + 4       // /* back sides of teeth */
+                            + (4 * 5) // /* draw outward faces of teeth */
+                            )
+                           * gearinfo->num_teeth;
+  gear->vbo.buffer.size  = gear->vbo.buffer.count * sizeof(vertex_t);
+  gear->vbo.data         = (vertex_t*)malloc(gear->vbo.buffer.size);
+  vertex_t* vbd          = gear->vbo.data; // alias
+  int32_t vertex_counter = 0;
 
   /* Index buffer */
-  gear->ibo.count = (4         // /* front face */
-                     + 2       // /* front sides of teeth */
-                     + 4       // /* back face */
-                     + 2       // /* back sides of teeth */
-                     + (2 * 5) // /* draw outward faces of teeth */
-                     )
-                    * 3 * gearinfo->num_teeth;
-  gear->ibo.size              = gear->ibo.count * sizeof(uint32_t);
-  gear->ibo.index_buffer_data = (uint32_t*)malloc(gear->ibo.size);
-  uint32_t* ibd               = gear->ibo.index_buffer_data; // alias
-  int32_t index_counter       = 0;
+  gear->ibo.buffer.count = (4         // /* front face */
+                            + 2       // /* front sides of teeth */
+                            + 4       // /* back face */
+                            + 2       // /* back sides of teeth */
+                            + (2 * 5) // /* draw outward faces of teeth */
+                            )
+                           * 3 * gearinfo->num_teeth;
+  gear->ibo.buffer.size = gear->ibo.buffer.count * sizeof(uint32_t);
+  gear->ibo.data        = (uint32_t*)malloc(gear->ibo.buffer.size);
+  uint32_t* ibd         = gear->ibo.data; // alias
+  int32_t index_counter = 0;
 
   int i;
   float r0, r1, r2;
@@ -356,33 +351,43 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
     webgpu_gear_new_face(ibd, &index_counter, ix1, ix3, ix2);
 
     // draw inside radius cylinder
-    ix0 = webgpu_gear_new_vertex(
-      gear->vbo.vertex_buffer_data, &vertex_counter, r0 * cos_ta, r0 * sin_ta,
-      -gearinfo->width * 0.5f, (vec3){-cos_ta, -sin_ta, 0.0f}, gear->color);
-    ix1 = webgpu_gear_new_vertex(
-      gear->vbo.vertex_buffer_data, &vertex_counter, r0 * cos_ta, r0 * sin_ta,
-      gearinfo->width * 0.5f, (vec3){-cos_ta, -sin_ta, 0.0f}, gear->color);
+    ix0 = webgpu_gear_new_vertex(gear->vbo.data, &vertex_counter, r0 * cos_ta,
+                                 r0 * sin_ta, -gearinfo->width * 0.5f,
+                                 (vec3){-cos_ta, -sin_ta, 0.0f}, gear->color);
+    ix1 = webgpu_gear_new_vertex(gear->vbo.data, &vertex_counter, r0 * cos_ta,
+                                 r0 * sin_ta, gearinfo->width * 0.5f,
+                                 (vec3){-cos_ta, -sin_ta, 0.0f}, gear->color);
     ix2 = webgpu_gear_new_vertex(
-      gear->vbo.vertex_buffer_data, &vertex_counter, r0 * cos_ta_4da,
-      r0 * sin_ta_4da, -gearinfo->width * 0.5f,
-      (vec3){-cos_ta_4da, -sin_ta_4da, 0.0f}, gear->color);
+      gear->vbo.data, &vertex_counter, r0 * cos_ta_4da, r0 * sin_ta_4da,
+      -gearinfo->width * 0.5f, (vec3){-cos_ta_4da, -sin_ta_4da, 0.0f},
+      gear->color);
     ix3 = webgpu_gear_new_vertex(
-      gear->vbo.vertex_buffer_data, &vertex_counter, r0 * cos_ta_4da,
-      r0 * sin_ta_4da, gearinfo->width * 0.5f,
-      (vec3){-cos_ta_4da, -sin_ta_4da, 0.0f}, gear->color);
+      gear->vbo.data, &vertex_counter, r0 * cos_ta_4da, r0 * sin_ta_4da,
+      gearinfo->width * 0.5f, (vec3){-cos_ta_4da, -sin_ta_4da, 0.0f},
+      gear->color);
     webgpu_gear_new_face(ibd, &index_counter, ix0, ix1, ix2);
     webgpu_gear_new_face(ibd, &index_counter, ix1, ix3, ix2);
   }
 
   // Vertex buffer
-  gear->vbo.buffer = wgpu_create_buffer_from_data(
-    gear->wgpu_context, gear->vbo.vertex_buffer_data, gear->vbo.size,
-    WGPUBufferUsage_Vertex);
+  gear->vbo.buffer = wgpu_create_buffer(
+    gear->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+      .size         = gear->vbo.buffer.size,
+      .count        = gear->vbo.buffer.count,
+      .initial.data = gear->vbo.data,
+    });
 
   // Index buffer
-  gear->ibo.buffer = wgpu_create_buffer_from_data(
-    gear->wgpu_context, gear->ibo.index_buffer_data, gear->ibo.size,
-    WGPUBufferUsage_Index);
+  gear->ibo.buffer
+    = wgpu_create_buffer(gear->wgpu_context, &(wgpu_buffer_desc_t){
+                                               .usage = WGPUBufferUsage_CopyDst
+                                                        | WGPUBufferUsage_Index,
+                                               .size  = gear->ibo.buffer.size,
+                                               .count = gear->ibo.buffer.count,
+                                               .initial.data = gear->ibo.data,
+                                             });
 
   // Uniform buffer
   webgpu_gear_prepare_uniform_buffer(gear);
@@ -393,11 +398,11 @@ static void webgpu_gear_draw(webgpu_gear_t* gear)
   WGPURenderPassEncoder rpass = gear->wgpu_context->rpass_enc;
 
   wgpuRenderPassEncoderSetBindGroup(rpass, 0, gear->bind_group, 0, 0);
-  wgpuRenderPassEncoderSetVertexBuffer(rpass, 0, gear->vbo.buffer, 0,
+  wgpuRenderPassEncoderSetVertexBuffer(rpass, 0, gear->vbo.buffer.buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    rpass, gear->ibo.buffer, WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderDrawIndexed(rpass, gear->ibo.count, 1, 0, 0, 1);
+    rpass, gear->ibo.buffer.buffer, WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(rpass, gear->ibo.buffer.count, 1, 0, 0, 1);
 }
 
 static void webgpu_gear_update_uniform_buffer(webgpu_gear_t* gear,
@@ -419,8 +424,8 @@ static void webgpu_gear_update_uniform_buffer(webgpu_gear_t* gear,
   ubo->light_pos[0] = sin(glm_rad(timer)) * 8.0f;
   ubo->light_pos[2] = cos(glm_rad(timer)) * 8.0f;
 
-  wgpu_queue_write_buffer(gear->wgpu_context, gear->ubo.buffer, 0, ubo,
-                          gear->ubo.size);
+  wgpu_queue_write_buffer(gear->wgpu_context, gear->ubo.buffer.buffer, 0, ubo,
+                          gear->ubo.buffer.size);
 }
 
 static void webgpu_gear_setup_bind_group(webgpu_gear_t* gear,
@@ -432,9 +437,9 @@ static void webgpu_gear_setup_bind_group(webgpu_gear_t* gear,
     .entries    = &(WGPUBindGroupEntry) {
       // Binding 0 : Vertex shader uniform buffer
       .binding = 0,
-      .buffer  = gear->ubo.buffer,
+      .buffer  = gear->ubo.buffer.buffer,
       .offset  = 0,
-      .size    = gear->ubo.size,
+      .size    = gear->ubo.buffer.size,
     },
   };
 
@@ -446,13 +451,11 @@ static void webgpu_gear_setup_bind_group(webgpu_gear_t* gear,
 static void webgpu_gear_prepare_uniform_buffer(webgpu_gear_t* gear)
 {
   memset(&gear->ubo.data, 0, sizeof(gear_ubo_t));
-  gear->ubo.size = sizeof(gear_ubo_t);
-
-  gear->ubo.buffer = wgpuDeviceCreateBuffer(
-    gear->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = gear->ubo.size,
+  gear->ubo.buffer = wgpu_create_buffer(
+    gear->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(gear_ubo_t),
     });
 }
 
