@@ -575,7 +575,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     .entryCount = 1,
     .entries = &(WGPUBindGroupLayoutEntry) {
       // Binding 0: Vertex shader uniform buffer
-      .binding     = 0,
+      .binding   = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type = WGPUBufferBindingType_Uniform,
@@ -652,7 +652,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/gears/gears.vert.spv",
                 },
                 .buffer_count = 1,
-                .buffers = &gear_vertex_buffer_layout,
+                .buffers      = &gear_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -663,7 +663,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/gears/gears.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
@@ -839,7 +839,7 @@ void example_gears(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
