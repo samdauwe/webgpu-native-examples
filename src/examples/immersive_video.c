@@ -422,12 +422,6 @@ static int example_initialize(wgpu_example_context_t* context)
   return 1;
 }
 
-static float clamp_float(float d, float min, float max)
-{
-  const float t = d < min ? min : d;
-  return t > max ? max : t;
-}
-
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
