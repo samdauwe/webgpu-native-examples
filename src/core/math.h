@@ -23,4 +23,13 @@ float random_float();
 int approx_eq_fabs_eps(float v0, float v1, float epsilon);
 int approx_eq_fabs(float v0, float v1);
 
+/**
+ * @brief Clamps a float value between minimum and maximum.
+ * @param d the number to clamp
+ * @param min the minimum value
+ * @param max the maximum value
+ * @return the clamped value in range [min, max]
+ */
+float clamp_float(float d, float min, float max);
+
 #endif /* MATH_H */

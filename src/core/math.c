@@ -25,3 +25,9 @@ int approx_eq_fabs(float v0, float v1)
 {
   return approx_eq_fabs_eps(v0, v1, EPSILON);
 }
+
+float clamp_float(float d, float min, float max)
+{
+  const float t = d < min ? min : d;
+  return t > max ? max : t;
+}
