@@ -289,30 +289,30 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Position texture view
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Normal texture view
-        .binding = 1,
+        .binding =   1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Albedo texture view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+          .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
@@ -331,20 +331,20 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Storage buffer (Fragment shader) - LightsBuffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_ReadOnlyStorage,
+          .type           = WGPUBufferBindingType_ReadOnlyStorage,
           .minBindingSize = sizeof(float) * light_data_stride * max_num_lights,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Uniform buffer (Fragment shader) - Config
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(uint32_t),
         },
         .storageTexture = {0},
@@ -363,10 +363,10 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Fragment shader) - SurfaceConstants
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(vec2),
         },
         .sampler = {0},
@@ -385,20 +385,20 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) - Uniforms
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = 4 * 16 * 2, // two 4x4 matrix
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Uniform buffer (Vertex shader) - Camera
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = 4 * 16, // 4x4 matrix
         },
         .storageTexture = {0},
@@ -417,30 +417,30 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Storage buffer (Compute shader) - LightsBuffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Storage,
+          .type           = WGPUBufferBindingType_Storage,
           .minBindingSize = sizeof(float) * light_data_stride * max_num_lights,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Uniform buffer (Compute shader) - Config
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(uint32_t),
         },
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Uniform buffer (Compute shader) - LightExtent
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(vec4) * 2,
         },
         .storageTexture = {0},
@@ -513,17 +513,17 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
   WGPUColorTargetState color_target_state_descs[3] = {
     // position
     [0] = (WGPUColorTargetState){
-      .format = WGPUTextureFormat_RGBA32Float,
+      .format    = WGPUTextureFormat_RGBA32Float,
       .writeMask = WGPUColorWriteMask_All,
     },
     // normal
     [1] = (WGPUColorTargetState){
-      .format = WGPUTextureFormat_RGBA32Float,
+      .format    = WGPUTextureFormat_RGBA32Float,
       .writeMask = WGPUColorWriteMask_All,
     },
     // albedo
     [2] = (WGPUColorTargetState){
-      .format = WGPUTextureFormat_BGRA8Unorm,
+      .format    = WGPUTextureFormat_BGRA8Unorm,
       .writeMask = WGPUColorWriteMask_All,
     },
   };
@@ -555,7 +555,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
               .entry = "main",
             },
             .buffer_count = 1,
-            .buffers = &write_gbuffers_vertex_buffer_layout,
+            .buffers      = &write_gbuffers_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -632,7 +632,7 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
           .entry = "main",
         },
         .target_count = 1,
-        .targets = &color_target_state_desc,
+        .targets      = &color_target_state_desc,
       });
 
   // Multisample state
@@ -696,7 +696,7 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
           .entry = "main",
         },
         .target_count = 1,
-        .targets = &color_target_state_desc,
+        .targets      = &color_target_state_desc,
       });
 
   // Multisample state
@@ -846,11 +846,11 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     lights.config_uniform_buffer_size = sizeof(uint32_t);
     lights.config_uniform_buffer      = wgpuDeviceCreateBuffer(
-      wgpu_context->device,
-      &(WGPUBufferDescriptor){
-        .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size             = lights.config_uniform_buffer_size,
-        .mappedAtCreation = true,
+           wgpu_context->device,
+           &(WGPUBufferDescriptor){
+             .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+             .size             = lights.config_uniform_buffer_size,
+             .mappedAtCreation = true,
       });
     ASSERT(lights.config_uniform_buffer);
     uint32_t* config_data = (uint32_t*)wgpuBufferGetMappedRange(
@@ -887,13 +887,13 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = model_uniform_buffer,
-        .size = 4 * 16 * 2, // two 4x4 matrix
+        .buffer  = model_uniform_buffer,
+        .size    = 4 * 16 * 2, // two 4x4 matrix
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = camera_uniform_buffer,
-        .size = 4 * 16, // 4x4 matrix
+        .buffer  = camera_uniform_buffer,
+        .size    = 4 * 16, // 4x4 matrix
       },
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -922,8 +922,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = surface_size_uniform_buffer,
-        .size = 4 * 2,
+        .buffer  = surface_size_uniform_buffer,
+        .size    = 4 * 2,
       },
     };
     surface_size_uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -939,15 +939,15 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
+        .binding     = 0,
         .textureView = gbuffer.texture_views[0],
       },
       [1] = (WGPUBindGroupEntry) {
-        .binding = 1,
+        .binding     = 1,
         .textureView = gbuffer.texture_views[1],
       },
       [2] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = gbuffer.texture_views[2],
       },
     };
@@ -1008,10 +1008,10 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     glm_vec3_sub(light_extent_max, light_extent_min, extent);
     lights.buffer_size = sizeof(float) * light_data_stride * max_num_lights;
     lights.buffer      = wgpuDeviceCreateBuffer(wgpu_context->device,
-                                           &(WGPUBufferDescriptor){
-                                             .usage = WGPUBufferUsage_Storage,
-                                             .size  = lights.buffer_size,
-                                             .mappedAtCreation = true,
+                                                &(WGPUBufferDescriptor){
+                                                  .usage = WGPUBufferUsage_Storage,
+                                                  .size  = lights.buffer_size,
+                                                  .mappedAtCreation = true,
                                            });
     ASSERT(lights.buffer);
 
@@ -1047,10 +1047,10 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
   {
     lights.extent_buffer_size = 4 * 8;
     lights.extent_buffer      = wgpuDeviceCreateBuffer(
-      wgpu_context->device,
-      &(WGPUBufferDescriptor){
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size  = lights.extent_buffer_size,
+           wgpu_context->device,
+           &(WGPUBufferDescriptor){
+             .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+             .size  = lights.extent_buffer_size,
       });
     float light_extent_data[8] = {0};
     memcpy(&light_extent_data[0], light_extent_min, sizeof(vec3));
@@ -1064,13 +1064,13 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = lights.buffer,
-        .size =lights.buffer_size,
+        .buffer  = lights.buffer,
+        .size    = lights.buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = lights.config_uniform_buffer,
-        .size = lights.config_uniform_buffer_size,
+        .buffer  = lights.config_uniform_buffer,
+        .size    = lights.config_uniform_buffer_size,
       },
     };
     lights.buffer_bind_group = wgpuDeviceCreateBindGroup(
@@ -1087,18 +1087,18 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = lights.buffer,
-        .size =lights.buffer_size,
+        .buffer  = lights.buffer,
+        .size    = lights.buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = lights.config_uniform_buffer,
-        .size = lights.config_uniform_buffer_size,
+        .buffer  = lights.config_uniform_buffer,
+        .size    = lights.config_uniform_buffer_size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer = lights.extent_buffer,
-        .size =lights.extent_buffer_size,
+        .buffer  = lights.extent_buffer,
+        .size    = lights.extent_buffer_size,
       },
     };
     lights.buffer_compute_bind_group = wgpuDeviceCreateBindGroup(
@@ -1432,9 +1432,9 @@ void example_deferred_rendering(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy
   });
   // clang-format on
 }
