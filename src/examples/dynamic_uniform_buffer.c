@@ -137,10 +137,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : Projection/View matrix uniform buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = uniform_buffers.view.size,
       },
@@ -148,10 +148,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : Instance matrix as dynamic uniform buffer
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = true,
         .minBindingSize   = (uint64_t)uniform_buffers.dynamic.model_size,
       },
@@ -248,7 +248,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                   .file = "shaders/dynamic_uniform_buffer/base.vert.spv",
                 },
                 .buffer_count = 1,
-                .buffers = &dyn_ubo_vertex_buffer_layout,
+                .buffers      = &dyn_ubo_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -259,7 +259,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                   .file = "shaders/dynamic_uniform_buffer/base.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
@@ -572,7 +572,7 @@ void example_dynamic_uniform_buffer(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
     .example_initialize_func      = &example_initialize,
