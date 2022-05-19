@@ -15,22 +15,13 @@
  * -------------------------------------------------------------------------- */
 
 // Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
+static struct wgpu_buffer_t indices = {0};
 
 // Cube vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} cube_vertices = {0};
+static struct wgpu_buffer_t cube_vertices = {0};
 
 // Plane vertex buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} plane_vertices = {0};
+static struct wgpu_buffer_t plane_vertices = {0};
 
 static struct {
   mat4 view;
@@ -38,8 +29,8 @@ static struct {
 } camera_data = {0};
 
 // Other buffers
-static WGPUBuffer camera_buffer;
-static WGPUBuffer transform_buffer[2];
+static wgpu_buffer_t camera_buffer;
+static wgpu_buffer_t transform_buffer[2];
 
 // Bind groups stores the resources bound to the binding points in a shader
 static WGPUBindGroup bind_group[2];
@@ -86,10 +77,13 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
 
       20, 21, 22, 20, 22, 23, //
     };
-    indices.count              = (uint32_t)ARRAY_SIZE(index_data);
-    uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
-    indices.buffer             = wgpu_create_buffer_from_data(
-      wgpu_context, index_data, index_buffer_size, WGPUBufferUsage_Index);
+    indices = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                      .size  = sizeof(index_data),
+                      .count = (uint32_t)ARRAY_SIZE(index_data),
+                      .initial.data = index_data,
+                    });
   }
 
   // Cube vertices data
@@ -113,10 +107,13 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
       -1.f, -1.f, -1.f, 1.f, 1.f, 1.f, -1.f, -1.f, 1.f,  1.f, 1.f, 1.f, //
       -1.f, 1.f,  1.f,  1.f, 1.f, 1.f, -1.f, 1.f,  -1.f, 1.f, 1.f, 1.f, //
     };
-    cube_vertices.count         = (uint32_t)ARRAY_SIZE(vertex_data);
-    uint32_t vertex_buffer_size = cube_vertices.count * sizeof(float);
-    cube_vertices.buffer        = wgpu_create_buffer_from_data(
-      wgpu_context, vertex_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
+    cube_vertices = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                      .size  = sizeof(vertex_data),
+                      .count = (uint32_t)ARRAY_SIZE(vertex_data),
+                      .initial.data = vertex_data,
+                    });
   }
 
   // Plane vertice data
@@ -125,10 +122,13 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
       -2.f, -1.f, -2.f, 0.5f, 0.5f, 0.5f, 2.f,  -1.f, -2.f, 0.5f, 0.5f, 0.5f, //
       2.f,  -1.f, 2.f,  0.5f, 0.5f, 0.5f, -2.f, -1.f, 2.f,  0.5f, 0.5f, 0.5f, //
     };
-    plane_vertices.count        = (uint32_t)ARRAY_SIZE(plane_data);
-    uint32_t vertex_buffer_size = cube_vertices.count * sizeof(float);
-    plane_vertices.buffer       = wgpu_create_buffer_from_data(
-      wgpu_context, plane_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
+    plane_vertices = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                      .size  = sizeof(plane_data),
+                      .count = (uint32_t)ARRAY_SIZE(plane_data),
+                      .initial.data = plane_data,
+                    });
   }
 }
 
@@ -136,11 +136,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Camera data buffer
   {
-    WGPUBufferDescriptor buffer_desc = {
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(camera_data),
-    };
-    camera_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    camera_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size = sizeof(camera_data),
+                                         });
   }
 
   // Camera projection matrix
@@ -148,13 +149,23 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 
   // Transform buffers
   {
-    mat4 transform      = GLM_MAT4_IDENTITY_INIT;
-    transform_buffer[0] = wgpu_create_buffer_from_data(
-      wgpu_context, &transform, sizeof(mat4), WGPUBufferUsage_Uniform);
+    mat4 transform = GLM_MAT4_IDENTITY_INIT;
+    transform_buffer[0]
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size         = sizeof(mat4),
+                                           .initial.data = &transform,
+                                         });
 
     glm_translate(transform, (vec3){0.f, -2.f, 0.f});
-    transform_buffer[1] = wgpu_create_buffer_from_data(
-      wgpu_context, &transform, sizeof(mat4), WGPUBufferUsage_Uniform);
+    transform_buffer[1]
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size         = sizeof(mat4),
+                                           .initial.data = &transform,
+                                         });
   }
 }
 
@@ -236,15 +247,15 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = {
         .binding = 0,
-        .buffer  = camera_buffer,
+        .buffer  = camera_buffer.buffer,
         .offset  = 0,
-        .size    = sizeof(camera_data),
+        .size    = camera_buffer.size,
       },
       [1] = {
         .binding = 1,
-        .buffer  = transform_buffer[i],
+        .buffer  = transform_buffer[i].buffer,
         .offset  = 0,
-        .size    = sizeof(mat4),
+        .size    = transform_buffer[i].size,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -423,8 +434,8 @@ static void update_camera_view(wgpu_context_t* wgpu_context)
              camera_data.view);
 
   // Update uniform buffer
-  wgpu_queue_write_buffer(wgpu_context, camera_buffer, 0, &camera_data,
-                          sizeof(camera_data));
+  wgpu_queue_write_buffer(wgpu_context, camera_buffer.buffer, 0, &camera_data,
+                          camera_buffer.size);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -546,9 +557,9 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, cube_vertices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, plane_vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, camera_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, transform_buffer[0])
-  WGPU_RELEASE_RESOURCE(Buffer, transform_buffer[1])
+  WGPU_RELEASE_RESOURCE(Buffer, camera_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, transform_buffer[0].buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, transform_buffer[1].buffer)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group[0])
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group[1])
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
