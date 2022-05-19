@@ -153,7 +153,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         // Binding 0 : Fragment shader texture view
-        .binding = 0,
+        .binding     = 0,
         .textureView = textures.ccw.view,
       },
       [1] = (WGPUBindGroupEntry) {
@@ -178,21 +178,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Texture view
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Sampler
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
@@ -285,7 +285,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/coordinate_system/quad.vert.spv",
                     },
                     .buffer_count = 1,
-                    .buffers = &quad_vertex_buffer_layout,
+                    .buffers      = &quad_vertex_buffer_layout,
                   });
 
   // Fragment state
@@ -296,7 +296,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/coordinate_system/quad.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Multisample state
@@ -469,12 +469,12 @@ void example_coordinate_system(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
+      .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
