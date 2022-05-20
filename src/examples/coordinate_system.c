@@ -146,7 +146,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         // Binding 0 : Fragment shader texture view
-        .binding = 0,
+        .binding     = 0,
         .textureView = textures.cw.view,
       },
       [1] = (WGPUBindGroupEntry) {
