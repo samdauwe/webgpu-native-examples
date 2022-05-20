@@ -58,10 +58,10 @@ static struct {
 } textures = {0};
 
 static struct {
-  WGPUBuffer vertices_y_up;
-  WGPUBuffer vertices_y_down;
-  WGPUBuffer indices_ccw;
-  WGPUBuffer indices_cw;
+  wgpu_buffer_t vertices_y_up;
+  wgpu_buffer_t vertices_y_down;
+  wgpu_buffer_t indices_ccw;
+  wgpu_buffer_t indices_cw;
 } quad = {0};
 
 // Other variables
@@ -100,12 +100,18 @@ static void load_assets(wgpu_context_t* wgpu_context)
     {.pos = {1.0f * ar, 1.0f, 1.0f}, .uv = {1.0f, 1.0f}},   //
   };
 
-  quad.vertices_y_up = wgpu_create_buffer_from_data(
-    wgpu_context, vertices_y_pos, sizeof(struct vertex_t) * 4,
-    WGPUBufferUsage_Vertex);
-  quad.vertices_y_down = wgpu_create_buffer_from_data(
-    wgpu_context, vertices_y_neg, sizeof(struct vertex_t) * 4,
-    WGPUBufferUsage_Vertex);
+  quad.vertices_y_up = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(struct vertex_t) * 4,
+                    .initial.data = vertices_y_pos,
+                  });
+  quad.vertices_y_down = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(struct vertex_t) * 4,
+                    .initial.data = vertices_y_neg,
+                  });
 
   // Create two set of indices, one for counter clock wise, and one for clock
   // wise rendering
@@ -113,14 +119,24 @@ static void load_assets(wgpu_context_t* wgpu_context)
     2, 1, 0, //
     0, 3, 2, //
   };
-  quad.indices_ccw = wgpu_create_buffer_from_data(
-    wgpu_context, indices_ccw, sizeof(uint32_t) * 6, WGPUBufferUsage_Index);
+  quad.indices_ccw = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(uint32_t) * 6,
+                    .count = (uint32_t)ARRAY_SIZE(indices_ccw),
+                    .initial.data = indices_ccw,
+                  });
   static uint32_t indices_cw[6] = {
     0, 1, 2, //
     2, 3, 0, //
   };
-  quad.indices_cw = wgpu_create_buffer_from_data(
-    wgpu_context, indices_cw, sizeof(uint32_t) * 6, WGPUBufferUsage_Index);
+  quad.indices_cw = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(uint32_t) * 6,
+                    .count = (uint32_t)ARRAY_SIZE(indices_cw),
+                    .initial.data = indices_cw,
+                  });
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -373,20 +389,21 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // is determined by pipeline settings
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.cw,
                                     0, 0);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, quad.indices_cw,
-                                      WGPUIndexFormat_Uint32, 0,
-                                      WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    wgpu_context->rpass_enc, 0,
-    settings.quad_type == 0 ? quad.vertices_y_down : quad.vertices_y_up, 0,
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, quad.indices_cw.buffer, WGPUIndexFormat_Uint32, 0,
     WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       settings.quad_type == 0 ?
+                                         quad.vertices_y_down.buffer :
+                                         quad.vertices_y_up.buffer,
+                                       0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, 6, 1, 0, 0, 0);
 
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.ccw,
                                     0, 0);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, quad.indices_ccw,
-                                      WGPUIndexFormat_Uint32, 0,
-                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, quad.indices_ccw.buffer, WGPUIndexFormat_Uint32, 0,
+    WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, 6, 1, 0, 0, 0);
 
   // End render pass
@@ -458,10 +475,10 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.cw)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.ccw)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_up)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_down)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_ccw)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_cw)
+  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_up.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_down.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_ccw.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_cw.buffer)
 }
 
 void example_coordinate_system(int argc, char* argv[])
