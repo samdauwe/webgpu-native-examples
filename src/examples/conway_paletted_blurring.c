@@ -307,18 +307,18 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Input automata texture
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
          // Output automata texture
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
           .access        = WGPUStorageTextureAccess_WriteOnly,
@@ -329,12 +329,12 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Input trail texture
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -375,21 +375,21 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Texture from compute
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Sampler for  the texture
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       }
@@ -447,19 +447,19 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < 2; ++i) {
     WGPUBindGroupEntry bg_entries[4] = {
         [0] = (WGPUBindGroupEntry) {
-          .binding = 0,
+          .binding     = 0,
           .textureView = (i == 0) ? textures.cells[0].view : textures.cells[1].view,
         },
         [1] = (WGPUBindGroupEntry) {
-          .binding = 1,
+          .binding     = 1,
           .textureView = (i == 0) ? textures.cells[1].view : textures.cells[0].view,
         },
         [2] = (WGPUBindGroupEntry) {
-          .binding = 2,
+          .binding     = 2,
           .textureView = (i == 0) ? textures.trails[0].view : textures.trails[1].view,
         },
         [3] = (WGPUBindGroupEntry) {
-          .binding = 3,
+          .binding     = 3,
           .textureView = (i == 0) ? textures.trails[1].view : textures.trails[0].view,
         },
       };
@@ -486,7 +486,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     texture_t* tex = trailTextureArray[(i + 1) % nbTextures];
     WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry) {
-          .binding = 0,
+          .binding     = 0,
           .textureView = tex->view,
         },
         [1] = (WGPUBindGroupEntry) {
@@ -569,7 +569,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .entry            = "main",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
     // Multisample state
@@ -726,9 +726,9 @@ void example_conway_paletted_blurring(int argc, char* argv[])
      .title   = example_title,
      .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
