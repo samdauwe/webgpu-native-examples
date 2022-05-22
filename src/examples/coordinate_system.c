@@ -71,9 +71,9 @@ static bool prepared             = false;
 static void load_assets(wgpu_context_t* wgpu_context)
 {
   textures.cw = wgpu_create_texture_from_file(
-    wgpu_context, "textures/texture_orientation_cw_rgba.ktx", NULL);
+    wgpu_context, "textures/texture_orientation_cw_rgba.png", NULL);
   textures.ccw = wgpu_create_texture_from_file(
-    wgpu_context, "textures/texture_orientation_ccw_rgba.ktx", NULL);
+    wgpu_context, "textures/texture_orientation_ccw_rgba.png", NULL);
 
   // Create two quads with different Y orientations
   struct vertex_t {
