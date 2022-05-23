@@ -100,7 +100,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Fragment shader texture view
-      .binding = 0,
+      .binding     = 0,
       .textureView = low_res_target_texture.view,
     },
     [1] = (WGPUBindGroupEntry) {
@@ -144,7 +144,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
             .file = "shaders/conservative_raster/triangle_and_lines.vert.spv",
           },
           .buffer_count = 0,
-          .buffers = NULL,
+          .buffers      = NULL,
         });
 
   // Fragment state
@@ -155,7 +155,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
           .file = "shaders/conservative_raster/triangle_and_lines_red.frag.spv",
         },
         .target_count = 1,
-        .targets = &color_target_state_desc,
+        .targets      = &color_target_state_desc,
       });
 
   // Multisample state
@@ -206,7 +206,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
           .file = "shaders/conservative_raster/triangle_and_lines.vert.spv",
         },
         .buffer_count = 0,
-        .buffers = NULL,
+        .buffers      = NULL,
       });
 
   // Fragment state
@@ -217,7 +217,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
         .file = "shaders/conservative_raster/triangle_and_lines_blue.frag.spv",
       },
       .target_count = 1,
-      .targets = &color_target_state_desc,
+      .targets      = &color_target_state_desc,
     });
 
   // Multisample state
@@ -269,7 +269,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
           .file = "shaders/conservative_raster/triangle_and_lines.vert.spv",
         },
         .buffer_count = 0,
-        .buffers = NULL,
+        .buffers      = NULL,
       });
 
   // Fragment state
@@ -280,7 +280,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
         .file = "shaders/conservative_raster/triangle_and_lines_white.frag.spv",
       },
       .target_count = 1,
-      .targets = &color_target_state_desc,
+      .targets      = &color_target_state_desc,
     });
 
   // Multisample state
@@ -312,21 +312,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Texture view (Fragment shader)
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: Sampler (Fragment shader)
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
@@ -373,7 +373,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
           .file = "shaders/conservative_raster/upscale.vert.spv",
         },
         .buffer_count = 0,
-        .buffers = NULL,
+        .buffers      = NULL,
       });
 
   // Fragment state
@@ -384,7 +384,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
         .file = "shaders/conservative_raster/upscale.frag.spv",
       },
       .target_count = 1,
-      .targets = &color_target_state_desc,
+      .targets      = &color_target_state_desc,
     });
 
   // Multisample state
@@ -559,9 +559,9 @@ void example_conservative_raster(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
       .title = example_title,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
