@@ -19,7 +19,7 @@
  * using the same vertex shader as the triangle. Pixels only drawn with
  * conservative rasterization enabled are colored red.
  *
- * Note: Conservative rasterization not supported in Google Dawn.
+ * Note: Conservative rasterization is not yet supported in Google Dawn.
  *
  * Ref:
  * https://github.com/gpuweb/gpuweb/issues/137
