@@ -332,7 +332,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       },
       [3] = (WGPUBindGroupLayoutEntry) {
           // Output trail texture
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
           .access        = WGPUStorageTextureAccess_WriteOnly,
