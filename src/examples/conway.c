@@ -106,10 +106,7 @@ static const char* graphics_fragment_shader_wgsl =
 // clang-format on
 
 static struct {
-  struct {
-    WGPUBuffer handle;
-    uint64_t size;
-  } buffer;
+  struct wgpu_buffer_t buffer;
   struct {
     uint32_t compute_width;
     uint32_t compute_height;
@@ -158,23 +155,18 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   uniforms.desc.compute_height = wgpu_context->surface.height;
 
   // Uplaad buffer to the GPU
-  wgpu_queue_write_buffer(wgpu_context, uniforms.buffer.handle, 0,
+  wgpu_queue_write_buffer(wgpu_context, uniforms.buffer.buffer, 0,
                           &uniforms.desc, uniforms.buffer.size);
 }
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Create uniforms buffer
-  uniforms.buffer.size                     = sizeof(uniforms.desc);
-  WGPUBufferDescriptor texture_buffer_desc = {
-    .label            = "Compute uniforms buffer",
-    .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    .size             = uniforms.buffer.size,
-    .mappedAtCreation = false,
-  };
-  uniforms.buffer.handle
-    = wgpuDeviceCreateBuffer(wgpu_context->device, &texture_buffer_desc);
-  ASSERT(uniforms.buffer.handle)
+  uniforms.buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(uniforms.desc),
+                  });
 
   // Update unifroms buffer data
   update_uniform_buffers(wgpu_context);
@@ -393,7 +385,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
         [0] = (WGPUBindGroupEntry) {
           .binding = 0,
-          .buffer  = uniforms.buffer.handle,
+          .buffer  = uniforms.buffer.buffer,
           .offset  = 0,
           .size    = uniforms.buffer.size,
         },
@@ -647,7 +639,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
 
   // Compute pipeline
-  WGPU_RELEASE_RESOURCE(Buffer, uniforms.buffer.handle)
+  WGPU_RELEASE_RESOURCE(Buffer, uniforms.buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, compute.bind_groups[0])
   WGPU_RELEASE_RESOURCE(BindGroup, compute.bind_groups[1])
