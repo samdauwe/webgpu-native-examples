@@ -52,11 +52,9 @@ static struct {
   WGPURenderPassDescriptor descriptor;
 } render_pass;
 
-static WGPUBuffer vertex_buffer;
-static WGPUBuffer index_buffer;
-static uint32_t index_count;
-
-static WGPUBuffer uniform_buffer_vs;
+static wgpu_buffer_t vertex_buffer;
+static wgpu_buffer_t index_buffer;
+static wgpu_buffer_t uniform_buffer_vs;
 
 // Compute shaders containing convolution kernels (and effects)
 static struct {
@@ -181,15 +179,23 @@ static void generate_quad(wgpu_context_t* wgpu_context)
     0, 1, 2, //
     2, 3, 0, //
   };
-  index_count = (uint32_t)ARRAY_SIZE(indices);
 
   // Create buffers
   // Vertex buffer
-  vertex_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertices, sizeof(vertex_t) * 4, WGPUBufferUsage_Vertex);
+  vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_t) * 4,
+                    .initial.data = vertices,
+                  });
   // Index buffer
-  index_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, indices, sizeof(uint32_t) * 6, WGPUBufferUsage_Index);
+  index_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(uint32_t) * (uint32_t)ARRAY_SIZE(indices),
+                    .count = (uint32_t)ARRAY_SIZE(indices),
+                    .initial.data = indices,
+                  });
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -200,9 +206,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0 : Vertex shader uniform buffer
         .binding = 0,
-        .buffer  = uniform_buffer_vs,
+        .buffer  = uniform_buffer_vs.buffer,
         .offset  = 0,
-        .size    = sizeof(ubo_vs),
+        .size    = uniform_buffer_vs.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1 : Fragment shader texture view
@@ -230,9 +236,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0 : Vertex shader uniform buffer
         .binding = 0,
-        .buffer  = uniform_buffer_vs,
+        .buffer  = uniform_buffer_vs.buffer,
         .offset  = 0,
-        .size    = sizeof(ubo_vs),
+        .size    = uniform_buffer_vs.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1 : Fragment shader texture view
@@ -515,21 +521,20 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs, 0, &ubo_vs,
-                          sizeof(ubo_vs));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
+                          &ubo_vs, uniform_buffer_vs.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Vertex shader uniform buffer block
-  WGPUBufferDescriptor blur_params_buffer_desc = {
-    .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-    .size             = sizeof(ubo_vs),
-    .mappedAtCreation = false,
-  };
-  uniform_buffer_vs = wgpuDeviceCreateBuffer(context->wgpu_context->device,
-                                             &blur_params_buffer_desc);
+  uniform_buffer_vs = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_vs),
+    });
 
   update_uniform_buffers(context);
 }
@@ -599,11 +604,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                         wgpu_context->surface.width,
                                         wgpu_context->surface.height);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         vertex_buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, index_buffer,
-                                        WGPUIndexFormat_Uint32, 0,
-                                        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      wgpu_context->rpass_enc, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      wgpu_context->rpass_enc, index_buffer.buffer, WGPUIndexFormat_Uint32, 0,
+      WGPU_WHOLE_SIZE);
 
     // Left (pre compute)
     {
@@ -612,8 +617,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderSetBindGroup(
         wgpu_context->rpass_enc, 0, graphics.bind_group_pre_compute, 0, NULL);
 
-      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, index_count, 1,
-                                       0, 0, 0);
+      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                       index_buffer.count, 1, 0, 0, 0);
     }
 
     // Right (post compute)
@@ -627,8 +632,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
         (float)wgpu_context->surface.width / 2,
         (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, index_count, 1,
-                                       0, 0, 0);
+      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                       index_buffer.count, 1, 0, 0, 0);
     }
 
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
@@ -702,9 +707,9 @@ static void example_destroy(wgpu_example_context_t* context)
     WGPU_RELEASE_RESOURCE(ComputePipeline, compute.pipelines[i])
   }
 
-  WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs)
+  WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, index_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
 }
 
 void example_compute_shader(int argc, char* argv[])
