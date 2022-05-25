@@ -26,10 +26,10 @@
  * https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples/conservative-raster
  * -------------------------------------------------------------------------- */
 
-// Textures
+// Texture
 static texture_t low_res_target_texture;
 
-// Bind group layouts
+// Bind group layout
 static WGPUBindGroupLayout bind_group_layout_upscale;
 
 // Bind group
