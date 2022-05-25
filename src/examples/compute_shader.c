@@ -62,15 +62,15 @@ static struct {
   const char* location;
 } compute_shaders[3] = {
   [0] = {
-    .name="emboss",
+    .name     = "emboss",
     .location = "shaders/compute_shader/emboss.comp.spv",
   },
   [1] = {
-    .name="edgedetect",
+    .name     = "edgedetect",
     .location = "shaders/compute_shader/edgedetect.comp.spv",
   },
   [2] = {
-    .name="sharpen",
+    .name     = "sharpen",
     .location = "shaders/compute_shader/sharpen.comp.spv",
   },
 };
