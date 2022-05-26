@@ -268,21 +268,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : Fragment shader image
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : Fragment shader sampler
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
@@ -310,7 +310,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Fragment shader image
-      .binding = 0,
+      .binding     = 0,
       .textureView = texture_compute_target.view,
     },
     [1] = (WGPUBindGroupEntry) {
@@ -362,7 +362,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/compute_ray_tracing/texture.vert.spv",
                     },
                     .buffer_count = 0,
-                    .buffers = NULL,
+                    .buffers      = NULL,
                   });
 
   // Fragment state
@@ -373,7 +373,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                       .file = "shaders/compute_ray_tracing/texture.frag.spv",
                     },
                     .target_count = 1,
-                    .targets = &color_target_state_desc,
+                    .targets      = &color_target_state_desc,
                   });
 
   // Multisample state
@@ -407,41 +407,41 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : Storage image (raytraced output)
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .storageTexture = (WGPUStorageTextureBindingLayout) {
-        .access=WGPUStorageTextureAccess_WriteOnly,
-        .format=WGPUTextureFormat_RGBA8Unorm,
+        .access        = WGPUStorageTextureAccess_WriteOnly,
+        .format        = WGPUTextureFormat_RGBA8Unorm,
         .viewDimension = WGPUTextureViewDimension_2D,
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : Uniform buffer block
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = compute.uniform_buffer.size,
       },
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Shader storage buffer for the spheres
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = compute.storage_buffers.spheres.size,
       },
       .sampler = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3: Shader storage buffer for the planes
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = compute.storage_buffers.planes.size,
       },
       .sampler = {0},
@@ -467,29 +467,29 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Output storage image
-      .binding = 0,
+      .binding     = 0,
       .textureView = texture_compute_target.view,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : Uniform buffer
       .binding = 1,
-      .buffer = compute.uniform_buffer.buffer,
-      .offset = 0,
-      .size = compute.uniform_buffer.size,
+      .buffer  = compute.uniform_buffer.buffer,
+      .offset  = 0,
+      .size    = compute.uniform_buffer.size,
     },
     [2] = (WGPUBindGroupEntry) {
      // Binding 2: Shader storage buffer for the spheres
       .binding = 2,
-      .buffer = compute.storage_buffers.spheres.buffer,
-      .offset = 0,
-      .size = compute.storage_buffers.spheres.size,
+      .buffer  = compute.storage_buffers.spheres.buffer,
+      .offset  = 0,
+      .size    = compute.storage_buffers.spheres.size,
     },
     [3] = (WGPUBindGroupEntry) {
      // Binding 3: Shader storage buffer for the planes
       .binding = 3,
-      .buffer = compute.storage_buffers.planes.buffer,
-      .offset = 0,
-      .size = compute.storage_buffers.planes.size,
+      .buffer  = compute.storage_buffers.planes.buffer,
+      .offset  = 0,
+      .size    = compute.storage_buffers.planes.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
