@@ -43,19 +43,13 @@ static struct {
 // Resources for the compute part of the example
 static struct {
   struct {
-    struct {
-      WGPUBuffer buffer;
-      uint64_t size;
-    } spheres; // (Shader) storage buffer object with scene spheres
-    struct {
-      WGPUBuffer buffer;
-      uint64_t size;
-    } planes; // (Shader) storage buffer object with scene planes
+    struct wgpu_buffer_t
+      spheres; // (Shader) storage buffer object with scene spheres
+    struct wgpu_buffer_t
+      planes; // (Shader) storage buffer object with scene planes
   } storage_buffers;
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } uniform_buffer; // Uniform buffer object containing scene data
+  struct wgpu_buffer_t
+    uniform_buffer; // Uniform buffer object containing scene data
   WGPUBindGroupLayout bind_group_layout; // Compute shader binding layout
   WGPUBindGroup bind_group;              // Compute shader bindings
   WGPUPipelineLayout pipeline_layout;    // Layout of the compute pipeline
@@ -206,10 +200,12 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // Stage
   // The SSBO will be used as a storage buffer for the compute pipeline and as a
   // vertex buffer in the graphics pipeline
-  compute.storage_buffers.spheres.size   = storage_buffer_size;
-  compute.storage_buffers.spheres.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, &spheres, storage_buffer_size,
-    WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  compute.storage_buffers.spheres = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size = storage_buffer_size,
+                  });
 
   // Planes
   static plane_t planes[6] = {0};
@@ -231,10 +227,12 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // Stage
   // The SSBO will be used as a storage buffer for the compute pipeline and as a
   // vertex buffer in the graphics pipeline
-  compute.storage_buffers.planes.size   = storage_buffer_size;
-  compute.storage_buffers.planes.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, &planes, storage_buffer_size,
-    WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  compute.storage_buffers.planes = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size = storage_buffer_size,
+                  });
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -548,14 +546,14 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   context->timer_speed *= 0.25f;
 
   // Compute shader parameter uniform buffer block
-  compute.uniform_buffer.size   = sizeof(compute.ubo);
-  compute.uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = compute.uniform_buffer.size,
+  compute.uniform_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(compute.ubo),
     });
 
+  // Update uniform buffer
   update_uniform_buffers(context);
 }
 
