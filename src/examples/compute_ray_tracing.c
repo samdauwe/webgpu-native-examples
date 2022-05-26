@@ -333,29 +333,29 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = false,
     });
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
@@ -366,18 +366,18 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
                       .file = "shaders/compute_ray_tracing/texture.frag.spv",
                     },
                     .target_count = 1,
-                    .targets      = &color_target_state_desc,
+                    .targets      = &color_target_state,
                   });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -388,16 +388,16 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "graphics_render_pipeline",
                             .layout       = graphics.pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
                           });
 
   // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 // Prepare the compute pipeline that generates the ray traced image
