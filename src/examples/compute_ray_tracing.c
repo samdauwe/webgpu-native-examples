@@ -204,7 +204,8 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
-                    .size = storage_buffer_size,
+                    .size         = storage_buffer_size,
+                    .initial.data = &spheres,
                   });
 
   // Planes
@@ -231,7 +232,8 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
-                    .size = storage_buffer_size,
+                    .size         = storage_buffer_size,
+                    .initial.data = &planes,
                   });
 }
 
