@@ -40,8 +40,7 @@ static struct uniform_buffer_vs_t {
     vec3 up;
     float padding2;
   } data;
-  WGPUBuffer buffer;
-  uint32_t size;
+  wgpu_buffer_t buffer;
 } uniform_buffer_vs = {0};
 
 static WGPUBindGroup uniform_bind_group;
@@ -264,16 +263,11 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  uniform_buffer_vs.size = sizeof(uniform_buffer_vs.data);
-
-  WGPUBufferDescriptor uniform_buffer_desc = {
-    .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    .size             = uniform_buffer_vs.size,
-    .mappedAtCreation = false,
-  };
-  uniform_buffer_vs.buffer
-    = wgpuDeviceCreateBuffer(wgpu_context->device, &uniform_buffer_desc);
-  ASSERT(uniform_buffer_vs.buffer)
+  uniform_buffer_vs.buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(uniform_buffer_vs.data),
+                  });
 }
 
 static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
@@ -282,9 +276,9 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[1] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = uniform_buffer_vs.buffer,
+      .buffer  = uniform_buffer_vs.buffer.buffer,
       .offset  = 0,
-      .size    =  uniform_buffer_vs.size,
+      .size    =  uniform_buffer_vs.buffer.size,
     },
   };
   uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -677,7 +671,7 @@ static void update_transformation_matrix()
 
 static void update_uniform_buffer_vs_data()
 {
-  const mat4* view = &view_matrices.view;
+  mat4* view = &view_matrices.view;
 
   glm_mat4_copy(view_matrices.model_view_projection,
                 uniform_buffer_vs.data.model_view_projection_matrix);
@@ -698,9 +692,9 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   update_uniform_buffer_vs_data();
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, uniform_buffer_vs.buffer, 0,
+  wgpu_queue_write_buffer(wgpu_context, uniform_buffer_vs.buffer.buffer, 0,
                           &uniform_buffer_vs.data,
-                          sizeof(uniform_buffer_vs.data));
+                          uniform_buffer_vs.buffer.size);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -822,7 +816,7 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Buffer, particles_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, quad_vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer.buffer)
 
   WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_group)
   wgpu_destroy_texture(&depth_texture);
