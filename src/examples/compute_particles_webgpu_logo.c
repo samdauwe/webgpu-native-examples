@@ -26,16 +26,10 @@ const uint32_t particle_instance_byte_size = 3 * 4 + // position
                                              0;
 
 /* Particles buffer */
-static struct particles_buffer_t {
-  WGPUBuffer buffer;
-  uint32_t size;
-} particles_buffer = {0};
+static struct wgpu_buffer_t particles_buffer = {0};
 
 /* Quad vertex buffer */
-static struct quad_vertices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} quad_vertices = {0};
+static struct wgpu_buffer_t quad_vertices = {0};
 
 /* Uniform buffer block object */
 static struct uniform_buffer_vs_t {
@@ -108,16 +102,12 @@ static bool prepared             = false;
 
 static void prepare_particles_buffer(wgpu_context_t* wgpu_context)
 {
-  particles_buffer.size = num_particles * particle_instance_byte_size;
-
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
-    .size             = particles_buffer.size,
-    .mappedAtCreation = false,
-  };
-  particles_buffer.buffer
-    = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-  ASSERT(particles_buffer.buffer)
+  particles_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size = num_particles * particle_instance_byte_size,
+                  });
 }
 
 static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
@@ -348,12 +338,15 @@ static void prepare_quad_vertex_buffer(wgpu_context_t* wgpu_context)
     -1.0f, +1.0f, +1.0f, //
     -1.0f, +1.0f, +1.0f, //
   };
-  quad_vertices.count         = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = quad_vertices.count * sizeof(float);
 
   /* Create vertex buffer */
-  quad_vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  quad_vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
+                    .initial.data = vertex_buffer,
+                  });
 }
 
 static void prepare_texture(wgpu_context_t* wgpu_context)
@@ -383,15 +376,15 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
   wgpu_shader_t probability_map_import_lvl_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
-                    .file = "shaders/compute_particles_webgpu_logo/"
-                            "probabilityMap.wgsl",
+                    .file  = "shaders/compute_particles_webgpu_logo/"
+                             "probabilityMap.wgsl",
                     .entry = "import_level",
                   });
   wgpu_shader_t probability_map_export_lvl_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
-                    .file = "shaders/compute_particles_webgpu_logo/"
-                            "probabilityMap.wgsl",
+                    .file  = "shaders/compute_particles_webgpu_logo/"
+                             "probabilityMap.wgsl",
                     .entry = "export_level",
                   });
 
