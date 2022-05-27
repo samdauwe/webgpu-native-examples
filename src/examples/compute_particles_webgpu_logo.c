@@ -147,14 +147,14 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
       [0] = (WGPUVertexAttribute) {
         // Shader location 0 : position
         .shaderLocation = 0,
-        .offset = particle_position_offset,
-        .format = WGPUVertexFormat_Float32x3,
+        .offset         = particle_position_offset,
+        .format         = WGPUVertexFormat_Float32x3,
       },
       [1] = (WGPUVertexAttribute) {
         // Shader location 1 : color
         .shaderLocation = 1,
-        .offset = particle_color_offset,
-        .format = WGPUVertexFormat_Float32x4,
+        .offset         = particle_color_offset,
+        .format         = WGPUVertexFormat_Float32x4,
       },
     };
     vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
@@ -170,8 +170,8 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
       [0] = (WGPUVertexAttribute) {
         // Shader location 2 : vertex positions
         .shaderLocation = 2,
-        .offset = 0,
-        .format = WGPUVertexFormat_Float32x2,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x2,
       },
     };
     vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
@@ -188,11 +188,11 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .file = "shaders/compute_particles_webgpu_logo/particle.wgsl",
+              .file  = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "vs_main",
             },
             .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts),
-            .buffers = vertex_buffer_layouts,
+            .buffers      = vertex_buffer_layouts,
           });
 
   // Fragment state
@@ -200,11 +200,11 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .file = "shaders/compute_particles_webgpu_logo/particle.wgsl",
+              .file  = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "fs_main",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
@@ -476,26 +476,26 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0 : ubo
           .binding = 0,
-          .buffer = probability_ubo_buffer.buffer,
-          .size = probability_ubo_buffer.size,
+          .buffer  = probability_ubo_buffer.buffer,
+          .size    = probability_ubo_buffer.size,
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1 : buf_in
           .binding = 1,
-          .buffer = level & 1 ? buffer_a.buffer : buffer_b.buffer,
-          .offset = 0,
-          .size = level & 1 ? buffer_a.size : buffer_b.size,
+          .buffer  = level & 1 ? buffer_a.buffer : buffer_b.buffer,
+          .offset  = 0,
+          .size    = level & 1 ? buffer_a.size : buffer_b.size,
         },
         [2] = (WGPUBindGroupEntry) {
           // Binding 2 : buf_out
            .binding = 2,
-           .buffer = level & 1 ? buffer_b.buffer : buffer_a.buffer,
-           .offset = 0,
-           .size = level & 1 ? buffer_b.size : buffer_a.size,
+           .buffer  = level & 1 ? buffer_b.buffer : buffer_a.buffer,
+           .offset  = 0,
+           .size    = level & 1 ? buffer_b.size : buffer_a.size,
         },
         [3] = (WGPUBindGroupEntry) {
           // Binding 3 : tex_in / tex_out
-           .binding = 3,
+           .binding     = 3,
            .textureView = texture_views[level],
         },
       };
@@ -606,19 +606,19 @@ static void prepare_compute_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Simulation UBO buffer
       .binding = 0,
-      .buffer = simulation_ubo_buffer.buffer,
-      .size = simulation_ubo_buffer.size,
+      .buffer  = simulation_ubo_buffer.buffer,
+      .size    = simulation_ubo_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : Particles buffer
       .binding = 1,
-      .buffer = particles_buffer.buffer,
-      .offset = 0,
-      .size = particles_buffer.size,
+      .buffer  = particles_buffer.buffer,
+      .offset  = 0,
+      .size    = particles_buffer.size,
     },
     [2] = (WGPUBindGroupEntry) {
      // Binding 2 : Texture view
-      .binding = 2,
+      .binding     = 2,
       .textureView = texture.view,
     },
   };
@@ -844,9 +844,9 @@ void example_compute_particles_webgpu_logo(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
