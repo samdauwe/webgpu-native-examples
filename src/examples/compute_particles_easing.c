@@ -28,10 +28,7 @@ static struct {
 };
 
 // Vertex buffer and attributes
-static struct vertices_t {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+static struct wgpu_buffer_t vertices = {0};
 
 // Particles data
 static float initial_particle_data[PARTICLE_NUM * PROPERTY_NUM] = {0};
@@ -46,8 +43,8 @@ static struct {
 
 // Resources for the compute part of the example
 static struct {
-  WGPUBuffer sim_param_buffer;
-  WGPUBuffer particle_buffer;
+  wgpu_buffer_t sim_param_buffer;
+  wgpu_buffer_t particle_buffer;
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup particle_bind_group;
   WGPUPipelineLayout pipeline_layout;
@@ -77,12 +74,15 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     t_scale, -t_scale, 0.0f, 1.0f, 0.0f, 1.0f, //
     t_scale, t_scale, 0.0f, 1.0f, 1.0f, 1.0f   //
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(float);
 
   // Create vertex buffer
-  vertices.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
+  vertices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertex_buffer),
+                    .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
+                    .initial.data = vertex_buffer,
+                  });
 }
 
 static void prepare_particle_buffer(wgpu_context_t* wgpu_context)
@@ -144,13 +144,14 @@ static void prepare_particle_buffer(wgpu_context_t* wgpu_context)
     initial_particle_data[PROPERTY_NUM * i + 39] = 0.0f; // value
   }
 
-  // Particle buffer
-  uint32_t particle_data_size = sizeof(initial_particle_data);
-
   // Create vertex buffer
-  compute.particle_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, initial_particle_data, particle_data_size,
-    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  compute.particle_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size         = sizeof(initial_particle_data),
+                    .initial.data = initial_particle_data,
+                  });
 }
 
 static void prepare_compute(wgpu_context_t* wgpu_context)
@@ -199,15 +200,15 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : SimParams
       .binding = 0,
-      .buffer = compute.sim_param_buffer,
-      .size = sizeof(sim_param_data),
+      .buffer = compute.sim_param_buffer.buffer,
+      .size =  compute.sim_param_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : ParticlesA
       .binding = 1,
-      .buffer = compute.particle_buffer,
+      .buffer = compute.particle_buffer.buffer,
       .offset = 0,
-      .size = sizeof(initial_particle_data),
+      .size = compute.particle_buffer.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
@@ -320,20 +321,21 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   sim_param_data.time += (1.0 / 60.f) * 1000.0f;
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, compute.sim_param_buffer, 0,
-                          &sim_param_data, sizeof(sim_param_data));
+  wgpu_queue_write_buffer(wgpu_context, compute.sim_param_buffer.buffer, 0,
+                          &sim_param_data, compute.sim_param_buffer.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Compute shader uniform buffer block
-  compute.sim_param_buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+  compute.sim_param_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(sim_param_data),
     });
 
+  // Update uniform buffer
   update_uniform_buffers(context);
 }
 
@@ -542,8 +544,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                      graphics.pipeline);
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       graphics.uniforms_bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 0, compute.particle_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         compute.particle_buffer.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
                                          vertices.buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, PARTICLE_NUM, 0, 0);
@@ -607,8 +610,8 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
 
   // Compute pipeline
-  WGPU_RELEASE_RESOURCE(Buffer, compute.sim_param_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, compute.particle_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, compute.sim_param_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, compute.particle_buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, compute.particle_bind_group)
   WGPU_RELEASE_RESOURCE(PipelineLayout, compute.pipeline_layout)
