@@ -162,20 +162,20 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : SimParams
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = sizeof(sim_param_data),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : ParticlesA
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = sizeof(initial_particle_data),
       },
       .sampler = {0},
@@ -202,15 +202,15 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : SimParams
       .binding = 0,
-      .buffer = compute.sim_param_buffer.buffer,
-      .size =  compute.sim_param_buffer.size,
+      .buffer  = compute.sim_param_buffer.buffer,
+      .size    =  compute.sim_param_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : ParticlesA
       .binding = 1,
-      .buffer = compute.particle_buffer.buffer,
-      .offset = 0,
-      .size = compute.particle_buffer.size,
+      .buffer  = compute.particle_buffer.buffer,
+      .offset  = 0,
+      .size    = compute.particle_buffer.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
@@ -253,21 +253,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : sampler
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : texture
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
@@ -300,7 +300,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     },
     [1] = (WGPUBindGroupEntry) {
        // Binding 1 : texture
-      .binding = 1,
+      .binding     = 1,
       .textureView = particle_texture.view,
     }
   };
@@ -458,7 +458,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
                   .file = "shaders/compute_particles_easing/particle.vert.spv",
                 },
                 .buffer_count = (uint32_t) ARRAY_SIZE(buffers),
-                .buffers = buffers,
+                .buffers      = buffers,
               });
 
   // Fragment state
@@ -469,7 +469,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
                   .file = "shaders/compute_particles_easing/particle.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
