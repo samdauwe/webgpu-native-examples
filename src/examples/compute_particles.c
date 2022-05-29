@@ -180,41 +180,41 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : Particle color map texture
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : Particle color map sampler
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2 : Particle gradient ramp texture
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3 : Particle gradient ramp sampler
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type=WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     }
@@ -285,7 +285,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/compute_particles/particle.vert.spv",
                 },
                 .buffer_count = 1,
-                .buffers = &particle_vertex_buffer_layout,
+                .buffers      = &particle_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -296,7 +296,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/compute_particles/particle.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
   // Multisample state
@@ -328,7 +328,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Particle color map texture
-      .binding = 0,
+      .binding     = 0,
       .textureView = textures.particle.view,
     },
     [1] = (WGPUBindGroupEntry) {
@@ -338,7 +338,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     },
     [2] = (WGPUBindGroupEntry) {
        // Binding 2 : Particle gradient ramp texture
-      .binding = 2,
+      .binding     = 2,
       .textureView = textures.gradient.view,
     },
     [3] = (WGPUBindGroupEntry) {
@@ -377,20 +377,20 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0 : Particle position storage buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = PARTICLE_COUNT * sizeof(particle_t),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1 : Uniform buffer
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = sizeof(compute.ubo),
       },
       .sampler = {0},
@@ -417,15 +417,15 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Particle position storage buffer
       .binding = 0,
-      .buffer = compute.storage_buffer.buffer,
-      .size = compute.storage_buffer.size,
+      .buffer  = compute.storage_buffer.buffer,
+      .size    = compute.storage_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : Uniform buffer
       .binding = 1,
-      .buffer = compute.uniform_buffer.buffer,
-      .offset = 0,
-      .size = compute.uniform_buffer.size,
+      .buffer  = compute.uniform_buffer.buffer,
+      .offset  = 0,
+      .size    = compute.uniform_buffer.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
