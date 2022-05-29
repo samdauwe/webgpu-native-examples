@@ -38,10 +38,10 @@ static struct {
 
 // Resources for the compute part of the example
 static struct {
-  WGPUBuffer storage_buffer; // (Shader) storage buffer object containing the
-                             // particles
-  WGPUBuffer uniform_buffer; // Uniform buffer object containing particle
-                             // system parameters
+  wgpu_buffer_t storage_buffer; // (Shader) storage buffer object containing the
+                                // particles
+  wgpu_buffer_t uniform_buffer; // Uniform buffer object containing particle
+                                // system parameters
   WGPUBindGroupLayout bind_group_layout; // Compute shader binding layout
   WGPUBindGroup bind_group;              // Compute shader bindings
   WGPUPipelineLayout pipeline_layout;    // Layout of the compute pipeline
@@ -94,13 +94,15 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
     particle_buffer[i].gradient_pos[0] = particle_buffer[i].pos[0] / 2.0f;
   }
 
-  uint64_t storage_buffer_size = PARTICLE_COUNT * sizeof(particle_t);
-
   // Staging
   // SSBO won't be changed on the host after upload
-  compute.storage_buffer = wgpu_create_buffer_from_data(
-    wgpu_context, &particle_buffer, storage_buffer_size,
-    WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage);
+  compute.storage_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
+                             | WGPUBufferUsage_Storage,
+                    .size         = PARTICLE_COUNT * sizeof(particle_t),
+                    .initial.data = particle_buffer,
+                  });
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
@@ -126,8 +128,8 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   }
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, compute.uniform_buffer, 0, &compute.ubo,
-                          sizeof(compute.ubo));
+  wgpu_queue_write_buffer(wgpu_context, compute.uniform_buffer.buffer, 0,
+                          &compute.ubo, compute.uniform_buffer.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
@@ -137,10 +139,10 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   compute.ubo.particle_count = PARTICLE_COUNT;
 
   // Compute shader uniform buffer block
-  compute.uniform_buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+  compute.uniform_buffer = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(compute.ubo),
     });
 
@@ -415,15 +417,15 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0 : Particle position storage buffer
       .binding = 0,
-      .buffer = compute.storage_buffer,
-      .size = PARTICLE_COUNT * sizeof(particle_t),
+      .buffer = compute.storage_buffer.buffer,
+      .size = compute.storage_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      // Binding 1 : Uniform buffer
       .binding = 1,
-      .buffer = compute.uniform_buffer,
+      .buffer = compute.uniform_buffer.buffer,
       .offset = 0,
-      .size = sizeof(compute.ubo),
+      .size = compute.uniform_buffer.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
@@ -505,8 +507,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                      graphics.pipeline);
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       graphics.bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 0, compute.storage_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         compute.storage_buffer.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, PARTICLE_COUNT, 1, 0, 0);
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
@@ -583,8 +586,8 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
 
   // Compute pipeline
-  WGPU_RELEASE_RESOURCE(Buffer, compute.storage_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, compute.uniform_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, compute.storage_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, compute.uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, compute.bind_group)
   WGPU_RELEASE_RESOURCE(PipelineLayout, compute.pipeline_layout)
