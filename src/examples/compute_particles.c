@@ -243,7 +243,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_PointList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
+    .cullMode  = WGPUCullMode_Back,
   };
 
   // Color target state
