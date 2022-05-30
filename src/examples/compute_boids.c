@@ -54,19 +54,19 @@ static struct {
 } sim_params_mappings[7] = {
   // clang-format off
   // deltaT
-  { .label     = "deltaT", .param_ref = &sim_param_data.delta_t },
+  { .label = "deltaT",        .param_ref = &sim_param_data.delta_t },
   // rule1Distance
-  { .label     = "rule1Distance", .param_ref = &sim_param_data.rule1_distance },
+  { .label = "rule1Distance", .param_ref = &sim_param_data.rule1_distance },
   // rule2Distance
-  { .label     = "rule2Distance", .param_ref = &sim_param_data.rule2_distance },
+  { .label = "rule2Distance", .param_ref = &sim_param_data.rule2_distance },
   // rule3Distance
-  { .label     = "rule3Distance", .param_ref = &sim_param_data.rule3_distance },
+  { .label = "rule3Distance", .param_ref = &sim_param_data.rule3_distance },
   // rule1Scale
-  { .label     = "rule1Scale", .param_ref = &sim_param_data.rule1_scale },
+  { .label = "rule1Scale",    .param_ref = &sim_param_data.rule1_scale },
   // rule2Scale
-  { .label     = "rule2Scale", .param_ref = &sim_param_data.rule2_scale },
+  { .label = "rule2Scale",    .param_ref = &sim_param_data.rule2_scale },
   // rule3Scale
-  { .label     = "rule3Scale", .param_ref = &sim_param_data.rule3_scale },
+  { .label = "rule3Scale",    .param_ref = &sim_param_data.rule3_scale },
   // clang-format on
 };
 
@@ -118,28 +118,28 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Compute pipeline layout */
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = sizeof(sim_param_data),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_ReadOnlyStorage,
+        .type           = WGPUBufferBindingType_ReadOnlyStorage,
         .minBindingSize = NUM_PARTICLES * 16,
       },
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Storage,
+        .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = NUM_PARTICLES * 16,
       },
       .sampler = {0},
@@ -285,14 +285,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     [0] = (WGPUVertexAttribute) {
       // Attribute location 0: instance position
       .shaderLocation = 0,
-      .offset = 0,
-      .format = WGPUVertexFormat_Float32x2,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x2,
     },
     [1] = (WGPUVertexAttribute) {
       // Attribute location 1: instance velocity
       .shaderLocation = 1,
-      .offset = 2 * 4,
-      .format = WGPUVertexFormat_Float32x2,
+      .offset         = 2 * 4,
+      .format         = WGPUVertexFormat_Float32x2,
     },
   };
   WGPUVertexAttribute vert_buff_attrs_1 = {
@@ -304,17 +304,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexBufferLayout vert_buf_desc[2] = {
     [0] = (WGPUVertexBufferLayout) {
       // instanced particles buffer
-      .arrayStride = 4 * 4,
-      .stepMode = WGPUVertexStepMode_Instance,
+      .arrayStride    = 4 * 4,
+      .stepMode       = WGPUVertexStepMode_Instance,
       .attributeCount = 2,
-      .attributes = vert_buff_attrs_0,
+      .attributes     = vert_buff_attrs_0,
     },
     [1] = (WGPUVertexBufferLayout) {
       // vertex buffer
-      .arrayStride = 2 * 4,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = 2 * 4,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vert_buff_attrs_1,
+      .attributes     = &vert_buff_attrs_1,
     },
   };
 
@@ -335,7 +335,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .entry = "vert_main",
             },
             .buffer_count = 2,
-            .buffers = vert_buf_desc,
+            .buffers      = vert_buf_desc,
           });
 
   // Fragment state
@@ -343,7 +343,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .file = "shaders/compute_boids/sprite.wgsl",
+              .file  = "shaders/compute_boids/sprite.wgsl",
               .entry = "frag_main",
             },
             .target_count = 1,
@@ -516,9 +516,9 @@ void example_compute_boids(int argc, char* argv[])
      .overlay = true,
      .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
