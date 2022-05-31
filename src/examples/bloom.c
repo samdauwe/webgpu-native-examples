@@ -168,6 +168,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Color attachment
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "offscreen_frame_buffer_color_texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -181,6 +182,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "offscreen_frame_buffer_color_texture_view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -195,6 +197,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Depth stencil attachment
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "offscreen_frame_buffer_depth_stencil_texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -207,6 +210,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "offscreen_frame_buffer_depth_stencil_texture_view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
