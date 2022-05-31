@@ -33,9 +33,9 @@ static struct {
 } models;
 
 static struct {
-  WGPUBuffer scene;
-  WGPUBuffer skybox;
-  WGPUBuffer blur_params;
+  wgpu_buffer_t scene;
+  wgpu_buffer_t skybox;
+  wgpu_buffer_t blur_params;
 } uniform_buffers;
 
 typedef struct {
@@ -433,9 +433,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Fragment shader uniform buffer
           .binding = 0,
-          .buffer  = uniform_buffers.blur_params,
+          .buffer  = uniform_buffers.blur_params.buffer,
           .offset  = 0,
-          .size    = sizeof(ubo_blur_params_t),
+          .size    = uniform_buffers.blur_params.size,
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
@@ -463,9 +463,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Fragment shader uniform buffer
           .binding = 0,
-          .buffer  = uniform_buffers.blur_params,
+          .buffer  = uniform_buffers.blur_params.buffer,
           .offset  = 0,
-          .size    = sizeof(ubo_blur_params_t),
+          .size    = uniform_buffers.blur_params.size,
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
@@ -494,9 +494,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform buffer
         .binding = 0,
-        .buffer  = uniform_buffers.scene,
+        .buffer  = uniform_buffers.scene.buffer,
         .offset  = 0,
-        .size    = sizeof(ubo_scene_t),
+        .size    = uniform_buffers.scene.size,
       },
     };
 
@@ -515,9 +515,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [0] = (WGPUBindGroupEntry) {
           // Binding 0: Vertex shader uniform buffer
           .binding = 0,
-          .buffer  = uniform_buffers.skybox,
+          .buffer  = uniform_buffers.skybox.buffer,
           .offset  = 0,
-          .size    = sizeof(ubo_scene_t),
+          .size    = uniform_buffers.skybox.size,
         },
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
@@ -885,8 +885,8 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
   glm_rotate(ubos.scene.model, glm_rad(timer * 360.0f),
              (vec3){0.0f, 1.0f, 0.0f});
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene, 0,
-                          &ubos.scene, sizeof(ubo_scene_t));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene.buffer,
+                          0, &ubos.scene, uniform_buffers.scene.size);
 
   // Skybox
   glm_perspective(glm_rad(45.0f), context->window_size.aspect_ratio, 0.1f,
@@ -897,45 +897,43 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
   ubos.skybox.view[3][3] = 1.0f;
   glm_mat4_identity(ubos.skybox.model);
 
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.skybox, 0,
-                          &ubos.skybox, sizeof(ubo_scene_t));
+  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.skybox.buffer,
+                          0, &ubos.skybox, uniform_buffers.skybox.size);
 }
 
 // Update blur pass parameter uniform buffer
 void update_uniform_buffers_blur(wgpu_example_context_t* context)
 {
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.blur_params, 0,
-                          &ubos.blur_params, sizeof(ubo_blur_params_t));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          uniform_buffers.blur_params.buffer, 0,
+                          &ubos.blur_params, uniform_buffers.blur_params.size);
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Phong and color pass vertex shader uniform buffer
-  uniform_buffers.scene = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_scene_t),
-      .mappedAtCreation = false,
+  uniform_buffers.scene = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_scene_t),
     });
 
   // Blur parameters uniform buffers
-  uniform_buffers.blur_params = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_blur_params_t),
-      .mappedAtCreation = false,
+  uniform_buffers.blur_params = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_blur_params_t),
     });
 
   // Skybox
-  uniform_buffers.skybox = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = sizeof(ubo_scene_t),
-      .mappedAtCreation = false,
+  uniform_buffers.skybox = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(ubo_scene_t),
     });
 
   // Initialize uniform buffers
@@ -1173,9 +1171,9 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Sampler, offscreen_pass.sampler)
 
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.skybox)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.blur_params)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.skybox.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.blur_params.buffer)
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.blur_vert)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.blur_horz)
