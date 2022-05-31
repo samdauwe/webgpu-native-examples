@@ -289,32 +289,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Fragment shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_blur_params_t),
+          .minBindingSize   = sizeof(ubo_blur_params_t),
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image sampler
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       }
@@ -342,10 +342,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
           .minBindingSize   = sizeof(ubo_scene_t),
         },
@@ -375,21 +375,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_scene_t),
+          .minBindingSize   = sizeof(ubo_scene_t),
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
           .multisampled  = false,
         },
@@ -397,7 +397,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image sampler
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
           .type = WGPUSamplerBindingType_Filtering,
@@ -618,7 +618,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 },
                 // Empty vertex input state
                 .buffer_count = 0,
-                .buffers = NULL,
+                .buffers      = NULL,
               });
 
       // Fragment state
@@ -629,7 +629,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/bloom/gaussblur_vert.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
       // Create rendering pipeline using the specified states
@@ -664,7 +664,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 },
                 // Empty vertex input state
                 .buffer_count = 0,
-                .buffers = NULL,
+                .buffers      = NULL,
               });
 
       // Fragment state
@@ -675,7 +675,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file = "shaders/bloom/gaussblur_horz.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state_desc,
+                .targets      = &color_target_state_desc,
               });
 
       // Create rendering pipeline using the specified states
@@ -730,7 +730,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/phongpass.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -741,7 +741,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/phongpass.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
@@ -780,7 +780,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/colorpass.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -791,7 +791,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/colorpass.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
@@ -833,7 +833,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/skybox.vert.spv",
               },
               .buffer_count = 1,
-              .buffers = &gltf_model_vertex_buffer_layout,
+              .buffers      = &gltf_model_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -844,7 +844,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/bloom/skybox.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state_desc,
+              .targets      = &color_target_state_desc,
             });
 
     // Create rendering pipeline using the specified states
@@ -1203,9 +1203,9 @@ void example_bloom(int argc, char* argv[])
       .title   = example_title,
       .overlay = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
