@@ -5,6 +5,7 @@
 
 /* WebGPU shader */
 typedef struct wgpu_shader_desc_t {
+  const char* label;
   const char* file; /* file has priority over byte code & WGSL code */
   struct {
     const uint8_t* data;
