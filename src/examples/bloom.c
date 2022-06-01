@@ -719,7 +719,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Phong pass (3D model)
   {
-    // Back face culling
+    // Change back face culling mode
     primitive_state.cullMode = WGPUCullMode_Back;
 
     // Color target state
