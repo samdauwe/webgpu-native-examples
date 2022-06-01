@@ -618,7 +618,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
-                  .file = "shaders/bloom/gaussblur.vert.spv",
+                  .label = "gaussblur_vert.vertex_shader",
+                  .file  = "shaders/bloom/gaussblur.vert.spv",
                 },
                 // Empty vertex input state
                 .buffer_count = 0,
@@ -630,7 +631,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
-                  .file = "shaders/bloom/gaussblur_vert.frag.spv",
+                  .label = "gaussblur_vert.fragment_shader",
+                  .file  = "shaders/bloom/gaussblur_vert.frag.spv",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
@@ -664,7 +666,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
-                  .file = "shaders/bloom/gaussblur.vert.spv",
+                  .label = "gaussblur_horz_vertex_shader",
+                  .file  = "shaders/bloom/gaussblur.vert.spv",
                 },
                 // Empty vertex input state
                 .buffer_count = 0,
@@ -676,7 +679,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
-                  .file = "shaders/bloom/gaussblur_horz.frag.spv",
+                  .label = "gaussblur_horz_fragment_shader",
+                  .file  = "shaders/bloom/gaussblur_horz.frag.spv",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
@@ -731,7 +735,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/bloom/phongpass.vert.spv",
+                .label = "phongpass_vertex_shader",
+                .file  = "shaders/bloom/phongpass.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -742,7 +747,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/bloom/phongpass.frag.spv",
+                .label = "phongpass_fragment_shader",
+                .file  = "shaders/bloom/phongpass.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -781,7 +787,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/bloom/colorpass.vert.spv",
+                .label = "colorpass_vertex_shader",
+                .file  = "shaders/bloom/colorpass.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -792,7 +799,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/bloom/colorpass.frag.spv",
+                .label = "colorpass_fragment_shader",
+                .file  = "shaders/bloom/colorpass.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -834,7 +842,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/bloom/skybox.vert.spv",
+                .label = "skybox_vertex_shader",
+                .file  = "shaders/bloom/skybox.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -845,7 +854,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/bloom/skybox.frag.spv",
+                .label = "skybox_fragment_shader",
+                .file  = "shaders/bloom/skybox.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
