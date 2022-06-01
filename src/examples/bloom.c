@@ -574,21 +574,21 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = FB_DEPTH_FORMAT,
       .depth_write_enabled = true,
     });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
@@ -605,7 +605,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .alpha.srcFactor = WGPUBlendFactor_SrcAlpha,
       .alpha.dstFactor = WGPUBlendFactor_DstAlpha,
     };
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = FB_COLOR_FORMAT,
       .blend     = &blend_state_radial_blur,
       .writeMask = WGPUColorWriteMask_All,
@@ -614,7 +614,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Vertical blur pipeline
     {
       // Vertex state
-      WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+      WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
@@ -626,14 +626,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               });
 
       // Fragment state
-      WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+      WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
                   .file = "shaders/bloom/gaussblur_vert.frag.spv",
                 },
                 .target_count = 1,
-                .targets      = &color_target_state_desc,
+                .targets      = &color_target_state,
               });
 
       // Create rendering pipeline using the specified states
@@ -641,26 +641,26 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                 .label        = "vertical_blur_render_pipeline",
                                 .layout       = pipeline_layouts.blur,
-                                .primitive    = primitive_state_desc,
-                                .vertex       = vertex_state_desc,
-                                .fragment     = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
+                                .primitive    = primitive_state,
+                                .vertex       = vertex_state,
+                                .fragment     = &fragment_state,
+                                .depthStencil = &depth_stencil_state,
+                                .multisample  = multisample_state,
                               });
       ASSERT(pipelines.blur_vert);
 
       // Partial cleanup
-      WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-      WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+      WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+      WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
     }
 
     // Horizontal blur pipeline
     {
       // Using swapchain format in this pipeline
-      color_target_state_desc.format = wgpu_context->swap_chain.format;
+      color_target_state.format = wgpu_context->swap_chain.format;
 
       // Vertex state
-      WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+      WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
@@ -672,14 +672,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               });
 
       // Fragment state
-      WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+      WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
                   .file = "shaders/bloom/gaussblur_horz.frag.spv",
                 },
                 .target_count = 1,
-                .targets      = &color_target_state_desc,
+                .targets      = &color_target_state,
               });
 
       // Create rendering pipeline using the specified states
@@ -687,17 +687,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                 .label     = "horizontal_blur_render_pipeline",
                                 .layout    = pipeline_layouts.blur,
-                                .primitive = primitive_state_desc,
-                                .vertex    = vertex_state_desc,
-                                .fragment  = &fragment_state_desc,
-                                .depthStencil = &depth_stencil_state_desc,
-                                .multisample  = multisample_state_desc,
+                                .primitive = primitive_state,
+                                .vertex    = vertex_state,
+                                .fragment  = &fragment_state,
+                                .depthStencil = &depth_stencil_state,
+                                .multisample  = multisample_state,
                               });
       ASSERT(pipelines.blur_horz);
 
       // Partial cleanup
-      WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-      WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+      WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+      WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
     }
   }
 
@@ -716,18 +716,18 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Phong pass (3D model)
   {
     // Back face culling
-    primitive_state_desc.cullMode = WGPUCullMode_Back;
+    primitive_state.cullMode = WGPUCullMode_Back;
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
@@ -738,14 +738,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
                 .file = "shaders/bloom/phongpass.frag.spv",
               },
               .target_count = 1,
-              .targets      = &color_target_state_desc,
+              .targets      = &color_target_state,
             });
 
     // Create rendering pipeline using the specified states
@@ -753,31 +753,31 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "phong_render_pipeline",
                               .layout       = pipeline_layouts.scene,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
+                              .primitive    = primitive_state,
+                              .vertex       = vertex_state,
+                              .fragment     = &fragment_state,
+                              .depthStencil = &depth_stencil_state,
+                              .multisample  = multisample_state,
                             });
     ASSERT(pipelines.phong_pass);
 
     // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
   // Color only pass (offscreen blur base)
   {
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = FB_COLOR_FORMAT,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
@@ -788,14 +788,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
                 .file = "shaders/bloom/colorpass.frag.spv",
               },
               .target_count = 1,
-              .targets      = &color_target_state_desc,
+              .targets      = &color_target_state,
             });
 
     // Create rendering pipeline using the specified states
@@ -803,34 +803,34 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "color_pass_render_pipeline",
                               .layout       = pipeline_layouts.scene,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
+                              .primitive    = primitive_state,
+                              .vertex       = vertex_state,
+                              .fragment     = &fragment_state,
+                              .depthStencil = &depth_stencil_state,
+                              .multisample  = multisample_state,
                             });
     ASSERT(pipelines.glow_pass);
 
     // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
   // Skybox (cubemap)
   {
-    primitive_state_desc.cullMode              = WGPUCullMode_Front;
-    depth_stencil_state_desc.depthWriteEnabled = false;
+    primitive_state.cullMode              = WGPUCullMode_Front;
+    depth_stencil_state.depthWriteEnabled = false;
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
 
     // Vertex state
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
@@ -841,14 +841,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             });
 
     // Fragment state
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
                 .file = "shaders/bloom/skybox.frag.spv",
               },
               .target_count = 1,
-              .targets      = &color_target_state_desc,
+              .targets      = &color_target_state,
             });
 
     // Create rendering pipeline using the specified states
@@ -856,17 +856,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "skybox_render_pipeline",
                               .layout       = pipeline_layouts.skybox,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
+                              .primitive    = primitive_state,
+                              .vertex       = vertex_state,
+                              .fragment     = &fragment_state,
+                              .depthStencil = &depth_stencil_state,
+                              .multisample  = multisample_state,
                             });
     ASSERT(pipelines.skybox);
 
     // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 }
 
