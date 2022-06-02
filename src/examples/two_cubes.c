@@ -122,8 +122,7 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 {
   const float now = context->frame.timestamp_millis / 1000.0f;
 
-  const float sin_now = sin(now);
-  const float cos_now = cos(now);
+  const float sin_now = sin(now), cos_now = cos(now);
 
   for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
     cube_t* cube = &cubes[i];
