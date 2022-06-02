@@ -82,14 +82,16 @@ static const char* video_file_location
 static const char* example_title = "Video Texture";
 static bool prepared             = false;
 
+// clang-format off
 static const float rectangle_vertices[30] = {
-  1.0f,  1.0f,  0.0f, 1.0f, 0.0f, //
-  1.0f,  -1.0f, 0.0f, 1.0f, 1.0f, //
+   1.0f,  1.0f, 0.0f, 1.0f, 0.0f, //
+   1.0f, -1.0f, 0.0f, 1.0f, 1.0f, //
   -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, //
-  1.0f,  1.0f,  0.0f, 1.0f, 0.0f, //
+   1.0f,  1.0f, 0.0f, 1.0f, 0.0f, //
   -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, //
-  -1.0f, 1.0f,  0.0f, 0.0f, 0.0f, //
+  -1.0f,  1.0f, 0.0f, 0.0f, 0.0f, //
 };
+// clang-format on
 
 // Prepare vertex buffer
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
