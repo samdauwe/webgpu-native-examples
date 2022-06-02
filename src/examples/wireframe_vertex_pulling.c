@@ -343,6 +343,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_solid_mesh_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
          .entry = "main_vertex",
        },
@@ -354,7 +355,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Vertex shader WGSL
+         // Fragment shader WGSL
+         .label = "render_solid_mesh_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
          .entry = "main_fragment",
        },
@@ -390,6 +392,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_points_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
          .entry = "main_vertex",
        },
@@ -402,6 +405,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_points_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
          .entry = "main_fragment",
        },
@@ -437,6 +441,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_wireframe_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
          .entry = "main_vertex",
        },
@@ -449,6 +454,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_wireframe_shader",
          .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
          .entry = "main_fragment",
        },
@@ -484,6 +490,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_wireframe_thick_shader",
          .file = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
          .entry = "main_vertex",
        },
@@ -496,6 +503,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
+         .label = "render_wireframe_thick_shader",
          .file = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
          .entry = "main_fragment",
        },
