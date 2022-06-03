@@ -86,9 +86,9 @@ static float perlin_noise_generate(perlin_noise_t* perlin_noise, float x,
                                    float y, float z)
 {
   // Find unit cube that contains point
-  int32_t X = (int32_t)floor(x) & 255;
-  int32_t Y = (int32_t)floor(y) & 255;
-  int32_t Z = (int32_t)floor(z) & 255;
+  const int32_t X = (int32_t)floor(x) & 255;
+  const int32_t Y = (int32_t)floor(y) & 255;
+  const int32_t Z = (int32_t)floor(z) & 255;
   // Find relative x,y,z of point in cube
   x -= floor(x);
   y -= floor(y);
@@ -100,12 +100,12 @@ static float perlin_noise_generate(perlin_noise_t* perlin_noise, float x,
   const float w = fade(z);
 
   // Hash coordinates of the 8 cube corners
-  uint32_t A  = perlin_noise->permutations[X] + Y;
-  uint32_t AA = perlin_noise->permutations[A] + Z;
-  uint32_t AB = perlin_noise->permutations[A + 1] + Z;
-  uint32_t B  = perlin_noise->permutations[X + 1] + Y;
-  uint32_t BA = perlin_noise->permutations[B] + Z;
-  uint32_t BB = perlin_noise->permutations[B + 1] + Z;
+  const uint32_t A  = perlin_noise->permutations[X] + Y;
+  const uint32_t AA = perlin_noise->permutations[A] + Z;
+  const uint32_t AB = perlin_noise->permutations[A + 1] + Z;
+  const uint32_t B  = perlin_noise->permutations[X + 1] + Y;
+  const uint32_t BA = perlin_noise->permutations[B] + Z;
+  const uint32_t BB = perlin_noise->permutations[B + 1] + Z;
 
   // And add blended results for 8 corners of the cube;
   const float res = lerp(
