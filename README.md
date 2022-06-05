@@ -207,7 +207,11 @@ Loads a 2D texture from disk (including all mip levels), uses staging to upload 
 
 This example shows how to bind and sample textures.
 
-#### [Cube map textures](src/examples/skybox.c)
+#### [Cubemap texture](src/examples/cubemap.c)
+
+This example shows how to render and sample from a cubemap texture.
+
+#### [Skybox](src/examples/skybox.c)
 
 Loads a cube map texture from disk containing six different faces. All faces and mip levels are uploaded into video memory, and the cubemap is displayed on a skybox as a backdrop and on a 3D model as a reflection.
 
