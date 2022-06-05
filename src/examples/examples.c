@@ -24,6 +24,7 @@ void example_conway(int argc, char* argv[]);
 void example_conway_paletted_blurring(int argc, char* argv[]);
 void example_coordinate_system(int argc, char* argv[]);
 void example_cube_reflection(int argc, char* argv[]);
+void example_cubemap(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
 void example_dynamic_uniform_buffer(int argc, char* argv[]);
 void example_equirectangular_image(int argc, char* argv[]);
@@ -86,6 +87,7 @@ static examplecase_t g_example_cases[] = {
   {"conway_paletted_blurring", example_conway_paletted_blurring},
   {"coordinate_system", example_coordinate_system},
   {"cube_reflection", example_cube_reflection},
+  {"cubemap", example_cubemap},
   {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
   {"equirectangular_image", example_equirectangular_image},
