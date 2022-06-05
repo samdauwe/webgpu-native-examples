@@ -207,6 +207,7 @@ set(SOURCES
     src/examples/conway_paletted_blurring.c
     src/examples/coordinate_system.c
     src/examples/cube_reflection.c
+    src/examples/cubemap.c
     src/examples/deferred_rendering.c
     src/examples/dynamic_uniform_buffer.c
     src/examples/equirectangular_image.c
