@@ -284,8 +284,8 @@ static int prepare_video(const char* fname)
 
 static int update_capture_texture(wgpu_context_t* wgpu_context)
 {
-  int video_w, video_h;
-  void* video_buf;
+  int video_w = 0, video_h = 0;
+  void* video_buf = NULL;
 
   get_video_dimension(&video_w, &video_h);
   get_video_buffer(&video_buf);
