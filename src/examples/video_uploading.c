@@ -182,7 +182,7 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
       .sampler = video_texture.sampler,
     },
     [1] = (WGPUBindGroupEntry) {
-      .binding = 1,
+      .binding     = 1,
       .textureView = video_texture.view,
     },
   };
