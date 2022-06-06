@@ -134,7 +134,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = cube.uniform_buffer_vs.size,
       },
@@ -145,7 +145,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_ReadOnlyStorage,
+        .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
         .minBindingSize   = cube.positions.size,
       },
@@ -156,7 +156,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 2,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_ReadOnlyStorage,
+        .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
         .minBindingSize   = cube.colors.size,
       },
@@ -167,7 +167,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding = 3,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_ReadOnlyStorage,
+        .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
         .minBindingSize   = cube.indices.size,
       },
@@ -348,7 +348,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
          .entry = "main_vertex",
        },
        .buffer_count = 0,
-       .buffers = NULL,
+       .buffers      = NULL,
      });
 
     // Fragment state
@@ -491,7 +491,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
          .label = "render_wireframe_thick_shader",
-         .file = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
          .entry = "main_vertex",
        },
        .buffer_count = 0,
@@ -504,7 +504,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
          .label = "render_wireframe_thick_shader",
-         .file = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
+         .file  = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
          .entry = "main_fragment",
        },
        .target_count = 1,
