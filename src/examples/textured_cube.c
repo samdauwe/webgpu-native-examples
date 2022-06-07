@@ -208,6 +208,7 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
   glm_rotate(view_matrices.view, 1.0f, (vec3){sin(now), cos(now), 0.0f});
 
+  // Model view projection matrix
   glm_mat4_identity(cube.view_mtx.model_view_projection);
   glm_mat4_mul(view_matrices.projection, view_matrices.view,
                cube.view_mtx.model_view_projection);
