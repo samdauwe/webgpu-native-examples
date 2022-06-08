@@ -295,25 +295,27 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Vertex state
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
-         wgpu_context, &(wgpu_vertex_state_t){
-         .shader_desc = (wgpu_shader_desc_t){
-            // Vertex shader WGSL
-            .wgsl_code.source = basic_vertex_shader_wgsl,
-         },
-         .buffer_count = 1,
-         .buffers = &textured_cube_vertex_buffer_layout,
-       });
+       wgpu_context, &(wgpu_vertex_state_t){
+       .shader_desc = (wgpu_shader_desc_t){
+          // Vertex shader WGSL
+          .label            = "basic_vertex_shader_wgsl",
+          .wgsl_code.source = basic_vertex_shader_wgsl,
+       },
+       .buffer_count = 1,
+       .buffers = &textured_cube_vertex_buffer_layout,
+     });
 
   // Fragment state
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-         wgpu_context, &(wgpu_fragment_state_t){
-         .shader_desc = (wgpu_shader_desc_t){
-            // Fragment shader WGSL
-            .wgsl_code.source = sampled_texture_mix_color_fragment_shader_wgsl,
-         },
-         .target_count = 1,
-         .targets = &color_target_state,
-       });
+       wgpu_context, &(wgpu_fragment_state_t){
+       .shader_desc = (wgpu_shader_desc_t){
+          // Fragment shader WGSL
+          .label            = "sampled_texture_mix_color_fragment_shader_wgsl",
+          .wgsl_code.source = sampled_texture_mix_color_fragment_shader_wgsl,
+       },
+       .target_count = 1,
+       .targets = &color_target_state,
+     });
 
   // Multisample state
   WGPUMultisampleState multisample_state
