@@ -438,7 +438,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = instance_buffer_length,
+          .minBindingSize   = instance_buffer_length,
         },
         .sampler = {0},
       },
