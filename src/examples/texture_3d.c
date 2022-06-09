@@ -460,7 +460,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: Sampler (Fragment shader)
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
         .type = WGPUSamplerBindingType_NonFiltering,
