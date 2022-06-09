@@ -56,7 +56,8 @@ static float grad(int hash, float x, float y, float z)
  * @ref https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
  */
 static void fisher_yates_shuffle(uint8_t* values, int n)
-{                   // implementation of Fisher
+{
+  // implementation of Fisher
   int i = 0, j = 0; // create local variables to hold values for shuffle
   uint8_t tmp = 0;
 
