@@ -88,12 +88,14 @@ static void prepare_vertex_buffers(wgpu_context_t* wgpu_context)
   //         |        |
   //        [2]------[3]
   //
+  // clang-format off
   static const float positions[12] = {
-    -0.5f, 0.5f,  0.0f, // v0
-    0.5f,  0.5f,  0.0f, // v1
+    -0.5f,  0.5f, 0.0f, // v0
+     0.5f,  0.5f, 0.0f, // v1
     -0.5f, -0.5f, 0.0f, // v2
-    0.5f,  -0.5f, 0.0f, // v3
+     0.5f, -0.5f, 0.0f, // v3
   };
+  // clang-format on
   square.positions = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
