@@ -69,7 +69,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = 128,
       },
