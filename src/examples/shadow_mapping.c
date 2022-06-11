@@ -272,10 +272,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       WGPUBindGroupLayoutEntry bgl_entries[1] = {
         [0] = (WGPUBindGroupLayoutEntry) {
           // Binding 0: Uniform
-          .binding = 0,
+          .binding    = 0,
           .visibility = WGPUShaderStage_Vertex,
           .buffer = (WGPUBufferBindingLayout) {
-            .type = WGPUBufferBindingType_Uniform,
+            .type             = WGPUBufferBindingType_Uniform,
             .hasDynamicOffset = false,
             .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
           },
@@ -297,10 +297,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       WGPUBindGroupLayoutEntry bgl_entries[1] = {
         [0] = (WGPUBindGroupLayoutEntry) {
           // Binding 0: Uniform
-          .binding = 0,
+          .binding    = 0,
           .visibility = WGPUShaderStage_Vertex,
           .buffer = (WGPUBufferBindingLayout) {
-            .type = WGPUBufferBindingType_Uniform,
+            .type             = WGPUBufferBindingType_Uniform,
             .hasDynamicOffset = false,
             .minBindingSize   = sizeof(mat4),
           },
