@@ -226,7 +226,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     wgpu_context,
     &(wgpu_shader_desc_t){
       // Compute shader SPIR-V
-      .file = "shaders/compute_particles_easing/particle.comp.spv",
+      .label = "particle_compute_shader",
+      .file  = "shaders/compute_particles_easing/particle.comp.spv",
     });
 
   /* Create pipeline */
@@ -455,7 +456,8 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
-                  .file = "shaders/compute_particles_easing/particle.vert.spv",
+                  .label = "particle_vertex_shader",
+                  .file  = "shaders/compute_particles_easing/particle.vert.spv",
                 },
                 .buffer_count = (uint32_t) ARRAY_SIZE(buffers),
                 .buffers      = buffers,
@@ -466,7 +468,8 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
-                  .file = "shaders/compute_particles_easing/particle.frag.spv",
+                  .label = "particle_fragment_shader",
+                  .file  = "shaders/compute_particles_easing/particle.frag.spv",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
