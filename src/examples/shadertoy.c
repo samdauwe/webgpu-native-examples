@@ -197,7 +197,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .initial.data = &shader_inputs_ubo,
     });
 
-  // Update unform buffer data
+  // Update uniform buffer data and uniform buffer
   update_uniform_buffers(context);
 }
 
