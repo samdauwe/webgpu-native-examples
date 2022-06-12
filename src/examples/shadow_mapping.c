@@ -695,6 +695,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
+                  .label = "vertex_shadow_shader",
                   .file  = "shaders/shadow_mapping/vertexShadow.wgsl",
                   .entry = "main",
                 },
@@ -787,6 +788,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
+                  .label = "vertex_shader",
                   .file  = "shaders/shadow_mapping/vertex.wgsl",
                   .entry = "main",
                 },
@@ -799,6 +801,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
+                  .label = "fragment_shader",
                   .file  = "shaders/shadow_mapping/fragment.wgsl",
                   .entry = "main",
                 },
