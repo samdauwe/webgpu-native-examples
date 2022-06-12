@@ -590,8 +590,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     uniform_buffers.scene = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
-        // Two 4x4 viewProj matrices,
-        // one for the camera and one for the light.
+        // Two 4x4 viewProj matrices, one for the camera and one for the light.
         // Then a vec3 for the light position.
         .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
