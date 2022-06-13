@@ -78,14 +78,14 @@ static struct {
   WGPUPipelineLayout precision_pass_render;
   WGPUPipelineLayout color_pass_render;
   WGPUPipelineLayout texture_quad_pass;
-} pipline_layouts;
+} pipline_layouts = {0};
 
 static struct {
   WGPURenderPipeline depth_pre_pass[2];
   WGPURenderPipeline precision_pass[2];
   WGPURenderPipeline color_pass[2];
   WGPURenderPipeline texture_quad_pass;
-} render_pipelines;
+} render_pipelines = {0};
 
 static struct {
   texture_t depth;
