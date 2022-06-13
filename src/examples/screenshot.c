@@ -450,7 +450,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_vs),
     });
 
-  // Updated uniform buffer block data
+  // Update uniform buffer block data and uniform buffer
   update_uniform_buffers(context);
 }
 
