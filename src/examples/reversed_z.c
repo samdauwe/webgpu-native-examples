@@ -713,12 +713,12 @@ prepare_depth_texture_bind_group_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Texture view
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType = WGPUTextureSampleType_Depth,
+        .sampleType    = WGPUTextureSampleType_Depth,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled = false,
+        .multisampled  = false,
       },
       .storageTexture = {0},
     }
@@ -738,20 +738,20 @@ static void prepare_uniform_bind_group_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Uniform buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = uniform_buffer_size,
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Uniform buffer
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type           = WGPUBufferBindingType_Uniform,
         .minBindingSize = sizeof(mat4), // 4x4 matrix
       },
       .sampler = {0},
@@ -830,7 +830,7 @@ static void prepare_depth_texture_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[1] = {
     [0] = (WGPUBindGroupEntry) {
-      .binding = 0,
+      .binding     = 0,
       .textureView = textures.depth.view,
     },
   };
@@ -872,13 +872,13 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.uniform.buffer,
-        .size  = uniform_buffer_size,
+        .buffer  = uniform_buffers.uniform.buffer,
+        .size    = uniform_buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = uniform_buffers.camera_matrix.buffer,
-        .size  = sizeof(mat4), // 4x4 matrix
+        .buffer  = uniform_buffers.camera_matrix.buffer,
+        .size    = sizeof(mat4), // 4x4 matrix
       }
     };
     bind_groups.uniform[0] = wgpuDeviceCreateBindGroup(
@@ -894,13 +894,13 @@ static void setup_uniform_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.uniform.buffer,
-        .size  = uniform_buffer_size,
+        .buffer  = uniform_buffers.uniform.buffer,
+        .size    = uniform_buffer_size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = uniform_buffers.camera_matrix_reversed_depth.buffer,
-        .size  = sizeof(mat4), // 4x4 matrix
+        .buffer  = uniform_buffers.camera_matrix_reversed_depth.buffer,
+        .size    = sizeof(mat4), // 4x4 matrix
       }
     };
     bind_groups.uniform[1] = wgpuDeviceCreateBindGroup(
