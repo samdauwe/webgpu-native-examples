@@ -60,10 +60,12 @@ const uint32_t matrix_stride      = 4 * matrix_float_count;
 static mat4 model_matrices[NUM_INSTANCES]                          = {0};
 static float mvp_matrices_data[NUM_INSTANCES * MATRIX_FLOAT_COUNT] = {0};
 static mat4 depth_range_remap_matrix                               = {
-  {1.0f, 0.0f, 0.0f, 0.0f},  //
-  {0.0f, 1.0f, 0.0f, 0.0f},  //
+  // clang-format off
+  {1.0f, 0.0f,  0.0f, 0.0f}, //
+  {0.0f, 1.0f,  0.0f, 0.0f}, //
   {0.0f, 0.0f, -1.0f, 0.0f}, //
-  {0.0f, 0.0f, 1.0f, 1.0f},  //
+  {0.0f, 0.0f,  1.0f, 1.0f}, //
+  // clang-format on
 };
 static mat4 tmp_mat4 = GLM_MAT4_IDENTITY_INIT;
 
