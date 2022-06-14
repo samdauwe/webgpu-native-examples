@@ -35,7 +35,7 @@ static struct gltf_model_t* scene;
 static struct {
   wgpu_buffer_t scene;
   wgpu_buffer_t blur_params;
-} ubo;
+} ubo = {0};
 
 static struct {
   mat4 projection;
@@ -60,22 +60,22 @@ static struct {
   WGPURenderPipeline color_pass;
   WGPURenderPipeline phong_pass;
   WGPURenderPipeline offscreen_display;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUPipelineLayout radial_blur;
   WGPUPipelineLayout scene;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPUBindGroup scene;
   WGPUBindGroup radial_blur;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout scene;
   WGPUBindGroupLayout radial_blur;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   uint32_t width, height;
@@ -90,13 +90,13 @@ static struct {
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass;
-} offscreen_pass;
+} offscreen_pass = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 static const char* example_title = "Full Screen Radial Blur Effect";
 static bool prepared             = false;
