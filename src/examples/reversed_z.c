@@ -214,6 +214,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
+                  .label = "vertex_depth_pre_pass_vertex_shader",
                   .file  = "shaders/reversed_z/vertexDepthPrePass.wgsl",
                   .entry = "main",
                 },
@@ -300,6 +301,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
+                  .label = "vertex_precision_error_pass_vertex_shader",
                   .file  = "shaders/reversed_z/vertexPrecisionErrorPass.wgsl",
                   .entry = "main",
                 },
@@ -312,6 +314,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
+                  .label = "fragment_precision_error_pass_fragment_shader",
                   .file  = "shaders/reversed_z/fragmentPrecisionErrorPass.wgsl",
                   .entry = "main",
                 },
@@ -398,6 +401,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
+                  .label = "color_pass_vertex_shader",
                   .file  = "shaders/reversed_z/vertex.wgsl",
                   .entry = "main",
                 },
@@ -410,6 +414,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
+                  .label = "color_pass_fragment_shader",
                   .file  = "shaders/reversed_z/fragment.wgsl",
                   .entry = "main",
                 },
@@ -481,6 +486,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
+              .label = "vertex_texture_quad_vertex_shader",
               .file  = "shaders/reversed_z/vertexTextureQuad.wgsl",
               .entry = "main",
             },
@@ -492,6 +498,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
+              .label = "fragment_texture_quad_fragment_shader",
               .file  = "shaders/reversed_z/fragmentTextureQuad.wgsl",
               .entry = "main",
             },
