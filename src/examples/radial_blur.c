@@ -257,7 +257,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
@@ -268,7 +268,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
@@ -279,7 +279,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image sampler
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
           .type = WGPUSamplerBindingType_Filtering,
@@ -310,10 +310,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Fragment shader uniform buffer
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
           .minBindingSize   = sizeof(ubo_blur_params),
         },
@@ -321,7 +321,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader image view
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
@@ -332,7 +332,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image sampler
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
           .type = WGPUSamplerBindingType_Filtering,
@@ -551,7 +551,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               },
               // Empty vertex input state
               .buffer_count = 0,
-              .buffers = NULL,
+              .buffers      = NULL,
             });
 
     // Fragment state
@@ -562,7 +562,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .file = "shaders/radial_blur/radialblur.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state,
+              .targets      = &color_target_state,
             });
 
     // Create rendering pipeline using the specified states
