@@ -496,7 +496,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/radial_blur/radialblur.vert.spv",
+                .label = "radialblur_vertex_shader",
+                .file  = "shaders/radial_blur/radialblur.vert.spv",
               },
               // Empty vertex input state
               .buffer_count = 0,
@@ -508,7 +509,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/radial_blur/radialblur.frag.spv",
+                .label = "radialblur_fragment_shader",
+                .file  = "shaders/radial_blur/radialblur.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -547,7 +549,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/radial_blur/radialblur.vert.spv",
+                .label = "radialblur_vertex_shader",
+                .file  = "shaders/radial_blur/radialblur.vert.spv",
               },
               // Empty vertex input state
               .buffer_count = 0,
@@ -559,7 +562,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/radial_blur/radialblur.frag.spv",
+                .label = "radialblur_fragment_shader",
+                .file  = "shaders/radial_blur/radialblur.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -610,7 +614,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/radial_blur/phongpass.vert.spv",
+                .label = "phongpass_vertex_shader",
+                .file  = "shaders/radial_blur/phongpass.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -621,7 +626,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/radial_blur/phongpass.frag.spv",
+                .label = "phongpass_fragment_shader",
+                .file  = "shaders/radial_blur/phongpass.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -660,7 +666,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/radial_blur/colorpass.vert.spv",
+                .label = "colorpass_vertex_shader",
+                .file  = "shaders/radial_blur/colorpass.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -671,7 +678,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/radial_blur/colorpass.frag.spv",
+                .label = "colorpass_fragment_shader",
+                .file  = "shaders/radial_blur/colorpass.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
