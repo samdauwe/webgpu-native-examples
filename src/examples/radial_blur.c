@@ -28,7 +28,7 @@ static bool display_texture = false;
 
 static struct {
   texture_t gradient;
-} textures;
+} textures = {0};
 
 static struct gltf_model_t* scene;
 
