@@ -128,7 +128,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Fragment shader)
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout){
           .type             = WGPUBufferBindingType_Uniform,
