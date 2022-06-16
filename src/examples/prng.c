@@ -247,6 +247,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       // Vertex shader WGSL
+      .label            = "prng_vertex_shader",
       .wgsl_code.source = prng_shader_wgsl,
       .entry            = "vs_main",
     },
@@ -259,6 +260,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       // Fragment shader WGSL
+      .label            = "prng_fragment_shader",
       .wgsl_code.source = prng_shader_wgsl,
       .entry            = "fs_main",
     },
