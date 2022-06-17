@@ -508,8 +508,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
   box->uvs.data       = (float*)malloc(box->uvs.data_size);
   box->indices.data   = (uint32_t*)malloc(box->indices.data_size);
 
-  uint32_t i  = 0;
-  uint32_t ii = 0;
+  uint32_t i = 0, ii = 0;
 
   // RIGHT
   {
