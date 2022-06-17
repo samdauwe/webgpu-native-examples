@@ -923,7 +923,7 @@ static struct {
   .base_colors[1]      = {1.0f, 0.2f, 0.25f},
 };
 
-static transform_t quad_transform;
+static transform_t quad_transform = {0};
 
 static struct {
   perspective_camera_t perspective_camera;
@@ -939,7 +939,7 @@ static struct {
 static struct {
   instanced_geometry_t cube;
   instanced_geometry_t sphere;
-} instanced_geometries;
+} instanced_geometries = {0};
 
 static struct {
   geometry_gpu_buffers_t quad;
@@ -993,7 +993,7 @@ typedef struct render_pass_t {
   WGPURenderPassDescriptor descriptor;
 } render_pass_t;
 
-struct {
+static struct {
   render_pass_t scene_render;
   render_pass_t post_fx;
 } render_passes = {0};
