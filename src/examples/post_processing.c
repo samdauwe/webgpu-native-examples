@@ -928,7 +928,7 @@ static transform_t quad_transform;
 static struct {
   perspective_camera_t perspective_camera;
   orthographic_camera_t orthographic_camera;
-} cameras;
+} cameras = {0};
 
 static struct {
   geometry_t quad;
@@ -947,12 +947,12 @@ static struct {
   geometry_gpu_buffers_t sphere;
   instanced_geometry_gpu_buffers_t instanced_cube;
   instanced_geometry_gpu_buffers_t instanced_sphere;
-} vertex_buffers;
+} vertex_buffers = {0};
 
 static struct {
   wgpu_buffer_t persp_camera, ortho_camera, quad_transform, quad_tween_factor,
     light_position, base_colors[2];
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   struct {
@@ -969,7 +969,7 @@ static struct {
     WGPUTexture texture;
     WGPUTextureView texture_view;
   } color, depth_stencil;
-} offscreen_framebuffer;
+} offscreen_framebuffer = {0};
 
 static struct {
   WGPUBindGroup persp_camera;
@@ -979,12 +979,12 @@ static struct {
   WGPUBindGroup quad_tween;
   WGPUBindGroup light_position;
   WGPUBindGroup base_colors[2];
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPURenderPipeline fullscreen_quad;
   WGPURenderPipeline scene_meshes;
-} pipelines;
+} pipelines = {0};
 
 // Render pass descriptor for frame buffer writes
 typedef struct render_pass_t {
@@ -996,7 +996,7 @@ typedef struct render_pass_t {
 struct {
   render_pass_t scene_render;
   render_pass_t post_fx;
-} render_passes;
+} render_passes = {0};
 
 /* Holds time info in seconds units */
 static struct {
