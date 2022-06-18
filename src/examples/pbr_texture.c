@@ -42,12 +42,12 @@ static struct {
   texture_t ao_map;
   texture_t metallic_map;
   texture_t roughness_map;
-} textures;
+} textures = {0};
 
 static struct {
   struct gltf_model_t* skybox;
   struct gltf_model_t* object;
-} models;
+} models = {0};
 
 static struct {
   // Object vertex shader uniform buffer
@@ -56,14 +56,14 @@ static struct {
   wgpu_buffer_t skybox;
   // Shared parameter uniform buffer
   wgpu_buffer_t ubo_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   mat4 projection;
   mat4 model;
   mat4 view;
   vec3 cam_pos;
-} ubo_matrices;
+} ubo_matrices = {0};
 
 static struct {
   vec4 lights[4];
@@ -77,27 +77,27 @@ static struct {
 static struct {
   WGPURenderPipeline pbr;
   WGPURenderPipeline skybox;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUBindGroup object;
   WGPUBindGroup skybox;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout object;
   WGPUBindGroupLayout skybox;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPUPipelineLayout pbr;
   WGPUPipelineLayout skybox;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 static const char* example_title = "Textured PBR With IBL";
 static bool prepared             = false;
