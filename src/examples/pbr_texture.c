@@ -674,7 +674,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
-              .file = "shaders/pbr_texture/skybox.vert.spv",
+              .label = "skybox_vertex_shader",
+              .file  = "shaders/pbr_texture/skybox.vert.spv",
             },
             .buffer_count = 1,
             .buffers      = &skybox_vertex_buffer_layout,
@@ -685,7 +686,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .file = "shaders/pbr_texture/skybox.frag.spv",
+              .label = "skybox_fragment_shader",
+              .file  = "shaders/pbr_texture/skybox.frag.spv",
             },
             .target_count = 1,
             .targets      = &color_target_state_desc,
@@ -720,8 +722,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/pbr_texture/pbrtexture.vert.spv",
+              // Vertex shader SPIR-
+              .label = "pbrtexture_vertex_shader",
+              .file  = "shaders/pbr_texture/pbrtexture.vert.spv",
             },
             .buffer_count = 1,
             .buffers = &skybox_vertex_buffer_layout,
@@ -732,7 +735,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .file = "shaders/pbr_texture/pbrtexture.frag.spv",
+              .label = "pbrtexture_fragment_shader",
+              .file  = "shaders/pbr_texture/pbrtexture.frag.spv",
             },
             .target_count = 1,
             .targets      = &color_target_state_desc,
@@ -857,7 +861,8 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/pbr_texture/genbrdflut.vert.spv",
+                .label = "genbrdflut_vertex_shader",
+                .file  = "shaders/pbr_texture/genbrdflut.vert.spv",
               },
               .buffer_count = 0,
               .buffers      = NULL,
@@ -868,7 +873,8 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/pbr_texture/genbrdflut.frag.spv",
+                .label = "genbrdflut_fragment_shader",
+                .file  = "shaders/pbr_texture/genbrdflut.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -1287,7 +1293,8 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/pbr_texture/filtercube.vert.spv",
+                .label = "filtercube_vertex_shader",
+                .file  = "shaders/pbr_texture/filtercube.vert.spv",
               },
              .buffer_count = 1,
              .buffers      = &skybox_vertex_buffer_layout,
@@ -1298,7 +1305,8 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/pbr_texture/irradiancecube.frag.spv",
+                .label = "filtercube_fragment_shader",
+                .file  = "shaders/pbr_texture/irradiancecube.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -1780,7 +1788,8 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/pbr_texture/filtercube.vert.spv",
+                .label = "filtercube_vertex_shader",
+                .file  = "shaders/pbr_texture/filtercube.vert.spv",
               },
              .buffer_count = 1,
              .buffers      = &skybox_vertex_buffer_layout,
@@ -1791,7 +1800,8 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/pbr_texture/prefilterenvmap.frag.spv",
+                .label = "prefilterenvmap_vertex_shader",
+                .file  = "shaders/pbr_texture/prefilterenvmap.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
