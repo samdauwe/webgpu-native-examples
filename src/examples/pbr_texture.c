@@ -170,181 +170,181 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[18] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = uniform_buffers.object.size,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Uniform buffer (Fragment shader)
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = uniform_buffers.ubo_params.size,
         },
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader image sampler
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
         // Binding 4: Fragment shader image view
-        .binding = 4,
+        .binding    = 4,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [5] = (WGPUBindGroupLayoutEntry) {
         // Binding 5: Fragment shader image sampler
-        .binding = 5,
+        .binding    = 5,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [6] = (WGPUBindGroupLayoutEntry) {
         // Binding 6: Fragment shader image view
-        .binding = 6,
+        .binding    = 6,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [7] = (WGPUBindGroupLayoutEntry) {
         // Binding 7: Fragment shader image sampler
-        .binding = 7,
+        .binding    = 7,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [8] = (WGPUBindGroupLayoutEntry) {
         // Binding 8: Fragment shader image view
-        .binding = 8,
+        .binding    = 8,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [9] = (WGPUBindGroupLayoutEntry) {
         // Binding 9: Fragment shader image sampler
-        .binding = 9,
+        .binding    = 9,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [10] = (WGPUBindGroupLayoutEntry) {
         // Binding 10: Fragment shader image view
-        .binding = 10,
+        .binding    = 10,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [11] = (WGPUBindGroupLayoutEntry) {
         // Binding 11: Fragment shader image sampler
-        .binding = 11,
+        .binding    = 11,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [12] = (WGPUBindGroupLayoutEntry) {
         // Binding 12: Fragment shader image view
-        .binding = 12,
+        .binding    = 12,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [13] = (WGPUBindGroupLayoutEntry) {
         // Binding 13: Fragment shader image sampler
-        .binding = 13,
+        .binding    = 13,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [14] = (WGPUBindGroupLayoutEntry) {
         // Binding 14: Fragment shader image view
-        .binding = 14,
+        .binding    = 14,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [15] = (WGPUBindGroupLayoutEntry) {
         // Binding 15: Fragment shader image sampler
-        .binding = 15,
+        .binding    = 15,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [16] = (WGPUBindGroupLayoutEntry) {
         // Binding 16: Fragment shader image view
-        .binding = 16,
+        .binding    = 16,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [17] = (WGPUBindGroupLayoutEntry) {
         // Binding 17: Fragment shader image sampler
-        .binding = 17,
+        .binding    = 17,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -363,43 +363,43 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform UBO
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = uniform_buffers.skybox.size,
+          .minBindingSize   = uniform_buffers.skybox.size,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment uniform UBOParams
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = uniform_buffers.ubo_params.size,
+          .minBindingSize   = uniform_buffers.ubo_params.size,
         },
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader image sampler
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -449,20 +449,20 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
         .binding = 0,
-        .buffer = uniform_buffers.object.buffer,
-        .offset = 0,
-        .size = uniform_buffers.object.size,
+        .buffer  = uniform_buffers.object.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.object.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Uniform buffer (Fragment shader)
         .binding = 1,
-        .buffer = uniform_buffers.ubo_params.buffer,
-        .offset = 0,
-        .size = uniform_buffers.ubo_params.size,
+        .buffer  = uniform_buffers.ubo_params.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.ubo_params.size,
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = textures.irradiance_cube.view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -472,7 +472,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [4] = (WGPUBindGroupEntry) {
         // Binding 4: Fragment shader image view
-        .binding = 4,
+        .binding     = 4,
         .textureView = textures.lut_brdf.view
       },
       [5] = (WGPUBindGroupEntry) {
@@ -482,7 +482,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [6] = (WGPUBindGroupEntry) {
         // Binding 6: Fragment shader image view
-        .binding = 6,
+        .binding     = 6,
         .textureView = textures.prefiltered_cube.view
       },
       [7] = (WGPUBindGroupEntry) {
@@ -492,7 +492,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [8] = (WGPUBindGroupEntry) {
         // Binding 8: Fragment shader image view
-        .binding = 8,
+        .binding     = 8,
         .textureView = textures.albedo_map.view
       },
       [9] = (WGPUBindGroupEntry) {
@@ -502,7 +502,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [10] = (WGPUBindGroupEntry) {
         // Binding 10: Fragment shader image view
-        .binding = 10,
+        .binding     = 10,
         .textureView = textures.normal_map.view
       },
       [11] = (WGPUBindGroupEntry) {
@@ -512,7 +512,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [12] = (WGPUBindGroupEntry) {
         // Binding 12: Fragment shader image view
-        .binding = 12,
+        .binding     = 12,
         .textureView = textures.ao_map.view
       },
       [13] = (WGPUBindGroupEntry) {
@@ -522,7 +522,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [14] = (WGPUBindGroupEntry) {
         // Binding 14: Fragment shader image view
-        .binding = 14,
+        .binding     = 14,
         .textureView = textures.metallic_map.view
       },
       [15] = (WGPUBindGroupEntry) {
@@ -532,7 +532,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
       [16] = (WGPUBindGroupEntry) {
         // Binding 16: Fragment shader image view
-        .binding = 16,
+        .binding     = 16,
         .textureView = textures.roughness_map.view
       },
       [17] = (WGPUBindGroupEntry) {
@@ -558,20 +558,20 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform UBO
         .binding = 0,
-        .buffer = uniform_buffers.skybox.buffer,
-        .offset = 0,
-        .size = uniform_buffers.skybox.size,
+        .buffer  = uniform_buffers.skybox.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.skybox.size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Fragment uniform UBOParams
         .binding = 1,
-        .buffer = uniform_buffers.ubo_params.buffer,
-        .offset = 0,
-        .size = uniform_buffers.ubo_params.size,
+        .buffer  = uniform_buffers.ubo_params.buffer,
+        .offset  = 0,
+        .size    = uniform_buffers.ubo_params.size,
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = textures.environment_cube.view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -677,7 +677,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_texture/skybox.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &skybox_vertex_buffer_layout,
+            .buffers      = &skybox_vertex_buffer_layout,
           });
 
     // Fragment state
@@ -688,7 +688,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_texture/skybox.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
     // Create rendering pipeline using the specified states
@@ -735,7 +735,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/pbr_texture/pbrtexture.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
     // Create rendering pipeline using the specified states
@@ -860,7 +860,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/genbrdflut.vert.spv",
               },
               .buffer_count = 0,
-              .buffers = NULL,
+              .buffers      = NULL,
             });
 
     // Fragment state
@@ -871,7 +871,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/genbrdflut.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state,
+              .targets      = &color_target_state,
             });
 
     // Create rendering pipeline using the specified states
@@ -1160,43 +1160,43 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Vertex shader uniform UBO
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = irradiance_cube_ubos.vs.model_size,
+          .minBindingSize   = irradiance_cube_ubos.vs.model_size,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
         // Binding 1: Fragment shader uniform UBO
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = irradiance_cube_ubos.fs.model_size,
+          .minBindingSize   = irradiance_cube_ubos.fs.model_size,
         },
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
         // Binding 3: Fragment shader image sampler
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -1216,20 +1216,20 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Vertex shader uniform UBO
         .binding = 0,
-        .buffer = irradiance_cube_ubos.vs.buffer,
-        .offset = 0,
-        .size = irradiance_cube_ubos.vs.model_size,
+        .buffer  = irradiance_cube_ubos.vs.buffer,
+        .offset  = 0,
+        .size    = irradiance_cube_ubos.vs.model_size,
       },
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: Fragment shader uniform UBO
         .binding = 1,
-        .buffer = irradiance_cube_ubos.fs.buffer,
-        .offset = 0,
-        .size = irradiance_cube_ubos.fs.model_size,
+        .buffer  = irradiance_cube_ubos.fs.buffer,
+        .offset  = 0,
+        .size    = irradiance_cube_ubos.fs.model_size,
       },
       [2] = (WGPUBindGroupEntry) {
         // Binding 2: Fragment shader image view
-        .binding = 2,
+        .binding     = 2,
         .textureView = textures.environment_cube.view
       },
       [3] = (WGPUBindGroupEntry) {
@@ -1290,7 +1290,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/filtercube.vert.spv",
               },
              .buffer_count = 1,
-             .buffers = &skybox_vertex_buffer_layout,
+             .buffers      = &skybox_vertex_buffer_layout,
             });
 
     // Fragment state
@@ -1301,7 +1301,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
                 .file = "shaders/pbr_texture/irradiancecube.frag.spv",
               },
               .target_count = 1,
-              .targets = &color_target_state,
+              .targets      = &color_target_state,
             });
 
     // Multisample state
