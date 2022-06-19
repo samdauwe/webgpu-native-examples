@@ -38,7 +38,7 @@ static struct {
   texture_t lut_brdf;
   texture_t irradiance_cube;
   texture_t prefiltered_cube;
-} textures;
+} textures = {0};
 
 static struct {
   struct gltf_model_t* skybox;
@@ -79,14 +79,14 @@ static struct {
     uint64_t buffer_size;
     uint64_t model_size;
   } object_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   mat4 projection;
   mat4 model;
   mat4 view;
   vec3 cam_pos;
-} ubo_matrices;
+} ubo_matrices = {0};
 
 static struct {
   vec4 lights[4];
@@ -113,27 +113,27 @@ static struct object_params_dynamic_t {
 static struct {
   WGPURenderPipeline pbr;
   WGPURenderPipeline skybox;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUBindGroup objects;
   WGPUBindGroup skybox;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout objects;
   WGPUBindGroupLayout skybox;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPUPipelineLayout pbr;
   WGPUPipelineLayout skybox;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Default materials to select from
 static struct {
