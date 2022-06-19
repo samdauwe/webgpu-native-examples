@@ -69,7 +69,7 @@ static WGPUPipelineLayout pipeline_layout;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Render modes
 typedef enum render_mode_enum {
