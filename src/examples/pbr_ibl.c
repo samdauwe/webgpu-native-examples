@@ -292,7 +292,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
         .binding    = 5,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
@@ -321,7 +321,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
         .binding    = 8,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
           .multisampled  = false,
         },
