@@ -312,7 +312,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file  = "shaders/textured_quad/texture.vert.spv",
                 },
                 .buffer_count = 1,
-                .buffers = &quad_vertex_buffer_layout,
+                .buffers      = &quad_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -324,7 +324,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .file  = "shaders/textured_quad/texture.frag.spv",
                 },
                 .target_count = 1,
-                .targets = &color_target_state,
+                .targets      = &color_target_state,
               });
 
   // Multisample state
