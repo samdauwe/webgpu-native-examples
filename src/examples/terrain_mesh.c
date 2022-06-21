@@ -75,27 +75,27 @@ static struct {
   texture_t color;
   texture_t heightmap;
 } textures;
-static WGPUSampler linear_sampler;
+static WGPUSampler linear_sampler = {0};
 
 // Render pipeline + layout
-static WGPURenderPipeline render_pipeline;
-static WGPUPipelineLayout pipeline_layout;
+static WGPURenderPipeline render_pipeline = {0};
+static WGPUPipelineLayout pipeline_layout = {0};
 
 // Bind group layouts
 static struct {
   WGPUBindGroupLayout frame_constants;
   WGPUBindGroupLayout instance_buffer;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 // Bind groups
 static struct {
   WGPUBindGroup frame_constants;
   WGPUBindGroup instance_buffer;
-} bind_groups;
+} bind_groups = {0};
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // Other variables
 static const char* example_title = "Terrain Mesh";
