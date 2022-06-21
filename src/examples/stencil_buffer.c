@@ -37,17 +37,17 @@ static wgpu_buffer_t uniform_buffer_vs;
 static struct {
   WGPURenderPipeline stencil;
   WGPURenderPipeline outline;
-} pipelines;
+} pipelines = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPUBindGroup bind_group;
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUPipelineLayout pipeline_layout    = {0};
+static WGPUBindGroup bind_group              = {0};
+static WGPUBindGroupLayout bind_group_layout = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Other variables
 static const char* example_title = "Stencil Buffer Outlines";
