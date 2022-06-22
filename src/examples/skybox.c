@@ -36,7 +36,7 @@ static WGPURenderPipeline pipeline;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Bind groups stores the resources bound to the binding points in a shader
 static WGPUBindGroup bind_group;
