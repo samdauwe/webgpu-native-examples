@@ -282,7 +282,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetVertexBuffer(
     wgpu_context->rpass_enc, 1, square.colors.buffer, 0, WGPU_WHOLE_SIZE);
 
-  // Draw indexed quad
+  // Draw quad
   wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, square.positions.count, 1,
                             0, 0);
 
