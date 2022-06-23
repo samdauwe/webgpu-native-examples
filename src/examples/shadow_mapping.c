@@ -35,45 +35,45 @@ static uint32_t index_count;
 static struct {
   WGPUBuffer model;
   WGPUBuffer scene;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 // The pipeline layout
 static struct {
   WGPUPipelineLayout shadow;
   WGPUPipelineLayout color;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 // Pipelines
 static struct {
   WGPURenderPipeline shadow;
   WGPURenderPipeline color;
-} render_pipelines;
+} render_pipelines = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
-} shadow_render_pass;
+} shadow_render_pass = {0};
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
-} color_render_pass;
+} color_render_pass = {0};
 
 // Bind groups
 static struct {
   WGPUBindGroup scene_shadow;
   WGPUBindGroup scene_render;
   WGPUBindGroup model;
-} bind_groups;
+} bind_groups = {0};
 
 // Bind group layouts
 static struct {
   WGPUBindGroupLayout uniform_buffer_scene;
   WGPUBindGroupLayout uniform_buffer_model;
   WGPUBindGroupLayout render;
-} bind_groups_layouts;
+} bind_groups_layouts = {0};
 
 // Texture and sampler
 static struct {
@@ -86,7 +86,7 @@ static struct {
     WGPUTextureView view;
   } shadow_depth_texture;
   WGPUSampler sampler;
-} textures;
+} textures = {0};
 
 // Other variables
 static const char* example_title = "Shadow Mapping";
