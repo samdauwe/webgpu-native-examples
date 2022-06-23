@@ -464,17 +464,19 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
                   view_matrices.projection_matrix);
 
   mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(eye_position,            //
-             view_matrices.origin,    //
-             view_matrices.up_vector, //
-             view_matrix);
+  glm_lookat(eye_position,            // eye vector
+             view_matrices.origin,    // center vector
+             view_matrices.up_vector, // up vector
+             view_matrix              // result matrix
+  );
 
   vec3 light_position    = {50.0f, 100.0f, -100.0f};
   mat4 light_view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(light_position,          //
-             view_matrices.origin,    //
-             view_matrices.up_vector, //
-             light_view_matrix);
+  glm_lookat(light_position,          // eye vector
+             view_matrices.origin,    // center vector
+             view_matrices.up_vector, // up vector
+             light_view_matrix        // result matrix
+  );
 
   mat4 light_projection_matrix = GLM_MAT4_IDENTITY_INIT;
   {
