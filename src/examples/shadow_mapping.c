@@ -340,7 +340,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
+        .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
         .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
       },
@@ -648,8 +648,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = uniform_buffers.model,
-        .size = sizeof(mat4),
+        .buffer  = uniform_buffers.model,
+        .size    = sizeof(mat4),
       },
     };
     bind_groups.model = wgpuDeviceCreateBindGroup(
@@ -792,7 +792,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .buffer_count = 1,
-                .buffers = &color_vertex_buffer_layout,
+                .buffers      = &color_vertex_buffer_layout,
               });
 
   // Fragment state
@@ -805,7 +805,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                   .entry = "main",
                 },
                 .target_count = 1,
-                .targets = &color_target_state,
+                .targets      = &color_target_state,
               });
 
   // Multisample state
