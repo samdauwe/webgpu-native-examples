@@ -34,7 +34,7 @@ static struct {
   mat4 projection;
   mat4 model;
   mat4 view;
-} ubo_vs;
+} ubo_vs = {0};
 
 static WGPUPipelineLayout pipeline_layout;
 static WGPUBindGroupLayout bind_group_layout;
@@ -50,7 +50,7 @@ static struct scene_rendering_t {
     WGPURenderPassColorAttachment color_attachment[1];
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass;
-} scene_rendering;
+} scene_rendering = {0};
 
 static struct offscreen_rendering_t {
   // Framebuffer for offscreen rendering
