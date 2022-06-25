@@ -958,10 +958,8 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(wgpu_example_context_t* context)
 {
-  const float now = context->frame.timestamp_millis / 1000.0f;
-
-  const float sin_now = sin(now);
-  const float cos_now = cos(now);
+  const float now     = context->frame.timestamp_millis / 1000.0f;
+  const float sin_now = sin(now), cos_now = cos(now);
 
   for (uint32_t i = 0, m = 0; i < num_instances; ++i, m += matrix_float_count) {
     glm_mat4_copy(model_matrices[i], tmp_mat4);
