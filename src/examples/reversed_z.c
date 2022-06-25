@@ -107,18 +107,18 @@ static WGPURenderPassDescriptor texture_quad_pass_descriptors[2] = {0};
 static struct {
   WGPUBindGroupLayout depth_texture;
   WGPUBindGroupLayout uniform;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPUBindGroup depth_texture;
   WGPUBindGroup uniform[2];
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   wgpu_buffer_t uniform;
   wgpu_buffer_t camera_matrix;
   wgpu_buffer_t camera_matrix_reversed_depth;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static uint32_t uniform_buffer_size = num_instances * matrix_stride;
 
