@@ -920,9 +920,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
     for (uint32_t y = 0; y < y_count; ++y) {
       z = -800.0f * m;
       s = 1.0f + 50.0f * m;
-
       glm_mat4_identity(model_matrices[m]);
-
       glm_translate(model_matrices[m], //
                     (vec3){
                       x - x_count / 2.0f + 0.5f,                       // x
@@ -930,7 +928,6 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                       z,                                               // z
                     });
       glm_scale(model_matrices[m], (vec3){s, s, s});
-
       ++m;
     }
   }
