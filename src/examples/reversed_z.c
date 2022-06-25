@@ -526,8 +526,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
                             .multisample = multisample_state,
                           });
 
-  // Shader modules are no longer needed once the graphics pipeline has been
-  // created
+  // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
