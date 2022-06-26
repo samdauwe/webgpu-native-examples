@@ -22,14 +22,14 @@ static struct {
   texture_t color_map;
   // Normals and height are combined into one texture (height = alpha channel)
   texture_t normal_height_map;
-} textures;
+} textures = {0};
 
 struct gltf_model_t* plane;
 
 static struct {
   wgpu_buffer_t vertex_shader;
   wgpu_buffer_t fragment_shader;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   struct {
