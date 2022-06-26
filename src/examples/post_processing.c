@@ -1539,7 +1539,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     // Color attachments
     render_passes.scene_render.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
-        .view       = NULL,
+        .view       = NULL, // Assinged later
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
