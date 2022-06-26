@@ -399,6 +399,7 @@ static void build_plane(float* vertices, float* normal, float* uv,
  * @brief Generates geometry data for a quad.
  * @param plane plane geometry
  * @param plane_desc params
+ * @return pointer to the generated geometry data
  */
 static geometry_t* create_plane(geometry_t* plane, plane_desc_t* plane_desc)
 {
@@ -473,6 +474,7 @@ typedef struct {
  * @brief Generates geometry data for a box.
  * @param box box geometry
  * @param box_desc params
+ * @return pointer to the generated geometry data
  */
 static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
 {
@@ -660,6 +662,7 @@ typedef struct {
  * @brief Generates geometry data for a sphere.
  * @param sphere sphere geometry
  * @param sphere_desc params
+ * @return pointer to the generated geometry data
  */
 static geometry_t* create_sphere(geometry_t* sphere, sphere_desc_t* sphere_desc)
 {
