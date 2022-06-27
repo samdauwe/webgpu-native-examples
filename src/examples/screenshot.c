@@ -536,7 +536,7 @@ build_copy_texture_to_buffer_command_buffer(wgpu_context_t* wgpu_context)
     &(WGPUImageCopyBuffer){
       .buffer  = offscreen_rendering.pixel_data.buffer.buffer,
       .layout = (WGPUTextureDataLayout) {
-        .offset = 0,
+        .offset      = 0,
         .bytesPerRow = offscreen_rendering.pixel_data.buffer_dimensions.padded_bytes_per_row,
         .rowsPerImage = offscreen_rendering.pixel_data.buffer_dimensions.height,
       },
