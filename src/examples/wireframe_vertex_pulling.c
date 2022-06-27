@@ -131,7 +131,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: uniform buffer
-      .binding = 0,
+      .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
@@ -142,7 +142,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
     [1] = (WGPUBindGroupLayoutEntry) {
       // Binding 1: positions
-      .binding = 1,
+      .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
@@ -153,7 +153,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
     [2] = (WGPUBindGroupLayoutEntry) {
       // Binding 2: colors
-      .binding = 2,
+      .binding    = 2,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
@@ -164,7 +164,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
     [3] = (WGPUBindGroupLayoutEntry) {
       // Binding 3: indices
-      .binding = 3,
+      .binding    = 3,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
