@@ -48,6 +48,8 @@
 #define UNUSED_FUNCTION(x) ((void)(x))
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
+#define CODE(...) #__VA_ARGS__
+
 #define GET_DEFAULT_IF_ZERO(value, default_value)                              \
   (value != NULL) ? value : default_value
 
