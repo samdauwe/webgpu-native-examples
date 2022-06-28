@@ -197,6 +197,7 @@ set(SOURCES
     src/examples/bloom.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
+    src/examples/compute_metaballs.c
     src/examples/compute_particles_easing.c
     src/examples/compute_particles_webgpu_logo.c
     src/examples/compute_particles.c
