@@ -15,40 +15,42 @@
 
 // Shaders
 // clang-format off
-static const char* vertex_shader_wgsl =
-  "struct VertexInput {\n"
-  "  @location(0) position : vec3<f32>,\n"
-  "  @location(1) color : vec4<f32>;\n"
-  "};\n"
-  "\n"
-  "struct VertexOutput {\n"
-  "  @builtin(position) Position : vec4<f32>,\n"
-  "  @location(0) fragColor : vec4<f32>,\n"
-  "};\n"
-  "\n"
-  "@stage(vertex)\n"
-  "fn main(input : VertexInput) -> VertexOutput {\n"
-  "  var output : VertexOutput;\n"
-  "  output.fragColor = input.color;\n"
-  "  output.Position = vec4<f32>(input.position, 1.0);\n"
-  "  return output;\n"
-  "}";
+static const char* vertex_shader_wgsl = CODE(
+  struct VertexInput {
+    @location(0) position : vec3<f32>,
+    @location(1) color : vec4<f32>;
+  };
 
-static const char* fragment_shader_wgsl =
-  "struct FragmentInput {\n"
-  "  @location(0) fragColor : vec4<f32>;\n"
-  "};\n"
-  "\n"
-  "struct FragmentOutput {\n"
-  "  @location(0) outColor : vec4<f32>;\n"
-  "};\n"
-  "\n"
-  "@stage(fragment)\n"
-  "fn main(input : FragmentInput) -> FragmentOutput {\n"
-  "  var output : FragmentOutput;\n"
-  "  output.outColor = input.fragColor;\n"
-  "  return output;\n"
-  "}";
+  struct VertexOutput {
+    @builtin(position) Position : vec4<f32>,
+    @location(0) fragColor : vec4<f32>,
+  };
+
+  @stage(vertex)
+  fn main(input : VertexInput) -> VertexOutput {
+    var output : VertexOutput;
+    output.fragColor = input.color;
+    output.Position = vec4<f32>(input.position, 1.0);
+    return output;
+  };
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  struct FragmentInput {
+    @location(0) fragColor : vec4<f32>;
+  };
+
+  struct FragmentOutput {
+    @location(0) outColor : vec4<f32>;
+  };
+
+  @stage(fragment)
+  fn main(input : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.outColor = input.fragColor;
+    return output;
+  };
+);
 // clang-format on
 
 // Vertex buffers
