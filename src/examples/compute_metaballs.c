@@ -17,6 +17,75 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Protocol
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/protocol.ts
+ * -------------------------------------------------------------------------- */
+
+typedef enum quality_settings_enum {
+  QualitySettings_Low    = 0,
+  QualitySettings_Medium = 1,
+  QualitySettings_High   = 2,
+} quality_settings_enum;
+
+typedef struct {
+  bool bloom_toggle;
+  uint32_t shadow_res;
+  uint32_t point_lights_count;
+  float output_scale;
+  bool update_metaballs;
+} quality_option_t;
+
+/* -------------------------------------------------------------------------- *
+ * Settings
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/settings.ts
+ * -------------------------------------------------------------------------- */
+
+static const quality_option_t QUALITIES[3] = {
+  [QualitySettings_Low] = (quality_option_t) {
+    .bloom_toggle       = false,
+    .shadow_res         = 512,
+    .point_lights_count = 32,
+    .output_scale       = 1.0f,
+    .update_metaballs   = false,
+  },
+  [QualitySettings_Medium] = (quality_option_t) {
+    .bloom_toggle       = true,
+    .shadow_res         = 512,
+    .point_lights_count = 32,
+    .output_scale       = 0.8f,
+    .update_metaballs   = true,
+   },
+  [QualitySettings_High] = (quality_option_t) {
+    .bloom_toggle       = true,
+    .shadow_res         = 512,
+    .point_lights_count = 128,
+    .output_scale       = 1.0f,
+    .update_metaballs   = true,
+  },
+};
+
+static quality_settings_enum _quality = QualitySettings_Low;
+
+static quality_option_t settings_get_quality_level()
+{
+  return QUALITIES[_quality];
+}
+
+static quality_settings_enum settings_get_quality()
+{
+  return _quality;
+}
+
+static void settings_set_quality(quality_settings_enum v)
+{
+  _quality = v;
+}
+
+/* -------------------------------------------------------------------------- *
  * Orthographic Camera
  *
  * Ref:
@@ -716,3 +785,27 @@ static const int8_t MARCHING_CUBES_TRI_TABLE[] = {
   3,  8,  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,  -1, -1, -1, -1,
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 };
+
+/* -------------------------------------------------------------------------- *
+ * Clamp
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/helpers/clamp.ts
+ * -------------------------------------------------------------------------- */
+
+static float clamp(float num, float min, float max)
+{
+  return MIN(MAX(num, min), max);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Deg2Rad
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/helpers/deg-to-rad.ts
+ * -------------------------------------------------------------------------- */
+
+static float deg_to_rad(float deg)
+{
+  return (deg * PI) / 180.0f;
+}
