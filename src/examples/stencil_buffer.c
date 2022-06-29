@@ -114,9 +114,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       // Binding 0: Uniform buffer (Vertex shader)
       .binding = 0,
-      .buffer = uniform_buffer_vs.buffer,
-      .offset = 0,
-      .size = uniform_buffer_vs.size,
+      .buffer  = uniform_buffer_vs.buffer,
+      .offset  = 0,
+      .size    = uniform_buffer_vs.size,
     },
   };
 
