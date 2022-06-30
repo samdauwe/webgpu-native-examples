@@ -17,11 +17,67 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Constants
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/constants.ts
+ * -------------------------------------------------------------------------- */
+
+static const uint32_t MAX_METABALLS         = 256u;
+static const WGPUTextureFormat DEPTH_FORMAT = WGPUTextureFormat_Depth24Plus;
+
+static const uint32_t SHADOW_MAP_SIZE = 128;
+
+static const uint32_t METABALLS_COMPUTE_WORKGROUP_SIZE[3] = {4, 4, 4};
+
+static const vec4 BACKGROUND_COLOR = {0.1f, 0.1f, 0.1f, 1.0f};
+
+/* -------------------------------------------------------------------------- *
  * Protocol
  *
  * Ref:
  * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/protocol.ts
  * -------------------------------------------------------------------------- */
+
+typedef struct {
+  float x_min;
+  float y_min;
+  float z_min;
+  float x_step;
+  float y_step;
+  float z_step;
+  float width;
+  float height;
+  float depth;
+  float iso_level;
+} ivolume_settings_t;
+
+typedef struct {
+  float x;
+  float y;
+  float z;
+  float vx;
+  float vy;
+  float vz;
+  float speed;
+} imetaball_pos_t;
+
+typedef struct {
+  const char* fragment_shader;
+  WGPUBindGroupLayout* bind_group_layouts;
+  WGPUBindGroup* bind_groups;
+  WGPUTextureFormat presentation_format;
+  const char* label;
+} iscreen_effect;
+
+typedef struct {
+  vec3 position;
+  vec3 direction;
+  vec3 color;
+  float cut_off;
+  vec3 outer_cut_off;
+  vec3 intensity;
+} ispot_light_t;
 
 typedef enum quality_settings_enum {
   QualitySettings_Low    = 0,
