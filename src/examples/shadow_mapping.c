@@ -109,10 +109,10 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       .mappedAtCreation = true,
     };
     vertex_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(vertex_buffer)
+    ASSERT(vertex_buffer);
     float* mapping
       = (float*)wgpuBufferGetMappedRange(vertex_buffer, 0, vertex_buffer_size);
-    ASSERT(mapping)
+    ASSERT(mapping);
     for (uint64_t i = 0; i < dragon_mesh->positions.count; ++i) {
       memcpy(&mapping[6 * i], dragon_mesh->positions.data[i], sizeof(vec3));
       memcpy(&mapping[6 * i + 3], dragon_mesh->normals.data[i], sizeof(vec3));
@@ -150,7 +150,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       .mappedAtCreation = true,
     };
     index_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(index_buffer)
+    ASSERT(index_buffer);
     uint16_t* mapping
       = (uint16_t*)wgpuBufferGetMappedRange(index_buffer, 0, index_buffer_size);
     ASSERT(mapping)
@@ -913,7 +913,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
