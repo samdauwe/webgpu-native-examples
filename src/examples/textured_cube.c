@@ -27,7 +27,7 @@ static const char* sampled_texture_mix_color_fragment_shader_wgsl = CODE(
   fn main(@location(0) fragUV: vec2<f32>,
           @location(1) fragPosition: vec4<f32>) -> @location(0) vec4<f32> {
     return textureSample(myTexture, mySampler, fragUV) * fragPosition;
-  };
+  }
 );
 // clang-format on
 
