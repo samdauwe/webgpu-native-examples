@@ -24,36 +24,37 @@
 
 // Shaders
 // clang-format off
-static const char* prng_shader_wgsl =
-  "struct Uniforms {\n"
-  "  offset: u32;\n"
-  "};\n"
-  "\n"
-  "@group(0) @binding(0) var<uniform> uniforms: Uniforms;\n"
-  "\n"
-  "var<private> state: u32;\n"
-  "\n"
-  "// From https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/\n"
-  "fn pcg_hash(input: u32) -> u32 {\n"
-  "    state = input * 747796405u + 2891336453u;\n"
-  "    let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;\n"
-  "    return (word >> 22u) ^ word;\n"
-  "}\n"
-  "\n"
-  "@stage(vertex)\n"
-  "fn vs_main(@location(0) position : vec2<f32>) -> @builtin(position) vec4<f32> {\n"
-  "  return vec4<f32>(position, 0.0, 1.0);\n"
-  "}\n"
-  "\n"
-  "@stage(fragment)\n"
-  "fn fs_main(\n"
-  "  @builtin(position) position: vec4<f32>,\n"
-  ") -> @location(0) vec4<f32> {\n"
-  "  let seed = u32(512.0 * position.y + position.x) + uniforms.offset;\n"
-  "  let pcg = pcg_hash(seed);\n"
-  "  let v = f32(pcg) * (1.0 / 4294967295.0);\n"
-  "  return vec4<f32>(v, v, v, 1.0);\n"
-  "}";
+static const char* prng_shader_wgsl = CODE(
+  struct Uniforms {
+    offset: u32;
+  }
+
+  @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+  var<private> state: u32;
+
+  // From https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/\n"
+  fn pcg_hash(input: u32) -> u32 {
+      state = input * 747796405u + 2891336453u;
+      let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+      return (word >> 22u) ^ word;
+  }
+
+  @stage(vertex)
+  fn vs_main(@location(0) position : vec2<f32>) -> @builtin(position) vec4<f32> {
+    return vec4<f32>(position, 0.0, 1.0);
+  }
+
+  @stage(fragment)
+  fn fs_main(
+    @builtin(position) position: vec4<f32>,
+  ) -> @location(0) vec4<f32> {
+    let seed = u32(512.0 * position.y + position.x) + uniforms.offset;
+    let pcg = pcg_hash(seed);
+    let v = f32(pcg) * (1.0 / 4294967295.0);
+    return vec4<f32>(v, v, v, 1.0);
+  }
+);
 // clang-format on
 
 // Vertex layout used in this example
