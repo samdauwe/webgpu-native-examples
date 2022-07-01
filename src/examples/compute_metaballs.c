@@ -370,6 +370,249 @@ static void damped_action_init(damped_action_t* action)
 }
 
 /* -------------------------------------------------------------------------- *
+ * WebGPU Renderer
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/webgpu-renderer.ts
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  wgpu_context_t* wgpu_context;
+} webgpu_renderer_t;
+
+/* -------------------------------------------------------------------------- *
+ * Metaballs Compute
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/compute/metaballs.ts
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  webgpu_renderer_t* renderer;
+
+  ivolume_settings_t volume;
+  imetaball_pos_t* ball_positions;
+
+  wgpu_buffer_t tables_buffer;
+  wgpu_buffer_t metaball_buffer;
+  wgpu_buffer_t volume_buffer;
+  wgpu_buffer_t indirect_render_buffer;
+
+  WGPUComputePipeline compute_metaballs_pipeline;
+  WGPUComputePipeline compute_marching_cubes_pipeline;
+
+  WGPUBindGroup compute_metaballs_bind_group;
+  WGPUBindGroup compute_marching_cubes_bind_group;
+
+  uint32_t* indirect_render_array;
+  uint8_t* metaball_array;
+  uint32_t* metaball_array_header;
+  float* metaball_array_balls;
+
+  wgpu_buffer_t vertex_buffer;
+  wgpu_buffer_t normal_buffer;
+  wgpu_buffer_t index_buffer;
+
+  uint32_t index_count;
+
+  float strength;
+  float strength_target;
+  float subtract;
+  float subtract_target;
+
+  bool has_calced_once;
+} metaballs_compute_t;
+
+bool metaballs_compute_is_ready(metaballs_compute_t* this)
+{
+  return (this->compute_metaballs_pipeline != NULL)
+         && (this->compute_marching_cubes_pipeline != NULL);
+}
+
+void metaballs_compute_init(metaballs_compute_t* this)
+{
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->tables_buffer.buffer,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->volume_buffer.buffer,
+      },
+    };
+
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout = wgpuComputePipelineGetBindGroupLayout(
+        this->compute_marching_cubes_pipeline, 0),
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+
+    this->compute_metaballs_bind_group = wgpuDeviceCreateBindGroup(
+      this->renderer->wgpu_context->device, &bg_desc);
+    ASSERT(this->compute_metaballs_bind_group != NULL);
+  }
+
+  {
+    WGPUBindGroupEntry bg_entries[6] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->tables_buffer.buffer,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->volume_buffer.buffer,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->vertex_buffer.buffer,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding = 3,
+        .buffer  = this->normal_buffer.buffer,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        .binding = 4,
+        .buffer  = this->index_buffer.buffer,
+      },
+      [5] = (WGPUBindGroupEntry) {
+        .binding = 5,
+        .buffer  = this->indirect_render_buffer.buffer,
+      },
+    };
+
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout = wgpuComputePipelineGetBindGroupLayout(
+        this->compute_marching_cubes_pipeline, 0),
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+
+    this->compute_marching_cubes_bind_group = wgpuDeviceCreateBindGroup(
+      this->renderer->wgpu_context->device, &bg_desc);
+    ASSERT(this->compute_marching_cubes_bind_group != NULL);
+  }
+}
+
+void metaballs_compute_rearrange(metaballs_compute_t* this)
+{
+  this->subtract_target = 3.0f + random_float() * 3.0f;
+  this->strength_target = 3.0f + random_float() * 3.0f;
+}
+
+metaballs_compute_t*
+metaballs_compute_update_sim(metaballs_compute_t* this,
+                             WGPUComputePassEncoder compute_pass,
+                             float time_delta)
+{
+  if (!metaballs_compute_is_ready(this)) {
+    return this;
+  }
+
+  this->subtract += (this->subtract_target - this->subtract) * time_delta * 4;
+  this->strength += (this->strength_target - this->strength) * time_delta * 4;
+
+  const uint32_t numblobs = MAX_METABALLS;
+
+  this->metaball_array_header[0] = MAX_METABALLS;
+
+  for (uint32_t i = 0; i < MAX_METABALLS; i++) {
+    imetaball_pos_t* pos = &this->ball_positions[i];
+
+    pos->vx += -pos->x * pos->speed * 20.0f;
+    pos->vy += -pos->y * pos->speed * 20.0f;
+    pos->vz += -pos->z * pos->speed * 20.0f;
+
+    pos->x += pos->vx * pos->speed * time_delta * 0.0001f;
+    pos->y += pos->vy * pos->speed * time_delta * 0.0001f;
+    pos->z += pos->vz * pos->speed * time_delta * 0.0001f;
+
+    const float padding = 0.9f;
+    const float width   = fabs(this->volume.x_min) - padding;
+    const float height  = fabs(this->volume.y_min) - padding;
+    const float depth   = fabs(this->volume.z_min) - padding;
+
+    if (pos->x > width) {
+      pos->x = width;
+      pos->vx *= -1.0f;
+    }
+    else if (pos->x < -width) {
+      pos->x = -width;
+      pos->vx *= -1.0f;
+    }
+
+    if (pos->y > height) {
+      pos->y = height;
+      pos->vy *= -1.0f;
+    }
+    else if (pos->y < -height) {
+      pos->y = -height;
+      pos->vy *= -1.0f;
+    }
+
+    if (pos->z > depth) {
+      pos->z = depth;
+      pos->vz *= -1.0f;
+    }
+    else if (pos->z < -depth) {
+      pos->z = -depth;
+      pos->vz *= -1.0f;
+    }
+  }
+
+  for (uint32_t i = 0; i < numblobs; i++) {
+    imetaball_pos_t* position              = &this->ball_positions[i];
+    const uint32_t offset                  = i * 8;
+    this->metaball_array_balls[offset]     = position->x;
+    this->metaball_array_balls[offset + 1] = position->y;
+    this->metaball_array_balls[offset + 2] = position->z;
+    this->metaball_array_balls[offset + 3]
+      = sqrt(this->strength / this->subtract);
+    this->metaball_array_balls[offset + 4] = this->strength;
+    this->metaball_array_balls[offset + 5] = this->subtract;
+  }
+
+  const uint32_t dispatch_size[3] = {
+    this->volume.width / METABALLS_COMPUTE_WORKGROUP_SIZE[0],  //
+    this->volume.height / METABALLS_COMPUTE_WORKGROUP_SIZE[1], //
+    this->volume.depth / METABALLS_COMPUTE_WORKGROUP_SIZE[2],  //
+  };
+
+  wgpu_queue_write_buffer(this->renderer->wgpu_context,
+                          this->metaball_buffer.buffer, 0,
+                          &this->metaball_array, sizeof(this->metaball_array));
+  wgpu_queue_write_buffer(
+    this->renderer->wgpu_context, this->indirect_render_buffer.buffer, 0,
+    &this->indirect_render_array, sizeof(this->indirect_render_array));
+
+  /* Update metaballs */
+  if (this->compute_metaballs_pipeline) {
+    wgpuComputePassEncoderSetPipeline(compute_pass,
+                                      this->compute_metaballs_pipeline);
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 0, this->compute_metaballs_bind_group, 0, NULL);
+    wgpuComputePassEncoderDispatch(compute_pass, dispatch_size[0],
+                                   dispatch_size[1], dispatch_size[2]);
+  }
+
+  /* Update marching cubes */
+  if (this->compute_marching_cubes_pipeline) {
+    wgpuComputePassEncoderSetPipeline(compute_pass,
+                                      this->compute_marching_cubes_pipeline);
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 0, this->compute_marching_cubes_bind_group, 0, NULL);
+    wgpuComputePassEncoderDispatch(compute_pass, dispatch_size[0],
+                                   dispatch_size[1], dispatch_size[2]);
+  }
+
+  this->has_calced_once = true;
+
+  return this;
+}
+
+/* -------------------------------------------------------------------------- *
  * Cube Geometry
  *
  * Ref:
