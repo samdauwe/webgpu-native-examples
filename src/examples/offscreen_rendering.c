@@ -473,7 +473,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/offscreen_rendering/quad.vert.spv",
+                .label = "quad_vertex_shader",
+                .file  = "shaders/offscreen_rendering/quad.vert.spv",
               },
               .buffer_count = 0,
               .buffers      = NULL,
@@ -484,7 +485,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/offscreen_rendering/quad.frag.spv",
+                .label = "quad_fragment_shader",
+                .file  = "shaders/offscreen_rendering/quad.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -509,7 +511,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/offscreen_rendering/mirror.vert.spv",
+                .label = "mirror_vertex_shader",
+                .file  = "shaders/offscreen_rendering/mirror.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -520,7 +523,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/offscreen_rendering/mirror.frag.spv",
+                .label = "mirror_fragment_shader",
+                .file  = "shaders/offscreen_rendering/mirror.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -548,7 +552,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .file = "shaders/offscreen_rendering/phong.vert.spv",
+                .label = "phong_vertex_shader",
+                .file  = "shaders/offscreen_rendering/phong.vert.spv",
               },
               .buffer_count = 1,
               .buffers      = &gltf_model_vertex_buffer_layout,
@@ -559,7 +564,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .file = "shaders/offscreen_rendering/phong.frag.spv",
+                .label = "phong_fragment_shader",
+                .file  = "shaders/offscreen_rendering/phong.frag.spv",
               },
               .target_count = 1,
               .targets      = &color_target_state,
