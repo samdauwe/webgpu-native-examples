@@ -26,13 +26,13 @@ static bool debug_display = false;
 static struct {
   struct gltf_model_t* dragon;
   struct gltf_model_t* plane;
-} models;
+} models = {0};
 
 static struct {
   wgpu_buffer_t shared;
   wgpu_buffer_t mirror;
   wgpu_buffer_t offScreen;
-} uniform_buffers_vs;
+} uniform_buffers_vs = {0};
 
 static struct ubo_vs_t {
   mat4 projection;
@@ -56,23 +56,23 @@ static struct {
   WGPURenderPipeline shaded;
   WGPURenderPipeline shaded_offscreen;
   WGPURenderPipeline mirror;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUPipelineLayout shaded;
   WGPUPipelineLayout textured;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPUBindGroup offscreen;
   WGPUBindGroup mirror;
   WGPUBindGroup model;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout shaded;
   WGPUBindGroupLayout textured;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct offscreen_pass_t {
   uint32_t width, height;
@@ -87,7 +87,7 @@ static struct offscreen_pass_t {
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass;
-} offscreen_pass;
+} offscreen_pass = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
