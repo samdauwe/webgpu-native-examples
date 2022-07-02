@@ -22,13 +22,13 @@ static struct {
   struct gltf_model_t* teapot;
   struct gltf_model_t* plane;
   struct gltf_model_t* sphere;
-} models;
+} models = {0};
 
 static struct {
   wgpu_buffer_t teapot;
   wgpu_buffer_t occluder;
   wgpu_buffer_t sphere;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct ubo_vs_t {
   mat4 projection;
@@ -47,12 +47,12 @@ static struct {
   WGPURenderPipeline occluder;
   // Pipeline with basic shaders used for occlusion pass
   WGPURenderPipeline simple;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUBindGroup teapot;
   WGPUBindGroup sphere;
-} bind_groups;
+} bind_groups = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
