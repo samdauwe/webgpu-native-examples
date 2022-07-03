@@ -87,7 +87,10 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   static particle_t particle_buffer[PARTICLE_COUNT] = {0};
   for (uint32_t i = 0; i < (uint32_t)PARTICLE_COUNT; ++i) {
     particle_buffer[i] = (particle_t){
-      .pos = {rand_float_min_max(-1.0f, 1.0f), rand_float_min_max(-1.0f, 1.0f)},
+      .pos = {
+        random_float_min_max(-1.0f, 1.0f), // x
+        random_float_min_max(-1.0f, 1.0f)  // y
+       },
       .vel = GLM_VEC2_ZERO_INIT,
       .gradient_pos = GLM_VEC4_ZERO_INIT,
     };

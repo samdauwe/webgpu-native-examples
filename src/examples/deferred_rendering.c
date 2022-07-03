@@ -1028,14 +1028,14 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
       // position
       for (uint8_t j = 0; j < 3; j++) {
         tmp_vec4[j]
-          = rand_float_min_max(0.0f, 1.0f) * extent[j] + light_extent_min[j];
+          = random_float_min_max(0.0f, 1.0f) * extent[j] + light_extent_min[j];
       }
       tmp_vec4[3] = 1.0f;
       memcpy(&light_data[offset], tmp_vec4, sizeof(vec4));
       // color
-      tmp_vec4[0] = rand_float_min_max(0.0f, 1.0f) * 2.0f;
-      tmp_vec4[1] = rand_float_min_max(0.0f, 1.0f) * 2.0f;
-      tmp_vec4[2] = rand_float_min_max(0.0f, 1.0f) * 2.0f;
+      tmp_vec4[0] = random_float_min_max(0.0f, 1.0f) * 2.0f;
+      tmp_vec4[1] = random_float_min_max(0.0f, 1.0f) * 2.0f;
+      tmp_vec4[2] = random_float_min_max(0.0f, 1.0f) * 2.0f;
       // radius
       tmp_vec4[3] = 20.0f;
       memcpy(&light_data[offset + 4], tmp_vec4, sizeof(vec4));

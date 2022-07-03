@@ -7,7 +7,7 @@
  * @param max maximum number
  * @return random float number in range [min, max]
  */
-float rand_float_min_max(float min, float max);
+float random_float_min_max(float min, float max);
 
 /**
  * @brief Generates a random float number in range [0.0f, 1.0f].
