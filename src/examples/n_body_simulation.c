@@ -143,12 +143,6 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   update_uniform_buffers(context);
 }
 
-static float float_random(float min, float max)
-{
-  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0] */
-  return min + scale * (max - min);             /* [min, max] */
-}
-
 // Generate initial positions on the surface of a sphere
 static void init_bodies(wgpu_context_t* wgpu_context)
 {
@@ -157,8 +151,8 @@ static void init_bodies(wgpu_context_t* wgpu_context)
   ASSERT(positions)
   float longitude = 0.0f, latitude = 0.0f;
   for (uint32_t i = 0; i < num_bodies; ++i) {
-    longitude            = 2.0f * PI * float_random(0.0f, 1.0f);
-    latitude             = acos((2.0f * float_random(0.0f, 1.0f) - 1.0f));
+    longitude            = 2.0f * PI * random_float();
+    latitude             = acos((2.0f * random_float() - 1.0f));
     positions[i * 4 + 0] = radius * sin(latitude) * cos(longitude);
     positions[i * 4 + 1] = radius * sin(latitude) * sin(longitude);
     positions[i * 4 + 2] = radius * cos(latitude);
