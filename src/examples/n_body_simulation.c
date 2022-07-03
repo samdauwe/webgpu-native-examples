@@ -34,7 +34,7 @@ static vec3 eye_position = INITIAL_EYE_POSITION;
 // Uniform buffer block object
 static struct {
   wgpu_buffer_t render_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   mat4 view_projection_matrix;
@@ -54,37 +54,37 @@ static struct {
   } positions_in;
   wgpu_buffer_t positions_out;
   wgpu_buffer_t velocities;
-} storage_buffers;
+} storage_buffers = {0};
 
 // Bind group layouts
 static struct {
   WGPUBindGroupLayout compute;
   WGPUBindGroupLayout render;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 // Bind groups
 static struct {
   WGPUBindGroup compute[2];
   WGPUBindGroup render;
-} bind_groups;
+} bind_groups = {0};
 
 // Pipeline layouts
 static struct {
   WGPUPipelineLayout compute;
   WGPUPipelineLayout render;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 // Pipelines
 static struct {
   WGPUComputePipeline compute;
   WGPURenderPipeline render;
-} pipelines;
+} pipelines = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // FPS counter
 static struct {
