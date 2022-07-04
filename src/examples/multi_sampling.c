@@ -314,7 +314,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
-                      .file = "shaders/multi_sampling/mesh.vert.spv",
+                      .label = "mesh_vertex_shader",
+                      .file  = "shaders/multi_sampling/mesh.vert.spv",
                     },
                     .buffer_count = 1,
                     .buffers      = &multi_sampling_vertex_buffer_layout,
@@ -325,7 +326,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
-                      .file = "shaders/multi_sampling/mesh.frag.spv",
+                      .label = "mesh_fragment_shader",
+                      .file  = "shaders/multi_sampling/mesh.frag.spv",
                     },
                     .target_count = 1,
                     .targets      = &color_target_state,
