@@ -24,7 +24,7 @@ static struct {
     WGPUTexture texture;
     WGPUTextureView view;
   } color;
-} multi_sample_target;
+} multi_sample_target = {0};
 
 static struct gltf_model_t* gltf_model;
 
@@ -41,12 +41,12 @@ static struct {
 static struct {
   WGPUBindGroupLayout ubo_vs;
   WGPUBindGroupLayout textures;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPURenderPipeline normal;
   WGPURenderPipeline msaa;
-} pipelines;
+} pipelines = {0};
 
 // Render pass descriptor for frame buffer writes
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
