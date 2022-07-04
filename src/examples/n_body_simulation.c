@@ -23,10 +23,10 @@
   }
 
 // Simulation parameters
-static uint32_t num_bodies = NUM_BODIES;
+static const uint32_t num_bodies = NUM_BODIES;
 
 // Shader parameters.
-static uint32_t workgroup_size = WORKGROUP_SIZE;
+static const uint32_t workgroup_size = WORKGROUP_SIZE;
 
 // Render parameters
 static vec3 eye_position = INITIAL_EYE_POSITION;
