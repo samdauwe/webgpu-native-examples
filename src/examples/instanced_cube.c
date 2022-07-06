@@ -174,7 +174,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
   // Projection matrix
   glm_mat4_identity(view_matrices.projection);
-  glm_perspective((2 * PI) / 5.0f, aspect_ratio, 1.0f, 100.0f,
+  glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 100.0f,
                   view_matrices.projection);
 
   // View matrix
