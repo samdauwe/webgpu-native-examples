@@ -13,8 +13,8 @@
 void plane_mesh_generate_vertices(plane_mesh_t* plane_mesh)
 {
   plane_mesh->vertex_count = 0;
-  float row_height         = plane_mesh->height / (float)plane_mesh->rows;
-  float col_width          = plane_mesh->width / (float)plane_mesh->columns;
+  const float row_height   = plane_mesh->height / (float)plane_mesh->rows;
+  const float col_width    = plane_mesh->width / (float)plane_mesh->columns;
   float x = 0.0f, y = 0.0f;
   for (uint32_t row = 0; row <= plane_mesh->rows; ++row) {
     y = row * row_height;
