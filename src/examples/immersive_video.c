@@ -161,7 +161,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type  =WGPUSamplerBindingType_Filtering,
+        .type  = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
