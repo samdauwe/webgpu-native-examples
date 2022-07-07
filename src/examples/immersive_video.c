@@ -58,7 +58,7 @@ static WGPURenderPipeline pipeline;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // The bind group layout
 static WGPUBindGroupLayout bind_group_layout;
