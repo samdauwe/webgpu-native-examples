@@ -322,6 +322,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   wgpu_context, &(wgpu_vertex_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
                     // Vertex shader WGSL
+                    .label            = "fullscreen_textured_quad_wgsl",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "vert_main"
                   },
@@ -332,6 +333,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   wgpu_context, &(wgpu_fragment_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
                     // Fragment shader WGSL
+                    .label            = "fullscreen_textured_quad_wgsl",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "frag_main"
                   },
