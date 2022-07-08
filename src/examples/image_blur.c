@@ -46,9 +46,9 @@ static struct {
   .filter_size = 15,
   .iterations  = 2,
 };
-static uint32_t block_dim = 1;
-static uint32_t image_width;
-static uint32_t image_height;
+static uint32_t block_dim    = 1;
+static uint32_t image_width  = 0;
+static uint32_t image_height = 0;
 
 // Render pass descriptor for frame buffer writes
 static struct {
