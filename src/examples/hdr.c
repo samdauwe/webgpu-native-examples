@@ -25,7 +25,7 @@ static bool display_skybox = true;
 
 static struct {
   texture_t envmap;
-} textures;
+} textures = {0};
 
 static struct {
   struct gltf_model_t* skybox;
@@ -56,13 +56,13 @@ static struct {
     uint64_t buffer_size;
     uint64_t model_size;
   } dynamic;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   mat4 projection;
   mat4 model_view;
   mat4 inverse_modelview;
-} ubo_matrices;
+} ubo_matrices = {0};
 
 static struct {
   float exposure;
@@ -80,26 +80,26 @@ static struct {
   WGPURenderPipeline reflect;
   WGPURenderPipeline composition;
   WGPURenderPipeline bloom[2];
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUPipelineLayout models;
   WGPUPipelineLayout composition;
   WGPUPipelineLayout bloom_filter;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPUBindGroup object;
   WGPUBindGroup skybox;
   WGPUBindGroup composition;
   WGPUBindGroup bloom_filter;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout models;
   WGPUBindGroupLayout composition;
   WGPUBindGroupLayout bloom_filter;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 typedef enum wgpu_render_pass_attachment_type_t {
   WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE         = 0x00000001,
@@ -123,7 +123,7 @@ static struct {
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass_desc;
   WGPUSampler sampler;
-} offscreen_pass;
+} offscreen_pass = {0};
 
 static struct {
   uint32_t width, height;
@@ -133,7 +133,7 @@ static struct {
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass_desc;
   WGPUSampler sampler;
-} filter_pass;
+} filter_pass = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
