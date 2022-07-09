@@ -17,19 +17,22 @@
 
 // Shaders
 // clang-format off
-static const char* sample_cubemap_fragment_shader_wgsl =
-  "@group(0) @binding(1) var mySampler: sampler;\n"
-  "@group(0) @binding(2) var myTexture: texture_cube<f32>;\n"
-  "\n"
-  "@stage(fragment)\n"
-  "fn main(@location(0) fragUV: vec2<f32>,\n"
-  "        @location(1) fragPosition: vec4<f32>) -> @location(0) vec4<f32> {\n"
-  "  // Our camera and the skybox cube are both centered at (0, 0, 0)\n"
-  "  // so we can use the cube geomtry position to get viewing vector to sample the cube texture.\n"
-  "  // The magnitude of the vector doesn't matter.\n"
-  "  var cubemapVec = fragPosition.xyz - vec3<f32>(0.5, 0.5, 0.5);\n"
-  "  return textureSample(myTexture, mySampler, cubemapVec);\n"
-  "}";
+static const char* sample_cubemap_fragment_shader_wgsl = CODE(
+  @group(0) @binding(1) var mySampler: sampler;
+  @group(0) @binding(2) var myTexture: texture_cube<f32>;
+
+  @fragment
+  fn main(
+    @location(0) fragUV: vec2<f32>,
+    @location(1) fragPosition: vec4<f32>
+  ) -> @location(0) vec4<f32> {
+    // Our camera and the skybox cube are both centered at (0, 0, 0)
+    // so we can use the cube geomtry position to get viewing vector to sample the cube texture.
+    // The magnitude of the vector doesn't matter.
+    var cubemapVec = fragPosition.xyz - vec3<f32>(0.5, 0.5, 0.5);
+    return textureSample(myTexture, mySampler, cubemapVec);
+  }
+);
 // clang-format on
 
 // Cube mesh
@@ -173,7 +176,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.1f,
         .g = 0.2f,
         .b = 0.3f,
