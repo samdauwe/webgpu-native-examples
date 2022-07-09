@@ -177,7 +177,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -428,8 +428,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     wgpuComputePassEncoderSetBindGroup(
       wgpu_context->cpass_enc, 0,
       particle_bind_groups[context->frame.index % 2], 0, NULL);
-    wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc, work_group_count, 1,
-                                   1);
+    wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
+                                             work_group_count, 1, 1);
     wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
