@@ -88,7 +88,6 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
 
   /* Query device features */
   static const WGPUFeatureName feature_names[WGPU_FEATURE_COUNT] = {
-    WGPUFeatureName_Depth24UnormStencil8,
     WGPUFeatureName_Depth32FloatStencil8,
     WGPUFeatureName_TimestampQuery,
     WGPUFeatureName_PipelineStatisticsQuery,
