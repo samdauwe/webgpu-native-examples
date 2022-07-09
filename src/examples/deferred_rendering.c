@@ -762,7 +762,7 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[0],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 1.0f,
           .g = 1.0f,
           .b = 1.0f,
@@ -775,7 +775,7 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[1],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 1.0f,
@@ -788,7 +788,7 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[2],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -824,7 +824,7 @@ static void setup_render_passes()
         .view       = NULL, // view is acquired and set in render loop.
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -1292,8 +1292,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       light_update_compute_pipeline);
     wgpuComputePassEncoderSetBindGroup(
       light_pass, 0, lights.buffer_compute_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatch(light_pass,
-                                   (uint32_t)ceil(max_num_lights / 64.f), 1, 1);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      light_pass, (uint32_t)ceil(max_num_lights / 64.f), 1, 1);
     wgpuComputePassEncoderEnd(light_pass);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, light_pass)
   }
