@@ -108,7 +108,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -414,28 +414,28 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
                                        compute_bind_groups[0], 0, NULL);
-    wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                   ceil((float)image_width / block_dim),
-                                   ceil((float)image_height / batch[1]), 1);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      wgpu_context->cpass_enc, ceil((float)image_width / block_dim),
+      ceil((float)image_height / batch[1]), 1);
 
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
                                        compute_bind_groups[1], 0, NULL);
-    wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                   ceil((float)image_height / block_dim),
-                                   ceil((float)image_width / batch[1]), 1);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      wgpu_context->cpass_enc, ceil((float)image_height / block_dim),
+      ceil((float)image_width / batch[1]), 1);
 
     for (uint32_t i = 0; i < (uint32_t)settings.iterations - 1; ++i) {
       wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
                                          compute_bind_groups[2], 0, NULL);
-      wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                     ceil((float)image_width / block_dim),
-                                     ceil((float)image_height / batch[1]), 1);
+      wgpuComputePassEncoderDispatchWorkgroups(
+        wgpu_context->cpass_enc, ceil((float)image_width / block_dim),
+        ceil((float)image_height / batch[1]), 1);
 
       wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
                                          compute_bind_groups[1], 0, NULL);
-      wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                     ceil((float)image_height / block_dim),
-                                     ceil((float)image_width / batch[1]), 1);
+      wgpuComputePassEncoderDispatchWorkgroups(
+        wgpu_context->cpass_enc, ceil((float)image_height / block_dim),
+        ceil((float)image_width / batch[1]), 1);
     }
 
     wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
