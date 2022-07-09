@@ -16,54 +16,64 @@
 
 // Shaders
 // clang-format off
-static const char* vertex_shader_wgsl =
-  "struct Time {\n"
-  "  value : f32;\n"
-  "};\n"
-  "\n"
-  "struct Uniforms {\n"
-  "  scale : f32;\n"
-  "  offsetX : f32;\n"
-  "  offsetY : f32;\n"
-  "  scalar : f32;\n"
-  "  scalarOffset : f32;\n"
-  "};\n"
-  "\n"
-  "@binding(0) @group(0) var<uniform> time : Time;\n"
-  "@binding(0) @group(1) var<uniform> uniforms : Uniforms;\n"
-  "\n"
-  "struct VertexOutput {\n"
-  "  @builtin(position) Position : vec4<f32>;\n"
-  "  @location(0) v_color : vec4<f32>;\n"
-  "};\n"
-  "\n"
-  "@stage(vertex)\n"
-  "fn vert_main(@location(0) position : vec4<f32>,\n"
-  "             @location(1) color : vec4<f32>) -> VertexOutput {\n"
-  "  var fade : f32 = (uniforms.scalarOffset + time.value * uniforms.scalar / 10.0) % 1.0;\n"
-  "  if (fade < 0.5) {\n"
-  "    fade = fade * 2.0;\n"
-  "  } else {\n"
-  "    fade = (1.0 - fade) * 2.0;\n"
-  "  }\n"
-  "  var xpos : f32 = position.x * uniforms.scale;\n"
-  "  var ypos : f32 = position.y * uniforms.scale;\n"
-  "  var angle : f32 = 3.14159 * 2.0 * fade;\n"
-  "  var xrot : f32 = xpos * cos(angle) - ypos * sin(angle);\n"
-  "  var yrot : f32 = xpos * sin(angle) + ypos * cos(angle);\n"
-  "  xpos = xrot + uniforms.offsetX;\n"
-  "  ypos = yrot + uniforms.offsetY;\n"
-  "  var output : VertexOutput;\n"
-  "  output.v_color = vec4<f32>(fade, 1.0 - fade, 0.0, 1.0) + color;\n"
-  "  output.Position = vec4<f32>(xpos, ypos, 0.0, 1.0);\n"
-  "  return output;\n"
-  "}";
+static const char* vertex_shader_wgsl = CODE(
+  struct Time {
+    value : f32,
+  }
 
-static const char* fragment_shader_wgsl =
-  "@stage(fragment)\n"
-  "fn frag_main(@location(0) v_color : vec4<f32>) -> @location(0) vec4<f32> {\n"
-  "  return v_color;\n"
-  "}";
+  struct Uniforms {
+    scale : f32,
+    offsetX : f32,
+    offsetY : f32,
+    scalar : f32,
+    scalarOffset : f32,
+  }
+
+  @binding(0) @group(0) var<uniform> time : Time;
+  @binding(0) @group(1) var<uniform> uniforms : Uniforms;
+
+  struct VertexOutput {
+    @builtin(position) Position : vec4<f32>,
+    @location(0) v_color : vec4<f32>,
+  }
+
+  @vertex
+  fn vert_main(
+    @location(0) position : vec4<f32>,
+    @location(1) color : vec4<f32>
+  ) -> VertexOutput {
+    var fade : f32 = (uniforms.scalarOffset + time.value * uniforms.scalar / 10.0) % 1.0;
+    if (fade < 0.5) {
+      fade = fade * 2.0;
+    } else {
+      fade = (1.0 - fade) * 2.0;
+    }
+    var xpos : f32 = position.x * uniforms.scale;
+    var ypos : f32 = position.y * uniforms.scale;
+    var angle : f32 = 3.14159 * 2.0 * fade;
+    var xrot : f32 = xpos * cos(angle) - ypos * sin(angle);
+    var yrot : f32 = xpos * sin(angle) + ypos * cos(angle);
+    xpos = xrot + uniforms.offsetX;
+    ypos = yrot + uniforms.offsetY;
+
+    var output : VertexOutput;
+    output.v_color = vec4<f32>(fade, 1.0 - fade, 0.0, 1.0) + color;
+    output.Position = vec4<f32>(xpos, ypos, 0.0, 1.0);
+    return output;
+  }
+
+  @fragment
+  fn frag_main(@location(0) v_color : vec4<f32>) -> @location(0) vec4<f32> {
+    return v_color;
+  }
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  @fragment
+  fn frag_main(@location(0) v_color : vec4<f32>) -> @location(0) vec4<f32> {
+    return v_color;
+  }
+);
 // clang-format on
 
 // Settings
@@ -237,7 +247,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -277,10 +287,10 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   aligned_uniform_bytes  = ceil(uniform_bytes / 256.0f) * 256;
   aligned_uniform_floats = aligned_uniform_bytes / sizeof(float);
   uniform_buffer         = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = settings.num_triangles * aligned_uniform_bytes + sizeof(float),
+            wgpu_context->device,
+            &(WGPUBufferDescriptor){
+              .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+              .size  = settings.num_triangles * aligned_uniform_bytes + sizeof(float),
     });
   float uniform_buffer_data[settings.num_triangles * aligned_uniform_floats];
   bind_groups = malloc(settings.num_triangles * sizeof(WGPUBindGroup));
