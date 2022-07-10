@@ -339,30 +339,32 @@ WGPURenderPipeline wgpu_mipmap_generator_get_mipmap_pipeline(
     if (!mipmap_generator->vertex_state_desc.module
         || !mipmap_generator->fragment_state_desc.module) {
       // clang-format off
-      static const char* mipmap_shader_wgsl =
-        "var<private> pos : array<vec2<f32>, 3> = array<vec2<f32>, 3>(\n"
-        "  vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 3.0), vec2<f32>(3.0, -1.0));\n"
-        "\n"
-        "struct VertexOutput {\n"
-        "  @builtin(position) position : vec4<f32>;\n"
-        "  @location(0) texCoord : vec2<f32>;\n"
-        "};\n"
-        "\n"
-        "@stage(vertex)\n"
-        "fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n"
-        "  var output : VertexOutput;\n"
-        "  output.texCoord = pos[vertexIndex] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);\n"
-        "  output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);\n"
-        "  return output;\n"
-        "}\n"
-        "\n"
-        "@group(0) @binding(0) var imgSampler : sampler;\n"
-        "@group(0) @binding(1) var img : texture_2d<f32>;\n"
-        "\n"
-        "@stage(fragment)\n"
-        "fn fragmentMain(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {\n"
-        "  return textureSample(img, imgSampler, texCoord);\n"
-        "}\n";
+      static const char* mipmap_shader_wgsl = CODE(
+        var<private> pos : array<vec2<f32>, 3> = array<vec2<f32>, 3>(
+          vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 3.0), vec2<f32>(3.0, -1.0)
+        );
+
+        struct VertexOutput {
+          @builtin(position) position : vec4<f32>,
+          @location(0) texCoord : vec2<f32>,
+        }
+
+        @vertex
+        fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+          var output : VertexOutput;
+          output.texCoord = pos[vertexIndex] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
+          output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+          return output;
+        }
+
+        @group(0) @binding(0) var imgSampler : sampler;
+        @group(0) @binding(1) var img : texture_2d<f32>;
+
+        @fragment
+        fn fragmentMain(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {
+          return textureSample(img, imgSampler, texCoord);
+        }
+      );
       // clang-format on
 
       // Vertex state
@@ -487,28 +489,28 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
        ++array_layer) {
     uint32_t view_index = array_layer * mip_level_count;
     views[view_index]   = wgpuTextureCreateView(
-      texture, &(WGPUTextureViewDescriptor){
-                 .label           = "src_view",
-                 .aspect          = WGPUTextureAspect_All,
-                 .baseMipLevel    = 0,
-                 .mipLevelCount   = 1,
-                 .dimension       = WGPUTextureViewDimension_2D,
-                 .baseArrayLayer  = array_layer,
-                 .arrayLayerCount = 1,
+        texture, &(WGPUTextureViewDescriptor){
+                   .label           = "src_view",
+                   .aspect          = WGPUTextureAspect_All,
+                   .baseMipLevel    = 0,
+                   .mipLevelCount   = 1,
+                   .dimension       = WGPUTextureViewDimension_2D,
+                   .baseArrayLayer  = array_layer,
+                   .arrayLayerCount = 1,
                });
 
     uint32_t dst_mip_level = render_to_source ? 1 : 0;
     for (uint32_t i = 1; i < texture_desc->mipLevelCount; ++i) {
       const uint32_t target_mip = view_index + i;
       views[target_mip]         = wgpuTextureCreateView(
-        mip_texture, &(WGPUTextureViewDescriptor){
-                       .label           = "dst_view",
-                       .aspect          = WGPUTextureAspect_All,
-                       .baseMipLevel    = dst_mip_level++,
-                       .mipLevelCount   = 1,
-                       .dimension       = WGPUTextureViewDimension_2D,
-                       .baseArrayLayer  = array_layer,
-                       .arrayLayerCount = 1,
+                mip_texture, &(WGPUTextureViewDescriptor){
+                               .label           = "dst_view",
+                               .aspect          = WGPUTextureAspect_All,
+                               .baseMipLevel    = dst_mip_level++,
+                               .mipLevelCount   = 1,
+                               .dimension       = WGPUTextureViewDimension_2D,
+                               .baseArrayLayer  = array_layer,
+                               .arrayLayerCount = 1,
                      });
 
       const  WGPURenderPassColorAttachment color_attachment_desc
@@ -517,7 +519,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
            .resolveTarget = NULL,
            .loadOp        = WGPULoadOp_Clear,
            .storeOp       = WGPUStoreOp_Store,
-           .clearColor = (WGPUColor){
+           .clearValue = (WGPUColor){
              .r = 0.0f,
              .g = 0.0f,
              .b = 0.0f,
@@ -688,7 +690,7 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
     .size          = texture_size,
     .format        = options ? (options->format != WGPUTextureFormat_Undefined ?
                                   format_for_color_space(options->format,
-                                                  options->color_space) :
+                                                         options->color_space) :
                                   WGPUTextureFormat_RGBA8Unorm) :
                                WGPUTextureFormat_RGBA8Unorm,
     .mipLevelCount = mip_level_count,
@@ -817,7 +819,7 @@ wgpu_texture_load_with_stb(struct wgpu_texture_client_t* texture_client,
     .size          = texture_size,
     .format        = options ? (options->format != WGPUTextureFormat_Undefined ?
                                   format_for_color_space(options->format,
-                                                  options->color_space) :
+                                                         options->color_space) :
                                   WGPUTextureFormat_RGBA8Unorm) :
                                WGPUTextureFormat_RGBA8Unorm,
     .mipLevelCount = mip_level_count,
