@@ -298,7 +298,7 @@ static void setup_render_pass()
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -516,7 +516,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
         wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
                                            probability_map_bind_groups[level],
                                            0, NULL);
-        wgpuComputePassEncoderDispatch(
+        wgpuComputePassEncoderDispatchWorkgroups(
           wgpu_context->cpass_enc, ceil(level_width / 64.f), level_height, 1);
         wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
@@ -529,7 +529,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
         wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
                                            probability_map_bind_groups[level],
                                            0, NULL);
-        wgpuComputePassEncoderDispatch(
+        wgpuComputePassEncoderDispatchWorkgroups(
           wgpu_context->cpass_enc, ceil(level_width / 64.f), level_height, 1);
         wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
         WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
@@ -745,8 +745,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       compute_pipeline);
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
                                        compute_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc,
-                                   ceil(num_particles / 64.f), 1, 1);
+    wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
+                                             ceil(num_particles / 64.f), 1, 1);
     wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
