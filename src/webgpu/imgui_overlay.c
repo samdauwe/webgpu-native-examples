@@ -238,7 +238,7 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
       .view       = NULL,
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
