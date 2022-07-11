@@ -22,16 +22,16 @@
 // clang-format off
 static const char* vertex_shader_wgsl = CODE(
   struct VertexInput {
-    @location(0) position : vec3<f32>;
-    @location(1) uv : vec2<f32>;
-  };
+    @location(0) position : vec3<f32>,
+    @location(1) uv : vec2<f32>
+  }
 
   struct VertexOutput {
-    @builtin(position) Position : vec4<f32>;
-    @location(0) fragUV : vec2<f32>;
-  };
+    @builtin(position) Position : vec4<f32>,
+    @location(0) fragUV : vec2<f32>
+  }
 
-  @stage(vertex)
+  @vertex
   fn main(input : VertexInput) -> VertexOutput {
     return VertexOutput(vec4<f32>(input.position, 1.0), input.uv);
   };
@@ -41,7 +41,7 @@ static const char* fragment_shader_wgsl = CODE(
   @group(0) @binding(0) var mySampler: sampler;
   @group(0) @binding(1) var myTexture: texture_2d<f32>;
 
-  @stage(fragment)
+  @fragment
   fn main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     return textureSample(myTexture, mySampler, fragUV);
   };
