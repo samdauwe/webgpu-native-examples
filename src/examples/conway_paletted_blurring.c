@@ -622,7 +622,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     wgpuComputePassEncoderSetBindGroup(
       wgpu_context->cpass_enc, 0,
       is_forward ? compute.bind_groups[0] : compute.bind_groups[1], 0, NULL);
-    wgpuComputePassEncoderDispatch(
+    wgpuComputePassEncoderDispatchWorkgroups(
       wgpu_context->cpass_enc,
       (uint32_t)ceil(uniforms.desc.compute_width / 8.0f),
       (uint32_t)ceil(uniforms.desc.compute_height / 8.0f), 1);

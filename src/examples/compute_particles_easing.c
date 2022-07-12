@@ -536,7 +536,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       compute.pipeline);
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
                                        compute.particle_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatch(wgpu_context->cpass_enc, PARTICLE_NUM, 1, 1);
+    wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
+                                             PARTICLE_NUM, 1, 1);
     wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
