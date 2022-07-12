@@ -15,119 +15,123 @@
 
 // Shaders
 // clang-format off
-static const char* compute_shader_wgsl =
-  "@group(0) @binding(0) var cellsSrc : texture_2d<f32>;\n"
-  "@group(0) @binding(1) var cellsDst : texture_storage_2d<rgba8unorm, write>;\n"
-  "@group(0) @binding(2) var trailSrc : texture_2d<f32>;\n"
-  "@group(0) @binding(3) var trailDst : texture_storage_2d<rgba8unorm, write>;\n"
-  "\n"
-  "fn cellAt(x: i32, y: i32) -> i32 {\n"
-  "  let v = textureLoad(cellsSrc, vec2<i32>(x, y), 0);\n"
-  "  if (v.r < 0.5) {\n"
-  "    return 0;\n"
-  "  }\n"
-  "  return 1;\n"
-  "}\n"
-  "\n"
-  "fn trailAt(x: i32, y: i32) -> vec4<f32> {\n"
-  "  return textureLoad(trailSrc, vec2<i32>(x, y), 0);\n"
-  "}\n"
-  "\n"
-  "@stage(compute) @workgroup_size(8, 8)\n"
-  "fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {\n"
-  "  let x = i32(global_id.x);\n"
-  "  let y = i32(global_id.y);\n"
-  "  let pos = vec2<i32>(x, y);\n"
-  "\n"
-  "  // Prepare trailing.\n"
-  "  var trail =\n"
-  "      trailAt(x - 1, y - 1)\n"
-  "      + trailAt(x, y - 1)\n"
-  "      + trailAt(x + 1, y - 1)\n"
-  "      + trailAt(x - 1, y)\n"
-  "      + trailAt(x + 1, y)\n"
-  "      + trailAt(x - 1, y + 1)\n"
-  "      + trailAt(x, y + 1)\n"
-  "      + trailAt(x + 1, y + 1);\n"
-  "  trail = trail / 9.5;\n"
-  "  trail.a = 1.0;\n"
-  "\n"
-  "  // Update cellular automata.\n"
-  "  let current = cellAt(x, y);\n"
-  "  let neighbors =\n"
-  "      cellAt(x - 1, y - 1)\n"
-  "      + cellAt(x, y - 1)\n"
-  "      + cellAt(x + 1, y - 1)\n"
-  "      + cellAt(x - 1, y)\n"
-  "      + cellAt(x + 1, y)\n"
-  "      + cellAt(x - 1, y + 1)\n"
-  "      + cellAt(x, y + 1)\n"
-  "      + cellAt(x + 1, y + 1);\n"
-  "\n"
-  "  var s = 0.0;\n"
-  "  if (current != 0 && (neighbors == 2 || neighbors == 3)) {\n"
-  "      s = 1.0;\n"
-  "      trail = vec4<f32>(1.0, 1.0, 1.0, 1.0);\n"
-  "  } else if (current == 0 && neighbors == 3) {\n"
-  "      s = 1.0;\n"
-  "      trail = vec4<f32>(1.0, 1.0, 1.0, 1.0);\n"
-  "  } else {\n"
-  "  }\n"
-  "\n"
-  "  textureStore(cellsDst, pos, vec4<f32>(s, s, s, 1.0));\n"
-  "  textureStore(trailDst, pos, trail);\n"
-  "}";
+static const char* compute_shader_wgsl = CODE(
+  @group(0) @binding(0) var cellsSrc : texture_2d<f32>;
+  @group(0) @binding(1) var cellsDst : texture_storage_2d<rgba8unorm, write>;
+  @group(0) @binding(2) var trailSrc : texture_2d<f32>;
+  @group(0) @binding(3) var trailDst : texture_storage_2d<rgba8unorm, write>;
+
+  fn cellAt(x: i32, y: i32) -> i32 {
+    let v = textureLoad(cellsSrc, vec2<i32>(x, y), 0);
+    if (v.r < 0.5) {
+      return 0;
+    }
+    return 1;
+  }
+
+  fn trailAt(x: i32, y: i32) -> vec4<f32> {
+    return textureLoad(trailSrc, vec2<i32>(x, y), 0);
+  }
+
+  @compute @workgroup_size(8, 8)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    let x = i32(global_id.x);
+    let y = i32(global_id.y);
+    let pos = vec2<i32>(x, y);
+
+    // Prepare trailing.
+    var trail =
+        trailAt(x - 1, y - 1)
+        + trailAt(x, y - 1)
+        + trailAt(x + 1, y - 1)
+        + trailAt(x - 1, y)
+        + trailAt(x + 1, y)
+        + trailAt(x - 1, y + 1)
+        + trailAt(x, y + 1)
+        + trailAt(x + 1, y + 1);
+    trail = trail / 9.5;
+    trail.a = 1.0;
+
+    // Update cellular automata.
+    let current = cellAt(x, y);
+    let neighbors =
+        cellAt(x - 1, y - 1)
+        + cellAt(x, y - 1)
+        + cellAt(x + 1, y - 1)
+        + cellAt(x - 1, y)
+        + cellAt(x + 1, y)
+        + cellAt(x - 1, y + 1)
+        + cellAt(x, y + 1)
+        + cellAt(x + 1, y + 1);
+
+    var s = 0.0;
+    if (current != 0 && (neighbors == 2 || neighbors == 3)) {
+        s = 1.0;
+        trail = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    } else if (current == 0 && neighbors == 3) {
+        s = 1.0;
+        trail = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    } else {
+    }
+
+    textureStore(cellsDst, pos, vec4<f32>(s, s, s, 1.0));
+    textureStore(trailDst, pos, trail);
+  }
+);
 
 // Create triangles to cover the screen
-static const char* graphics_vertex_shader_wgsl =
-  "struct VSOut {\n"
-  "  @builtin(position) pos: vec4<f32>;\n"
-  "  @location(0) coord: vec2<f32>;\n"
-  "};\n"
-  "@stage(vertex)\n"
-  "fn main(@builtin(vertex_index) idx : u32) -> VSOut {\n"
-  "  var data = array<vec2<f32>, 6>(\n"
-  "    vec2<f32>(-1.0, -1.0),\n"
-  "    vec2<f32>(1.0, -1.0),\n"
-  "    vec2<f32>(1.0, 1.0),\n"
-  "\n"
-  "    vec2<f32>(-1.0, -1.0),\n"
-  "    vec2<f32>(-1.0, 1.0),\n"
-  "    vec2<f32>(1.0, 1.0),\n"
-  "  );\n"
-  "\n"
-  "  let pos = data[idx];\n"
-  "\n"
-  "  var out : VSOut;\n"
-  "  out.pos = vec4<f32>(pos, 0.0, 1.0);\n"
-  "  out.coord.x = (pos.x + 1.0) / 2.0;\n"
-  "  out.coord.y = (1.0 - pos.y) / 2.0;\n"
-  "\n"
-  "  return out;\n"
-  "}";
+static const char* graphics_vertex_shader_wgsl = CODE(
+  struct VSOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  }
+
+  @vertex
+  fn main(@builtin(vertex_index) idx : u32) -> VSOut {
+    var data = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(1.0, -1.0),
+      vec2<f32>(1.0, 1.0),
+
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(-1.0, 1.0),
+      vec2<f32>(1.0, 1.0),
+    );
+
+    let pos = data[idx];
+
+    var out : VSOut;
+    out.pos = vec4<f32>(pos, 0.0, 1.0);
+    out.coord.x = (pos.x + 1.0) / 2.0;
+    out.coord.y = (1.0 - pos.y) / 2.0;
+
+    return out;
+  }
+);
 
 // Just write some color on each pixel
-static const char* graphics_fragment_shader_wgsl =
-  "@group(0) @binding(0) var tex : texture_2d<f32>;\n"
-  "@group(0) @binding(1) var smplr : sampler;\n"
-  "\n"
-  "fn palette(v: f32) -> vec4<f32> {\n"
-  "  let key = v * 8.0;\n"
-  "  let c = (v * 256.0) % 32.0;\n"
-  "  if (key < 1.0) { return vec4<f32>(0.0, 0.0, c * 2.0 / 256.0, 1.0); }\n"
-  "  if (key < 2.0) { return vec4<f32>(c * 8.0 / 256.0, 0.0, (64.0 - c * 2.0) / 256.0, 1.0); }\n"
-  "  if (key < 3.0) { return vec4<f32>(1.0, c * 8.0 / 256.0, 0.0, 1.0); }\n"
-  "  if (key < 4.0) { return vec4<f32>(1.0, 1.0, c * 4.0 / 256.0, 1.0); }\n"
-  "  if (key < 5.0) { return vec4<f32>(1.0, 1.0, (64.0 + c * 4.0) / 256.0, 1.0); }\n"
-  "  if (key < 6.0) { return vec4<f32>(1.0, 1.0, (128.0 + c * 4.0) / 256.0, 1.0); }\n"
-  "  if (key < 7.0) { return vec4<f32>(1.0, 1.0, (192.0 + c * 4.0) / 256.0, 1.0); }\n"
-  "  return vec4<f32>(1.0, 1.0, (224.0 + c * 4.0) / 256.0, 1.0);\n"
-  "}\n"
-  "\n"
-  "@stage(fragment)\n"
-  "fn main(@location(0) coord: vec2<f32>) -> @location(0) vec4<f32> {\n"
-  "  return palette(textureSample(tex, smplr, coord).r);\n"
-  "}";
+static const char* graphics_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var tex : texture_2d<f32>;
+  @group(0) @binding(1) var smplr : sampler;
+
+  fn palette(v: f32) -> vec4<f32> {
+    let key = v * 8.0;
+    let c = (v * 256.0) % 32.0;
+    if (key < 1.0) { return vec4<f32>(0.0, 0.0, c * 2.0 / 256.0, 1.0); }
+    if (key < 2.0) { return vec4<f32>(c * 8.0 / 256.0, 0.0, (64.0 - c * 2.0) / 256.0, 1.0); }
+    if (key < 3.0) { return vec4<f32>(1.0, c * 8.0 / 256.0, 0.0, 1.0); }
+    if (key < 4.0) { return vec4<f32>(1.0, 1.0, c * 4.0 / 256.0, 1.0); }
+    if (key < 5.0) { return vec4<f32>(1.0, 1.0, (64.0 + c * 4.0) / 256.0, 1.0); }
+    if (key < 6.0) { return vec4<f32>(1.0, 1.0, (128.0 + c * 4.0) / 256.0, 1.0); }
+    if (key < 7.0) { return vec4<f32>(1.0, 1.0, (192.0 + c * 4.0) / 256.0, 1.0); }
+    return vec4<f32>(1.0, 1.0, (224.0 + c * 4.0) / 256.0, 1.0);
+  }
+
+  @fragment
+  fn main(@location(0) coord: vec2<f32>) -> @location(0) vec4<f32> {
+    return palette(textureSample(tex, smplr, coord).r);
+  }
+);
 // clang-format on
 
 static struct {
