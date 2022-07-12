@@ -15,94 +15,98 @@
 
 // Shaders
 // clang-format off
-static const char* compute_shader_wgsl =
-  "struct UniformsDesc {\n"
-  "  computeWidth : u32;\n"
-  "  computeHeight : u32;\n"
-  "};\n"
-  "\n"
-  "@group(0) @binding(0) var<uniform> uniforms : UniformsDesc;\n"
-  "@group(0) @binding(1) var srcTexture : texture_2d<f32>;\n"
-  "@group(0) @binding(2) var dstTexture : texture_storage_2d<rgba8unorm, write>;\n"
-  "\n"
-  "fn isOn(x: i32, y: i32) -> i32 {\n"
-  "  let v = textureLoad(srcTexture, vec2<i32>(x, y), 0);\n"
-  "  if (v.r < 0.5) {\n"
-  "    return 0;\n"
-  "  }\n"
-  "  return 1;\n"
-  "}\n"
-  "\n"
-  "@stage(compute) @workgroup_size(8, 8)\n"
-  "fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {\n"
-  "  // Guard against out-of-bounds work group sizes\n"
-  "  if (global_id.x >= uniforms.computeWidth || global_id.y >= uniforms.computeHeight) {\n"
-  "      return;\n"
-  "  }\n"
-  "\n"
-  "  let x = i32(global_id.x);\n"
-  "  let y = i32(global_id.y);\n"
-  "  let current = isOn(x, y);\n"
-  "  let neighbors =\n"
-  "      isOn(x - 1, y - 1)\n"
-  "    + isOn(x, y - 1)\n"
-  "    + isOn(x + 1, y - 1)\n"
-  "    + isOn(x - 1, y)\n"
-  "    + isOn(x + 1, y)\n"
-  "    + isOn(x - 1, y + 1)\n"
-  "    + isOn(x, y + 1)\n"
-  "    + isOn(x + 1, y + 1);\n"
-  "\n"
-  "  var s = 0.0;\n"
-  "  if (current != 0 && (neighbors == 2 || neighbors == 3)) {\n"
-  "    s = 1.0;\n"
-  "}\n"
-  " if (current == 0 && neighbors == 3) {\n"
-  "    s = 1.0;\n"
-  "  }\n"
-  "  textureStore(dstTexture, vec2<i32>(x, y), vec4<f32>(s, s, s, 1.0));\n"
-  "}";
+static const char* compute_shader_wgsl = CODE(
+  struct UniformsDesc {
+    computeWidth : u32,
+    computeHeight : u32
+  }
 
-static const char* graphics_vertex_shader_wgsl =
-  "struct VSOut {\n"
-  "  @builtin(position) pos: vec4<f32>;\n"
-  "  @location(0) coord: vec2<f32>;\n"
-  "};\n"
-  "@stage(vertex)\n"
-  "fn main(@builtin(vertex_index) idx : u32) -> VSOut {\n"
-  "  var data = array<vec2<f32>, 6>(\n"
-  "    vec2<f32>(-1.0, -1.0),\n"
-  "    vec2<f32>(1.0, -1.0),\n"
-  "    vec2<f32>(1.0, 1.0),\n"
-  "\n"
-  "    vec2<f32>(-1.0, -1.0),\n"
-  "    vec2<f32>(-1.0, 1.0),\n"
-  "    vec2<f32>(1.0, 1.0),\n"
-  "  );\n"
-  "\n"
-  "  let pos = data[idx];\n"
-  "\n"
-  "  var out : VSOut;\n"
-  "  out.pos = vec4<f32>(pos, 0.0, 1.0);\n"
-  "  out.coord.x = (pos.x + 1.0) / 2.0;\n"
-  "  out.coord.y = (1.0 - pos.y) / 2.0;\n"
-  "\n"
-  "  return out;\n"
-  "}";
+  @group(0) @binding(0) var<uniform> uniforms : UniformsDesc;
+  @group(0) @binding(1) var srcTexture : texture_2d<f32>;
+  @group(0) @binding(2) var dstTexture : texture_storage_2d<rgba8unorm, write>;
 
-static const char* graphics_fragment_shader_wgsl =
-  "struct VSOut {\n"
-  "  @builtin(position) pos: vec4<f32>;\n"
-  "  @location(0) coord: vec2<f32>;\n"
-  "};\n"
-  "\n"
-  "@group(0) @binding(0) var computeTexture : texture_2d<f32>;\n"
-  "@group(0) @binding(1) var dstSampler : sampler;\n"
-  "\n"
-  "@stage(fragment)\n"
-  "fn main(inp: VSOut) -> @location(0) vec4<f32> {\n"
-  "  return textureSample(computeTexture, dstSampler, inp.coord);\n"
-  "}";
+  fn isOn(x: i32, y: i32) -> i32 {
+    let v = textureLoad(srcTexture, vec2<i32>(x, y), 0);
+    if (v.r < 0.5) {
+      return 0;
+    }
+    return 1;
+  }
+
+  @compute @workgroup_size(8, 8)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    // Guard against out-of-bounds work group sizes
+    if (global_id.x >= uniforms.computeWidth || global_id.y >= uniforms.computeHeight) {
+        return;
+    }
+
+    let x = i32(global_id.x);
+    let y = i32(global_id.y);
+    let current = isOn(x, y);
+    let neighbors =
+        isOn(x - 1, y - 1)
+      + isOn(x, y - 1)
+      + isOn(x + 1, y - 1)
+      + isOn(x - 1, y)
+      + isOn(x + 1, y)
+      + isOn(x - 1, y + 1)
+      + isOn(x, y + 1)
+      + isOn(x + 1, y + 1);
+
+    var s = 0.0;
+    if (current != 0 && (neighbors == 2 || neighbors == 3)) {
+      s = 1.0;
+  }
+   if (current == 0 && neighbors == 3) {
+      s = 1.0;
+    }
+    textureStore(dstTexture, vec2<i32>(x, y), vec4<f32>(s, s, s, 1.0));
+  }
+);
+
+static const char* graphics_vertex_shader_wgsl = CODE(
+  struct VSOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  }
+
+  @vertex
+  fn main(@builtin(vertex_index) idx : u32) -> VSOut {
+    var data = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(1.0, -1.0),
+      vec2<f32>(1.0, 1.0),
+
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(-1.0, 1.0),
+      vec2<f32>(1.0, 1.0),
+    );
+
+    let pos = data[idx];
+
+    var out : VSOut;
+    out.pos = vec4<f32>(pos, 0.0, 1.0);
+    out.coord.x = (pos.x + 1.0) / 2.0;
+    out.coord.y = (1.0 - pos.y) / 2.0;
+
+    return out;
+  }
+);
+
+static const char* graphics_fragment_shader_wgsl = CODE(
+  struct VSOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  }
+
+  @group(0) @binding(0) var computeTexture : texture_2d<f32>;
+  @group(0) @binding(1) var dstSampler : sampler;
+
+  @fragment
+  fn main(inp: VSOut) -> @location(0) vec4<f32> {
+    return textureSample(computeTexture, dstSampler, inp.coord);
+  }
+);
 // clang-format on
 
 static struct {
