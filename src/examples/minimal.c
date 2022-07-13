@@ -17,11 +17,11 @@
 // clang-format off
 static const char* vertex_shader_wgsl = CODE(
   struct VSOut {
-    @builtin(position) pos: vec4<f32>;
-    @location(0) coord: vec2<f32>;
-  };
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  }
 
-  @stage(vertex)
+  @vertex
   fn main(@builtin(vertex_index) idx : u32) -> VSOut {
     var data = array<vec2<f32>, 6>(
       vec2<f32>(-1.0, -1.0),
@@ -33,7 +33,7 @@ static const char* vertex_shader_wgsl = CODE(
       vec2<f32>(1.0, 1.0),
     );
 
-    let pos = data[idx];
+    var pos = data[idx];
 
     var out : VSOut;
     out.pos = vec4<f32>(pos, 0.0, 1.0);
