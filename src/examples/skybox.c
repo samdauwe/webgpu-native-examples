@@ -224,7 +224,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .label = "skybox_vertex_shader",
                   .file  = "shaders/skybox/shader.vert.spv",
                 },
-                .buffer_count = 1,
+                .buffer_count = 0,
                 .buffers      = &skybox_vertex_buffer_layout,
               });
 
