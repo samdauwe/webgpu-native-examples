@@ -18,15 +18,15 @@
 static const char* vertex_shader_wgsl = CODE(
   struct VertexInput {
     @location(0) position : vec3<f32>,
-    @location(1) color : vec4<f32>;
-  };
+    @location(1) color : vec4<f32>
+  }
 
   struct VertexOutput {
     @builtin(position) Position : vec4<f32>,
-    @location(0) fragColor : vec4<f32>,
-  };
+    @location(0) fragColor : vec4<f32>
+  }
 
-  @stage(vertex)
+  @vertex
   fn main(input : VertexInput) -> VertexOutput {
     var output : VertexOutput;
     output.fragColor = input.color;
@@ -37,14 +37,14 @@ static const char* vertex_shader_wgsl = CODE(
 
 static const char* fragment_shader_wgsl = CODE(
   struct FragmentInput {
-    @location(0) fragColor : vec4<f32>;
-  };
+    @location(0) fragColor : vec4<f32>
+  }
 
   struct FragmentOutput {
-    @location(0) outColor : vec4<f32>;
-  };
+    @location(0) outColor : vec4<f32>
+  }
 
-  @stage(fragment)
+  @fragment
   fn main(input : FragmentInput) -> FragmentOutput {
     var output : FragmentOutput;
     output.outColor = input.fragColor;
