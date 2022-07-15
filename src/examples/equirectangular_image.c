@@ -278,7 +278,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
-                      .file = "shaders/equirectangular_image/main.vert.spv",
+                      .label = "vertex_shader",
+                      .file  = "shaders/equirectangular_image/main.vert.spv",
                     },
                     .buffer_count = 0,
                     .buffers      = NULL,
@@ -289,7 +290,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
-                      .file = "shaders/equirectangular_image/main.frag.spv",
+                      .label = "fragment_shader",
+                      .file  = "shaders/equirectangular_image/main.frag.spv",
                     },
                     .target_count = 1,
                     .targets      = &color_target_state,
