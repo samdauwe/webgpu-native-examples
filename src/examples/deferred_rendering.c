@@ -320,6 +320,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     gbuffer_textures_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = "GBuffer textures bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -352,6 +353,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     lights.buffer_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Lights buffer bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
