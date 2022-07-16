@@ -245,7 +245,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
-                  .file = "shaders/dynamic_uniform_buffer/base.vert.spv",
+                  .label = "vertex_shader",
+                  .file  = "shaders/dynamic_uniform_buffer/base.vert.spv",
                 },
                 .buffer_count = 1,
                 .buffers      = &dyn_ubo_vertex_buffer_layout,
@@ -256,7 +257,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader SPIR-V
-                  .file = "shaders/dynamic_uniform_buffer/base.frag.spv",
+                  .label = "fragment_shader",
+                  .file  = "shaders/dynamic_uniform_buffer/base.frag.spv",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
