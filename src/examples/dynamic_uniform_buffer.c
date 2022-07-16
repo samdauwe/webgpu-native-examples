@@ -44,7 +44,7 @@ static struct {
 static struct {
   mat4 projection_matrix;
   mat4 view_matrix;
-} ubo_vs;
+} ubo_vs = {0};
 
 // Store random per-object rotations
 static vec3 rotations[OBJECT_INSTANCES]       = {0};
