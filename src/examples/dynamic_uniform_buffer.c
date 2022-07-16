@@ -425,7 +425,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.view = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size  = sizeof(ubo_vs),
     });
 
