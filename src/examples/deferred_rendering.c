@@ -196,10 +196,10 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       .mappedAtCreation = true,
     };
     index_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(index_buffer)
+    ASSERT(index_buffer);
     uint16_t* mapping
       = (uint16_t*)wgpuBufferGetMappedRange(index_buffer, 0, index_buffer_size);
-    ASSERT(mapping)
+    ASSERT(mapping);
     for (uint64_t i = 0; i < dragon_mesh->triangles.count; ++i) {
       memcpy(&mapping[3 * i], dragon_mesh->triangles.data[i],
              sizeof(uint16_t) * 3);
@@ -324,7 +324,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(gbuffer_textures_bind_group_layout != NULL)
+    ASSERT(gbuffer_textures_bind_group_layout != NULL);
   }
 
   // Lights buffer bind group layout
@@ -357,7 +357,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(lights.buffer_bind_group_layout != NULL)
+    ASSERT(lights.buffer_bind_group_layout != NULL);
   }
 
   // Surface size uniform bind group layout
@@ -379,7 +379,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(surface_size_uniform_bind_group_layout != NULL)
+    ASSERT(surface_size_uniform_bind_group_layout != NULL);
   }
 
   // Scene uniform bind group layout
@@ -411,7 +411,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(scene_uniform_bind_group_layout != NULL)
+    ASSERT(scene_uniform_bind_group_layout != NULL);
   }
 
   // Lights buffer compute bind group layout
@@ -453,7 +453,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(lights.buffer_compute_bind_group_layout != NULL)
+    ASSERT(lights.buffer_compute_bind_group_layout != NULL);
   }
 }
 
@@ -467,7 +467,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &scene_uniform_bind_group_layout,
       });
-    ASSERT(write_gbuffers_pipeline_layout != NULL)
+    ASSERT(write_gbuffers_pipeline_layout != NULL);
   }
 
   // GBuffers debug view pipeline layout
@@ -482,7 +482,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(gbuffers_debug_view_pipeline_layout != NULL)
+    ASSERT(gbuffers_debug_view_pipeline_layout != NULL);
   }
 
   // Deferred render pipeline layout
@@ -498,7 +498,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
-    ASSERT(deferred_render_pipeline_layout != NULL)
+    ASSERT(deferred_render_pipeline_layout != NULL);
   }
 }
 
@@ -872,7 +872,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     model_uniform_buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(model_uniform_buffer)
+    ASSERT(model_uniform_buffer);
   }
 
   // Camera uniform buffer
@@ -883,7 +883,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     camera_uniform_buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(camera_uniform_buffer)
+    ASSERT(camera_uniform_buffer);
   }
 
   // Scene uniform bind group
@@ -907,7 +907,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(scene_uniform_bind_group != NULL)
+    ASSERT(scene_uniform_bind_group != NULL);
   }
 
   // Surface size uniform buffer
@@ -936,7 +936,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(surface_size_uniform_bind_group != NULL)
+    ASSERT(surface_size_uniform_bind_group != NULL);
   }
 
   // GBuffer textures bind group
@@ -962,7 +962,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(gbuffer_textures_bind_group != NULL)
+    ASSERT(gbuffer_textures_bind_group != NULL);
   }
 }
 
@@ -976,7 +976,7 @@ static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     light_update_compute_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(light_update_compute_pipeline_layout != NULL)
+    ASSERT(light_update_compute_pipeline_layout != NULL);
   }
 }
 
@@ -1083,7 +1083,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(lights.buffer_bind_group != NULL)
+    ASSERT(lights.buffer_bind_group != NULL);
   }
 
   // Lights buffer compute bind group
@@ -1112,7 +1112,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(lights.buffer_compute_bind_group != NULL)
+    ASSERT(lights.buffer_compute_bind_group != NULL);
   }
 }
 
@@ -1349,7 +1349,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
