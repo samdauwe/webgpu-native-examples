@@ -758,7 +758,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 
 static void setup_render_passes()
 {
-  // Write GBuffer pass
+  /* Write GBuffer pass */
   {
     // Color attachments
     write_gbuffer_pass.color_attachments[0] =
@@ -820,7 +820,7 @@ static void setup_render_passes()
     };
   }
 
-  // Texture Quad Pass
+  /* Texture Quad Pass */
   {
     // Color attachment
     texture_quad_pass.color_attachments[0] =
