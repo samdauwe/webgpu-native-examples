@@ -3334,9 +3334,9 @@ static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-             .type           = WGPUBufferBindingType_ReadOnlyStorage,
-             .minBindingSize = lights_buffer->size,
-         },
+          .type           = WGPUBufferBindingType_ReadOnlyStorage,
+          .minBindingSize = lights_buffer->size,
+        },
         .sampler = {0},
       },
     };
@@ -3536,14 +3536,14 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
   /* Vertex data & indices */
-  const float vertex_data[8] = {
+  const float vertex_data[2 * 4] = {
     -1.0f, 1.0f,  //
     -1.0f, -1.0f, //
     1.0f,  -1.0f, //
     1.0f,  1.0f,  //
   };
 
-  const uint16_t indices[6] = {
+  const uint16_t indices[3 * 2] = {
     3, 2, 1, //
     3, 1, 0, //
   };
@@ -3597,121 +3597,6 @@ static void effect_pre_render(effect_t* this, WGPURenderPassEncoder render_pass)
   wgpuRenderPassEncoderSetIndexBuffer(
     render_pass, this->buffers.index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
-}
-
-/* -------------------------------------------------------------------------- *
- * Bloom Pass
- *
- * Ref:
- * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/bloom-pass.ts
- * -------------------------------------------------------------------------- */
-
-#define BLOOM_PASS_TILE_DIM 128
-#define BLOOM_PASS_BATCH                                                       \
-  {                                                                            \
-    4, 4                                                                       \
-  }
-#define BLOOM_PASS_FILTER_SIZE 10
-#define BLOOM_PASS_ITERATIONS 2u
-
-typedef struct {
-  webgpu_renderer_t* renderer;
-  effect_t effect;
-
-  point_lights_t* point_lights;
-  spot_light_t* spot_light;
-  WGPURenderPassDescriptor framebuffer_descriptor;
-
-  WGPUTexture bloom_yexture;
-  WGPUTexture input_texture;
-  struct {
-    WGPUTexture texture;
-    WGPUTextureView view;
-  } blur_textures[2];
-
-  WGPUComputePipeline blur_pipeline;
-
-  WGPUBindGroupLayout blur_constants_bind_group_layout;
-  WGPUBindGroup blur_compute_constants_bindGroup;
-
-  WGPUBindGroupLayout blur_compute_bind_group_layout;
-  WGPUBindGroup blur_compute_bind_group_0;
-  WGPUBindGroup blur_compute_bind_group_1;
-  WGPUBindGroup blur_compute_bind_group_2;
-
-  WGPUSampler sampler;
-  uint32_t block_dim;
-} bloom_pass_t;
-
-static bool bloom_pass_is_ready(bloom_pass_t* this)
-{
-  return (this->effect.render_pipeline != NULL)
-         && (this->blur_pipeline != NULL);
-}
-
-static void bloom_pass_update_bloom(bloom_pass_t* this,
-                                    WGPUComputePassEncoder compute_pass)
-{
-  if (!bloom_pass_is_ready(this)) {
-    return;
-  }
-
-  const webgpu_renderer_t* renderer = this->renderer;
-  const uint32_t block_dim          = this->block_dim;
-  const uint32_t batch[2]           = BLOOM_PASS_BATCH;
-  const uint32_t src_width          = renderer->output_size.width;
-  const uint32_t src_height         = renderer->output_size.height;
-
-  wgpuComputePassEncoderSetPipeline(compute_pass, this->blur_pipeline);
-  wgpuComputePassEncoderSetBindGroup(
-    compute_pass, 0, this->blur_compute_constants_bindGroup, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
-                                     this->blur_compute_bind_group_0, 0, NULL);
-  wgpuComputePassEncoderDispatchWorkgroups(
-    compute_pass,
-    (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
-    (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
-    1                                             // workgroupCountZ
-  );
-  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
-                                     this->blur_compute_bind_group_1, 0, NULL);
-  wgpuComputePassEncoderDispatchWorkgroups(
-    compute_pass,
-    (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
-    (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
-    1                                              // workgroupCountZ
-  );
-  for (uint32_t i = 0; i < BLOOM_PASS_ITERATIONS - 1; ++i) {
-    wgpuComputePassEncoderSetBindGroup(
-      compute_pass, 1, this->blur_compute_bind_group_2, 0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(
-      compute_pass,
-      (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
-      (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
-      1                                             // workgroupCountZ
-    );
-    wgpuComputePassEncoderSetBindGroup(
-      compute_pass, 1, this->blur_compute_bind_group_1, 0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(
-      compute_pass,
-      (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
-      (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
-      1                                              // workgroupCountZ
-    );
-  }
-}
-
-static void bloom_pass_render(bloom_pass_t* this,
-                              WGPURenderPassEncoder render_pass)
-{
-  if (!bloom_pass_is_ready(this)) {
-    return;
-  }
-
-  effect_pre_render(&this->effect, render_pass);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
-                                    this->renderer->bind_groups.frame, 0, NULL);
-  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -3794,14 +3679,14 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
   /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Texture view
-      .binding    = 0,
-      .visibility = WGPUShaderStage_Fragment,
-      .texture = (WGPUTextureBindingLayout) {
-        .sampleType    = WGPUTextureSampleType_Float,
-        .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled  = false,
-      },
+    // Binding 0: Texture view
+    .binding    = 0,
+    .visibility = WGPUShaderStage_Fragment,
+    .texture = (WGPUTextureBindingLayout) {
+      .sampleType    = WGPUTextureSampleType_Float,
+      .viewDimension = WGPUTextureViewDimension_2D,
+      .multisampled  = false,
+    },
     .storageTexture = {0},
     },
   };
@@ -3863,6 +3748,587 @@ static void copy_pass_render(copy_pass_t* this,
                              WGPURenderPassEncoder render_pass)
 {
   if (!copy_pass_is_ready(this)) {
+    return;
+  }
+
+  effect_pre_render(&this->effect, render_pass);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->renderer->bind_groups.frame, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Bloom Pass
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/bloom-pass.ts
+ * -------------------------------------------------------------------------- */
+
+#define BLOOM_PASS_TILE_DIM 128
+#define BLOOM_PASS_BATCH                                                       \
+  {                                                                            \
+    4, 4                                                                       \
+  }
+#define BLOOM_PASS_FILTER_SIZE 10
+#define BLOOM_PASS_ITERATIONS 2u
+
+typedef struct {
+  webgpu_renderer_t* renderer;
+  effect_t effect;
+
+  point_lights_t* point_lights;
+  spot_light_t* spot_light;
+  WGPURenderPassDescriptor framebuffer_descriptor;
+
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } bloom_texture;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } input_texture;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } blur_textures[2];
+
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+
+  WGPUPipelineLayout blur_pipeline_layout;
+  WGPUComputePipeline blur_pipeline;
+
+  WGPUBindGroupLayout blur_constants_bind_group_layout;
+  WGPUBindGroup blur_compute_constants_bindGroup;
+
+  WGPUBindGroupLayout blur_compute_bind_group_layout;
+  WGPUBindGroup blur_compute_bind_group_0;
+  WGPUBindGroup blur_compute_bind_group_1;
+  WGPUBindGroup blur_compute_bind_group_2;
+
+  wgpu_buffer_t blur_params_buffer;
+  wgpu_buffer_t buffer_0;
+  wgpu_buffer_t buffer_1;
+
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
+
+  WGPUSampler sampler;
+  uint32_t block_dim;
+} bloom_pass_t;
+
+static bool bloom_pass_is_ready(bloom_pass_t* this)
+{
+  return (this->effect.render_pipeline != NULL)
+         && (this->blur_pipeline != NULL);
+}
+
+static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Bloom pass blur pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->blur_constants_bind_group_layout, // Group 0
+      this->blur_compute_bind_group_layout,   // Group 1
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "bloom pass blur pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->blur_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      this->renderer->wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->blur_pipeline_layout != NULL);
+  }
+
+  /* Bloom pass blur pipeline */
+  {
+    wgpu_shader_t comp_shader = wgpu_shader_create(
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .file = "shaders/compute_metaballs/BloomBlurCompute.wgsl",
+                      .entry = "main",
+                    });
+    this->blur_pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .label   = "bloom pass blur pipeline",
+        .layout  = this->blur_pipeline_layout,
+        .compute = comp_shader.programmable_stage_descriptor,
+      });
+    wgpu_shader_release(&comp_shader);
+  }
+
+  /* Horizontal flip */
+  const uint32_t horizontal_flip_data[1] = {
+    0 //
+  };
+  this->buffer_0 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label        = "Horizontal flip buffer",
+                    .usage        = WGPUBufferUsage_Uniform,
+                    .size         = sizeof(horizontal_flip_data),
+                    .initial.data = &horizontal_flip_data[0],
+                  });
+
+  /* Vertical flip */
+  const uint32_t vertical_flip_data[1] = {
+    1 //
+  };
+  this->buffer_1
+    = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                         .label = "Vertical flip buffer",
+                                         .usage = WGPUBufferUsage_Uniform,
+                                         .size  = sizeof(vertical_flip_data),
+                                         .initial.data = &vertical_flip_data[0],
+                                       });
+
+  /* Blur compute bind group 0 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->bloom_texture.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[0].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_0.buffer,
+        .size    = this->buffer_0.size,
+      },
+    };
+    this->blur_compute_bind_group_0 = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "blur compute bind group 0",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_group_0 != NULL);
+  }
+
+  /* Blur compute bind group 1 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->blur_textures[0].view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[1].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_1.buffer,
+        .size    = this->buffer_1.size,
+      },
+    };
+    this->blur_compute_bind_group_1 = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "blur compute bind group 1",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_group_1 != NULL);
+  }
+
+  /* Blur compute bind group 2 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->blur_textures[1].view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[0].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_0.buffer,
+        .size    = this->buffer_0.size,
+      },
+    };
+    this->blur_compute_bind_group_2 = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "blur compute bind group 2",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_group_2 != NULL);
+  }
+}
+
+static void bloom_pass_init_defaults(bloom_pass_t* this)
+{
+  memset(this, 0, sizeof(*this));
+  this->block_dim = 0;
+}
+
+static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
+                              copy_pass_t* copy_pass)
+{
+  bloom_pass_init_defaults(this);
+
+  this->renderer = renderer;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Bloom texture */
+  WGPUExtent3D texture_extent = {
+    .width              = renderer->output_size.width,
+    .height             = renderer->output_size.height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "bloom texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_RGBA16Float,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  this->bloom_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(this->bloom_texture.texture != NULL);
+
+  /* Bloom texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "Bloom texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->bloom_texture.view
+    = wgpuTextureCreateView(this->bloom_texture.texture, &texture_view_dec);
+  ASSERT(this->bloom_texture.view != NULL);
+
+  /* Bloom pass bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Texture view
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+      .storageTexture = {0},
+      },
+    };
+    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "bloom pass bind group layout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Blur texture and blur texture views */
+  for (uint8_t i = 0; i < 2; ++i) {
+    /* Blur texture */
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->output_size.width,
+      .height             = renderer->output_size.height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "Blur texture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA8Unorm,
+      .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
+               | WGPUTextureUsage_TextureBinding,
+    };
+    this->blur_textures[i].texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->blur_textures[i].texture != NULL);
+
+    /* Blur texture view */
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Blur texture view",
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->blur_textures[i].view = wgpuTextureCreateView(
+      this->blur_textures[i].texture, &texture_view_dec);
+    ASSERT(this->blur_textures[i].view != NULL);
+  }
+
+  /* G-buffer bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = copy_pass->copy_texture.view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "gbuffer bind group",
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_group != NULL);
+  }
+
+  this->input_texture.texture = copy_pass->copy_texture.texture;
+  this->input_texture.view    = copy_pass->copy_texture.view;
+
+  /* Frame buffer descriptor */
+  this->framebuffer.color_attachments[0] =
+    (WGPURenderPassColorAttachment) {
+      .view       = this->bloom_texture.view,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
+        .a = 1.0f,
+      },
+    };
+
+  /* Frame buffer descriptor */
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &this->framebuffer.color_attachments[0],
+    .depthStencilAttachment = NULL,
+  };
+
+  /* Blur params buffer */
+  this->block_dim = BLOOM_PASS_TILE_DIM - (BLOOM_PASS_FILTER_SIZE - 1);
+  const uint32_t blur_params[2] = {BLOOM_PASS_FILTER_SIZE, this->block_dim};
+  this->blur_params_buffer      = wgpu_create_buffer(
+         wgpu_context, &(wgpu_buffer_desc_t){
+                         .label = "blur params buffer",
+                         .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                         .size  = sizeof(blur_params),
+                         .initial.data = &blur_params[0],
+                  });
+
+  /* Bloom sampler */
+  this->sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "bloom sampler",
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(this->sampler != NULL);
+
+  /* Blur constants bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->blur_params_buffer.size,
+        },
+        .sampler = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "blur constants bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->blur_constants_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->blur_constants_bind_group_layout != NULL);
+  }
+
+  /* Blur constants bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .sampler = this->sampler,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->blur_params_buffer.buffer,
+        .size    = this->blur_params_buffer.size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "blur constants bind group",
+      .layout     = this->blur_constants_bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->blur_compute_constants_bindGroup
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->blur_compute_constants_bindGroup != NULL);
+  }
+
+  /* Blur compute bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .texture = (WGPUTextureBindingLayout){
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .storageTexture = (WGPUStorageTextureBindingLayout) {
+           .access        = WGPUStorageTextureAccess_WriteOnly,
+           .format        = WGPUTextureFormat_RGBA8Unorm,
+           .viewDimension = WGPUTextureViewDimension_2D,
+         },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(float),
+        },
+        .sampler = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "blur compute bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->blur_compute_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->blur_compute_bind_group_layout != NULL);
+  }
+
+  /* Init compute pipeline */
+  bloom_pass_init_compute_pipeline(this);
+}
+
+static void bloom_pass_destroy(bloom_pass_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Texture, this->bloom_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->bloom_texture.view)
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(this->blur_textures); ++i) {
+    WGPU_RELEASE_RESOURCE(Texture, this->blur_textures[i].texture)
+    WGPU_RELEASE_RESOURCE(TextureView, this->blur_textures[i].view)
+  }
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->blur_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->blur_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_constants_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_constants_bindGroup)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_compute_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_0)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_1)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_2)
+  WGPU_RELEASE_RESOURCE(Buffer, this->blur_params_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffer_0.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffer_1.buffer)
+  WGPU_RELEASE_RESOURCE(Sampler, this->sampler)
+}
+
+static void bloom_pass_update_bloom(bloom_pass_t* this,
+                                    WGPUComputePassEncoder compute_pass)
+{
+  if (!bloom_pass_is_ready(this)) {
+    return;
+  }
+
+  const webgpu_renderer_t* renderer = this->renderer;
+  const uint32_t block_dim          = this->block_dim;
+  const uint32_t batch[2]           = BLOOM_PASS_BATCH;
+  const uint32_t src_width          = renderer->output_size.width;
+  const uint32_t src_height         = renderer->output_size.height;
+
+  wgpuComputePassEncoderSetPipeline(compute_pass, this->blur_pipeline);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 0, this->blur_compute_constants_bindGroup, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
+                                     this->blur_compute_bind_group_0, 0, NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    compute_pass,
+    (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
+    (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
+    1                                             // workgroupCountZ
+  );
+  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
+                                     this->blur_compute_bind_group_1, 0, NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    compute_pass,
+    (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
+    (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
+    1                                              // workgroupCountZ
+  );
+  for (uint32_t i = 0; i < BLOOM_PASS_ITERATIONS - 1; ++i) {
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 1, this->blur_compute_bind_group_2, 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      compute_pass,
+      (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
+      (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
+      1                                             // workgroupCountZ
+    );
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 1, this->blur_compute_bind_group_1, 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      compute_pass,
+      (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
+      (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
+      1                                              // workgroupCountZ
+    );
+  }
+}
+
+static void bloom_pass_render(bloom_pass_t* this,
+                              WGPURenderPassEncoder render_pass)
+{
+  if (!bloom_pass_is_ready(this)) {
     return;
   }
 
