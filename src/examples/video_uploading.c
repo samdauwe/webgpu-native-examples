@@ -34,7 +34,7 @@ static const char* vertex_shader_wgsl = CODE(
   @vertex
   fn main(input : VertexInput) -> VertexOutput {
     return VertexOutput(vec4<f32>(input.position, 1.0), input.uv);
-  };
+  }
 );
 
 static const char* fragment_shader_wgsl = CODE(
@@ -44,7 +44,7 @@ static const char* fragment_shader_wgsl = CODE(
   @fragment
   fn main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     return textureSample(myTexture, mySampler, fragUV);
-  };
+  }
 );
 // clang-format on
 
