@@ -124,8 +124,9 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 
   const float sin_now = sin(now), cos_now = cos(now);
 
+  cube_t* cube = NULL;
   for (uint64_t i = 0; i < settings.number_of_cubes; ++i) {
-    cube_t* cube = &cubes[i];
+    cube = &cubes[i];
     glm_mat4_copy(cube->view_mtx.model, cube->view_mtx.tmp);
     if (i % 2 == 0) {
       glm_rotate(cube->view_mtx.tmp, 1.0f, (vec3){sin_now, cos_now, 0.0f});
