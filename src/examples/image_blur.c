@@ -35,8 +35,7 @@ static WGPUBindGroup show_result_bind_group;
 
 // Texture and sampler
 static texture_t texture;
-static WGPUTexture textures[2];
-static WGPUTextureView texture_views[2];
+static texture_t blur_textures[2];
 
 // Settings
 static struct {
@@ -65,8 +64,8 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   const char* file = "textures/Di-3d.png";
   texture          = wgpu_create_texture_from_file(wgpu_context, file, NULL);
 
-  for (uint32_t i = 0; i < ARRAY_SIZE(textures); ++i) {
-    textures[i] = wgpuDeviceCreateTexture(
+  for (uint32_t i = 0; i < ARRAY_SIZE(blur_textures); ++i) {
+    blur_textures[i].texture = wgpuDeviceCreateTexture(
       wgpu_context->device,
       &(WGPUTextureDescriptor){
         .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
@@ -81,18 +80,18 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
         .mipLevelCount = 1,
         .sampleCount   = 1,
       });
-    ASSERT(textures[i] != NULL);
+    ASSERT(blur_textures[i].texture != NULL);
 
-    texture_views[i] = wgpuTextureCreateView(
-      textures[i], &(WGPUTextureViewDescriptor){
-                     .format          = texture.format,
-                     .dimension       = WGPUTextureViewDimension_2D,
-                     .baseMipLevel    = 0,
-                     .mipLevelCount   = 1,
-                     .baseArrayLayer  = 0,
-                     .arrayLayerCount = 1,
-                   });
-    ASSERT(texture_views[i] != NULL);
+    blur_textures[i].view = wgpuTextureCreateView(
+      blur_textures[i].texture, &(WGPUTextureViewDescriptor){
+                                  .format         = texture.format,
+                                  .dimension      = WGPUTextureViewDimension_2D,
+                                  .baseMipLevel   = 0,
+                                  .mipLevelCount  = 1,
+                                  .baseArrayLayer = 0,
+                                  .arrayLayerCount = 1,
+                                });
+    ASSERT(blur_textures[i].view != NULL);
   }
 
   image_width  = texture.size.width;
@@ -176,7 +175,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding     = 2,
-        .textureView = texture_views[0],
+        .textureView = blur_textures[0].view,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
@@ -200,11 +199,11 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding     = 1,
-        .textureView = texture_views[0],
+        .textureView = blur_textures[0].view,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding     = 2,
-        .textureView = texture_views[1],
+        .textureView = blur_textures[1].view,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
@@ -228,11 +227,11 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding     = 1,
-        .textureView = texture_views[1],
+        .textureView = blur_textures[1].view,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding     = 2,
-        .textureView = texture_views[0],
+        .textureView = blur_textures[0].view,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 3,
@@ -260,7 +259,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding     = 1,
-        .textureView = texture_views[1],
+        .textureView = blur_textures[1].view,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
@@ -513,10 +512,10 @@ static int example_render(wgpu_example_context_t* context)
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
-  WGPU_RELEASE_RESOURCE(TextureView, texture_views[0])
-  WGPU_RELEASE_RESOURCE(TextureView, texture_views[1])
-  WGPU_RELEASE_RESOURCE(Texture, textures[0])
-  WGPU_RELEASE_RESOURCE(Texture, textures[1])
+  WGPU_RELEASE_RESOURCE(TextureView, blur_textures[0].view)
+  WGPU_RELEASE_RESOURCE(TextureView, blur_textures[1].view)
+  WGPU_RELEASE_RESOURCE(Texture, blur_textures[0].texture)
+  WGPU_RELEASE_RESOURCE(Texture, blur_textures[1].texture)
   wgpu_destroy_texture(&texture);
 
   WGPU_RELEASE_RESOURCE(BindGroup, compute_constants_bind_group)
