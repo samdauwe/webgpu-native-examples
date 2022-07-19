@@ -249,7 +249,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     offscreen_pass.width  = wgpu_context->surface.width;
     offscreen_pass.height = wgpu_context->surface.height;
 
-    // Color attachments
+    /* Color attachments */
 
     // Two floating point color buffers
     create_attachment(
@@ -281,7 +281,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         };
     }
 
-    // Depth stencil attachment
+    /* Depth stencil attachment */
     offscreen_pass.render_pass_desc.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view           = offscreen_pass.depth.texture_view,
@@ -302,7 +302,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         = &offscreen_pass.render_pass_desc.depth_stencil_attachment,
       };
 
-    // Create sampler to sample from the color attachments
+    /* Create sampler to sample from the color attachments */
     offscreen_pass.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
