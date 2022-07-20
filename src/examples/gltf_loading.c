@@ -456,7 +456,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
           }
         }
 
-        assert(pos_accessor != NULL);
+        ASSERT(pos_accessor != NULL);
 
         if (pos_accessor->has_min) {
           glm_vec3_copy(
@@ -551,7 +551,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
             break;
           }
           default: {
-            assert(false);
+            ASSERT(false);
           }
         }
 
@@ -627,7 +627,7 @@ gltf_model_t* gltf_model_load_from_file(gltf_model_load_options_t* load_options)
         = gltf_model->vertices.count * sizeof(gltf_vertex_t);
       size_t index_buffer_size = gltf_model->indices.count * sizeof(uint32_t);
 
-      assert((vertex_buffer_size > 0) && (index_buffer_size > 0));
+      ASSERT((vertex_buffer_size > 0) && (index_buffer_size > 0));
 
       // Create vertex buffer
       gltf_model->vertices.buffer = wgpu_create_buffer_from_data(
