@@ -971,7 +971,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   ubo_scene_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(ubo_scene_bind_group != NULL)
+  ASSERT(ubo_scene_bind_group != NULL);
 
   // Create the pipeline layout
   WGPUBindGroupLayout bind_group_layouts[3] = {
@@ -986,7 +986,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                    &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
