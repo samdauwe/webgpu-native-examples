@@ -739,7 +739,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         .sample_count = 1,
       });
 
-  // Full screen pipelines
+  /* Full screen pipelines */
 
   // Final fullscreen composition pass pipeline
   {
