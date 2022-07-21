@@ -225,7 +225,7 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
   };
   attachment->texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(attachment->texture)
+  ASSERT(attachment->texture);
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -239,7 +239,7 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
   };
   attachment->texture_view
     = wgpuTextureCreateView(attachment->texture, &texture_view_dec);
-  ASSERT(attachment->texture_view)
+  ASSERT(attachment->texture_view);
 }
 
 // Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
@@ -591,7 +591,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       };
       bind_groups.object
         = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-      ASSERT(bind_groups.object != NULL)
+      ASSERT(bind_groups.object != NULL);
     }
 
     // Skybox bind group
@@ -603,7 +603,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       };
       bind_groups.skybox
         = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-      ASSERT(bind_groups.skybox != NULL)
+      ASSERT(bind_groups.skybox != NULL);
     }
   }
 
@@ -646,7 +646,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.bloom_filter
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.bloom_filter != NULL)
+    ASSERT(bind_groups.bloom_filter != NULL);
   }
 
   // Composition bind group
