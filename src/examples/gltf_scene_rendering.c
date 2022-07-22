@@ -41,17 +41,17 @@ static struct {
     WGPUBuffer* buffers;
     uint32_t buffer_count;
   } ubo_material_consts;
-} ubo_buffers;
+} ubo_buffers = {0};
 
 static struct {
   WGPUBindGroupLayout ubo_scene;
   WGPUBindGroupLayout ubo_primitive;
   WGPUBindGroupLayout textures;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPUBindGroup ubo_scene;
-} bind_groups;
+} bind_groups = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
