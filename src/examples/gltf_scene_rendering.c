@@ -96,7 +96,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(ubo_scene),
         },
         .sampler = {0},
@@ -117,7 +117,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(mat4),
         },
         .texture = {0},
@@ -253,7 +253,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
             [1] = (WGPUBindGroupEntry) {
               // Binding 1: sampler (Fragment shader) => Color map
               .binding = 1,
-              .sampler =  material->base_color_texture->wgpu_texture.sampler,
+              .sampler = material->base_color_texture->wgpu_texture.sampler,
             },
             [2] = (WGPUBindGroupEntry) {
               // Binding 2: texture2D (Fragment shader) => Normal map
