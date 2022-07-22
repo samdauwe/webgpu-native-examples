@@ -21,7 +21,7 @@
 
 static struct gltf_model_t* gltf_model;
 
-static struct ubo_scene_t {
+static struct {
   mat4 projection;
   mat4 view;
   vec4 light_pos;
@@ -30,12 +30,12 @@ static struct ubo_scene_t {
   .light_pos = {0.0f, 5.0f, 0.0f, 1.0f},
 };
 
-typedef struct ubo_material_consts_t {
+typedef struct {
   bool alpha_mask;
   float alpha_mask_cutoff;
 } ubo_material_consts_t;
 
-static struct ubo_buffers_t {
+static struct {
   wgpu_buffer_t ubo_scene;
   struct {
     WGPUBuffer* buffers;
@@ -43,13 +43,13 @@ static struct ubo_buffers_t {
   } ubo_material_consts;
 } ubo_buffers;
 
-static struct bind_group_layout_t {
+static struct {
   WGPUBindGroupLayout ubo_scene;
   WGPUBindGroupLayout ubo_primitive;
   WGPUBindGroupLayout textures;
 } bind_group_layouts;
 
-static struct bind_group_t {
+static struct {
   WGPUBindGroup ubo_scene;
 } bind_groups;
 
