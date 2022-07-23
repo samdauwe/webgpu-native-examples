@@ -1726,7 +1726,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexAttribute attribute_0 = {
     // Shader location 0 : position attribute
     .shaderLocation = 0,
-    .offset         = 0,
+    .offset         = 0 * sizeof(float),
     .format         = WGPUVertexFormat_Float32x3,
   };
   instanced_meshes_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
@@ -1754,7 +1754,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexAttribute attributes_2[4] = {
        [0] = (WGPUVertexAttribute) {
          .shaderLocation = 2,
-         .offset         = 0,
+         .offset         = 0 * sizeof(float),
          .format         = WGPUVertexFormat_Float32x4,
        },
        [1] = (WGPUVertexAttribute) {
@@ -1785,7 +1785,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexAttribute attributes_3[4] = {
        [0] = (WGPUVertexAttribute) {
          .shaderLocation = 6,
-         .offset         = 0,
+         .offset         = 0 * sizeof(float),
          .format         = WGPUVertexFormat_Float32x4,
        },
        [1] = (WGPUVertexAttribute) {
