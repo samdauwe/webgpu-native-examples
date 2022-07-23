@@ -359,10 +359,11 @@ static void build_plane(float* vertices, float* normal, float* uv,
   const float seg_h = (float)height / (float)h_segs;
 
   uint32_t a = 0, b = 0, c = 0, d = 0;
+  float x = 0, y = 0;
   for (uint32_t iy = 0; iy <= h_segs; ++iy) {
-    const float y = iy * seg_h - height / 2.0f;
+    y = iy * seg_h - height / 2.0f;
     for (uint32_t ix = 0; ix <= w_segs; ++ix, ++i) {
-      const float x = ix * seg_w - width / 2.0f;
+      x = ix * seg_w - width / 2.0f;
 
       vertices[i * 3 + u] = x * u_dir;
       vertices[i * 3 + v] = y * v_dir;
