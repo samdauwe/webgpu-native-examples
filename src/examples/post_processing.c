@@ -991,7 +991,7 @@ static struct {
 } pipelines = {0};
 
 // Render pass descriptor for frame buffer writes
-typedef struct render_pass_t {
+typedef struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
