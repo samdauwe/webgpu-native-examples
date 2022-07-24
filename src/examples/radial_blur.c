@@ -732,6 +732,7 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
     ubo_scene.gradient_pos += context->frame_timer * 0.1f;
   }
 
+  // Update GPU buffer
   wgpu_queue_write_buffer(context->wgpu_context, ubo.scene.buffer, 0,
                           &ubo_scene, ubo.scene.size);
 }
