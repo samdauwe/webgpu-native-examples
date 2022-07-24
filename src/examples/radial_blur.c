@@ -293,6 +293,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the bind group layout
     bind_group_layouts.scene = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Scene rendering bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -301,6 +302,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label = "Scene rendering pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.scene,
                             });
@@ -345,16 +347,19 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
     // Create the bind group layout
     bind_group_layouts.radial_blur = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = "Fullscreen radial blur rendering bind group layout",
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
     ASSERT(bind_group_layouts.radial_blur != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.radial_blur = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
+        .label = "Fullscreen radial blur rendering pipeline layout",
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &bind_group_layouts.radial_blur,
       });
