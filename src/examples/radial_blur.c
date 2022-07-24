@@ -393,6 +393,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.scene = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Scene rendering bind group",
                               .layout     = bind_group_layouts.scene,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -423,11 +424,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
 
     bind_groups.radial_blur = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout     = bind_group_layouts.radial_blur,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = "Fullscreen radial blur rendering bind group",
+        .layout     = bind_group_layouts.radial_blur,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
     ASSERT(bind_groups.radial_blur != NULL);
   }
 }
