@@ -229,6 +229,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         .a = 0.0f,
       },
   };
+
   // Depth attachment
   offscreen_pass.render_pass.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
@@ -240,6 +241,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .stencilStoreOp = WGPUStoreOp_Store,
       .clearStencil   = 0,
     };
+
   // Render pass descriptor
   offscreen_pass.render_pass.render_pass_descriptor
     = (WGPURenderPassDescriptor){
