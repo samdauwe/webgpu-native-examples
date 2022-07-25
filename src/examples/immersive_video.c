@@ -168,7 +168,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label = "Immersive video render pipeline layout",
+                            .label      = "Immersive video bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -202,6 +202,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
+    .label      = "Immersive video bind group",
     .layout     = bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
