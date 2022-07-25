@@ -33,17 +33,17 @@
 // Shaders
 // clang-format off
 static const char* vertex_shader_wgsl = CODE(
-  struct DrawUniforms {
-    object_to_world: mat4x4<f32>,
-    basecolor_roughness: vec4<f32>,
-  }
-  @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
-
   struct FrameUniforms {
     world_to_clip: mat4x4<f32>,
     camera_position: vec3<f32>,
   }
   @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
+
+  struct DrawUniforms {
+    object_to_world: mat4x4<f32>,
+    basecolor_roughness: vec4<f32>,
+  }
+  @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
 
   struct VertexOut {
     @builtin(position) position_clip: vec4<f32>,
@@ -51,7 +51,9 @@ static const char* vertex_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
   }
-  @stage(vertex) fn main(
+
+  @vertex
+  fn main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @builtin(vertex_index) vertex_index: u32,
@@ -59,7 +61,7 @@ static const char* vertex_shader_wgsl = CODE(
     var output: VertexOut;
     output.position_clip = vec4<f32>(position, 1.0);
     // output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world * frame_uniforms.world_to_clip;
-    output.position = position;
+    output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
     output.normal = normal * mat3x3(
       draw_uniforms.object_to_world[0].xyz,
       draw_uniforms.object_to_world[1].xyz,
@@ -72,17 +74,17 @@ static const char* vertex_shader_wgsl = CODE(
   );
 
 static const char* fragment_shader_wgsl = CODE(
-  struct DrawUniforms {
-    object_to_world: mat4x4<f32>,
-    basecolor_roughness: vec4<f32>,
-  }
-  @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
-
   struct FrameUniforms {
     world_to_clip: mat4x4<f32>,
     camera_position: vec3<f32>,
   }
   @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
+
+  struct DrawUniforms {
+    object_to_world: mat4x4<f32>,
+    basecolor_roughness: vec4<f32>,
+  }
+  @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
 
   let pi = 3.1415926;
 
@@ -110,7 +112,8 @@ static const char* fragment_shader_wgsl = CODE(
     return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
   }
 
-  @stage(fragment) fn main(
+  @fragment
+  fn main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
@@ -363,12 +366,12 @@ typedef struct {
 } drawable_t;
 
 static struct {
-  WGPUBindGroupLayout draw_bind_group_layout;
   WGPUBindGroupLayout frame_bind_group_layout;
+  WGPUBindGroupLayout draw_bind_group_layout;
   WGPUPipelineLayout pipeline_layout;
 
-  WGPUBindGroup draw_bind_group;
   WGPUBindGroup frame_bind_group;
+  WGPUBindGroup draw_bind_group;
   WGPURenderPipeline pipeline;
 
   uint32_t total_num_vertices;
@@ -422,9 +425,9 @@ static struct {
   .camera.updir             = {0.0f, 1.0f, 0.0f},
   .camera.pitch             = 0.15f * PI,
   .camera.yaw               = 0.0f,
-  .camera.cam_world_to_view = GLM_MAT4_ZERO_INIT,
-  .camera.cam_view_to_clip  = GLM_MAT4_ZERO_INIT,
-  .camera.cam_world_to_clip = GLM_MAT4_ZERO_INIT,
+  .camera.cam_world_to_view = GLM_MAT4_IDENTITY_INIT,
+  .camera.cam_view_to_clip  = GLM_MAT4_IDENTITY_INIT,
+  .camera.cam_world_to_clip = GLM_MAT4_IDENTITY_INIT,
 
   .mouse.xpos = 0.0f,
   .mouse.ypos = 0.0f,
@@ -569,6 +572,28 @@ static void prepare_vertex_and_index_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
+  /* Frame bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize =  sizeof(frame_uniforms_t),
+        },
+        .sampler = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    demo_state.frame_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(demo_state.frame_bind_group_layout != NULL);
+  }
+
   /* Draw bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
@@ -591,35 +616,13 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
     ASSERT(demo_state.draw_bind_group_layout != NULL);
   }
-
-  /* Frame bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
-        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize =  sizeof(frame_uniforms_t),
-        },
-        .sampler = {0},
-      },
-    };
-    WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-      .entries    = bgl_entries,
-    };
-    demo_state.frame_bind_group_layout
-      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(demo_state.frame_bind_group_layout != NULL);
-  }
 }
 
 static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayout bind_group_layouts[2] = {
-    demo_state.frame_bind_group_layout, // Group 1
-    demo_state.draw_bind_group_layout,  // Group 0
+    demo_state.frame_bind_group_layout, // Group 0
+    demo_state.draw_bind_group_layout,  // Group 1
   };
   demo_state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
@@ -763,7 +766,7 @@ static void update_draw_uniform_buffers(wgpu_context_t* wgpu_context)
 
   // Map uniform buffer and update it
   wgpu_queue_write_buffer(wgpu_context, demo_state.uniform_buffers.draw.buffer,
-                          0, &demo_state.draw_uniforms,
+                          0, &demo_state.draw_uniforms.object_to_world,
                           demo_state.uniform_buffers.draw.size);
 }
 
@@ -884,12 +887,13 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Depth stencil attachment
   demo_state.render_pass.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
-      .view            = demo_state.depth_texture_view,
-      .depthLoadOp     = WGPULoadOp_Clear,
-      .depthStoreOp    = WGPUStoreOp_Store,
-      .clearDepth      = 1.0f,
-      .depthClearValue = 1.0f,
-      .clearStencil    = 0,
+      .view              = demo_state.depth_texture_view,
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .clearDepth        = 1.0f,
+      .depthClearValue   = 1.0f,
+      .clearStencil      = 1,
+      .stencilClearValue = 1,
     };
 
   // Render pass descriptor
@@ -957,13 +961,13 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                    demo_state.pipeline);
 
   // Set the bind group
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     demo_state.frame_bind_group, 0, 0);
 
   // Draw indexed geometries
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(demo_state.drawables); ++i) {
     uint32_t dynamic_offset = i * ALIGNMENT;
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
                                       demo_state.draw_bind_group, 0,
                                       &dynamic_offset);
     wgpuRenderPassEncoderDrawIndexed(
