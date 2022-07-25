@@ -112,7 +112,7 @@ static examplecase_t g_example_cases[] = {
   {"pbr_texture", example_pbr_texture},
   {"post_processing", example_post_processing},
   {"prng", example_prng},
-  // {"procedural_mesh", example_procedural_mesh},
+  {"procedural_mesh", example_procedural_mesh},
   {"radial_blur", example_radial_blur},
   {"reversed_z", example_reversed_z},
   {"screenshot", example_screenshot},
