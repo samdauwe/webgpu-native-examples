@@ -297,13 +297,13 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Vertex buffer layout
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     quad,
-    // Location 0: Position
+    // Location 0: Vertex positions
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
     // Location 1: Texture coordinates
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_UV),
-    // Location 2: Vertex normal
+    // Location 2: Vertex normals
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_Normal),
-    // Location 3: Vertex tangent
+    // Location 3: Vertex tangents
     WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Tangent));
 
   // Vertex state
