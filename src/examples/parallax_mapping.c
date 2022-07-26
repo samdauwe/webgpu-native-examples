@@ -121,7 +121,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
-        .hasDynamicOffset = false,
         .minBindingSize   = sizeof(ubos.vertex_shader),
       },
       .sampler = {0},
@@ -133,7 +132,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = (WGPUTextureBindingLayout) {
         .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled  = false,
       },
       .storageTexture = {0},
     },
@@ -171,8 +169,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .binding    = 5,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
-        .type = WGPUBufferBindingType_Uniform,
-        .hasDynamicOffset = false,
+        .type             = WGPUBufferBindingType_Uniform,
         .minBindingSize   = sizeof(ubos.fragment_shader),
       },
       .sampler = {0},
