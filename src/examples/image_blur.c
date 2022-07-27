@@ -254,7 +254,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(compute_bind_groups[2] != NULL);
   }
 
-  // Uniform bindgroup
+  // Uniform bind group
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
