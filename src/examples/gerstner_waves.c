@@ -404,7 +404,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.uniforms != NULL);
   }
 
-  // Bind group layout for sea color texture
+  // Bind group for sea color texture
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
