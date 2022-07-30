@@ -96,14 +96,16 @@ static void generate_cube(wgpu_context_t* wgpu_context)
 {
   // Setup vertices for a colored cube
   vertex_t vertex_buffer[8] = {
-    {.pos = {-1.0f, -1.0f, 1.0f}, .color = {1.0f, 0.0f, 0.0f}},
-    {.pos = {1.0f, -1.0f, 1.0f}, .color = {0.0f, 1.0f, 0.0f}},
-    {.pos = {1.0f, 1.0f, 1.0f}, .color = {0.0f, 0.0f, 1.0f}},
-    {.pos = {-1.0f, 1.0f, 1.0f}, .color = {0.0f, 0.0f, 0.0f}},
+    // clang-format off
+    {.pos = {-1.0f, -1.0f,  1.0f}, .color = {1.0f, 0.0f, 0.0f}},
+    {.pos = { 1.0f, -1.0f,  1.0f}, .color = {0.0f, 1.0f, 0.0f}},
+    {.pos = { 1.0f,  1.0f,  1.0f}, .color = {0.0f, 0.0f, 1.0f}},
+    {.pos = {-1.0f,  1.0f,  1.0f}, .color = {0.0f, 0.0f, 0.0f}},
     {.pos = {-1.0f, -1.0f, -1.0f}, .color = {1.0f, 0.0f, 0.0f}},
-    {.pos = {1.0f, -1.0f, -1.0f}, .color = {0.0f, 1.0f, 0.0f}},
-    {.pos = {1.0f, 1.0f, -1.0f}, .color = {0.0f, 0.0f, 1.0f}},
-    {.pos = {-1.0f, 1.0f, -1.0f}, .color = {0.0f, 0.0f, 0.0f}},
+    {.pos = { 1.0f, -1.0f, -1.0f}, .color = {0.0f, 1.0f, 0.0f}},
+    {.pos = { 1.0f,  1.0f, -1.0f}, .color = {0.0f, 0.0f, 1.0f}},
+    {.pos = {-1.0f,  1.0f, -1.0f}, .color = {0.0f, 0.0f, 0.0f}},
+    // clang-format on
   };
 
   // Create vertex buffer
