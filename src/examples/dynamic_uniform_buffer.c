@@ -448,7 +448,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
                          random_float_min_max(-1.0f, 1.0f),
                          random_float_min_max(-1.0f, 1.0f)},
                   rotations[i]);
-    glm_vec3_scale(rotations[i], 2.0f * PI, rotations[i]);
+    glm_vec3_scale(rotations[i], PI2, rotations[i]);
     glm_vec3_copy((vec3){random_float_min_max(-1.0f, 1.0f),
                          random_float_min_max(-1.0f, 1.0f),
                          random_float_min_max(-1.0f, 1.0f)},
