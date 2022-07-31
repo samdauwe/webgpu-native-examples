@@ -142,10 +142,10 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       .mappedAtCreation = true,
     };
     vertex_buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(vertex_buffer)
+    ASSERT(vertex_buffer);
     float* mapping
       = (float*)wgpuBufferGetMappedRange(vertex_buffer, 0, vertex_buffer_size);
-    ASSERT(mapping)
+    ASSERT(mapping);
     for (uint64_t i = 0; i < dragon_mesh->positions.count; ++i) {
       memcpy(&mapping[vertex_stride * i], dragon_mesh->positions.data[i],
              sizeof(vec3));
