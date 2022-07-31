@@ -1009,7 +1009,7 @@ static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
 
 static void prepare_lights(wgpu_context_t* wgpu_context)
 {
-  // Lights buffer
+  /* Lights buffer */
   {
     // Lights data are uploaded in a storage buffer
     // which could be updated/culled/etc. with a compute shader
@@ -1051,7 +1051,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     wgpuBufferUnmap(lights.buffer);
   }
 
-  // Lights extent buffer
+  /* Lights extent buffer */
   {
     lights.extent_buffer_size = 4 * 8;
     lights.extent_buffer      = wgpuDeviceCreateBuffer(
@@ -1067,7 +1067,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
                             &light_extent_data, lights.extent_buffer_size);
   }
 
-  // Lights buffer bind group
+  /* Lights buffer bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
@@ -1090,7 +1090,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     ASSERT(lights.buffer_bind_group != NULL);
   }
 
-  // Lights buffer compute bind group
+  /* Lights buffer compute bind group */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
