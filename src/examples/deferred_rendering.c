@@ -1030,9 +1030,8 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     float* light_data
       = (float*)wgpuBufferGetMappedRange(lights.buffer, 0, lights.buffer_size);
     ASSERT(light_data);
-    vec4 tmp_vec4   = GLM_VEC4_ZERO_INIT;
-    uint32_t offset = 0;
-    for (uint32_t i = 0; i < max_num_lights; ++i) {
+    vec4 tmp_vec4 = GLM_VEC4_ZERO_INIT;
+    for (uint32_t i = 0, offset = 0; i < max_num_lights; ++i) {
       offset = light_data_stride * i;
       // position
       for (uint8_t j = 0; j < 3; j++) {
