@@ -902,6 +902,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Scene uniform bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 write_gbuffers_pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
@@ -932,6 +933,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     surface_size_uniform_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Surface size uniform bind group",
                               .layout = surface_size_uniform_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -957,6 +959,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     gbuffer_textures_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "GBuffer textures bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 gbuffers_debug_view_pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
@@ -971,6 +974,7 @@ static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
   // Light update compute pipeline layout
   {
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
+      .label                = "Light update compute pipeline layout",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &lights.buffer_compute_bind_group_layout,
     };
@@ -986,6 +990,7 @@ static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
   wgpu_shader_t light_update_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
+                    .label = "Light update WGSL",
                     .file  = "shaders/deferred_rendering/lightUpdate.wgsl",
                     .entry = "main",
                   });
