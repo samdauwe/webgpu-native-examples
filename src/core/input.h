@@ -1,7 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-typedef enum keycode_t {
+typedef enum {
   KEY_UNKNOWN = 0,
   /* Printable keys */
   KEY_SPACE         = 32,
@@ -129,7 +129,7 @@ typedef enum keycode_t {
   KEY_NUM,
 } keycode_t;
 
-typedef enum button_t {
+typedef enum {
   BUTTON_UNDEFINED,
   BUTTON_LEFT,
   BUTTON_MIDDLE,
@@ -137,7 +137,7 @@ typedef enum button_t {
   BUTTON_NUM
 } button_t;
 
-typedef enum button_action_t {
+typedef enum {
   BUTTON_ACTION_UNDEFINED,
   BUTTON_ACTION_PRESS,
   BUTTON_ACTION_RELEASE,
