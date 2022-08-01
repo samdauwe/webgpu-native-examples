@@ -1,9 +1,9 @@
 #include "file.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
 #include "macro.h"
 
 int file_exists(const char* filename)
@@ -38,7 +38,7 @@ void read_file(const char* filename, file_read_result_t* result,
   ASSERT(filename && result);
   FILE* file = fopen(filename, "rb");
   if (file == NULL) {
-    printf("Unable to open file '%s'\n", filename);
+    log_error("Unable to open file '%s'\n", filename);
     exit(1);
   }
   fseek(file, 0, SEEK_END);
