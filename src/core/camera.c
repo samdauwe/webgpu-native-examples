@@ -71,9 +71,9 @@ void camera_update(camera_t* camera, float delta_time)
   }
 }
 
-/*
- * Update camera passing separate axis data (gamepad)
- * Returns true if view or position has been changed
+/**
+ * @brief Update camera passing separate axis data (gamepad)
+ * @returns true if view or position has been changed
  */
 bool camera_update_pad(camera_t* camera, vec2 axis_left, vec2 axis_right,
                        float delta_time)
@@ -262,8 +262,10 @@ float camera_get_far_clip(camera_t* camera)
 
 /* projection helpers */
 
-/* Converts a projection matrix from WebGPU-style Z range [0, 1] to OpenGL-style
- * Z range [-1, 1] */
+/**
+ * @brief Converts a projection matrix from WebGPU-style Z range [0, 1] to
+ * OpenGL-style Z range [-1, 1]
+ */
 static void projection_matrix_wgpu_to_opengl(mat4* proj_mtx)
 {
   static mat4 WGPU_TO_OPENGL_MATRIX = {
@@ -277,8 +279,10 @@ static void projection_matrix_wgpu_to_opengl(mat4* proj_mtx)
   glm_mat4_copy(tmp, *proj_mtx);
 }
 
-/* Converts a projection matrix from OpenGL-style Z range [-1, 1] to
- * WebGPU-style Z range [0, 1] */
+/**
+ * @brief Converts a projection matrix from OpenGL-style Z range [-1, 1] to
+ * WebGPU-style Z range [0, 1]
+ */
 static void projection_matrix_opengl_to_wgpu(mat4* proj_mtx)
 {
   static mat4 OPENGL_TO_WGPU_MATRIX = {
