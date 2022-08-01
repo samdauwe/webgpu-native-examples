@@ -11,7 +11,7 @@ typedef enum camera_type_enum {
 /**
  * @brief Basic camera class
  */
-typedef struct camera_t {
+typedef struct {
   vec3 rotation;
   vec3 position;
   vec4 view_pos;
@@ -62,7 +62,7 @@ float camera_get_far_clip(camera_t* camera);
 
 /* projection helpers */
 
-typedef enum clip_space_near_z_enum {
+typedef enum {
   ClipSpaceNearZ_NegativeOne = 0x00000000, // OpenGL
   ClipSpaceNearZ_Zero        = 0x00000001  // WebGPU
 } clip_space_near_z_enum;
