@@ -3,13 +3,13 @@
 
 #include <cglm/cglm.h>
 
-typedef enum frustum_side_enum {
-  Frustum_Side_Left = 0,
-  Frustum_Side_Right = 1,
-  Frustum_Side_Top = 2,
+typedef enum {
+  Frustum_Side_Left   = 0,
+  Frustum_Side_Right  = 1,
+  Frustum_Side_Top    = 2,
   Frustum_Side_Bottom = 3,
-  Frustum_Side_Back = 4,
-  Frustum_Side_Front = 5
+  Frustum_Side_Back   = 4,
+  Frustum_Side_Front  = 5
 } frustum_side_enum;
 
 /**
