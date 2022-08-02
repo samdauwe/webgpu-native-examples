@@ -43,6 +43,7 @@
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define CLAMP(x, lo, hi) (MIN(hi, MAX(lo, x)))
 
 #define UNUSED_VAR(x) ((void)(x))
 #define UNUSED_FUNCTION(x) ((void)(x))
