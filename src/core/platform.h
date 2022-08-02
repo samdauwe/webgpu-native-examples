@@ -2,7 +2,7 @@
 #define PLATFORM_H
 
 /* date class */
-typedef struct date_t {
+typedef struct {
   int msec;
   int sec;
   float day_sec;
