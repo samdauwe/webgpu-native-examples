@@ -384,7 +384,8 @@ static void damped_action_init(damped_action_t* this)
 
 typedef struct {
   wgpu_context_t* wgpu_context;
-  WGPUExtent3D output_size;
+  float device_pixel_ratio;
+  vec2 output_size;
   struct {
     WGPUBindGroupLayout frame;
   } bind_group_layouts;
@@ -422,6 +423,11 @@ static void webgpu_renderer_create(webgpu_renderer_t* this,
   webgpu_renderer_init_defaults(this);
 
   this->wgpu_context = wgpu_context;
+}
+
+static void webgpu_renderer_init(webgpu_renderer_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
 
   /* default sampler */
   this->default_sampler = wgpuDeviceCreateSampler(
@@ -3881,8 +3887,8 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
 
   /* Copy texture */
   WGPUExtent3D texture_extent = {
-    .width              = renderer->output_size.width,
-    .height             = renderer->output_size.height,
+    .width              = renderer->output_size[0],
+    .height             = renderer->output_size[1],
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
@@ -4224,8 +4230,8 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
   /* Bloom texture */
   WGPUExtent3D texture_extent = {
-    .width              = renderer->output_size.width,
-    .height             = renderer->output_size.height,
+    .width              = renderer->output_size[0],
+    .height             = renderer->output_size[1],
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
@@ -4284,8 +4290,8 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   for (uint8_t i = 0; i < 2; ++i) {
     /* Blur texture */
     WGPUExtent3D texture_extent = {
-      .width              = renderer->output_size.width,
-      .height             = renderer->output_size.height,
+      .width              = renderer->output_size[0],
+      .height             = renderer->output_size[1],
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -4520,8 +4526,8 @@ static void bloom_pass_update_bloom(bloom_pass_t* this,
   const webgpu_renderer_t* renderer = this->renderer;
   const uint32_t block_dim          = this->block_dim;
   const uint32_t batch[2]           = BLOOM_PASS_BATCH;
-  const uint32_t src_width          = renderer->output_size.width;
-  const uint32_t src_height         = renderer->output_size.height;
+  const uint32_t src_width          = renderer->output_size[0];
+  const uint32_t src_height         = renderer->output_size[1];
 
   wgpuComputePassEncoderSetPipeline(compute_pass, this->blur_pipeline);
   wgpuComputePassEncoderSetBindGroup(
@@ -4653,8 +4659,8 @@ static void deferred_pass_create(deferred_pass_t* this,
   {
     /* G-Buffer normal texture */
     WGPUExtent3D texture_extent = {
-      .width              = renderer->output_size.width,
-      .height             = renderer->output_size.height,
+      .width              = renderer->output_size[0],
+      .height             = renderer->output_size[1],
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -4690,8 +4696,8 @@ static void deferred_pass_create(deferred_pass_t* this,
   {
     /* G-Buffer diffuse texture */
     WGPUExtent3D texture_extent = {
-      .width              = renderer->output_size.width,
-      .height             = renderer->output_size.height,
+      .width              = renderer->output_size[0],
+      .height             = renderer->output_size[1],
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
@@ -5071,4 +5077,238 @@ static void result_pass_render(result_pass_t* this,
   wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
                                     this->renderer->bind_groups.frame, 0, NULL);
   wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Compute Metaballs example
+ * -------------------------------------------------------------------------- */
+
+// Example state object
+static struct {
+  webgpu_renderer_t renderer;
+  perspective_camera_t persp_camera;
+  ivolume_settings_t volume;
+  // Render passes
+  deferred_pass_t deferred_pass;
+  copy_pass_t copy_pass;
+  bloom_pass_t bloom_pass;
+  result_pass_t result_pass;
+  // Geometry
+  metaballs_t metaballs;
+  ground_t ground;
+  box_outline_t box_outline;
+  particles_t particles;
+  // Time-related state
+  float last_frame_time;     // has seconds unit
+  float rearrange_countdown; // has seconds unit
+} example_state = {
+  .last_frame_time     = 0.0f,
+  .rearrange_countdown = 5.0f,
+};
+
+// Other variables
+static const char* example_title = "Compute Metaballs";
+static bool prepared             = false;
+
+static void example_rearrange()
+{
+  deferred_pass_rearrange(&example_state.deferred_pass);
+  metaballs_rearrange(&example_state.metaballs);
+}
+
+static void init_example_state(wgpu_context_t* wgpu_context)
+{
+  const uint32_t inner_width  = wgpu_context->surface.width;
+  const uint32_t inner_height = wgpu_context->surface.height;
+
+  /* WebGPU renderer */
+  webgpu_renderer_t* renderer = &example_state.renderer;
+  webgpu_renderer_create(renderer, wgpu_context);
+  renderer->device_pixel_ratio = 1.0f;
+  renderer->output_size[0]
+    = inner_width * settings_get_quality_level().output_scale;
+  renderer->output_size[1]
+    = inner_height * settings_get_quality_level().output_scale;
+
+  /* Perspective camera_t */
+  perspective_camera_t* persp_camera = &example_state.persp_camera;
+  perspective_camera_init(persp_camera, (45.0f * PI) / 180.0f,
+                          (float)inner_width / (float)inner_height, 0.1f,
+                          100.0f);
+  perspective_camera_set_position(persp_camera, (vec3){10.0f, 2.0f, 16.0f});
+  perspective_camera_look_at(persp_camera, GLM_VEC3_ZERO);
+
+  webgpu_renderer_init(&example_state.renderer);
+
+  /* Projection UBO */
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
+                          0 * sizeof(float), persp_camera->projection_matrix,
+                          sizeof(persp_camera->projection_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
+                          16 * sizeof(float),
+                          persp_camera->projection_inv_matrix,
+                          sizeof(persp_camera->projection_inv_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
+                          (16 + 16) * sizeof(float), &renderer->output_size[0],
+                          sizeof(renderer->output_size));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
+                          (16 + 16 + 8) * sizeof(float), &persp_camera->near,
+                          sizeof(persp_camera->near));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
+                          (16 + 16 + 8 + 1) * sizeof(float), &persp_camera->far,
+                          sizeof(persp_camera->far));
+
+  /* View UBO */
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          0 * sizeof(float), persp_camera->view_matrix,
+                          sizeof(persp_camera->view_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          16 * sizeof(float), persp_camera->view_inv_matrix,
+                          sizeof(persp_camera->view_inv_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          (16 + 16) * sizeof(float), persp_camera->position,
+                          sizeof(persp_camera->position));
+
+  /* Volume settings */
+  example_state.volume = (ivolume_settings_t){
+    .x_min = -3.0f,
+    .y_min = -3.0f,
+    .z_min = -3.0f,
+
+    .width  = 100,
+    .height = 100,
+    .depth  = 80,
+
+    .x_step = 0.075f,
+    .y_step = 0.075f,
+    .z_step = 0.075f,
+
+    .iso_level = 20.0f,
+  };
+
+  /* Deferred pass, copy pass, bloom pass & result pass */
+  deferred_pass_t* deferred_pass = &example_state.deferred_pass;
+  deferred_pass_create(deferred_pass, renderer);
+  copy_pass_t* copy_pass = &example_state.copy_pass;
+  copy_pass_create(copy_pass, renderer);
+
+  bloom_pass_t* bloom_pass = NULL;
+  if (settings_get_quality_level().bloom_toggle) {
+    bloom_pass = &example_state.bloom_pass;
+    bloom_pass_create(bloom_pass, renderer, copy_pass);
+  }
+
+  result_pass_t* result_pass = &example_state.result_pass;
+  result_pass_create(result_pass, renderer, copy_pass, bloom_pass);
+
+  /* Metaballs, ground, box outline & particles */
+  metaballs_create(&example_state.metaballs, renderer, example_state.volume,
+                   &deferred_pass->spot_light);
+  ground_create(&example_state.ground, renderer, &deferred_pass->spot_light);
+  box_outline_create(&example_state.box_outline, renderer);
+  particles_create(&example_state.particles, renderer,
+                   &deferred_pass->point_lights.lights_buffer);
+}
+
+static void update_uniforms(wgpu_example_context_t* context)
+{
+  const float frame_timestamp_sec
+    = context->frame.timestamp_millis * 0.001; // s
+  const float dt = frame_timestamp_sec - example_state.last_frame_time;
+  example_state.last_frame_time = frame_timestamp_sec;
+
+  wgpu_context_t* wgpu_context       = context->wgpu_context;
+  webgpu_renderer_t* renderer        = &example_state.renderer;
+  perspective_camera_t* persp_camera = &example_state.persp_camera;
+
+  /* Rearrange geometry  */
+  if (example_state.rearrange_countdown < 0.0f) {
+    example_rearrange();
+    example_state.rearrange_countdown = 5.0f;
+  }
+  example_state.rearrange_countdown -= dt;
+
+  /* Update view UBO */
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          0 * sizeof(float), persp_camera->view_matrix,
+                          sizeof(persp_camera->view_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          16 * sizeof(float), persp_camera->view_inv_matrix,
+                          sizeof(persp_camera->view_inv_matrix));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          (16 + 16) * sizeof(float), persp_camera->position,
+                          sizeof(persp_camera->position));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          (16 + 16 + 3) * sizeof(float), &frame_timestamp_sec,
+                          sizeof(float));
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
+                          (16 + 16 + 3 + 1) * sizeof(float), &dt,
+                          sizeof(float));
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    init_example_state(context->wgpu_context);
+    prepared = true;
+    return 0;
+  }
+
+  return 1;
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  webgpu_renderer_on_render(&example_state.renderer);
+
+  return NULL;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  update_uniforms(context);
+  return example_draw(context);
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+}
+
+void example_compute_metaballs(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title = example_title,
+      .vsync = true,
+    },
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
+  });
+  // clang-format on
 }
