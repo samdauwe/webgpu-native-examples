@@ -5100,9 +5100,11 @@ static struct {
   particles_t particles;
   // Time-related state
   float last_frame_time;     // has seconds unit
+  float dt;                  // has seconds unit
   float rearrange_countdown; // has seconds unit
 } example_state = {
   .last_frame_time     = 0.0f,
+  .dt                  = 0.0f,
   .rearrange_countdown = 5.0f,
 };
 
@@ -5214,7 +5216,7 @@ static void update_uniforms(wgpu_example_context_t* context)
 {
   const float frame_timestamp_sec
     = context->frame.timestamp_millis * 0.001; // s
-  const float dt = frame_timestamp_sec - example_state.last_frame_time;
+  example_state.dt = frame_timestamp_sec - example_state.last_frame_time;
   example_state.last_frame_time = frame_timestamp_sec;
 
   wgpu_context_t* wgpu_context       = context->wgpu_context;
@@ -5226,7 +5228,7 @@ static void update_uniforms(wgpu_example_context_t* context)
     example_rearrange();
     example_state.rearrange_countdown = 5.0f;
   }
-  example_state.rearrange_countdown -= dt;
+  example_state.rearrange_countdown -= example_state.dt;
 
   /* Update view UBO */
   wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
@@ -5242,7 +5244,7 @@ static void update_uniforms(wgpu_example_context_t* context)
                           (16 + 16 + 3) * sizeof(float), &frame_timestamp_sec,
                           sizeof(float));
   wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          (16 + 16 + 3 + 1) * sizeof(float), &dt,
+                          (16 + 16 + 3 + 1) * sizeof(float), &example_state.dt,
                           sizeof(float));
 }
 
@@ -5261,7 +5263,120 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   webgpu_renderer_on_render(&example_state.renderer);
 
-  return NULL;
+  // Create command encoder
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  /* Run compute shaders */
+  {
+    WGPUComputePassEncoder compute_pass
+      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
+    if (settings_get_quality_level().update_metaballs) {
+      metaballs_update_sim(&example_state.metaballs, compute_pass,
+                           example_state.last_frame_time, example_state.dt);
+    }
+    else {
+      if (!metaballs_has_updated_at_least_once(&example_state.metaballs)) {
+        metaballs_update_sim(&example_state.metaballs, compute_pass,
+                             example_state.last_frame_time, example_state.dt);
+      }
+    }
+
+    deferred_pass_update_lights_sim(&example_state.deferred_pass, compute_pass,
+                                    example_state.last_frame_time,
+                                    example_state.dt);
+    if (settings_get_quality_level().bloom_toggle) {
+      bloom_pass_update_bloom(&example_state.bloom_pass, compute_pass);
+    }
+    wgpuComputePassEncoderEnd(compute_pass);
+    WGPU_RELEASE_RESOURCE(ComputePassEncoder, compute_pass)
+  }
+
+  /* Render scene from spot light POV */
+  {
+    example_state.deferred_pass.spot_light.framebuffer.descriptor.label
+      = "spot light 0 shadow map render pass";
+    WGPURenderPassEncoder spot_light_shadow_pass
+      = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc,
+        &example_state.deferred_pass.spot_light.framebuffer.descriptor);
+    metaballs_render_shadow(&example_state.metaballs, spot_light_shadow_pass);
+    ground_render_shadow(&example_state.ground, spot_light_shadow_pass);
+    wgpuRenderPassEncoderEnd(spot_light_shadow_pass);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, spot_light_shadow_pass)
+  }
+
+  /* Deferred pass */
+  {
+    example_state.deferred_pass.framebuffer.descriptor.label = "gbuffer";
+    WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc,
+      &example_state.deferred_pass.framebuffer.descriptor);
+    metaballs_render(&example_state.metaballs, g_buffer_pass);
+    box_outline_render(&example_state.box_outline, g_buffer_pass);
+    ground_render(&example_state.ground, g_buffer_pass);
+    particles_render(&example_state.particles, g_buffer_pass);
+    wgpuRenderPassEncoderEnd(g_buffer_pass);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, g_buffer_pass)
+  }
+
+  /* Bloom pass */
+  if (settings_get_quality_level().bloom_toggle) {
+    /* Copy pass */
+    {
+      example_state.copy_pass.framebuffer.descriptor.label = "copy pass";
+      WGPURenderPassEncoder copy_render_pass
+        = wgpuCommandEncoderBeginRenderPass(
+          wgpu_context->cmd_enc,
+          &example_state.copy_pass.framebuffer.descriptor);
+      deferred_pass_render(&example_state.deferred_pass, copy_render_pass);
+      wgpuRenderPassEncoderEnd(copy_render_pass);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, copy_render_pass)
+    }
+
+    /* Bloom pass */
+    {
+      example_state.bloom_pass.framebuffer.descriptor.label = "bloom pass";
+      WGPURenderPassEncoder bloom_render_pass
+        = wgpuCommandEncoderBeginRenderPass(
+          wgpu_context->cmd_enc,
+          &example_state.bloom_pass.framebuffer.descriptor);
+      bloom_pass_render(&example_state.bloom_pass, bloom_render_pass);
+      wgpuRenderPassEncoderEnd(bloom_render_pass);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, bloom_render_pass)
+    }
+
+    /* Final composite pass */
+    {
+      example_state.renderer.framebuffer.descriptor.label
+        = "draw default framebuffer";
+      WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc, &example_state.renderer.framebuffer.descriptor);
+      result_pass_render(&example_state.result_pass, render_pass);
+      wgpuRenderPassEncoderEnd(render_pass);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
+    }
+  }
+  else {
+    /* Final composite pass */
+    {
+      example_state.renderer.framebuffer.descriptor.label
+        = "draw default framebuffer";
+      WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc, &example_state.renderer.framebuffer.descriptor);
+      deferred_pass_render(&example_state.deferred_pass, render_pass);
+      wgpuRenderPassEncoderEnd(render_pass);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
+    }
+  }
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  ASSERT(command_buffer != NULL)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
 }
 
 static int example_draw(wgpu_example_context_t* context)
