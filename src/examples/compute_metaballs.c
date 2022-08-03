@@ -4892,6 +4892,8 @@ static void deferred_pass_update_lights_sim(deferred_pass_t* this,
                                             WGPUComputePassEncoder compute_pass,
                                             float _time, float time_delta)
 {
+  UNUSED_VAR(_time);
+
   point_lights_update_sim(&this->point_lights, compute_pass);
   const float speed = time_delta * 2.0f;
   glm_vec3_copy(
@@ -5411,6 +5413,18 @@ static int example_render(wgpu_example_context_t* context)
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
+
+  webgpu_renderer_destroy(&example_state.renderer);
+  deferred_pass_destroy(&example_state.deferred_pass);
+  copy_pass_destroy(&example_state.copy_pass);
+  if (settings_get_quality_level().bloom_toggle) {
+    bloom_pass_destroy(&example_state.bloom_pass);
+  }
+  result_pass_destroy(&example_state.result_pass);
+  metaballs_destroy(&example_state.metaballs);
+  ground_destroy(&example_state.ground);
+  box_outline_destroy(&example_state.box_outline);
+  particles_destroy(&example_state.particles);
 }
 
 void example_compute_metaballs(int argc, char* argv[])
