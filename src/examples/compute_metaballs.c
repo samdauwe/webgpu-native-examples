@@ -387,17 +387,254 @@ typedef struct {
   WGPUExtent3D output_size;
   struct {
     WGPUBindGroupLayout frame;
-  } bind_groups_layouts;
+  } bind_group_layouts;
   struct {
     WGPUBindGroup frame;
   } bind_groups;
+  struct {
+    wgpu_buffer_t projection_ubo;
+    wgpu_buffer_t view_ubo;
+    wgpu_buffer_t screen_projection_ubo;
+    wgpu_buffer_t screen_view_ubo;
+  } ubos;
   struct {
     struct {
       WGPUTexture texture;
       WGPUTextureView view;
     } depth_texture;
   } textures;
+  WGPUSampler default_sampler;
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
 } webgpu_renderer_t;
+
+static void webgpu_renderer_init_defaults(webgpu_renderer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void webgpu_renderer_create(webgpu_renderer_t* this,
+                                   wgpu_context_t* wgpu_context)
+{
+  webgpu_renderer_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+
+  /* default sampler */
+  this->default_sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "default webgpu renderer sampler",
+                            .addressModeU  = WGPUAddressMode_Repeat,
+                            .addressModeV  = WGPUAddressMode_Repeat,
+                            .addressModeW  = WGPUAddressMode_Repeat,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(this->default_sampler != NULL);
+
+  /* Projection UBO */
+  const uint32_t projection_ubo_byte_length = //
+    16 * sizeof(float) +                      // matrix
+    16 * sizeof(float) +                      // inverse matrix
+    8 * sizeof(float) +                       // screen size
+    1 * sizeof(float) +                       // near
+    1 * sizeof(float);                        // far
+  this->ubos.projection_ubo = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Projection ubo",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = projection_ubo_byte_length,
+                  });
+
+  /* View UBO */
+  const uint32_t view_ubo_byte_length = //
+    16 * sizeof(float) +                // matrix
+    16 * sizeof(float) +                // inverse matrix
+    4 * sizeof(float) +                 // camera position
+    1 * sizeof(float) +                 // time
+    1 * sizeof(float);                  // delta time
+  this->ubos.view_ubo = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "View ubo",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = view_ubo_byte_length,
+                  });
+
+  /* Screen projection UBO*/
+  const uint32_t screen_projection_ubo_byte_length
+    = 16 * sizeof(float); // matrix
+  this->ubos.screen_projection_ubo = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Screen projection UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = screen_projection_ubo_byte_length,
+                  });
+
+  /* Screen view UBO*/
+  const uint32_t screen_view_ubo_byte_length = 16 * sizeof(float); // matrix
+  this->ubos.screen_view_ubo                 = wgpu_create_buffer(
+                    wgpu_context, &(wgpu_buffer_desc_t){
+                                    .label = "Screen view UBO",
+                                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                                    .size  = screen_view_ubo_byte_length,
+                  });
+
+  /* Frame buffer Color attachment */
+  this->framebuffer.color_attachments[0] =
+    (WGPURenderPassColorAttachment) {
+      .view          = NULL,
+      .resolveTarget = NULL,
+      .loadOp        = WGPULoadOp_Clear,
+      .storeOp       = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = BACKGROUND_COLOR[0],
+        .g = BACKGROUND_COLOR[1],
+        .b = BACKGROUND_COLOR[2],
+        .a = BACKGROUND_COLOR[3],
+      },
+    };
+
+  /* Depth texture */
+  WGPUExtent3D texture_extent = {
+    .width              = wgpu_context->surface.width,
+    .height             = wgpu_context->surface.height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "WebGPU renderer depth texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = DEPTH_FORMAT,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  this->textures.depth_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(this->textures.depth_texture.texture != NULL);
+
+  /* Depth texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "WebGPU renderer depth texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->textures.depth_texture.view = wgpuTextureCreateView(
+    this->textures.depth_texture.texture, &texture_view_dec);
+  ASSERT(this->textures.depth_texture.view != NULL);
+
+  /* Frame buffer depth stencil attachment */
+  this->framebuffer.depth_stencil_attachment
+    = (WGPURenderPassDepthStencilAttachment){
+      .view            = this->textures.depth_texture.view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthClearValue = 1.0f,
+      .depthStoreOp    = WGPUStoreOp_Discard,
+    };
+
+  /* Frame buffer descriptor */
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &this->framebuffer.color_attachments[0],
+    .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
+  };
+
+  /* Frame bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = this->ubos.projection_ubo.size,
+    },
+    .sampler = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = this->ubos.view_ubo.size,
+      },
+      .sampler = {0},
+    },
+    [2] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+  };
+  this->bind_group_layouts.frame = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "frame bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(this->bind_group_layouts.frame != NULL);
+
+  /* Frame bind group */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->ubos.projection_ubo.buffer,
+        .size    = this->ubos.projection_ubo.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->ubos.view_ubo.buffer,
+        .size    = this->ubos.view_ubo.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .sampler = this->default_sampler,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "frame bind group",
+      .layout     = this->bind_group_layouts.frame,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->bind_groups.frame
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->bind_groups.frame != NULL);
+  }
+}
+
+static void webgpu_renderer_destroy(webgpu_renderer_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Texture, this->textures.depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->textures.depth_texture.view)
+  WGPU_RELEASE_RESOURCE(Sampler, this->default_sampler)
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.projection_ubo.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.view_ubo.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.screen_projection_ubo.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.screen_view_ubo.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.frame)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.frame)
+}
+
+static void webgpu_renderer_on_render(webgpu_renderer_t* this)
+{
+  this->framebuffer.color_attachments[0].view
+    = this->wgpu_context->swap_chain.frame_buffer;
+}
 
 /* -------------------------------------------------------------------------- *
  * Marching Cubes
@@ -1299,7 +1536,7 @@ static void point_lights_init(point_lights_t* this)
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
       this->lights_buffer_compute_bind_group_layout, // Group 0
-      this->renderer->bind_groups_layouts.frame,     // Group 1
+      this->renderer->bind_group_layouts.frame,      // Group 1
     };
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
       .label                = "point light update compute pipeline layout",
@@ -1920,7 +2157,7 @@ static void box_outline_init(box_outline_t* this)
   /* Box outline render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[1] = {
-      this->renderer->bind_groups_layouts.frame, // Group 0
+      this->renderer->bind_group_layouts.frame, // Group 0
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "box outline render pipeline layout",
@@ -2283,8 +2520,8 @@ static void ground_init(ground_t* this)
   /* Ground render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->renderer->bind_groups_layouts.frame, // Group 0
-      this->model_bind_group_layout,             // Group 1
+      this->renderer->bind_group_layouts.frame, // Group 0
+      this->model_bind_group_layout,            // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "ground render pipeline layout",
@@ -2799,8 +3036,8 @@ static void metaballs_init(metaballs_t* this)
   /* Render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->renderer->bind_groups_layouts.frame, // Group 0
-      this->bind_group_layout,                   // Group 1
+      this->renderer->bind_group_layouts.frame, // Group 0
+      this->bind_group_layout,                  // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "metaball rendering pipeline layout",
@@ -3220,8 +3457,8 @@ static void particles_init(particles_t* this)
   /* Render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->renderer->bind_groups_layouts.frame, // Group 0
-      this->bind_group_layout,                   // Group 1
+      this->renderer->bind_group_layouts.frame, // Group 0
+      this->bind_group_layout,                  // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "particles render pipeline layout",
