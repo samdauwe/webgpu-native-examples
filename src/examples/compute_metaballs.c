@@ -390,8 +390,8 @@ typedef struct {
   bool is_pan;
   float key_pan_speed;
   bool enable_keys;
-  vec3 originTarget;
-  vec3 originPosition;
+  vec3 origin_target;
+  vec3 origin_position;
   damped_action_t target_x_damped_action;
   damped_action_t target_y_damped_action;
   damped_action_t target_z_damped_action;
@@ -415,8 +415,90 @@ typedef struct {
   uint32_t _pan_delta[2];
   uint32_t _pan_end[2];
   bool _paused;
-  bool _isDebug;
+  bool _is_debug;
+  float mouse_wheel_force;
 } camera_controller_t;
+
+static void camera_controller_init_defaults(camera_controller_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->min_distance = 0;
+  this->max_distance = INFINITY;
+  this->is_enabled   = true;
+
+  this->_rotate_start[0] = 9999;
+  this->_rotate_start[1] = 9999;
+
+  this->_rotate_end[0] = 9999;
+  this->_rotate_end[1] = 9999;
+
+  this->_rotate_delta[0] = 9999;
+  this->_rotate_delta[1] = 9999;
+
+  this->_zoom_distance_end = 0.0f;
+  this->_zoom_distance     = 0.0f;
+  this->loop_id            = 0;
+
+  this->_paused   = false;
+  this->_is_debug = false;
+
+  this->mouse_wheel_force = 1.0f;
+}
+
+static void camera_controller_create(camera_controller_t* this,
+                                     perspective_camera_t* camera,
+                                     bool is_debug, float mouse_wheel_force)
+{
+  camera_controller_init_defaults(this);
+
+  this->mouse_wheel_force = mouse_wheel_force;
+
+  ASSERT(camera);
+  this->camera = camera;
+
+  // Set to true to enable damping (inertia)
+  // If damping is enabled, you must call controls.update() in your animation
+  // loop
+  this->is_damping     = false;
+  this->damping_factor = 0.25f;
+
+  // This option actually enables dollying in and out; left as "zoom" for
+  // backwards compatibility. Set to false to disable zooming
+  this->is_zoom    = true;
+  this->zoom_speed = 1.0f;
+
+  // Set to false to disable rotating
+  this->is_rotate    = true;
+  this->rotate_speed = 1.0f;
+
+  // Set to false to disable panning
+  this->is_pan        = true;
+  this->key_pan_speed = 7.0f; // pixels moved per arrow key push
+
+  // Set to false to disable use of the keys
+  this->enable_keys = true;
+
+  // for reset
+  this->origin_position[0] = camera->position[0];
+  this->origin_position[1] = camera->position[0];
+  this->origin_position[2] = camera->position[0];
+
+  const float dx     = this->camera->position[0];
+  const float dy     = this->camera->position[1];
+  const float dz     = this->camera->position[2];
+  const float radius = sqrt(dx * dx + dy * dy + dz * dz);
+  const float theta
+    = atan2(this->camera->position[0],
+            this->camera->position[2]); // equator angle around y-up axis
+  const float phi = acos(
+    CLAMP(this->camera->position[1] / radius, -1.0f, 1.0f)); // polar angle
+  this->_spherical.radius = radius;
+  this->_spherical.theta  = theta;
+  this->_spherical.phi    = phi;
+
+  this->_is_debug = is_debug;
+}
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Renderer
