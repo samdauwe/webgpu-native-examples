@@ -416,6 +416,7 @@ typedef struct {
   uint32_t _pan_end[2];
   bool _paused;
   bool _is_debug;
+  vec3 camera_position_debug;
   float mouse_wheel_force;
 } camera_controller_t;
 
@@ -426,6 +427,13 @@ static void camera_controller_init_defaults(camera_controller_t* this)
   this->min_distance = 0;
   this->max_distance = INFINITY;
   this->is_enabled   = true;
+
+  damped_action_init(&this->target_x_damped_action);
+  damped_action_init(&this->target_y_damped_action);
+  damped_action_init(&this->target_z_damped_action);
+  damped_action_init(&this->target_theta_damped_action);
+  damped_action_init(&this->target_phi_damped_action);
+  damped_action_init(&this->target_radius_damped_action);
 
   this->_rotate_start[0] = 9999;
   this->_rotate_start[1] = 9999;
@@ -498,6 +506,65 @@ static void camera_controller_create(camera_controller_t* this,
   this->_spherical.phi    = phi;
 
   this->_is_debug = is_debug;
+}
+
+static void camera_controller_pause(camera_controller_t* this)
+{
+  this->_paused = true;
+}
+
+static void camera_controller_start(camera_controller_t* this)
+{
+  this->_paused = false;
+}
+
+static void camera_controller_update_damped_action(camera_controller_t* this)
+{
+  this->target[0] += damped_action_update(&this->target_x_damped_action);
+  this->target[1] += damped_action_update(&this->target_y_damped_action);
+  this->target[2] += damped_action_update(&this->target_z_damped_action);
+
+  this->_spherical.theta
+    += damped_action_update(&this->target_theta_damped_action);
+  this->_spherical.phi += damped_action_update(&this->target_phi_damped_action);
+  this->_spherical.radius
+    += damped_action_update(&this->target_radius_damped_action);
+}
+
+static void camera_controller_update_camera(camera_controller_t* this)
+{
+  const float s_radius       = this->_spherical.radius;
+  const float s_theta        = this->_spherical.theta;
+  const float s_phi          = this->_spherical.phi;
+  const float sin_phi_radius = sin(s_phi) * s_radius;
+
+  this->camera->position[0] = sin_phi_radius * sin(s_theta) + this->target[0];
+  this->camera->position[1] = cos(s_phi) * s_radius + this->target[1];
+  this->camera->position[2] = sin_phi_radius * cos(s_theta) + this->target[2];
+
+  this->camera->look_at_position[0] = this->target[0];
+  this->camera->look_at_position[1] = this->target[1];
+  this->camera->look_at_position[2] = this->target[2];
+
+  perspective_camera_update_view_matrix(this->camera);
+}
+
+static void camera_controller_tick(camera_controller_t* this)
+{
+  if (!this->_paused) {
+    camera_controller_update_damped_action(this);
+    camera_controller_update_camera(this);
+
+    if (this->_is_debug) {
+      this->camera_position_debug[0]
+        = round(this->camera->position[0] * 100) / 100.0f;
+      this->camera_position_debug[1]
+        = round(this->camera->position[1] * 100) / 100.0f;
+      this->camera_position_debug[2]
+        = round(this->camera->position[2] * 100) / 100.0f;
+    }
+  }
+  this->loop_id++;
 }
 
 /* -------------------------------------------------------------------------- *
