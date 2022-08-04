@@ -5280,6 +5280,7 @@ static void result_pass_render(result_pass_t* this,
 // Example state object
 static struct {
   webgpu_renderer_t renderer;
+  camera_controller_t camera_controller;
   perspective_camera_t persp_camera;
   ivolume_settings_t volume;
   // Render passes
@@ -5326,13 +5327,17 @@ static void init_example_state(wgpu_context_t* wgpu_context)
   renderer->output_size[1]
     = inner_height * settings_get_quality_level().output_scale;
 
-  /* Perspective camera_t */
+  /* Perspective camera */
   perspective_camera_t* persp_camera = &example_state.persp_camera;
   perspective_camera_init(persp_camera, (45.0f * PI) / 180.0f,
                           (float)inner_width / (float)inner_height, 0.1f,
                           100.0f);
   perspective_camera_set_position(persp_camera, (vec3){10.0f, 2.0f, 16.0f});
   perspective_camera_look_at(persp_camera, GLM_VEC3_ZERO);
+
+  /* Camera controller */
+  camera_controller_create(&example_state.camera_controller, persp_camera,
+                           false, 0.1f);
 
   webgpu_renderer_init(&example_state.renderer);
 
@@ -5408,6 +5413,17 @@ static void init_example_state(wgpu_context_t* wgpu_context)
 
 static void update_uniforms(wgpu_example_context_t* context)
 {
+  if (context->paused) {
+    camera_controller_pause(&example_state.camera_controller);
+  }
+  else if (example_state.camera_controller._paused) {
+    camera_controller_start(&example_state.camera_controller);
+  }
+
+  if (!example_state.camera_controller._paused) {
+    camera_controller_tick(&example_state.camera_controller);
+  }
+
   const float frame_timestamp_sec
     = context->frame.timestamp_millis * 0.001; // s
   example_state.dt = frame_timestamp_sec - example_state.last_frame_time;
