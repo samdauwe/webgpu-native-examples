@@ -375,6 +375,49 @@ static void damped_action_init(damped_action_t* this)
   damped_action_init_defaults(this);
 }
 
+typedef struct {
+  perspective_camera_t* camera;
+  vec3 target;
+  float min_distance;
+  float max_distance;
+  bool is_enabled;
+  bool is_damping;
+  float damping_factor;
+  bool is_zoom;
+  float zoom_speed;
+  bool is_rotate;
+  float rotate_speed;
+  bool is_pan;
+  float key_pan_speed;
+  bool enable_keys;
+  vec3 originTarget;
+  vec3 originPosition;
+  damped_action_t target_x_damped_action;
+  damped_action_t target_y_damped_action;
+  damped_action_t target_z_damped_action;
+  damped_action_t target_theta_damped_action;
+  damped_action_t target_phi_damped_action;
+  damped_action_t target_radius_damped_action;
+  bool _is_shift_down;
+  uint32_t _rotate_start[2];
+  uint32_t _rotate_end[2];
+  uint32_t _rotate_delta[2];
+  struct {
+    float radius;
+    float theta;
+    float phi;
+  } _spherical;
+  float _zoom_distance_end;
+  float _zoom_distance;
+
+  uint64_t loop_id;
+  uint32_t _pan_start[2];
+  uint32_t _pan_delta[2];
+  uint32_t _pan_end[2];
+  bool _paused;
+  bool _isDebug;
+} camera_controller_t;
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Renderer
  *
