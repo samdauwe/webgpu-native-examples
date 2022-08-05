@@ -1262,10 +1262,17 @@ static void metaballs_compute_init(metaballs_compute_t* this)
   }
 }
 
+static void metaballs_compute_init_defaults(metaballs_compute_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
 static void metaballs_compute_create(metaballs_compute_t* this,
                                      webgpu_renderer_t* renderer,
                                      ivolume_settings_t volume)
 {
+  metaballs_compute_init_defaults(this);
+
   memcpy(&this->volume, &volume, sizeof(ivolume_settings_t));
   this->renderer = renderer;
 
@@ -1282,7 +1289,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
       tables_array[j++] = MARCHING_CUBES_EDGE_TABLE[i];
     }
     for (size_t i = 0; i < ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE); ++i) {
-      tables_array[j++] = MARCHING_CUBES_EDGE_TABLE[i];
+      tables_array[j++] = MARCHING_CUBES_TRI_TABLE[i];
     }
 
     this->tables_buffer
@@ -1294,6 +1301,46 @@ static void metaballs_compute_create(metaballs_compute_t* this,
                                          });
 
     free(tables_array);
+  }
+
+  {
+    const uint32_t volume_elements
+      = volume.width * volume.height * volume.depth;
+    const uint64_t volume_buffer_size = sizeof(float) * 12
+                                        + sizeof(uint32_t) * 4
+                                        + sizeof(float) * volume_elements;
+    WGPUBufferDescriptor buffer_desc = {
+      .label            = "metaballs volume buffer",
+      .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+      .size             = volume_buffer_size,
+      .mappedAtCreation = true,
+    };
+    this->volume_buffer = (wgpu_buffer_t){
+      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
+      .usage  = buffer_desc.usage,
+      .size   = buffer_desc.size,
+      .count  = 12 + 4 + volume_elements,
+    };
+    ASSERT(this->volume_buffer.buffer);
+    float* volume_mapped_array = (float*)wgpuBufferGetMappedRange(
+      this->volume_buffer.buffer, 0, volume_buffer_size);
+    float* volume_float_32 = volume_mapped_array;
+    uint32_t* volume_size  = (uint32_t*)(&volume_mapped_array[12]);
+
+    volume_float_32[0] = volume.x_min;
+    volume_float_32[1] = volume.y_min;
+    volume_float_32[2] = volume.z_min;
+
+    volume_float_32[8]  = volume.x_step;
+    volume_float_32[9]  = volume.y_step;
+    volume_float_32[10] = volume.z_step;
+
+    volume_size[0] = volume.width;
+    volume_size[1] = volume.height;
+    volume_size[2] = volume.depth;
+
+    volume_float_32[15] = volume.iso_level;
+    wgpuBufferUnmap(this->volume_buffer.buffer);
   }
 
   const uint32_t marching_cube_cells
@@ -1426,18 +1473,18 @@ metaballs_compute_update_sim(metaballs_compute_t* this,
     this->metaball_array_balls[offset + 5] = this->subtract;
   }
 
-  const uint32_t dispatch_size[3] = {
-    this->volume.width / METABALLS_COMPUTE_WORKGROUP_SIZE[0],  //
-    this->volume.height / METABALLS_COMPUTE_WORKGROUP_SIZE[1], //
-    this->volume.depth / METABALLS_COMPUTE_WORKGROUP_SIZE[2],  //
-  };
-
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
                           this->metaball_buffer.buffer, 0,
                           &this->metaball_array, sizeof(this->metaball_array));
   wgpu_queue_write_buffer(
     this->renderer->wgpu_context, this->indirect_render_buffer.buffer, 0,
     &this->indirect_render_array, sizeof(this->indirect_render_array));
+
+  const uint32_t dispatch_size[3] = {
+    this->volume.width / METABALLS_COMPUTE_WORKGROUP_SIZE[0],  //
+    this->volume.height / METABALLS_COMPUTE_WORKGROUP_SIZE[1], //
+    this->volume.depth / METABALLS_COMPUTE_WORKGROUP_SIZE[2],  //
+  };
 
   /* Update metaballs */
   if (this->compute_metaballs_pipeline) {
