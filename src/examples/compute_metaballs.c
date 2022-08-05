@@ -301,13 +301,17 @@ static void perspective_camera_look_at(perspective_camera_t* this, vec3 target)
 
 static void perspective_camera_init_defaults(perspective_camera_t* this)
 {
+  memset(this, 0, sizeof(*this));
+
   glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, this->UP_VECTOR);
+
   glm_vec3_zero(this->position);
   glm_vec3_zero(this->look_at_position);
-  glm_mat4_zero(this->projection_matrix);
-  glm_mat4_zero(this->projection_inv_matrix);
-  glm_mat4_zero(this->view_matrix);
-  glm_mat4_zero(this->view_inv_matrix);
+
+  glm_mat4_identity(this->projection_matrix);
+  glm_mat4_identity(this->projection_inv_matrix);
+  glm_mat4_identity(this->view_matrix);
+  glm_mat4_identity(this->view_inv_matrix);
 
   this->zoom = 1.0f;
 }
