@@ -208,6 +208,8 @@ static void orthographic_camera_look_at(orthographic_camera_t* this,
 
 static void orthographic_camera_init_defaults(orthographic_camera_t* this)
 {
+  memset(this, 0, sizeof(*this));
+
   glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, this->UP_VECTOR);
 
   this->left   = -1.0f;
@@ -220,8 +222,8 @@ static void orthographic_camera_init_defaults(orthographic_camera_t* this)
 
   glm_vec3_zero(this->position);
   glm_vec3_zero(this->look_at_position);
-  glm_mat4_zero(this->projection_matrix);
-  glm_mat4_zero(this->view_matrix);
+  glm_mat4_identity(this->projection_matrix);
+  glm_mat4_identity(this->view_matrix);
 }
 
 static void orthographic_camera_init(orthographic_camera_t* this, float left,
