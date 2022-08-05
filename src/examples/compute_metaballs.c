@@ -508,6 +508,11 @@ static void camera_controller_create(camera_controller_t* this,
   this->_is_debug = is_debug;
 }
 
+static void camera_controller_look_at(camera_controller_t* this, vec3 target)
+{
+  glm_vec3_copy(target, this->target);
+}
+
 static void camera_controller_pause(camera_controller_t* this)
 {
   this->_paused = true;
@@ -5338,7 +5343,10 @@ static void init_example_state(wgpu_context_t* wgpu_context)
   /* Camera controller */
   camera_controller_create(&example_state.camera_controller, persp_camera,
                            false, 0.1f);
+  camera_controller_look_at(&example_state.camera_controller,
+                            (vec3){0.0f, 1.0f, 0.0f});
 
+  /* Initialize WebGPU renderer */
   webgpu_renderer_init(&example_state.renderer);
 
   /* Projection UBO */
