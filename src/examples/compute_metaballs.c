@@ -24,7 +24,6 @@
  * -------------------------------------------------------------------------- */
 
 #define MAX_METABALLS 256u
-#define MAX_POINT_LIGHTS_COUNT 256u
 
 static const WGPUTextureFormat DEPTH_FORMAT = WGPUTextureFormat_Depth24Plus;
 
@@ -1753,6 +1752,8 @@ static float deg_to_rad(float deg)
  * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/lighting/point-lights.ts
  * -------------------------------------------------------------------------- */
 
+#define MAX_POINT_LIGHTS_COUNT 256u
+
 typedef struct {
   webgpu_renderer_t* renderer;
   WGPUBindGroupLayout lights_buffer_compute_bind_group_layout;
@@ -1770,11 +1771,9 @@ static bool point_lights_is_ready(point_lights_t* this)
 
 static void point_lights_set_lights_count(point_lights_t* this, uint32_t v)
 {
-  const uint32_t lights_count_array[1] = {v};
-
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
-                          this->lights_config_uniform_buffer.buffer, 0,
-                          lights_count_array, sizeof(lights_count_array));
+                          this->lights_config_uniform_buffer.buffer, 0, &v,
+                          sizeof(uint32_t));
 }
 
 static void point_lights_init(point_lights_t* this)
@@ -1817,8 +1816,15 @@ static void point_lights_init(point_lights_t* this)
   }
 }
 
+static void point_lights_init_defaults(point_lights_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
 static void point_lights_create(point_lights_t* this)
 {
+  point_lights_init_defaults(this);
+
   wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
 
   /* Lights uniform buffer */
@@ -1849,10 +1855,12 @@ static void point_lights_create(point_lights_t* this)
       lights_data[offset++] = x;
       lights_data[offset++] = y;
       lights_data[offset++] = z;
+      lights_data[offset++] = 0.0f;
       // velocity
       lights_data[offset++] = vel_x;
       lights_data[offset++] = vel_y;
       lights_data[offset++] = vel_z;
+      lights_data[offset++] = 0.0f;
       // color
       lights_data[offset++] = r;
       lights_data[offset++] = g;
@@ -1861,6 +1869,9 @@ static void point_lights_create(point_lights_t* this)
       lights_data[offset++] = radius;
       // intensity
       lights_data[offset++] = intensity;
+      lights_data[offset++] = 0.0f;
+      lights_data[offset++] = 0.0f;
+      lights_data[offset++] = 0.0f;
     }
     this->lights_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
@@ -1876,8 +1887,8 @@ static void point_lights_create(point_lights_t* this)
       = {settings_get_quality_level().point_lights_count};
     this->lights_config_uniform_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .usage = WGPUBufferUsage_CopyDst
-                                                    | WGPUBufferUsage_Uniform,
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
                                            .size = sizeof(lights_config_arr),
                                            .initial.data = lights_config_arr,
                                          });
@@ -1938,6 +1949,8 @@ static void point_lights_create(point_lights_t* this)
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
     ASSERT(this->lights_buffer_compute_bind_group != NULL);
   }
+
+  point_lights_init(this);
 }
 
 static void point_lights_destroy(point_lights_t* this)
@@ -5114,6 +5127,8 @@ static void deferred_pass_create(deferred_pass_t* this,
 
 static void deferred_pass_destroy(deferred_pass_t* this)
 {
+  point_lights_destroy(&this->point_lights);
+
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
   WGPU_RELEASE_RESOURCE(Texture, this->g_buffer_texture_normal.texture)
