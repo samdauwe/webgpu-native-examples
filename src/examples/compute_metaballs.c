@@ -2650,6 +2650,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
          sizeof(instance_matrix));
 
   /* bottom rig */
+  glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){0, -BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, PI_2, (vec3){0, 0, 0});
@@ -2678,6 +2679,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
          sizeof(instance_matrix));
 
   /* Sides */
+  glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, PI, (vec3){0, 1, 0});
