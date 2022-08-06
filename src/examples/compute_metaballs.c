@@ -1536,28 +1536,33 @@ typedef struct {
   } uvs;
 } cube_geometry_t;
 
-static void create_cube(cube_geometry_t* this, vec3 dimensions)
+static void cube_geometry_init_defaults(cube_geometry_t* this)
 {
   memset(this, 0, sizeof(*this));
+}
+
+static void cube_geometry_create_cube(cube_geometry_t* this, vec3 dimensions)
+{
+  cube_geometry_init_defaults(this);
 
   /* Cube vertex positions */
-  vec3 position
+  const vec3 position
     = {-dimensions[0] / 2.0f, -dimensions[1] / 2.0f, -dimensions[2] / 2.0f};
-  float x      = position[0];
-  float y      = position[1];
-  float z      = position[2];
-  float width  = dimensions[0];
-  float height = dimensions[1];
-  float depth  = dimensions[2];
+  const float x      = position[0];
+  const float y      = position[1];
+  const float z      = position[2];
+  const float width  = dimensions[0];
+  const float height = dimensions[1];
+  const float depth  = dimensions[2];
 
-  vec3 fbl = {x, y, z + depth};
-  vec3 fbr = {x + width, y, z + depth};
-  vec3 ftl = {x, y + height, z + depth};
-  vec3 ftr = {x + width, y + height, z + depth};
-  vec3 bbl = {x, y, z};
-  vec3 bbr = {x + width, y, z};
-  vec3 btl = {x, y + height, z};
-  vec3 btr = {x + width, y + height, z};
+  const vec3 fbl = {x, y, z + depth};
+  const vec3 fbr = {x + width, y, z + depth};
+  const vec3 ftl = {x, y + height, z + depth};
+  const vec3 ftr = {x + width, y + height, z + depth};
+  const vec3 bbl = {x, y, z};
+  const vec3 bbr = {x + width, y, z};
+  const vec3 btl = {x, y + height, z};
+  const vec3 btr = {x + width, y + height, z};
 
   const float positions[18 * 6] = {
     // clang-format off
@@ -1686,6 +1691,24 @@ static void create_cube(cube_geometry_t* this, vec3 dimensions)
   this->positions.data_size = sizeof(positions);
   this->positions.count     = (size_t)ARRAY_SIZE(positions);
 
+  /* Cube vertex uvs */
+  static const float uvs[12 * 6] = {
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* front */
+
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* right */
+
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* back */
+
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* left */
+
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* top */
+
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* bottom */
+  };
+  memcpy(this->uvs.data, uvs, sizeof(uvs));
+  this->uvs.data_size = sizeof(uvs);
+  this->uvs.count     = (size_t)ARRAY_SIZE(uvs);
+
   /* Cube vertex normals */
   static const float normals[18 * 6] = {
     0,  0,  1,  0,  0,  1,  0,  0,  1,
@@ -1709,36 +1732,6 @@ static void create_cube(cube_geometry_t* this, vec3 dimensions)
   memcpy(this->normals.data, normals, sizeof(normals));
   this->normals.data_size = sizeof(normals);
   this->normals.count     = (size_t)ARRAY_SIZE(normals);
-
-  /* Cube vertex uvs */
-  static const float uvs[12 * 6] = {
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* front */
-
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* right */
-
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* back */
-
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* left */
-
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* top */
-
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* bottom */
-  };
-  memcpy(this->uvs.data, uvs, sizeof(uvs));
-  this->uvs.data_size = sizeof(uvs);
-  this->uvs.count     = (size_t)ARRAY_SIZE(uvs);
-}
-
-/* -------------------------------------------------------------------------- *
- * Clamp
- *
- * Ref:
- * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/helpers/clamp.ts
- * -------------------------------------------------------------------------- */
-
-static float clamp(float num, float min, float max)
-{
-  return MIN(MAX(num, min), max);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -3048,7 +3041,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   /* Create cube */
   cube_geometry_t cube_geometry;
   vec3 cube_dimensions = GLM_VEC3_ONE_INIT;
-  create_cube(&cube_geometry, cube_dimensions);
+  cube_geometry_create_cube(&cube_geometry, cube_dimensions);
 
   /* Ground vertex buffer */
   this->buffers.vertex_buffer = wgpu_create_buffer(
