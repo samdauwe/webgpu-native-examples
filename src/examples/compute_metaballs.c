@@ -2034,14 +2034,16 @@ static void spot_light_set_position(spot_light_t* this, vec3 v)
 {
   glm_vec3_copy(v, this->_position);
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
-                          this->light_info_ubo.buffer, 0, v, sizeof(vec3));
+                          this->light_info_ubo.buffer, 0 * sizeof(float), v,
+                          sizeof(vec3));
 
   perspective_camera_set_position(&this->camera,
                                   (vec3){-v[0] * 15, v[1], -v[2] * 15});
   perspective_camera_update_view_matrix(&this->camera);
 
   wgpu_queue_write_buffer(this->renderer->wgpu_context, this->view_ubo.buffer,
-                          0, this->camera.view_matrix, sizeof(mat4));
+                          0 * sizeof(float), this->camera.view_matrix,
+                          sizeof(mat4));
   wgpu_queue_write_buffer(this->renderer->wgpu_context, this->view_ubo.buffer,
                           16 * sizeof(float), this->camera.view_inv_matrix,
                           sizeof(mat4));
@@ -2059,10 +2061,12 @@ static void spot_light_set_direction(spot_light_t* this, vec3 v)
                           this->light_info_ubo.buffer, 4 * sizeof(float), v,
                           sizeof(vec3));
 
-  perspective_camera_look_at(&this->camera, (vec3){v[0], v[1], v[2]});
+  glm_vec3_copy((vec3){v[0], v[1], v[2]}, this->camera.look_at_position);
+  perspective_camera_update_view_matrix(&this->camera);
 
   wgpu_queue_write_buffer(this->renderer->wgpu_context, this->view_ubo.buffer,
-                          0, this->camera.view_matrix, sizeof(mat4));
+                          0 * sizeof(float), this->camera.view_matrix,
+                          sizeof(mat4));
   wgpu_queue_write_buffer(this->renderer->wgpu_context, this->view_ubo.buffer,
                           16 * sizeof(float), this->camera.view_inv_matrix,
                           sizeof(mat4));
@@ -2112,7 +2116,7 @@ static void spot_light_set_outer_cut_off(spot_light_t* this, float v)
   perspective_camera_update_projection_matrix(&this->camera);
 
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
-                          this->projection_ubo.buffer, 0,
+                          this->projection_ubo.buffer, 0 * sizeof(float),
                           this->camera.projection_matrix, sizeof(mat4));
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
                           this->projection_ubo.buffer, 16 * sizeof(float),
@@ -2133,9 +2137,16 @@ static void spot_light_set_intensity(spot_light_t* this, float v)
                           intensity_array, sizeof(intensity_array));
 }
 
+static void spot_light_init_defaults(spot_light_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
 static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
                               ispot_light_t* ispot_light)
 {
+  spot_light_init_defaults(this);
+
   this->renderer = renderer;
   perspective_camera_init(&this->camera, deg_to_rad(56.0f), 1.0f, 0.1f, 120.0f);
   perspective_camera_update_view_matrix(&this->camera);
@@ -2180,7 +2191,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* Light info UBO */
   this->light_info_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = (4 * sizeof(float) + // position
                              4 * sizeof(float) + // direction
                              3 * sizeof(float) + // color
@@ -2193,7 +2204,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* Projection UBO */
   this->projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = (16 * sizeof(float) + // matrix
                              16 * sizeof(float) + // inverse matrix
                              8 * sizeof(float) +  // screen size
@@ -2222,7 +2233,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* View UBO */
   this->view_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = (16 * sizeof(float) + // matrix
                              16 * sizeof(float) + // inverse matrix
                              3 * sizeof(float) +  // camera position
@@ -2272,7 +2283,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
     .occlusionQuerySet      = NULL,
   };
 
-  /* Bind group layouts */
+  /* Spot light ubos bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -2294,7 +2305,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        .binding    = 1,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
@@ -2311,6 +2322,8 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
                             });
     ASSERT(this->bind_group_layouts.ubos != NULL);
   }
+
+  /* Spot light depth texture bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -2335,7 +2348,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
     ASSERT(this->bind_group_layouts.depth_texture != NULL);
   }
 
-  /* Bind groups */
+  /* Spot light ubos bind group */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -2363,6 +2376,8 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
                             });
     ASSERT(this->bind_groups.ubos != NULL);
   }
+
+  /* Spot light depth texture bind group */
   {
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
@@ -2372,6 +2387,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
       };
     this->bind_groups.depth_texture = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "spot light depth texture bind group",
                               .layout = this->bind_group_layouts.depth_texture,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -5128,6 +5144,7 @@ static void deferred_pass_create(deferred_pass_t* this,
 static void deferred_pass_destroy(deferred_pass_t* this)
 {
   point_lights_destroy(&this->point_lights);
+  spot_light_destroy(&this->spot_light);
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
