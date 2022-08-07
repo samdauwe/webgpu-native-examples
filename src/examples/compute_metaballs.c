@@ -3844,9 +3844,16 @@ static void particles_init(particles_t* this)
   }
 }
 
+static void particles_init_defaults(particles_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
 static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
                              wgpu_buffer_t* lights_buffer)
 {
+  particles_init_defaults(this);
+
   this->renderer               = renderer;
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
