@@ -2830,13 +2830,13 @@ static void ground_init(ground_t* this)
         .format    = WGPUTextureFormat_RGBA16Float,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
-        },
+      },
       [1] = (WGPUColorTargetState){
         // albedo
         .format    = WGPUTextureFormat_BGRA8Unorm,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
-        }
+      }
     };
 
     // Depth stencil state
@@ -3067,6 +3067,9 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
 {
   ground_init_defaults(this);
 
+  this->renderer   = renderer;
+  this->spot_light = spot_light;
+
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
   /* Create cube */
@@ -3078,7 +3081,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   this->buffers.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "ground vertex buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = cube_geometry.positions.data_size,
                     .initial.data = cube_geometry.positions.data,
                   });
@@ -3087,14 +3090,14 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   this->buffers.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "ground normal buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = cube_geometry.normals.data_size,
                     .initial.data = cube_geometry.normals.data,
                   });
 
   /* Ground instance buffers */
-  float instance_offsets[GROUND_WIDTH * GROUND_HEIGHT * 3];
-  float instance_metallic_rougness[GROUND_WIDTH * GROUND_HEIGHT * 2];
+  float instance_offsets[GROUND_WIDTH * GROUND_HEIGHT * 3]           = {0};
+  float instance_metallic_rougness[GROUND_WIDTH * GROUND_HEIGHT * 2] = {0};
 
   const float spacing_x = GROUND_WIDTH / GROUND_COUNT + GROUND_SPACING;
   const float spacing_y = GROUND_HEIGHT / GROUND_COUNT + GROUND_SPACING;
@@ -3159,8 +3162,8 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
           .minBindingSize = this->buffers.uniform_buffer.size,
         },
         .sampler = {0},
-        },
-      };
+      },
+    };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
       .label      = "ground bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
