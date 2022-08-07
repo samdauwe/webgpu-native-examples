@@ -3349,13 +3349,13 @@ static void metaballs_init(metaballs_t* this)
         .format    = WGPUTextureFormat_RGBA16Float,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
-        },
+      },
       [1] = (WGPUColorTargetState){
         // albedo
         .format    = WGPUTextureFormat_BGRA8Unorm,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
-        }
+      }
     };
 
     // Depth stencil state
@@ -3367,28 +3367,30 @@ static void metaballs_init(metaballs_t* this)
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
     // Vertex state
-    WGPUVertexAttribute attribute_1 = {
-      .shaderLocation = 0,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
-    };
-    WGPUVertexAttribute attribute_2 = {
-      .shaderLocation = 1,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
+    WGPUVertexAttribute attributes[2] = {
+      [0] = (WGPUVertexAttribute) {
+        .shaderLocation = 0,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [1] = (WGPUVertexAttribute) {
+        .shaderLocation = 1,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
     };
     WGPUVertexBufferLayout vertex_buffers[2] = {
       [0] = (WGPUVertexBufferLayout){
         .arrayStride    = 3 * sizeof(float),
         .stepMode       = WGPUVertexStepMode_Vertex,
         .attributeCount = 1,
-        .attributes     = &attribute_1,
+        .attributes     = &attributes[0],
       },
       [1] = (WGPUVertexBufferLayout){
         .arrayStride    = 3 * sizeof(float),
         .stepMode       = WGPUVertexStepMode_Vertex,
         .attributeCount = 1,
-        .attributes     = &attribute_2,
+        .attributes     = &attributes[1],
       },
     };
 
@@ -3472,7 +3474,7 @@ static void metaballs_init(metaballs_t* this)
     // Depth stencil state
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-        .format              = DEPTH_FORMAT,
+        .format              = WGPUTextureFormat_Depth32Float,
         .depth_write_enabled = true,
       });
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
@@ -3537,6 +3539,7 @@ static void metaballs_init_defaults(metaballs_t* this)
 
   glm_vec3_one(this->color_rgb);
   glm_vec3_one(this->color_target_rgb);
+
   this->roughness       = 0.3f;
   this->metallic_target = this->roughness;
   this->metallic        = 0.1;
@@ -3562,8 +3565,8 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
     this->ubo
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "metaballs ubo",
-                                           .usage = WGPUBufferUsage_CopyDst
-                                                    | WGPUBufferUsage_Uniform,
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
                                            .size = sizeof(metaballs_ubo_data),
                                            .initial.data = metaballs_ubo_data,
                                          });
@@ -3580,8 +3583,8 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
           .minBindingSize = this->ubo.size,
         },
         .sampler = {0},
-        },
-      };
+      },
+    };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
       .label      = "metaballs bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
