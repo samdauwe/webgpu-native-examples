@@ -3981,14 +3981,6 @@ static void effect_init(effect_t* this, const char* fragment_shader,
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Depth stencil state
-    WGPUDepthStencilState depth_stencil_state
-      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-        .format              = DEPTH_FORMAT,
-        .depth_write_enabled = true,
-      });
-    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
-
     // Vertex state
     WGPUVertexAttribute attribute = {
       .shaderLocation = 0,
@@ -4038,17 +4030,15 @@ static void effect_init(effect_t* this, const char* fragment_shader,
         });
 
     // Create rendering pipeline using the specified states
-    this->render_pipeline
-      = wgpuDeviceCreateRenderPipeline(this->renderer->wgpu_context->device,
-                                       &(WGPURenderPipelineDescriptor){
-                                         .label        = label,
-                                         .layout       = this->pipeline_layout,
-                                         .primitive    = primitive_state,
-                                         .vertex       = vertex_state,
-                                         .fragment     = &fragment_state,
-                                         .depthStencil = &depth_stencil_state,
-                                         .multisample  = multisample_state,
-                                       });
+    this->render_pipeline = wgpuDeviceCreateRenderPipeline(
+      this->renderer->wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                                              .label  = label,
+                                              .layout = this->pipeline_layout,
+                                              .primitive   = primitive_state,
+                                              .vertex      = vertex_state,
+                                              .fragment    = &fragment_state,
+                                              .multisample = multisample_state,
+                                            });
     ASSERT(this->render_pipeline != NULL);
 
     // Partial cleanup
@@ -4081,7 +4071,7 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
   /* Effect vertex buffer */
   this->buffers.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "effect vertex buffer",
+                    .label = "fullscreen effect vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(vertex_data),
                     .initial.data = vertex_data,
@@ -4090,7 +4080,7 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
   /* Effect index buffer */
   this->buffers.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "effect index buffer",
+                    .label = "fullscreen effect index buffer",
                     .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(indices),
                     .initial.data = indices,
