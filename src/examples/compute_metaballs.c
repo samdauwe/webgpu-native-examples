@@ -4253,6 +4253,29 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
                           });
   ASSERT(this->bind_group != NULL);
 
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->bind_group_layouts.frame,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->bind_groups.frame,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_file
+      = "shaders/compute_metaballs/CopyPassFragmentShader.wgsl",
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = WGPUTextureFormat_RGBA16Float,
+      .label                         = "copy pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+
   /* Frame buffer Color attachments */
   this->framebuffer.color_attachments[0] =
     (WGPURenderPassColorAttachment) {
@@ -4277,6 +4300,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
 
 static void copy_pass_destroy(copy_pass_t* this)
 {
+  effect_destroy(&this->effect);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
   WGPU_RELEASE_RESOURCE(Texture, this->copy_texture.texture)
@@ -4636,24 +4660,27 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   }
 
   /* Initialize effect */
-  WGPUBindGroupLayout bind_group_layouts[2] = {
-    this->bind_group_layout,
-    this->renderer->bind_group_layouts.frame,
-  };
-  WGPUBindGroup bind_groups[2] = {
-    this->bind_group,
-    this->renderer->bind_groups.frame,
-  };
-  iscreen_effect_t screen_effect = {
-    .fragment_shader_file
-    = "shaders/compute_metaballs/BloomPassFragmentShader.wgsl",
-    .bind_group_layouts.items      = bind_group_layouts,
-    .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-    .bind_groups.items             = bind_groups,
-    .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
-    .presentation_format           = WGPUTextureFormat_RGBA16Float,
-  };
-  effect_create(&this->effect, renderer, &screen_effect);
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->bind_group_layouts.frame,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->bind_groups.frame,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_file
+      = "shaders/compute_metaballs/BloomPassFragmentShader.wgsl",
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = WGPUTextureFormat_RGBA16Float,
+      .label                         = "bloom pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
 
   /* Input texture */
   this->input_texture.texture = copy_pass->copy_texture.texture;
@@ -4809,6 +4836,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
 static void bloom_pass_destroy(bloom_pass_t* this)
 {
+  effect_destroy(&this->effect);
   WGPU_RELEASE_RESOURCE(Texture, this->bloom_texture.texture)
   WGPU_RELEASE_RESOURCE(TextureView, this->bloom_texture.view)
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(this->blur_textures); ++i) {
