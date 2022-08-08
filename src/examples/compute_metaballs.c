@@ -4971,7 +4971,7 @@ static void deferred_pass_init_defaults(deferred_pass_t* this)
 {
   memset(this, 0, sizeof(*this));
 
-  glm_vec3_zero(this->spot_light_target);
+  glm_vec3_copy((vec3){0.0f, 80.0f, 0.0f}, this->spot_light_target);
   glm_vec3_one(this->spot_light_color_target);
 }
 
@@ -5087,9 +5087,9 @@ static void deferred_pass_create(deferred_pass_t* this,
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
-            .type           = WGPUBufferBindingType_Uniform,
-            .minBindingSize = this->point_lights.lights_config_uniform_buffer.size,
-        },
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = this->point_lights.lights_config_uniform_buffer.size,
+       },
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
@@ -5165,6 +5165,35 @@ static void deferred_pass_create(deferred_pass_t* this,
                           });
   ASSERT(this->bind_group != NULL);
 
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[4] = {
+      this->bind_group_layout,
+      this->renderer->bind_group_layouts.frame,
+      this->spot_light.bind_group_layouts.ubos,
+      this->spot_light.bind_group_layouts.depth_texture,
+    };
+    WGPUBindGroup bind_groups[4] = {
+      this->bind_group,
+      this->renderer->bind_groups.frame,
+      this->spot_light.bind_groups.ubos,
+      this->spot_light.bind_groups.depth_texture,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_file
+      = "shaders/compute_metaballs/DeferredPassFragmentShader.wgsl",
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format = settings_get_quality_level().bloom_toggle ?
+                               WGPUTextureFormat_RGBA16Float :
+                               WGPUTextureFormat_BGRA8Unorm,
+      .label               = "defferred pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+
   /* Frame buffer Color attachments */
   {
     this->framebuffer.color_attachments[0] =
@@ -5214,6 +5243,7 @@ static void deferred_pass_create(deferred_pass_t* this,
 
 static void deferred_pass_destroy(deferred_pass_t* this)
 {
+  effect_destroy(&this->effect);
   point_lights_destroy(&this->point_lights);
   spot_light_destroy(&this->spot_light);
 
