@@ -64,7 +64,7 @@ typedef struct {
 } imetaball_pos_t;
 
 typedef struct {
-  const char* fragment_shader;
+  const char* fragment_shader_file;
   struct {
     WGPUBindGroupLayout* items;
     uint32_t item_count;
@@ -3934,18 +3934,24 @@ static void particles_render(particles_t* this,
  * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/effect.ts
  * -------------------------------------------------------------------------- */
 
+#define EFFECT_MAX_BIND_GROUP_COUNT 5u
+
 typedef struct {
   webgpu_renderer_t* renderer;
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline render_pipeline;
-  iscreen_effect_t* screen_effect;
+  struct {
+    WGPUBindGroup items[EFFECT_MAX_BIND_GROUP_COUNT];
+    uint32_t item_count;
+  } bind_groups;
+  WGPUTextureFormat presentation_format;
   struct {
     wgpu_buffer_t vertex_buffer;
     wgpu_buffer_t index_buffer;
   } buffers;
 } effect_t;
 
-static void effect_init(effect_t* this, const char* fragment_shader,
+static void effect_init(effect_t* this, const char* fragment_shader_file,
                         WGPUBindGroupLayout* bind_group_layouts,
                         uint32_t bind_group_layout_count, const char* label)
 {
@@ -3976,7 +3982,7 @@ static void effect_init(effect_t* this, const char* fragment_shader,
     // Color target state
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = this->screen_effect->presentation_format,
+      .format    = this->presentation_format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
@@ -4014,9 +4020,9 @@ static void effect_init(effect_t* this, const char* fragment_shader,
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Fragment shader WGSL
-            .label            = "FragmentShader WGSL",
-            .wgsl_code.source = fragment_shader,
-            .entry            = "main",
+            .label = "FragmentShader WGSL",
+            .file  = fragment_shader_file,
+            .entry = "main",
           },
           .target_count = 1,
           .targets      = &color_target_state,
@@ -4047,11 +4053,24 @@ static void effect_init(effect_t* this, const char* fragment_shader,
   }
 }
 
+static void effect_set_bind_groups(effect_t* this,
+                                   iscreen_effect_t* screen_effect)
+{
+  const uint32_t max_bind_groups = (uint32_t)EFFECT_MAX_BIND_GROUP_COUNT;
+  for (uint32_t i = 0;
+       i < screen_effect->bind_groups.item_count && i < max_bind_groups; i++) {
+    this->bind_groups.items[i] = screen_effect->bind_groups.items[i];
+  }
+  this->bind_groups.item_count
+    = MIN(screen_effect->bind_groups.item_count, max_bind_groups);
+}
+
 static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
                           iscreen_effect_t* screen_effect)
 {
-  this->renderer      = renderer;
-  this->screen_effect = screen_effect;
+  this->renderer = renderer;
+  effect_set_bind_groups(this, screen_effect);
+  this->presentation_format = screen_effect->presentation_format;
 
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
@@ -4087,7 +4106,7 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
                   });
 
   /* Init render pipeline */
-  effect_init(this, screen_effect->fragment_shader,
+  effect_init(this, screen_effect->fragment_shader_file,
               screen_effect->bind_group_layouts.items,
               screen_effect->bind_group_layouts.item_count,
               screen_effect->label);
@@ -4108,9 +4127,9 @@ static void effect_pre_render(effect_t* this, WGPURenderPassEncoder render_pass)
   }
 
   wgpuRenderPassEncoderSetPipeline(render_pass, this->render_pipeline);
-  for (uint32_t i = 0; i < this->screen_effect->bind_groups.item_count; ++i) {
-    wgpuRenderPassEncoderSetBindGroup(
-      render_pass, i, this->screen_effect->bind_groups.items[i], 0, 0);
+  for (uint32_t i = 0; i < this->bind_groups.item_count; ++i) {
+    wgpuRenderPassEncoderSetBindGroup(render_pass, i,
+                                      this->bind_groups.items[i], 0, 0);
   }
   wgpuRenderPassEncoderSetVertexBuffer(
     render_pass, 1, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
@@ -4284,12 +4303,12 @@ static void copy_pass_render(copy_pass_t* this,
  * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/bloom-pass.ts
  * -------------------------------------------------------------------------- */
 
-#define BLOOM_PASS_TILE_DIM 128
+#define BLOOM_PASS_TILE_DIM 128u
 #define BLOOM_PASS_BATCH                                                       \
   {                                                                            \
     4, 4                                                                       \
   }
-#define BLOOM_PASS_FILTER_SIZE 10
+#define BLOOM_PASS_FILTER_SIZE 10u
 #define BLOOM_PASS_ITERATIONS 2u
 
 typedef struct {
@@ -4323,9 +4342,7 @@ typedef struct {
   WGPUBindGroup blur_compute_constants_bindGroup;
 
   WGPUBindGroupLayout blur_compute_bind_group_layout;
-  WGPUBindGroup blur_compute_bind_group_0;
-  WGPUBindGroup blur_compute_bind_group_1;
-  WGPUBindGroup blur_compute_bind_group_2;
+  WGPUBindGroup blur_compute_bind_groups[3];
 
   wgpu_buffer_t blur_params_buffer;
   wgpu_buffer_t buffer_0;
@@ -4425,14 +4442,14 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
         .size    = this->buffer_0.size,
       },
     };
-    this->blur_compute_bind_group_0 = wgpuDeviceCreateBindGroup(
+    this->blur_compute_bind_groups[0] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .label  = "blur compute bind group 0",
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(this->blur_compute_bind_group_0 != NULL);
+    ASSERT(this->blur_compute_bind_groups[0] != NULL);
   }
 
   /* Blur compute bind group 1 */
@@ -4452,14 +4469,14 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
         .size    = this->buffer_1.size,
       },
     };
-    this->blur_compute_bind_group_1 = wgpuDeviceCreateBindGroup(
+    this->blur_compute_bind_groups[1] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .label  = "blur compute bind group 1",
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(this->blur_compute_bind_group_1 != NULL);
+    ASSERT(this->blur_compute_bind_groups[1] != NULL);
   }
 
   /* Blur compute bind group 2 */
@@ -4479,14 +4496,14 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
         .size    = this->buffer_0.size,
       },
     };
-    this->blur_compute_bind_group_2 = wgpuDeviceCreateBindGroup(
+    this->blur_compute_bind_groups[2] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .label  = "blur compute bind group 2",
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(this->blur_compute_bind_group_2 != NULL);
+    ASSERT(this->blur_compute_bind_groups[2] != NULL);
   }
 }
 
@@ -4527,7 +4544,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
   /* Bloom texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Bloom texture view",
+    .label           = "bloom texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -4618,6 +4635,27 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     ASSERT(this->bind_group != NULL);
   }
 
+  /* Initialize effect */
+  WGPUBindGroupLayout bind_group_layouts[2] = {
+    this->bind_group_layout,
+    this->renderer->bind_group_layouts.frame,
+  };
+  WGPUBindGroup bind_groups[2] = {
+    this->bind_group,
+    this->renderer->bind_groups.frame,
+  };
+  iscreen_effect_t screen_effect = {
+    .fragment_shader_file
+    = "shaders/compute_metaballs/BloomPassFragmentShader.wgsl",
+    .bind_group_layouts.items      = bind_group_layouts,
+    .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+    .bind_groups.items             = bind_groups,
+    .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+    .presentation_format           = WGPUTextureFormat_RGBA16Float,
+  };
+  effect_create(&this->effect, renderer, &screen_effect);
+
+  /* Input texture */
   this->input_texture.texture = copy_pass->copy_texture.texture;
   this->input_texture.view    = copy_pass->copy_texture.view;
 
@@ -4784,9 +4822,9 @@ static void bloom_pass_destroy(bloom_pass_t* this)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_constants_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_constants_bindGroup)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_compute_bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_0)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_1)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_group_2)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[0])
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[1])
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[2])
   WGPU_RELEASE_RESOURCE(Buffer, this->blur_params_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, this->buffer_0.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, this->buffer_1.buffer)
@@ -4809,16 +4847,16 @@ static void bloom_pass_update_bloom(bloom_pass_t* this,
   wgpuComputePassEncoderSetPipeline(compute_pass, this->blur_pipeline);
   wgpuComputePassEncoderSetBindGroup(
     compute_pass, 0, this->blur_compute_constants_bindGroup, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
-                                     this->blur_compute_bind_group_0, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 1, this->blur_compute_bind_groups[0], 0, NULL);
   wgpuComputePassEncoderDispatchWorkgroups(
     compute_pass,
     (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
     (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
     1                                             // workgroupCountZ
   );
-  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
-                                     this->blur_compute_bind_group_1, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
   wgpuComputePassEncoderDispatchWorkgroups(
     compute_pass,
     (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
@@ -4827,7 +4865,7 @@ static void bloom_pass_update_bloom(bloom_pass_t* this,
   );
   for (uint32_t i = 0; i < BLOOM_PASS_ITERATIONS - 1; ++i) {
     wgpuComputePassEncoderSetBindGroup(
-      compute_pass, 1, this->blur_compute_bind_group_2, 0, NULL);
+      compute_pass, 1, this->blur_compute_bind_groups[2], 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(
       compute_pass,
       (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
@@ -4835,7 +4873,7 @@ static void bloom_pass_update_bloom(bloom_pass_t* this,
       1                                             // workgroupCountZ
     );
     wgpuComputePassEncoderSetBindGroup(
-      compute_pass, 1, this->blur_compute_bind_group_1, 0, NULL);
+      compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(
       compute_pass,
       (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
