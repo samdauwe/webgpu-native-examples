@@ -607,6 +607,7 @@ typedef struct {
     } depth_texture;
   } textures;
   WGPUSampler default_sampler;
+  WGPUTextureFormat presentation_format;
   struct {
     WGPURenderPassColorAttachment color_attachments[1];
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
@@ -630,6 +631,10 @@ static void webgpu_renderer_create(webgpu_renderer_t* this,
 static void webgpu_renderer_init(webgpu_renderer_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  /* Set presentation format */
+  this->presentation_format = wgpu_context ? wgpu_context->swap_chain.format :
+                                             WGPUTextureFormat_BGRA8Unorm;
 
   /* default sampler */
   this->default_sampler = wgpuDeviceCreateSampler(
@@ -5434,10 +5439,34 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
                             .entries    = bg_entries,
                           });
   ASSERT(this->bind_group != NULL);
+
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->bind_group_layouts.frame,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->bind_groups.frame,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_file
+      = "shaders/compute_metaballs/ResultPassFragmentShader.wgsl",
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = renderer->presentation_format,
+      .label                         = "result pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
 }
 
 static void result_pass_destroy(result_pass_t* this)
 {
+  effect_destroy(&this->effect);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
   WGPU_RELEASE_RESOURCE(Texture, this->empty_texture.texture)
