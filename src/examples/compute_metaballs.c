@@ -2536,7 +2536,7 @@ static void box_outline_init(box_outline_t* this)
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
             .label = "BoxOutlineVertexShader WGSL",
-            .file  = "shaders/compute_metaballs/BoxOutlineVertexShader.wgsl",
+            .file  = "shaders/compute_metaballs/box_outline_vertex_shader.wgsl",
             .entry = "main",
           },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -2549,7 +2549,7 @@ static void box_outline_init(box_outline_t* this)
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
           .label = "BoxOutlineFragmentShader WGSL",
-          .file  = "shaders/GroundFragmentShader/BoxOutlineFragmentShader.wgsl",
+          .file  = "shaders/GroundFragmentShader/box_outline_fragment_shader.wgsl",
           .entry = "main",
         },
         .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -2912,8 +2912,8 @@ static void ground_init(ground_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "GroundVertexShader WGSL",
-            .file  = "shaders/compute_metaballs/GroundVertexShader.wgsl",
+            .label = "ground vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/ground_vertex_shader.wgsl",
             .entry = "main",
           },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -2925,8 +2925,8 @@ static void ground_init(ground_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label = "GroundFragmentShader WGSL",
-          .file  = "shaders/GroundFragmentShader/GroundVertexShader.wgsl",
+          .label = "ground fragment shader wgsl",
+          .file  = "shaders/GroundFragmentShader/ground_fragment_shader.wgsl",
           .entry = "main",
         },
         .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -3026,8 +3026,8 @@ static void ground_init(ground_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "GroundShadowVertexShader WGSL",
-            .file  = "shaders/compute_metaballs/GroundShadowVertexShader.wgsl",
+            .label = "ground shadow vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/ground_shadow_vertex_shader.wgsl",
             .entry = "main",
           },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -4270,7 +4270,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
     };
     iscreen_effect_t screen_effect = {
       .fragment_shader_file
-      = "shaders/compute_metaballs/CopyPassFragmentShader.wgsl",
+      = "shaders/compute_metaballs/copy_pass_fragment_shader.wgsl",
       .bind_group_layouts.items      = bind_group_layouts,
       .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bind_groups.items             = bind_groups,
@@ -4415,11 +4415,12 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
   /* Bloom pass blur pipeline */
   {
     wgpu_shader_t comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .file = "shaders/compute_metaballs/BloomBlurCompute.wgsl",
-                      .entry = "main",
-                    });
+      wgpu_context,
+      &(wgpu_shader_desc_t){
+        // Compute shader WGSL
+        .file  = "shaders/compute_metaballs/bloom_blur_compute.wgsl",
+        .entry = "main",
+      });
     this->blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
@@ -4676,7 +4677,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     };
     iscreen_effect_t screen_effect = {
       .fragment_shader_file
-      = "shaders/compute_metaballs/BloomPassFragmentShader.wgsl",
+      = "shaders/compute_metaballs/bloom_pass_fragment_shader.wgsl",
       .bind_group_layouts.items      = bind_group_layouts,
       .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bind_groups.items             = bind_groups,
@@ -5186,7 +5187,7 @@ static void deferred_pass_create(deferred_pass_t* this,
     };
     iscreen_effect_t screen_effect = {
       .fragment_shader_file
-      = "shaders/compute_metaballs/DeferredPassFragmentShader.wgsl",
+      = "shaders/compute_metaballs/deferred_pass_fragment_shader.wgsl",
       .bind_group_layouts.items      = bind_group_layouts,
       .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bind_groups.items             = bind_groups,
