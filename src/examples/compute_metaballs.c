@@ -1164,7 +1164,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
         .label = "metaballs isosurface compute shader",
-        .file  = "shaders/compute_metaballs/metaball_field_compute_source.wgsl",
+        .file  = "shaders/compute_metaballs/metaball_field_compute_shader.wgsl",
         .entry = "main",
       });
 
@@ -1210,7 +1210,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
         .label = "marching cubes computer shader",
-        .file  = "shaders/compute_metaballs/marching_cubes_compute_source.wgsl",
+        .file  = "shaders/compute_metaballs/marching_cubes_compute_shader.wgsl",
         .entry = "main",
       });
 
@@ -1807,7 +1807,9 @@ static void point_lights_init(point_lights_t* this)
       wgpu_context,
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
-        .file = "shaders/compute_metaballs/UpdatePointLightsComputeShader.wgsl",
+        .label = "update point lights compute shader wgsl",
+        .file
+        = "shaders/compute_metaballs/update_point_lights_compute_shader.wgsl",
         .entry = "main",
       });
     this->update_compute_pipeline = wgpuDeviceCreateComputePipeline(
@@ -3404,8 +3406,8 @@ static void metaballs_init(metaballs_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "ParticlesFragmentShader WGSL",
-            .file  = "shaders/compute_metaballs/MetaballsVertexShader.wgsl",
+            .label = "metaballs vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/metaballs_vertex_shader.wgsl",
             .entry = "main",
           },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -3417,8 +3419,8 @@ static void metaballs_init(metaballs_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label = "MetaballsFragmentShader WGSL",
-          .file  = "shaders/compute_metaballs/MetaballsFragmentShader.wgsl",
+          .label = "metaballs fragment shader wgsl",
+          .file  = "shaders/compute_metaballs/metaballs_fragment_shader.wgsl",
           .entry = "main",
         },
         .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -3504,8 +3506,8 @@ static void metaballs_init(metaballs_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "MetaballsShadowVertexShader wgsl",
-            .file  = "shaders/compute_metaballs/MetaballsShadowVertexShader.wgsl",
+            .label = "metaballs shadow vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/metaballs_shadow_vertex_shader.wgsl",
             .entry = "main",
           },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -3801,8 +3803,8 @@ static void particles_init(particles_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "ParticlesFragmentShader WGSL",
-            .file  = "shaders/compute_metaballs/ParticlesVertexShader.wgsl",
+            .label = "particles vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/particles_vertex_shader.wgsl",
             .entry = "main",
            },
           .buffer_count = 0,
@@ -3814,8 +3816,8 @@ static void particles_init(particles_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Fragment shader WGSL
-            .label = "ParticlesFragmentShader WGSL",
-            .file  = "shaders/compute_metaballs/ParticlesFragmentShader.wgsl",
+            .label = "particles fragment shader wgsl",
+            .file  = "shaders/compute_metaballs/particles_fragment_shader.wgsl",
             .entry = "main",
           },
           .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -4418,7 +4420,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
       wgpu_context,
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
-        .file  = "shaders/compute_metaballs/bloom_blur_compute.wgsl",
+        .file  = "shaders/compute_metaballs/bloom_blur_compute_shader.wgsl",
         .entry = "main",
       });
     this->blur_pipeline = wgpuDeviceCreateComputePipeline(
@@ -5453,7 +5455,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
     };
     iscreen_effect_t screen_effect = {
       .fragment_shader_file
-      = "shaders/compute_metaballs/ResultPassFragmentShader.wgsl",
+      = "shaders/compute_metaballs/result_pass_fragment_shader.wgsl",
       .bind_group_layouts.items      = bind_group_layouts,
       .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bind_groups.items             = bind_groups,
