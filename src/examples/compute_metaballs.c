@@ -856,7 +856,7 @@ static void webgpu_renderer_on_render(webgpu_renderer_t* this)
  * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/geometry/marching-cubes.ts
  * -------------------------------------------------------------------------- */
 
-static const uint16_t MARCHING_CUBES_EDGE_TABLE[] = {
+static const uint16_t MARCHING_CUBES_EDGE_TABLE[256] = {
   0x000, 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c, 0x80c, 0x905, 0xa0f,
   0xb06, 0xc0a, 0xd03, 0xe09, 0xf00, 0x190, 0x099, 0x393, 0x29a, 0x596, 0x49f,
   0x795, 0x69c, 0x99c, 0x895, 0xb9f, 0xa96, 0xd9a, 0xc93, 0xf99, 0xe90, 0x230,
@@ -887,7 +887,7 @@ static const uint16_t MARCHING_CUBES_EDGE_TABLE[] = {
 // MarchingCubesEdgeTable above. The first value is the number of valid indices
 // for this entry. The following 15 values are the triangle indices for this
 // entry, with -1 representing "no index".
-static const int8_t MARCHING_CUBES_TRI_TABLE[] = {
+static const int8_t MARCHING_CUBES_TRI_TABLE[4096] = {
   0,  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3,  0,  8,
   3,  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3,  0,  1,  9,  -1, -1,
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6,  1,  8,  3,  9,  8,  1,  -1, -1,
