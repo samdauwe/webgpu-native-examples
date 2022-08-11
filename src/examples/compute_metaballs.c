@@ -586,8 +586,8 @@ static void camera_controller_tick(camera_controller_t* this)
 
 typedef struct {
   wgpu_context_t* wgpu_context;
-  float device_pixel_ratio;
   vec2 output_size;
+  float device_pixel_ratio;
   struct {
     WGPUBindGroupLayout frame;
   } bind_group_layouts;
@@ -626,6 +626,8 @@ static void webgpu_renderer_create(webgpu_renderer_t* this,
   webgpu_renderer_init_defaults(this);
 
   this->wgpu_context = wgpu_context;
+  glm_vec2_copy((vec2){512.0f, 512.0f}, this->output_size);
+  this->device_pixel_ratio = 1.0f;
 }
 
 static void webgpu_renderer_init(webgpu_renderer_t* this)
