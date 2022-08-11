@@ -618,6 +618,9 @@ typedef struct {
 static void webgpu_renderer_init_defaults(webgpu_renderer_t* this)
 {
   memset(this, 0, sizeof(*this));
+
+  glm_vec2_copy((vec2){512.0f, 512.0f}, this->output_size);
+  this->device_pixel_ratio = 1.0f;
 }
 
 static void webgpu_renderer_create(webgpu_renderer_t* this,
@@ -626,8 +629,6 @@ static void webgpu_renderer_create(webgpu_renderer_t* this,
   webgpu_renderer_init_defaults(this);
 
   this->wgpu_context = wgpu_context;
-  glm_vec2_copy((vec2){512.0f, 512.0f}, this->output_size);
-  this->device_pixel_ratio = 1.0f;
 }
 
 static void webgpu_renderer_init(webgpu_renderer_t* this)
