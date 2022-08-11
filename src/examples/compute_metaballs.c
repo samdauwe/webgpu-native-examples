@@ -586,7 +586,7 @@ static void camera_controller_tick(camera_controller_t* this)
 
 typedef struct {
   wgpu_context_t* wgpu_context;
-  vec2 output_size;
+  uint32_t output_size[2];
   float device_pixel_ratio;
   struct {
     WGPUBindGroupLayout frame;
@@ -615,11 +615,26 @@ typedef struct {
   } framebuffer;
 } webgpu_renderer_t;
 
+static void webgpu_renderer_set_outputSize(webgpu_renderer_t* this,
+                                           uint32_t width, uint32_t height)
+{
+  this->output_size[0] = width;
+  this->output_size[1] = height;
+}
+
+static void webgpu_renderer_get_outputSize(webgpu_renderer_t* this,
+                                           uint32_t* width, uint32_t* height)
+{
+  *width  = this->output_size[0];
+  *height = this->output_size[1];
+}
+
 static void webgpu_renderer_init_defaults(webgpu_renderer_t* this)
 {
   memset(this, 0, sizeof(*this));
 
-  glm_vec2_copy((vec2){512.0f, 512.0f}, this->output_size);
+  this->output_size[0]     = 512;
+  this->output_size[1]     = 512;
   this->device_pixel_ratio = 1.0f;
 }
 
@@ -719,8 +734,8 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
 
   /* Depth texture */
   WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
+    .width              = this->output_size[0],
+    .height             = this->output_size[1],
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
