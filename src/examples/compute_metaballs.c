@@ -664,7 +664,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
     1 * sizeof(float);                        // far
   this->ubos.projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Projection ubo",
+                    .label = "Projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = projection_ubo_byte_length,
                   });
@@ -678,7 +678,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
     1 * sizeof(float);                  // delta time
   this->ubos.view_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "View ubo",
+                    .label = "View UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = view_ubo_byte_length,
                   });
