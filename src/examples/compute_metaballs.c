@@ -779,7 +779,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = &this->framebuffer.color_attachments[0],
-    .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
+    .depthStencilAttachment = NULL,
   };
 
   /* Frame bind group layout */
@@ -1149,7 +1149,8 @@ typedef struct {
   WGPUBindGroup compute_marching_cubes_bind_group;
 
   uint32_t indirect_render_array[9];
-  uint8_t* metaball_array;
+  uint8_t
+    metaball_array[sizeof(uint32_t) * 4 + sizeof(float) * 8 * MAX_METABALLS];
   uint32_t* metaball_array_header;
   float* metaball_array_balls;
 
@@ -1175,6 +1176,7 @@ static bool metaballs_compute_is_ready(metaballs_compute_t* this)
 
 static void metaballs_compute_init(metaballs_compute_t* this)
 {
+  /* Compute metaballs pipeline */
   {
     /* Compute shader */
     wgpu_shader_t comp_shader = wgpu_shader_create(
@@ -1192,26 +1194,31 @@ static void metaballs_compute_init(metaballs_compute_t* this)
       &(WGPUComputePipelineDescriptor){
         .compute = comp_shader.programmable_stage_descriptor,
       });
+    ASSERT(this->compute_metaballs_pipeline != NULL);
 
     /* Partial clean-up */
     wgpu_shader_release(&comp_shader);
   }
 
+  /* Compute metaballs bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = this->metaball_buffer.buffer,
+        .size    = this->metaball_buffer.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
         .buffer  = this->volume_buffer.buffer,
+        .size    = this->volume_buffer.size,
       },
     };
 
     WGPUBindGroupDescriptor bg_desc = {
+      .label  = "compute metaballs bind group",
       .layout = wgpuComputePipelineGetBindGroupLayout(
-        this->compute_marching_cubes_pipeline, 0),
+        this->compute_metaballs_pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
@@ -1221,6 +1228,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
     ASSERT(this->compute_metaballs_bind_group != NULL);
   }
 
+  /* Compute marching cubes pipeline */
   {
     /* Compute shader */
     wgpu_shader_t comp_shader = wgpu_shader_create(
@@ -1236,44 +1244,54 @@ static void metaballs_compute_init(metaballs_compute_t* this)
     this->compute_marching_cubes_pipeline = wgpuDeviceCreateComputePipeline(
       this->renderer->wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
+        .label   = "compute marching cubes pipeline",
         .compute = comp_shader.programmable_stage_descriptor,
       });
+    ASSERT(this->compute_marching_cubes_pipeline != NULL);
 
     /* Partial clean-up */
     wgpu_shader_release(&comp_shader);
   }
 
+  /* Compute marching cubes bind group */
   {
     WGPUBindGroupEntry bg_entries[6] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = this->tables_buffer.buffer,
+        .size    = this->tables_buffer.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
         .buffer  = this->volume_buffer.buffer,
+        .size    = this->volume_buffer.size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
         .buffer  = this->vertex_buffer.buffer,
+        .size    = this->vertex_buffer.size,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding = 3,
         .buffer  = this->normal_buffer.buffer,
+        .size    = this->normal_buffer.size,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding = 4,
         .buffer  = this->index_buffer.buffer,
+        .size    = this->index_buffer.size,
       },
       [5] = (WGPUBindGroupEntry) {
         .binding = 5,
         .buffer  = this->indirect_render_buffer.buffer,
+        .size    = this->indirect_render_buffer.size,
       },
     };
 
     WGPUBindGroupDescriptor bg_desc = {
       .layout = wgpuComputePipelineGetBindGroupLayout(
         this->compute_marching_cubes_pipeline, 0),
+      .label      = "compute marching cubes bind group",
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
@@ -1294,16 +1312,17 @@ static void metaballs_compute_create(metaballs_compute_t* this,
                                      ivolume_settings_t volume)
 {
   metaballs_compute_init_defaults(this);
+  this->renderer = renderer;
 
   memcpy(&this->volume, &volume, sizeof(ivolume_settings_t));
-  this->renderer = renderer;
 
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
+  /* Metaballs table buffer */
   {
-    size_t table_size
-      = ARRAY_SIZE(MARCHING_CUBES_EDGE_TABLE)
-        + ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE) * sizeof(int32_t);
+    size_t table_size = (ARRAY_SIZE(MARCHING_CUBES_EDGE_TABLE)
+                         + ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE))
+                        * sizeof(int32_t);
     int32_t* tables_array = (int32_t*)malloc(table_size);
 
     size_t j = 0;
@@ -1325,6 +1344,20 @@ static void metaballs_compute_create(metaballs_compute_t* this,
     free(tables_array);
   }
 
+  /* Metaballs buffer */
+  {
+    this->metaball_array_header = (uint32_t*)(&this->metaball_array[0]);
+    this->metaball_array_balls  = (float*)(&this->metaball_array[16]);
+    this->metaball_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "metaballs buffer",
+                                           .usage = WGPUBufferUsage_Storage
+                                                    | WGPUBufferUsage_CopyDst,
+                                           .size = sizeof(this->metaball_array),
+                                         });
+  }
+
+  /* Metaballs volume buffer */
   {
     const uint32_t volume_elements
       = volume.width * volume.height * volume.depth;
@@ -1413,6 +1446,21 @@ static void metaballs_compute_create(metaballs_compute_t* this,
   }
 
   metaballs_compute_init(this);
+}
+
+static void metaballs_compute_destroy(metaballs_compute_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, this->tables_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->metaball_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->volume_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->indirect_render_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->compute_metaballs_pipeline)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->compute_marching_cubes_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->compute_metaballs_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->compute_marching_cubes_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, this->vertex_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->normal_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->index_buffer.buffer)
 }
 
 static void metaballs_compute_rearrange(metaballs_compute_t* this)
@@ -1937,7 +1985,7 @@ static void point_lights_create(point_lights_t* this,
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-             .type           = WGPUBufferBindingType_Storage,
+             .type           = WGPUBufferBindingType_Uniform,
              .minBindingSize = this->lights_config_uniform_buffer.size,
          },
         .sampler = {0},
@@ -2295,13 +2343,11 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* Render pass descriptor */
   this->framebuffer.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
-      .view           = this->depth_texture.view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
+      .view         = this->depth_texture.view,
+      .depthLoadOp  = WGPULoadOp_Clear,
+      .depthStoreOp = WGPUStoreOp_Store,
+      .clearDepth   = 1.0f,
+      .clearStencil = 0,
     };
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 0,
@@ -2557,7 +2603,7 @@ static void box_outline_init(box_outline_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "BoxOutlineVertexShader WGSL",
+            .label = "box outline vertex shader wgsl",
             .file  = "shaders/compute_metaballs/box_outline_vertex_shader.wgsl",
             .entry = "main",
           },
@@ -2570,8 +2616,8 @@ static void box_outline_init(box_outline_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label = "BoxOutlineFragmentShader WGSL",
-          .file  = "shaders/GroundFragmentShader/box_outline_fragment_shader.wgsl",
+          .label = "box outline fragment shader wgsl",
+          .file  = "shaders/compute_metaballs/box_outline_fragment_shader.wgsl",
           .entry = "main",
         },
         .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -2613,6 +2659,7 @@ static void box_outline_init_defaults(box_outline_t* this)
 static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
 {
   box_outline_init_defaults(this);
+  this->renderer = renderer;
 
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
@@ -2948,7 +2995,7 @@ static void ground_init(ground_t* this)
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
           .label = "ground fragment shader wgsl",
-          .file  = "shaders/GroundFragmentShader/ground_fragment_shader.wgsl",
+          .file  = "shaders/compute_metaballs/ground_fragment_shader.wgsl",
           .entry = "main",
         },
         .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
@@ -3114,7 +3161,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
                   });
 
   /* Ground normal buffer */
-  this->buffers.vertex_buffer = wgpu_create_buffer(
+  this->buffers.normal_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "ground normal buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
@@ -3258,7 +3305,7 @@ static ground_t* ground_render_shadow(ground_t* this,
   wgpuRenderPassEncoderSetVertexBuffer(
     render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.instance_offsets_buffer.buffer, 1,
+    render_pass, 1, this->buffers.instance_offsets_buffer.buffer, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDraw(render_pass, 36, this->instance_count, 0, 0);
   return this;
@@ -3280,12 +3327,12 @@ static ground_t* ground_render(ground_t* this,
   wgpuRenderPassEncoderSetVertexBuffer(
     render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.normal_buffer.buffer, 1, WGPU_WHOLE_SIZE);
+    render_pass, 1, this->buffers.normal_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 2, this->buffers.instance_offsets_buffer.buffer, 1,
+    render_pass, 2, this->buffers.instance_offsets_buffer.buffer, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 3, this->buffers.instance_material_buffer.buffer, 1,
+    render_pass, 3, this->buffers.instance_material_buffer.buffer, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDraw(render_pass, 36, this->instance_count, 0, 0);
   return this;
@@ -3546,7 +3593,7 @@ static void metaballs_init(metaballs_t* this)
       this->renderer->wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
         .label        = "metaballs shadow rendering pipeline",
-        .layout       = this->pipeline_layouts.render_pipeline,
+        .layout       = this->pipeline_layouts.render_shadow_pipeline,
         .primitive    = primitive_state,
         .vertex       = vertex_state,
         .fragment     = NULL,
@@ -3648,6 +3695,7 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
 
 static void metaballs_destroy(metaballs_t* this)
 {
+  metaballs_compute_destroy(&this->metaballs_compute);
   WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layouts.render_pipeline)
   WGPU_RELEASE_RESOURCE(PipelineLayout,
                         this->pipeline_layouts.render_shadow_pipeline)
@@ -4034,8 +4082,8 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "EffectVertexShader WGSL",
-            .file  = "shaders/compute_metaballs/EffectVertexShader.wgsl",
+            .label = "effect vertex shader wgsl",
+            .file  = "shaders/compute_metaballs/effect_vertex_shader.wgsl",
             .entry = "main",
            },
           .buffer_count = (uint32_t)ARRAY_SIZE(vertex_buffers),
@@ -4159,7 +4207,7 @@ static void effect_pre_render(effect_t* this, WGPURenderPassEncoder render_pass)
                                       this->bind_groups.items[i], 0, 0);
   }
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
     render_pass, this->buffers.index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
@@ -4569,7 +4617,6 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
                               copy_pass_t* copy_pass)
 {
   bloom_pass_init_defaults(this);
-
   this->renderer = renderer;
 
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
@@ -5144,7 +5191,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .binding    = 4,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
-        .sampleType    = WGPUTextureSampleType_Float,
+        .sampleType    = WGPUTextureSampleType_Depth,
         .viewDimension = WGPUTextureViewDimension_2D,
         .multisampled  = false,
       },
@@ -5180,7 +5227,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .textureView = this->g_buffer_texture_diffuse.view,
     },
     [4] = (WGPUBindGroupEntry) {
-      .binding     = 1,
+      .binding     = 4,
       .textureView = renderer->textures.depth_texture.view,
     },
   };
@@ -5217,7 +5264,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .presentation_format = settings_get_quality_level().bloom_toggle ?
                                WGPUTextureFormat_RGBA16Float :
                                WGPUTextureFormat_BGRA8Unorm,
-      .label               = "defferred pass effect",
+      .label               = "deferred pass effect",
     };
     effect_create(&this->effect, renderer, &screen_effect);
   }
