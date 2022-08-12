@@ -1846,9 +1846,11 @@ static void point_lights_init_defaults(point_lights_t* this)
   memset(this, 0, sizeof(*this));
 }
 
-static void point_lights_create(point_lights_t* this)
+static void point_lights_create(point_lights_t* this,
+                                webgpu_renderer_t* renderer)
 {
   point_lights_init_defaults(this);
+  this->renderer = renderer;
 
   wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
 
@@ -5011,7 +5013,7 @@ static void deferred_pass_create(deferred_pass_t* this,
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
   /* Point light */
-  point_lights_create(&this->point_lights);
+  point_lights_create(&this->point_lights, renderer);
 
   /* Spot light */
   ispot_light_t ispot_light = {
