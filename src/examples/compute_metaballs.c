@@ -101,6 +101,29 @@ typedef struct {
 } quality_option_t;
 
 /* -------------------------------------------------------------------------- *
+ * Shared Chunks
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/shaders/shared-chunks.ts
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  mat4 matrix;         // matrix
+  mat4 inverse_matrix; // inverse matrix
+  vec2 output_size;    // screen size
+  float z_near;        // near
+  float z_far;         // far
+} projection_uniforms_t;
+
+typedef struct {
+  mat4 matrix;         // matrix
+  mat4 inverse_matrix; // inverse matrix
+  vec3 position;       // camera position
+  float time;          // time
+  float delta_time;    // delta time
+} view_uniforms_struct_t;
+
+/* -------------------------------------------------------------------------- *
  * Settings
  *
  * Ref:
@@ -601,6 +624,10 @@ typedef struct {
     wgpu_buffer_t screen_view_ubo;
   } ubos;
   struct {
+    projection_uniforms_t projection_ubo;
+    view_uniforms_struct_t view_ubo;
+  } ubos_data;
+  struct {
     struct {
       WGPUTexture texture;
       WGPUTextureView view;
@@ -671,31 +698,19 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   ASSERT(this->default_sampler != NULL);
 
   /* Projection UBO */
-  const uint32_t projection_ubo_byte_length = //
-    16 * sizeof(float) +                      // matrix
-    16 * sizeof(float) +                      // inverse matrix
-    8 * sizeof(float) +                       // screen size
-    1 * sizeof(float) +                       // near
-    1 * sizeof(float);                        // far
   this->ubos.projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = projection_ubo_byte_length,
+                    .size  = sizeof(projection_uniforms_t),
                   });
 
   /* View UBO */
-  const uint32_t view_ubo_byte_length = //
-    16 * sizeof(float) +                // matrix
-    16 * sizeof(float) +                // inverse matrix
-    4 * sizeof(float) +                 // camera position
-    1 * sizeof(float) +                 // time
-    1 * sizeof(float);                  // delta time
   this->ubos.view_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "View UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = view_ubo_byte_length,
+                    .size  = sizeof(view_uniforms_struct_t),
                   });
 
   /* Screen projection UBO*/
@@ -5628,33 +5643,25 @@ static void init_example_state(wgpu_context_t* wgpu_context)
   webgpu_renderer_init(&example_state.renderer);
 
   /* Projection UBO */
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
-                          0 * sizeof(float), persp_camera->projection_matrix,
-                          sizeof(persp_camera->projection_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
-                          16 * sizeof(float),
-                          persp_camera->projection_inv_matrix,
-                          sizeof(persp_camera->projection_inv_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
-                          (16 + 16) * sizeof(float), &renderer->output_size[0],
-                          sizeof(renderer->output_size));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
-                          (16 + 16 + 8) * sizeof(float), &persp_camera->near,
-                          sizeof(persp_camera->near));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer,
-                          (16 + 16 + 8 + 1) * sizeof(float), &persp_camera->far,
-                          sizeof(persp_camera->far));
+  projection_uniforms_t* projection_ubo = &renderer->ubos_data.projection_ubo;
+  glm_mat4_copy(persp_camera->projection_matrix, projection_ubo->matrix);
+  glm_mat4_copy(persp_camera->projection_inv_matrix,
+                projection_ubo->inverse_matrix);
+  glm_vec2_copy(
+    (vec2){(float)renderer->output_size[0], (float)renderer->output_size[1]},
+    projection_ubo->output_size);
+  projection_ubo->z_near = persp_camera->near;
+  projection_ubo->z_far  = persp_camera->far;
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.projection_ubo.buffer, 0,
+                          projection_ubo, sizeof(*projection_ubo));
 
   /* View UBO */
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          0 * sizeof(float), persp_camera->view_matrix,
-                          sizeof(persp_camera->view_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          16 * sizeof(float), persp_camera->view_inv_matrix,
-                          sizeof(persp_camera->view_inv_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          (16 + 16) * sizeof(float), persp_camera->position,
-                          sizeof(persp_camera->position));
+  view_uniforms_struct_t* view_ubo = &renderer->ubos_data.view_ubo;
+  glm_mat4_copy(persp_camera->view_matrix, view_ubo->matrix);
+  glm_mat4_copy(persp_camera->view_inv_matrix, view_ubo->inverse_matrix);
+  glm_vec3_copy(persp_camera->position, view_ubo->position);
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer, 0,
+                          view_ubo, sizeof(*view_ubo));
 
   /* Volume settings */
   example_state.volume = (ivolume_settings_t){
@@ -5727,21 +5734,14 @@ static void update_uniforms(wgpu_example_context_t* context)
   example_state.rearrange_countdown -= example_state.dt;
 
   /* Update view UBO */
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          0 * sizeof(float), persp_camera->view_matrix,
-                          sizeof(persp_camera->view_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          16 * sizeof(float), persp_camera->view_inv_matrix,
-                          sizeof(persp_camera->view_inv_matrix));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          (16 + 16) * sizeof(float), persp_camera->position,
-                          sizeof(persp_camera->position));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          (16 + 16 + 3) * sizeof(float), &frame_timestamp_sec,
-                          sizeof(float));
-  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer,
-                          (16 + 16 + 3 + 1) * sizeof(float), &example_state.dt,
-                          sizeof(float));
+  view_uniforms_struct_t* view_ubo = &renderer->ubos_data.view_ubo;
+  glm_mat4_copy(persp_camera->view_matrix, view_ubo->matrix);
+  glm_mat4_copy(persp_camera->view_inv_matrix, view_ubo->inverse_matrix);
+  glm_vec3_copy(persp_camera->position, view_ubo->position);
+  view_ubo->time       = frame_timestamp_sec;
+  view_ubo->delta_time = example_state.dt;
+  wgpu_queue_write_buffer(wgpu_context, renderer->ubos.view_ubo.buffer, 0,
+                          view_ubo, sizeof(*view_ubo));
 }
 
 static int example_initialize(wgpu_example_context_t* context)
