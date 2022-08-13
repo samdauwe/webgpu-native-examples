@@ -3627,18 +3627,19 @@ static void metaballs_init(metaballs_t* this)
         });
 
     // Create rendering pipeline using the specified states
-    this->render_pipelines.render_pipeline = wgpuDeviceCreateRenderPipeline(
-      this->renderer->wgpu_context->device,
-      &(WGPURenderPipelineDescriptor){
-        .label        = "metaballs shadow rendering pipeline",
-        .layout       = this->pipeline_layouts.render_shadow_pipeline,
-        .primitive    = primitive_state,
-        .vertex       = vertex_state,
-        .fragment     = NULL,
-        .depthStencil = &depth_stencil_state,
-        .multisample  = multisample_state,
-      });
-    ASSERT(this->pipeline_layouts.render_pipeline != NULL);
+    this->render_pipelines.render_shadow_pipeline
+      = wgpuDeviceCreateRenderPipeline(
+        this->renderer->wgpu_context->device,
+        &(WGPURenderPipelineDescriptor){
+          .label        = "metaballs shadow rendering pipeline",
+          .layout       = this->pipeline_layouts.render_shadow_pipeline,
+          .primitive    = primitive_state,
+          .vertex       = vertex_state,
+          .fragment     = NULL,
+          .depthStencil = &depth_stencil_state,
+          .multisample  = multisample_state,
+        });
+    ASSERT(this->pipeline_layouts.render_shadow_pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -3806,7 +3807,7 @@ static metaballs_t* metaballs_render_shadow(metaballs_t* this,
     render_pass, this->metaballs_compute.index_buffer.buffer,
     WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(
-    render_pass, this->metaballs_compute.index_count, 0, 0, 0, 0);
+    render_pass, this->metaballs_compute.index_count, 1, 0, 0, 0);
   return this;
 }
 
@@ -3832,7 +3833,7 @@ static metaballs_t* metaballs_render(metaballs_t* this,
     render_pass, this->metaballs_compute.index_buffer.buffer,
     WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(
-    render_pass, this->metaballs_compute.index_count, 0, 0, 0, 0);
+    render_pass, this->metaballs_compute.index_count, 1, 0, 0, 0);
   return this;
 }
 
