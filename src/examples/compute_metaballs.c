@@ -1147,6 +1147,18 @@ static const int8_t MARCHING_CUBES_TRI_TABLE[4096] = {
  * -------------------------------------------------------------------------- */
 
 typedef struct {
+  vec3 position;
+  float radius;
+  float strength;
+  float subtract;
+} metaball_t;
+
+typedef struct {
+  uint32_t ball_count;
+  metaball_t balls[MAX_METABALLS];
+} metaball_list;
+
+typedef struct {
   webgpu_renderer_t* renderer;
 
   ivolume_settings_t volume;
@@ -1164,10 +1176,9 @@ typedef struct {
   WGPUBindGroup compute_marching_cubes_bind_group;
 
   uint32_t indirect_render_array[9];
-  uint8_t
-    metaball_array[sizeof(uint32_t) * 4 + sizeof(float) * 8 * MAX_METABALLS];
+  metaball_list metaball_array;
   uint32_t* metaball_array_header;
-  float* metaball_array_balls;
+  metaball_t* metaball_array_balls;
 
   wgpu_buffer_t vertex_buffer;
   wgpu_buffer_t normal_buffer;
@@ -1374,8 +1385,8 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
   /* Metaballs buffer */
   {
-    this->metaball_array_header = (uint32_t*)(&this->metaball_array[0]);
-    this->metaball_array_balls  = (float*)(&this->metaball_array[16]);
+    this->metaball_array_header = (uint32_t*)(&this->metaball_array.ball_count);
+    this->metaball_array_balls  = (metaball_t*)(&this->metaball_array.balls);
     this->metaball_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "metaballs buffer",
@@ -1407,22 +1418,22 @@ static void metaballs_compute_create(metaballs_compute_t* this,
     ASSERT(this->volume_buffer.buffer);
     float* volume_mapped_array = (float*)wgpuBufferGetMappedRange(
       this->volume_buffer.buffer, 0, volume_buffer_size);
-    float* volume_float_32 = volume_mapped_array;
-    uint32_t* volume_size  = (uint32_t*)(&volume_mapped_array[12]);
+    float* volume_float32 = volume_mapped_array;
+    uint32_t* volume_size = (uint32_t*)(&volume_mapped_array[12]);
 
-    volume_float_32[0] = volume.x_min;
-    volume_float_32[1] = volume.y_min;
-    volume_float_32[2] = volume.z_min;
+    volume_float32[0] = volume.x_min;
+    volume_float32[1] = volume.y_min;
+    volume_float32[2] = volume.z_min;
 
-    volume_float_32[8]  = volume.x_step;
-    volume_float_32[9]  = volume.y_step;
-    volume_float_32[10] = volume.z_step;
+    volume_float32[8]  = volume.x_step;
+    volume_float32[9]  = volume.y_step;
+    volume_float32[10] = volume.z_step;
 
     volume_size[0] = volume.width;
     volume_size[1] = volume.height;
     volume_size[2] = volume.depth;
 
-    volume_float_32[15] = volume.iso_level;
+    volume_float32[15] = volume.iso_level;
     wgpuBufferUnmap(this->volume_buffer.buffer);
   }
 
@@ -1560,15 +1571,14 @@ metaballs_compute_update_sim(metaballs_compute_t* this,
   }
 
   for (uint32_t i = 0; i < numblobs; i++) {
-    imetaball_pos_t* position              = &this->ball_positions[i];
-    const uint32_t offset                  = i * 8;
-    this->metaball_array_balls[offset]     = position->x;
-    this->metaball_array_balls[offset + 1] = position->y;
-    this->metaball_array_balls[offset + 2] = position->z;
-    this->metaball_array_balls[offset + 3]
-      = sqrt(this->strength / this->subtract);
-    this->metaball_array_balls[offset + 4] = this->strength;
-    this->metaball_array_balls[offset + 5] = this->subtract;
+    imetaball_pos_t* position = &this->ball_positions[i];
+    metaball_t* metaball      = &this->metaball_array_balls[i];
+    metaball->position[0]     = position->x;
+    metaball->position[1]     = position->y;
+    metaball->position[2]     = position->z;
+    metaball->radius          = sqrt(this->strength / this->subtract);
+    metaball->strength        = this->strength;
+    metaball->subtract        = this->subtract;
   }
 
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
