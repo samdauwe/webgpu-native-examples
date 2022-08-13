@@ -1320,6 +1320,13 @@ static void metaballs_compute_init(metaballs_compute_t* this)
 static void metaballs_compute_init_defaults(metaballs_compute_t* this)
 {
   memset(this, 0, sizeof(*this));
+
+  this->strength        = 1.0f;
+  this->strength_target = this->strength;
+  this->subtract        = 1.0f;
+  this->subtract_target = this->subtract;
+
+  this->has_calced_once = false;
 }
 
 static void metaballs_compute_create(metaballs_compute_t* this,
@@ -1338,7 +1345,21 @@ static void metaballs_compute_create(metaballs_compute_t* this,
     size_t table_size = (ARRAY_SIZE(MARCHING_CUBES_EDGE_TABLE)
                          + ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE))
                         * sizeof(int32_t);
-    int32_t* tables_array = (int32_t*)malloc(table_size);
+    WGPUBufferDescriptor buffer_desc = {
+      .label            = "metaballs table buffer",
+      .usage            = WGPUBufferUsage_Storage,
+      .size             = table_size,
+      .mappedAtCreation = true,
+    };
+    this->tables_buffer = (wgpu_buffer_t){
+      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
+      .usage  = buffer_desc.usage,
+      .size   = buffer_desc.size,
+      .count  = table_size / sizeof(int32_t),
+    };
+    ASSERT(this->tables_buffer.buffer);
+    int32_t* tables_array = (int32_t*)wgpuBufferGetMappedRange(
+      this->tables_buffer.buffer, 0, table_size);
 
     size_t j = 0;
     for (size_t i = 0; i < ARRAY_SIZE(MARCHING_CUBES_EDGE_TABLE); ++i) {
@@ -1348,15 +1369,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
       tables_array[j++] = MARCHING_CUBES_TRI_TABLE[i];
     }
 
-    this->tables_buffer
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "metaballs table buffer",
-                                           .usage = WGPUBufferUsage_Storage,
-                                           .size  = table_size,
-                                           .initial.data = tables_array,
-                                         });
-
-    free(tables_array);
+    wgpuBufferUnmap(this->tables_buffer.buffer);
   }
 
   /* Metaballs buffer */
