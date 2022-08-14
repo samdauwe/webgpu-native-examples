@@ -4729,7 +4729,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Blur texture",
+      .label         = "blur texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -4744,7 +4744,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
     /* Blur texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Blur texture view",
+      .label           = "blur texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
