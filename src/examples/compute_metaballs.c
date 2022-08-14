@@ -1864,6 +1864,14 @@ static float deg_to_rad(float deg)
 #define MAX_POINT_LIGHTS_COUNT 256u
 
 typedef struct {
+  vec4 position;
+  vec4 velocity;
+  vec3 color;
+  float range;
+  float intensity;
+} input_point_light_t;
+
+typedef struct {
   webgpu_renderer_t* renderer;
   WGPUBindGroupLayout lights_buffer_compute_bind_group_layout;
   WGPUBindGroup lights_buffer_compute_bind_group;
@@ -1942,12 +1950,10 @@ static void point_lights_create(point_lights_t* this,
 
   /* Lights uniform buffer */
   {
-    const uint32_t lights_data_stride = 16;
-    float lights_data[lights_data_stride * MAX_POINT_LIGHTS_COUNT];
+    input_point_light_t lights_data[MAX_POINT_LIGHTS_COUNT] = {0};
     float x, y, z, vel_x, vel_y, vel_z, r, g, b, radius, intensity;
-    uint32_t offset;
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS_COUNT; ++i) {
-      offset = lights_data_stride * i;
+      input_point_light_t* light_data = &lights_data[i];
 
       x = (random_float() * 2 - 1) * 20;
       y = -2.0f;
@@ -1965,26 +1971,23 @@ static void point_lights_create(point_lights_t* this,
       intensity = 10 + random_float() * 10;
 
       // position
-      lights_data[offset++] = x;
-      lights_data[offset++] = y;
-      lights_data[offset++] = z;
-      lights_data[offset++] = 0.0f;
+      light_data->position[0] = x;
+      light_data->position[1] = y;
+      light_data->position[2] = z;
+      light_data->position[3] = 0.0f;
       // velocity
-      lights_data[offset++] = vel_x;
-      lights_data[offset++] = vel_y;
-      lights_data[offset++] = vel_z;
-      lights_data[offset++] = 0.0f;
+      light_data->velocity[0] = vel_x;
+      light_data->velocity[1] = vel_y;
+      light_data->velocity[2] = vel_z;
+      light_data->velocity[3] = 0.0f;
       // color
-      lights_data[offset++] = r;
-      lights_data[offset++] = g;
-      lights_data[offset++] = b;
+      light_data->color[0] = r;
+      light_data->color[1] = g;
+      light_data->color[2] = b;
       // radius
-      lights_data[offset++] = radius;
+      light_data->range = radius;
       // intensity
-      lights_data[offset++] = intensity;
-      lights_data[offset++] = 0.0f;
-      lights_data[offset++] = 0.0f;
-      lights_data[offset++] = 0.0f;
+      light_data->intensity = intensity;
     }
     this->lights_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
@@ -2054,6 +2057,7 @@ static void point_lights_create(point_lights_t* this,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
+      .label      = "lights buffer compute bind group",
       .layout     = this->lights_buffer_compute_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
