@@ -116,11 +116,12 @@ typedef struct {
 } projection_uniforms_t;
 
 typedef struct {
-  mat4 matrix;         // matrix
-  mat4 inverse_matrix; // inverse matrix
-  vec3 position;       // camera position
-  float time;          // time
-  float delta_time;    // delta time
+  mat4 matrix;            // matrix
+  mat4 inverse_matrix;    // inverse matrix
+  vec3 position;          // camera position
+  float position_passing; // padding
+  float time;             // time
+  float delta_time;       // delta time
 } view_uniforms_t;
 
 /* -------------------------------------------------------------------------- *
@@ -642,6 +643,13 @@ typedef struct {
   } framebuffer;
 } webgpu_renderer_t;
 
+static WGPUTextureFormat
+webgpu_renderer_get_presentation_Format(webgpu_renderer_t* this)
+{
+  return this->wgpu_context ? this->wgpu_context->swap_chain.format :
+                              WGPUTextureFormat_BGRA8Unorm;
+}
+
 static void webgpu_renderer_set_outputSize(webgpu_renderer_t* this,
                                            uint32_t width, uint32_t height)
 {
@@ -678,8 +686,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
   /* Set presentation format */
-  this->presentation_format = wgpu_context ? wgpu_context->swap_chain.format :
-                                             WGPUTextureFormat_BGRA8Unorm;
+  this->presentation_format = webgpu_renderer_get_presentation_Format(this);
 
   /* default sampler */
   this->default_sampler = wgpuDeviceCreateSampler(
@@ -4089,7 +4096,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
     };
 
     // Color target state
-    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = this->presentation_format,
       .blend     = &blend_state,
