@@ -119,7 +119,6 @@ typedef struct {
   mat4 matrix;            // matrix
   mat4 inverse_matrix;    // inverse matrix
   vec3 position;          // camera position
-  float position_passing; // padding
   float time;             // time
   float delta_time;       // delta time
 } view_uniforms_t;
@@ -2571,7 +2570,7 @@ static void box_outline_init(box_outline_t* this)
     };
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_states[2] = {
       [0] = (WGPUColorTargetState){
         // normal + material id
@@ -5345,8 +5344,10 @@ static void deferred_pass_create(deferred_pass_t* this,
     = (WGPURenderPassDepthStencilAttachment){
       .view            = renderer->textures.depth_texture.view,
       .depthLoadOp     = WGPULoadOp_Clear,
-      .depthClearValue = 1.0f,
       .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
+      .clearDepth      = 1.0f,
+      .clearStencil    = 0,
     };
 
   /* Frame buffer descriptor */
@@ -5789,6 +5790,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
+#if MINIMAL
   /* Run compute shaders */
   {
     WGPUComputePassEncoder compute_pass
@@ -5891,6 +5893,29 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
     }
   }
+#else
+  /* Deferred pass */
+  {
+    example_state.deferred_pass.framebuffer.descriptor.label = "gbuffer";
+    WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc,
+      &example_state.deferred_pass.framebuffer.descriptor);
+    box_outline_render(&example_state.box_outline, g_buffer_pass);
+    wgpuRenderPassEncoderEnd(g_buffer_pass);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, g_buffer_pass)
+  }
+
+  /* Final composite pass */
+  {
+    example_state.renderer.framebuffer.descriptor.label
+      = "draw default framebuffer";
+    WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc, &example_state.renderer.framebuffer.descriptor);
+    deferred_pass_render(&example_state.deferred_pass, render_pass);
+    wgpuRenderPassEncoderEnd(render_pass);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
+  }
+#endif
 
   // Get command buffer
   WGPUCommandBuffer command_buffer
