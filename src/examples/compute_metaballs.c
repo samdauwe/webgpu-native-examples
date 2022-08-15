@@ -3,6 +3,7 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
 #include "../webgpu/texture.h"
 
 /* -------------------------------------------------------------------------- *
@@ -1885,6 +1886,7 @@ typedef struct {
   WGPUComputePipeline update_compute_pipeline;
   wgpu_buffer_t lights_buffer;
   wgpu_buffer_t lights_config_uniform_buffer;
+  int32_t lights_count;
 } point_lights_t;
 
 static bool point_lights_is_ready(point_lights_t* this)
@@ -1894,6 +1896,7 @@ static bool point_lights_is_ready(point_lights_t* this)
 
 static void point_lights_set_lights_count(point_lights_t* this, uint32_t v)
 {
+  this->lights_count = v;
   wgpu_queue_write_buffer(this->renderer->wgpu_context,
                           this->lights_config_uniform_buffer.buffer, 0, &v,
                           sizeof(uint32_t));
@@ -2005,14 +2008,13 @@ static void point_lights_create(point_lights_t* this,
 
   /* Lights config uniform buffer */
   {
-    const uint32_t lights_config_arr[1]
-      = {settings_get_quality_level().point_lights_count};
+    this->lights_count = settings_get_quality_level().point_lights_count;
     this->lights_config_uniform_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
-                                           .size = sizeof(lights_config_arr),
-                                           .initial.data = lights_config_arr,
+                                           .size         = 1,
+                                           .initial.data = &this->lights_count,
                                          });
   }
 
@@ -5731,7 +5733,7 @@ static void init_example_state(wgpu_context_t* wgpu_context)
                    &deferred_pass->point_lights.lights_buffer);
 }
 
-static void update_uniforms(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   if (context->paused) {
     camera_controller_pause(&example_state.camera_controller);
@@ -5780,6 +5782,20 @@ static int example_initialize(wgpu_example_context_t* context)
   }
 
   return 1;
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    if (imgui_overlay_slider_int(
+          context->imgui_overlay, "Point Lights Count",
+          &example_state.deferred_pass.point_lights.lights_count, 0,
+          MAX_POINT_LIGHTS_COUNT)) {
+      point_lights_set_lights_count(
+        &example_state.deferred_pass.point_lights,
+        example_state.deferred_pass.point_lights.lights_count);
+    }
+  }
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
@@ -5894,6 +5910,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     }
   }
 
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
@@ -5928,8 +5947,11 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return 1;
   }
-  update_uniforms(context);
-  return example_draw(context);
+  const int draw_result = example_draw(context);
+  if (!context->paused) {
+    update_uniform_buffers(context);
+  }
+  return draw_result;
 }
 
 static void example_destroy(wgpu_example_context_t* context)
@@ -5954,8 +5976,9 @@ void example_compute_metaballs(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func = &example_initialize,
     .example_render_func     = &example_render,
