@@ -116,11 +116,11 @@ typedef struct {
 } projection_uniforms_t;
 
 typedef struct {
-  mat4 matrix;            // matrix
-  mat4 inverse_matrix;    // inverse matrix
-  vec3 position;          // camera position
-  float time;             // time
-  float delta_time;       // delta time
+  mat4 matrix;         // matrix
+  mat4 inverse_matrix; // inverse matrix
+  vec3 position;       // camera position
+  float time;          // time
+  float delta_time;    // delta time
 } view_uniforms_t;
 
 /* -------------------------------------------------------------------------- *
@@ -2936,7 +2936,7 @@ static void ground_init(ground_t* this)
     };
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_states[2] = {
       [0] = (WGPUColorTargetState){
         // normal + material id
@@ -3882,7 +3882,7 @@ static void particles_init(particles_t* this)
     };
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_states[2] = {
       [0] = (WGPUColorTargetState){
         // normal + material id
@@ -5790,7 +5790,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-#if MINIMAL
   /* Run compute shaders */
   {
     WGPUComputePassEncoder compute_pass
@@ -5824,7 +5823,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc,
         &example_state.deferred_pass.spot_light.framebuffer.descriptor);
-    metaballs_render_shadow(&example_state.metaballs, spot_light_shadow_pass);
+    // metaballs_render_shadow(&example_state.metaballs,
+    // spot_light_shadow_pass);
     ground_render_shadow(&example_state.ground, spot_light_shadow_pass);
     wgpuRenderPassEncoderEnd(spot_light_shadow_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, spot_light_shadow_pass)
@@ -5836,7 +5836,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc,
       &example_state.deferred_pass.framebuffer.descriptor);
-    metaballs_render(&example_state.metaballs, g_buffer_pass);
+    // metaballs_render(&example_state.metaballs, g_buffer_pass);
     box_outline_render(&example_state.box_outline, g_buffer_pass);
     ground_render(&example_state.ground, g_buffer_pass);
     particles_render(&example_state.particles, g_buffer_pass);
@@ -5893,29 +5893,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
     }
   }
-#else
-  /* Deferred pass */
-  {
-    example_state.deferred_pass.framebuffer.descriptor.label = "gbuffer";
-    WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc,
-      &example_state.deferred_pass.framebuffer.descriptor);
-    box_outline_render(&example_state.box_outline, g_buffer_pass);
-    wgpuRenderPassEncoderEnd(g_buffer_pass);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, g_buffer_pass)
-  }
-
-  /* Final composite pass */
-  {
-    example_state.renderer.framebuffer.descriptor.label
-      = "draw default framebuffer";
-    WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &example_state.renderer.framebuffer.descriptor);
-    deferred_pass_render(&example_state.deferred_pass, render_pass);
-    wgpuRenderPassEncoderEnd(render_pass);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
-  }
-#endif
 
   // Get command buffer
   WGPUCommandBuffer command_buffer
