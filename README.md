@@ -481,13 +481,13 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### March - July 2022
+### March - October 2022
 
 The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
-* [ ] Use helper function for buffer creation to achieve more compact code
+* [x] ~~Use helper function for buffer creation to achieve more compact code~~
 * [ ] Extend command-line options
 * [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
 * [ ] [Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)
