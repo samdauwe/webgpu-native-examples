@@ -1154,14 +1154,15 @@ static const int8_t MARCHING_CUBES_TRI_TABLE[4096] = {
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  vec3 position;
+  vec4 position;
   float radius;
   float strength;
   float subtract;
+  float padding;
 } metaball_t;
 
 typedef struct {
-  uint32_t ball_count;
+  uint32_t ball_count[4];
   metaball_t balls[MAX_METABALLS];
 } metaball_list;
 
@@ -1381,10 +1382,10 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
     size_t j = 0;
     for (size_t i = 0; i < ARRAY_SIZE(MARCHING_CUBES_EDGE_TABLE); ++i) {
-      tables_array[j++] = MARCHING_CUBES_EDGE_TABLE[i];
+      tables_array[j++] = (int32_t)MARCHING_CUBES_EDGE_TABLE[i];
     }
     for (size_t i = 0; i < ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE); ++i) {
-      tables_array[j++] = MARCHING_CUBES_TRI_TABLE[i];
+      tables_array[j++] = (int32_t)MARCHING_CUBES_TRI_TABLE[i];
     }
 
     wgpuBufferUnmap(this->tables_buffer.buffer);
@@ -1392,8 +1393,9 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
   /* Metaballs buffer */
   {
-    this->metaball_array_header = (uint32_t*)(&this->metaball_array.ball_count);
-    this->metaball_array_balls  = (metaball_t*)(&this->metaball_array.balls);
+    this->metaball_array_header
+      = (uint32_t*)(&this->metaball_array.ball_count[0]);
+    this->metaball_array_balls = (metaball_t*)(&this->metaball_array.balls[0]);
     this->metaball_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "metaballs buffer",
@@ -5840,8 +5842,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc,
         &example_state.deferred_pass.spot_light.framebuffer.descriptor);
-    // metaballs_render_shadow(&example_state.metaballs,
-    // spot_light_shadow_pass);
+    metaballs_render_shadow(&example_state.metaballs, spot_light_shadow_pass);
     ground_render_shadow(&example_state.ground, spot_light_shadow_pass);
     wgpuRenderPassEncoderEnd(spot_light_shadow_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, spot_light_shadow_pass)
@@ -5853,7 +5854,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc,
       &example_state.deferred_pass.framebuffer.descriptor);
-    // metaballs_render(&example_state.metaballs, g_buffer_pass);
+    metaballs_render(&example_state.metaballs, g_buffer_pass);
     box_outline_render(&example_state.box_outline, g_buffer_pass);
     ground_render(&example_state.ground, g_buffer_pass);
     particles_render(&example_state.particles, g_buffer_pass);
