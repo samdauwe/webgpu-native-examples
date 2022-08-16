@@ -1349,12 +1349,12 @@ static void metaballs_compute_init_defaults(metaballs_compute_t* this)
 
 static void metaballs_compute_create(metaballs_compute_t* this,
                                      webgpu_renderer_t* renderer,
-                                     ivolume_settings_t volume)
+                                     ivolume_settings_t* volume)
 {
   metaballs_compute_init_defaults(this);
   this->renderer = renderer;
 
-  memcpy(&this->volume, &volume, sizeof(ivolume_settings_t));
+  memcpy(&this->volume, volume, sizeof(ivolume_settings_t));
 
   wgpu_context_t* wgpu_context = renderer->wgpu_context;
 
@@ -1406,7 +1406,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
   /* Metaballs volume buffer */
   {
     const uint32_t volume_elements
-      = volume.width * volume.height * volume.depth;
+      = volume->width * volume->height * volume->depth;
     const uint64_t volume_buffer_size = sizeof(float) * 12
                                         + sizeof(uint32_t) * 4
                                         + sizeof(float) * volume_elements;
@@ -1428,24 +1428,24 @@ static void metaballs_compute_create(metaballs_compute_t* this,
     float* volume_float32 = volume_mapped_array;
     uint32_t* volume_size = (uint32_t*)(&volume_mapped_array[12]);
 
-    volume_float32[0] = volume.x_min;
-    volume_float32[1] = volume.y_min;
-    volume_float32[2] = volume.z_min;
+    volume_float32[0] = volume->x_min;
+    volume_float32[1] = volume->y_min;
+    volume_float32[2] = volume->z_min;
 
-    volume_float32[8]  = volume.x_step;
-    volume_float32[9]  = volume.y_step;
-    volume_float32[10] = volume.z_step;
+    volume_float32[8]  = volume->x_step;
+    volume_float32[9]  = volume->y_step;
+    volume_float32[10] = volume->z_step;
 
-    volume_size[0] = volume.width;
-    volume_size[1] = volume.height;
-    volume_size[2] = volume.depth;
+    volume_size[0] = volume->width;
+    volume_size[1] = volume->height;
+    volume_size[2] = volume->depth;
 
-    volume_float32[15] = volume.iso_level;
+    volume_float32[15] = volume->iso_level;
     wgpuBufferUnmap(this->volume_buffer.buffer);
   }
 
   const uint32_t marching_cube_cells
-    = (volume.width - 1) * (volume.height - 1) * (volume.depth - 1);
+    = (volume->width - 1) * (volume->height - 1) * (volume->depth - 1);
   const size_t vertex_buffer_size
     = sizeof(float) * 3 * 12 * marching_cube_cells;
   const size_t index_buffer_size = sizeof(uint32_t) * 15 * marching_cube_cells;
@@ -1482,9 +1482,9 @@ static void metaballs_compute_create(metaballs_compute_t* this,
                   });
 
   for (uint32_t i = 0; i < MAX_METABALLS; ++i) {
-    this->ball_positions[i].x     = (random_float() * 2 - 1) * volume.x_min;
-    this->ball_positions[i].y     = (random_float() * 2 - 1) * volume.y_min;
-    this->ball_positions[i].z     = (random_float() * 2 - 1) * volume.z_min;
+    this->ball_positions[i].x     = (random_float() * 2 - 1) * volume->x_min;
+    this->ball_positions[i].y     = (random_float() * 2 - 1) * volume->y_min;
+    this->ball_positions[i].z     = (random_float() * 2 - 1) * volume->z_min;
     this->ball_positions[i].vx    = random_float() * 1000;
     this->ball_positions[i].vy    = (random_float() * 2 - 1) * 10;
     this->ball_positions[i].vz    = random_float() * 1000;
@@ -3663,13 +3663,13 @@ static void metaballs_init_defaults(metaballs_t* this)
 }
 
 static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
-                             ivolume_settings_t volume,
+                             ivolume_settings_t* volume,
                              spot_light_t* spot_light)
 {
   metaballs_init_defaults(this);
 
   this->renderer = renderer;
-  memcpy(&this->volume, &volume, sizeof(ivolume_settings_t));
+  memcpy(&this->volume, volume, sizeof(ivolume_settings_t));
   this->spot_light = spot_light;
   metaballs_compute_create(&this->metaballs_compute, renderer, volume);
 
@@ -5725,7 +5725,7 @@ static void init_example_state(wgpu_context_t* wgpu_context)
   result_pass_create(result_pass, renderer, copy_pass, bloom_pass);
 
   /* Metaballs, ground, box outline & particles */
-  metaballs_create(&example_state.metaballs, renderer, example_state.volume,
+  metaballs_create(&example_state.metaballs, renderer, &example_state.volume,
                    &deferred_pass->spot_light);
   ground_create(&example_state.ground, renderer, &deferred_pass->spot_light);
   box_outline_create(&example_state.box_outline, renderer);
