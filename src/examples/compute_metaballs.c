@@ -3388,6 +3388,12 @@ static ground_t* ground_render(ground_t* this,
  */
 
 typedef struct {
+  vec3 color_rgb;
+  float roughness;
+  float metallic;
+} metaballs_material_t;
+
+typedef struct {
   webgpu_renderer_t* renderer;
   ivolume_settings_t volume;
   spot_light_t* spot_light;
@@ -3408,12 +3414,7 @@ typedef struct {
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
 
-  vec3 color_rgb;
-  vec3 color_target_rgb;
-  float roughness;
-  float roughness_target;
-  float metallic;
-  float metallic_target;
+  metaballs_material_t material, target_material;
 } metaballs_t;
 
 static bool metaballs_is_ready(metaballs_t* this)
@@ -3457,7 +3458,7 @@ static void metaballs_init(metaballs_t* this)
     };
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_states[2] = {
       [0] = (WGPUColorTargetState){
         // normal + material id
@@ -3653,13 +3654,13 @@ static void metaballs_init_defaults(metaballs_t* this)
 {
   memset(this, 0, sizeof(*this));
 
-  glm_vec3_one(this->color_rgb);
-  glm_vec3_one(this->color_target_rgb);
+  glm_vec3_one(this->material.color_rgb);
+  glm_vec3_one(this->target_material.color_rgb);
 
-  this->roughness       = 0.3f;
-  this->metallic_target = this->roughness;
-  this->metallic        = 0.1;
-  this->metallic_target = this->metallic;
+  this->material.roughness        = 0.3f;
+  this->target_material.roughness = this->material.roughness;
+  this->material.metallic         = 0.1;
+  this->target_material.metallic  = this->material.metallic;
 }
 
 static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
@@ -3751,12 +3752,12 @@ static void metaballs_destroy(metaballs_t* this)
 
 static void metaballs_rearrange(metaballs_t* this)
 {
-  this->color_target_rgb[0] = random_float();
-  this->color_target_rgb[1] = random_float();
-  this->color_target_rgb[2] = random_float();
+  this->target_material.color_rgb[0] = random_float();
+  this->target_material.color_rgb[1] = random_float();
+  this->target_material.color_rgb[2] = random_float();
 
-  this->metallic_target  = 0.08f + random_float() * 0.92f;
-  this->roughness_target = 0.08f + random_float() * 0.92f;
+  this->target_material.metallic  = 0.08f + random_float() * 0.92f;
+  this->target_material.roughness = 0.08f + random_float() * 0.92f;
 
   metaballs_compute_rearrange(&this->metaballs_compute);
 }
@@ -3766,26 +3767,26 @@ static metaballs_t* metaballs_update_sim(metaballs_t* this,
                                          float time, float time_delta)
 {
   const float color_speed = time_delta * 2.0f;
-  this->color_rgb[0]
-    += (this->color_target_rgb[0] - this->color_rgb[0]) * color_speed;
-  this->color_rgb[1]
-    += (this->color_target_rgb[1] - this->color_rgb[1]) * color_speed;
-  this->color_rgb[2]
-    += (this->color_target_rgb[2] - this->color_rgb[2]) * color_speed;
+  this->material.color_rgb[0]
+    += (this->target_material.color_rgb[0] - this->material.color_rgb[0])
+       * color_speed;
+  this->material.color_rgb[1]
+    += (this->target_material.color_rgb[1] - this->material.color_rgb[1])
+       * color_speed;
+  this->material.color_rgb[2]
+    += (this->target_material.color_rgb[2] - this->material.color_rgb[2])
+       * color_speed;
 
   const float material_speed = time_delta * 3;
-  this->metallic += (this->metallic_target - this->metallic) * material_speed;
-  this->roughness
-    += (this->roughness_target - this->roughness) * material_speed;
+  this->material.metallic
+    += (this->target_material.metallic - this->material.metallic)
+       * material_speed;
+  this->material.roughness
+    += (this->target_material.roughness - this->material.roughness)
+       * material_speed;
 
-  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
-
-  wgpu_queue_write_buffer(wgpu_context, this->ubo.buffer, 0 * sizeof(float),
-                          this->color_rgb, sizeof(this->color_rgb));
-  wgpu_queue_write_buffer(wgpu_context, this->ubo.buffer, 3 * sizeof(float),
-                          &this->roughness, sizeof(this->roughness));
-  wgpu_queue_write_buffer(wgpu_context, this->ubo.buffer, 4 * sizeof(float),
-                          &this->metallic, sizeof(this->metallic));
+  wgpu_queue_write_buffer(this->renderer->wgpu_context, this->ubo.buffer, 0,
+                          &this->material, sizeof(metaballs_material_t));
 
   metaballs_compute_update_sim(&this->metaballs_compute, compute_pass, time,
                                time_delta);
