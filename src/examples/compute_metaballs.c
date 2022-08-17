@@ -157,7 +157,7 @@ static const quality_option_t QUALITIES[3] = {
     .bloom_toggle       = true,
     .shadow_res         = 512,
     .point_lights_count = 32,
-    .output_scale       = 0.8f,
+    .output_scale       = 1.0f,
     .update_metaballs   = true,
    },
   [QualitySettings_High] = (quality_option_t) {
