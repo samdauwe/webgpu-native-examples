@@ -15,6 +15,12 @@
  *
  * Ref:
  * https://github.com/gnikoloff/webgpu-compute-metaballs
+ *
+ * TODOS:
+ *  - Fix stretch issue in other quality modes
+ *  - Fix unused variables and unused functions issue
+ *  - Add mouse events support
+ *  - Update Readme
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
@@ -123,6 +129,14 @@ typedef struct {
   float time;          // time
   float delta_time;    // delta time
 } view_uniforms_t;
+
+typedef struct {
+  mat4 matrix; // matrix
+} screen_projection_uniforms_t;
+
+typedef struct {
+  mat4 matrix; // matrix
+} screen_view_uniforms_t;
 
 /* -------------------------------------------------------------------------- *
  * Settings
@@ -627,6 +641,8 @@ typedef struct {
   struct {
     projection_uniforms_t projection_ubo;
     view_uniforms_t view_ubo;
+    screen_projection_uniforms_t screen_projection_ubo;
+    screen_view_uniforms_t screen_view_ubo;
   } ubos_data;
   struct {
     struct {
@@ -721,22 +737,19 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
                   });
 
   /* Screen projection UBO*/
-  const uint32_t screen_projection_ubo_byte_length
-    = 16 * sizeof(float); // matrix
   this->ubos.screen_projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Screen projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = screen_projection_ubo_byte_length,
+                    .size  = sizeof(screen_projection_uniforms_t),
                   });
 
   /* Screen view UBO*/
-  const uint32_t screen_view_ubo_byte_length = 16 * sizeof(float); // matrix
-  this->ubos.screen_view_ubo                 = wgpu_create_buffer(
-                    wgpu_context, &(wgpu_buffer_desc_t){
-                                    .label = "Screen view UBO",
-                                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                                    .size  = screen_view_ubo_byte_length,
+  this->ubos.screen_view_ubo = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Screen view UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(screen_view_uniforms_t),
                   });
 
   /* Frame buffer Color attachment */
