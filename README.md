@@ -443,6 +443,10 @@ A binary Conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_
 
 A conway [game of life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) with paletted blurring over time. This example has been ported from [this JavaScript implementation](https://github.com/Palats/webgpu/blob/main/src/demos/conway2.ts) to native code.
 
+#### [Compute Metaballs](src/examples/compute_metaballs.c)
+
+WebGPU demo featuring marching cubes and bloom post-processing via compute shaders, physically based shading, deferred rendering, gamma correction and shadow mapping. This example has been ported from [this TypeScript implementation](https://github.com/gnikoloff/webgpu-compute-metaballs) to native code. More implementation details can be found in [this blog post](https://archive.georgi-nikolov.com/project/webgpu-metaballs).
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
