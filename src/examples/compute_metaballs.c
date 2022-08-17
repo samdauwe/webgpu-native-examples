@@ -16,11 +16,8 @@
  * Ref:
  * https://github.com/gnikoloff/webgpu-compute-metaballs
  *
- * TODOS:
- *  - Fix stretch issue in other quality modes
- *  - Fix unused variables and unused functions issue
+ * TODO:
  *  - Add mouse events support
- *  - Update Readme
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
@@ -666,15 +663,15 @@ webgpu_renderer_get_presentation_Format(webgpu_renderer_t* this)
                               WGPUTextureFormat_BGRA8Unorm;
 }
 
-static void webgpu_renderer_set_outputSize(webgpu_renderer_t* this,
-                                           uint32_t width, uint32_t height)
+static void webgpu_renderer_set_output_size(webgpu_renderer_t* this,
+                                            uint32_t width, uint32_t height)
 {
   this->output_size[0] = width;
   this->output_size[1] = height;
 }
 
-static void webgpu_renderer_get_outputSize(webgpu_renderer_t* this,
-                                           uint32_t* width, uint32_t* height)
+static void webgpu_renderer_get_output_size(webgpu_renderer_t* this,
+                                            uint32_t* width, uint32_t* height)
 {
   *width  = this->output_size[0];
   *height = this->output_size[1];
@@ -5789,9 +5786,31 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           view_ubo, sizeof(*view_ubo));
 }
 
+static void suppress_unused_functions()
+{
+  UNUSED_VAR(SHADOW_MAP_SIZE);
+
+  UNUSED_FUNCTION(settings_get_quality);
+  UNUSED_FUNCTION(settings_set_quality);
+  UNUSED_FUNCTION(orthographic_camera_set_position);
+  UNUSED_FUNCTION(orthographic_camera_look_at);
+  UNUSED_FUNCTION(orthographic_camera_init);
+  UNUSED_FUNCTION(damped_action_add_force);
+  UNUSED_FUNCTION(webgpu_renderer_set_output_size);
+  UNUSED_FUNCTION(webgpu_renderer_get_output_size);
+  UNUSED_FUNCTION(spot_light_get_position);
+  UNUSED_FUNCTION(spot_light_get_direction);
+  UNUSED_FUNCTION(spot_light_get_color);
+  UNUSED_FUNCTION(spot_light_get_cut_off);
+  UNUSED_FUNCTION(spot_light_get_intensity);
+  UNUSED_FUNCTION(spot_light_get_outer_cut_off);
+  UNUSED_FUNCTION(copy_pass_render);
+}
+
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    suppress_unused_functions();
     init_example_state(context->wgpu_context);
     prepared = true;
     return 0;
