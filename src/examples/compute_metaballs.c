@@ -415,6 +415,12 @@ static void damped_action_init(damped_action_t* this)
   damped_action_init_defaults(this);
 }
 
+typedef enum {
+  CAMERA_ACTION_STATE_IDLE,
+  CAMERA_ACTION_STATE_ROTATE,
+  CAMERA_ACTION_STATE_PAN,
+} camera_action_state_t;
+
 typedef struct {
   perspective_camera_t* camera;
   vec3 target;
@@ -439,9 +445,9 @@ typedef struct {
   damped_action_t target_phi_damped_action;
   damped_action_t target_radius_damped_action;
   bool _is_shift_down;
-  uint32_t _rotate_start[2];
-  uint32_t _rotate_end[2];
-  uint32_t _rotate_delta[2];
+  vec2 _rotate_start;
+  vec2 _rotate_end;
+  vec2 _rotate_delta;
   struct {
     float radius;
     float theta;
@@ -449,6 +455,7 @@ typedef struct {
   } _spherical;
   float _zoom_distance_end;
   float _zoom_distance;
+  camera_action_state_t state;
 
   uint64_t loop_id;
   uint32_t _pan_start[2];
@@ -475,14 +482,14 @@ static void camera_controller_init_defaults(camera_controller_t* this)
   damped_action_init(&this->target_phi_damped_action);
   damped_action_init(&this->target_radius_damped_action);
 
-  this->_rotate_start[0] = 9999;
-  this->_rotate_start[1] = 9999;
+  this->_rotate_start[0] = 9999.0f;
+  this->_rotate_start[1] = 9999.0f;
 
-  this->_rotate_end[0] = 9999;
-  this->_rotate_end[1] = 9999;
+  this->_rotate_end[0] = 9999.0f;
+  this->_rotate_end[1] = 9999.0f;
 
-  this->_rotate_delta[0] = 9999;
-  this->_rotate_delta[1] = 9999;
+  this->_rotate_delta[0] = 9999.0f;
+  this->_rotate_delta[1] = 9999.0f;
 
   this->_zoom_distance_end = 0.0f;
   this->_zoom_distance     = 0.0f;
@@ -561,6 +568,50 @@ static void camera_controller_pause(camera_controller_t* this)
 static void camera_controller_start(camera_controller_t* this)
 {
   this->_paused = false;
+}
+
+static void
+camera_controller_update_rotate_handler(camera_controller_t* this,
+                                        wgpu_example_context_t* context)
+{
+  damped_action_add_force(&this->target_theta_damped_action,
+                          -this->_rotate_delta[0]
+                            / (float)context->wgpu_context->surface.width);
+  damped_action_add_force(&this->target_phi_damped_action,
+                          -this->_rotate_delta[1]
+                            / (float)context->wgpu_context->surface.height);
+}
+
+static void
+camera_controller_handle_input_events(camera_controller_t* this,
+                                      wgpu_example_context_t* context)
+{
+  if (context->mouse_buttons.left) {
+    if (this->state != CAMERA_ACTION_STATE_ROTATE) {
+      this->state = CAMERA_ACTION_STATE_ROTATE;
+      /* Rotation start */
+      this->_rotate_start[0] = context->mouse_position[0];
+      this->_rotate_start[1] = context->mouse_position[1];
+    }
+    else if (this->state == CAMERA_ACTION_STATE_ROTATE
+             && context->mouse_buttons.left) {
+      /* Rotation end */
+      this->_rotate_end[0] = context->mouse_position[0];
+      this->_rotate_end[1] = context->mouse_position[1];
+      /* Rotation delta */
+      this->_rotate_delta[0] = this->_rotate_end[0] - this->_rotate_start[0];
+      this->_rotate_delta[1] = this->_rotate_end[1] - this->_rotate_start[1];
+      /* Update camera rotation */
+      camera_controller_update_rotate_handler(this, context);
+      /* Rotation start */
+      this->_rotate_start[0] = context->mouse_position[0];
+      this->_rotate_start[1] = context->mouse_position[1];
+    }
+  }
+  else if (this->state == CAMERA_ACTION_STATE_ROTATE
+           && !context->mouse_buttons.left) {
+    this->state = CAMERA_ACTION_STATE_IDLE;
+  }
 }
 
 static void camera_controller_update_damped_action(camera_controller_t* this)
@@ -5795,7 +5846,6 @@ static void suppress_unused_functions()
   UNUSED_FUNCTION(orthographic_camera_set_position);
   UNUSED_FUNCTION(orthographic_camera_look_at);
   UNUSED_FUNCTION(orthographic_camera_init);
-  UNUSED_FUNCTION(damped_action_add_force);
   UNUSED_FUNCTION(webgpu_renderer_set_output_size);
   UNUSED_FUNCTION(webgpu_renderer_get_output_size);
   UNUSED_FUNCTION(spot_light_get_position);
@@ -5982,6 +6032,8 @@ static int example_render(wgpu_example_context_t* context)
     return 1;
   }
   const int draw_result = example_draw(context);
+  camera_controller_handle_input_events(&example_state.camera_controller,
+                                        context);
   if (!context->paused) {
     update_uniform_buffers(context);
   }
