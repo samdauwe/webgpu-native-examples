@@ -590,22 +590,18 @@ camera_controller_handle_input_events(camera_controller_t* this,
     if (this->state != CAMERA_ACTION_STATE_ROTATE) {
       this->state = CAMERA_ACTION_STATE_ROTATE;
       /* Rotation start */
-      this->_rotate_start[0] = context->mouse_position[0];
-      this->_rotate_start[1] = context->mouse_position[1];
+      glm_vec2_copy(context->mouse_position, this->_rotate_start);
     }
     else if (this->state == CAMERA_ACTION_STATE_ROTATE
              && context->mouse_buttons.left) {
       /* Rotation end */
-      this->_rotate_end[0] = context->mouse_position[0];
-      this->_rotate_end[1] = context->mouse_position[1];
+      glm_vec2_copy(context->mouse_position, this->_rotate_end);
       /* Rotation delta */
-      this->_rotate_delta[0] = this->_rotate_end[0] - this->_rotate_start[0];
-      this->_rotate_delta[1] = this->_rotate_end[1] - this->_rotate_start[1];
+      glm_vec2_sub(this->_rotate_end, this->_rotate_start, this->_rotate_delta);
       /* Update camera rotation */
       camera_controller_update_rotate_handler(this, context);
       /* Rotation start */
-      this->_rotate_start[0] = context->mouse_position[0];
-      this->_rotate_start[1] = context->mouse_position[1];
+      glm_vec2_copy(context->mouse_position, this->_rotate_start);
     }
   }
   else if (this->state == CAMERA_ACTION_STATE_ROTATE
