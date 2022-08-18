@@ -586,6 +586,10 @@ static void
 camera_controller_handle_input_events(camera_controller_t* this,
                                       wgpu_example_context_t* context)
 {
+  if (!this->is_enabled) {
+    return;
+  }
+
   /* Camera rotation handling */
   if (context->mouse_buttons.left) {
     if (this->state != CAMERA_ACTION_STATE_ROTATE) {
