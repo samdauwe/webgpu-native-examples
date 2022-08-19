@@ -458,9 +458,9 @@ typedef struct {
   camera_action_state_t state;
 
   uint64_t loop_id;
-  uint32_t _pan_start[2];
-  uint32_t _pan_delta[2];
-  uint32_t _pan_end[2];
+  vec2 _pan_start;
+  vec2 _pan_delta;
+  vec2 _pan_end;
   bool _paused;
   bool _is_debug;
   vec3 camera_position_debug;
@@ -635,6 +635,31 @@ camera_controller_handle_input_events(camera_controller_t* this,
   }
   else if (this->state == CAMERA_ACTION_STATE_ROTATE
            && !context->mouse_buttons.left) {
+    this->state = CAMERA_ACTION_STATE_IDLE;
+  }
+
+  /* Camera pan handling */
+  if (context->mouse_buttons.middle) {
+    if (this->state != CAMERA_ACTION_STATE_PAN) {
+      this->state = CAMERA_ACTION_STATE_PAN;
+      /* Pan start */
+      glm_vec2_copy(context->mouse_position, this->_pan_start);
+    }
+    else if (this->state == CAMERA_ACTION_STATE_PAN
+             && context->mouse_buttons.middle) {
+      /* Pan end */
+      glm_vec2_copy(context->mouse_position, this->_pan_end);
+      /* Pan delta */
+      this->_pan_delta[0] = -0.5f * (this->_pan_end[0] - this->_pan_start[0]);
+      this->_pan_delta[1] = 0.5f * (this->_pan_end[1] - this->_pan_start[1]);
+      /* Update camera panning */
+      camera_controller_update_pan_handler(this);
+      /* Pan start */
+      glm_vec2_copy(context->mouse_position, this->_pan_start);
+    }
+  }
+  else if (this->state == CAMERA_ACTION_STATE_PAN
+           && !context->mouse_buttons.middle) {
     this->state = CAMERA_ACTION_STATE_IDLE;
   }
 }
