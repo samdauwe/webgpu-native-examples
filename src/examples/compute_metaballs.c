@@ -15,9 +15,6 @@
  *
  * Ref:
  * https://github.com/gnikoloff/webgpu-compute-metaballs
- *
- * TODO:
- *  - Add mouse events support
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
@@ -419,6 +416,7 @@ typedef enum {
   CAMERA_ACTION_STATE_IDLE,
   CAMERA_ACTION_STATE_ROTATE,
   CAMERA_ACTION_STATE_PAN,
+  CAMERA_ACTION_STATE_ZOOM,
 } camera_action_state_t;
 
 typedef struct {
@@ -445,9 +443,11 @@ typedef struct {
   damped_action_t target_phi_damped_action;
   damped_action_t target_radius_damped_action;
   bool _is_shift_down;
-  vec2 _rotate_start;
-  vec2 _rotate_end;
-  vec2 _rotate_delta;
+  struct {
+    vec2 start;
+    vec2 end;
+    vec2 delta;
+  } _rotate;
   struct {
     float radius;
     float theta;
@@ -458,9 +458,16 @@ typedef struct {
   camera_action_state_t state;
 
   uint64_t loop_id;
-  vec2 _pan_start;
-  vec2 _pan_delta;
-  vec2 _pan_end;
+  struct {
+    vec2 start;
+    vec2 end;
+    vec2 delta;
+  } _pan;
+  struct {
+    vec2 start;
+    vec2 end;
+    vec2 delta;
+  } _zoom;
   bool _paused;
   bool _is_debug;
   vec3 camera_position_debug;
@@ -482,14 +489,14 @@ static void camera_controller_init_defaults(camera_controller_t* this)
   damped_action_init(&this->target_phi_damped_action);
   damped_action_init(&this->target_radius_damped_action);
 
-  this->_rotate_start[0] = 9999.0f;
-  this->_rotate_start[1] = 9999.0f;
+  this->_rotate.start[0] = 9999.0f;
+  this->_rotate.start[1] = 9999.0f;
 
-  this->_rotate_end[0] = 9999.0f;
-  this->_rotate_end[1] = 9999.0f;
+  this->_rotate.end[0] = 9999.0f;
+  this->_rotate.end[1] = 9999.0f;
 
-  this->_rotate_delta[0] = 9999.0f;
-  this->_rotate_delta[1] = 9999.0f;
+  this->_rotate.delta[0] = 9999.0f;
+  this->_rotate.delta[1] = 9999.0f;
 
   this->_zoom_distance_end = 0.0f;
   this->_zoom_distance     = 0.0f;
@@ -585,13 +592,13 @@ static void camera_controller_update_pan_handler(camera_controller_t* this)
 
   damped_action_add_force(
     &this->target_x_damped_action,
-    (x_dir[0] * this->_pan_delta[0] + y_dir[0] * this->_pan_delta[1]) * scale);
+    (x_dir[0] * this->_pan.delta[0] + y_dir[0] * this->_pan.delta[1]) * scale);
   damped_action_add_force(
     &this->target_y_damped_action,
-    (x_dir[1] * this->_pan_delta[0] + y_dir[1] * this->_pan_delta[1]) * scale);
+    (x_dir[1] * this->_pan.delta[0] + y_dir[1] * this->_pan.delta[1]) * scale);
   damped_action_add_force(
     &this->target_z_damped_action,
-    (x_dir[2] * this->_pan_delta[0] + y_dir[2] * this->_pan_delta[1]) * scale);
+    (x_dir[2] * this->_pan.delta[0] + y_dir[2] * this->_pan.delta[1]) * scale);
 }
 
 static void
@@ -599,11 +606,22 @@ camera_controller_update_rotate_handler(camera_controller_t* this,
                                         wgpu_example_context_t* context)
 {
   damped_action_add_force(&this->target_theta_damped_action,
-                          -this->_rotate_delta[0]
+                          -this->_rotate.delta[0]
                             / (float)context->wgpu_context->surface.width);
   damped_action_add_force(&this->target_phi_damped_action,
-                          -this->_rotate_delta[1]
+                          -this->_rotate.delta[1]
                             / (float)context->wgpu_context->surface.height);
+}
+
+static void camera_controller_update_zoom_handler(camera_controller_t* this)
+{
+  const float force = this->mouse_wheel_force;
+  if (this->_zoom.delta[1] > 0) {
+    damped_action_add_force(&this->target_radius_damped_action, force);
+  }
+  else if (this->_zoom.delta[1] < 0) {
+    damped_action_add_force(&this->target_radius_damped_action, -force);
+  }
 }
 
 static void
@@ -619,18 +637,18 @@ camera_controller_handle_input_events(camera_controller_t* this,
     if (this->state != CAMERA_ACTION_STATE_ROTATE) {
       this->state = CAMERA_ACTION_STATE_ROTATE;
       /* Rotation start */
-      glm_vec2_copy(context->mouse_position, this->_rotate_start);
+      glm_vec2_copy(context->mouse_position, this->_rotate.start);
     }
     else if (this->state == CAMERA_ACTION_STATE_ROTATE
              && context->mouse_buttons.left) {
       /* Rotation end */
-      glm_vec2_copy(context->mouse_position, this->_rotate_end);
+      glm_vec2_copy(context->mouse_position, this->_rotate.end);
       /* Rotation delta */
-      glm_vec2_sub(this->_rotate_end, this->_rotate_start, this->_rotate_delta);
+      glm_vec2_sub(this->_rotate.end, this->_rotate.start, this->_rotate.delta);
       /* Update camera rotation */
       camera_controller_update_rotate_handler(this, context);
       /* Rotation start */
-      glm_vec2_copy(context->mouse_position, this->_rotate_start);
+      glm_vec2_copy(context->mouse_position, this->_rotate.start);
     }
   }
   else if (this->state == CAMERA_ACTION_STATE_ROTATE
@@ -643,23 +661,47 @@ camera_controller_handle_input_events(camera_controller_t* this,
     if (this->state != CAMERA_ACTION_STATE_PAN) {
       this->state = CAMERA_ACTION_STATE_PAN;
       /* Pan start */
-      glm_vec2_copy(context->mouse_position, this->_pan_start);
+      glm_vec2_copy(context->mouse_position, this->_pan.start);
     }
     else if (this->state == CAMERA_ACTION_STATE_PAN
              && context->mouse_buttons.middle) {
       /* Pan end */
-      glm_vec2_copy(context->mouse_position, this->_pan_end);
+      glm_vec2_copy(context->mouse_position, this->_pan.end);
       /* Pan delta */
-      this->_pan_delta[0] = -0.5f * (this->_pan_end[0] - this->_pan_start[0]);
-      this->_pan_delta[1] = 0.5f * (this->_pan_end[1] - this->_pan_start[1]);
+      this->_pan.delta[0] = -0.5f * (this->_pan.end[0] - this->_pan.start[0]);
+      this->_pan.delta[1] = 0.5f * (this->_pan.end[1] - this->_pan.start[1]);
       /* Update camera panning */
       camera_controller_update_pan_handler(this);
       /* Pan start */
-      glm_vec2_copy(context->mouse_position, this->_pan_start);
+      glm_vec2_copy(context->mouse_position, this->_pan.start);
     }
   }
   else if (this->state == CAMERA_ACTION_STATE_PAN
            && !context->mouse_buttons.middle) {
+    this->state = CAMERA_ACTION_STATE_IDLE;
+  }
+
+  /* Camera zoom handling */
+  if (context->mouse_buttons.right) {
+    if (this->state != CAMERA_ACTION_STATE_ZOOM) {
+      this->state = CAMERA_ACTION_STATE_ZOOM;
+      /* Zoom start */
+      glm_vec2_copy(context->mouse_position, this->_zoom.start);
+    }
+    else if (this->state == CAMERA_ACTION_STATE_ZOOM
+             && context->mouse_buttons.right) {
+      /* Zoom end */
+      glm_vec2_copy(context->mouse_position, this->_zoom.end);
+      /* Zoom delta */
+      glm_vec2_sub(this->_zoom.end, this->_zoom.start, this->_zoom.delta);
+      /* Update camera zoom */
+      camera_controller_update_zoom_handler(this);
+      /* Zoom start */
+      glm_vec2_copy(context->mouse_position, this->_zoom.start);
+    }
+  }
+  else if (this->state == CAMERA_ACTION_STATE_ZOOM
+           && !context->mouse_buttons.right) {
     this->state = CAMERA_ACTION_STATE_IDLE;
   }
 }
