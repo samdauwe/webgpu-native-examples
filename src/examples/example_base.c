@@ -205,8 +205,8 @@ static void update_input_state(wgpu_example_context_t* context,
 
   // Mouse buttons press state
   context->mouse_buttons.left   = record->buttons[BUTTON_LEFT];
-  context->mouse_buttons.right  = record->buttons[BUTTON_MIDDLE];
-  context->mouse_buttons.middle = record->buttons[BUTTON_RIGHT];
+  context->mouse_buttons.right  = record->buttons[BUTTON_RIGHT];
+  context->mouse_buttons.middle = record->buttons[BUTTON_MIDDLE];
 
   // Mouse buttons dragging state
   if (!context->mouse_dragging.left && context->mouse_buttons.left) {
