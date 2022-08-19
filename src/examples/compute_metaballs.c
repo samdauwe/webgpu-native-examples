@@ -570,6 +570,30 @@ static void camera_controller_start(camera_controller_t* this)
   this->_paused = false;
 }
 
+static void camera_controller_update_pan_handler(camera_controller_t* this)
+{
+  vec3 x_dir = GLM_VEC3_ZERO_INIT;
+  vec3 y_dir = GLM_VEC3_ZERO_INIT;
+  vec3 z_dir = GLM_VEC3_ZERO_INIT;
+  glm_vec3_sub(this->target, this->camera->position, z_dir);
+  glm_vec3_normalize(z_dir);
+
+  glm_vec3_cross(z_dir, (vec3){0.0f, 1.0f, 0.0f}, x_dir);
+  glm_vec3_cross(x_dir, z_dir, y_dir);
+
+  const float scale = MAX(this->_spherical.radius / 2000.0f, 0.001f);
+
+  damped_action_add_force(
+    &this->target_x_damped_action,
+    (x_dir[0] * this->_pan_delta[0] + y_dir[0] * this->_pan_delta[1]) * scale);
+  damped_action_add_force(
+    &this->target_y_damped_action,
+    (x_dir[1] * this->_pan_delta[0] + y_dir[1] * this->_pan_delta[1]) * scale);
+  damped_action_add_force(
+    &this->target_z_damped_action,
+    (x_dir[2] * this->_pan_delta[0] + y_dir[2] * this->_pan_delta[1]) * scale);
+}
+
 static void
 camera_controller_update_rotate_handler(camera_controller_t* this,
                                         wgpu_example_context_t* context)
