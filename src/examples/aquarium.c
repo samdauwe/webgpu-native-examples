@@ -1798,9 +1798,9 @@ static void inner_model_initialize(inner_model_t* this)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->uniform_buffers.view,
-        .offset = 0,
-        .size = calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
+        .buffer  = this->uniform_buffers.view,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
       },
     };
     this->bind_groups.per
