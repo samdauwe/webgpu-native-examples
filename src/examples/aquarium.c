@@ -1486,6 +1486,373 @@ typedef struct {
 } model_t;
 
 /* -------------------------------------------------------------------------- *
+ * Generic model - Defines generic model
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  model_t model;
+  struct {
+    WGPUShaderModule vertex;
+    WGPUShaderModule fragment;
+  } shader_modules;
+  struct {
+    texture_t* diffuse;
+    texture_t* normal;
+    texture_t* reflection;
+    texture_t* skybox;
+  } textures;
+  struct {
+    dawn_buffer_t position;
+    dawn_buffer_t normal;
+    dawn_buffer_t tex_coord;
+    dawn_buffer_t tangent;
+    dawn_buffer_t bi_normal;
+    dawn_buffer_t indices;
+  } buffers;
+  struct {
+    float shininess;
+    float specular_factor;
+  } light_factor_uniforms;
+  struct {
+    world_uniforms_t world_uniforms[20];
+  } world_uniform_per;
+  WGPUVertexState vertex_state;
+  WGPURenderPipeline pipeline;
+  struct {
+    WGPUBindGroupLayout model;
+    WGPUBindGroupLayout per;
+  } bind_group_layouts;
+  WGPUPipelineLayout pipeline_layout;
+  struct {
+    WGPUBindGroup model;
+    WGPUBindGroup per;
+  } bind_groups;
+  struct {
+    WGPUBuffer light_factor;
+    WGPUBuffer world;
+  } uniform_buffers;
+  wgpu_context_t* wgpu_context;
+  aquarium_context_t* aquarium_context;
+  int32_t instance;
+} generic_model_t;
+
+static void generic_model_init_defaults(generic_model_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->light_factor_uniforms.shininess       = 50.0f;
+  this->light_factor_uniforms.specular_factor = 1.0f;
+}
+
+static void generic_model_create(generic_model_t* this,
+                                 aquarium_context_t* aquarium_context,
+                                 model_group_t type, model_name_t name,
+                                 bool blend)
+{
+  generic_model_init_defaults(this);
+
+  this->aquarium_context = aquarium_context;
+  this->wgpu_context     = aquarium_context->wgpu_context;
+
+  this->model = (model_t){
+    .type  = type,
+    .name  = name,
+    .blend = blend,
+  };
+}
+
+static void generic_model_destroy(generic_model_t* this)
+{
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.world)
+}
+
+static void generic_model_initialize(generic_model_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  // Generic models use reflection, normal or diffuse shaders, of which
+  // groupLayouts are diiferent in texture binding.  MODELGLOBEBASE use diffuse
+  // shader though it contains normal and reflection textures.
+  WGPUVertexAttribute vertex_attributes[5] = {0};
+  {
+    vertex_attributes[0].format         = WGPUVertexFormat_Float32x3;
+    vertex_attributes[0].offset         = 0;
+    vertex_attributes[0].shaderLocation = 0;
+    vertex_attributes[1].format         = WGPUVertexFormat_Float32x3;
+    vertex_attributes[1].offset         = 0;
+    vertex_attributes[1].shaderLocation = 1;
+    vertex_attributes[2].format         = WGPUVertexFormat_Float32x2;
+    vertex_attributes[2].offset         = 0;
+    vertex_attributes[2].shaderLocation = 2;
+    vertex_attributes[3].format         = WGPUVertexFormat_Float32x3;
+    vertex_attributes[3].offset         = 0;
+    vertex_attributes[3].shaderLocation = 3;
+    vertex_attributes[4].format         = WGPUVertexFormat_Float32x3;
+    vertex_attributes[4].offset         = 0;
+    vertex_attributes[4].shaderLocation = 4;
+  }
+
+  // Generic models use reflection, normal or diffuse shaders, of which
+  // groupLayouts are diiferent in texture binding.  MODELGLOBEBASE use diffuse
+  // shader though it contains normal and reflection textures.
+  WGPUVertexBufferLayout vertex_buffer_layouts[5] = {0};
+  uint32_t vertex_buffer_layout_count             = 0;
+  {
+    vertex_buffer_layouts[0].arrayStride    = this->buffers.position.size,
+    vertex_buffer_layouts[0].stepMode       = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layouts[0].attributeCount = 1;
+    vertex_buffer_layouts[0].attributes     = &vertex_attributes[0];
+    vertex_buffer_layouts[1].arrayStride    = this->buffers.normal.size,
+    vertex_buffer_layouts[1].stepMode       = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layouts[1].attributeCount = 1;
+    vertex_buffer_layouts[1].attributes     = &vertex_attributes[1];
+    vertex_buffer_layouts[2].arrayStride    = this->buffers.tex_coord.size,
+    vertex_buffer_layouts[2].stepMode       = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layouts[2].attributeCount = 1;
+    vertex_buffer_layouts[2].attributes     = &vertex_attributes[2];
+    vertex_buffer_layouts[3].arrayStride    = this->buffers.tangent.size,
+    vertex_buffer_layouts[3].stepMode       = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layouts[3].attributeCount = 1;
+    vertex_buffer_layouts[3].attributes     = &vertex_attributes[3];
+    vertex_buffer_layouts[4].arrayStride    = this->buffers.normal.size,
+    vertex_buffer_layouts[4].stepMode       = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layouts[4].attributeCount = 1;
+    vertex_buffer_layouts[4].attributes     = &vertex_attributes[4];
+    if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+      vertex_buffer_layout_count = 5;
+    }
+    else {
+      vertex_buffer_layout_count = 3;
+    }
+  }
+
+  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.entryPoint  = "main";
+  this->vertex_state.bufferCount = vertex_buffer_layout_count;
+  this->vertex_state.buffers     = vertex_buffer_layouts;
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[7] = {0};
+    uint32_t bgl_entry_count                = 0;
+    bgl_entries[0].binding                  = 0;
+    bgl_entries[0].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[0].buffer.type              = WGPUBufferBindingType_Uniform;
+    bgl_entries[0].buffer.hasDynamicOffset  = false;
+    bgl_entries[0].buffer.minBindingSize    = 0;
+    bgl_entries[1].binding                  = 1;
+    bgl_entries[1].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[1].sampler.type             = WGPUSamplerBindingType_Filtering;
+    bgl_entries[2].binding                  = 2;
+    bgl_entries[2].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[2].texture.sampleType       = WGPUTextureSampleType_Float;
+    bgl_entries[2].texture.viewDimension    = WGPUTextureViewDimension_2D;
+    bgl_entries[2].texture.multisampled     = false;
+    bgl_entries[3].binding                  = 3;
+    bgl_entries[3].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[3].texture.sampleType       = WGPUTextureSampleType_Float;
+    bgl_entries[3].texture.viewDimension    = WGPUTextureViewDimension_2D;
+    bgl_entries[3].texture.multisampled     = false;
+    bgl_entries[4].binding                  = 4;
+    bgl_entries[4].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[4].texture.sampleType       = WGPUTextureSampleType_Float;
+    bgl_entries[4].texture.viewDimension    = WGPUTextureViewDimension_2D;
+    bgl_entries[4].texture.multisampled     = false;
+    bgl_entries[5].binding                  = 5;
+    bgl_entries[5].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[5].texture.sampleType       = WGPUTextureSampleType_Float;
+    bgl_entries[5].texture.viewDimension    = WGPUTextureViewDimension_2D;
+    bgl_entries[5].texture.multisampled     = false;
+    bgl_entries[6].binding                  = 6;
+    bgl_entries[6].visibility               = WGPUShaderStage_Fragment;
+    bgl_entries[6].texture.sampleType       = WGPUTextureSampleType_Float;
+    bgl_entries[6].texture.viewDimension    = WGPUTextureViewDimension_Cube;
+    bgl_entries[6].texture.multisampled     = false;
+    if (this->textures.skybox && this->textures.reflection
+        && this->model.name != MODELGLOBEBASE) {
+      bgl_entry_count = 7;
+    }
+    else if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+      bgl_entry_count = 4;
+    }
+    else {
+      bgl_entry_count = 3;
+    }
+    this->bind_group_layouts.model = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, bgl_entry_count);
+  }
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+    };
+    this->bind_group_layouts.per = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  WGPUBindGroupLayout bind_group_layouts[4] = {
+    this->aquarium_context->bind_group_layouts.general, // Group 0
+    this->aquarium_context->bind_group_layouts.world,   // Group 1
+    this->bind_group_layouts.model,                     // Group 2
+    this->bind_group_layouts.per,                       // Group 3
+  };
+  this->pipeline_layout = context_make_basic_pipeline_layout(
+    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+
+  this->pipeline = context_create_render_pipeline(
+    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    &this->vertex_state, this->model.blend);
+
+  this->uniform_buffers.light_factor = context_create_buffer_from_data(
+    wgpu_context, &this->light_factor_uniforms,
+    sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  this->uniform_buffers.world = context_create_buffer_from_data(
+    wgpu_context, &this->world_uniform_per, sizeof(this->world_uniform_per),
+    calc_constant_buffer_byte_size(sizeof(this->world_uniform_per)),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  // Generic models use reflection, normal or diffuse shaders, of which
+  // grouplayouts are diiferent in texture binding. MODELGLOBEBASE use diffuse
+  // shader though it contains normal and reflection textures.
+  {
+    WGPUBindGroupEntry bg_entries[7] = {0};
+    uint32_t bg_entry_count          = 0;
+    bg_entries[0].binding            = 0;
+    bg_entries[0].buffer             = this->uniform_buffers.light_factor;
+    bg_entries[0].offset             = 0;
+    bg_entries[0].size               = sizeof(light_uniforms_t);
+    if (this->textures.skybox && this->textures.reflection
+        && this->model.name != MODELGLOBEBASE) {
+      bg_entry_count            = 7;
+      bg_entries[1].binding     = 1;
+      bg_entries[1].sampler     = this->textures.reflection->sampler,
+      bg_entries[2].binding     = 2;
+      bg_entries[2].sampler     = this->textures.skybox->sampler,
+      bg_entries[3].binding     = 3;
+      bg_entries[3].textureView = this->textures.diffuse->view,
+      bg_entries[4].binding     = 4;
+      bg_entries[4].textureView = this->textures.normal->view,
+      bg_entries[5].binding     = 5;
+      bg_entries[5].textureView = this->textures.reflection->view,
+      bg_entries[6].binding     = 6;
+      bg_entries[6].textureView = this->textures.skybox->view;
+    }
+    else if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+      bg_entry_count            = 4;
+      bg_entries[1].binding     = 1;
+      bg_entries[1].sampler     = this->textures.diffuse->sampler;
+      bg_entries[2].binding     = 2;
+      bg_entries[2].textureView = this->textures.diffuse->view;
+      bg_entries[3].binding     = 3;
+      bg_entries[3].textureView = this->textures.normal->view;
+    }
+    else {
+      bg_entry_count            = 3;
+      bg_entries[1].binding     = 1;
+      bg_entries[1].sampler     = this->textures.diffuse->sampler;
+      bg_entries[2].binding     = 2;
+      bg_entries[2].textureView = this->textures.diffuse->view;
+    }
+    this->bind_groups.model = context_make_bind_group(
+      wgpu_context, this->bind_group_layouts.model, bg_entries, bg_entry_count);
+  }
+
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->uniform_buffers.world,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
+      },
+    };
+    this->bind_groups.per
+      = context_make_bind_group(wgpu_context, this->bind_group_layouts.per,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+
+  context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
+                          sizeof(this->light_factor_uniforms),
+                          &this->light_factor_uniforms,
+                          sizeof(this->light_factor_uniforms));
+}
+
+static void generic_model_prepare_for_draw(generic_model_t* this)
+{
+  context_update_buffer_data(this->wgpu_context, this->uniform_buffers.world,
+                             sizeof(this->world_uniform_per),
+                             &this->world_uniform_per,
+                             sizeof(this->world_uniform_per));
+}
+
+static void generic_model_draw(generic_model_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
+                                    0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       this->buffers.position.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                       this->buffers.normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                       this->buffers.tex_coord.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  // diffuseShader doesn't have to input tangent buffer or binormal buffer.
+  if (this->buffers.tangent.valid && this->buffers.bi_normal.valid) {
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
+                                         this->buffers.tangent.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
+                                         this->buffers.bi_normal.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+  }
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                   this->buffers.indices.total_components, 1, 0,
+                                   0, 0);
+  this->instance = 0;
+}
+
+static void generic_model_update_per_instance_uniforms(
+  generic_model_t* this, const world_uniforms_t* world_uniforms)
+{
+  memcpy(&this->world_uniform_per.world_uniforms[this->instance],
+         world_uniforms, sizeof(world_uniforms_t));
+
+  this->instance++;
+}
+
+/* -------------------------------------------------------------------------- *
  * Inner model - Defines inner model
  * -------------------------------------------------------------------------- */
 
