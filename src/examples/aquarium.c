@@ -2236,10 +2236,10 @@ inner_model_update_per_instance_uniforms(inner_model_t* this,
 typedef struct {
   model_t model;
   struct {
-    texture_t diffuse;
-    texture_t normal;
-    texture_t reflection;
-    texture_t skybox;
+    texture_t* diffuse;
+    texture_t* normal;
+    texture_t* reflection;
+    texture_t* skybox;
   } textures;
   struct {
     dawn_buffer_t position;
@@ -2470,11 +2470,11 @@ static void outside_model_initialize(outside_model_t* this)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .sampler = this->textures.diffuse.sampler,
+        .sampler = this->textures.diffuse->sampler,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .textureView = this->textures.diffuse.view,
+        .textureView = this->textures.diffuse->view,
       },
     };
     this->bind_groups.model
