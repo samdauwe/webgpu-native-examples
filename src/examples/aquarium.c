@@ -1870,10 +1870,10 @@ typedef struct {
     WGPUShaderModule fragment;
   } shader_modules;
   struct {
-    texture_t diffuse;
-    texture_t normal;
-    texture_t reflection;
-    texture_t skybox;
+    texture_t* diffuse;
+    texture_t* normal;
+    texture_t* reflection;
+    texture_t* skybox;
   } textures;
   struct {
     dawn_buffer_t position;
@@ -2133,27 +2133,27 @@ static void inner_model_initialize(inner_model_t* this)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .sampler = this->textures.reflection.sampler,
+        .sampler = this->textures.reflection->sampler,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .sampler = this->textures.skybox.sampler,
+        .sampler = this->textures.skybox->sampler,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .textureView = this->textures.diffuse.view,
+        .textureView = this->textures.diffuse->view,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding = 4,
-        .textureView = this->textures.normal.view,
+        .textureView = this->textures.normal->view,
       },
       [5] = (WGPUBindGroupEntry) {
         .binding = 5,
-        .textureView = this->textures.reflection.view,
+        .textureView = this->textures.reflection->view,
       },
       [6] = (WGPUBindGroupEntry) {
         .binding = 6,
-        .textureView = this->textures.skybox.view,
+        .textureView = this->textures.skybox->view,
       },
     };
     this->bind_groups.model
