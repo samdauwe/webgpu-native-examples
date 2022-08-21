@@ -2464,16 +2464,16 @@ static void outside_model_initialize(outside_model_t* this)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->uniform_buffers.light_factor,
-        .offset = 0,
-        .size = sizeof(this->light_factor_uniforms)
+        .buffer  = this->uniform_buffers.light_factor,
+        .offset  = 0,
+        .size    = sizeof(this->light_factor_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
         .sampler = this->textures.diffuse->sampler,
       },
       [2] = (WGPUBindGroupEntry) {
-        .binding = 2,
+        .binding     = 2,
         .textureView = this->textures.diffuse->view,
       },
     };
@@ -2486,9 +2486,9 @@ static void outside_model_initialize(outside_model_t* this)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->uniform_buffers.view,
-        .offset = 0,
-        .size = calc_constant_buffer_byte_size(sizeof(world_uniforms_t) * 20),
+        .buffer  = this->uniform_buffers.view,
+        .offset  = 0,
+        .size  = calc_constant_buffer_byte_size(sizeof(world_uniforms_t) * 20),
       },
     };
     this->bind_groups.per
