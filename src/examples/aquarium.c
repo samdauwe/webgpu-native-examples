@@ -14,6 +14,35 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Aquarium Assert
+ * -------------------------------------------------------------------------- */
+
+#ifndef NDEBUG
+#define AQUARIUM_ASSERT(expression)                                            \
+  {                                                                            \
+    if (!(expression)) {                                                       \
+      printf("Assertion(%s) failed: file \"%s\", line %d\n", #expression,      \
+             __FILE__, __LINE__);                                              \
+      abort();                                                                 \
+    }                                                                          \
+  }
+#else
+#define AQUARIUM_ASSERT(expression) NULL;
+#endif
+
+#ifndef NDEBUG
+#define SWALLOW_ERROR(expression)                                              \
+  {                                                                            \
+    if (!(expression)) {                                                       \
+      printf("Assertion(%s) failed: file \"%s\", line %d\n", #expression,      \
+             __FILE__, __LINE__);                                              \
+    }                                                                          \
+  }
+#else
+#define SWALLOW_ERROR(expression) expression
+#endif
+
+/* -------------------------------------------------------------------------- *
  * Matrix: Do matrix calculations including multiply, addition, substraction,
  * transpose, inverse, translation, etc.
  * -------------------------------------------------------------------------- */
