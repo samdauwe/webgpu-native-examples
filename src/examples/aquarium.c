@@ -1120,6 +1120,29 @@ static struct {
 } aquarium_settings;
 
 /* -------------------------------------------------------------------------- *
+ * Behavior - base class for behavior.
+ * -------------------------------------------------------------------------- */
+
+typedef enum {
+  OPERATION_PLUS,
+  OPERATION_MINUS,
+} behavior_op_t;
+
+typedef struct {
+  int32_t frame;
+  behavior_op_t op;
+  int32_t count;
+} behavior_t;
+
+static void behavior_create(behavior_t* this, int32_t frame, char op,
+                            int32_t count)
+{
+  this->frame = frame;
+  this->op    = (op == '+') ? OPERATION_PLUS : OPERATION_MINUS;
+  this->count = count;
+}
+
+/* -------------------------------------------------------------------------- *
  * Dawn Buffer - Defines the buffer wrapper of dawn, abstracting the vetex and
  * index buffer binding.
  * -------------------------------------------------------------------------- */
