@@ -949,7 +949,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
 };
 
-static const fish_t fishTable[5] = {
+static const fish_t fish_table[5] = {
   {
     .name             = "SmallFishA",
     .model_name       = MODELSMALLFISHA,
@@ -1355,12 +1355,13 @@ typedef struct {
     WGPUBuffer light_buffer;
     WGPUBuffer fog_buffer;
   } context;
+  int32_t fish_count[5];
   struct {
     char key[STRMAX];
     model_name_t value;
   } model_enum_map[MODELMAX];
-  int cur_fish_count;
-  int m_pre_fish_count;
+  int32_t cur_fish_count;
+  int32_t pre_fish_count;
 } aquarium_t;
 
 static model_name_t
@@ -1484,6 +1485,52 @@ typedef struct {
   model_name_t name;
   bool blend;
 } model_t;
+
+/* -------------------------------------------------------------------------- *
+ * Fish model - Define fish model. Update fish specific uniforms.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  model_t model;
+  int32_t pre_instance;
+  int32_t cur_instance;
+  int32_t fish_per_offset;
+  aquarium_t* aquarium;
+} fish_model_t;
+
+static void fish_model_init_defaults(fish_model_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void fish_model_create(fish_model_t* this, model_group_t type,
+                              model_name_t name, bool blend,
+                              aquarium_t* aquarium)
+{
+  fish_model_init_defaults(this);
+
+  this->aquarium = aquarium;
+
+  this->model = (model_t){
+    .type  = type,
+    .name  = name,
+    .blend = blend,
+  };
+}
+
+static void fish_model_prepare_for_draw(fish_model_t* this)
+{
+  this->fish_per_offset = 0;
+  for (uint32_t i = 0; i < this->model.name - MODELSMALLFISHA; ++i) {
+    const fish_t* fish_info = &fish_table[i];
+    this->fish_per_offset
+      += this->aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+  }
+
+  const fish_t* fish_info = &fish_table[this->model.name - MODELSMALLFISHA];
+  this->cur_instance
+    = this->aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+}
 
 /* -------------------------------------------------------------------------- *
  * Generic model - Defines generic model
