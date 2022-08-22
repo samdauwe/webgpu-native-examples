@@ -15,7 +15,7 @@
 
 /* -------------------------------------------------------------------------- *
  * Matrix: Do matrix calculations including multiply, addition, substraction,
-// transpose, inverse, translation, etc.
+ * transpose, inverse, translation, etc.
  * -------------------------------------------------------------------------- */
 
 static long long MATRIX_RANDOM_RANGE_ = 4294967296;
