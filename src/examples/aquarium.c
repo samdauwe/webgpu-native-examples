@@ -2479,62 +2479,62 @@ static void outside_model_initialize(outside_model_t* this)
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 0,
     },
     [1] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 1,
     },
     [2] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x2,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = 0,
       .shaderLocation = 2,
     },
     [3] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 3,
     },
     [4] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 4,
     },
   };
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.position.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.position.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[0],
+      .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.normal.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[1],
+      .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tex_coord.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.tex_coord.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[2],
+      .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tangent.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.tangent.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[3],
+      .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.normal.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[4],
+      .attributes     = &vertex_attributes[4],
     },
   };
 
@@ -2546,12 +2546,12 @@ static void outside_model_initialize(outside_model_t* this)
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
@@ -2564,30 +2564,30 @@ static void outside_model_initialize(outside_model_t* this)
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
