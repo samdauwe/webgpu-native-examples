@@ -1585,6 +1585,66 @@ static void fish_model_prepare_for_draw(fish_model_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Fish model Instanced Draw - Defines instance fish model.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  fish_model_t fish_model;
+  struct {
+    float fish_length;
+    float fish_wave_length;
+    float fish_bend_amount;
+  } fish_vertex_uniforms;
+  struct LightFactorUniforms {
+    float shininess;
+    float specular_factor;
+  } light_factor_uniforms;
+  struct {
+    vec3 world_position;
+    float scale;
+    vec3 next_position;
+    float time;
+  } fish_per;
+  struct {
+    texture_t* diffuse;
+    texture_t* normal;
+    texture_t* reflection;
+    texture_t* skybox;
+  } textures;
+  struct {
+    dawn_buffer_t position;
+    dawn_buffer_t normal;
+    dawn_buffer_t tex_coord;
+    dawn_buffer_t tangent;
+    dawn_buffer_t bi_normal;
+    dawn_buffer_t indices;
+  } buffers;
+  WGPUVertexState vertex_state;
+  WGPURenderPipeline pipeline;
+  struct {
+    WGPUBindGroupLayout model;
+    WGPUBindGroupLayout per;
+  } bind_group_layouts;
+  WGPUPipelineLayout pipeline_layout;
+  struct {
+    WGPUBindGroup model;
+    WGPUBindGroup per;
+  } bind_groups;
+  WGPUBuffer fish_vertex_buffer;
+  struct {
+    WGPUBuffer light_factor;
+    WGPUBuffer fish_pers;
+  } uniform_buffers;
+  int32_t instance;
+  struct {
+    WGPUShaderModule vertex;
+    WGPUShaderModule fragment;
+  } shader_modules;
+  wgpu_context_t* wgpu_context;
+  aquarium_context_t* aquarium_context;
+} fish_model_instanced_draw_t;
+
+/* -------------------------------------------------------------------------- *
  * Generic model - Defines generic model
  * -------------------------------------------------------------------------- */
 
