@@ -1589,22 +1589,24 @@ static void fish_model_prepare_for_draw(fish_model_t* this)
  * -------------------------------------------------------------------------- */
 
 typedef struct {
+  vec3 world_position;
+  float scale;
+  vec3 next_position;
+  float time;
+} fish_model_instanced_draw_fish_per;
+
+typedef struct {
   fish_model_t fish_model;
   struct {
     float fish_length;
     float fish_wave_length;
     float fish_bend_amount;
   } fish_vertex_uniforms;
-  struct LightFactorUniforms {
+  struct {
     float shininess;
     float specular_factor;
   } light_factor_uniforms;
-  struct {
-    vec3 world_position;
-    float scale;
-    vec3 next_position;
-    float time;
-  } fish_per;
+  fish_model_instanced_draw_fish_per* fish_pers;
   struct {
     texture_t* diffuse;
     texture_t* normal;
@@ -1633,8 +1635,8 @@ typedef struct {
   WGPUBuffer fish_vertex_buffer;
   struct {
     WGPUBuffer light_factor;
-    WGPUBuffer fish_pers;
   } uniform_buffers;
+  WGPUBuffer fish_pers_buffer;
   int32_t instance;
   struct {
     WGPUShaderModule vertex;
@@ -1643,6 +1645,205 @@ typedef struct {
   wgpu_context_t* wgpu_context;
   aquarium_context_t* aquarium_context;
 } fish_model_instanced_draw_t;
+
+static void
+fish_model_instanced_draw_init_defaults(fish_model_instanced_draw_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->light_factor_uniforms.shininess       = 5.0f;
+  this->light_factor_uniforms.specular_factor = 0.3f;
+
+  this->instance = 0;
+}
+
+static void fish_model_instanced_draw_create(
+  fish_model_instanced_draw_t* this, aquarium_context_t* aquarium_context,
+  aquarium_t* aquarium, model_group_t type, model_name_t name, bool blend)
+{
+  fish_model_instanced_draw_init_defaults(this);
+
+  fish_model_create(&this->fish_model, type, name, blend, aquarium);
+
+  this->aquarium_context = aquarium_context;
+  this->wgpu_context     = aquarium_context->wgpu_context;
+
+  const fish_t* fish_info = &fish_table[name - MODELSMALLFISHAINSTANCEDDRAWS];
+  this->fish_vertex_uniforms.fish_length      = fish_info->fish_length;
+  this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
+  this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
+
+  this->instance
+    = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+  this->fish_pers
+    = malloc(this->instance + sizeof(fish_model_instanced_draw_fish_per));
+}
+
+static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
+{
+  if (this->instance == 0) {
+    return;
+  }
+
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPUBufferDescriptor buffer_desc = {
+    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+    .size  = sizeof(fish_model_instanced_draw_fish_per) * this->instance,
+    .mappedAtCreation = false,
+  };
+  this->fish_pers_buffer = context_create_buffer(wgpu_context, &buffer_desc);
+
+  WGPUVertexAttribute vertex_attributes[9] = {
+    [0] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 0,
+    },
+    [1] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 1,
+    },
+    [2] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x2,
+      .offset = 0,
+      .shaderLocation = 2,
+    },
+    [3] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 3,
+    },
+    [4] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = offsetof(fish_model_instanced_draw_fish_per, world_position),
+      .shaderLocation = 4,
+    },
+    [5] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 5,
+    },
+    [6] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32,
+      .offset = offsetof(fish_model_instanced_draw_fish_per, scale),
+      .shaderLocation = 6,
+    },
+    [7] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = offsetof(fish_model_instanced_draw_fish_per, next_position),
+      .shaderLocation = 7,
+    },
+    [8] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = offsetof(fish_model_instanced_draw_fish_per, time),
+      .shaderLocation = 8,
+    },
+  };
+
+  WGPUVertexBufferLayout vertex_buffer_layouts[6] = {
+    [0] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.position.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[0],
+    },
+    [1] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.normal.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[1],
+    },
+    [2] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.tex_coord.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[2],
+    },
+    [3] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.tangent.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[3],
+    },
+    [4] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.bi_normal.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[4],
+    },
+    [5] = (WGPUVertexBufferLayout) {
+      .arrayStride = sizeof(fish_model_instanced_draw_fish_per),
+      .stepMode = WGPUVertexStepMode_Instance,
+      .attributeCount = 4,
+      .attributes = &vertex_attributes[5],
+    },
+  };
+
+  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.entryPoint  = "main";
+  this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
+  this->vertex_state.buffers     = vertex_buffer_layouts;
+}
+
+static void fish_model_instanced_draw_draw(fish_model_instanced_draw_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  context_set_buffer_data(
+    wgpu_context, this->fish_pers_buffer,
+    sizeof(fish_model_instanced_draw_fish_per) * this->instance,
+    this->fish_pers,
+    sizeof(fish_model_instanced_draw_fish_per) * this->instance);
+
+  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       this->buffers.position.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                       this->buffers.normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                       this->buffers.tex_coord.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
+                                       this->buffers.tangent.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
+                                       this->buffers.bi_normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    wgpu_context->rpass_enc, 5, this->fish_pers_buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                   this->buffers.indices.total_components,
+                                   this->instance, 0, 0, 0);
+  this->instance = 0;
+}
+
+void fish_model_instanced_draw_update_fish_per_uniforms(
+  fish_model_instanced_draw_t* this, float x, float y, float z, float next_x,
+  float next_y, float next_z, float scale, float time, int index)
+{
+  this->fish_pers[index].world_position[0] = x;
+  this->fish_pers[index].world_position[1] = y;
+  this->fish_pers[index].world_position[2] = z;
+  this->fish_pers[index].next_position[0]  = next_x;
+  this->fish_pers[index].next_position[1]  = next_y;
+  this->fish_pers[index].next_position[2]  = next_z;
+  this->fish_pers[index].scale             = scale;
+  this->fish_pers[index].time              = time;
+}
 
 /* -------------------------------------------------------------------------- *
  * Generic model - Defines generic model.
