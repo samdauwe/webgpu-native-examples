@@ -1529,7 +1529,7 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
 }
 
 /* -------------------------------------------------------------------------- *
- * Model - Defines generic model
+ * Model - Defines generic model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -1539,7 +1539,7 @@ typedef struct {
 } model_t;
 
 /* -------------------------------------------------------------------------- *
- * Fish model - Define fish model. Update fish specific uniforms.
+ * Fish model - Defined fish model. Update fish specific uniforms.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -1645,7 +1645,7 @@ typedef struct {
 } fish_model_instanced_draw_t;
 
 /* -------------------------------------------------------------------------- *
- * Generic model - Defines generic model
+ * Generic model - Defines generic model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -2012,7 +2012,7 @@ static void generic_model_update_per_instance_uniforms(
 }
 
 /* -------------------------------------------------------------------------- *
- * Inner model - Defines inner model
+ * Inner model - Defines inner model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -2389,7 +2389,7 @@ inner_model_update_per_instance_uniforms(inner_model_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
- * Outside model - Defines outside model
+ * Outside model - Defines outside model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
