@@ -1391,6 +1391,8 @@ typedef struct {
     WGPUBindGroup fish_per;
   } bind_groups;
   WGPURenderPassEncoder render_pass;
+  WGPUBindGroup* bind_group_fish_pers;
+  fish_per_t* fish_pers;
 } aquarium_context_t;
 
 /* -------------------------------------------------------------------------- *
@@ -1659,6 +1661,94 @@ static void fish_model_draw_create(fish_model_draw_t* this,
   this->fish_model.cur_instance
     = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
   this->fish_model.pre_instance = this->fish_model.cur_instance;
+}
+
+static void fish_model_draw_destroy(fish_model_draw_t* this)
+{
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->group_layout_model)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_model)
+  WGPU_RELEASE_RESOURCE(Buffer, this->fish_vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
+}
+
+static void fish_model_draw_draw(fish_model_draw_t* this)
+{
+  if (this->fish_model.cur_instance == 0) {
+    return;
+  }
+
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_group_model, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       this->buffers.position.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                       this->buffers.normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                       this->buffers.tex_coord.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
+                                       this->buffers.tangent.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
+                                       this->buffers.bi_normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+
+  if (this->enable_dynamic_buffer_offset) {
+    for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
+      const uint32_t offset = 256u * (i + this->fish_model.fish_per_offset);
+      wgpuRenderPassEncoderSetBindGroup(
+        render_pass, 3, this->aquarium_context->bind_group_fish_pers[0], 1,
+        &offset);
+      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                       this->buffers.indices.total_components,
+                                       1, 0, 0, 0);
+    }
+  }
+  else {
+    for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
+      const uint32_t offset = i + this->fish_model.fish_per_offset;
+      wgpuRenderPassEncoderSetBindGroup(
+        render_pass, 3, this->aquarium_context->bind_group_fish_pers[offset], 0,
+        NULL);
+      wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                       this->buffers.indices.total_components,
+                                       1, 0, 0, 0);
+    }
+  }
+}
+
+void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this, float x,
+                                              float y, float z, float next_x,
+                                              float next_y, float next_z,
+                                              float scale, float time,
+                                              int index)
+{
+  index += this->fish_model.fish_per_offset;
+  aquarium_context_t* ctx = this->aquarium_context;
+
+  ctx->fish_pers[index].world_position[0] = x;
+  ctx->fish_pers[index].world_position[1] = y;
+  ctx->fish_pers[index].world_position[2] = z;
+  ctx->fish_pers[index].next_position[0]  = next_x;
+  ctx->fish_pers[index].next_position[1]  = next_y;
+  ctx->fish_pers[index].next_position[2]  = next_z;
+  ctx->fish_pers[index].scale             = scale;
+  ctx->fish_pers[index].time              = time;
 }
 
 /* -------------------------------------------------------------------------- *
