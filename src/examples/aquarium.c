@@ -1679,6 +1679,20 @@ static void fish_model_instanced_draw_create(
     = malloc(this->instance + sizeof(fish_model_instanced_draw_fish_per));
 }
 
+static void fish_model_instanced_draw_destroy(fish_model_instanced_draw_t* this)
+{
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, this->fish_vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, this->fish_pers_buffer)
+  free(this->fish_pers);
+}
+
 static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
 {
   if (this->instance == 0) {
@@ -1785,10 +1799,226 @@ static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
   this->vertex_state.buffers     = vertex_buffer_layouts;
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[8] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [3] = (WGPUBindGroupLayoutEntry) {
+        .binding = 3,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [4] = (WGPUBindGroupLayoutEntry) {
+        .binding = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [5] = (WGPUBindGroupLayoutEntry) {
+        .binding = 5,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [6] = (WGPUBindGroupLayoutEntry) {
+        .binding = 6,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+      [7] = (WGPUBindGroupLayoutEntry) {
+        .binding = 7,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_Cube,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+    };
+    uint32_t bgl_entry_count = 0;
+    if (this->textures.skybox && this->textures.reflection) {
+      bgl_entry_count = 8;
+    }
+    else {
+      bgl_entry_count = 5;
+      bgl_entries[3]  = (WGPUBindGroupLayoutEntry) {
+        .binding = 3,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      };
+    }
+
+    this->bind_group_layouts.model = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, bgl_entry_count);
+  }
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+    };
+    this->bind_group_layouts.per = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  WGPUBindGroupLayout bind_group_layouts[4] = {
+    this->aquarium_context->bind_group_layouts.general, // Group 0
+    this->aquarium_context->bind_group_layouts.world,   // Group 1
+    this->bind_group_layouts.model,                     // Group 2
+    this->bind_group_layouts.per,                       // Group 3
+  };
+  this->pipeline_layout = context_make_basic_pipeline_layout(
+    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+
+  this->pipeline = context_create_render_pipeline(
+    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    &this->vertex_state, this->fish_model.model.blend);
+
+  this->fish_vertex_buffer = context_create_buffer_from_data(
+    wgpu_context, &this->fish_vertex_uniforms,
+    sizeof(this->fish_vertex_uniforms), sizeof(this->fish_vertex_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+  this->uniform_buffers.light_factor = context_create_buffer_from_data(
+    wgpu_context, &this->light_factor_uniforms,
+    sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  // Fish models includes small, medium and big. Some of them contains
+  // reflection and skybox texture, but some doesn't.
+  {
+    WGPUBindGroupEntry bg_entries[8] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer = this->fish_vertex_buffer,
+        .offset = 0,
+        .size = sizeof(this->fish_vertex_uniforms)
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer = this->uniform_buffers.light_factor,
+        .offset = 0,
+        .size = sizeof(this->light_factor_uniforms)
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .sampler = this->textures.reflection->sampler,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding = 3,
+        .sampler = this->textures.skybox->sampler,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        .binding = 4,
+        .textureView = this->textures.diffuse->view,
+      },
+      [5] = (WGPUBindGroupEntry) {
+        .binding = 5,
+        .textureView = this->textures.normal->view,
+      },
+      [6] = (WGPUBindGroupEntry) {
+        .binding = 6,
+        .textureView = this->textures.reflection->view,
+      },
+      [7] = (WGPUBindGroupEntry) {
+        .binding = 7,
+        .textureView = this->textures.skybox->view,
+      },
+    };
+    uint32_t bg_entry_count = 0;
+    if (this->textures.skybox && this->textures.reflection) {
+      bg_entry_count = 8;
+    }
+    else {
+      bg_entry_count = 5;
+      bg_entries[2]  = (WGPUBindGroupEntry){
+         .binding = 2,
+         .sampler = this->textures.diffuse->sampler,
+      };
+      bg_entries[3] = (WGPUBindGroupEntry){
+        .binding     = 3,
+        .textureView = this->textures.diffuse->view,
+      };
+      bg_entries[4] = (WGPUBindGroupEntry){
+        .binding     = 4,
+        .textureView = this->textures.normal->view,
+      };
+    }
+    this->bind_groups.model = context_make_bind_group(
+      wgpu_context, this->bind_group_layouts.model, bg_entries, bg_entry_count);
+  }
+
+  context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
+                          sizeof(this->light_factor_uniforms),
+                          &this->light_factor_uniforms,
+                          sizeof(this->light_factor_uniforms));
+  context_set_buffer_data(
+    wgpu_context, this->fish_vertex_buffer, sizeof(this->fish_vertex_uniforms),
+    &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
 }
 
 static void fish_model_instanced_draw_draw(fish_model_instanced_draw_t* this)
 {
+  if (this->instance == 0) {
+    return;
+  }
+
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
   context_set_buffer_data(
