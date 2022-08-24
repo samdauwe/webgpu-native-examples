@@ -1631,6 +1631,36 @@ typedef struct {
   bool enable_dynamic_buffer_offset;
 } fish_model_draw_t;
 
+static void fish_model_draw_init_defaults(fish_model_draw_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->light_factor_uniforms.shininess       = 5.0f;
+  this->light_factor_uniforms.specular_factor = 0.3f;
+}
+
+static void fish_model_draw_create(fish_model_draw_t* this,
+                                   aquarium_context_t* aquarium_context,
+                                   aquarium_t* aquarium, model_group_t type,
+                                   model_name_t name, bool blend)
+{
+  fish_model_draw_init_defaults(this);
+
+  fish_model_create(&this->fish_model, type, name, blend, aquarium);
+
+  this->aquarium_context = aquarium_context;
+  this->wgpu_context     = aquarium_context->wgpu_context;
+
+  const fish_t* fish_info                = &fish_table[name - MODELSMALLFISHA];
+  this->fish_vertex_uniforms.fish_length = fish_info->fish_length;
+  this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
+  this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
+
+  this->fish_model.cur_instance
+    = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+  this->fish_model.pre_instance = this->fish_model.cur_instance;
+}
+
 /* -------------------------------------------------------------------------- *
  * Fish model Instanced Draw - Defines instance fish model.
  * -------------------------------------------------------------------------- */
