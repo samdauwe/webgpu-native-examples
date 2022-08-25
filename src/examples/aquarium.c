@@ -1313,8 +1313,18 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
- * Aquarium context - Helper functions
+ * Buffer Manager - Implements buffer pool to manage buffer allocation and
+ * recycle.
  * -------------------------------------------------------------------------- */
+
+#define BUFFER_POOL_MAX_SIZE 409600000ull
+#define BUFFER_MAX_COUNT = 10ull
+#define BUFFER_PER_ALLOCATE_SIZE (BUFFER_POOL_MAX_SIZE / BUFFER_MAX_COUNT)
+
+/* --------------------------------------------------------------------------
+ * * Aquarium context - Helper functions
+ * --------------------------------------------------------------------------
+ */
 
 static WGPUBindGroupLayout context_make_bind_group_layout(
   wgpu_context_t* wgpu_context,
