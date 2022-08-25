@@ -1176,7 +1176,7 @@ static void behavior_create(behavior_t* this, int32_t frame, char op,
  * index buffer binding.
  * -------------------------------------------------------------------------- */
 
-typedef struct dawn_buffer_t {
+typedef struct {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
   int total_components;
@@ -1184,7 +1184,7 @@ typedef struct dawn_buffer_t {
   void* offset;
   int size;
   bool valid;
-} dawn_buffer_t;
+} buffer_dawn_t;
 
 static WGPUBuffer context_create_buffer(wgpu_context_t* wgpu_context,
                                         WGPUBufferDescriptor const* descriptor)
@@ -1608,12 +1608,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    dawn_buffer_t position;
-    dawn_buffer_t normal;
-    dawn_buffer_t tex_coord;
-    dawn_buffer_t tangent;
-    dawn_buffer_t bi_normal;
-    dawn_buffer_t indices;
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t tangent;
+    buffer_dawn_t bi_normal;
+    buffer_dawn_t indices;
   } buffers;
   WGPUVertexState vertex_state;
   WGPURenderPipeline pipeline;
@@ -2047,12 +2047,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    dawn_buffer_t position;
-    dawn_buffer_t normal;
-    dawn_buffer_t tex_coord;
-    dawn_buffer_t tangent;
-    dawn_buffer_t bi_normal;
-    dawn_buffer_t indices;
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t tangent;
+    buffer_dawn_t bi_normal;
+    buffer_dawn_t indices;
   } buffers;
   WGPUVertexState vertex_state;
   WGPURenderPipeline pipeline;
@@ -2525,12 +2525,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    dawn_buffer_t position;
-    dawn_buffer_t normal;
-    dawn_buffer_t tex_coord;
-    dawn_buffer_t tangent;
-    dawn_buffer_t bi_normal;
-    dawn_buffer_t indices;
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t tangent;
+    buffer_dawn_t bi_normal;
+    buffer_dawn_t indices;
   } buffers;
   struct {
     float shininess;
@@ -2899,12 +2899,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    dawn_buffer_t position;
-    dawn_buffer_t normal;
-    dawn_buffer_t tex_coord;
-    dawn_buffer_t tangent;
-    dawn_buffer_t bi_normal;
-    dawn_buffer_t indices;
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t tangent;
+    buffer_dawn_t bi_normal;
+    buffer_dawn_t indices;
   } buffers;
   WGPUVertexState vertex_state;
   WGPURenderPipeline pipeline;
@@ -3265,12 +3265,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    dawn_buffer_t position;
-    dawn_buffer_t normal;
-    dawn_buffer_t tex_coord;
-    dawn_buffer_t tangent;
-    dawn_buffer_t bi_normal;
-    dawn_buffer_t indices;
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t tangent;
+    buffer_dawn_t bi_normal;
+    buffer_dawn_t indices;
   } buffers;
   struct {
     float shininess;
