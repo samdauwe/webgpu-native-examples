@@ -1247,6 +1247,71 @@ static size_t calc_constant_buffer_byte_size(size_t byte_size)
   return (byte_size + 255) & ~255;
 }
 
+static void buffer_dawn_create_f32(buffer_dawn_t* this,
+                                   wgpu_context_t* wgpu_context,
+                                   int32_t total_components,
+                                   int32_t num_components, float* buffer,
+                                   bool is_index)
+{
+  this->usage = is_index ? WGPUBufferUsage_Index : WGPUBufferUsage_Vertex;
+  this->total_components = total_components;
+  this->stride           = 0;
+  this->offset           = NULL;
+
+  this->size = num_components * sizeof(float);
+  // Create buffer for vertex buffer. Because float is multiple of 4 bytes,
+  // dummy padding isnt' needed.
+  uint64_t buffer_size             = sizeof(float) * num_components;
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = this->usage | WGPUBufferUsage_CopyDst,
+    .size             = buffer_size,
+    .mappedAtCreation = false,
+  };
+  this->buffer = context_create_buffer(wgpu_context, &buffer_desc);
+
+  context_set_buffer_data(wgpu_context, this->buffer, buffer_size, buffer,
+                          buffer_size);
+}
+
+static void buffer_dawn_create_uint16(buffer_dawn_t* this,
+                                      wgpu_context_t* wgpu_context,
+                                      int32_t total_components,
+                                      int32_t num_components, uint16_t* buffer,
+                                      uint64_t buffer_count, bool is_index)
+{
+  this->usage = is_index ? WGPUBufferUsage_Index : WGPUBufferUsage_Vertex;
+  this->total_components = total_components;
+  this->stride           = 0;
+  this->offset           = NULL;
+
+  this->size = num_components * sizeof(uint16_t);
+  // Create buffer for index buffer. Because unsigned short is multiple of 2
+  // bytes, in order to align with 4 bytes of dawn metal, dummy padding need to
+  // be added.
+  if (total_components % 2 != 0) {
+    ASSERT((uint64_t)num_components <= buffer_count);
+    buffer[num_components] = 0;
+    num_components++;
+  }
+
+  uint64_t buffer_size             = sizeof(uint16_t) * num_components;
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = this->usage | WGPUBufferUsage_CopyDst,
+    .size             = buffer_size,
+    .mappedAtCreation = false,
+  };
+  this->buffer = context_create_buffer(wgpu_context, &buffer_desc);
+
+  context_set_buffer_data(wgpu_context, this->buffer, buffer_size, buffer,
+                          buffer_size);
+}
+
+static void buffer_dawn_destroy(buffer_dawn_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffer)
+  memset(this, 0, sizeof(*this));
+}
+
 /* -------------------------------------------------------------------------- *
  * Aquarium context - Helper functions
  * -------------------------------------------------------------------------- */
