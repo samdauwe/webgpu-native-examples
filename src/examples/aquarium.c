@@ -1321,6 +1321,29 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
 #define BUFFER_MAX_COUNT = 10ull
 #define BUFFER_PER_ALLOCATE_SIZE (BUFFER_POOL_MAX_SIZE / BUFFER_MAX_COUNT)
 
+typedef struct {
+  size_t head;
+  size_t tail;
+  size_t size;
+} ring_buffer_t;
+
+static void ring_buffer_create(ring_buffer_t* this, size_t size)
+{
+  this->head = 0;
+  this->tail = size;
+  this->size = size;
+}
+
+static size_t ring_buffer_get_size(ring_buffer_t* this)
+{
+  return this->size;
+}
+
+static size_t ring_buffer_get_available_size(ring_buffer_t* this)
+{
+  return this->size - this->tail;
+}
+
 /* --------------------------------------------------------------------------
  * * Aquarium context - Helper functions
  * --------------------------------------------------------------------------
