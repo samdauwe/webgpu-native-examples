@@ -456,7 +456,7 @@ Just like all software, WebGPU Native Examples and Demos are built on the should
 * [CMake](https://cmake.org) (>= 3.17)
 * [FFmpeg](https://www.ffmpeg.org/) used for video decoding (optional)
 
-### Available as git submodules ###
+### Available as git submodules or folders ###
 
 * [basisu](https://github.com/BinomialLLC/basis_universal): Single File Basis Universal Transcoder.
 * [cglm](https://github.com/recp/cglm): Highly Optimized Graphics Math (glm) for C.
@@ -465,6 +465,7 @@ Just like all software, WebGPU Native Examples and Demos are built on the should
 * [cJSON](https://github.com/DaveGamble/cJSON): Ultralightweight JSON parser in ANSI C.
 * [ktx](https://github.com/KhronosGroup/KTX-Software): KTX (Khronos Texture) Library and Tools
 * [rply](http://w3.impa.br/~diego/software/rply/): ANSI C Library for PLY file format input and output
+* [sc](https://github.com/tezc/sc): Portable, stand-alone C libraries and data structures. (C99)
 * [stb](https://github.com/nothings/stb): stb single-file public domain libraries for C/C++
 
 ## Credits
