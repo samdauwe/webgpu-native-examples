@@ -1325,14 +1325,17 @@ typedef struct {
   size_t head;
   size_t tail;
   size_t size;
+
+  void* buffer_manager;
+  wgpu_context_t* wgpu_context;
+  WGPUBuffer buf;
+  void* mapped_data;
+  void* pixels;
 } ring_buffer_t;
 
-static void ring_buffer_create(ring_buffer_t* this, size_t size)
-{
-  this->head = 0;
-  this->tail = size;
-  this->size = size;
-}
+typedef struct {
+  wgpu_context_t* wgpu_context;
+} buffer_manager_t;
 
 static size_t ring_buffer_get_size(ring_buffer_t* this)
 {
@@ -1342,6 +1345,92 @@ static size_t ring_buffer_get_size(ring_buffer_t* this)
 static size_t ring_buffer_get_available_size(ring_buffer_t* this)
 {
   return this->size - this->tail;
+}
+
+bool ring_buffer_push(ring_buffer_t* this, WGPUCommandEncoder encoder,
+                      WGPUBuffer dest_buffer, size_t src_offset,
+                      size_t dest_offset, void* pixels, size_t size)
+{
+  memcpy(((unsigned char*)this->pixels) + src_offset, pixels, size);
+  wgpuCommandEncoderCopyBufferToBuffer(encoder, this->buf, src_offset,
+                                       dest_buffer, dest_offset, size);
+  return true;
+}
+
+/* Reset current buffer and reuse the buffer. */
+static bool ring_buffer_reset(ring_buffer_t* this, size_t size)
+{
+  if (size > this->size) {
+    return false;
+  }
+
+  this->head = 0;
+  this->tail = 0;
+
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopyDst,
+    .size             = this->size,
+    .mappedAtCreation = true,
+  };
+  this->buf = context_create_buffer(this->wgpu_context, &buffer_desc);
+  ASSERT(this->buf);
+  this->pixels = wgpuBufferGetMappedRange(this->buf, 0, this->size);
+
+  return true;
+}
+
+static void ring_buffer_create(ring_buffer_t* this,
+                               buffer_manager_t* buffer_manager, size_t size)
+{
+  this->head = 0;
+  this->tail = size;
+  this->size = size;
+
+  this->buffer_manager = buffer_manager;
+  this->wgpu_context   = buffer_manager->wgpu_context;
+  this->mapped_data    = NULL;
+  this->pixels         = NULL;
+
+  ring_buffer_reset(this, size);
+}
+
+static void ring_buffer_map_callback(WGPUBufferMapAsyncStatus status,
+                                     void* user_data)
+{
+  if (status == WGPUBufferMapAsyncStatus_Success) {
+    ring_buffer_t* ring_buffer = (ring_buffer_t*)user_data;
+    ring_buffer->mapped_data   = (uint64_t*)wgpuBufferGetMappedRange(
+        ring_buffer->buf, 0, ring_buffer->size);
+    ASSERT(ring_buffer->mapped_data);
+  }
+}
+
+static void ring_buffer_flush(ring_buffer_t* this)
+{
+  this->head = 0;
+  this->tail = 0;
+
+  wgpuBufferUnmap(this->buf);
+}
+
+static void ring_buffer_destroy(ring_buffer_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, this->buf);
+}
+
+static void ring_buffer_re_map(ring_buffer_t* this)
+{
+  wgpuBufferMapAsync(this->buf, WGPUMapMode_Write, 0, 0,
+                     ring_buffer_map_callback, this);
+}
+
+/* allocate size in a ring_buffer_t, return offset of the buffer */
+static size_t ring_buffer_allocate(ring_buffer_t* this, size_t size)
+{
+  this->tail += size;
+  ASSERT(this->tail < this->size);
+
+  return this->tail - size;
 }
 
 /* --------------------------------------------------------------------------
