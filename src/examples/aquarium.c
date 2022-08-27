@@ -3762,6 +3762,64 @@ static void outside_model_update_per_instance_uniforms(
     &this->world_uniform_per, sizeof(world_uniforms_t));
 }
 
+/* -------------------------------------------------------------------------- *
+ * Seaweed model - Defines seaweed model.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  float time;
+  vec3 padding;
+} seaweed_t;
+
+typedef struct {
+  model_t model;
+  struct {
+    texture_t* diffuse;
+    texture_t* normal;
+    texture_t* reflection;
+    texture_t* skybox;
+  } textures;
+  struct {
+    buffer_dawn_t position;
+    buffer_dawn_t normal;
+    buffer_dawn_t tex_coord;
+    buffer_dawn_t indices;
+  } buffers;
+  struct {
+    float shininess;
+    float specular_factor;
+  } light_factor_uniforms;
+  struct {
+    seaweed_t seaweed[20];
+  } seaweed_per;
+  struct {
+    world_uniforms_t world_uniforms[20];
+  } world_uniform_per;
+  WGPUVertexState vertex_state;
+  WGPURenderPipeline pipeline;
+  struct {
+    WGPUBindGroupLayout model;
+    WGPUBindGroupLayout per;
+  } bind_group_layouts;
+  WGPUPipelineLayout pipeline_layout;
+  struct {
+    WGPUBindGroup model;
+    WGPUBindGroup per;
+  } bind_groups;
+  struct {
+    WGPUBuffer light_factor;
+    WGPUBuffer time;
+    WGPUBuffer view;
+  } uniform_buffers;
+  struct {
+    WGPUShaderModule vertex;
+    WGPUShaderModule fragment;
+  } shader_modules;
+  wgpu_context_t* wgpu_context;
+  aquarium_context_t* aquarium_context;
+  int32_t instance;
+} seaweed_model_t;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
