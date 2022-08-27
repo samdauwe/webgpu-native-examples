@@ -3815,6 +3815,7 @@ typedef struct {
     WGPUShaderModule vertex;
     WGPUShaderModule fragment;
   } shader_modules;
+  aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   aquarium_context_t* aquarium_context;
   int32_t instance;
@@ -3843,6 +3844,7 @@ static void seaweed_model_create(seaweed_model_t* this,
     .blend = blend,
   };
 
+  this->aquarium         = aquarium;
   this->aquarium_context = aquarium_context;
   this->wgpu_context     = aquarium_context->wgpu_context;
 }
@@ -4043,6 +4045,61 @@ static void seaweed_model_destroy(seaweed_model_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.time)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
+}
+
+static void seaweed_model_prepare_for_draw(seaweed_model_t* this)
+{
+  context_update_buffer_data(
+    this->wgpu_context, this->uniform_buffers.view,
+    calc_constant_buffer_byte_size(sizeof(this->world_uniform_per)),
+    &this->world_uniform_per, sizeof(this->world_uniform_per));
+  context_update_buffer_data(
+    this->wgpu_context, this->uniform_buffers.time,
+    calc_constant_buffer_byte_size(sizeof(this->seaweed_per)),
+    &this->seaweed_per, sizeof(this->seaweed_per));
+}
+
+static void seaweed_model_draw(seaweed_model_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(
+    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
+                                    0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       this->buffers.position.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                       this->buffers.normal.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                       this->buffers.tex_coord.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                   this->buffers.indices.total_components, 1, 0,
+                                   0, 0);
+  this->instance = 0;
+}
+
+static void seaweed_model_update_per_instance_uniforms(
+  seaweed_model_t* this, const world_uniforms_t* world_uniforms)
+{
+  memcpy(&this->world_uniform_per.world_uniforms[this->instance],
+         world_uniforms, sizeof(world_uniforms_t));
+  this->seaweed_per.seaweed[this->instance].time
+    = this->aquarium->g.mclock + this->instance;
+
+  this->instance++;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
