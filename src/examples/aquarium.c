@@ -3820,6 +3820,231 @@ typedef struct {
   int32_t instance;
 } seaweed_model_t;
 
+static void seaweed_model_init_defaults(seaweed_model_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->light_factor_uniforms.shininess       = 50.0f;
+  this->light_factor_uniforms.specular_factor = 1.0f;
+
+  this->instance = 0;
+}
+
+static void seaweed_model_create(seaweed_model_t* this,
+                                 aquarium_context_t* aquarium_context,
+                                 aquarium_t* aquarium, model_group_t type,
+                                 model_name_t name, bool blend)
+{
+  seaweed_model_init_defaults(this);
+
+  this->model = (model_t){
+    .type  = type,
+    .name  = name,
+    .blend = blend,
+  };
+
+  this->aquarium_context = aquarium_context;
+  this->wgpu_context     = aquarium_context->wgpu_context;
+}
+
+static void seaweed_model_initialize(seaweed_model_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPUVertexAttribute vertex_attributes[3] = {
+    [0] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 0,
+    },
+    [1] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x3,
+      .offset = 0,
+      .shaderLocation = 1,
+    },
+    [2] = (WGPUVertexAttribute) {
+      .format = WGPUVertexFormat_Float32x2,
+      .offset = 0,
+      .shaderLocation = 2,
+    },
+  };
+
+  WGPUVertexBufferLayout vertex_buffer_layouts[3] = {
+    [0] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.position.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[0],
+    },
+    [1] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.normal.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[1],
+    },
+    [2] = (WGPUVertexBufferLayout) {
+      .arrayStride = this->buffers.tex_coord.size,
+      .stepMode = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes = &vertex_attributes[2],
+    },
+  };
+
+  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.entryPoint  = "main";
+  this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
+  this->vertex_state.buffers     = vertex_buffer_layouts;
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type=WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled = false,
+        },
+        .storageTexture = {0},
+      },
+    };
+    this->bind_group_layouts.model = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding = 1,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+    };
+    this->bind_group_layouts.per = context_make_bind_group_layout(
+      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  WGPUBindGroupLayout bind_group_layouts[4] = {
+    this->aquarium_context->bind_group_layouts.general, // Group 0
+    this->aquarium_context->bind_group_layouts.world,   // Group 1
+    this->bind_group_layouts.model,                     // Group 2
+    this->bind_group_layouts.per,                       // Group 3
+  };
+
+  this->pipeline_layout = context_make_basic_pipeline_layout(
+    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+
+  this->pipeline = context_create_render_pipeline(
+    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    &this->vertex_state, this->model.blend);
+
+  this->uniform_buffers.light_factor = context_create_buffer_from_data(
+    wgpu_context, &this->light_factor_uniforms,
+    sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+  this->uniform_buffers.time = context_create_buffer_from_data(
+    wgpu_context, &this->seaweed_per, sizeof(this->seaweed_per),
+    calc_constant_buffer_byte_size(sizeof(this->seaweed_per)),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+  this->uniform_buffers.view = context_create_buffer_from_data(
+    wgpu_context, &this->world_uniform_per, sizeof(this->world_uniform_per),
+    calc_constant_buffer_byte_size(sizeof(this->world_uniform_per)),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->uniform_buffers.light_factor,
+        .offset  = 0,
+        .size    = sizeof(this->light_factor_uniforms)
+      },
+      [1] = (WGPUBindGroupEntry){
+         .binding = 1,
+         .sampler = this->textures.diffuse->sampler,
+      },
+      [2] = (WGPUBindGroupEntry){
+        .binding     = 2,
+        .textureView = this->textures.diffuse->view,
+      },
+      };
+    this->bind_groups.model
+      = context_make_bind_group(wgpu_context, this->bind_group_layouts.model,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->uniform_buffers.view,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(sizeof(this->world_uniform_per)),
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->uniform_buffers.time,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(sizeof(this->seaweed_per)),
+      },
+    };
+    this->bind_groups.per
+      = context_make_bind_group(wgpu_context, this->bind_group_layouts.per,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+
+  context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
+                          sizeof(this->light_factor_uniforms),
+                          &this->light_factor_uniforms,
+                          sizeof(this->light_factor_uniforms));
+}
+
+static void seaweed_model_destroy(seaweed_model_t* this)
+{
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.time)
+  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
