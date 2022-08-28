@@ -2,6 +2,7 @@
 #include "examples.h"
 
 #include <cJSON.h>
+#include <limits.h>
 #include <string.h>
 
 /* -------------------------------------------------------------------------- *
@@ -1598,6 +1599,9 @@ typedef struct {
 typedef struct {
   wgpu_context_t* wgpu_context;
   light_world_position_uniform_t light_world_position_uniform;
+  world_uniforms_t world_uniforms;
+  light_uniforms_t light_uniforms;
+  fog_uniforms_t fog_uniforms;
   global_t g;
   struct {
     WGPUBuffer light_world_position_buffer;
@@ -1611,7 +1615,50 @@ typedef struct {
   } model_enum_map[MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
+  int32_t test_time;
 } aquarium_t;
+
+static void aquarium_init_defaults(aquarium_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->cur_fish_count = 500;
+  this->pre_fish_count = 0;
+  this->test_time      = INT_MAX;
+
+  this->g.mclock    = 0.0f;
+  this->g.eye_clock = 0.0f;
+  this->g.alpha     = "1";
+
+  this->light_uniforms.light_color[0] = 1.0f;
+  this->light_uniforms.light_color[1] = 1.0f;
+  this->light_uniforms.light_color[2] = 1.0f;
+  this->light_uniforms.light_color[3] = 1.0f;
+
+  this->light_uniforms.specular[0] = 1.0f;
+  this->light_uniforms.specular[1] = 1.0f;
+  this->light_uniforms.specular[2] = 1.0f;
+  this->light_uniforms.specular[3] = 1.0f;
+
+  this->fog_uniforms.fog_color[0] = g_settings.fog_red;
+  this->fog_uniforms.fog_color[1] = g_settings.fog_green;
+  this->fog_uniforms.fog_color[2] = g_settings.fog_blue;
+  this->fog_uniforms.fog_color[3] = 1.0f;
+
+  this->fog_uniforms.fog_power  = g_settings.fog_power;
+  this->fog_uniforms.fog_mult   = g_settings.fog_mult;
+  this->fog_uniforms.fog_offset = g_settings.fog_offset;
+
+  this->light_uniforms.ambient[0] = g_settings.ambient_red;
+  this->light_uniforms.ambient[1] = g_settings.ambient_green;
+  this->light_uniforms.ambient[2] = g_settings.ambient_blue;
+  this->light_uniforms.ambient[3] = 0.0f;
+}
+
+static void aquarium_create(aquarium_t* aquarium)
+{
+  aquarium_init_defaults(aquarium);
+}
 
 static model_name_t
 aquarium_map_model_name_str_to_model_name(aquarium_t* aquarium,
