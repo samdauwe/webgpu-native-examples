@@ -475,10 +475,10 @@ typedef enum {
 } model_group_t;
 
 typedef enum {
-  BIG,
-  MEDIUM,
-  SMALL,
-  MAX,
+  FISHENUM_BIG,
+  FISHENUM_MEDIUM,
+  FISHENUM_SMALL,
+  FISHENUM_MAX,
 } fish_num_t;
 
 typedef enum {
@@ -1653,11 +1653,53 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->light_uniforms.ambient[1] = g_settings.ambient_green;
   this->light_uniforms.ambient[2] = g_settings.ambient_blue;
   this->light_uniforms.ambient[3] = 0.0f;
+
+  memset(this->fish_count, 0, 5);
 }
 
-static void aquarium_create(aquarium_t* aquarium)
+static void aquarium_create(aquarium_t* this)
 {
-  aquarium_init_defaults(aquarium);
+  aquarium_init_defaults(this);
+}
+
+static void aquarium_calculate_fish_count(aquarium_t* this)
+{
+  /* Calculate fish count for each type of fish */
+  int32_t num_left = this->cur_fish_count;
+  for (int i = 0; i < FISHENUM_MAX; ++i) {
+    for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(fish_table); ++i) {
+      const fish_t* fish_info = &fish_table[i];
+      if (fish_info->type != i) {
+        continue;
+      }
+      int32_t num_float = num_left;
+      if (i == FISHENUM_BIG) {
+        int32_t temp = this->cur_fish_count < g_settings.num_fish_small ? 1 : 2;
+        num_float    = MIN(num_left, temp);
+      }
+      else if (i == FISHENUM_MEDIUM) {
+        if (this->cur_fish_count < g_settings.num_fish_medium) {
+          num_float = MIN(num_left, this->cur_fish_count / 10);
+        }
+        else if (this->cur_fish_count < g_settings.num_fish_big) {
+          num_float = MIN(num_left, g_settings.num_fish_left_small);
+        }
+        else {
+          num_float = MIN(num_left, g_settings.num_fish_left_big);
+        }
+      }
+      num_left = num_left - num_float;
+      this->fish_count[fish_info->model_name - MODELSMALLFISHA] = num_float;
+    }
+  }
+}
+
+static void aquarium_init(aquarium_t* this)
+{
+  aquarium_calculate_fish_count(this);
+
+  /* Avoid resource allocation in the first render loop */
+  this->pre_fish_count = this->cur_fish_count;
 }
 
 static model_name_t
