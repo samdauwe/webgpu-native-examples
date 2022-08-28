@@ -719,6 +719,18 @@ enum {
   MODELSEAWEEDB_COUNT        = 11,
 };
 
+static struct {
+  bool enable_alpha_blending;        /* Enable alpha blending */
+  bool enable_instanced_draw;        /* Go through instanced draw */
+  bool enable_dynamic_buffer_offset; /* Enable dynamic buffer offset */
+  bool draw_per_model;               /*  Draw per instance or model */
+  bool print_log;                    /* Print logs such as avg fps */
+  bool buffer_mapping_async;      /* Use async buffer mapping to upload data */
+  bool simulate_fish_come_and_go; /* Simulate fish come and go */
+  bool turn_off_vsync;            /* Turn off vsync, donot limit fps to 60 */
+  uint32_t msaa_sample_count;     /* MSAA sample count */
+} aquarium_settings;
+
 static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SmallFishA",
@@ -1143,10 +1155,6 @@ static g_settings_t g_settings = {
   .eye_radius        = 13.2f,
   .field_of_view     = 82.699f,
 };
-
-static struct {
-  uint32_t msaa_sample_count;
-} aquarium_settings;
 
 /* -------------------------------------------------------------------------- *
  * Behavior - base class for behavior.
