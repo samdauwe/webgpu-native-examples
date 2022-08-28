@@ -995,7 +995,7 @@ static const fish_t fish_table[5] = {
   {
     .name             = "SmallFishA",
     .model_name       = MODELSMALLFISHA,
-    .type             = SMALL,
+    .type             = FISHENUM_SMALL,
     .speed            = 1.0f,
     .speed_range      = 1.5f,
     .radius           = 30.0f,
@@ -1010,7 +1010,7 @@ static const fish_t fish_table[5] = {
   {
     .name             = "MediumFishA",
     .model_name       = MODELMEDIUMFISHA,
-    .type             = MEDIUM,
+    .type             = FISHENUM_MEDIUM,
     .speed            = 1.0f,
     .speed_range      = 2.0f,
     .radius           = 10.0f,
@@ -1025,7 +1025,7 @@ static const fish_t fish_table[5] = {
   {
     .name             = "MediumFishB",
     .model_name       = MODELMEDIUMFISHB,
-    .type             = MEDIUM,
+    .type             = FISHENUM_MEDIUM,
     .speed            = 0.5f,
     .speed_range      = 4.0f,
     .radius           = 10.0f,
@@ -1040,7 +1040,7 @@ static const fish_t fish_table[5] = {
   {
     .name             = "BigFishA",
     .model_name       = MODELBIGFISHA,
-    .type             = BIG,
+    .type             = FISHENUM_BIG,
     .speed            = 0.5f,
     .speed_range      = 0.5f,
     .radius           = 50.0f,
@@ -1059,7 +1059,7 @@ static const fish_t fish_table[5] = {
   {
     .name             = "BigFishB",
     .model_name       = MODELBIGFISHA,
-    .type             = BIG,
+    .type             = FISHENUM_BIG,
     .speed            = 0.5f,
     .speed_range      = 0.5f,
     .radius           = 45.0f,
