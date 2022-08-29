@@ -1618,6 +1618,11 @@ typedef struct {
   int32_t test_time;
 } aquarium_t;
 
+static float get_current_time_point()
+{
+  return 0.0f;
+}
+
 static void aquarium_init_defaults(aquarium_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -1626,6 +1631,7 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->pre_fish_count = 0;
   this->test_time      = INT_MAX;
 
+  this->g.then      = get_current_time_point();
   this->g.mclock    = 0.0f;
   this->g.eye_clock = 0.0f;
   this->g.alpha     = "1";
@@ -1700,6 +1706,33 @@ static void aquarium_init(aquarium_t* this)
 
   /* Avoid resource allocation in the first render loop */
   this->pre_fish_count = this->cur_fish_count;
+}
+
+static void aquarium_reset_fps_time(aquarium_t* this)
+{
+  this->g.start = get_current_time_point();
+  this->g.then  = this->g.start;
+}
+
+static void aquarium_load_models(aquarium_t* this)
+{
+}
+
+static void aquarium_load_placement(aquarium_t* this)
+{
+}
+
+static void aquarium_load_fish_scenario(aquarium_t* this)
+{
+}
+
+static void aquarium_load_resource(aquarium_t* this)
+{
+  aquarium_load_models(this);
+  aquarium_load_placement(this);
+  if (aquarium_settings.simulate_fish_come_and_go) {
+    aquarium_load_fish_scenario(this);
+  }
 }
 
 static model_name_t
