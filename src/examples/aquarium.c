@@ -1589,25 +1589,22 @@ typedef struct {
   WGPURenderPassEncoder render_pass;
   WGPUBindGroup* bind_group_fish_pers;
   fish_per_t* fish_pers;
+  struct {
+    WGPUBuffer light_world_position;
+    WGPUBuffer light;
+    WGPUBuffer fog;
+  } uniform_buffers;
 } aquarium_context_t;
-
-/* -------------------------------------------------------------------------- *
- * Aquarium - Main class
- * -------------------------------------------------------------------------- */
 
 // All state is in a single nested struct
 typedef struct {
   wgpu_context_t* wgpu_context;
+  aquarium_context_t* aquarium_context;
   light_world_position_uniform_t light_world_position_uniform;
   world_uniforms_t world_uniforms;
   light_uniforms_t light_uniforms;
   fog_uniforms_t fog_uniforms;
   global_t g;
-  struct {
-    WGPUBuffer light_world_position_buffer;
-    WGPUBuffer light_buffer;
-    WGPUBuffer fog_buffer;
-  } context;
   int32_t fish_count[5];
   struct {
     char key[STRMAX];
@@ -1617,6 +1614,13 @@ typedef struct {
   int32_t pre_fish_count;
   int32_t test_time;
 } aquarium_t;
+
+static void aquarium_context_update_world_uniforms(aquarium_context_t* this,
+                                                   aquarium_t* aquarium);
+
+/* -------------------------------------------------------------------------- *
+ * Aquarium - Main class functions
+ * -------------------------------------------------------------------------- */
 
 static float get_current_time_point()
 {
@@ -1771,13 +1775,9 @@ aquarium_get_elapsed_time(aquarium_t* aquarium,
   return elapsed_time;
 }
 
-static void aquarium_update_world_uniforms(aquarium_t* aquarium)
+static void aquarium_update_world_uniforms(aquarium_t* this)
 {
-  context_update_buffer_data(
-    aquarium->wgpu_context, aquarium->context.light_world_position_buffer,
-    calc_constant_buffer_byte_size(sizeof(light_world_position_uniform_t)),
-    &aquarium->light_world_position_uniform,
-    sizeof(light_world_position_uniform_t));
+  aquarium_context_update_world_uniforms(this->aquarium_context, this);
 }
 
 static void
@@ -1845,6 +1845,20 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
 
   // Update world uniforms
   aquarium_update_world_uniforms(aquarium);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Aquarium context functions - Defines the graphics API
+ * -------------------------------------------------------------------------- */
+
+static void aquarium_context_update_world_uniforms(aquarium_context_t* this,
+                                                   aquarium_t* aquarium)
+{
+  context_update_buffer_data(
+    aquarium->wgpu_context, this->uniform_buffers.light_world_position,
+    calc_constant_buffer_byte_size(sizeof(light_world_position_uniform_t)),
+    &aquarium->light_world_position_uniform,
+    sizeof(light_world_position_uniform_t));
 }
 
 /* -------------------------------------------------------------------------- *
