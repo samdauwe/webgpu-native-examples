@@ -1664,7 +1664,7 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->light_uniforms.ambient[2] = g_settings.ambient_blue;
   this->light_uniforms.ambient[3] = 0.0f;
 
-  memset(this->fish_count, 0, 5);
+  memset(this->fish_count, 0, sizeof(this->fish_count));
 }
 
 static void aquarium_create(aquarium_t* this)
