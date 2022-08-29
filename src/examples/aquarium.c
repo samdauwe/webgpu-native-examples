@@ -1457,7 +1457,7 @@ static WGPUBindGroupLayout context_make_bind_group_layout(
                             .entryCount = bind_group_layout_entry_count,
                             .entries    = bind_group_layout_entries,
                           });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
   return bind_group_layout;
 }
 
@@ -1471,7 +1471,7 @@ static WGPUBindGroup context_make_bind_group(
                             .entryCount = bind_group_entry_count,
                             .entries    = bind_group_entries,
                           });
-  ASSERT(bind_group != NULL)
+  ASSERT(bind_group != NULL);
   return bind_group;
 }
 
