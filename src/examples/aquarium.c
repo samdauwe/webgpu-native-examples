@@ -2029,34 +2029,34 @@ static void fish_model_draw_init(fish_model_draw_t* this)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.position.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.position.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[0],
+      .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.normal.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[1],
+      .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tex_coord.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.tex_coord.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[2],
+      .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tangent.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.tangent.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[3],
+      .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.bi_normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.bi_normal.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[4],
+      .attributes     = &vertex_attributes[4],
     },
   };
 
