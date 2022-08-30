@@ -2001,28 +2001,28 @@ static void fish_model_draw_init(fish_model_draw_t* this)
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 0,
     },
     [1] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 1,
     },
     [2] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x2,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = 0,
       .shaderLocation = 2,
     },
     [3] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 3,
     },
     [4] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 4,
     },
   };
