@@ -1919,7 +1919,7 @@ static void fish_model_prepare_for_draw(fish_model_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
- * Fish model - Defines fish model.
+ * Fish model - Defines the base fish model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
