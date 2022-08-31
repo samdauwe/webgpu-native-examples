@@ -4,6 +4,7 @@
 #include <cJSON.h>
 #include <limits.h>
 #include <sc_array.h>
+#include <sc_queue.h>
 #include <string.h>
 
 /* -------------------------------------------------------------------------- *
@@ -1345,9 +1346,11 @@ typedef struct {
 } ring_buffer_t;
 
 sc_array_def(ring_buffer_t*, ring_buffer);
+sc_queue_def(ring_buffer_t*, ring_buffer);
 
 typedef struct {
   wgpu_context_t* wgpu_context;
+  struct sc_queue_ring_buffer mapped_buffer_list;
   struct sc_array_ring_buffer enqueued_buffer_list;
   size_t buffer_pool_size;
   size_t used_size;
@@ -1453,6 +1456,60 @@ static size_t ring_buffer_allocate(ring_buffer_t* this, size_t size)
 static size_t buffer_manager_find(buffer_manager_t* this,
                                   ring_buffer_t* ring_buffer);
 
+static void buffer_manager_init_defaults(buffer_manager_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->buffer_pool_size = BUFFER_POOL_MAX_SIZE;
+  this->used_size        = 0;
+  this->count            = 0;
+}
+
+static void buffer_manager_create(buffer_manager_t* this)
+{
+  buffer_manager_init_defaults(this);
+}
+
+static void buffer_manager_destroy_buffer_pool(buffer_manager_t* this)
+{
+}
+
+static void buffer_manager_destroy(buffer_manager_t* this)
+{
+  buffer_manager_destroy_buffer_pool(this);
+}
+
+static size_t buffer_manager_get_size(buffer_manager_t* this)
+{
+  return this->buffer_pool_size;
+}
+
+static bool buffer_manager_reset_buffer(buffer_manager_t* this,
+                                        ring_buffer_t* ring_buffer, size_t size)
+{
+  size_t index = buffer_manager_find(this, ring_buffer);
+
+  if (index >= sc_array_size(&this->enqueued_buffer_list)) {
+    return false;
+  }
+
+  size_t old_size = ring_buffer_get_size(ring_buffer);
+
+  bool result = ring_buffer_reset(ring_buffer, size);
+  // If the size is larger than the ring buffer size, reset fails and the ring
+  // buffer retains.
+  // If the size is equal or smaller than the ring buffer size, reset success
+  // and the used size need to be updated.
+  if (!result) {
+    return false;
+  }
+  else {
+    this->used_size = this->used_size - old_size + size;
+  }
+
+  return true;
+}
+
 static bool buffer_manager_destroy_buffer(buffer_manager_t* this,
                                           ring_buffer_t* ring_buffer)
 {
@@ -1489,6 +1546,12 @@ static void buffer_manager_flush(buffer_manager_t* this)
   {
     ring_buffer_flush(buffer);
   }
+}
+
+static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
+                                              size_t size, size_t* offset)
+{
+  return NULL;
 }
 
 /* -------------------------------------------------------------------------- *
