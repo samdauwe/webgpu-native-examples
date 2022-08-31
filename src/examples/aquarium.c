@@ -3,6 +3,7 @@
 
 #include <cJSON.h>
 #include <limits.h>
+#include <sc_array.h>
 #include <string.h>
 
 /* -------------------------------------------------------------------------- *
@@ -1343,8 +1344,14 @@ typedef struct {
   void* pixels;
 } ring_buffer_t;
 
+sc_array_def(ring_buffer_t*, ring_buffer);
+
 typedef struct {
   wgpu_context_t* wgpu_context;
+  struct sc_array_ring_buffer enqueued_buffer_list;
+  size_t buffer_pool_size;
+  size_t used_size;
+  size_t count;
 } buffer_manager_t;
 
 static size_t ring_buffer_get_size(ring_buffer_t* this)
@@ -1443,10 +1450,50 @@ static size_t ring_buffer_allocate(ring_buffer_t* this, size_t size)
   return this->tail - size;
 }
 
-/* --------------------------------------------------------------------------
+static size_t buffer_manager_find(buffer_manager_t* this,
+                                  ring_buffer_t* ring_buffer);
+
+static bool buffer_manager_destroy_buffer(buffer_manager_t* this,
+                                          ring_buffer_t* ring_buffer)
+{
+  size_t index = buffer_manager_find(this, ring_buffer);
+
+  if (index >= sc_array_size(&this->enqueued_buffer_list)) {
+    return false;
+  }
+
+  this->used_size -= ring_buffer_get_size(ring_buffer);
+  ring_buffer_destroy(ring_buffer);
+  sc_array_del(&this->enqueued_buffer_list, index);
+
+  return true;
+}
+
+static size_t buffer_manager_find(buffer_manager_t* this,
+                                  ring_buffer_t* ring_buffer)
+{
+  size_t index = 0;
+  for (index = 0; index < sc_array_size(&this->enqueued_buffer_list); index++) {
+    if (this->enqueued_buffer_list.elems[index] == ring_buffer) {
+      break;
+    }
+  }
+  return index;
+}
+
+/* Flush copy commands in buffer pool */
+static void buffer_manager_flush(buffer_manager_t* this)
+{
+  ring_buffer_t* buffer;
+  sc_array_foreach(&this->enqueued_buffer_list, buffer)
+  {
+    ring_buffer_flush(buffer);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * * Aquarium context - Helper functions
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 static WGPUBindGroupLayout context_make_bind_group_layout(
   wgpu_context_t* wgpu_context,
