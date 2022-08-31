@@ -335,6 +335,7 @@ else()
         PRIVATE external/ktx/include
         PRIVATE external/par
         PRIVATE external/rply
+        PRIVATE external/sc
         PRIVATE external/stb
     )
 endif()
