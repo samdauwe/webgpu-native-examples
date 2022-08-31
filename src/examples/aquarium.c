@@ -1492,7 +1492,7 @@ static void buffer_manager_flush(buffer_manager_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
- * * Aquarium context - Helper functions
+ * Aquarium context - Helper functions
  * -------------------------------------------------------------------------- */
 
 static WGPUBindGroupLayout context_make_bind_group_layout(
