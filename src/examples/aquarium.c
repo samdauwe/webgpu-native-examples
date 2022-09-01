@@ -1355,6 +1355,8 @@ typedef struct {
   size_t buffer_pool_size;
   size_t used_size;
   size_t count;
+  WGPUCommandEncoder encoder;
+  bool sync;
 } buffer_manager_t;
 
 static size_t ring_buffer_get_size(ring_buffer_t* this)
@@ -1472,6 +1474,14 @@ static void buffer_manager_create(buffer_manager_t* this)
 
 static void buffer_manager_destroy_buffer_pool(buffer_manager_t* this)
 {
+  if (!this->sync) {
+    return;
+  }
+
+  for (size_t i = 0; i < sc_array_size(&this->enqueued_buffer_list); i++) {
+    ring_buffer_destroy(this->enqueued_buffer_list.elems[i]);
+  }
+  sc_array_clear(&this->enqueued_buffer_list);
 }
 
 static void buffer_manager_destroy(buffer_manager_t* this)
