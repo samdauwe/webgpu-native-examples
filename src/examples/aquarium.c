@@ -1333,12 +1333,14 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
 #define BUFFER_MAX_COUNT = 10ull
 #define BUFFER_PER_ALLOCATE_SIZE (BUFFER_POOL_MAX_SIZE / BUFFER_MAX_COUNT)
 
+struct buffer_manager_t;
+
 typedef struct {
   size_t head;
   size_t tail;
   size_t size;
 
-  void* buffer_manager;
+  struct buffer_manager_t* buffer_manager;
   wgpu_context_t* wgpu_context;
   WGPUBuffer buf;
   void* mapped_data;
