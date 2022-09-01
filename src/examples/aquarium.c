@@ -1330,7 +1330,7 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
  * -------------------------------------------------------------------------- */
 
 #define BUFFER_POOL_MAX_SIZE 409600000ull
-#define BUFFER_MAX_COUNT = 10ull
+#define BUFFER_MAX_COUNT 10ull
 #define BUFFER_PER_ALLOCATE_SIZE (BUFFER_POOL_MAX_SIZE / BUFFER_MAX_COUNT)
 
 struct buffer_manager_t;
@@ -1561,7 +1561,7 @@ static void buffer_manager_flush(buffer_manager_t* this)
     sc_queue_del_first(&this->mapped_buffer_list);
   }
 
-  ring_buffer_t* buffer;
+  ring_buffer_t* buffer = NULL;
   sc_array_foreach(&this->enqueued_buffer_list, buffer)
   {
     ring_buffer_flush(buffer);
@@ -1590,10 +1590,82 @@ static void buffer_manager_flush(buffer_manager_t* this)
     = wgpuDeviceCreateCommandEncoder(this->wgpu_context->device, NULL);
 }
 
+/* Allocate new buffer from buffer pool. */
 static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
                                               size_t size, size_t* offset)
 {
-  return NULL;
+  // If update data by sync method, create new buffer to upload every frame.
+  // If updaye data by async method, get new buffer from pool if available. If
+  // no available buffer and size is enough in the buffer pool, create a new
+  // buffer. If size reach the limit of the buffer pool, force wait for the
+  // buffer on mapping. Get the last one and check if the ring buffer is full.
+  // If the buffer can hold extra size space, use the last one directly.
+  // TODO(yizhou): Return nullptr if size reach the limit or no available
+  // buffer, this means small bubbles in some of the ring buffers and we haven't
+  // deal with the problem now.
+
+  ring_buffer_t* ring_buffer = NULL;
+  size_t cur_offset          = 0;
+  if (!this->sync) {
+    // Upper limit
+    if (this->used_size + size > this->buffer_pool_size) {
+      return NULL;
+    }
+
+    ring_buffer = malloc(sizeof(ring_buffer_t));
+    ring_buffer_create(ring_buffer, this, size);
+    sc_array_add(&this->enqueued_buffer_list, ring_buffer);
+  }
+  else { /* Buffer mapping async */
+    while (!(sc_queue_size(&this->mapped_buffer_list) == 0)) {
+      ring_buffer = sc_queue_peek_first(&this->mapped_buffer_list);
+      if (ring_buffer_get_available_size(ring_buffer) < size) {
+        sc_queue_del_first(&this->mapped_buffer_list);
+        ring_buffer = NULL;
+      }
+      else {
+        break;
+      }
+    }
+
+    if (ring_buffer == NULL) {
+      if (this->count < BUFFER_MAX_COUNT) {
+        this->used_size += size;
+        ring_buffer = malloc(sizeof(ring_buffer_t));
+        ring_buffer_create(ring_buffer, this, BUFFER_PER_ALLOCATE_SIZE);
+        sc_queue_add_last(&this->mapped_buffer_list, ring_buffer);
+        this->count++;
+      }
+      else if (sc_queue_size(&this->mapped_buffer_list)
+                 + sc_array_size(&this->enqueued_buffer_list)
+               < this->count) {
+        // Force wait for the buffer remapping
+        while (sc_queue_size(&this->mapped_buffer_list) == 0) {
+          printf("mContext->WaitABit();\n");
+        }
+
+        ring_buffer = sc_queue_peek_first(&this->mapped_buffer_list);
+        if (ring_buffer_get_available_size(ring_buffer) < size) {
+          sc_queue_del_first(&this->mapped_buffer_list);
+          ring_buffer = NULL;
+        }
+      }
+      else { /* Upper limit */
+        return NULL;
+      }
+    }
+
+    if (sc_array_size(&this->enqueued_buffer_list) == 0
+        && (sc_array_last(&this->enqueued_buffer_list)) != ring_buffer) {
+      sc_queue_add_last(&this->mapped_buffer_list, ring_buffer);
+    }
+
+    /* allocate size in the ring buffer */
+    cur_offset = ring_buffer_allocate(ring_buffer, size);
+    *offset    = cur_offset;
+  }
+
+  return ring_buffer;
 }
 
 /* -------------------------------------------------------------------------- *
