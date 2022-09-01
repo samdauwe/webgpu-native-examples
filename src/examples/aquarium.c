@@ -1553,11 +1553,41 @@ static size_t buffer_manager_find(buffer_manager_t* this,
 /* Flush copy commands in buffer pool */
 static void buffer_manager_flush(buffer_manager_t* this)
 {
+  // The front buffer in MappedBufferList will be remap after submit, pop the
+  // buffer from MappedBufferList.
+  if (sc_array_size(&this->enqueued_buffer_list) == 0
+      && (sc_array_last(&this->enqueued_buffer_list))
+           == (sc_queue_peek_first(&this->mapped_buffer_list))) {
+    sc_queue_del_first(&this->mapped_buffer_list);
+  }
+
   ring_buffer_t* buffer;
   sc_array_foreach(&this->enqueued_buffer_list, buffer)
   {
     ring_buffer_flush(buffer);
   }
+
+  WGPUCommandBuffer copy = wgpuCommandEncoderFinish(this->encoder, NULL);
+  wgpuQueueSubmit(this->wgpu_context->queue, 1, &copy);
+
+  /* Async function */
+  if (!this->sync) {
+    sc_array_foreach(&this->enqueued_buffer_list, buffer)
+    {
+      ring_buffer_re_map(buffer);
+    }
+  }
+  else {
+    /* All buffers are used once in buffer sync mode. */
+    for (size_t i = 0; i < sc_array_size(&this->enqueued_buffer_list); i++) {
+      free(this->enqueued_buffer_list.elems[i]);
+    }
+    this->used_size = 0;
+  }
+
+  sc_array_clear(&this->enqueued_buffer_list);
+  this->encoder
+    = wgpuDeviceCreateCommandEncoder(this->wgpu_context->device, NULL);
 }
 
 static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
