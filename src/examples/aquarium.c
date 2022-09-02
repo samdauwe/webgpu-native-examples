@@ -2313,78 +2313,78 @@ static void fish_model_draw_init(fish_model_draw_t* this)
   {
     WGPUBindGroupLayoutEntry bgl_entries[8] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
-        .binding = 4,
+        .binding    = 4,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [5] = (WGPUBindGroupLayoutEntry) {
-        .binding = 5,
+        .binding    = 5,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [6] = (WGPUBindGroupLayoutEntry) {
-        .binding = 6,
+        .binding    = 6,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [7] = (WGPUBindGroupLayoutEntry) {
-        .binding = 7,
+        .binding    = 7,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -2396,12 +2396,12 @@ static void fish_model_draw_init(fish_model_draw_t* this)
     else {
       bgl_entry_count = 5;
       bgl_entries[3]  = (WGPUBindGroupLayoutEntry) {
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       };
