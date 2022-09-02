@@ -1814,14 +1814,29 @@ typedef struct {
     WGPUBindGroup world;
     WGPUBindGroup fish_per;
   } bind_groups;
-  WGPURenderPassEncoder render_pass;
+  WGPUBuffer fish_pers_buffer;
   WGPUBindGroup* bind_group_fish_pers;
   fish_per_t* fish_pers;
+  WGPUTextureUsage swapchain_back_buffer_usage;
+  bool is_swapchain_out_of_date;
+  WGPUCommandEncoder command_encoder;
+  WGPURenderPassEncoder render_pass;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  struct {
+    WGPUTextureView backbuffer;
+    WGPUTextureView scene_render_target;
+    WGPUTextureView scene_depth_stencil;
+  } texture_views;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroup bind_group;
+  WGPUTextureFormat preferred_swap_chain_format;
   struct {
     WGPUBuffer light_world_position;
     WGPUBuffer light;
     WGPUBuffer fog;
   } uniform_buffers;
+  bool enable_dynamic_buffer_offset;
+  buffer_manager_t* buffer_manager;
 } aquarium_context_t;
 
 // All state is in a single nested struct
