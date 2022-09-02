@@ -1472,6 +1472,8 @@ static void buffer_manager_init_defaults(buffer_manager_t* this)
 static void buffer_manager_create(buffer_manager_t* this)
 {
   buffer_manager_init_defaults(this);
+  this->encoder
+    = wgpuDeviceCreateCommandEncoder(this->wgpu_context->device, NULL);
 }
 
 static void buffer_manager_destroy_buffer_pool(buffer_manager_t* this)
@@ -1489,6 +1491,7 @@ static void buffer_manager_destroy_buffer_pool(buffer_manager_t* this)
 static void buffer_manager_destroy(buffer_manager_t* this)
 {
   buffer_manager_destroy_buffer_pool(this);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, this->encoder)
 }
 
 static size_t buffer_manager_get_size(buffer_manager_t* this)
