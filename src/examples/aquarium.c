@@ -1802,8 +1802,11 @@ static WGPURenderPipeline context_create_render_pipeline(
  * Aquarium context - Defines outside model of Dawn
  * -------------------------------------------------------------------------- */
 
+sc_array_def(WGPUCommandBuffer, command_buffer);
+
 typedef struct {
   wgpu_context_t* wgpu_context;
+  struct sc_array_command_buffer command_buffers;
   struct {
     WGPUBindGroupLayout general;
     WGPUBindGroupLayout world;
