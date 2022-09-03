@@ -1236,24 +1236,6 @@ static void context_set_buffer_data(wgpu_context_t* wgpu_context,
   WGPU_RELEASE_RESOURCE(Buffer, staging);
 }
 
-static WGPUBuffer context_create_buffer_from_data(wgpu_context_t* wgpu_context,
-                                                  const void* data,
-                                                  uint32_t size,
-                                                  uint32_t max_size,
-                                                  WGPUBufferUsage usage)
-{
-  WGPUBufferDescriptor buffer_desc = {
-    .usage            = usage | WGPUBufferUsage_CopyDst,
-    .size             = max_size,
-    .mappedAtCreation = false,
-  };
-  WGPUBuffer buffer = context_create_buffer(wgpu_context, &buffer_desc);
-
-  context_set_buffer_data(wgpu_context, buffer, max_size, data, size);
-  ASSERT(buffer != NULL);
-  return buffer;
-}
-
 static size_t calc_constant_buffer_byte_size(size_t byte_size)
 {
   return (byte_size + 255) & ~255;
@@ -1675,20 +1657,6 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
  * Aquarium context - Helper functions
  * -------------------------------------------------------------------------- */
 
-static WGPUBindGroupLayout context_make_bind_group_layout(
-  wgpu_context_t* wgpu_context,
-  WGPUBindGroupLayoutEntry const* bind_group_layout_entries,
-  uint32_t bind_group_layout_entry_count)
-{
-  WGPUBindGroupLayout bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .entryCount = bind_group_layout_entry_count,
-                            .entries    = bind_group_layout_entries,
-                          });
-  ASSERT(bind_group_layout != NULL);
-  return bind_group_layout;
-}
-
 static WGPUBindGroup context_make_bind_group(
   wgpu_context_t* wgpu_context, WGPUBindGroupLayout layout,
   WGPUBindGroupEntry const* bind_group_entries, uint32_t bind_group_entry_count)
@@ -1703,101 +1671,6 @@ static WGPUBindGroup context_make_bind_group(
   return bind_group;
 }
 
-static WGPUPipelineLayout context_make_basic_pipeline_layout(
-  wgpu_context_t* wgpu_context, WGPUBindGroupLayout const* bind_group_layouts,
-  uint32_t bind_group_layout_count)
-{
-  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .bindGroupLayoutCount = bind_group_layout_count,
-                            .bindGroupLayouts     = bind_group_layouts,
-                          });
-  ASSERT(pipeline_layout != NULL);
-  return pipeline_layout;
-}
-
-static WGPURenderPipeline context_create_render_pipeline(
-  wgpu_context_t* wgpu_context, WGPUPipelineLayout pipeline_layout,
-  WGPUShaderModule fs_module, WGPUVertexState const* vertex_state,
-  bool enable_blend)
-{
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
-  };
-
-  WGPUStencilFaceState stencil_face_state = {
-    .compare     = WGPUCompareFunction_Always,
-    .failOp      = WGPUStencilOperation_Keep,
-    .depthFailOp = WGPUStencilOperation_Keep,
-    .passOp      = WGPUStencilOperation_Keep,
-  };
-
-  WGPUDepthStencilState depth_stencil_state = {
-    .format              = WGPUTextureFormat_Depth24PlusStencil8,
-    .depthWriteEnabled   = true,
-    .depthCompare        = WGPUCompareFunction_Less,
-    .stencilFront        = stencil_face_state,
-    .stencilBack         = stencil_face_state,
-    .stencilReadMask     = 0xffffffff,
-    .stencilWriteMask    = 0xffffffff,
-    .depthBias           = 0,
-    .depthBiasSlopeScale = 0.0f,
-    .depthBiasClamp      = 0.0f,
-  };
-
-  WGPUMultisampleState multisample_state = {
-    .count                  = aquarium_settings.msaa_sample_count,
-    .mask                   = 0xffffffff,
-    .alphaToCoverageEnabled = false,
-  };
-
-  WGPUBlendComponent blend_component = {
-    .operation = WGPUBlendOperation_Add,
-  };
-  if (enable_blend) {
-    blend_component.srcFactor = WGPUBlendFactor_SrcAlpha;
-    blend_component.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
-  }
-  else {
-    blend_component.srcFactor = WGPUBlendFactor_One;
-    blend_component.dstFactor = WGPUBlendFactor_Zero;
-  }
-
-  WGPUBlendState blend_state = {
-    .color = blend_component,
-    .alpha = blend_component,
-  };
-
-  WGPUColorTargetState color_target_state = {
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
-
-  WGPUFragmentState fragment_state = {
-    .module      = fs_module,
-    .entryPoint  = "main",
-    .targetCount = 1,
-    .targets     = &color_target_state,
-  };
-
-  WGPURenderPipelineDescriptor pipeline_descriptor = {
-    .layout       = pipeline_layout,
-    .vertex       = *vertex_state,
-    .primitive    = primitive_state,
-    .depthStencil = &depth_stencil_state,
-    .multisample  = multisample_state,
-    .fragment     = &fragment_state,
-  };
-
-  WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &pipeline_descriptor);
-  ASSERT(pipeline != NULL)
-  return pipeline;
-}
-
 /* -------------------------------------------------------------------------- *
  * Aquarium context - Defines outside model of Dawn
  * -------------------------------------------------------------------------- */
@@ -1806,6 +1679,7 @@ sc_array_def(WGPUCommandBuffer, command_buffer);
 
 typedef struct {
   wgpu_context_t* wgpu_context;
+  WGPUDevice device;
   struct sc_array_command_buffer command_buffers;
   struct {
     WGPUBindGroupLayout general;
@@ -1863,6 +1737,221 @@ typedef struct {
 
 static void context_update_world_uniforms(context_t* this,
                                           aquarium_t* aquarium);
+
+static void context_init_defaults(context_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->preferred_swap_chain_format = WGPUTextureFormat_RGBA8Unorm;
+}
+
+static void context_create(context_t* this)
+{
+  context_init_defaults(this);
+}
+
+static void context_detroy(context_t* this)
+{
+}
+
+static void context_initialize(context_t* this)
+{
+}
+
+static WGPUSampler
+context_create_sampler(context_t* this, WGPUSamplerDescriptor const* descriptor)
+{
+  return wgpuDeviceCreateSampler(this->device, descriptor);
+}
+
+static WGPUBuffer context_create_buffer_from_data(context_t* this,
+                                                  const void* data,
+                                                  uint32_t size,
+                                                  uint32_t max_size,
+                                                  WGPUBufferUsage usage)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = usage | WGPUBufferUsage_CopyDst,
+    .size             = max_size,
+    .mappedAtCreation = false,
+  };
+  WGPUBuffer buffer = context_create_buffer(wgpu_context, &buffer_desc);
+
+  context_set_buffer_data(wgpu_context, buffer, max_size, data, size);
+  ASSERT(buffer != NULL);
+  return buffer;
+}
+
+static WGPUImageCopyBuffer
+context_create_image_copy_buffer(context_t* this, WGPUBuffer buffer,
+                                 uint32_t offset, uint32_t bytes_per_row,
+                                 uint32_t rows_per_image)
+{
+  UNUSED_VAR(this);
+
+  WGPUImageCopyBuffer image_copy_buffer_desc = {
+    .layout.offset       = offset,
+    .layout.bytesPerRow  = bytes_per_row,
+    .layout.rowsPerImage = rows_per_image,
+    .buffer              = buffer,
+  };
+
+  return image_copy_buffer_desc;
+}
+
+static WGPUImageCopyTexture
+context_create_image_copy_texture(context_t* this, WGPUTexture texture,
+                                  uint32_t level, WGPUOrigin3D origin)
+{
+  UNUSED_VAR(this);
+
+  WGPUImageCopyTexture image_copy_texture_desc = {
+    .texture  = texture,
+    .mipLevel = level,
+    .origin   = origin,
+  };
+
+  return image_copy_texture_desc;
+}
+
+static WGPUCommandBuffer context_copy_buffer_to_texture(
+  context_t* this, WGPUImageCopyBuffer const* image_copy_buffer,
+  WGPUImageCopyTexture const* image_copy_texture, WGPUExtent3D const* ext_3d)
+{
+  WGPUCommandEncoder encoder
+    = wgpuDeviceCreateCommandEncoder(this->device, NULL);
+  wgpuCommandEncoderCopyBufferToTexture(encoder, image_copy_buffer,
+                                        image_copy_texture, ext_3d);
+  WGPUCommandBuffer copy = wgpuCommandEncoderFinish(encoder, NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
+
+  return copy;
+}
+
+static WGPUCommandBuffer
+context_copy_buffer_to_buffer(context_t* this, WGPUBuffer src_buffer,
+                              uint64_t src_offset, WGPUBuffer dest_buffer,
+                              uint64_t dest_offset, uint64_t size)
+{
+  WGPUCommandEncoder encoder
+    = wgpuDeviceCreateCommandEncoder(this->device, NULL);
+  wgpuCommandEncoderCopyBufferToBuffer(encoder, src_buffer, src_offset,
+                                       dest_buffer, dest_offset, size);
+  WGPUCommandBuffer copy = wgpuCommandEncoderFinish(encoder, NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
+
+  return copy;
+}
+
+static WGPUBindGroupLayout context_make_bind_group_layout(
+  context_t* this, WGPUBindGroupLayoutEntry const* bind_group_layout_entries,
+  uint32_t bind_group_layout_entry_count)
+{
+  WGPUBindGroupLayout bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    this->device, &(WGPUBindGroupLayoutDescriptor){
+                    .entryCount = bind_group_layout_entry_count,
+                    .entries    = bind_group_layout_entries,
+                  });
+  ASSERT(bind_group_layout != NULL);
+  return bind_group_layout;
+}
+
+static WGPUPipelineLayout context_make_basic_pipeline_layout(
+  context_t* this, WGPUBindGroupLayout const* bind_group_layouts,
+  uint32_t bind_group_layout_count)
+{
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    this->device, &(WGPUPipelineLayoutDescriptor){
+                    .bindGroupLayoutCount = bind_group_layout_count,
+                    .bindGroupLayouts     = bind_group_layouts,
+                  });
+  ASSERT(pipeline_layout != NULL);
+  return pipeline_layout;
+}
+
+static WGPURenderPipeline context_create_render_pipeline(
+  context_t* this, WGPUPipelineLayout pipeline_layout,
+  WGPUShaderModule fs_module, WGPUVertexState const* vertex_state,
+  bool enable_blend)
+{
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
+
+  WGPUStencilFaceState stencil_face_state = {
+    .compare     = WGPUCompareFunction_Always,
+    .failOp      = WGPUStencilOperation_Keep,
+    .depthFailOp = WGPUStencilOperation_Keep,
+    .passOp      = WGPUStencilOperation_Keep,
+  };
+
+  WGPUDepthStencilState depth_stencil_state = {
+    .format              = WGPUTextureFormat_Depth24PlusStencil8,
+    .depthWriteEnabled   = true,
+    .depthCompare        = WGPUCompareFunction_Less,
+    .stencilFront        = stencil_face_state,
+    .stencilBack         = stencil_face_state,
+    .stencilReadMask     = 0xffffffff,
+    .stencilWriteMask    = 0xffffffff,
+    .depthBias           = 0,
+    .depthBiasSlopeScale = 0.0f,
+    .depthBiasClamp      = 0.0f,
+  };
+
+  WGPUMultisampleState multisample_state = {
+    .count                  = aquarium_settings.msaa_sample_count,
+    .mask                   = 0xffffffff,
+    .alphaToCoverageEnabled = false,
+  };
+
+  WGPUBlendComponent blend_component = {
+    .operation = WGPUBlendOperation_Add,
+  };
+  if (enable_blend) {
+    blend_component.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend_component.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+  }
+  else {
+    blend_component.srcFactor = WGPUBlendFactor_One;
+    blend_component.dstFactor = WGPUBlendFactor_Zero;
+  }
+
+  WGPUBlendState blend_state = {
+    .color = blend_component,
+    .alpha = blend_component,
+  };
+
+  WGPUColorTargetState color_target_state = {
+    .format    = this->preferred_swap_chain_format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  WGPUFragmentState fragment_state = {
+    .module      = fs_module,
+    .entryPoint  = "main",
+    .targetCount = 1,
+    .targets     = &color_target_state,
+  };
+
+  WGPURenderPipelineDescriptor pipeline_descriptor = {
+    .layout       = pipeline_layout,
+    .vertex       = *vertex_state,
+    .primitive    = primitive_state,
+    .depthStencil = &depth_stencil_state,
+    .multisample  = multisample_state,
+    .fragment     = &fragment_state,
+  };
+
+  WGPURenderPipeline pipeline
+    = wgpuDeviceCreateRenderPipeline(this->device, &pipeline_descriptor);
+  ASSERT(pipeline != NULL);
+  return pipeline;
+}
 
 /* -------------------------------------------------------------------------- *
  * Aquarium - Main class functions
