@@ -1219,8 +1219,7 @@ static size_t calc_constant_buffer_byte_size(size_t byte_size)
   return (byte_size + 255) & ~255;
 }
 
-static void buffer_dawn_create_f32(buffer_dawn_t* this,
-                                   struct context_t* context,
+static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
                                    int32_t total_components,
                                    int32_t num_components, float* buffer,
                                    bool is_index)
@@ -1245,8 +1244,7 @@ static void buffer_dawn_create_f32(buffer_dawn_t* this,
                           buffer_size);
 }
 
-static void buffer_dawn_create_uint16(buffer_dawn_t* this,
-                                      wgpu_context_t* wgpu_context,
+static void buffer_dawn_create_uint16(buffer_dawn_t* this, void* context,
                                       int32_t total_components,
                                       int32_t num_components, uint16_t* buffer,
                                       uint64_t buffer_count, bool is_index)
@@ -1272,9 +1270,9 @@ static void buffer_dawn_create_uint16(buffer_dawn_t* this,
     .size             = buffer_size,
     .mappedAtCreation = false,
   };
-  this->buffer = context_create_buffer(wgpu_context, &buffer_desc);
+  this->buffer = context_create_buffer(context, &buffer_desc);
 
-  context_set_buffer_data(wgpu_context, this->buffer, buffer_size, buffer,
+  context_set_buffer_data(context, this->buffer, buffer_size, buffer,
                           buffer_size);
 }
 
@@ -1698,6 +1696,15 @@ typedef struct {
   int32_t test_time;
 } aquarium_t;
 
+/* Forward declarations context */
+static void context_realloc_resource(int pre_total_instance,
+                                     int cur_total_instance,
+                                     bool enable_dynamic_buffer_offset);
+
+/* Forward declarations aquarium */
+static int32_t aquarium_get_cur_fish_count(aquarium_t* this);
+static int32_t aquarium_get_pre_fish_count(aquarium_t* this);
+
 static void context_update_world_uniforms(context_t* this,
                                           aquarium_t* aquarium);
 
@@ -2027,6 +2034,164 @@ context_make_bind_group(context_t* this, WGPUBindGroupLayout layout,
   return bind_group;
 }
 
+static void context_init_general_resources(context_t* this,
+                                           aquarium_t* aquarium)
+{
+  /* Initialize general uniform buffers */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = 0,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = 0,
+        },
+        .sampler = {0},
+      },
+    };
+    this->bind_group_layouts.general = context_make_bind_group_layout(
+      this, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  this->uniform_buffers.light = context_create_buffer_from_data(
+    this, &aquarium->light_uniforms, sizeof(aquarium->light_uniforms),
+    sizeof(aquarium->light_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+  this->uniform_buffers.fog = context_create_buffer_from_data(
+    this, &aquarium->fog_uniforms, sizeof(aquarium->fog_uniforms),
+    sizeof(aquarium->fog_uniforms),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  /* Initialize world uniform buffers */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      },
+    };
+    this->bind_group_layouts.world = context_make_bind_group_layout(
+      this, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  this->uniform_buffers.light_world_position = context_create_buffer_from_data(
+    this, &aquarium->light_world_position_uniform,
+    sizeof(aquarium->light_world_position_uniform),
+    calc_constant_buffer_byte_size(
+      sizeof(aquarium->light_world_position_uniform)),
+    WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
+
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer = this->uniform_buffers.light_world_position,
+        .offset = 0,
+        .size = calc_constant_buffer_byte_size(
+          sizeof(aquarium->light_world_position_uniform)),
+      },
+    };
+    this->bind_groups.world
+      = context_make_bind_group(this, this->bind_group_layouts.world,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+
+  bool enable_dynamic_buffer_offset
+    = aquarium_settings.enable_dynamic_buffer_offset;
+
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {0};
+    if (enable_dynamic_buffer_offset) {
+      bgl_entries[0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = true,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      };
+    }
+    else {
+      bgl_entries[0] = (WGPUBindGroupLayoutEntry) {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize = 0,
+        },
+        .sampler = {0},
+      };
+    }
+    this->bind_group_layouts.fish_per = context_make_bind_group_layout(
+      this, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+  }
+
+  context_realloc_resource(aquarium_get_pre_fish_count(aquarium),
+                           aquarium_get_cur_fish_count(aquarium),
+                           enable_dynamic_buffer_offset);
+}
+
+static void context_update_worldl_uniforms(context_t* this,
+                                           aquarium_t* aquarium)
+{
+  context_update_buffer_data(
+    aquarium->wgpu_context, this->uniform_buffers.light_world_position,
+    calc_constant_buffer_byte_size(sizeof(light_world_position_uniform_t)),
+    &aquarium->light_world_position_uniform,
+    sizeof(light_world_position_uniform_t));
+}
+
+static buffer_dawn_t* context_create_buffer_f32(context_t* this,
+                                                int32_t num_components,
+                                                float* buf, size_t buf_count,
+                                                bool is_index)
+{
+  buffer_dawn_t* buffer = malloc(sizeof(buffer_dawn_t));
+  buffer_dawn_create_f32(buffer, this, (int)buf_count, num_components, buf,
+                         is_index);
+
+  return buffer;
+}
+
+static buffer_dawn_t*
+context_create_buffer_uint16(context_t* this, int32_t num_components,
+                             uint16_t* buf, size_t buf_count,
+                             uint64_t buffer_count, bool is_index)
+{
+  buffer_dawn_t* buffer = malloc(sizeof(buffer_dawn_t));
+  buffer_dawn_create_uint16(buffer, this, (int)buf_count, num_components, buf,
+                            buffer_count, is_index);
+
+  return buffer;
+}
+
+static void context_realloc_resource(int pre_total_instance,
+                                     int cur_total_instance,
+                                     bool enable_dynamic_buffer_offset)
+{
+}
+
 /* -------------------------------------------------------------------------- *
  * Aquarium - Main class functions
  * -------------------------------------------------------------------------- */
@@ -2119,6 +2284,16 @@ static void aquarium_init(aquarium_t* this)
 
   /* Avoid resource allocation in the first render loop */
   this->pre_fish_count = this->cur_fish_count;
+}
+
+static int32_t aquarium_get_cur_fish_count(aquarium_t* this)
+{
+  return this->cur_fish_count;
+}
+
+static int32_t aquarium_get_pre_fish_count(aquarium_t* this)
+{
+  return this->pre_fish_count;
 }
 
 static void aquarium_reset_fps_time(aquarium_t* this)
