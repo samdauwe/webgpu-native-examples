@@ -1840,12 +1840,12 @@ typedef struct {
   } uniform_buffers;
   bool enable_dynamic_buffer_offset;
   buffer_manager_t* buffer_manager;
-} aquarium_context_t;
+} context_t;
 
 // All state is in a single nested struct
 typedef struct {
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
   light_world_position_uniform_t light_world_position_uniform;
   world_uniforms_t world_uniforms;
   light_uniforms_t light_uniforms;
@@ -1861,8 +1861,8 @@ typedef struct {
   int32_t test_time;
 } aquarium_t;
 
-static void aquarium_context_update_world_uniforms(aquarium_context_t* this,
-                                                   aquarium_t* aquarium);
+static void context_update_world_uniforms(context_t* this,
+                                          aquarium_t* aquarium);
 
 /* -------------------------------------------------------------------------- *
  * Aquarium - Main class functions
@@ -2023,7 +2023,7 @@ aquarium_get_elapsed_time(aquarium_t* aquarium,
 
 static void aquarium_update_world_uniforms(aquarium_t* this)
 {
-  aquarium_context_update_world_uniforms(this->aquarium_context, this);
+  context_update_world_uniforms(this->aquarium_context, this);
 }
 
 static void
@@ -2097,8 +2097,7 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
  * Aquarium context functions - Defines the graphics API
  * -------------------------------------------------------------------------- */
 
-static void aquarium_context_update_world_uniforms(aquarium_context_t* this,
-                                                   aquarium_t* aquarium)
+static void context_update_world_uniforms(context_t* this, aquarium_t* aquarium)
 {
   context_update_buffer_data(
     aquarium->wgpu_context, this->uniform_buffers.light_world_position,
@@ -2206,7 +2205,7 @@ typedef struct {
     WGPUShaderModule fragment;
   } shader_modules;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
   bool enable_dynamic_buffer_offset;
 } fish_model_draw_t;
 
@@ -2219,7 +2218,7 @@ static void fish_model_draw_init_defaults(fish_model_draw_t* this)
 }
 
 static void fish_model_draw_create(fish_model_draw_t* this,
-                                   aquarium_context_t* aquarium_context,
+                                   context_t* aquarium_context,
                                    aquarium_t* aquarium, model_group_t type,
                                    model_name_t name, bool blend)
 {
@@ -2582,7 +2581,7 @@ void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this, float x,
                                               int index)
 {
   index += this->fish_model.fish_per_offset;
-  aquarium_context_t* ctx = this->aquarium_context;
+  context_t* ctx = this->aquarium_context;
 
   ctx->fish_pers[index].world_position[0] = x;
   ctx->fish_pers[index].world_position[1] = y;
@@ -2653,7 +2652,7 @@ typedef struct {
     WGPUShaderModule fragment;
   } shader_modules;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
 } fish_model_instanced_draw_t;
 
 static void
@@ -2667,9 +2666,11 @@ fish_model_instanced_draw_init_defaults(fish_model_instanced_draw_t* this)
   this->instance = 0;
 }
 
-static void fish_model_instanced_draw_create(
-  fish_model_instanced_draw_t* this, aquarium_context_t* aquarium_context,
-  aquarium_t* aquarium, model_group_t type, model_name_t name, bool blend)
+static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
+                                             context_t* aquarium_context,
+                                             aquarium_t* aquarium,
+                                             model_group_t type,
+                                             model_name_t name, bool blend)
 {
   fish_model_instanced_draw_init_defaults(this);
 
@@ -3132,7 +3133,7 @@ typedef struct {
     WGPUBuffer world;
   } uniform_buffers;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
   int32_t instance;
 } generic_model_t;
 
@@ -3145,7 +3146,7 @@ static void generic_model_init_defaults(generic_model_t* this)
 }
 
 static void generic_model_create(generic_model_t* this,
-                                 aquarium_context_t* aquarium_context,
+                                 context_t* aquarium_context,
                                  model_group_t type, model_name_t name,
                                  bool blend)
 {
@@ -3499,7 +3500,7 @@ typedef struct {
     WGPUBuffer view;
   } uniform_buffers;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
 } inner_model_t;
 
 static void inner_model_init_defaults(inner_model_t* this)
@@ -3511,8 +3512,7 @@ static void inner_model_init_defaults(inner_model_t* this)
   this->inner_uniforms.refraction_fudge = 3.0f;
 }
 
-static void inner_model_create(inner_model_t* this,
-                               aquarium_context_t* aquarium_context,
+static void inner_model_create(inner_model_t* this, context_t* aquarium_context,
                                model_group_t type, model_name_t name,
                                bool blend)
 {
@@ -3874,7 +3874,7 @@ typedef struct {
     WGPUBuffer view;
   } uniform_buffers;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
 } outside_model_t;
 
 static void outside_model_init_defaults(outside_model_t* this)
@@ -3886,7 +3886,7 @@ static void outside_model_init_defaults(outside_model_t* this)
 }
 
 static void outside_model_create(outside_model_t* this,
-                                 aquarium_context_t* aquarium_context,
+                                 context_t* aquarium_context,
                                  model_group_t type, model_name_t name,
                                  bool blend)
 {
@@ -4207,7 +4207,7 @@ typedef struct {
   } shader_modules;
   aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
-  aquarium_context_t* aquarium_context;
+  context_t* aquarium_context;
   int32_t instance;
 } seaweed_model_t;
 
@@ -4222,7 +4222,7 @@ static void seaweed_model_init_defaults(seaweed_model_t* this)
 }
 
 static void seaweed_model_create(seaweed_model_t* this,
-                                 aquarium_context_t* aquarium_context,
+                                 context_t* aquarium_context,
                                  aquarium_t* aquarium, model_group_t type,
                                  model_name_t name, bool blend)
 {
