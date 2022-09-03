@@ -1198,11 +1198,12 @@ typedef struct {
   bool valid;
 } buffer_dawn_t;
 
-static WGPUBuffer context_create_buffer(wgpu_context_t* wgpu_context,
-                                        WGPUBufferDescriptor const* descriptor)
-{
-  return wgpuDeviceCreateBuffer(wgpu_context->device, descriptor);
-}
+/* Forward declarations */
+static WGPUBuffer context_create_buffer(void* this,
+                                        WGPUBufferDescriptor const* descriptor);
+static void context_set_buffer_data(void* this, WGPUBuffer buffer,
+                                    uint32_t buffer_size, const void* data,
+                                    uint32_t data_size);
 
 static void context_update_buffer_data(wgpu_context_t* wgpu_context,
                                        WGPUBuffer buffer, size_t buffer_size,
@@ -1213,36 +1214,13 @@ static void context_update_buffer_data(wgpu_context_t* wgpu_context,
   wgpu_queue_write_buffer(wgpu_context, buffer, 0, data, data_size);
 }
 
-static void context_set_buffer_data(wgpu_context_t* wgpu_context,
-                                    WGPUBuffer buffer, uint32_t buffer_size,
-                                    const void* data, uint32_t data_size)
-{
-  WGPUBufferDescriptor staging_buffer_desc = {
-    .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc,
-    .size             = buffer_size,
-    .mappedAtCreation = true,
-  };
-
-  WGPUBuffer staging
-    = context_create_buffer(wgpu_context, &staging_buffer_desc);
-  ASSERT(staging);
-  void* mapping = wgpuBufferGetMappedRange(staging, 0, buffer_size);
-  ASSERT(mapping);
-  memcpy(mapping, data, data_size);
-  wgpuBufferUnmap(staging);
-
-  wgpuCommandEncoderCopyBufferToBuffer(wgpu_context->cmd_enc, staging, 0,
-                                       buffer, 0, buffer_size);
-  WGPU_RELEASE_RESOURCE(Buffer, staging);
-}
-
 static size_t calc_constant_buffer_byte_size(size_t byte_size)
 {
   return (byte_size + 255) & ~255;
 }
 
 static void buffer_dawn_create_f32(buffer_dawn_t* this,
-                                   wgpu_context_t* wgpu_context,
+                                   struct context_t* context,
                                    int32_t total_components,
                                    int32_t num_components, float* buffer,
                                    bool is_index)
@@ -1261,9 +1239,9 @@ static void buffer_dawn_create_f32(buffer_dawn_t* this,
     .size             = buffer_size,
     .mappedAtCreation = false,
   };
-  this->buffer = context_create_buffer(wgpu_context, &buffer_desc);
+  this->buffer = context_create_buffer(context, &buffer_desc);
 
-  context_set_buffer_data(wgpu_context, this->buffer, buffer_size, buffer,
+  context_set_buffer_data(context, this->buffer, buffer_size, buffer,
                           buffer_size);
 }
 
@@ -1654,24 +1632,6 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
- * Aquarium context - Helper functions
- * -------------------------------------------------------------------------- */
-
-static WGPUBindGroup context_make_bind_group(
-  wgpu_context_t* wgpu_context, WGPUBindGroupLayout layout,
-  WGPUBindGroupEntry const* bind_group_entries, uint32_t bind_group_entry_count)
-{
-  WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
-    wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .layout     = layout,
-                            .entryCount = bind_group_entry_count,
-                            .entries    = bind_group_entries,
-                          });
-  ASSERT(bind_group != NULL);
-  return bind_group;
-}
-
-/* -------------------------------------------------------------------------- *
  * Aquarium context - Defines outside model of Dawn
  * -------------------------------------------------------------------------- */
 
@@ -1680,6 +1640,9 @@ sc_array_def(WGPUCommandBuffer, command_buffer);
 typedef struct {
   wgpu_context_t* wgpu_context;
   WGPUDevice device;
+  uint32_t client_width;
+  uint32_t client_height;
+  uint32_t msaa_sample_count;
   struct sc_array_command_buffer command_buffers;
   struct {
     WGPUBindGroupLayout general;
@@ -1951,6 +1914,117 @@ static WGPURenderPipeline context_create_render_pipeline(
     = wgpuDeviceCreateRenderPipeline(this->device, &pipeline_descriptor);
   ASSERT(pipeline != NULL);
   return pipeline;
+}
+
+static texture_t context_create_multisampled_render_target_view(context_t* this)
+{
+  texture_t texture = {0};
+
+  WGPUTextureDescriptor texture_desc = {
+    .dimension               = WGPUTextureDimension_2D,
+    .size.width              = this->client_width,
+    .size.height             = this->client_height,
+    .size.depthOrArrayLayers = 1,
+    .sampleCount             = this->msaa_sample_count,
+    .format                  = this->preferred_swap_chain_format,
+    .mipLevelCount           = 1,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  texture.texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
+  ASSERT(texture.texture != NULL);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  texture.view = wgpuTextureCreateView(texture.texture, &texture_view_dec);
+  ASSERT(texture.view != NULL);
+
+  return texture;
+}
+
+static texture_t context_create_depth_stencil_view(context_t* this)
+{
+  texture_t texture = {0};
+
+  WGPUTextureDescriptor texture_desc = {
+    .dimension               = WGPUTextureDimension_2D,
+    .size.width              = this->client_width,
+    .size.height             = this->client_height,
+    .size.depthOrArrayLayers = 1,
+    .sampleCount             = this->msaa_sample_count,
+    .format                  = WGPUTextureFormat_Depth24PlusStencil8,
+    .mipLevelCount           = 1,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  texture.texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
+  ASSERT(texture.texture != NULL);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  texture.view = wgpuTextureCreateView(texture.texture, &texture_view_dec);
+  ASSERT(texture.view != NULL);
+
+  return texture;
+}
+
+static WGPUBuffer context_create_buffer(void* this,
+                                        WGPUBufferDescriptor const* descriptor)
+{
+  return wgpuDeviceCreateBuffer(((context_t*)this)->device, descriptor);
+}
+
+static void context_set_buffer_data(void* this, WGPUBuffer buffer,
+                                    uint32_t buffer_size, const void* data,
+                                    uint32_t data_size)
+{
+  wgpu_context_t* wgpu_context = ((context_t*)this)->wgpu_context;
+
+  WGPUBufferDescriptor buffer_desc = {
+    .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc,
+    .size             = buffer_size,
+    .mappedAtCreation = true,
+  };
+  WGPUBuffer staging = context_create_buffer(wgpu_context, &buffer_desc);
+  ASSERT(staging);
+  void* mapping = wgpuBufferGetMappedRange(staging, 0, buffer_size);
+  ASSERT(mapping);
+  memcpy(mapping, data, data_size);
+  wgpuBufferUnmap(staging);
+
+  WGPUCommandBuffer command
+    = context_copy_buffer_to_buffer(this, staging, 0, buffer, 0, buffer_size);
+  WGPU_RELEASE_RESOURCE(Buffer, staging);
+  sc_array_add(&((context_t*)this)->command_buffers, command);
+}
+
+static WGPUBindGroup
+context_make_bind_group(context_t* this, WGPUBindGroupLayout layout,
+                        WGPUBindGroupEntry const* bind_group_entries,
+                        uint32_t bind_group_entry_count)
+{
+  WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
+    this->device, &(WGPUBindGroupDescriptor){
+                    .layout     = layout,
+                    .entryCount = bind_group_entry_count,
+                    .entries    = bind_group_entries,
+                  });
+  ASSERT(bind_group != NULL);
+  return bind_group;
 }
 
 /* -------------------------------------------------------------------------- *
