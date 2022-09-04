@@ -1640,6 +1640,8 @@ typedef struct {
   WGPUDevice device;
   uint32_t client_width;
   uint32_t client_height;
+  uint32_t pre_total_instance;
+  uint32_t cur_total_instance;
   uint32_t msaa_sample_count;
   struct sc_array_command_buffer command_buffers;
   struct {
@@ -1697,8 +1699,8 @@ typedef struct {
 } aquarium_t;
 
 /* Forward declarations context */
-static void context_realloc_resource(int pre_total_instance,
-                                     int cur_total_instance,
+static void context_realloc_resource(context_t* this, int pre_total_instance,
+                                     uint32_t cur_total_instance,
                                      bool enable_dynamic_buffer_offset);
 
 /* Forward declarations aquarium */
@@ -2147,7 +2149,7 @@ static void context_init_general_resources(context_t* this,
       this, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
-  context_realloc_resource(aquarium_get_pre_fish_count(aquarium),
+  context_realloc_resource(this, aquarium_get_pre_fish_count(aquarium),
                            aquarium_get_cur_fish_count(aquarium),
                            enable_dynamic_buffer_offset);
 }
@@ -2277,10 +2279,77 @@ static void context_pre_frame(context_t* this)
     this->command_encoder, &this->render_pass_descriptor);
 }
 
-static void context_realloc_resource(int pre_total_instance,
-                                     int cur_total_instance,
+static void context_destroy_fish_resource(context_t* this)
+{
+}
+
+static void context_realloc_resource(context_t* this, int pre_total_instance,
+                                     uint32_t cur_total_instance,
                                      bool enable_dynamic_buffer_offset)
 {
+  this->pre_total_instance           = pre_total_instance;
+  this->cur_total_instance           = cur_total_instance;
+  this->enable_dynamic_buffer_offset = enable_dynamic_buffer_offset;
+
+  if (cur_total_instance == 0) {
+    return;
+  }
+
+  // If current fish number > pre fish number, allocate a new bigger buffer.
+  // If current fish number <= prefish number, do not allocate a new one.
+  if (pre_total_instance >= cur_total_instance) {
+    return;
+  }
+
+  context_destroy_fish_resource(this);
+
+  this->fish_pers = malloc(sizeof(fish_per_t) * cur_total_instance);
+
+  if (enable_dynamic_buffer_offset) {
+    this->bind_group_fish_pers = malloc(sizeof(WGPUBindGroup) * 1);
+  }
+  else {
+    this->bind_group_fish_pers
+      = malloc(sizeof(WGPUBindGroup) * cur_total_instance);
+  }
+
+  WGPUBufferDescriptor buffer_desc = {
+    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+    .size
+    = calc_constant_buffer_byte_size(sizeof(fish_per_t) * cur_total_instance),
+    .mappedAtCreation = false,
+  };
+  this->fish_pers_buffer
+    = context_create_buffer(this->wgpu_context, &buffer_desc);
+
+  if (this->enable_dynamic_buffer_offset) {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->fish_pers_buffer,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(sizeof(fish_per_t)),
+      },
+    };
+    this->bind_group_fish_pers[0]
+      = context_make_bind_group(this, this->bind_group_layouts.fish_per,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+  else {
+    for (uint32_t i = 0; i < cur_total_instance; ++i) {
+      WGPUBindGroupEntry bg_entries[1] = {
+        [0] = (WGPUBindGroupEntry) {
+          .binding = 0,
+          .buffer  = this->fish_pers_buffer,
+          .offset  = calc_constant_buffer_byte_size(sizeof(fish_per_t) * i),
+          .size    = calc_constant_buffer_byte_size(sizeof(fish_per_t)),
+        },
+      };
+      this->bind_group_fish_pers[i]
+        = context_make_bind_group(this, this->bind_group_layouts.fish_per,
+                                  bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- *
