@@ -1206,15 +1206,9 @@ static WGPUBuffer context_create_buffer(void* this,
 static void context_set_buffer_data(void* this, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size);
-
-static void context_update_buffer_data(wgpu_context_t* wgpu_context,
-                                       WGPUBuffer buffer, size_t buffer_size,
-                                       void* data, size_t data_size)
-{
-  UNUSED_VAR(buffer_size);
-
-  wgpu_queue_write_buffer(wgpu_context, buffer, 0, data, data_size);
-}
+static void context_update_buffer_data(void* this, WGPUBuffer buffer,
+                                       size_t buffer_size, void* data,
+                                       size_t data_size);
 
 static size_t calc_constant_buffer_byte_size(size_t byte_size)
 {
@@ -2361,6 +2355,42 @@ static void context_wait_a_bit(context_t* this)
   wgpuDeviceTick(this->device);
 
   usleep(100);
+}
+
+static WGPUCommandEncoder context_create_command_encoder(context_t* this)
+{
+  return wgpuDeviceCreateCommandEncoder(this->device, NULL);
+}
+
+static void context_update_buffer_data(void* this, WGPUBuffer buffer,
+                                       size_t buffer_size, void* data,
+                                       size_t data_size)
+{
+  context_t* context = (context_t*)this;
+  size_t offset      = 0;
+  ring_buffer_t* ring_buffer
+    = buffer_manager_allocate(context->buffer_manager, buffer_size, &offset);
+
+  if (ring_buffer == NULL) {
+    log_error("Memory upper limit.");
+    return;
+  }
+
+  ring_buffer_push(ring_buffer, context->buffer_manager->encoder, buffer,
+                   offset, 0, data, data_size);
+}
+
+static void context_update_all_fish_data(context_t* this)
+{
+  size_t size = calc_constant_buffer_byte_size(sizeof(fish_per_t)
+                                               * this->cur_total_instance);
+  context_update_buffer_data(this, this->fish_pers_buffer, size,
+                             this->fish_pers,
+                             sizeof(fish_per_t) * this->cur_total_instance);
+}
+
+static void context_destory_fish_resource(context_t* this)
+{
 }
 
 /* -------------------------------------------------------------------------- *
