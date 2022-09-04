@@ -1662,8 +1662,8 @@ typedef struct {
   WGPURenderPassDescriptor render_pass_descriptor;
   struct {
     WGPUTextureView backbuffer;
-    WGPUTextureView scene_render_target;
-    WGPUTextureView scene_depth_stencil;
+    texture_t scene_render_target;
+    texture_t scene_depth_stencil;
   } texture_views;
   WGPURenderPipeline pipeline;
   WGPUBindGroup bind_group;
@@ -2184,6 +2184,97 @@ context_create_buffer_uint16(context_t* this, int32_t num_components,
                             buffer_count, is_index);
 
   return buffer;
+}
+
+static void context_flush(context_t* this)
+{
+  /* Submit to the queue */
+  wgpuQueueSubmit(this->wgpu_context->queue,
+                  sc_array_size(&this->command_buffers),
+                  this->command_buffers.elems);
+
+  /* Release command buffer */
+  for (size_t i = 0; i < sc_array_size(&this->command_buffers); ++i) {
+    WGPU_RELEASE_RESOURCE(CommandBuffer, this->command_buffers.elems[i])
+  }
+  sc_array_clear(&this->command_buffers);
+}
+
+/* Submit commands of the frame */
+static void context_do_flush(context_t* this)
+{
+  // End render pass
+  wgpuRenderPassEncoderEnd(this->render_pass);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, this->render_pass)
+
+  buffer_manager_flush(this->buffer_manager);
+
+  WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(this->command_encoder, NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, this->command_encoder)
+  sc_array_add(&this->command_buffers, cmd);
+
+  context_flush(this);
+
+  wgpuSwapChainPresent(this->wgpu_context->swap_chain.instance);
+}
+
+static void context_pre_frame(context_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  if (this->is_swapchain_out_of_date) {
+    this->client_width  = wgpu_context->surface.width;
+    this->client_height = wgpu_context->surface.height;
+    if (this->msaa_sample_count > 1) {
+      this->texture_views.scene_render_target
+        = context_create_multisampled_render_target_view(this);
+    }
+    this->texture_views.scene_depth_stencil
+      = context_create_depth_stencil_view(this);
+    // mSwapchain.Configure(mPreferredSwapChainFormat,
+    // kSwapchainBackBufferUsage,
+    //                     mClientWidth, mClientHeight);
+    this->is_swapchain_out_of_date = false;
+  }
+
+  this->command_encoder = wgpuDeviceCreateCommandEncoder(this->device, NULL);
+  this->texture_views.backbuffer
+    = wgpuSwapChainGetCurrentTextureView(wgpu_context->swap_chain.instance);
+
+  WGPURenderPassColorAttachment color_attachment = {0};
+  if (this->msaa_sample_count) {
+    // If MSAA is enabled, we render to a multisampled texture and then resolve
+    // to the backbuffer
+    color_attachment.view = this->texture_views.scene_render_target.view;
+    color_attachment.resolveTarget = this->texture_views.backbuffer;
+    color_attachment.loadOp        = WGPULoadOp_Clear;
+    color_attachment.storeOp       = WGPUStoreOp_Store;
+    color_attachment.clearColor    = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
+  }
+  else {
+    /* When MSAA is off, we render directly to the backbuffer */
+    color_attachment.view       = this->texture_views.backbuffer;
+    color_attachment.loadOp     = WGPULoadOp_Clear;
+    color_attachment.storeOp    = WGPUStoreOp_Store;
+    color_attachment.clearColor = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
+  }
+
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment = {0};
+  depth_stencil_attachment.view = this->texture_views.scene_depth_stencil.view;
+  depth_stencil_attachment.depthLoadOp    = WGPULoadOp_Clear;
+  depth_stencil_attachment.depthStoreOp   = WGPUStoreOp_Store;
+  depth_stencil_attachment.clearDepth     = 1.f;
+  depth_stencil_attachment.stencilLoadOp  = WGPULoadOp_Clear;
+  depth_stencil_attachment.stencilStoreOp = WGPUStoreOp_Store;
+  depth_stencil_attachment.clearStencil   = 0;
+
+  this->render_pass_descriptor.colorAttachmentCount = 1;
+  this->render_pass_descriptor.colorAttachments     = &color_attachment;
+  this->render_pass_descriptor.depthStencilAttachment
+    = &depth_stencil_attachment;
+
+  this->render_pass = wgpuCommandEncoderBeginRenderPass(
+    this->command_encoder, &this->render_pass_descriptor);
 }
 
 static void context_realloc_resource(int pre_total_instance,
