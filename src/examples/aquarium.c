@@ -1,11 +1,13 @@
 #include "example_base.h"
 #include "examples.h"
 
-#include <cJSON.h>
 #include <limits.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <cJSON.h>
 #include <sc_array.h>
 #include <sc_queue.h>
-#include <string.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Aquarium
@@ -1699,7 +1701,8 @@ typedef struct {
 } aquarium_t;
 
 /* Forward declarations context */
-static void context_realloc_resource(context_t* this, int pre_total_instance,
+static void context_realloc_resource(context_t* this,
+                                     uint32_t pre_total_instance,
                                      uint32_t cur_total_instance,
                                      bool enable_dynamic_buffer_offset);
 
@@ -2283,7 +2286,8 @@ static void context_destroy_fish_resource(context_t* this)
 {
 }
 
-static void context_realloc_resource(context_t* this, int pre_total_instance,
+static void context_realloc_resource(context_t* this,
+                                     uint32_t pre_total_instance,
                                      uint32_t cur_total_instance,
                                      bool enable_dynamic_buffer_offset)
 {
@@ -2350,6 +2354,13 @@ static void context_realloc_resource(context_t* this, int pre_total_instance,
                                   bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
     }
   }
+}
+
+static void context_wait_a_bit(context_t* this)
+{
+  wgpuDeviceTick(this->device);
+
+  usleep(100);
 }
 
 /* -------------------------------------------------------------------------- *
