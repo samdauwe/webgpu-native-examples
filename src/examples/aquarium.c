@@ -2075,12 +2075,12 @@ static void context_init_general_resources(context_t* this,
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
@@ -2100,9 +2100,9 @@ static void context_init_general_resources(context_t* this,
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->uniform_buffers.light_world_position,
-        .offset = 0,
-        .size = calc_constant_buffer_byte_size(
+        .buffer  = this->uniform_buffers.light_world_position,
+        .offset  = 0,
+        .size    = calc_constant_buffer_byte_size(
           sizeof(aquarium->light_world_position_uniform)),
       },
     };
@@ -2118,24 +2118,24 @@ static void context_init_general_resources(context_t* this,
     WGPUBindGroupLayoutEntry bgl_entries[1] = {0};
     if (enable_dynamic_buffer_offset) {
       bgl_entries[0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       };
     }
     else {
       bgl_entries[0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       };
@@ -2152,7 +2152,7 @@ static void context_init_general_resources(context_t* this,
 static void context_update_world_uniforms(context_t* this, aquarium_t* aquarium)
 {
   context_update_buffer_data(
-    aquarium->wgpu_context, this->uniform_buffers.light_world_position,
+    this->wgpu_context, this->uniform_buffers.light_world_position,
     calc_constant_buffer_byte_size(sizeof(light_world_position_uniform_t)),
     &aquarium->light_world_position_uniform,
     sizeof(light_world_position_uniform_t));
