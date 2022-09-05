@@ -1710,6 +1710,7 @@ static void context_init_defaults(context_t* this)
   memset(this, 0, sizeof(*this));
 
   this->preferred_swap_chain_format = WGPUTextureFormat_RGBA8Unorm;
+  this->msaa_sample_count           = 1;
 }
 
 static void context_create(context_t* this)
@@ -1734,6 +1735,21 @@ static void context_set_window_size(context_t* this, uint32_t window_width,
   if (window_height != 0) {
     this->client_height = window_height;
   }
+}
+
+static uint32_t context_get_client_width(context_t* this)
+{
+  return this->client_width;
+}
+
+static uint32_t context_get_client_height(context_t* this)
+{
+  return this->client_height;
+}
+
+static void set_msaa_sample_count(context_t* this, uint32_t msaa_sample_count)
+{
+  this->msaa_sample_count = msaa_sample_count;
 }
 
 static WGPUSampler
