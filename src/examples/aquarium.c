@@ -1287,14 +1287,12 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
 #define BUFFER_MAX_COUNT 10ull
 #define BUFFER_PER_ALLOCATE_SIZE (BUFFER_POOL_MAX_SIZE / BUFFER_MAX_COUNT)
 
-struct buffer_manager_t;
-
 typedef struct {
   size_t head;
   size_t tail;
   size_t size;
 
-  struct buffer_manager_t* buffer_manager;
+  void* buffer_manager;
   wgpu_context_t* wgpu_context;
   WGPUBuffer buf;
   void* mapped_data;
@@ -2151,8 +2149,7 @@ static void context_init_general_resources(context_t* this,
                            enable_dynamic_buffer_offset);
 }
 
-static void context_update_worldl_uniforms(context_t* this,
-                                           aquarium_t* aquarium)
+static void context_update_world_uniforms(context_t* this, aquarium_t* aquarium)
 {
   context_update_buffer_data(
     aquarium->wgpu_context, this->uniform_buffers.light_world_position,
@@ -2391,6 +2388,7 @@ static void context_update_all_fish_data(context_t* this)
 
 static void context_destory_fish_resource(context_t* this)
 {
+  buffer_manager_destroy_buffer_pool(this->buffer_manager);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2630,19 +2628,6 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
 
   // Update world uniforms
   aquarium_update_world_uniforms(aquarium);
-}
-
-/* -------------------------------------------------------------------------- *
- * Aquarium context functions - Defines the graphics API
- * -------------------------------------------------------------------------- */
-
-static void context_update_world_uniforms(context_t* this, aquarium_t* aquarium)
-{
-  context_update_buffer_data(
-    aquarium->wgpu_context, this->uniform_buffers.light_world_position,
-    calc_constant_buffer_byte_size(sizeof(light_world_position_uniform_t)),
-    &aquarium->light_world_position_uniform,
-    sizeof(light_world_position_uniform_t));
 }
 
 /* -------------------------------------------------------------------------- *
