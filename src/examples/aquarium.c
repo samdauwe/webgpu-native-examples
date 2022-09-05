@@ -1725,6 +1725,17 @@ static void context_initialize(context_t* this)
 {
 }
 
+static void context_set_window_size(context_t* this, uint32_t window_width,
+                                    uint32_t window_height)
+{
+  if (window_width != 0) {
+    this->client_width = window_width;
+  }
+  if (window_height != 0) {
+    this->client_height = window_height;
+  }
+}
+
 static WGPUSampler
 context_create_sampler(context_t* this, WGPUSamplerDescriptor const* descriptor)
 {
