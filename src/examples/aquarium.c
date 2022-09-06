@@ -2550,37 +2550,36 @@ static void aquarium_load_resource(aquarium_t* this)
 }
 
 static model_name_t
-aquarium_map_model_name_str_to_model_name(aquarium_t* aquarium,
+aquarium_map_model_name_str_to_model_name(aquarium_t* this,
                                           const char* model_name_str)
 {
   model_name_t model_name = MODELMAX;
   for (uint32_t i = 0; i < MODELMAX; ++i) {
-    if (strcmp(aquarium->model_enum_map[i].key, model_name_str) == 0) {
-      model_name = aquarium->model_enum_map[i].value;
+    if (strcmp(this->model_enum_map[i].key, model_name_str) == 0) {
+      model_name = this->model_enum_map[i].value;
       break;
     }
   }
   return model_name;
 }
 
-static void aquarium_setup_model_enum_map(aquarium_t* aquarium)
+static void aquarium_setup_model_enum_map(aquarium_t* this)
 {
   for (uint32_t i = 0; i < MODELMAX; ++i) {
-    snprintf(aquarium->model_enum_map[i].key,
-             strlen(g_scene_info[i].name_str) + 1, "%s",
-             g_scene_info[i].name_str);
-    aquarium->model_enum_map[i].value = g_scene_info[i].name;
+    snprintf(this->model_enum_map[i].key, strlen(g_scene_info[i].name_str) + 1,
+             "%s", g_scene_info[i].name_str);
+    this->model_enum_map[i].value = g_scene_info[i].name;
   }
 }
 
 static float
-aquarium_get_elapsed_time(aquarium_t* aquarium,
+aquarium_get_elapsed_time(aquarium_t* this,
                           wgpu_example_context_t* wgpu_example_context)
 {
   // Update our time
   float now          = wgpu_example_context->frame.timestamp_millis;
-  float elapsed_time = now - aquarium->g.then;
-  aquarium->g.then   = now;
+  float elapsed_time = now - this->g.then;
+  this->g.then       = now;
 
   return elapsed_time;
 }
@@ -2591,15 +2590,14 @@ static void aquarium_update_world_uniforms(aquarium_t* this)
 }
 
 static void
-aquarium_update_global_uniforms(aquarium_t* aquarium,
+aquarium_update_global_uniforms(aquarium_t* this,
                                 wgpu_example_context_t* wgpu_example_context)
 {
-  global_t* g = &aquarium->g;
+  global_t* g = &this->g;
   light_world_position_uniform_t* light_world_position_uniform
-    = &aquarium->light_world_position_uniform;
+    = &this->light_world_position_uniform;
 
-  float elapsed_time
-    = aquarium_get_elapsed_time(aquarium, wgpu_example_context);
+  float elapsed_time = aquarium_get_elapsed_time(this, wgpu_example_context);
   g->mclock += elapsed_time * g_settings.speed;
   g->eye_clock += elapsed_time * g_settings.eye_speed;
 
@@ -2612,8 +2610,8 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
 
   float near_plane   = 1.0f;
   float far_plane    = 25000.0f;
-  const float aspect = (float)context_get_client_width(aquarium->context)
-                       / (float)context_get_client_height(aquarium->context);
+  const float aspect = (float)context_get_client_width(this->context)
+                       / (float)context_get_client_height(this->context);
   float top
     = tan(deg_to_rad(g_settings.field_of_view * g_settings.fov_fudge) * 0.5f)
       * near_plane;
@@ -2653,7 +2651,7 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
                     light_world_position_uniform->light_world_pos, g->v3t1, 3);
 
   // Update world uniforms
-  aquarium_update_world_uniforms(aquarium);
+  aquarium_update_world_uniforms(this);
 }
 
 /* -------------------------------------------------------------------------- *
