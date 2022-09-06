@@ -2705,6 +2705,16 @@ static void aquarium_render(aquarium_t* this,
 
 static void aquarium_update_and_draw(aquarium_t* this)
 {
+  bool draw_per_model = aquarium_settings.draw_per_model;
+  int32_t fish_begin  = aquarium_settings.enable_instanced_draw ?
+                          MODELSMALLFISHAINSTANCEDDRAWS :
+                          MODELSMALLFISHA;
+  int32_t fish_end    = aquarium_settings.enable_instanced_draw ?
+                          MODELBIGFISHBINSTANCEDDRAWS :
+                          MODELBIGFISHB;
+
+  for (uint32_t i = MODELRUINCOLUMN; i <= MODELSEAWEEDB; ++i) {
+  }
 }
 
 /* -------------------------------------------------------------------------- *
