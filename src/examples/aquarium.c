@@ -1676,7 +1676,7 @@ typedef struct {
 // All state is in a single nested struct
 typedef struct {
   wgpu_context_t* wgpu_context;
-  context_t* aquarium_context;
+  context_t* context;
   light_world_position_uniform_t light_world_position_uniform;
   world_uniforms_t world_uniforms;
   light_uniforms_t light_uniforms;
@@ -2587,7 +2587,7 @@ aquarium_get_elapsed_time(aquarium_t* aquarium,
 
 static void aquarium_update_world_uniforms(aquarium_t* this)
 {
-  context_update_world_uniforms(this->aquarium_context, this);
+  context_update_world_uniforms(this->context, this);
 }
 
 static void
@@ -2610,11 +2610,10 @@ aquarium_update_global_uniforms(aquarium_t* aquarium,
   g->target[1] = g_settings.target_height;
   g->target[2] = (float)(cos(g->eye_clock + PI)) * g_settings.target_radius;
 
-  float near_plane             = 1.0f;
-  float far_plane              = 25000.0f;
-  wgpu_context_t* wgpu_context = aquarium->wgpu_context;
-  const float aspect
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  float near_plane   = 1.0f;
+  float far_plane    = 25000.0f;
+  const float aspect = (float)context_get_client_width(aquarium->context)
+                       / (float)context_get_client_height(aquarium->context);
   float top
     = tan(deg_to_rad(g_settings.field_of_view * g_settings.fov_fudge) * 0.5f)
       * near_plane;
