@@ -1673,6 +1673,8 @@ typedef struct {
   buffer_manager_t* buffer_manager;
 } context_t;
 
+sc_queue_def(behavior_t*, behavior);
+
 // All state is in a single nested struct
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1690,6 +1692,7 @@ typedef struct {
   int32_t cur_fish_count;
   int32_t pre_fish_count;
   int32_t test_time;
+  struct sc_queue_behavior fish_behavior;
 } aquarium_t;
 
 /* Forward declarations context */
@@ -2651,7 +2654,57 @@ aquarium_update_global_uniforms(aquarium_t* this,
                     light_world_position_uniform->light_world_pos, g->v3t1, 3);
 
   // Update world uniforms
-  aquarium_update_world_uniforms(this);
+  context_update_world_uniforms(this->context, this);
+}
+
+static void aquarium_update_and_draw(aquarium_t* this);
+
+static void aquarium_render(aquarium_t* this,
+                            wgpu_example_context_t* wgpu_example_context)
+{
+  matrix_reset_pseudoRandom();
+
+  context_pre_frame(this->context);
+
+  /* Global Uniforms should update after command reallocation. */
+  aquarium_update_global_uniforms(this, wgpu_example_context);
+
+  if (aquarium_settings.simulate_fish_come_and_go) {
+    if (!sc_queue_empty(&this->fish_behavior)) {
+      behavior_t* behave = sc_queue_peek_first(&this->fish_behavior);
+      int32_t frame      = behave->frame;
+      if (frame == 0) {
+        sc_queue_del_first(&this->fish_behavior);
+        if (behave->op == OPERATION_PLUS) {
+          this->cur_fish_count += behave->count;
+        }
+        else {
+          this->cur_fish_count -= behave->count;
+        }
+      }
+      else {
+        behave->frame = --frame;
+      }
+    }
+  }
+
+  if (!aquarium_settings.enable_instanced_draw) {
+    if (this->cur_fish_count != this->pre_fish_count) {
+      aquarium_calculate_fish_count(this);
+      bool enable_dynamic_buffer_offset
+        = aquarium_settings.enable_dynamic_buffer_offset;
+      context_realloc_resource(this->context, this->pre_fish_count,
+                               this->cur_fish_count,
+                               enable_dynamic_buffer_offset);
+      this->pre_fish_count = this->cur_fish_count;
+    }
+  }
+
+  aquarium_update_and_draw(this);
+}
+
+static void aquarium_update_and_draw(aquarium_t* this)
+{
 }
 
 /* -------------------------------------------------------------------------- *
