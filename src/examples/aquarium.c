@@ -4111,7 +4111,7 @@ typedef struct {
     WGPUBuffer view;
   } uniform_buffers;
   wgpu_context_t* wgpu_context;
-  context_t* aquarium_context;
+  context_t* context;
 } inner_model_t;
 
 static void inner_model_init_defaults(inner_model_t* this)
@@ -4123,14 +4123,14 @@ static void inner_model_init_defaults(inner_model_t* this)
   this->inner_uniforms.refraction_fudge = 3.0f;
 }
 
-static void inner_model_create(inner_model_t* this, context_t* aquarium_context,
+static void inner_model_create(inner_model_t* this, context_t* context,
                                model_group_t type, model_name_t name,
                                bool blend)
 {
   inner_model_init_defaults(this);
 
-  this->aquarium_context = aquarium_context;
-  this->wgpu_context     = aquarium_context->wgpu_context;
+  this->context      = context;
+  this->wgpu_context = context->wgpu_context;
 
   this->model = (model_t){
     .type  = type,
@@ -4291,7 +4291,7 @@ static void inner_model_initialize(inner_model_t* this)
       },
     };
     this->bind_group_layouts.model = context_make_bind_group_layout(
-      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   {
@@ -4308,29 +4308,30 @@ static void inner_model_initialize(inner_model_t* this)
       },
     };
     this->bind_group_layouts.per = context_make_bind_group_layout(
-      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->aquarium_context->bind_group_layouts.general, // Group 0
-    this->aquarium_context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,                     // Group 2
-    this->bind_group_layouts.per,                       // Group 3
+    this->context->bind_group_layouts.general, // Group 0
+    this->context->bind_group_layouts.world,   // Group 1
+    this->bind_group_layouts.model,            // Group 2
+    this->bind_group_layouts.per,              // Group 3
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
-    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+    this->context, bind_group_layouts,
+    (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->shader_modules.fragment,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.inner = context_create_buffer_from_data(
-    wgpu_context, &this->inner_uniforms, sizeof(this->inner_uniforms),
+    this->context, &this->inner_uniforms, sizeof(this->inner_uniforms),
     sizeof(this->inner_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
   this->uniform_buffers.view = context_create_buffer_from_data(
-    wgpu_context, &this->world_uniform_per, sizeof(world_uniforms_t),
+    this->context, &this->world_uniform_per, sizeof(world_uniforms_t),
     calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
@@ -4368,7 +4369,7 @@ static void inner_model_initialize(inner_model_t* this)
       },
     };
     this->bind_groups.model
-      = context_make_bind_group(wgpu_context, this->bind_group_layouts.model,
+      = context_make_bind_group(this->context, this->bind_group_layouts.model,
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
@@ -4382,7 +4383,7 @@ static void inner_model_initialize(inner_model_t* this)
       },
     };
     this->bind_groups.per
-      = context_make_bind_group(wgpu_context, this->bind_group_layouts.per,
+      = context_make_bind_group(this->context, this->bind_group_layouts.per,
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
@@ -4395,12 +4396,12 @@ static void inner_model_draw(inner_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
-  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  WGPURenderPassEncoder render_pass = this->context->render_pass;
   wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->context->bind_groups.world, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
                                     0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
