@@ -4818,7 +4818,7 @@ typedef struct {
   } shader_modules;
   aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
-  context_t* aquarium_context;
+  context_t* context;
   int32_t instance;
 } seaweed_model_t;
 
@@ -4832,8 +4832,7 @@ static void seaweed_model_init_defaults(seaweed_model_t* this)
   this->instance = 0;
 }
 
-static void seaweed_model_create(seaweed_model_t* this,
-                                 context_t* aquarium_context,
+static void seaweed_model_create(seaweed_model_t* this, context_t* context,
                                  aquarium_t* aquarium, model_group_t type,
                                  model_name_t name, bool blend)
 {
@@ -4845,9 +4844,9 @@ static void seaweed_model_create(seaweed_model_t* this,
     .blend = blend,
   };
 
-  this->aquarium         = aquarium;
-  this->aquarium_context = aquarium_context;
-  this->wgpu_context     = aquarium_context->wgpu_context;
+  this->aquarium     = aquarium;
+  this->context      = context;
+  this->wgpu_context = context->wgpu_context;
 }
 
 static void seaweed_model_initialize(seaweed_model_t* this)
@@ -4930,7 +4929,7 @@ static void seaweed_model_initialize(seaweed_model_t* this)
       },
     };
     this->bind_group_layouts.model = context_make_bind_group_layout(
-      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   {
@@ -4957,33 +4956,34 @@ static void seaweed_model_initialize(seaweed_model_t* this)
       },
     };
     this->bind_group_layouts.per = context_make_bind_group_layout(
-      wgpu_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->aquarium_context->bind_group_layouts.general, // Group 0
-    this->aquarium_context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,                     // Group 2
-    this->bind_group_layouts.per,                       // Group 3
+    this->context->bind_group_layouts.general, // Group 0
+    this->context->bind_group_layouts.world,   // Group 1
+    this->bind_group_layouts.model,            // Group 2
+    this->bind_group_layouts.per,              // Group 3
   };
 
   this->pipeline_layout = context_make_basic_pipeline_layout(
-    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+    this->context, bind_group_layouts,
+    (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->shader_modules.fragment,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.light_factor = context_create_buffer_from_data(
-    wgpu_context, &this->light_factor_uniforms,
+    this->context, &this->light_factor_uniforms,
     sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
   this->uniform_buffers.time = context_create_buffer_from_data(
-    wgpu_context, &this->seaweed_per, sizeof(this->seaweed_per),
+    this->context, &this->seaweed_per, sizeof(this->seaweed_per),
     calc_constant_buffer_byte_size(sizeof(this->seaweed_per)),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
   this->uniform_buffers.view = context_create_buffer_from_data(
-    wgpu_context, &this->world_uniform_per, sizeof(this->world_uniform_per),
+    this->context, &this->world_uniform_per, sizeof(this->world_uniform_per),
     calc_constant_buffer_byte_size(sizeof(this->world_uniform_per)),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
@@ -5005,7 +5005,7 @@ static void seaweed_model_initialize(seaweed_model_t* this)
       },
       };
     this->bind_groups.model
-      = context_make_bind_group(wgpu_context, this->bind_group_layouts.model,
+      = context_make_bind_group(this->context, this->bind_group_layouts.model,
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
@@ -5025,7 +5025,7 @@ static void seaweed_model_initialize(seaweed_model_t* this)
       },
     };
     this->bind_groups.per
-      = context_make_bind_group(wgpu_context, this->bind_group_layouts.per,
+      = context_make_bind_group(this->context, this->bind_group_layouts.per,
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
@@ -5064,12 +5064,12 @@ static void seaweed_model_draw(seaweed_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
-  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  WGPURenderPassEncoder render_pass = this->context->render_pass;
   wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->context->bind_groups.world, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
                                     0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
