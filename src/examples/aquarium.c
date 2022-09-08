@@ -3332,23 +3332,23 @@ static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
 
   WGPUVertexAttribute vertex_attributes[9] = {
     [0] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 0,
     },
     [1] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 1,
     },
     [2] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x2,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = 0,
       .shaderLocation = 2,
     },
     [3] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 3,
     },
     [4] = (WGPUVertexAttribute) {
@@ -3357,8 +3357,8 @@ static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
       .shaderLocation = 4,
     },
     [5] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 5,
     },
     [6] = (WGPUVertexAttribute) {
