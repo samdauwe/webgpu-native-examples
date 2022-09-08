@@ -269,9 +269,9 @@ static void matrix_frustum(float* dst, float left, float right, float bottom,
 static void matrix_get_axis(float* dst, const float* m, int axis)
 {
   const int off = axis * 4;
-  dst[0]  = m[off + 0];
-  dst[1]  = m[off + 1];
-  dst[2]  = m[off + 2];
+  dst[0]        = m[off + 0];
+  dst[1]        = m[off + 1];
+  dst[2]        = m[off + 2];
 }
 
 static void matrix_mul_scalar_vector(float k, float* v, size_t length)
@@ -359,7 +359,7 @@ static void matrix_camera_look_at(float* dst, const float* eye,
   dst[15] = 1;
 }
 
-static long long matrix_random_seed_;
+static long long matrix_random_seed_ = 0;
 
 void matrix_reset_pseudoRandom()
 {
