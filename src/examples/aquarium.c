@@ -431,7 +431,7 @@ float deg_to_rad(float degrees)
  * -------------------------------------------------------------------------- */
 
 typedef enum {
-  // begin of background
+  /* begin of background */
   MODELRUINCOLUMN,
   MODELARCH,
   MODELROCKA,
@@ -455,7 +455,7 @@ typedef enum {
   MODELSEAWEEDA,
   MODELSEAWEEDB,
 
-  // begin of fish
+  /* begin of fish */
   MODELSMALLFISHA,
   MODELMEDIUMFISHA,
   MODELMEDIUMFISHB,
@@ -487,35 +487,35 @@ typedef enum {
 } fish_num_t;
 
 typedef enum {
-  // Enable alpha blending
+  /* Enable alpha blending */
   ENABLEALPHABLENDING,
-  // Go through instanced draw
+  /* Go through instanced draw */
   ENABLEINSTANCEDDRAWS,
   // The toggle is only supported on Dawn backend
   // By default, the app will enable dynamic buffer offset
   // The toggle is to disable dbo feature
   ENABLEDYNAMICBUFFEROFFSET,
-  // Turn off render pass on dawn_d3d12
+  /* Turn off render pass on dawn_d3d12 */
   DISABLED3D12RENDERPASS,
-  // Turn off dawn validation
+  /* Turn off dawn validation */
   DISABLEDAWNVALIDATION,
-  // Disable control panel
+  /* Disable control panel */
   DISABLECONTROLPANEL,
-  // Select integrated gpu if available
+  /* Select integrated gpu if available */
   INTEGRATEDGPU,
-  // Select discrete gpu if available
+  /* Select discrete gpu if available */
   DISCRETEGPU,
-  // Draw per instance or model
+  /* Draw per instance or model */
   DRAWPERMODEL,
-  // Support Full Screen mode
+  /* Support Full Screen mode */
   ENABLEFULLSCREENMODE,
-  // Print logs such as avg fps
+  /* Print logs such as avg fps */
   PRINTLOG,
-  // Use async buffer mapping to upload data
+  /* Use async buffer mapping to upload data */
   BUFFERMAPPINGASYNC,
-  // Simulate fish come and go for Dawn backend
+  /* Simulate fish come and go for Dawn backend */
   SIMULATINGFISHCOMEANDGO,
-  // Turn off vsync, donot limit fps to 60
+  /* Turn off vsync, donot limit fps to 60 */
   TURNOFFVSYNC,
   TOGGLEMAX,
 } toggle_t;
