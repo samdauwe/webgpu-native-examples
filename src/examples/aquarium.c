@@ -244,9 +244,9 @@ static void matrix_transpose4(float* dst, const float* m)
 static void matrix_frustum(float* dst, float left, float right, float bottom,
                            float top, float near_, float far_)
 {
-  float dx = right - left;
-  float dy = top - bottom;
-  float dz = near_ - far_;
+  const float dx = right - left;
+  const float dy = top - bottom;
+  const float dz = near_ - far_;
 
   dst[0]  = 2 * near_ / dx;
   dst[1]  = 0;
@@ -268,7 +268,7 @@ static void matrix_frustum(float* dst, float left, float right, float bottom,
 
 static void matrix_get_axis(float* dst, const float* m, int axis)
 {
-  int off = axis * 4;
+  const int off = axis * 4;
   dst[0]  = m[off + 0];
   dst[1]  = m[off + 1];
   dst[2]  = m[off + 2];
