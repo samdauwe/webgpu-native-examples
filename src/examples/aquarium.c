@@ -2816,7 +2816,7 @@ typedef struct {
     WGPUShaderModule fragment;
   } shader_modules;
   wgpu_context_t* wgpu_context;
-  context_t* aquarium_context;
+  context_t* context;
   bool enable_dynamic_buffer_offset;
 } fish_model_draw_t;
 
@@ -2828,8 +2828,7 @@ static void fish_model_draw_init_defaults(fish_model_draw_t* this)
   this->light_factor_uniforms.specular_factor = 0.3f;
 }
 
-static void fish_model_draw_create(fish_model_draw_t* this,
-                                   context_t* aquarium_context,
+static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
                                    aquarium_t* aquarium, model_group_t type,
                                    model_name_t name, bool blend)
 {
@@ -2837,8 +2836,8 @@ static void fish_model_draw_create(fish_model_draw_t* this,
 
   fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
-  this->aquarium_context = aquarium_context;
-  this->wgpu_context     = aquarium_context->wgpu_context;
+  this->context      = context;
+  this->wgpu_context = context->wgpu_context;
 
   const fish_t* fish_info                = &fish_table[name - MODELSMALLFISHA];
   this->fish_vertex_uniforms.fish_length = fish_info->fish_length;
@@ -3018,28 +3017,29 @@ static void fish_model_draw_init(fish_model_draw_t* this)
     }
 
     this->bind_group_layout_model = context_make_bind_group_layout(
-      wgpu_context, bgl_entries, bgl_entry_count);
+      this->context, bgl_entries, bgl_entry_count);
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->aquarium_context->bind_group_layouts.general,  // Group 0
-    this->aquarium_context->bind_group_layouts.world,    // Group 1
-    this->bind_group_layout_model,                       // Group 2
-    this->aquarium_context->bind_group_layouts.fish_per, // Group 3
+    this->context->bind_group_layouts.general,  // Group 0
+    this->context->bind_group_layouts.world,    // Group 1
+    this->bind_group_layout_model,              // Group 2
+    this->context->bind_group_layouts.fish_per, // Group 3
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
-    wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
+    this->context, bind_group_layouts,
+    (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    wgpu_context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->shader_modules.fragment,
     &this->vertex_state, this->fish_model.model.blend);
 
   this->fish_vertex_buffer = context_create_buffer_from_data(
-    wgpu_context, &this->fish_vertex_uniforms,
+    this->context, &this->fish_vertex_uniforms,
     sizeof(this->fish_vertex_uniforms), sizeof(this->fish_vertex_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
   this->uniform_buffers.light_factor = context_create_buffer_from_data(
-    wgpu_context, &this->light_factor_uniforms,
+    this->context, &this->light_factor_uniforms,
     sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
@@ -3104,7 +3104,7 @@ static void fish_model_draw_init(fish_model_draw_t* this)
       };
     }
     this->bind_group_model = context_make_bind_group(
-      wgpu_context, this->bind_group_layout_model, bg_entries, bg_entry_count);
+      this->context, this->bind_group_layout_model, bg_entries, bg_entry_count);
   }
 
   context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
@@ -3134,12 +3134,12 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
 
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
-  WGPURenderPassEncoder render_pass = this->aquarium_context->render_pass;
+  WGPURenderPassEncoder render_pass = this->context->render_pass;
   wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 0, this->aquarium_context->bind_groups.general, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(
-    render_pass, 1, this->aquarium_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->context->bind_groups.general, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->context->bind_groups.world, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_group_model, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
@@ -3165,8 +3165,7 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
     for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
       const uint32_t offset = 256u * (i + this->fish_model.fish_per_offset);
       wgpuRenderPassEncoderSetBindGroup(
-        render_pass, 3, this->aquarium_context->bind_group_fish_pers[0], 1,
-        &offset);
+        render_pass, 3, this->context->bind_group_fish_pers[0], 1, &offset);
       wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
                                        this->buffers.indices.total_components,
                                        1, 0, 0, 0);
@@ -3176,8 +3175,7 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
     for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
       const uint32_t offset = i + this->fish_model.fish_per_offset;
       wgpuRenderPassEncoderSetBindGroup(
-        render_pass, 3, this->aquarium_context->bind_group_fish_pers[offset], 0,
-        NULL);
+        render_pass, 3, this->context->bind_group_fish_pers[offset], 0, NULL);
       wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
                                        this->buffers.indices.total_components,
                                        1, 0, 0, 0);
@@ -3192,7 +3190,7 @@ void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this, float x,
                                               int index)
 {
   index += this->fish_model.fish_per_offset;
-  context_t* ctx = this->aquarium_context;
+  context_t* ctx = this->context;
 
   ctx->fish_pers[index].world_position[0] = x;
   ctx->fish_pers[index].world_position[1] = y;
