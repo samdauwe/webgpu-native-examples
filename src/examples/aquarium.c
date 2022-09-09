@@ -2638,9 +2638,9 @@ aquarium_update_global_uniforms(aquarium_t* this,
                   light_world_position_uniform->view_projection);
 
   memcpy(g->sky_view, g->view, 16 * sizeof(float));
-  g->sky_view[12] = 0.0;
-  g->sky_view[13] = 0.0;
-  g->sky_view[14] = 0.0;
+  g->sky_view[12] = 0.0f;
+  g->sky_view[13] = 0.0f;
+  g->sky_view[14] = 0.0f;
   matrix_mul_matrix_matrix4(g->sky_view_projection, g->sky_view, g->projection);
   matrix_inverse4(g->sky_view_projection_inverse, g->sky_view_projection);
 
