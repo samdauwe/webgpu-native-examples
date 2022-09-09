@@ -3049,15 +3049,15 @@ static void fish_model_draw_init(fish_model_draw_t* this)
     WGPUBindGroupEntry bg_entries[8] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->fish_vertex_buffer,
-        .offset = 0,
-        .size = sizeof(this->fish_vertex_uniforms)
+        .buffer  = this->fish_vertex_buffer,
+        .offset  = 0,
+        .size    = sizeof(this->fish_vertex_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer = this->uniform_buffers.light_factor,
-        .offset = 0,
-        .size = sizeof(this->light_factor_uniforms)
+        .buffer  = this->uniform_buffers.light_factor,
+        .offset  = 0,
+        .size    = sizeof(this->light_factor_uniforms)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
@@ -3068,19 +3068,19 @@ static void fish_model_draw_init(fish_model_draw_t* this)
         .sampler = this->textures.skybox->sampler,
       },
       [4] = (WGPUBindGroupEntry) {
-        .binding = 4,
+        .binding     = 4,
         .textureView = this->textures.diffuse->view,
       },
       [5] = (WGPUBindGroupEntry) {
-        .binding = 5,
+        .binding     = 5,
         .textureView = this->textures.normal->view,
       },
       [6] = (WGPUBindGroupEntry) {
-        .binding = 6,
+        .binding     = 6,
         .textureView = this->textures.reflection->view,
       },
       [7] = (WGPUBindGroupEntry) {
-        .binding = 7,
+        .binding     = 7,
         .textureView = this->textures.skybox->view,
       },
     };
