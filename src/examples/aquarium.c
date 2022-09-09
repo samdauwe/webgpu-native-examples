@@ -700,7 +700,7 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 enum {
-  // begin of background
+  /* Begin of background */
   MODELRUINCOLUMN_COUNT      = 2,
   MODELARCH_COUNT            = 2,
   MODELROCKA_COUNT           = 5,
