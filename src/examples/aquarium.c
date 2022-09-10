@@ -1163,7 +1163,7 @@ static g_settings_t g_settings = {
 };
 
 /* -------------------------------------------------------------------------- *
- * Behavior - base class for behavior.
+ * Behavior - Base class for behavior.
  * -------------------------------------------------------------------------- */
 
 typedef enum {
@@ -1183,6 +1183,26 @@ static void behavior_create(behavior_t* this, int32_t frame, char op,
   this->frame = frame;
   this->op    = (op == '+') ? OPERATION_PLUS : OPERATION_MINUS;
   this->count = count;
+}
+
+static int32_t behavior_get_frame(behavior_t* this)
+{
+  return this->frame;
+}
+
+static behavior_op_t behavior_get_op(behavior_t* this)
+{
+  return this->op;
+}
+
+static int32_t behavior_get_count(behavior_t* this)
+{
+  return this->count;
+}
+
+static void behavior_set_frame(behavior_t* this, int32_t frame)
+{
+  this->frame = frame;
 }
 
 /* -------------------------------------------------------------------------- *
