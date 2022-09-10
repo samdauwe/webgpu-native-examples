@@ -2119,11 +2119,12 @@ static WGPUBuffer context_create_buffer(void* this,
   return wgpuDeviceCreateBuffer(((context_t*)this)->device, descriptor);
 }
 
-static void context_set_buffer_data(void* this, WGPUBuffer buffer,
+static void context_set_buffer_data(void* context, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size)
 {
-  wgpu_context_t* wgpu_context = ((context_t*)this)->wgpu_context;
+  context_t* this              = (context_t*)context;
+  wgpu_context_t* wgpu_context = this->wgpu_context;
 
   WGPUBufferDescriptor buffer_desc = {
     .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc,
@@ -2486,22 +2487,22 @@ static WGPUCommandEncoder context_create_command_encoder(context_t* this)
   return wgpuDeviceCreateCommandEncoder(this->device, NULL);
 }
 
-static void context_update_buffer_data(void* this, WGPUBuffer buffer,
+static void context_update_buffer_data(void* context, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size)
 {
-  context_t* context = (context_t*)this;
-  size_t offset      = 0;
+  context_t* this = (context_t*)context;
+  size_t offset   = 0;
   ring_buffer_t* ring_buffer
-    = buffer_manager_allocate(context->buffer_manager, buffer_size, &offset);
+    = buffer_manager_allocate(this->buffer_manager, buffer_size, &offset);
 
   if (ring_buffer == NULL) {
     log_error("Memory upper limit.");
     return;
   }
 
-  ring_buffer_push(ring_buffer, context->buffer_manager->encoder, buffer,
-                   offset, 0, data, data_size);
+  ring_buffer_push(ring_buffer, this->buffer_manager->encoder, buffer, offset,
+                   0, data, data_size);
 }
 
 static void context_update_all_fish_data(context_t* this)
