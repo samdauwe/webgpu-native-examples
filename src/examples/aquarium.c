@@ -2819,11 +2819,67 @@ static void aquarium_update_and_draw(aquarium_t* this)
  * Model - Defines generic model.
  * -------------------------------------------------------------------------- */
 
+typedef enum {
+  BUFFERTYPE_POSITION,
+  BUFFERTYPE_NORMAL,
+  BUFFERTYPE_TEX_COORD,
+  BUFFERTYPE_INDICES,
+  BUFFERTYPE_MAX,
+} buffer_type_t;
+
+typedef enum {
+  TEXTURETYPE_DIFFUSE,
+  TEXTURETYPE_NORMAL_MAP,
+  TEXTURETYPE_REFLECTION_MAP,
+  TEXTURETYPE_SKYBOX,
+  TEXTURETYPE_MAX,
+} texture_type_t;
+
+typedef struct {
+  float* data;
+  size_t data_size;
+} float_array_t;
+sc_array_def(float_array_t, float_array);
+
 typedef struct {
   model_group_t type;
   model_name_t name;
+  program_t* program;
   bool blend;
+
+  struct sc_array_float_array world_matrices;
+  texture_t* texture_map[TEXTURETYPE_MAX];
+  buffer_dawn_t* buffer_map[BUFFERTYPE_MAX];
 } model_t;
+
+static void model_init_defaults(model_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void model_create(model_t* this, model_group_t type, model_name_t name,
+                         bool blend)
+{
+  this->type  = type;
+  this->name  = name;
+  this->blend = blend;
+}
+
+static void model_destroy(model_t* this)
+{
+  for (uint32_t i = 0; i < BUFFERTYPE_MAX; ++i) {
+    buffer_dawn_t* buf = this->buffer_map[i];
+    if (buf) {
+      buffer_dawn_destroy(buf);
+      buf = NULL;
+    }
+  }
+}
+
+static void model_set_program(model_t* this, program_t* prgm)
+{
+  this->program = prgm;
+}
 
 /* -------------------------------------------------------------------------- *
  * Fish model - Defined fish model. Update fish specific uniforms.
