@@ -1206,6 +1206,66 @@ static void behavior_set_frame(behavior_t* this, int32_t frame)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Program - Load programs from shaders.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  void* context;
+  char vertex_shader_wgsl_path[STRMAX];
+  char fragment_shader_wgsl_path[STRMAX];
+  wgpu_shader_t vs_module;
+  wgpu_shader_t fs_module;
+} program_t;
+
+/* Forward declarations */
+static wgpu_shader_t context_create_shader_module(void* context,
+                                                  WGPUShaderStage shader_stage,
+                                                  const char* shader_wgsl_path);
+
+static void program_init_defaults(program_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void program_create(program_t* this, void* context,
+                           const char* vertex_shader_wgsl_path,
+                           const char* fragment_shader_wgsl_path)
+{
+  program_init_defaults(this);
+  this->context = context;
+
+  snprintf(this->vertex_shader_wgsl_path, strlen(vertex_shader_wgsl_path) + 1,
+           "%s", vertex_shader_wgsl_path);
+  snprintf(this->fragment_shader_wgsl_path,
+           strlen(fragment_shader_wgsl_path) + 1, "%s",
+           fragment_shader_wgsl_path);
+}
+
+static void program_destroy(program_t* this)
+{
+  WGPU_RELEASE_RESOURCE(ShaderModule, this->vs_module.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, this->fs_module.module);
+}
+
+static WGPUShaderModule program_get_vs_module(program_t* this)
+{
+  return this->vs_module.module;
+}
+
+static WGPUShaderModule program_get_fs_module(program_t* this)
+{
+  return this->fs_module.module;
+}
+
+static void program_compile_program(program_t* this)
+{
+  this->vs_module = context_create_shader_module(
+    this->context, WGPUShaderStage_Vertex, this->vertex_shader_wgsl_path);
+  this->fs_module = context_create_shader_module(
+    this->context, WGPUShaderStage_Fragment, this->fragment_shader_wgsl_path);
+}
+
+/* -------------------------------------------------------------------------- *
  * Dawn Buffer - Defines the buffer wrapper of dawn, abstracting the vetex and
  * index buffer binding.
  * -------------------------------------------------------------------------- */
@@ -1221,12 +1281,12 @@ typedef struct {
 } buffer_dawn_t;
 
 /* Forward declarations */
-static WGPUBuffer context_create_buffer(void* this,
+static WGPUBuffer context_create_buffer(void* context,
                                         WGPUBufferDescriptor const* descriptor);
-static void context_set_buffer_data(void* this, WGPUBuffer buffer,
+static void context_set_buffer_data(void* context, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size);
-static void context_update_buffer_data(void* this, WGPUBuffer buffer,
+static void context_update_buffer_data(void* context, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size);
 
@@ -1860,6 +1920,23 @@ context_copy_buffer_to_buffer(context_t* this, WGPUBuffer src_buffer,
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
 
   return copy;
+}
+
+static wgpu_shader_t context_create_shader_module(void* context,
+                                                  WGPUShaderStage shader_stage,
+                                                  const char* shader_wgsl_path)
+{
+  UNUSED_VAR(shader_stage);
+
+  wgpu_shader_t shader = wgpu_shader_create(((context_t*)context)->wgpu_context,
+                                            &(wgpu_shader_desc_t){
+                                              // Shader WGSL
+                                              .file  = shader_wgsl_path,
+                                              .entry = "main",
+                                            });
+  ASSERT(shader.module);
+
+  return shader;
 }
 
 static WGPUBindGroupLayout context_make_bind_group_layout(
