@@ -1375,10 +1375,10 @@ static void program_compile_program(program_t* this)
 typedef struct {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
-  int total_components;
+  int32_t total_components;
   uint32_t stride;
   void* offset;
-  int size;
+  int32_t size;
   bool valid;
 } buffer_dawn_t;
 
@@ -1458,6 +1458,36 @@ static void buffer_dawn_destroy(buffer_dawn_t* this)
 {
   WGPU_RELEASE_RESOURCE(Buffer, this->buffer)
   memset(this, 0, sizeof(*this));
+}
+
+static WGPUBuffer buffer_dawn_get_buffer(buffer_dawn_t* this)
+{
+  return this->buffer;
+}
+
+static int32_t buffer_dawn_get_total_components(buffer_dawn_t* this)
+{
+  return this->total_components;
+}
+
+static uint32_t buffer_dawn_get_stride(buffer_dawn_t* this)
+{
+  return this->stride;
+}
+
+static void* buffer_dawn_get_offset(buffer_dawn_t* this)
+{
+  return this->offset;
+}
+
+static WGPUBufferUsage buffer_dawn_get_usage_bit(buffer_dawn_t* this)
+{
+  return this->usage;
+}
+
+static int32_t buffer_dawn_get_data_size(buffer_dawn_t* this)
+{
+  return this->size;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -5039,10 +5069,10 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    buffer_dawn_t position;
-    buffer_dawn_t normal;
-    buffer_dawn_t tex_coord;
-    buffer_dawn_t indices;
+    buffer_dawn_t* position;
+    buffer_dawn_t* normal;
+    buffer_dawn_t* tex_coord;
+    buffer_dawn_t* indices;
   } buffers;
   struct {
     float shininess;
@@ -5070,10 +5100,6 @@ typedef struct {
     WGPUBuffer time;
     WGPUBuffer view;
   } uniform_buffers;
-  struct {
-    WGPUShaderModule vertex;
-    WGPUShaderModule fragment;
-  } shader_modules;
   aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   context_t* context;
@@ -5111,6 +5137,20 @@ static void seaweed_model_initialize(seaweed_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
+  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+
+  texture_t** texture_map   = this->model.texture_map;
+  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+
+  buffer_dawn_t** buffer_map = this->model.buffer_map;
+  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+
   WGPUVertexAttribute vertex_attributes[3] = {
     [0] = (WGPUVertexAttribute) {
       .format = WGPUVertexFormat_Float32x3,
@@ -5131,26 +5171,26 @@ static void seaweed_model_initialize(seaweed_model_t* this)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[3] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.position.size,
+      .arrayStride = buffer_dawn_get_data_size(this->buffers.position),
       .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
+      .arrayStride = buffer_dawn_get_data_size(this->buffers.normal),
       .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tex_coord.size,
+      .arrayStride = buffer_dawn_get_data_size(this->buffers.tex_coord),
       .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vertex_attributes[2],
     },
   };
 
-  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.module      = vs_module;
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
   this->vertex_state.buffers     = vertex_buffer_layouts;
@@ -5229,7 +5269,7 @@ static void seaweed_model_initialize(seaweed_model_t* this)
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->model.program->fs_module.module,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.light_factor = context_create_buffer_from_data(
@@ -5333,20 +5373,20 @@ static void seaweed_model_draw(seaweed_model_t* this)
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->buffers.position.buffer, 0,
+                                       this->buffers.position->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       this->buffers.normal.buffer, 0,
+                                       this->buffers.normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       this->buffers.tex_coord.buffer, 0,
+                                       this->buffers.tex_coord->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    wgpu_context->rpass_enc, this->buffers.indices->buffer,
     WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   this->buffers.indices.total_components, 1, 0,
-                                   0, 0);
+                                   this->buffers.indices->total_components, 1,
+                                   0, 0, 0);
   this->instance = 0;
 }
 
