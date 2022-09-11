@@ -2984,7 +2984,9 @@ static void model_set_program(model_t* this, program_t* prgm)
 }
 
 /* -------------------------------------------------------------------------- *
- * Fish model - Defined fish model. Update fish specific uniforms.
+ * Fish model - Defined fish model
+ *  - Updates fish specific uniforms.
+ *  - Implement common functions of fish models.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
