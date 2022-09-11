@@ -1163,7 +1163,7 @@ static g_settings_t g_settings = {
 };
 
 /* -------------------------------------------------------------------------- *
- * FPSTimer - Defines fps timer.
+ * FPSTimer - Defines fps timer, uses millseconds time unit.
  * -------------------------------------------------------------------------- */
 
 #define NUM_HISTORY_DATA 100
@@ -1172,7 +1172,7 @@ static g_settings_t g_settings = {
 
 sc_array_def(float, float);
 
-struct {
+typedef struct {
   float total_time;
   struct sc_array_float time_table;
   int32_t time_table_cursor;
@@ -1181,6 +1181,88 @@ struct {
   struct sc_array_float log_fps;
   float average_fps;
 } fps_timer_t;
+
+static void fps_timer_init_defaults(fps_timer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->total_time = NUM_FRAMES_TO_AVERAGE * 1000.0f;
+
+  for (uint32_t i = 0; i < NUM_FRAMES_TO_AVERAGE; ++i) {
+    sc_array_add(&this->time_table, 1000.0f);
+  }
+
+  this->time_table_cursor = 0;
+
+  for (uint32_t i = 0; i < NUM_HISTORY_DATA; ++i) {
+    sc_array_add(&this->history_fps, 1.0f);
+    sc_array_add(&this->history_frame_time, 100.0f);
+  }
+
+  this->average_fps = 0.0f;
+}
+
+static void fps_timer_create(fps_timer_t* this)
+{
+  fps_timer_init_defaults(this);
+}
+
+static void fps_timer_update(fps_timer_t* this, float elapsed_time,
+                             float rendering_time, float test_time)
+{
+  this->total_time
+    += elapsed_time - this->time_table.elems[this->time_table_cursor];
+  this->time_table.elems[this->time_table_cursor] = elapsed_time;
+
+  ++this->time_table_cursor;
+  if (this->time_table_cursor == NUM_FRAMES_TO_AVERAGE) {
+    this->time_table_cursor = 0;
+  }
+
+  float frame_time  = this->total_time / NUM_FRAMES_TO_AVERAGE;
+  this->average_fps = floor(1000.0f / frame_time + 0.5f);
+
+  for (uint32_t i = 0; i < NUM_HISTORY_DATA - 1; ++i) {
+    this->history_fps.elems[i]        = this->history_fps.elems[i + 1];
+    this->history_frame_time.elems[i] = this->history_frame_time.elems[i + 1];
+  }
+
+  this->history_fps.elems[NUM_HISTORY_DATA - 1] = this->average_fps;
+  this->history_frame_time.elems[NUM_HISTORY_DATA - 1]
+    = 1000.0 / this->average_fps;
+
+  if (test_time - rendering_time > 5000.0f
+      && test_time - rendering_time < 25000.0f) {
+    sc_array_add(&this->log_fps, this->average_fps);
+  }
+}
+
+static float fps_timer_get_average_fps(fps_timer_t* this)
+{
+  return this->average_fps;
+}
+
+static int32_t fps_timer_variance(fps_timer_t* this)
+{
+  float avg = 0.0f;
+
+  for (size_t i = 0; i < sc_array_size(&this->log_fps); ++i) {
+    avg += this->log_fps.elems[i];
+  }
+  avg /= sc_array_size(&this->log_fps);
+
+  float var = 0.0f;
+  for (size_t i = 0; i < sc_array_size(&this->log_fps); ++i) {
+    var += pow(this->log_fps.elems[i] - avg, 2);
+  }
+  var /= sc_array_size(&this->log_fps);
+
+  if (var < FPS_VALID_THRESHOLD) {
+    return (int32_t)ceil(avg);
+  }
+
+  return 0;
+}
 
 /* -------------------------------------------------------------------------- *
  * Behavior - Base class for behavior.
