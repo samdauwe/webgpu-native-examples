@@ -1163,6 +1163,26 @@ static g_settings_t g_settings = {
 };
 
 /* -------------------------------------------------------------------------- *
+ * FPSTimer - Defines fps timer.
+ * -------------------------------------------------------------------------- */
+
+#define NUM_HISTORY_DATA 100
+#define NUM_FRAMES_TO_AVERAGE 128
+#define FPS_VALID_THRESHOLD 5
+
+sc_array_def(float, float);
+
+struct {
+  float total_time;
+  struct sc_array_float time_table;
+  int32_t time_table_cursor;
+  struct sc_array_float history_fps;
+  struct sc_array_float history_frame_time;
+  struct sc_array_float log_fps;
+  float average_fps;
+} fps_timer_t;
+
+/* -------------------------------------------------------------------------- *
  * Behavior - Base class for behavior.
  * -------------------------------------------------------------------------- */
 
