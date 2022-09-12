@@ -3684,22 +3684,22 @@ static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tangent.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.tangent.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[3],
+      .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.bi_normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = this->buffers.bi_normal.size,
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[4],
+      .attributes     = &vertex_attributes[4],
     },
     [5] = (WGPUVertexBufferLayout) {
-      .arrayStride = sizeof(fish_model_instanced_draw_fish_per),
-      .stepMode = WGPUVertexStepMode_Instance,
+      .arrayStride    = sizeof(fish_model_instanced_draw_fish_per),
+      .stepMode       = WGPUVertexStepMode_Instance,
       .attributeCount = 4,
-      .attributes = &vertex_attributes[5],
+      .attributes     = &vertex_attributes[5],
     },
   };
 
