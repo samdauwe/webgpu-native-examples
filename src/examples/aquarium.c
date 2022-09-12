@@ -2883,7 +2883,7 @@ aquarium_update_global_uniforms(aquarium_t* this,
   matrix_add_vector(light_world_position_uniform->light_world_pos,
                     light_world_position_uniform->light_world_pos, g->v3t1, 3);
 
-  // Update world uniforms
+  /* Update world uniforms  */
   context_update_world_uniforms(this->context, this);
 }
 
