@@ -1774,7 +1774,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
   ring_buffer_t* ring_buffer = NULL;
   size_t cur_offset          = 0;
   if (!this->sync) {
-    // Upper limit
+    /* Upper limit */
     if (this->used_size + size > this->buffer_pool_size) {
       return NULL;
     }
