@@ -4755,10 +4755,6 @@ typedef struct {
     float specular_factor;
   } light_factor_uniforms;
   world_uniforms_t world_uniform_per[20];
-  struct {
-    WGPUShaderModule vertex;
-    WGPUShaderModule fragment;
-  } shader_modules;
   WGPUVertexState vertex_state;
   WGPURenderPipeline pipeline;
   struct {
@@ -4860,38 +4856,38 @@ static void outside_model_initialize(outside_model_t* this)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.position.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.normal.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.tex_coord.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.tangent.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.normal.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[4],
     },
   };
 
-  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.module      = vs_module;
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
   this->vertex_state.buffers     = vertex_buffer_layouts;
@@ -4913,7 +4909,7 @@ static void outside_model_initialize(outside_model_t* this)
       this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
-  // Outside models use diffuse shaders.
+  /* Outside models use diffuse shaders. */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -4950,10 +4946,10 @@ static void outside_model_initialize(outside_model_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, // Group 0
-    this->context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,            // Group 2
-    this->bind_group_layouts.per,              // Group 3
+    this->context->bind_group_layouts.general, /* Group 0 */
+    this->context->bind_group_layouts.world,   /* Group 1 */
+    this->bind_group_layouts.model,            /* Group 2 */
+    this->bind_group_layouts.per,              /* Group 3 */
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
     this->context, bind_group_layouts,
@@ -5268,10 +5264,10 @@ static void seaweed_model_initialize(seaweed_model_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, // Group 0
-    this->context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,            // Group 2
-    this->bind_group_layouts.per,              // Group 3
+    this->context->bind_group_layouts.general, /* Group 0 */
+    this->context->bind_group_layouts.world,   /* Group 1 */
+    this->bind_group_layouts.model,            /* Group 2 */
+    this->bind_group_layouts.per,              /* Group 3 */
   };
 
   this->pipeline_layout = context_make_basic_pipeline_layout(
