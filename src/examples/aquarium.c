@@ -4956,7 +4956,7 @@ static void outside_model_initialize(outside_model_t* this)
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->model.program->fs_module.module,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.light_factor = context_create_buffer_from_data(
@@ -5025,29 +5025,29 @@ static void outside_model_draw(outside_model_t* this)
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->buffers.position.buffer, 0,
+                                       this->buffers.position->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       this->buffers.normal.buffer, 0,
+                                       this->buffers.normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       this->buffers.tex_coord.buffer, 0,
+                                       this->buffers.tex_coord->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   // diffuseShader doesn't have to input tangent buffer or binormal buffer.
-  if (this->buffers.tangent.valid && this->buffers.bi_normal.valid) {
+  if (this->buffers.tangent->valid && this->buffers.bi_normal->valid) {
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                         this->buffers.tangent.buffer, 0,
+                                         this->buffers.tangent->buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                         this->buffers.bi_normal.buffer, 0,
+                                         this->buffers.bi_normal->buffer, 0,
                                          WGPU_WHOLE_SIZE);
   }
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    wgpu_context->rpass_enc, this->buffers.indices->buffer,
     WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   this->buffers.indices.total_components, 1, 0,
-                                   0, 0);
+                                   this->buffers.indices->total_components, 1,
+                                   0, 0, 0);
 }
 
 static void outside_model_update_per_instance_uniforms(
