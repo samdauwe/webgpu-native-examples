@@ -4741,12 +4741,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    buffer_dawn_t position;
-    buffer_dawn_t normal;
-    buffer_dawn_t tex_coord;
-    buffer_dawn_t tangent;
-    buffer_dawn_t bi_normal;
-    buffer_dawn_t indices;
+    buffer_dawn_t* position;
+    buffer_dawn_t* normal;
+    buffer_dawn_t* tex_coord;
+    buffer_dawn_t* tangent;
+    buffer_dawn_t* bi_normal;
+    buffer_dawn_t* indices;
   } buffers;
   struct {
     float shininess;
@@ -4793,11 +4793,7 @@ static void outside_model_create(outside_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
-  this->model = (model_t){
-    .type  = type,
-    .name  = name,
-    .blend = blend,
-  };
+  model_create(&this->model, type, name, blend);
 }
 
 static void outside_model_destroy(outside_model_t* this)
@@ -5122,11 +5118,7 @@ static void seaweed_model_create(seaweed_model_t* this, context_t* context,
 {
   seaweed_model_init_defaults(this);
 
-  this->model = (model_t){
-    .type  = type,
-    .name  = name,
-    .blend = blend,
-  };
+  model_create(&this->model, type, name, blend);
 
   this->aquarium     = aquarium;
   this->context      = context;
