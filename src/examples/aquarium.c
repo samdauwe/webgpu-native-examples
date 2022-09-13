@@ -2955,6 +2955,8 @@ typedef enum {
   BUFFERTYPE_POSITION,
   BUFFERTYPE_NORMAL,
   BUFFERTYPE_TEX_COORD,
+  BUFFERTYPE_TANGENT,
+  BUFFERTYPE_BI_NORMAL,
   BUFFERTYPE_INDICES,
   BUFFERTYPE_MAX,
 } buffer_type_t;
@@ -4811,6 +4813,22 @@ static void outside_model_destroy(outside_model_t* this)
 static void outside_model_initialize(outside_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+
+  texture_t** texture_map   = this->model.texture_map;
+  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+
+  buffer_dawn_t** buffer_map = this->model.buffer_map;
+  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
+  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
+  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
