@@ -4636,9 +4636,9 @@ static void inner_model_initialize(inner_model_t* this)
     WGPUBindGroupEntry bg_entries[7] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer = this->uniform_buffers.inner,
-        .offset = 0,
-        .size = sizeof(this->inner_uniforms)
+        .buffer  = this->uniform_buffers.inner,
+        .offset  = 0,
+        .size    = sizeof(this->inner_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
@@ -4649,19 +4649,19 @@ static void inner_model_initialize(inner_model_t* this)
         .sampler = this->textures.skybox->sampler,
       },
       [3] = (WGPUBindGroupEntry) {
-        .binding = 3,
+        .binding     = 3,
         .textureView = this->textures.diffuse->view,
       },
       [4] = (WGPUBindGroupEntry) {
-        .binding = 4,
+        .binding     = 4,
         .textureView = this->textures.normal->view,
       },
       [5] = (WGPUBindGroupEntry) {
-        .binding = 5,
+        .binding     = 5,
         .textureView = this->textures.reflection->view,
       },
       [6] = (WGPUBindGroupEntry) {
-        .binding = 6,
+        .binding     = 6,
         .textureView = this->textures.skybox->view,
       },
     };
