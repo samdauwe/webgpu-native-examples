@@ -4421,11 +4421,7 @@ static void inner_model_create(inner_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
-  this->model = (model_t){
-    .type  = type,
-    .name  = name,
-    .blend = blend,
-  };
+  model_create(&this->model, type, name, blend);
 }
 
 static void inner_model_destroy(inner_model_t* this)
