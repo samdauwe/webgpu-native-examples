@@ -4367,10 +4367,6 @@ typedef struct {
   } inner_uniforms;
   world_uniforms_t world_uniform_per;
   struct {
-    WGPUShaderModule vertex;
-    WGPUShaderModule fragment;
-  } shader_modules;
-  struct {
     texture_t* diffuse;
     texture_t* normal;
     texture_t* reflection;
@@ -4440,68 +4436,84 @@ static void inner_model_initialize(inner_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
+  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+
+  texture_t** texture_map   = this->model.texture_map;
+  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+
+  buffer_dawn_t** buffer_map = this->model.buffer_map;
+  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
+  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
+  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 0,
     },
     [1] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 1,
     },
     [2] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x2,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = 0,
       .shaderLocation = 2,
     },
     [3] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 3,
     },
     [4] = (WGPUVertexAttribute) {
-      .format = WGPUVertexFormat_Float32x3,
-      .offset = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+      .offset         = 0,
       .shaderLocation = 4,
     },
   };
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.position.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[0],
+      .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
+      .arrayStride = buffer_dawn_get_data_size(this->buffers.normal),
       .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tex_coord.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[2],
+      .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.tangent.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[3],
+      .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride = this->buffers.normal.size,
-      .stepMode = WGPUVertexStepMode_Vertex,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
+      .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
-      .attributes = &vertex_attributes[4],
+      .attributes     = &vertex_attributes[4],
     },
   };
 
-  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.module      = vs_module;
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
   this->vertex_state.buffers     = vertex_buffer_layouts;
@@ -4509,68 +4521,68 @@ static void inner_model_initialize(inner_model_t* this)
   {
     WGPUBindGroupLayoutEntry bgl_entries[7] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        .binding = 1,
+        .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type  =WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        .binding = 2,
+        .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_Filtering,
         },
         .texture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
-        .binding = 3,
+        .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
-        .binding = 4,
+        .binding    = 4,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [5] = (WGPUBindGroupLayoutEntry) {
-        .binding = 5,
+        .binding    = 5,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
       [6] = (WGPUBindGroupLayoutEntry) {
-        .binding = 6,
+        .binding    = 6,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_Cube,
-          .multisampled = false,
+          .multisampled  = false,
         },
         .storageTexture = {0},
       },
@@ -4582,12 +4594,12 @@ static void inner_model_initialize(inner_model_t* this)
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
@@ -4597,17 +4609,17 @@ static void inner_model_initialize(inner_model_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, // Group 0
-    this->context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,            // Group 2
-    this->bind_group_layouts.per,              // Group 3
+    this->context->bind_group_layouts.general, /* Group 0 */
+    this->context->bind_group_layouts.world,   /* Group 1 */
+    this->bind_group_layouts.model,            /* Group 2 */
+    this->bind_group_layouts.per,              /* Group 3 */
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
     this->context, bind_group_layouts,
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->model.program->fs_module.module,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.inner = context_create_buffer_from_data(
@@ -4692,26 +4704,26 @@ static void inner_model_draw(inner_model_t* this)
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->buffers.position.buffer, 0,
+                                       this->buffers.position->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       this->buffers.normal.buffer, 0,
+                                       this->buffers.normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       this->buffers.tex_coord.buffer, 0,
+                                       this->buffers.tex_coord->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                       this->buffers.tangent.buffer, 0,
+                                       this->buffers.tangent->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                       this->buffers.bi_normal.buffer, 0,
+                                       this->buffers.bi_normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    wgpu_context->rpass_enc, this->buffers.indices->buffer,
     WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   this->buffers.indices.total_components, 1, 0,
-                                   0, 0);
+                                   this->buffers.indices->total_components, 1,
+                                   0, 0, 0);
 }
 
 static void
