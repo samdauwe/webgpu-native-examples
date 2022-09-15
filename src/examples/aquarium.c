@@ -3829,10 +3829,10 @@ static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->aquarium_context->bind_group_layouts.general, // Group 0
-    this->aquarium_context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,                     // Group 2
-    this->bind_group_layouts.per,                       // Group 3
+    this->aquarium_context->bind_group_layouts.general, /* Group 0 */
+    this->aquarium_context->bind_group_layouts.world,   /* Group 1 */
+    this->bind_group_layouts.model,                     /* Group 2 */
+    this->bind_group_layouts.per,                       /* Group 3 */
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
     wgpu_context, bind_group_layouts, (uint32_t)ARRAY_SIZE(bind_group_layouts));
