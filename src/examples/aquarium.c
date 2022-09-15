@@ -1806,7 +1806,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
       else if (sc_queue_size(&this->mapped_buffer_list)
                  + sc_array_size(&this->enqueued_buffer_list)
                < this->count) {
-        // Force wait for the buffer remapping
+        /* Force wait for the buffer remapping */
         while (sc_queue_size(&this->mapped_buffer_list) == 0) {
           printf("mContext->WaitABit();\n");
         }
