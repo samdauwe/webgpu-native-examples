@@ -4068,6 +4068,22 @@ static void generic_model_initialize(generic_model_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
+  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+
+  texture_t** texture_map   = this->model.texture_map;
+  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+
+  buffer_dawn_t** buffer_map = this->model.buffer_map;
+  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
+  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
+  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+
   // Generic models use reflection, normal or diffuse shaders, of which
   // groupLayouts are diiferent in texture binding.  MODELGLOBEBASE use diffuse
   // shader though it contains normal and reflection textures.
@@ -4096,23 +4112,23 @@ static void generic_model_initialize(generic_model_t* this)
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {0};
   uint32_t vertex_buffer_layout_count             = 0;
   {
-    vertex_buffer_layouts[0].arrayStride    = this->buffers.position.size,
+    vertex_buffer_layouts[0].arrayStride    = this->buffers.position->size,
     vertex_buffer_layouts[0].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[0].attributeCount = 1;
     vertex_buffer_layouts[0].attributes     = &vertex_attributes[0];
-    vertex_buffer_layouts[1].arrayStride    = this->buffers.normal.size,
+    vertex_buffer_layouts[1].arrayStride    = this->buffers.normal->size,
     vertex_buffer_layouts[1].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[1].attributeCount = 1;
     vertex_buffer_layouts[1].attributes     = &vertex_attributes[1];
-    vertex_buffer_layouts[2].arrayStride    = this->buffers.tex_coord.size,
+    vertex_buffer_layouts[2].arrayStride    = this->buffers.tex_coord->size,
     vertex_buffer_layouts[2].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[2].attributeCount = 1;
     vertex_buffer_layouts[2].attributes     = &vertex_attributes[2];
-    vertex_buffer_layouts[3].arrayStride    = this->buffers.tangent.size,
+    vertex_buffer_layouts[3].arrayStride    = this->buffers.tangent->size,
     vertex_buffer_layouts[3].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[3].attributeCount = 1;
     vertex_buffer_layouts[3].attributes     = &vertex_attributes[3];
-    vertex_buffer_layouts[4].arrayStride    = this->buffers.normal.size,
+    vertex_buffer_layouts[4].arrayStride    = this->buffers.normal->size,
     vertex_buffer_layouts[4].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[4].attributeCount = 1;
     vertex_buffer_layouts[4].attributes     = &vertex_attributes[4];
@@ -4124,7 +4140,7 @@ static void generic_model_initialize(generic_model_t* this)
     }
   }
 
-  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.module      = vs_module;
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = vertex_buffer_layout_count;
   this->vertex_state.buffers     = vertex_buffer_layouts;
@@ -4207,7 +4223,7 @@ static void generic_model_initialize(generic_model_t* this)
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->shader_modules.fragment,
+    this->context, this->pipeline_layout, this->model.program->fs_module.module,
     &this->vertex_state, this->model.blend);
 
   this->uniform_buffers.light_factor = context_create_buffer_from_data(
@@ -4310,29 +4326,29 @@ static void generic_model_draw(generic_model_t* this)
   wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->buffers.position.buffer, 0,
+                                       this->buffers.position->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       this->buffers.normal.buffer, 0,
+                                       this->buffers.normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       this->buffers.tex_coord.buffer, 0,
+                                       this->buffers.tex_coord->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   // diffuseShader doesn't have to input tangent buffer or binormal buffer.
-  if (this->buffers.tangent.valid && this->buffers.bi_normal.valid) {
+  if (this->buffers.tangent->valid && this->buffers.bi_normal->valid) {
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                         this->buffers.tangent.buffer, 0,
+                                         this->buffers.tangent->buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                         this->buffers.bi_normal.buffer, 0,
+                                         this->buffers.bi_normal->buffer, 0,
                                          WGPU_WHOLE_SIZE);
   }
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    wgpu_context->rpass_enc, this->buffers.indices->buffer,
     WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   this->buffers.indices.total_components, 1, 0,
-                                   0, 0);
+                                   this->buffers.indices->total_components, 1,
+                                   0, 0, 0);
   this->instance = 0;
 }
 
