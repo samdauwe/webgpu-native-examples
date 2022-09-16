@@ -3992,10 +3992,6 @@ void fish_model_instanced_draw_update_fish_per_uniforms(
 typedef struct {
   model_t model;
   struct {
-    WGPUShaderModule vertex;
-    WGPUShaderModule fragment;
-  } shader_modules;
-  struct {
     texture_t* diffuse;
     texture_t* normal;
     texture_t* reflection;
