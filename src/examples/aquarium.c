@@ -4053,11 +4053,7 @@ static void generic_model_create(generic_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
-  this->model = (model_t){
-    .type  = type,
-    .name  = name,
-    .blend = blend,
-  };
+  model_create(&this->model, type, name, blend);
 }
 
 static void generic_model_destroy(generic_model_t* this)
