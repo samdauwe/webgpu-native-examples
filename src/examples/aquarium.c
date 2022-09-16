@@ -4002,12 +4002,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    buffer_dawn_t position;
-    buffer_dawn_t normal;
-    buffer_dawn_t tex_coord;
-    buffer_dawn_t tangent;
-    buffer_dawn_t bi_normal;
-    buffer_dawn_t indices;
+    buffer_dawn_t* position;
+    buffer_dawn_t* normal;
+    buffer_dawn_t* tex_coord;
+    buffer_dawn_t* tangent;
+    buffer_dawn_t* bi_normal;
+    buffer_dawn_t* indices;
   } buffers;
   struct {
     float shininess;
