@@ -3081,12 +3081,12 @@ typedef struct {
     texture_t* skybox;
   } textures;
   struct {
-    buffer_dawn_t position;
-    buffer_dawn_t normal;
-    buffer_dawn_t tex_coord;
-    buffer_dawn_t tangent;
-    buffer_dawn_t bi_normal;
-    buffer_dawn_t indices;
+    buffer_dawn_t* position;
+    buffer_dawn_t* normal;
+    buffer_dawn_t* tex_coord;
+    buffer_dawn_t* tangent;
+    buffer_dawn_t* bi_normal;
+    buffer_dawn_t* indices;
   } buffers;
   WGPUVertexState vertex_state;
   WGPURenderPipeline pipeline;
@@ -3097,10 +3097,6 @@ typedef struct {
   struct {
     WGPUBuffer light_factor;
   } uniform_buffers;
-  struct {
-    WGPUShaderModule vertex;
-    WGPUShaderModule fragment;
-  } shader_modules;
   wgpu_context_t* wgpu_context;
   context_t* context;
   bool enable_dynamic_buffer_offset;
