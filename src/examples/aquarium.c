@@ -3042,11 +3042,7 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
 
   this->aquarium = aquarium;
 
-  this->model = (model_t){
-    .type  = type,
-    .name  = name,
-    .blend = blend,
-  };
+  model_create(&this->model, type, name, blend);
 }
 
 static void fish_model_prepare_for_draw(fish_model_t* this)
