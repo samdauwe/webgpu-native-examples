@@ -3134,6 +3134,23 @@ static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
 static void fish_model_draw_init(fish_model_draw_t* this)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
+  model_t* model               = &this->fish_model.model;
+
+  WGPUShaderModule vs_module = program_get_vs_module(model->program);
+
+  texture_t** texture_map   = model->texture_map;
+  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+
+  buffer_dawn_t** buffer_map = model->buffer_map;
+  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
+  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
+  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
@@ -3165,38 +3182,38 @@ static void fish_model_draw_init(fish_model_draw_t* this)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.position.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.normal.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.tex_coord.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.tangent.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride    = this->buffers.bi_normal.size,
+      .arrayStride    = buffer_dawn_get_data_size(this->buffers.bi_normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[4],
     },
   };
 
-  this->vertex_state.module      = this->shader_modules.vertex;
+  this->vertex_state.module      = vs_module;
   this->vertex_state.entryPoint  = "main";
   this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
   this->vertex_state.buffers     = vertex_buffer_layouts;
@@ -3303,18 +3320,18 @@ static void fish_model_draw_init(fish_model_draw_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general,  // Group 0
-    this->context->bind_group_layouts.world,    // Group 1
-    this->bind_group_layout_model,              // Group 2
-    this->context->bind_group_layouts.fish_per, // Group 3
+    this->context->bind_group_layouts.general,  /* Group 0 */
+    this->context->bind_group_layouts.world,    /* Group 1 */
+    this->bind_group_layout_model,              /* Group 2 */
+    this->context->bind_group_layouts.fish_per, /* Group 3 */
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
     this->context, bind_group_layouts,
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
   this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->shader_modules.fragment,
-    &this->vertex_state, this->fish_model.model.blend);
+    this->context, this->pipeline_layout, model->program->fs_module.module,
+    &this->vertex_state, model->blend);
 
   this->fish_vertex_buffer = context_create_buffer_from_data(
     this->context, &this->fish_vertex_uniforms,
@@ -3425,22 +3442,22 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
   wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_group_model, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->buffers.position.buffer, 0,
+                                       this->buffers.position->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       this->buffers.normal.buffer, 0,
+                                       this->buffers.normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       this->buffers.tex_coord.buffer, 0,
+                                       this->buffers.tex_coord->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                       this->buffers.tangent.buffer, 0,
+                                       this->buffers.tangent->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                       this->buffers.bi_normal.buffer, 0,
+                                       this->buffers.bi_normal->buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->buffers.indices.buffer,
+    wgpu_context->rpass_enc, this->buffers.indices->buffer,
     WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
 
   if (this->enable_dynamic_buffer_offset) {
@@ -3449,7 +3466,7 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
       wgpuRenderPassEncoderSetBindGroup(
         render_pass, 3, this->context->bind_group_fish_pers[0], 1, &offset);
       wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                       this->buffers.indices.total_components,
+                                       this->buffers.indices->total_components,
                                        1, 0, 0, 0);
     }
   }
@@ -3459,7 +3476,7 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
       wgpuRenderPassEncoderSetBindGroup(
         render_pass, 3, this->context->bind_group_fish_pers[offset], 0, NULL);
       wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                       this->buffers.indices.total_components,
+                                       this->buffers.indices->total_components,
                                        1, 0, 0, 0);
     }
   }
@@ -3472,16 +3489,16 @@ void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this, float x,
                                               int index)
 {
   index += this->fish_model.fish_per_offset;
-  context_t* ctx = this->context;
+  fish_per_t* fish_pers = &this->context->fish_pers[index];
 
-  ctx->fish_pers[index].world_position[0] = x;
-  ctx->fish_pers[index].world_position[1] = y;
-  ctx->fish_pers[index].world_position[2] = z;
-  ctx->fish_pers[index].next_position[0]  = next_x;
-  ctx->fish_pers[index].next_position[1]  = next_y;
-  ctx->fish_pers[index].next_position[2]  = next_z;
-  ctx->fish_pers[index].scale             = scale;
-  ctx->fish_pers[index].time              = time;
+  fish_pers->world_position[0] = x;
+  fish_pers->world_position[1] = y;
+  fish_pers->world_position[2] = z;
+  fish_pers->next_position[0]  = next_x;
+  fish_pers->next_position[1]  = next_y;
+  fish_pers->next_position[2]  = next_z;
+  fish_pers->scale             = scale;
+  fish_pers->time              = time;
 }
 
 /* -------------------------------------------------------------------------- *
