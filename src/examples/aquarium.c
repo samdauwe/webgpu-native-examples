@@ -3592,6 +3592,7 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
     = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
   this->fish_pers
     = malloc(this->instance + sizeof(fish_model_instanced_draw_fish_per));
+  memset(this->fish_pers, 0, sizeof(*this->fish_pers));
 }
 
 static void fish_model_instanced_draw_destroy(fish_model_instanced_draw_t* this)
