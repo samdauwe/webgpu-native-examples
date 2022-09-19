@@ -1522,8 +1522,11 @@ typedef struct {
   size_t used_size;
   size_t count;
   WGPUCommandEncoder encoder;
+  void* context;
   bool sync;
 } buffer_manager_t;
+
+static void context_wait_a_bit(void* this);
 
 static size_t ring_buffer_get_size(ring_buffer_t* this)
 {
@@ -1591,7 +1594,7 @@ static void ring_buffer_map_callback(WGPUBufferMapAsyncStatus status,
         ring_buffer->buf, 0, ring_buffer->size);
     ASSERT(ring_buffer->mapped_data);
 
-    sc_queue_add_first(
+    sc_queue_add_last(
       &((buffer_manager_t*)ring_buffer->buffer_manager)->mapped_buffer_list,
       ring_buffer);
   }
@@ -1777,7 +1780,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
 
   ring_buffer_t* ring_buffer = NULL;
   size_t cur_offset          = 0;
-  if (!this->sync) {
+  if (this->sync) {
     /* Upper limit */
     if (this->used_size + size > this->buffer_pool_size) {
       return NULL;
@@ -1788,7 +1791,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
     sc_array_add(&this->enqueued_buffer_list, ring_buffer);
   }
   else { /* Buffer mapping async */
-    while (!(sc_queue_size(&this->mapped_buffer_list) == 0)) {
+    while (!sc_queue_empty(&this->mapped_buffer_list)) {
       ring_buffer = sc_queue_peek_first(&this->mapped_buffer_list);
       if (ring_buffer_get_available_size(ring_buffer) < size) {
         sc_queue_del_first(&this->mapped_buffer_list);
@@ -1811,8 +1814,8 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
                  + sc_array_size(&this->enqueued_buffer_list)
                < this->count) {
         /* Force wait for the buffer remapping */
-        while (sc_queue_size(&this->mapped_buffer_list) == 0) {
-          printf("mContext->WaitABit();\n");
+        while (sc_queue_empty(&this->mapped_buffer_list)) {
+          context_wait_a_bit(this->context);
         }
 
         ring_buffer = sc_queue_peek_first(&this->mapped_buffer_list);
@@ -1828,7 +1831,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
 
     if (sc_array_size(&this->enqueued_buffer_list) == 0
         && (sc_array_last(&this->enqueued_buffer_list)) != ring_buffer) {
-      sc_queue_add_last(&this->mapped_buffer_list, ring_buffer);
+      sc_array_add(&this->enqueued_buffer_list, ring_buffer);
     }
 
     /* allocate size in the ring buffer */
@@ -2611,9 +2614,9 @@ static void context_realloc_resource(context_t* this,
   }
 }
 
-static void context_wait_a_bit(context_t* this)
+static void context_wait_a_bit(void* this)
 {
-  wgpuDeviceTick(this->device);
+  wgpuDeviceTick(((context_t*)this)->device);
 
   usleep(100);
 }
