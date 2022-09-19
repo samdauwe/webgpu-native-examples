@@ -1666,15 +1666,15 @@ static size_t buffer_manager_get_size(buffer_manager_t* this)
 static bool buffer_manager_reset_buffer(buffer_manager_t* this,
                                         ring_buffer_t* ring_buffer, size_t size)
 {
-  size_t index = buffer_manager_find(this, ring_buffer);
+  const size_t index = buffer_manager_find(this, ring_buffer);
 
   if (index >= sc_array_size(&this->enqueued_buffer_list)) {
     return false;
   }
 
-  size_t old_size = ring_buffer_get_size(ring_buffer);
+  const size_t old_size = ring_buffer_get_size(ring_buffer);
 
-  bool result = ring_buffer_reset(ring_buffer, size);
+  const bool result = ring_buffer_reset(ring_buffer, size);
   // If the size is larger than the ring buffer size, reset fails and the ring
   // buffer retains.
   // If the size is equal or smaller than the ring buffer size, reset success
@@ -1692,7 +1692,7 @@ static bool buffer_manager_reset_buffer(buffer_manager_t* this,
 static bool buffer_manager_destroy_buffer(buffer_manager_t* this,
                                           ring_buffer_t* ring_buffer)
 {
-  size_t index = buffer_manager_find(this, ring_buffer);
+  const size_t index = buffer_manager_find(this, ring_buffer);
 
   if (index >= sc_array_size(&this->enqueued_buffer_list)) {
     return false;
