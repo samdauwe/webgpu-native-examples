@@ -1590,6 +1590,10 @@ static void ring_buffer_map_callback(WGPUBufferMapAsyncStatus status,
     ring_buffer->mapped_data   = (uint64_t*)wgpuBufferGetMappedRange(
         ring_buffer->buf, 0, ring_buffer->size);
     ASSERT(ring_buffer->mapped_data);
+
+    sc_queue_add_first(
+      &((buffer_manager_t*)ring_buffer->buffer_manager)->mapped_buffer_list,
+      ring_buffer);
   }
 }
 
