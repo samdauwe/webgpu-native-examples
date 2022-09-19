@@ -1612,7 +1612,7 @@ static void ring_buffer_re_map(ring_buffer_t* this)
                      ring_buffer_map_callback, this);
 }
 
-/* allocate size in a ring_buffer_t, return offset of the buffer */
+/* Allocate size in a ring_buffer_t, return offset of the buffer */
 static size_t ring_buffer_allocate(ring_buffer_t* this, size_t size)
 {
   this->tail += size;
