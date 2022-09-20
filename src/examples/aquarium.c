@@ -2206,7 +2206,7 @@ static texture_t context_create_multisampled_render_target_view(context_t* this)
   texture.texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
   ASSERT(texture.texture != NULL);
 
-  // Create the texture view
+  /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
@@ -2239,7 +2239,7 @@ static texture_t context_create_depth_stencil_view(context_t* this)
   texture.texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
   ASSERT(texture.texture != NULL);
 
-  // Create the texture view
+  /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
