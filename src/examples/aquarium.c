@@ -2281,6 +2281,7 @@ static void context_set_buffer_data(void* context, WGPUBuffer buffer,
 
   WGPUCommandBuffer command
     = context_copy_buffer_to_buffer(this, staging, 0, buffer, 0, buffer_size);
+  ASSERT(command != NULL);
   WGPU_RELEASE_RESOURCE(Buffer, staging);
   sc_array_add(&((context_t*)this)->command_buffers, command);
 }
