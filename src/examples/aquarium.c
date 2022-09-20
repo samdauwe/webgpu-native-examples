@@ -2071,7 +2071,7 @@ static wgpu_shader_t context_create_shader_module(void* context,
 
   wgpu_shader_t shader = wgpu_shader_create(((context_t*)context)->wgpu_context,
                                             &(wgpu_shader_desc_t){
-                                              // Shader WGSL
+                                              /* Shader WGSL */
                                               .file  = shader_wgsl_path,
                                               .entry = "main",
                                             });
