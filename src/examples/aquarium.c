@@ -2041,6 +2041,7 @@ static WGPUCommandBuffer context_copy_buffer_to_texture(
   wgpuCommandEncoderCopyBufferToTexture(encoder, image_copy_buffer,
                                         image_copy_texture, ext_3d);
   WGPUCommandBuffer copy = wgpuCommandEncoderFinish(encoder, NULL);
+  ASSERT(copy != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
 
   return copy;
@@ -2056,6 +2057,7 @@ context_copy_buffer_to_buffer(context_t* this, WGPUBuffer src_buffer,
   wgpuCommandEncoderCopyBufferToBuffer(encoder, src_buffer, src_offset,
                                        dest_buffer, dest_offset, size);
   WGPUCommandBuffer copy = wgpuCommandEncoderFinish(encoder, NULL);
+  ASSERT(copy != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
 
   return copy;
