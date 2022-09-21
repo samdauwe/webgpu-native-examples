@@ -4234,10 +4234,10 @@ static void generic_model_initialize(generic_model_t* this)
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, // Group 0
-    this->context->bind_group_layouts.world,   // Group 1
-    this->bind_group_layouts.model,            // Group 2
-    this->bind_group_layouts.per,              // Group 3
+    this->context->bind_group_layouts.general, /* Group 0 */
+    this->context->bind_group_layouts.world,   /* Group 1 */
+    this->bind_group_layouts.model,            /* Group 2 */
+    this->bind_group_layouts.per,              /* Group 3 */
   };
   this->pipeline_layout = context_make_basic_pipeline_layout(
     this->context, bind_group_layouts,
