@@ -2560,8 +2560,8 @@ static void context_realloc_resource(context_t* this,
     return;
   }
 
-  // If current fish number > pre fish number, allocate a new bigger buffer.
-  // If current fish number <= prefish number, do not allocate a new one.
+  /* If current fish number > pre fish number, allocate a new bigger buffer. */
+  /* If current fish number <= prefish number, do not allocate a new one. */
   if (pre_total_instance >= cur_total_instance) {
     return;
   }
