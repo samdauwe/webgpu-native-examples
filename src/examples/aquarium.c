@@ -431,7 +431,7 @@ float deg_to_rad(float degrees)
  * -------------------------------------------------------------------------- */
 
 typedef enum {
-  /* begin of background */
+  /* Begin of background */
   MODELRUINCOLUMN,
   MODELARCH,
   MODELROCKA,
@@ -455,7 +455,7 @@ typedef enum {
   MODELSEAWEEDA,
   MODELSEAWEEDB,
 
-  /* begin of fish */
+  /* Begin of fish */
   MODELSMALLFISHA,
   MODELMEDIUMFISHA,
   MODELMEDIUMFISHB,
