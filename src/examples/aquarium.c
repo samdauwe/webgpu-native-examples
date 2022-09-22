@@ -1166,9 +1166,9 @@ static g_settings_t g_settings = {
  * FPSTimer - Defines fps timer, uses millseconds time unit.
  * -------------------------------------------------------------------------- */
 
-#define NUM_HISTORY_DATA 100
-#define NUM_FRAMES_TO_AVERAGE 128
-#define FPS_VALID_THRESHOLD 5
+#define NUM_HISTORY_DATA 100u
+#define NUM_FRAMES_TO_AVERAGE 128u
+#define FPS_VALID_THRESHOLD 5u
 
 sc_array_def(float, float);
 
