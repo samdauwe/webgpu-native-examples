@@ -1894,7 +1894,6 @@ typedef struct {
 
 sc_queue_def(behavior_t*, behavior);
 
-// All state is in a single nested struct
 typedef struct {
   wgpu_context_t* wgpu_context;
   context_t* context;
