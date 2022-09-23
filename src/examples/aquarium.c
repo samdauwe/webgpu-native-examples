@@ -2661,7 +2661,7 @@ static void context_destory_fish_resource(context_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
- * Aquarium - Main class functions
+ * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
 static float get_current_time_point()
