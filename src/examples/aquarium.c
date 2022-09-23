@@ -1843,7 +1843,7 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
- * Aquarium context - Defines outside model of Dawn
+ * Aquarium context - Defines the render context.
  * -------------------------------------------------------------------------- */
 
 sc_array_def(WGPUCommandBuffer, command_buffer);
