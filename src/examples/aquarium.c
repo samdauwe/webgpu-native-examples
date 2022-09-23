@@ -2468,7 +2468,7 @@ static void context_flush(context_t* this)
 /* Submit commands of the frame */
 static void context_do_flush(context_t* this)
 {
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(this->render_pass);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, this->render_pass)
 
