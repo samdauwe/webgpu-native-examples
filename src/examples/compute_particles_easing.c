@@ -300,7 +300,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .sampler = particle_texture.sampler,
     },
     [1] = (WGPUBindGroupEntry) {
-       /* Binding 1 : texture */
+       /* Binding 1 : texture view */
       .binding     = 1,
       .textureView = particle_texture.view,
     }
