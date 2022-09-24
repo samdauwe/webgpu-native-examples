@@ -323,14 +323,14 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
   sim_param_data.time += (1.0 / 60.f) * 1000.0f;
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(wgpu_context, compute.sim_param_buffer.buffer, 0,
                           &sim_param_data, compute.sim_param_buffer.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Compute shader uniform buffer block
+  /* Compute shader uniform buffer block */
   compute.sim_param_buffer = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -338,13 +338,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(sim_param_data),
     });
 
-  // Update uniform buffer
+  /* Update uniform buffer */
   update_uniform_buffers(context);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
@@ -357,10 +357,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass_desc = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = rp_color_att_descriptors,
@@ -370,14 +370,14 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state = wgpu_create_blend_state(true);
   {
     blend_state.color.srcFactor = WGPUBlendFactor_SrcAlpha;
@@ -395,16 +395,16 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = false,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPUVertexBufferLayout buffers[2] = {0};
-  // instanced particles buffer
+  /* Instanced particles buffer */
   buffers[0].arrayStride              = PROPERTY_NUM * 4;
   buffers[0].stepMode                 = WGPUVertexStepMode_Instance;
   buffers[0].attributeCount           = 3;
@@ -455,7 +455,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
+                  /* Vertex shader SPIR-V */
                   .label = "particle_vertex_shader",
                   .file  = "shaders/compute_particles_easing/particle.vert.spv",
                 },
@@ -467,7 +467,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
+                  /* Fragment shader SPIR-V */
                   .label = "particle_fragment_shader",
                   .file  = "shaders/compute_particles_easing/particle.frag.spv",
                 },
