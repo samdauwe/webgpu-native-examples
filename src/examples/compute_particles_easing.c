@@ -14,8 +14,8 @@
  * https://github.com/redcamel/webgpu/tree/master/14_compute
  * -------------------------------------------------------------------------- */
 
-#define PARTICLE_NUM 60000
-#define PROPERTY_NUM 40
+#define PARTICLE_NUM 60000u
+#define PROPERTY_NUM 40u
 
 static struct {
   float time;
