@@ -54,7 +54,8 @@ static struct {
   .pressure_iterations    = 100,
 };
 
-/* Creates and manage multi-dimensional buffers by creating a buffer for each
+/**
+ * Creates and manage multi-dimensional buffers by creating a buffer for each
  * dimension
  */
 typedef struct {
@@ -99,7 +100,15 @@ static void dynamic_buffer_init(dynamic_buffer_t* this,
   }
 }
 
-/* Copy each buffer to another DynamicBuffer's buffers.
+static void dynamic_buffer_destroy(dynamic_buffer_t* this)
+{
+  for (uint32_t i = 0; i < this->dims; ++i) {
+    wgpu_destroy_buffer(&this->buffers[i]);
+  }
+}
+
+/**
+ * Copy each buffer to another DynamicBuffer's buffers.
  * If the dimensions don't match, the last non-empty dimension will be copied
  * instead
  */
@@ -121,7 +130,7 @@ static void dynamic_buffer_clear(dynamic_buffer_t* this)
   memset(empty_buffer, 0, this->buffer_size);
 
   for (uint32_t i = 0; i < this->dims; ++i) {
-    wgpu_queue_write_buffer(this->wgpu_context, this->buffers->buffer, 0,
+    wgpu_queue_write_buffer(this->wgpu_context, this->buffers[i].buffer, 0,
                             empty_buffer, this->buffer_size);
   }
 
