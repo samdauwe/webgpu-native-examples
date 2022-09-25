@@ -55,7 +55,8 @@ static struct {
 };
 
 /* Creates and manage multi-dimensional buffers by creating a buffer for each
- * dimension */
+ * dimension
+ */
 typedef struct {
   wgpu_context_t* wgpu_context;          /* The WebGPU context*/
   uint32_t dims;                         /* Number of dimensions */
@@ -96,4 +97,33 @@ static void dynamic_buffer_init(dynamic_buffer_t* this,
       .size   = buffer_desc.size,
     };
   }
+}
+
+/* Copy each buffer to another DynamicBuffer's buffers.
+ * If the dimensions don't match, the last non-empty dimension will be copied
+ * instead
+ */
+static void dynamic_buffer_copy_to(dynamic_buffer_t* this,
+                                   dynamic_buffer_t* buffer,
+                                   WGPUCommandEncoder command_encoder)
+{
+  for (uint32_t i = 0; i < MAX(this->dims, buffer->dims); ++i) {
+    wgpuCommandEncoderCopyBufferToBuffer(
+      command_encoder, this->buffers[MIN(i, this->dims - 1)].buffer, 0,
+      buffer->buffers[MIN(i, buffer->dims - 1)].buffer, 0, this->buffer_size);
+  }
+}
+
+/* Reset all the buffers */
+static void dynamic_buffer_clear(dynamic_buffer_t* this)
+{
+  float* empty_buffer = (float*)malloc(this->buffer_size);
+  memset(empty_buffer, 0, this->buffer_size);
+
+  for (uint32_t i = 0; i < this->dims; ++i) {
+    wgpu_queue_write_buffer(this->wgpu_context, this->buffers->buffer, 0,
+                            empty_buffer, this->buffer_size);
+  }
+
+  free(empty_buffer);
 }
