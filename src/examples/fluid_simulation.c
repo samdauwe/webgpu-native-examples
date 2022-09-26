@@ -38,7 +38,7 @@ static struct {
   float viscosity;
   uint32_t vorticity;
   uint32_t pressure_iterations;
-} settings_t = {
+} settings = {
   .grid_size              = 512,
   .dye_size               = 2048,
   .sim_speed              = 5,
