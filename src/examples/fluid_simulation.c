@@ -54,6 +54,16 @@ static struct {
   .pressure_iterations    = 100,
 };
 
+static struct {
+  vec2 current;
+  vec2 last;
+  vec2 velocity;
+} mouse_infos = {
+  .current  = GLM_VEC2_ZERO_INIT,
+  .last     = GLM_VEC2_ZERO_INIT,
+  .velocity = GLM_VEC2_ZERO_INIT,
+};
+
 /**
  * Creates and manage multi-dimensional buffers by creating a buffer for each
  * dimension
