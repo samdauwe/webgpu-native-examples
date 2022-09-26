@@ -146,3 +146,19 @@ static void dynamic_buffer_clear(dynamic_buffer_t* this)
 
   free(empty_buffer);
 }
+
+static struct {
+  dynamic_buffer_t velocity;
+  dynamic_buffer_t velocity0;
+
+  dynamic_buffer_t dye;
+  dynamic_buffer_t dye0;
+
+  dynamic_buffer_t divergence;
+  dynamic_buffer_t divergence0;
+
+  dynamic_buffer_t pressure;
+  dynamic_buffer_t pressure0;
+
+  dynamic_buffer_t vorticity;
+} dynamic_buffers;
