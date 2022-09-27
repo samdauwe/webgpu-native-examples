@@ -181,3 +181,7 @@ typedef enum {
   UNIFORM_MOUSE_TYPE,
   UNIFORM_COUNT,
 } uniform_type_t;
+
+typedef struct {
+  size_t size;
+} uniform_t;
