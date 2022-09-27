@@ -182,6 +182,7 @@ typedef enum {
   UNIFORM_COUNT,
 } uniform_type_t;
 
+/* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
   size_t size;
 } uniform_t;
