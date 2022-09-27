@@ -185,3 +185,21 @@ typedef enum {
 typedef struct {
   size_t size;
 } uniform_t;
+
+static struct {
+  uniform_t time;
+  uniform_t dt;
+  uniform_t mouse;
+  uniform_t grid;
+  uniform_t simSpeed;
+  uniform_t vel_force;
+  uniform_t vel_radius;
+  uniform_t vel_diff;
+  uniform_t dye_force;
+  uniform_t dye_radius;
+  uniform_t dye_diff;
+  uniform_t viscosity;
+  uniform_t u_vorticity;
+  uniform_t contain_fluid;
+  uniform_t u_symmetry;
+} uniforms;
