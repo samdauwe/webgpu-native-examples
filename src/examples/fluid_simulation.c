@@ -185,6 +185,7 @@ typedef enum {
 /* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
   size_t size;
+  bool needs_update;
 } uniform_t;
 
 static struct {
