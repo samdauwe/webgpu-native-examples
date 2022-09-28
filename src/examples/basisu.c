@@ -61,13 +61,13 @@ static WGPURenderPipeline pipeline; // solid
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Bind groups stores the resources bound to the binding points in a shader
 static struct {
   WGPUBindGroup opaque;
   WGPUBindGroup alpha;
-} bind_groups;
+} bind_groups = {0};
 
 static WGPUBindGroupLayout bind_group_layout;
 
@@ -75,7 +75,7 @@ static WGPUBindGroupLayout bind_group_layout;
 static struct {
   texture_t opaque;
   texture_t alpha;
-} textures;
+} textures = {0};
 
 // GUI
 static int32_t current_texture_type = 0;
