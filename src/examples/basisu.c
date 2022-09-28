@@ -138,7 +138,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Updated view matrices
+  // Update view matrices
   glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
 
