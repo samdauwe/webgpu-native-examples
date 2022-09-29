@@ -232,10 +232,30 @@ static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
   };
 }
 
+static WGPUExtent3D get_preferred_dimensions(uint32_t size,
+                                             wgpu_context_t* wgpu_context,
+                                             uint64_t max_buffer_size,
+                                             uint64_t max_canvas_size)
+{
+  const float aspect_ratio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+
+  uint32_t w = 0, h = 0;
+
+  if (wgpu_context->surface.height < wgpu_context->surface.width) {
+    w = floor(size * aspect_ratio);
+    h = size;
+  }
+  else {
+    w = size;
+    h = floor(size / aspect_ratio);
+  }
+
+  return get_valid_dimensions(w, h, max_buffer_size, max_canvas_size);
+}
+
 static void init_sizes(wgpu_context_t* wgpu_context)
 {
-  const float aspectRatio
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
   uint64_t max_buffer_size          = 0;
   uint64_t max_canvas_size          = 0;
   WGPUSupportedLimits device_limits = {0};
