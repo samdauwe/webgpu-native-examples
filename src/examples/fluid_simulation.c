@@ -205,3 +205,16 @@ static struct {
   uniform_t contain_fluid;
   uniform_t u_symmetry;
 } uniforms;
+
+static void init_sizes(wgpu_context_t* wgpu_context)
+{
+  const float aspectRatio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  uint64_t max_buffer_size          = 0;
+  uint64_t max_canvas_size          = 0;
+  WGPUSupportedLimits device_limits = {0};
+  if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
+    max_buffer_size = device_limits.limits.maxStorageBufferBindingSize;
+    max_canvas_size = device_limits.limits.maxTextureDimension2D;
+  }
+}
