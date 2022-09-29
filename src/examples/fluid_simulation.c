@@ -206,6 +206,32 @@ static struct {
   uniform_t u_symmetry;
 } uniforms;
 
+/* Downscale if necessary to prevent crashes */
+static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
+                                         uint64_t max_buffer_size,
+                                         uint64_t max_canvas_size)
+{
+  float down_ratio = 1.0f;
+
+  /* Prevent buffer size overflow */
+  if (w * h * 4 >= max_buffer_size) {
+    down_ratio = sqrt(max_buffer_size / (float)(w * h * 4));
+  }
+
+  /* Prevent canvas size overflow */
+  if (w > max_canvas_size) {
+    down_ratio = max_canvas_size / (float)w;
+  }
+  else if (h > max_canvas_size) {
+    down_ratio = max_canvas_size / (float)h;
+  }
+
+  return (WGPUExtent3D){
+    .width  = floor(w * down_ratio),
+    .height = floor(h * down_ratio),
+  };
+}
+
 static void init_sizes(wgpu_context_t* wgpu_context)
 {
   const float aspectRatio
