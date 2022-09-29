@@ -24,9 +24,14 @@
 
 static struct {
   uint32_t grid_size;
+  uint32_t grid_w;
+  uint32_t grid_h;
   uint32_t dye_size;
   uint32_t dye_w;
   uint32_t dye_h;
+  uint32_t rdx;
+  uint32_t dye_rdx;
+  float dx;
   uint32_t sim_speed;
   bool contain_fluid;
   float velocity_add_intensity;
@@ -232,6 +237,7 @@ static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
   };
 }
 
+/* Fit to screen while keeping the aspect ratio */
 static WGPUExtent3D get_preferred_dimensions(uint32_t size,
                                              wgpu_context_t* wgpu_context,
                                              uint64_t max_buffer_size,
@@ -263,4 +269,21 @@ static void init_sizes(wgpu_context_t* wgpu_context)
     max_buffer_size = device_limits.limits.maxStorageBufferBindingSize;
     max_canvas_size = device_limits.limits.maxTextureDimension2D;
   }
+
+  /* Calculate simulation buffer dimensions */
+  WGPUExtent3D grid_size = get_preferred_dimensions(
+    settings.grid_size, wgpu_context, max_buffer_size, max_canvas_size);
+  settings.grid_w = grid_size.width;
+  settings.grid_h = grid_size.height;
+
+  /* Calculate dye & canvas buffer dimensions */
+  WGPUExtent3D dye_size = get_preferred_dimensions(
+    settings.dye_size, wgpu_context, max_buffer_size, max_canvas_size);
+  settings.dye_w = dye_size.width;
+  settings.dye_h = dye_size.height;
+
+  /* Useful values for the simulation */
+  settings.rdx     = settings.grid_size * 4;
+  settings.dye_rdx = settings.dye_size * 4;
+  settings.dx      = 1.0f / settings.rdx;
 }
