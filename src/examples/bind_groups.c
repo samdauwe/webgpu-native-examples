@@ -332,8 +332,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   static vec3 translations[2] = {
-    {-2.0f, 0.0f, 0.0f}, // Cube 1
-    {1.5f, 0.5f, 0.0f},  // Cube 2
+    {-2.0f, 0.0f, 0.0f}, /* Cube 1 */
+    {1.5f, 0.5f, 0.0f},  /* Cube 2 */
   };
 
   camera_t* camera = context->camera;
