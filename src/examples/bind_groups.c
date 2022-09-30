@@ -112,9 +112,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     // accessible to multiple shader stages)
     .visibility = WGPUShaderStage_Vertex,
     .buffer = (WGPUBufferBindingLayout) {
-      .type = WGPUBufferBindingType_Uniform,
+      .type             = WGPUBufferBindingType_Uniform,
       .hasDynamicOffset = false,
-      .minBindingSize = sizeof(view_matrices_t),
+      .minBindingSize   = sizeof(view_matrices_t),
     },
     .sampler = {0},
   };
@@ -127,9 +127,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     // Accessible from the fragment shader only
     .visibility = WGPUShaderStage_Fragment,
     .texture = (WGPUTextureBindingLayout) {
-      .sampleType = WGPUTextureSampleType_Float,
+      .sampleType    = WGPUTextureSampleType_Float,
       .viewDimension = WGPUTextureViewDimension_2D,
-      .multisampled = false,
+      .multisampled  = false,
     },
     .storageTexture = {0},
   };
@@ -138,10 +138,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
    * Binding 2: Image sampler (used to pass per object texture information)
    */
   bind_group_layout_entries[2] = (WGPUBindGroupLayoutEntry) {
-    .binding = 2,
+    .binding    = 2,
     .visibility = WGPUShaderStage_Fragment,
     .sampler = (WGPUSamplerBindingLayout){
-      .type=WGPUSamplerBindingType_Filtering,
+      .type = WGPUSamplerBindingType_Filtering,
     },
     .texture = {0},
   };
@@ -291,7 +291,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/bind_groups/cube.vert.spv",
             },
             .buffer_count = 1,
-            .buffers = &cube_vertex_buffer_layout,
+            .buffers      = &cube_vertex_buffer_layout,
           });
 
   // Fragment state
@@ -302,7 +302,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               .file = "shaders/bind_groups/cube.frag.spv",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets      = &color_target_state_desc,
           });
 
   // Multisample state
