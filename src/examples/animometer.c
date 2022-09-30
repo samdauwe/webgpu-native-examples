@@ -113,7 +113,7 @@ static WGPURenderPipeline dynamic_pipeline;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Render bundles execute the commands previously recorded into the given
 // GPURenderBundles as part of this render pass.
