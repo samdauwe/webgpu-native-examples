@@ -486,22 +486,29 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### March - October 2022
-
-The list given below summarizes possible examples or functionality that will be added in the next 3-4 months.
+### March - September 2022
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
 * [x] ~~Use helper function for buffer creation to achieve more compact code~~
-* [ ] Extend command-line options
 * [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
+* [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
+
+### October 2022
+
+* [ ] [Aquarium](https://github.com/webatintel/aquarium)
+* [ ] [WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)
+
+### November - December 2022
+
+The list given below summarizes possible examples or functionality that will be added in the future.
+
+* [ ] Extend command-line options
 * [ ] [Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
-* [ ] [Aquarium](https://github.com/webatintel/aquarium)
 * [ ] [Physically-Based Rendering using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
 * [ ] Building for Web with Emscripten / WebAssembly
-* [ ] Resolve glTF model rendering / loading issues showing up in a couple of example
 
 ## License
 
