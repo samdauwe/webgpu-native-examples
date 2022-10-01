@@ -69,6 +69,10 @@ static struct {
   .velocity = GLM_VEC2_ZERO_INIT,
 };
 
+/* -------------------------------------------------------------------------- *
+ * Dynamic buffer
+ * -------------------------------------------------------------------------- */
+
 /**
  * Creates and manage multi-dimensional buffers by creating a buffer for each
  * dimension
@@ -168,6 +172,10 @@ static struct {
   dynamic_buffer_t vorticity;
 } dynamic_buffers;
 
+/* -------------------------------------------------------------------------- *
+ * Uniforms
+ * -------------------------------------------------------------------------- */
+
 typedef enum {
   UNIFORM_TIME,
   UNIFORM_DT,
@@ -249,6 +257,10 @@ static struct {
   uniform_t contain_fluid;
   uniform_t u_symmetry;
 } uniforms;
+
+/* -------------------------------------------------------------------------- *
+ * Initialization
+ * -------------------------------------------------------------------------- */
 
 /* Downscale if necessary to prevent crashes */
 static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
