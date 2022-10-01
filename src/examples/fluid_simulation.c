@@ -189,9 +189,34 @@ typedef enum {
 
 /* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
+  uniform_type_t type;
   size_t size;
   bool needs_update;
+  wgpu_buffer_t buffer;
 } uniform_t;
+
+static void uniform_init_defaults(dynamic_buffer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
+                         uniform_type_t type, uint32_t size, float* value)
+{
+  this->type         = type;
+  this->size         = size;
+  this->needs_update = false;
+
+  if (this->size > 0 && value != NULL) {
+    this->buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
+                                           .size         = this->size * 4,
+                                           .initial.data = value,
+                                         });
+  }
+}
 
 static struct {
   uniform_t time;
