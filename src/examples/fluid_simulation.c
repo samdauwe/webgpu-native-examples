@@ -338,3 +338,160 @@ static void init_sizes(wgpu_context_t* wgpu_context)
   settings.dye_rdx = settings.dye_size * 4;
   settings.dx      = 1.0f / settings.rdx;
 }
+
+/* -------------------------------------------------------------------------- *
+ * Render
+ * -------------------------------------------------------------------------- */
+
+// Vertex buffer
+static wgpu_buffer_t vertex_buffer = {0};
+
+// Render pipeline
+static WGPURenderPipeline render_pipeline = {0};
+
+// Shaders
+// clang-format off
+static const char* shader_wgsl = CODE(
+  struct GridSize {
+    w : f32,
+    h : f32,
+    dyeW: f32,
+    dyeH: f32,
+    dx : f32,
+    rdx : f32,
+    dyeRdx : f32
+  }
+
+  struct VertexOut {
+    @builtin(position) position : vec4<f32>,
+    @location(1) uv : vec2<f32>,
+  };
+
+  @group(0) @binding(0) var<storage, read_write> fieldX : array<f32>;
+  @group(0) @binding(1) var<storage, read_write> fieldY : array<f32>;
+  @group(0) @binding(2) var<storage, read_write> fieldZ : array<f32>;
+  @group(0) @binding(3) var<uniform> uGrid : GridSize;
+  @group(0) @binding(4) var<uniform> multiplier : f32;
+  @group(0) @binding(5) var<uniform> isRenderingDye : f32;
+
+  @vertex
+  fn vertex_main(@location(0) position: vec4<f32>) -> VertexOut
+  {
+    var output : VertexOut;
+    output.position = position;
+    output.uv = position.xy*.5+.5;
+    return output;
+  }
+
+  @fragment
+  fn fragment_main(fragData : VertexOut) -> @location(0) vec4<f32>
+  {
+    var w = uGrid.dyeW;
+    var h = uGrid.dyeH;
+
+    if (isRenderingDye != 1.) {
+      w = uGrid.w;
+      h = uGrid.h;
+    }
+
+    let fuv = vec2<f32>((floor(fragData.uv*vec2(w, h))));
+    let id = u32(fuv.x + fuv.y * w);
+
+    let r = fieldX[id];
+    let g = fieldY[id];
+    let b = fieldZ[id];
+    var col = vec3(r, g, b);
+
+    if (r == g && r == b) {
+      if (r < 0.) {col = mix(vec3(0.), vec3(0., 0., 1.), abs(r));}
+      else {col = mix(vec3(0.), vec3(1., 0., 0.), r);}
+    }
+    return vec4(col, 1) * multiplier;
+  }
+);
+
+static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+{
+  const float vertices[24] = {
+    -1, -1, 0, 1, -1, 1, 0, 1, 1, -1, 0, 1,
+    1,  -1, 0, 1, -1, 1, 0, 1, 1, 1,  0, 1,
+  };
+
+  vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(vertices),
+                    .initial.data = vertices,
+                  });
+}
+
+static void prepare_pipelines(wgpu_context_t* wgpu_context)
+{
+  /* Primitive state */
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
+
+  /* Color target state */
+  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  /* Vertex buffer layout */
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    fluid_simulation, 16,
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
+
+  /* Vertex state */
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+                wgpu_context, &(wgpu_vertex_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Vertex shader WGSL
+                  .label            = "vertex_shader_wgsl",
+                  .wgsl_code.source = shader_wgsl,
+                  .entry            = "vertex_main",
+                },
+                .buffer_count = 1,
+                .buffers      = &fluid_simulation_vertex_buffer_layout,
+              });
+
+  /* Fragment state */
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+                wgpu_context, &(wgpu_fragment_state_t){
+                .shader_desc = (wgpu_shader_desc_t){
+                  // Fragment shader WGSL
+                  .label            = "fragment_shader_wgsl",
+                  .wgsl_code.source = shader_wgsl,
+                  .entry            = "fragment_main",
+                },
+                .target_count = 1,
+                .targets      = &color_target_state,
+              });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Create rendering pipeline using the specified states
+  render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label       = "fluid_simulation_render_pipeline",
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
+                            .multisample = multisample_state,
+                          });
+  ASSERT(render_pipeline != NULL);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
