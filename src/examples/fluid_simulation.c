@@ -191,11 +191,12 @@ typedef enum {
 typedef struct {
   uniform_type_t type;
   size_t size;
+  bool always_update;
   bool needs_update;
   wgpu_buffer_t buffer;
 } uniform_t;
 
-static void uniform_init_defaults(dynamic_buffer_t* this)
+static void uniform_init_defaults(uniform_t* this)
 {
   memset(this, 0, sizeof(*this));
 }
@@ -207,6 +208,8 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
   this->size         = size;
   this->needs_update = false;
 
+  this->always_update = (size == 1);
+
   if (this->size > 0 && value != NULL) {
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
@@ -215,6 +218,17 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                                            .size         = this->size * 4,
                                            .initial.data = value,
                                          });
+  }
+}
+
+/* Update the GPU buffer if the value has changed */
+static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
+                           float* value)
+{
+  if (this->needs_update || this->always_update || value != NULL) {
+    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0, value,
+                            this->size);
+    this->needs_update = false;
   }
 }
 
