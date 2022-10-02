@@ -247,7 +247,7 @@ static struct {
   uniform_t dt;
   uniform_t mouse;
   uniform_t grid;
-  uniform_t simSpeed;
+  uniform_t sim_speed;
   uniform_t vel_force;
   uniform_t vel_radius;
   uniform_t vel_diff;
@@ -258,6 +258,8 @@ static struct {
   uniform_t u_vorticity;
   uniform_t contain_fluid;
   uniform_t u_symmetry;
+  uniform_t u_render_intensity;
+  uniform_t u_render_dye;
 } uniforms;
 
 /* -------------------------------------------------------------------------- *
@@ -350,6 +352,12 @@ static wgpu_buffer_t vertex_buffer = {0};
 
 // Render pipeline
 static WGPURenderPipeline render_pipeline = {0};
+
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass;
 
 // Shaders
 // clang-format off
@@ -496,4 +504,27 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void setup_render_pass()
+{
+  /* Color attachment */
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, /* Assigned later */
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearColor = (WGPUColor) {
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
+        .a = 1.0f,
+      },
+  };
+
+  /* Render pass descriptor */
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = NULL,
+  };
 }
