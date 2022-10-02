@@ -536,18 +536,17 @@ static void setup_render_pass()
 static void dispatch(wgpu_context_t* wgpu_context,
                      WGPUCommandEncoder command_encoder)
 {
-  // Set target frame buffer
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  WGPURenderPassEncoder render_pass_encoder = wgpuCommandEncoderBeginRenderPass(
+    command_encoder, &render_pass.descriptor);
 
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    render_bindGroup, 0, 0);
+  wgpuRenderPassEncoderSetPipeline(render_pass_encoder, render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0, render_bindGroup, 0,
+                                    0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    wgpu_context->rpass_enc, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+    render_pass_encoder, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDraw(render_pass_encoder, 6, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(render_pass_encoder);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass_encoder)
 }
