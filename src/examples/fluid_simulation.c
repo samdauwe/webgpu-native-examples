@@ -353,6 +353,9 @@ static wgpu_buffer_t vertex_buffer = {0};
 // Render pipeline
 static WGPURenderPipeline render_pipeline = {0};
 
+// Bind groups stores the resources bound to the binding points in a shader
+static WGPUBindGroup render_bindGroup = {0};
+
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
@@ -419,6 +422,7 @@ static const char* shader_wgsl = CODE(
     return vec4(col, 1) * multiplier;
   }
 );
+// clang-format on
 
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
@@ -454,8 +458,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
-    fluid_simulation, 16,
-    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
+    fluid_simulation, 16, WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
 
   /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
@@ -527,4 +530,24 @@ static void setup_render_pass()
     .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = NULL,
   };
+}
+
+/* Dispatch a draw command to render on the canvas */
+static void dispatch(wgpu_context_t* wgpu_context,
+                     WGPUCommandEncoder command_encoder)
+{
+  // Set target frame buffer
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass.descriptor);
+
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                    render_bindGroup, 0, 0);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    wgpu_context->rpass_enc, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 }
