@@ -588,8 +588,8 @@ static void dispatch(wgpu_context_t* wgpu_context,
     command_encoder, &render_pass.descriptor);
 
   wgpuRenderPassEncoderSetPipeline(render_pass_encoder, render_pipeline);
-  wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0, render_bindGroup, 0,
-                                    0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0, render_bind_group,
+                                    0, 0);
   wgpuRenderPassEncoderSetVertexBuffer(
     render_pass_encoder, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDraw(render_pass_encoder, 6, 1, 0, 0);
