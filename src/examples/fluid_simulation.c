@@ -177,23 +177,23 @@ static struct {
  * -------------------------------------------------------------------------- */
 
 typedef enum {
-  UNIFORM_TIME,
-  UNIFORM_DT,
-  UNIFORM_MOUSE_INFOS,
-  UNIFORM_GRID_SIZE,
-  UNIFORM_SIM_SPEED,
-  UNIFORM_VELOCITY_ADD_INTENSITY,
-  UNIFORM_VELOCITY_ADD_RADIUS,
-  UNIFORM_VELOCITY_DIFFUSION,
-  UNIFORM_DYE_ADD_INTENSITY,
-  UNIFORM_DYE_ADD_RADIUS,
-  UNIFORM_DYE_ADD_DIFFUSION,
-  UNIFORM_VISCOSITY,
-  UNIFORM_VORTICITY,
-  UNIFORM_CONTAIN_FLUID,
-  UNIFORM_MOUSE_TYPE,
-  UNIFORM_RENDER_INTENSITY,
-  UNIFORM_RENDER_DYE,
+  UNIFORM_TIME,                   /* time */
+  UNIFORM_DT,                     /* dt */
+  UNIFORM_MOUSE_INFOS,            /* mouseInfos */
+  UNIFORM_GRID_SIZE,              /* gridSize */
+  UNIFORM_SIM_SPEED,              /* sim_speed */
+  UNIFORM_VELOCITY_ADD_INTENSITY, /* velocity_add_intensity */
+  UNIFORM_VELOCITY_ADD_RADIUS,    /* velocity_add_radius */
+  UNIFORM_VELOCITY_DIFFUSION,     /* velocity_diffusion */
+  UNIFORM_DYE_ADD_INTENSITY,      /* dye_add_intensity */
+  UNIFORM_DYE_ADD_RADIUS,         /* dye_add_radius */
+  UNIFORM_DYE_ADD_DIFFUSION,      /* dye_diffusion */
+  UNIFORM_VISCOSITY,              /* viscosity */
+  UNIFORM_VORTICITY,              /* vorticity */
+  UNIFORM_CONTAIN_FLUID,          /* contain_fluid */
+  UNIFORM_MOUSE_TYPE,             /* mouse_type */
+  UNIFORM_RENDER_INTENSITY,       /* render_intensity_multiplier */
+  UNIFORM_RENDER_DYE,             /* render_dye_buffer */
   UNIFORM_COUNT,
 } uniform_type_t;
 
