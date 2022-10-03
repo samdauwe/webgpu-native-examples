@@ -356,7 +356,7 @@ static wgpu_buffer_t vertex_buffer = {0};
 static WGPURenderPipeline render_pipeline = {0};
 
 // Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroup render_bindGroup = {0};
+static WGPUBindGroup render_bind_group = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -513,13 +513,46 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  WGPUBindGroupEntry bg_entries[3] = {
+  WGPUBindGroupEntry bg_entries[6] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = this->ubos.projection_ubo.buffer,
-      .size    = this->ubos.projection_ubo.size,
-      },
-    };
+      .buffer  = dynamic_buffers.rgb_buffer.buffers[0].buffer,
+      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      .binding = 1,
+      .buffer  = dynamic_buffers.rgb_buffer.buffers[1].buffer,
+      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+    },
+    [2] = (WGPUBindGroupEntry) {
+      .binding = 2,
+      .buffer  = dynamic_buffers.rgb_buffer.buffers[2].buffer,
+      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+    },
+    [3] = (WGPUBindGroupEntry) {
+      .binding = 3,
+      .buffer  = uniforms.grid.buffer.buffer,
+      .size    = uniforms.grid.buffer.size,
+    },
+    [4] = (WGPUBindGroupEntry) {
+      .binding = 4,
+      .buffer  = uniforms.u_render_intensity.buffer.buffer,
+      .size    = uniforms.u_render_intensity.buffer.size,
+    },
+    [5] = (WGPUBindGroupEntry) {
+      .binding = 5,
+      .buffer  = uniforms.u_render_dye.buffer.buffer,
+      .size    = uniforms.u_render_dye.buffer.size,
+    },
+  };
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = "render bind group",
+    .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
+  };
+  render_bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(render_bind_group != NULL);
 }
 
 static void setup_render_pass()
