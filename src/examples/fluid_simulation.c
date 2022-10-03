@@ -170,6 +170,8 @@ static struct {
   dynamic_buffer_t pressure0;
 
   dynamic_buffer_t vorticity;
+
+  dynamic_buffer_t rgb_buffer;
 } dynamic_buffers;
 
 /* -------------------------------------------------------------------------- *
@@ -507,6 +509,17 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void setup_bind_group(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupEntry bg_entries[3] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding = 0,
+      .buffer  = this->ubos.projection_ubo.buffer,
+      .size    = this->ubos.projection_ubo.size,
+      },
+    };
 }
 
 static void setup_render_pass()
