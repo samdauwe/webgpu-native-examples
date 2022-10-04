@@ -171,6 +171,7 @@ static struct {
 
   dynamic_buffer_t vorticity;
 
+  /* The r,g,b buffer containing the data to render */
   dynamic_buffer_t rgb_buffer;
 } dynamic_buffers;
 
