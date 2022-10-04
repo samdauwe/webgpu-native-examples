@@ -562,6 +562,12 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   ASSERT(render_bind_group != NULL);
 }
 
+static void setup_rgb_buffer(wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, /* dims: */ 3,
+                      /* w: */ settings.dye_w, /* h: */ settings.dye_h);
+}
+
 static void setup_render_pass()
 {
   /* Color attachment */
