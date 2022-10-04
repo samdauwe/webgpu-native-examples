@@ -562,10 +562,22 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   ASSERT(render_bind_group != NULL);
 }
 
+/* The r,g,b buffer containing the data to render */
 static void setup_rgb_buffer(wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, /* dims: */ 3,
                       /* w: */ settings.dye_w, /* h: */ settings.dye_h);
+}
+
+/* Uniforms */
+static void setup_render_uniforms(wgpu_context_t* wgpu_context)
+{
+  float value = 1;
+
+  uniform_init(&uniforms.u_render_intensity, wgpu_context,
+               UNIFORM_RENDER_INTENSITY, 1, &value);
+  uniform_init(&uniforms.u_render_dye, wgpu_context, UNIFORM_RENDER_DYE, 1,
+               &value);
 }
 
 static void setup_render_pass()
