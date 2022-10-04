@@ -515,31 +515,37 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[6] = {
+    /* Binding 0 : fieldX */
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[0].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffer_size,
     },
+    /* Binding 1 : fieldY */
     [1] = (WGPUBindGroupEntry) {
       .binding = 1,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[1].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffer_size,
     },
+    /* Binding 2 : fieldZ */
     [2] = (WGPUBindGroupEntry) {
       .binding = 2,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[2].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffer_size,
     },
+    /* Binding 3 : uGrid */
     [3] = (WGPUBindGroupEntry) {
       .binding = 3,
       .buffer  = uniforms.grid.buffer.buffer,
       .size    = uniforms.grid.buffer.size,
     },
+    /* Binding 4 : multiplier */
     [4] = (WGPUBindGroupEntry) {
       .binding = 4,
       .buffer  = uniforms.u_render_intensity.buffer.buffer,
       .size    = uniforms.u_render_intensity.buffer.size,
     },
+    /* Binding 4 : isRenderingDye */
     [5] = (WGPUBindGroupEntry) {
       .binding = 5,
       .buffer  = uniforms.u_render_dye.buffer.buffer,
