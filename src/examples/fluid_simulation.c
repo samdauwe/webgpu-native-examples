@@ -352,16 +352,16 @@ static void init_sizes(wgpu_context_t* wgpu_context)
 
 /* Renders 3 (r, g, b) storage buffers to the canvas */
 static struct {
-  // Vertex buffer
+  /* Vertex buffer */
   wgpu_buffer_t vertex_buffer;
 
-  // Render pipeline
+  /* Render pipeline */
   WGPURenderPipeline render_pipeline;
 
-  // Bind groups stores the resources bound to the binding points in a shader
+  /* Bind groups stores the resources bound to the binding points in a shader */
   WGPUBindGroup render_bind_group;
 
-  // Render pass descriptor for frame buffer writes
+  /* Render pass descriptor for frame buffer writes */
   struct {
     WGPURenderPassColorAttachment color_attachments[1];
     WGPURenderPassDescriptor descriptor;
