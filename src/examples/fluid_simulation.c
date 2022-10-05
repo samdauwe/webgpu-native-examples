@@ -445,6 +445,13 @@ static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
+static void render_program_destroy()
+{
+  wgpu_destroy_buffer(&render_program.vertex_buffer);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_program.render_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, render_program.render_bind_group)
+}
+
 static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
