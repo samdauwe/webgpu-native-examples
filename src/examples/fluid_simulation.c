@@ -430,7 +430,7 @@ static const char* shader_wgsl = CODE(
 );
 // clang-format on
 
-static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const float vertices[24] = {
     -1, -1, 0, 1, -1, 1, 0, 1, 1, -1, 0, 1,
@@ -445,7 +445,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
   WGPUPrimitiveState primitive_state = {
@@ -515,7 +515,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-static void setup_bind_group(wgpu_context_t* wgpu_context)
+static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[6] = {
     /* Binding 0 : fieldX */
@@ -568,14 +568,14 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 }
 
 /* The r,g,b buffer containing the data to render */
-static void setup_rgb_buffer(wgpu_context_t* wgpu_context)
+static void render_program_setup_rgb_buffer(wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, /* dims: */ 3,
                       /* w: */ settings.dye_w, /* h: */ settings.dye_h);
 }
 
 /* Uniforms */
-static void setup_render_uniforms(wgpu_context_t* wgpu_context)
+static void render_program_setup_render_uniforms(wgpu_context_t* wgpu_context)
 {
   float value = 1;
 
@@ -585,7 +585,7 @@ static void setup_render_uniforms(wgpu_context_t* wgpu_context)
                &value);
 }
 
-static void setup_render_pass()
+static void render_program_setup_render_pass()
 {
   /* Color attachment */
   render_program.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
@@ -609,8 +609,8 @@ static void setup_render_pass()
 }
 
 /* Dispatch a draw command to render on the canvas */
-static void dispatch(wgpu_context_t* wgpu_context,
-                     WGPUCommandEncoder command_encoder)
+static void render_program_dispatch(wgpu_context_t* wgpu_context,
+                                    WGPUCommandEncoder command_encoder)
 {
   render_program.render_pass.color_attachments[0].view
     = wgpu_context->swap_chain.frame_buffer;
