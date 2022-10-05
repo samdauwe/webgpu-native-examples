@@ -350,20 +350,23 @@ static void init_sizes(wgpu_context_t* wgpu_context)
  * Render
  * -------------------------------------------------------------------------- */
 
-// Vertex buffer
-static wgpu_buffer_t vertex_buffer = {0};
-
-// Render pipeline
-static WGPURenderPipeline render_pipeline = {0};
-
-// Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroup render_bind_group = {0};
-
-// Render pass descriptor for frame buffer writes
+/* Renders 3 (r, g, b) storage buffers to the canvas */
 static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass;
+  // Vertex buffer
+  wgpu_buffer_t vertex_buffer;
+
+  // Render pipeline
+  WGPURenderPipeline render_pipeline;
+
+  // Bind groups stores the resources bound to the binding points in a shader
+  WGPUBindGroup render_bind_group;
+
+  // Render pass descriptor for frame buffer writes
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
+} render_program = {0};
 
 // Shaders
 // clang-format off
@@ -434,7 +437,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     1,  -1, 0, 1, -1, 1, 0, 1, 1, 1,  0, 1,
   };
 
-  vertex_buffer = wgpu_create_buffer(
+  render_program.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertices),
@@ -497,7 +500,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  render_pipeline = wgpuDeviceCreateRenderPipeline(
+  render_program.render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "fluid_simulation_render_pipeline",
                             .primitive   = primitive_state,
@@ -505,7 +508,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
-  ASSERT(render_pipeline != NULL);
+  ASSERT(render_program.render_pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -553,13 +556,15 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "render bind group",
-    .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
+    .label = "render bind group",
+    .layout
+    = wgpuRenderPipelineGetBindGroupLayout(render_program.render_pipeline, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  render_bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(render_bind_group != NULL);
+  render_program.render_bind_group
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(render_program.render_bind_group != NULL);
 }
 
 /* The r,g,b buffer containing the data to render */
@@ -583,7 +588,7 @@ static void setup_render_uniforms(wgpu_context_t* wgpu_context)
 static void setup_render_pass()
 {
   /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+  render_program.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -596,9 +601,9 @@ static void setup_render_pass()
   };
 
   /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
+  render_program.render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
+    .colorAttachments       = render_program.render_pass.color_attachments,
     .depthStencilAttachment = NULL,
   };
 }
@@ -607,16 +612,19 @@ static void setup_render_pass()
 static void dispatch(wgpu_context_t* wgpu_context,
                      WGPUCommandEncoder command_encoder)
 {
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  render_program.render_pass.color_attachments[0].view
+    = wgpu_context->swap_chain.frame_buffer;
 
   WGPURenderPassEncoder render_pass_encoder = wgpuCommandEncoderBeginRenderPass(
-    command_encoder, &render_pass.descriptor);
+    command_encoder, &render_program.render_pass.descriptor);
 
-  wgpuRenderPassEncoderSetPipeline(render_pass_encoder, render_pipeline);
-  wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0, render_bind_group,
-                                    0, 0);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass_encoder, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetPipeline(render_pass_encoder,
+                                   render_program.render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0,
+                                    render_program.render_bind_group, 0, 0);
+  wgpuRenderPassEncoderSetVertexBuffer(render_pass_encoder, 0,
+                                       render_program.vertex_buffer.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDraw(render_pass_encoder, 6, 1, 0, 0);
   wgpuRenderPassEncoderEnd(render_pass_encoder);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass_encoder)
