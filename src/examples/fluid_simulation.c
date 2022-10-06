@@ -250,13 +250,21 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
 
   this->always_update = (size == 1);
 
-  if (this->size > 0 && value != NULL) {
+  if (this->size >= 1 && value != NULL) {
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size         = this->size * 4,
                                            .initial.data = value,
+                                         });
+  }
+  else {
+    this->buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
+                                           .size = this->size * 4,
                                          });
   }
 }
@@ -292,7 +300,7 @@ static struct {
   uniform_t u_render_dye;
 } uniforms;
 
-/* Initialize dynamic uniforms */
+/* Initialize uniforms */
 static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 {
   float default_value = 0.0f;
