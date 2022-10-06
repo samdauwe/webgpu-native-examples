@@ -175,6 +175,33 @@ static struct {
   dynamic_buffer_t rgb_buffer;
 } dynamic_buffers;
 
+/* Initialize dynamic buffers */
+static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_init(&dynamic_buffers.velocity, wgpu_context, 2,
+                      settings.grid_w, settings.grid_h);
+  dynamic_buffer_init(&dynamic_buffers.velocity0, wgpu_context, 2,
+                      settings.grid_w, settings.grid_h);
+
+  dynamic_buffer_init(&dynamic_buffers.dye, wgpu_context, 3, settings.dye_w,
+                      settings.dye_h);
+  dynamic_buffer_init(&dynamic_buffers.dye0, wgpu_context, 4, settings.dye_w,
+                      settings.dye_h);
+
+  dynamic_buffer_init(&dynamic_buffers.divergence, wgpu_context, 1,
+                      settings.grid_w, settings.grid_h);
+  dynamic_buffer_init(&dynamic_buffers.divergence0, wgpu_context, 1,
+                      settings.grid_w, settings.grid_h);
+
+  dynamic_buffer_init(&dynamic_buffers.pressure, wgpu_context, 1,
+                      settings.grid_w, settings.grid_h);
+  dynamic_buffer_init(&dynamic_buffers.pressure0, wgpu_context, 1,
+                      settings.grid_w, settings.grid_h);
+
+  dynamic_buffer_init(&dynamic_buffers.vorticity, wgpu_context, 1,
+                      settings.grid_w, settings.grid_h);
+}
+
 /* -------------------------------------------------------------------------- *
  * Uniforms
  * -------------------------------------------------------------------------- */
