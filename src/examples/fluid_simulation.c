@@ -250,13 +250,13 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
 
   this->always_update = (size == 1);
 
-  if (this->size >= 1 && value != NULL) {
+  if (this->size == 1 || value != NULL) {
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
-                                           .size         = this->size * 4,
-                                           .initial.data = value,
+                                           .size = this->size * sizeof(float),
+                                           .initial.data = value ? value : 0,
                                          });
   }
   else {
@@ -264,7 +264,7 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
-                                           .size = this->size * 4,
+                                           .size = this->size * sizeof(float),
                                          });
   }
 }
@@ -307,6 +307,8 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 
   uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, &default_value);
   uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, &default_value);
+  uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
+  uniform_init(&uniforms.sim_speed, wgpu_context, UNIFORM_SIM_SPEED, 1, NULL);
 }
 
 /* -------------------------------------------------------------------------- *
