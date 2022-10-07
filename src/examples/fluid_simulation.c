@@ -306,6 +306,11 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, NULL);
   uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, NULL);
   uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
+  float values[7] = {
+    settings.grid_w, settings.grid_h, settings.dye_w,   settings.dye_h,
+    settings.dx,     settings.rdx,    settings.dye_rdx,
+  };
+  uniform_init(&uniforms.grid, wgpu_context, UNIFORM_GRID_SIZE, 7, values);
   uniform_init(&uniforms.sim_speed, wgpu_context, UNIFORM_SIM_SPEED, 1, NULL);
   uniform_init(&uniforms.vel_force, wgpu_context,
                UNIFORM_VELOCITY_ADD_INTENSITY, 1, NULL);
