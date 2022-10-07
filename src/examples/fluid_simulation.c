@@ -307,6 +307,23 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, NULL);
   uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
   uniform_init(&uniforms.sim_speed, wgpu_context, UNIFORM_SIM_SPEED, 1, NULL);
+  uniform_init(&uniforms.vel_force, wgpu_context,
+               UNIFORM_VELOCITY_ADD_INTENSITY, 1, NULL);
+  uniform_init(&uniforms.vel_radius, wgpu_context, UNIFORM_VELOCITY_ADD_RADIUS,
+               1, NULL);
+  uniform_init(&uniforms.vel_diff, wgpu_context, UNIFORM_VELOCITY_DIFFUSION, 1,
+               NULL);
+  uniform_init(&uniforms.dye_force, wgpu_context, UNIFORM_DYE_ADD_INTENSITY, 1,
+               NULL);
+  uniform_init(&uniforms.dye_radius, wgpu_context, UNIFORM_DYE_ADD_RADIUS, 1,
+               NULL);
+  uniform_init(&uniforms.dye_diff, wgpu_context, UNIFORM_DYE_ADD_DIFFUSION, 1,
+               NULL);
+  uniform_init(&uniforms.viscosity, wgpu_context, UNIFORM_VISCOSITY, 1, NULL);
+  uniform_init(&uniforms.u_vorticity, wgpu_context, UNIFORM_VORTICITY, 1, NULL);
+  uniform_init(&uniforms.contain_fluid, wgpu_context, UNIFORM_CONTAIN_FLUID, 1,
+               NULL);
+  uniform_init(&uniforms.u_symmetry, wgpu_context, UNIFORM_MOUSE_TYPE, 1, NULL);
 }
 
 /* -------------------------------------------------------------------------- *
