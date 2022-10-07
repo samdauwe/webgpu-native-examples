@@ -242,7 +242,7 @@ static void uniform_init_defaults(uniform_t* this)
 }
 
 static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
-                         uniform_type_t type, uint32_t size, float* value)
+                         uniform_type_t type, uint32_t size, float const* value)
 {
   this->type         = type;
   this->size         = size;
@@ -306,7 +306,7 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, NULL);
   uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, NULL);
   uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
-  float values[7] = {
+  const float values[7] = {
     settings.grid_w, settings.grid_h, settings.dye_w,   settings.dye_h,
     settings.dx,     settings.rdx,    settings.dye_rdx,
   };
@@ -650,7 +650,7 @@ static void render_program_setup_rgb_buffer(wgpu_context_t* wgpu_context)
 /* Uniforms */
 static void render_program_setup_render_uniforms(wgpu_context_t* wgpu_context)
 {
-  float value = 1;
+  const float value = 1;
 
   uniform_init(&uniforms.u_render_intensity, wgpu_context,
                UNIFORM_RENDER_INTENSITY, 1, &value);
