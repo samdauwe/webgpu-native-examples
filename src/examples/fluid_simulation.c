@@ -303,10 +303,8 @@ static struct {
 /* Initialize uniforms */
 static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 {
-  float default_value = 0.0f;
-
-  uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, &default_value);
-  uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, &default_value);
+  uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, NULL);
+  uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, NULL);
   uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
   uniform_init(&uniforms.sim_speed, wgpu_context, UNIFORM_SIM_SPEED, 1, NULL);
 }
