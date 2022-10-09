@@ -354,8 +354,8 @@ static void program_init_defaults(program_t* this)
 }
 
 static void program_init(program_t* this, wgpu_context_t* wgpu_context,
-                         dynamic_buffer_t* buffers, uint32_t buffer_count,
-                         uniform_t* uniforms, uint32_t uniform_count,
+                         dynamic_buffer_t** buffers, uint32_t buffer_count,
+                         uniform_t** uniforms, uint32_t uniform_count,
                          const char* shader_wgsl_path, uint32_t dispatch_x,
                          uint32_t dispatch_y)
 {
@@ -387,17 +387,17 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     for (uint32_t i = 0; i < buffer_count; ++i, ++bge_i) {
       bg_entries[bge_i] = (WGPUBindGroupEntry){
         .binding = bge_i,
-        .buffer  = buffers[i].buffers[0].buffer,
+        .buffer  = buffers[i]->buffers[0].buffer,
         .offset  = 0,
-        .size    = buffers[i].buffers[0].size,
+        .size    = buffers[i]->buffers[0].size,
       };
     }
     for (uint32_t i = 0; i < uniform_count; ++i, ++bge_i) {
       bg_entries[bge_i] = (WGPUBindGroupEntry){
         .binding = bge_i,
-        .buffer  = uniforms[i].buffer.buffer,
+        .buffer  = uniforms[i]->buffer.buffer,
         .offset  = 0,
-        .size    = uniforms[i].size,
+        .size    = uniforms[i]->size,
       };
     }
   }
@@ -434,6 +434,24 @@ static void program_dispatch(program_t* this,
   wgpuComputePassEncoderDispatchWorkgroups(
     pass_encoder, (uint32_t)ceil((float)this->dispatch_x / 8.0f),
     (uint32_t)ceil((float)this->dispatch_y / 8.0f), 1);
+}
+
+static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[3] = {
+    &dynamic_buffers.velocity0, /* in_quantity */
+    &dynamic_buffers.velocity0, /* in_velocity */
+    &dynamic_buffers.velocity,  /* out_quantity */
+  };
+  uniform_t* program_uniforms[2] = {
+    &uniforms.grid, /* */
+    &uniforms.dt,   /* */
+  };
+  const char* shader_wgsl_path = "advect_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
 }
 
 /* -------------------------------------------------------------------------- *
