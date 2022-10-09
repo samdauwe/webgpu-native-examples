@@ -424,6 +424,18 @@ static void program_destroy(program_t* this)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
 }
 
+/* Dispatch the compute pipeline to the GPU */
+static void program_dispatch(program_t* this,
+                             WGPUComputePassEncoder pass_encoder)
+{
+  wgpuComputePassEncoderSetPipeline(pass_encoder, this->compute_pipeline);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 0, this->bind_group, 0,
+                                     NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    pass_encoder, (uint32_t)ceil((float)this->dispatch_x / 8.0f),
+    (uint32_t)ceil((float)this->dispatch_y / 8.0f), 1);
+}
+
 /* -------------------------------------------------------------------------- *
  * Initialization
  * -------------------------------------------------------------------------- */
