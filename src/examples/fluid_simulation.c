@@ -342,14 +342,6 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 
 /* Creates a shader module, compute pipeline & bind group to use with the GPU */
 typedef struct {
-  struct {
-    dynamic_buffer_t buffers[PROGRAM_MAX_BUFFER_COUNT]; /* Storage buffers */
-    uint32_t count;
-  } dynamic_buffers;
-  struct {
-    uniform_t uniforms[PROGRAM_MAX_UNIFORM_COUNT]; /* Uniform buffers */
-    uint32_t count;
-  } uniforms;
   uint32_t dispatch_x; /* Dispatch workers width */
   uint32_t dispatch_y; /* Dispatch workers height */
   WGPUComputePipeline compute_pipeline;
@@ -424,6 +416,12 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
 
   this->dispatch_x = dispatch_x;
   this->dispatch_y = dispatch_y;
+}
+
+static void program_destroy(program_t* this)
+{
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->compute_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
 }
 
 /* -------------------------------------------------------------------------- *
