@@ -244,6 +244,8 @@ static void uniform_init_defaults(uniform_t* this)
 static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                          uniform_type_t type, uint32_t size, float const* value)
 {
+  uniform_init_defaults(this);
+
   this->type         = type;
   this->size         = size;
   this->needs_update = false;
@@ -329,6 +331,99 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.contain_fluid, wgpu_context, UNIFORM_CONTAIN_FLUID, 1,
                NULL);
   uniform_init(&uniforms.u_symmetry, wgpu_context, UNIFORM_MOUSE_TYPE, 1, NULL);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Program
+ * -------------------------------------------------------------------------- */
+
+#define PROGRAM_MAX_BUFFER_COUNT 3u
+#define PROGRAM_MAX_UNIFORM_COUNT 8u
+
+/* Creates a shader module, compute pipeline & bind group to use with the GPU */
+typedef struct {
+  struct {
+    dynamic_buffer_t buffers[PROGRAM_MAX_BUFFER_COUNT]; /* Storage buffers */
+    uint32_t count;
+  } dynamic_buffers;
+  struct {
+    uniform_t uniforms[PROGRAM_MAX_UNIFORM_COUNT]; /* Uniform buffers */
+    uint32_t count;
+  } uniforms;
+  uint32_t dispatch_x; /* Dispatch workers width */
+  uint32_t dispatch_y; /* Dispatch workers height */
+  WGPUComputePipeline compute_pipeline;
+  WGPUBindGroup bind_group;
+} program_t;
+
+static void program_init_defaults(program_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void program_init(program_t* this, wgpu_context_t* wgpu_context,
+                         dynamic_buffer_t* buffers, uint32_t buffer_count,
+                         uniform_t* uniforms, uint32_t uniform_count,
+                         const char* shader_wgsl_path, uint32_t dispatch_x,
+                         uint32_t dispatch_y)
+{
+  program_init_defaults(this);
+
+  /* Create the shader module using the WGSL string and use it to create a
+   * compute pipeline with 'auto' binding layout */
+  {
+    wgpu_shader_t comp_shader
+      = wgpu_shader_create(wgpu_context, &(wgpu_shader_desc_t){
+                                           /* Compute shader WGSL */
+                                           .file  = shader_wgsl_path,
+                                           .entry = "main",
+                                         });
+    this->compute_pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .compute = comp_shader.programmable_stage_descriptor,
+      });
+    wgpu_shader_release(&comp_shader);
+  }
+
+  /* Concat the buffer & uniforms and format the entries to the right WebGPU
+   * format */
+  WGPUBindGroupEntry
+    bg_entries[PROGRAM_MAX_BUFFER_COUNT + PROGRAM_MAX_UNIFORM_COUNT];
+  uint32_t bge_i = 0;
+  {
+    for (uint32_t i = 0; i < buffer_count; ++i, ++bge_i) {
+      bg_entries[bge_i] = (WGPUBindGroupEntry){
+        .binding = bge_i,
+        .buffer  = buffers[i].buffers[0].buffer,
+        .offset  = 0,
+        .size    = buffers[i].buffers[0].size,
+      };
+    }
+    for (uint32_t i = 0; i < uniform_count; ++i, ++bge_i) {
+      bg_entries[bge_i] = (WGPUBindGroupEntry){
+        .binding = bge_i,
+        .buffer  = uniforms[i].buffer.buffer,
+        .offset  = 0,
+        .size    = uniforms[i].size,
+      };
+    }
+  }
+
+  /* Create the bind group using these entries & auto-layout detection */
+  {
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout = wgpuComputePipelineGetBindGroupLayout(this->compute_pipeline,
+                                                      0 /* index */),
+      .entryCount = bge_i,
+      .entries    = bg_entries,
+    };
+    this->bind_group
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  }
+
+  this->dispatch_x = dispatch_x;
+  this->dispatch_y = dispatch_y;
 }
 
 /* -------------------------------------------------------------------------- *
