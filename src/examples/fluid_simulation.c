@@ -524,6 +524,24 @@ static void init_boundary_pressure_program(program_t* this,
                settings.grid_w, settings.grid_h);
 }
 
+static void init_clear_pressure_program(program_t* this,
+                                        wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.pressure,  /* in_quantity */
+    &dynamic_buffers.pressure0, /* out_quantity */
+  };
+  uniform_t* program_uniforms[2] = {
+    &uniforms.grid,      /* */
+    &uniforms.viscosity, /* */
+  };
+  const char* shader_wgsl_path = "clear_pressure_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
 static void init_divergence_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
