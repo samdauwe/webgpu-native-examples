@@ -542,6 +542,21 @@ static void init_clear_pressure_program(program_t* this,
                settings.grid_w, settings.grid_h);
 }
 
+static void init_checker_program(program_t* this, wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[1] = {
+    &dynamic_buffers.dye, /* */
+  };
+  uniform_t* program_uniforms[1] = {
+    &uniforms.grid, /* */
+  };
+  const char* shader_wgsl_path = "checkerboard_Shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
 static void init_divergence_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
