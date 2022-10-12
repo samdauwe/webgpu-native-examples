@@ -615,6 +615,30 @@ static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
                settings.grid_w, settings.grid_h);
 }
 
+static void init_update_dye_program(program_t* this,
+                                    wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.dye,  /* in_quantity */
+    &dynamic_buffers.dye0, /* out_quantity */
+  };
+  uniform_t* program_uniforms[8] = {
+    &uniforms.grid,       /* */
+    &uniforms.mouse,      /* */
+    &uniforms.dye_force,  /* */
+    &uniforms.dye_radius, /* */
+    &uniforms.dye_diff,   /* */
+    &uniforms.time,       /* */
+    &uniforms.dt,         /* */
+    &uniforms.u_symmetry, /* */
+  };
+  const char* shader_wgsl_path = "update_dye_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.dye_w, settings.dye_h);
+}
+
 /* -------------------------------------------------------------------------- *
  * Initialization
  * -------------------------------------------------------------------------- */
