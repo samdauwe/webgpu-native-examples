@@ -470,7 +470,7 @@ static void init_advect_dye_program(program_t* this,
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
-               settings.grid_w, settings.grid_h);
+               settings.dye_w, settings.dye_h);
 }
 
 static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
@@ -550,11 +550,11 @@ static void init_checker_program(program_t* this, wgpu_context_t* wgpu_context)
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "checkerboard_Shader.wgsl";
+  const char* shader_wgsl_path = "checkerboard_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
-               settings.grid_w, settings.grid_h);
+               settings.dye_w, settings.dye_h);
 }
 
 static void init_divergence_program(program_t* this,
