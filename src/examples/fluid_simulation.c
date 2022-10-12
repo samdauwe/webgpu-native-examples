@@ -656,6 +656,43 @@ static void init_update_dye_program(program_t* this,
                settings.dye_w, settings.dye_h);
 }
 
+static void init_vorticity_program(program_t* this,
+                                   wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.velocity,  /* in_velocity */
+    &dynamic_buffers.vorticity, /* out_vorticity */
+  };
+  uniform_t* program_uniforms[1] = {
+    &uniforms.grid, /* */
+  };
+  const char* shader_wgsl_path = "vorticity_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
+static void init_vorticity_confinment_program(program_t* this,
+                                              wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[3] = {
+    &dynamic_buffers.velocity,  /* in_velocity */
+    &dynamic_buffers.vorticity, /* out_vorticity */
+    &dynamic_buffers.velocity0, /* out_vorticity */
+  };
+  uniform_t* program_uniforms[3] = {
+    &uniforms.grid,        /* */
+    &uniforms.dt,          /* */
+    &uniforms.u_vorticity, /* */
+  };
+  const char* shader_wgsl_path = "vorticity_confinment_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
 /* -------------------------------------------------------------------------- *
  * Initialization
  * -------------------------------------------------------------------------- */
