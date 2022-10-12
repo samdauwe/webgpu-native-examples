@@ -592,6 +592,29 @@ static void init_gradient_subtract_program(program_t* this,
                settings.grid_w, settings.grid_h);
 }
 
+static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.velocity,  /* in_quantity */
+    &dynamic_buffers.velocity0, /* out_quantity */
+  };
+  uniform_t* program_uniforms[8] = {
+    &uniforms.grid,       /* */
+    &uniforms.mouse,      /* */
+    &uniforms.vel_force,  /* */
+    &uniforms.vel_radius, /* */
+    &uniforms.vel_diff,   /* */
+    &uniforms.dt,         /* */
+    &uniforms.time,       /* */
+    &uniforms.u_symmetry, /* */
+  };
+  const char* shader_wgsl_path = "update_velocity_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
 /* -------------------------------------------------------------------------- *
  * Initialization
  * -------------------------------------------------------------------------- */
