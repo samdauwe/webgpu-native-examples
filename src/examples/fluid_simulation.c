@@ -1076,3 +1076,14 @@ static struct {
 } simulation = {
   .loop = 0,
 };
+
+/* Simulation reset */
+static void simulation_reset()
+{
+  dynamic_buffer_clear(&dynamic_buffers.velocity);
+  dynamic_buffer_clear(&dynamic_buffers.dye);
+  dynamic_buffer_clear(&dynamic_buffers.pressure);
+
+  settings.time   = 0.0f;
+  simulation.loop = 0;
+}
