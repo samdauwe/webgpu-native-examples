@@ -1087,3 +1087,9 @@ static void simulation_reset()
   settings.time   = 0.0f;
   simulation.loop = 0;
 }
+
+/* Fluid simulation step */
+static void
+simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
+{
+}
