@@ -350,6 +350,23 @@ typedef struct {
   WGPUBindGroup bind_group;
 } program_t;
 
+static struct {
+  program_t advect_program;
+  program_t advect_dye_program;
+  program_t boundary_pressure_program;
+  program_t boundary_program;
+  program_t boundary_div_program;
+  program_t checker_program;
+  program_t clear_pressure_program;
+  program_t divergence_program;
+  program_t gradient_subtract_program;
+  program_t pressure_program;
+  program_t update_dye_program;
+  program_t update_program;
+  program_t vorticity_program;
+  program_t vorticity_confinment_program;
+} programs;
+
 static void program_init_defaults(program_t* this)
 {
   memset(this, 0, sizeof(*this));
