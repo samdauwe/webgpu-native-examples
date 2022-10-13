@@ -43,6 +43,7 @@ static struct {
   float viscosity;
   uint32_t vorticity;
   uint32_t pressure_iterations;
+  float time;
 } settings = {
   .grid_size              = 512,
   .dye_size               = 2048,
@@ -57,6 +58,7 @@ static struct {
   .viscosity              = 0.8f,
   .vorticity              = 2,
   .pressure_iterations    = 100,
+  .time                   = 0.0f,
 };
 
 static struct {
@@ -1064,3 +1066,13 @@ static void render_program_dispatch(wgpu_context_t* wgpu_context,
   wgpuRenderPassEncoderEnd(render_pass_encoder);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass_encoder)
 }
+
+/* -------------------------------------------------------------------------- *
+ * Simulation
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  uint64_t loop;
+} simulation = {
+  .loop = 0,
+};
