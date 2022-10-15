@@ -1109,4 +1109,33 @@ static void simulation_reset()
 static void
 simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 {
+  /* Add velocity and dye at the mouse position */
+  program_dispatch(&programs.update_dye_program, pass_encoder);
+  program_dispatch(&programs.update_program, pass_encoder);
+
+  /* Advect the velocity field through itself */
+  program_dispatch(&programs.advect_program, pass_encoder);
+  program_dispatch(&programs.boundary_program, pass_encoder);
+
+  /* Compute the divergence */
+  program_dispatch(&programs.divergence_program, pass_encoder);
+  program_dispatch(&programs.boundary_div_program, pass_encoder);
+
+  /* Solve the jacobi-pressure equation */
+  for (uint32_t i = 0; i < settings.pressure_iterations; ++i) {
+    program_dispatch(&programs.pressure_program, pass_encoder);
+    /* boundary conditions */
+    program_dispatch(&programs.boundary_pressure_program, pass_encoder);
+  }
+
+  /* Subtract the pressure from the velocity field */
+  program_dispatch(&programs.gradient_subtract_program, pass_encoder);
+  program_dispatch(&programs.clear_pressure_program, pass_encoder);
+
+  /* Compute & apply vorticity confinment */
+  program_dispatch(&programs.vorticity_program, pass_encoder);
+  program_dispatch(&programs.vorticity_confinment_program, pass_encoder);
+
+  /* Advect the dye through the velocity field */
+  program_dispatch(&programs.advect_dye_program, pass_encoder);
 }
