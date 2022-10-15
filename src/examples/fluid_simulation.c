@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Fluid Simulation
  *
@@ -43,6 +45,7 @@ static struct {
   float viscosity;
   uint32_t vorticity;
   uint32_t pressure_iterations;
+  int32_t buffer_view;
   float dt;
   float time;
 } settings = {
@@ -59,6 +62,7 @@ static struct {
   .viscosity              = 0.8f,
   .vorticity              = 2,
   .pressure_iterations    = 100,
+  .buffer_view            = 0,
   .dt                     = 0.0f,
   .time                   = 0.0f,
 };
@@ -159,6 +163,15 @@ static void dynamic_buffer_clear(dynamic_buffer_t* this)
 
   free(empty_buffer);
 }
+
+typedef enum {
+  DYNAMIC_BUFFER_VELOCITY,
+  DYNAMIC_BUFFER_DYE,
+  DYNAMIC_BUFFER_DIVERGENCE,
+  DYNAMIC_BUFFER_PRESSURE,
+  DYNAMIC_BUFFER_VORTICITY,
+  DYNAMIC_BUFFER_RGB,
+} dynamic_buffer_type_t;
 
 static struct {
   dynamic_buffer_t velocity;
@@ -277,11 +290,11 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
 
 /* Update the GPU buffer if the value has changed */
 static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
-                           float* value)
+                           float* value, uint32_t value_count)
 {
   if (this->needs_update || this->always_update || value != NULL) {
     wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0, value,
-                            this->size);
+                            MIN(this->size, value_count) * sizeof(float));
     this->needs_update = false;
   }
 }
@@ -1087,8 +1100,11 @@ static void render_program_dispatch(wgpu_context_t* wgpu_context,
 }
 
 /* -------------------------------------------------------------------------- *
- * Simulation
+ * Fluid simulation
  * -------------------------------------------------------------------------- */
+
+static const char* example_title = "Fluid Simulation";
+static bool prepared             = false;
 
 static struct {
   uint64_t loop;
@@ -1144,10 +1160,155 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
   program_dispatch(&programs.advect_dye_program, pass_encoder);
 }
 
-/* Render loop */
-static void simulation_step(wgpu_example_context_t* context)
+static int example_initialize(wgpu_example_context_t* context)
 {
+  if (context) {
+    load_assets(context->wgpu_context);
+    prepare_graphics(context);
+    prepare_compute(context->wgpu_context);
+    prepared = true;
+    return 0;
+  }
+
+  return 1;
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+  }
+}
+
+static void simulation_update_global_uniforms(WGPUQueue queue)
+{
+}
+
+/* Render loop */
+static WGPUCommandBuffer
+build_simulation_step_command_buffer(wgpu_example_context_t* context)
+{
+  /* WebGPU context */
+  wgpu_context_t* wgpu_context = context->wgpu_context;
+
   /* Update time */
   const float now = context->frame.timestamp_millis;
-  settings.dt = Math.min(1 / 60, (now - lastFrame) / 1000) * settings.sim_speed
+  settings.dt     = MIN(1.0f / 60.0f, (now - simulation.last_frame) / 1000.0f)
+                * settings.sim_speed;
+  settings.time += settings.dt;
+  simulation.last_frame = now;
+
+  /* Update uniforms */
+  simulation_update_global_uniforms(wgpu_context->queue);
+
+  /* Update mouse uniform */
+  glm_vec2_sub(mouse_infos.current, mouse_infos.last, mouse_infos.velocity);
+  float mouse_values[4] = {
+    mouse_infos.current[0], mouse_infos.current[1],   /* current */
+    mouse_infos.velocity[0], mouse_infos.velocity[1], /* velocity */
+  };
+  uniform_update(&uniforms.mouse, wgpu_context, mouse_values, 4);
+  glm_vec2_copy(mouse_infos.current, mouse_infos.last);
+
+  /* Compute fluid */
+  render_program.render_pass.color_attachments[0].view
+    = wgpu_context->swap_chain.frame_buffer;
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  {
+    wgpu_context->cpass_enc
+      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
+    simulation_dispatch_compute_pipeline(wgpu_context->cpass_enc);
+    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
+    WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+  }
+
+  dynamic_buffer_copy_to(&dynamic_buffers.velocity0, &dynamic_buffers.velocity,
+                         wgpu_context->cmd_enc);
+  dynamic_buffer_copy_to(&dynamic_buffers.pressure0, &dynamic_buffers.pressure,
+                         wgpu_context->cmd_enc);
+
+  /* Copy the selected buffer to the render program */
+  if (settings.buffer_view == DYNAMIC_BUFFER_DYE) {
+    dynamic_buffer_copy_to(&dynamic_buffers.dye, &dynamic_buffers.rgb_buffer,
+                           wgpu_context->cmd_enc);
+  }
+  else if (settings.buffer_view == DYNAMIC_BUFFER_VELOCITY) {
+    dynamic_buffer_copy_to(&dynamic_buffers.velocity,
+                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+  }
+  else if (settings.buffer_view == DYNAMIC_BUFFER_DIVERGENCE) {
+    dynamic_buffer_copy_to(&dynamic_buffers.divergence,
+                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+  }
+  else if (settings.buffer_view == DYNAMIC_BUFFER_PRESSURE) {
+    dynamic_buffer_copy_to(&dynamic_buffers.pressure,
+                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+  }
+  else if (settings.buffer_view == DYNAMIC_BUFFER_VORTICITY) {
+    dynamic_buffer_copy_to(&dynamic_buffers.vorticity,
+                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+  }
+
+  /* Draw fluid */
+  render_program_dispatch(wgpu_context, wgpu_context->cmd_enc);
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  ASSERT(command_buffer != NULL)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_simulation_step_command_buffer(context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Send commands to the GPU
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  return example_draw(context);
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+}
+
+void example_fluid_simulation(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+    .title  = example_title,
+    .overlay = true,
+    .vsync   = true,
+  },
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
+  });
+  // clang-format on
 }
