@@ -43,6 +43,7 @@ static struct {
   float viscosity;
   uint32_t vorticity;
   uint32_t pressure_iterations;
+  float dt;
   float time;
 } settings = {
   .grid_size              = 512,
@@ -58,6 +59,7 @@ static struct {
   .viscosity              = 0.8f,
   .vorticity              = 2,
   .pressure_iterations    = 100,
+  .dt                     = 0.0f,
   .time                   = 0.0f,
 };
 
@@ -1090,8 +1092,10 @@ static void render_program_dispatch(wgpu_context_t* wgpu_context,
 
 static struct {
   uint64_t loop;
+  float last_frame;
 } simulation = {
-  .loop = 0,
+  .loop       = 0,
+  .last_frame = 0,
 };
 
 /* Simulation reset */
@@ -1138,4 +1142,12 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 
   /* Advect the dye through the velocity field */
   program_dispatch(&programs.advect_dye_program, pass_encoder);
+}
+
+/* Render loop */
+static void simulation_step(wgpu_example_context_t* context)
+{
+  /* Update time */
+  const float now = context->frame.timestamp_millis;
+  settings.dt = Math.min(1 / 60, (now - lastFrame) / 1000) * settings.sim_speed
 }
