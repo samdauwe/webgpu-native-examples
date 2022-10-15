@@ -244,14 +244,39 @@ typedef enum {
   UNIFORM_COUNT,
 } uniform_type_t;
 
+#define MAX_UNIFORM_VALUE_COUNT 7
+
 /* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
   uniform_type_t type;
+  float values[MAX_UNIFORM_VALUE_COUNT];
   size_t size;
   bool always_update;
   bool needs_update;
   wgpu_buffer_t buffer;
 } uniform_t;
+
+static struct {
+  uniform_t time;
+  uniform_t dt;
+  uniform_t mouse;
+  uniform_t grid;
+  uniform_t sim_speed;
+  uniform_t vel_force;
+  uniform_t vel_radius;
+  uniform_t vel_diff;
+  uniform_t dye_force;
+  uniform_t dye_radius;
+  uniform_t dye_diff;
+  uniform_t viscosity;
+  uniform_t u_vorticity;
+  uniform_t contain_fluid;
+  uniform_t u_symmetry;
+  uniform_t u_render_intensity;
+  uniform_t u_render_dye;
+} uniforms;
+
+static uniform_t* global_uniforms[UNIFORM_COUNT] = {0};
 
 static void uniform_init_defaults(uniform_t* this)
 {
@@ -277,6 +302,9 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                                            .size = this->size * sizeof(float),
                                            .initial.data = value ? value : 0,
                                          });
+    if (value) {
+      memcpy(this->values, value, size);
+    }
   }
   else {
     this->buffer
@@ -286,6 +314,8 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                                            .size = this->size * sizeof(float),
                                          });
   }
+
+  global_uniforms[type] = this;
 }
 
 /* Update the GPU buffer if the value has changed */
@@ -293,31 +323,13 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
                            float* value, uint32_t value_count)
 {
   if (this->needs_update || this->always_update || value != NULL) {
-    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0, value,
-                            MIN(this->size, value_count) * sizeof(float));
+    wgpu_queue_write_buffer(
+      wgpu_context, this->buffer.buffer, 0, value ? value : this->values,
+      (value_count ? MIN(this->size, value_count) : this->size)
+        * sizeof(float));
     this->needs_update = false;
   }
 }
-
-static struct {
-  uniform_t time;
-  uniform_t dt;
-  uniform_t mouse;
-  uniform_t grid;
-  uniform_t sim_speed;
-  uniform_t vel_force;
-  uniform_t vel_radius;
-  uniform_t vel_diff;
-  uniform_t dye_force;
-  uniform_t dye_radius;
-  uniform_t dye_diff;
-  uniform_t viscosity;
-  uniform_t u_vorticity;
-  uniform_t contain_fluid;
-  uniform_t u_symmetry;
-  uniform_t u_render_intensity;
-  uniform_t u_render_dye;
-} uniforms;
 
 /* Initialize uniforms */
 static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
@@ -1163,9 +1175,6 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    load_assets(context->wgpu_context);
-    prepare_graphics(context);
-    prepare_compute(context->wgpu_context);
     prepared = true;
     return 0;
   }
@@ -1177,10 +1186,6 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
   }
-}
-
-static void simulation_update_global_uniforms(WGPUQueue queue)
-{
 }
 
 /* Render loop */
@@ -1198,7 +1203,9 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
   simulation.last_frame = now;
 
   /* Update uniforms */
-  simulation_update_global_uniforms(wgpu_context->queue);
+  for (uint32_t i = 0; i < (uint32_t)UNIFORM_COUNT; ++i) {
+    uniform_update(global_uniforms[i], wgpu_context, NULL, 0);
+  }
 
   /* Update mouse uniform */
   glm_vec2_sub(mouse_infos.current, mouse_infos.last, mouse_infos.velocity);
