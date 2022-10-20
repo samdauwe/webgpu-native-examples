@@ -95,7 +95,7 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
     WGPUFeatureName_TextureCompressionETC2,
     WGPUFeatureName_TextureCompressionASTC,
     WGPUFeatureName_IndirectFirstInstance,
-    WGPUFeatureName_DepthClamping,
+    WGPUFeatureName_DepthClipControl,
     WGPUFeatureName_DawnShaderFloat16,
     WGPUFeatureName_DawnInternalUsages,
     WGPUFeatureName_DawnMultiPlanarFormats,
