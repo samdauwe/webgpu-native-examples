@@ -219,6 +219,25 @@ static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
                       settings.grid_w, settings.grid_h);
 }
 
+static void dynamic_buffers_destroy()
+{
+  dynamic_buffer_destroy(&dynamic_buffers.velocity);
+  dynamic_buffer_destroy(&dynamic_buffers.velocity0);
+
+  dynamic_buffer_destroy(&dynamic_buffers.dye);
+  dynamic_buffer_destroy(&dynamic_buffers.dye0);
+
+  dynamic_buffer_destroy(&dynamic_buffers.divergence);
+  dynamic_buffer_destroy(&dynamic_buffers.divergence0);
+
+  dynamic_buffer_destroy(&dynamic_buffers.pressure);
+  dynamic_buffer_destroy(&dynamic_buffers.pressure0);
+
+  dynamic_buffer_destroy(&dynamic_buffers.vorticity);
+
+  dynamic_buffer_destroy(&dynamic_buffers.rgb_buffer);
+}
+
 /* -------------------------------------------------------------------------- *
  * Uniforms
  * -------------------------------------------------------------------------- */
