@@ -397,11 +397,11 @@ typedef struct {
 } program_t;
 
 static struct {
-  program_t advect_program;
   program_t advect_dye_program;
+  program_t advect_program;
+  program_t boundary_div_program;
   program_t boundary_pressure_program;
   program_t boundary_program;
-  program_t boundary_div_program;
   program_t checker_program;
   program_t clear_pressure_program;
   program_t divergence_program;
@@ -409,8 +409,8 @@ static struct {
   program_t pressure_program;
   program_t update_dye_program;
   program_t update_program;
-  program_t vorticity_program;
   program_t vorticity_confinment_program;
+  program_t vorticity_program;
 } programs;
 
 static void program_init_defaults(program_t* this)
@@ -501,24 +501,6 @@ static void program_dispatch(program_t* this,
     (uint32_t)ceil((float)this->dispatch_y / 8.0f), 1);
 }
 
-static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
-{
-  dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.velocity0, /* in_quantity */
-    &dynamic_buffers.velocity0, /* in_velocity */
-    &dynamic_buffers.velocity,  /* out_quantity */
-  };
-  uniform_t* program_uniforms[2] = {
-    &uniforms.grid, /* */
-    &uniforms.dt,   /* */
-  };
-  const char* shader_wgsl_path = "advect_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
-               settings.grid_w, settings.grid_h);
-}
-
 static void init_advect_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
@@ -538,17 +520,18 @@ static void init_advect_dye_program(program_t* this,
                settings.dye_w, settings.dye_h);
 }
 
-static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
+static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
 {
-  dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity */
-    &dynamic_buffers.velocity0, /* out_quantity */
+  dynamic_buffer_t* program_buffers[3] = {
+    &dynamic_buffers.velocity0, /* in_quantity */
+    &dynamic_buffers.velocity0, /* in_velocity */
+    &dynamic_buffers.velocity,  /* out_quantity */
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid,          /* */
-    &uniforms.contain_fluid, /* */
+    &uniforms.grid, /* */
+    &uniforms.dt,   /* */
   };
-  const char* shader_wgsl_path = "boundary_shader.wgsl";
+  const char* shader_wgsl_path = "advect_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
@@ -583,6 +566,23 @@ static void init_boundary_pressure_program(program_t* this,
     &uniforms.grid, /* */
   };
   const char* shader_wgsl_path = "boundary_pressure_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
+static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.velocity,  /* in_quantity */
+    &dynamic_buffers.velocity0, /* out_quantity */
+  };
+  uniform_t* program_uniforms[2] = {
+    &uniforms.grid,          /* */
+    &uniforms.contain_fluid, /* */
+  };
+  const char* shader_wgsl_path = "boundary_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
@@ -674,29 +674,6 @@ static void init_pressure_program(program_t* this, wgpu_context_t* wgpu_context)
                settings.grid_w, settings.grid_h);
 }
 
-static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
-{
-  dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity */
-    &dynamic_buffers.velocity0, /* out_quantity */
-  };
-  uniform_t* program_uniforms[8] = {
-    &uniforms.grid,       /* */
-    &uniforms.mouse,      /* */
-    &uniforms.vel_force,  /* */
-    &uniforms.vel_radius, /* */
-    &uniforms.vel_diff,   /* */
-    &uniforms.dt,         /* */
-    &uniforms.time,       /* */
-    &uniforms.u_symmetry, /* */
-  };
-  const char* shader_wgsl_path = "update_velocity_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
-               settings.grid_w, settings.grid_h);
-}
-
 static void init_update_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
@@ -721,17 +698,23 @@ static void init_update_dye_program(program_t* this,
                settings.dye_w, settings.dye_h);
 }
 
-static void init_vorticity_program(program_t* this,
-                                   wgpu_context_t* wgpu_context)
+static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_velocity */
-    &dynamic_buffers.vorticity, /* out_vorticity */
+    &dynamic_buffers.velocity,  /* in_quantity */
+    &dynamic_buffers.velocity0, /* out_quantity */
   };
-  uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+  uniform_t* program_uniforms[8] = {
+    &uniforms.grid,       /* */
+    &uniforms.mouse,      /* */
+    &uniforms.vel_force,  /* */
+    &uniforms.vel_radius, /* */
+    &uniforms.vel_diff,   /* */
+    &uniforms.dt,         /* */
+    &uniforms.time,       /* */
+    &uniforms.u_symmetry, /* */
   };
-  const char* shader_wgsl_path = "vorticity_shader.wgsl";
+  const char* shader_wgsl_path = "update_velocity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
@@ -756,6 +739,45 @@ static void init_vorticity_confinment_program(program_t* this,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
                (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
                settings.grid_w, settings.grid_h);
+}
+
+static void init_vorticity_program(program_t* this,
+                                   wgpu_context_t* wgpu_context)
+{
+  dynamic_buffer_t* program_buffers[2] = {
+    &dynamic_buffers.velocity,  /* in_velocity */
+    &dynamic_buffers.vorticity, /* out_vorticity */
+  };
+  uniform_t* program_uniforms[1] = {
+    &uniforms.grid, /* */
+  };
+  const char* shader_wgsl_path = "vorticity_shader.wgsl";
+  program_init(this, wgpu_context, program_buffers,
+               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               settings.grid_w, settings.grid_h);
+}
+
+/* Init programs */
+static void programs_buffers_init(wgpu_context_t* wgpu_context)
+{
+  init_advect_dye_program(&programs.advect_dye_program, wgpu_context);
+  init_advect_program(&programs.advect_program, wgpu_context);
+  init_boundary_div_program(&programs.boundary_div_program, wgpu_context);
+  init_boundary_pressure_program(&programs.boundary_pressure_program,
+                                 wgpu_context);
+  init_boundary_program(&programs.boundary_program, wgpu_context);
+  init_clear_pressure_program(&programs.clear_pressure_program, wgpu_context);
+  init_checker_program(&programs.checker_program, wgpu_context);
+  init_divergence_program(&programs.divergence_program, wgpu_context);
+  init_gradient_subtract_program(&programs.gradient_subtract_program,
+                                 wgpu_context);
+  init_pressure_program(&programs.pressure_program, wgpu_context);
+  init_update_dye_program(&programs.update_dye_program, wgpu_context);
+  init_update_program(&programs.update_program, wgpu_context);
+  init_vorticity_confinment_program(&programs.vorticity_confinment_program,
+                                    wgpu_context);
+  init_vorticity_program(&programs.vorticity_program, wgpu_context);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1197,6 +1219,9 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    dynamic_buffers_init(context->wgpu_context);
+    uniforms_buffers_init(context->wgpu_context);
+    programs_buffers_init(context->wgpu_context);
     prepared = true;
     return 0;
   }
