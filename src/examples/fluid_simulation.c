@@ -792,6 +792,9 @@ static WGPUExtent3D get_preferred_dimensions(uint32_t size,
   return get_valid_dimensions(w, h, max_buffer_size, max_canvas_size);
 }
 
+/* Init buffer & canvas dimensions to fit the screen while keeping the aspect
+ * ratio and downscaling the dimensions if they exceed the device capabilities
+ */
 static void init_sizes(wgpu_context_t* wgpu_context)
 {
   uint64_t max_buffer_size          = 0;
