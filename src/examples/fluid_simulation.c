@@ -759,7 +759,7 @@ static void init_vorticity_program(program_t* this,
 }
 
 /* Init programs */
-static void programs_buffers_init(wgpu_context_t* wgpu_context)
+static void programs_init(wgpu_context_t* wgpu_context)
 {
   init_advect_dye_program(&programs.advect_dye_program, wgpu_context);
   init_advect_program(&programs.advect_program, wgpu_context);
@@ -778,6 +778,24 @@ static void programs_buffers_init(wgpu_context_t* wgpu_context)
   init_vorticity_confinment_program(&programs.vorticity_confinment_program,
                                     wgpu_context);
   init_vorticity_program(&programs.vorticity_program, wgpu_context);
+}
+
+static void programs_destroy()
+{
+  program_destroy(&programs.advect_dye_program);
+  program_destroy(&programs.advect_program);
+  program_destroy(&programs.boundary_div_program);
+  program_destroy(&programs.boundary_pressure_program);
+  program_destroy(&programs.boundary_program);
+  program_destroy(&programs.clear_pressure_program);
+  program_destroy(&programs.checker_program);
+  program_destroy(&programs.divergence_program);
+  program_destroy(&programs.gradient_subtract_program);
+  program_destroy(&programs.pressure_program);
+  program_destroy(&programs.update_dye_program);
+  program_destroy(&programs.update_program);
+  program_destroy(&programs.vorticity_confinment_program);
+  program_destroy(&programs.vorticity_program);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1221,7 +1239,7 @@ static int example_initialize(wgpu_example_context_t* context)
   if (context) {
     dynamic_buffers_init(context->wgpu_context);
     uniforms_buffers_init(context->wgpu_context);
-    programs_buffers_init(context->wgpu_context);
+    programs_init(context->wgpu_context);
     prepared = true;
     return 0;
   }
