@@ -53,7 +53,6 @@ static const char* fragment_shader_wgsl = CODE(
 // clang-format on
 
 static WGPURenderPipeline pipeline;
-static WGPUBindGroup bind_group;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -153,24 +152,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
-{
-  // Bind Group
-  bind_group = wgpuDeviceCreateBindGroup(
-    wgpu_context->device,
-    &(WGPUBindGroupDescriptor){
-      .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
-      .entryCount = 0,
-      .entries    = NULL,
-    });
-  ASSERT(bind_group != NULL);
-}
-
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     prepare_pipelines(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
     return 0;
@@ -194,10 +179,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   // Bind the rendering pipeline
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
-
-  // Set the bind group
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                    0);
 
   // Set viewport
   wgpuRenderPassEncoderSetViewport(
@@ -255,8 +236,8 @@ static int example_render(wgpu_example_context_t* context)
 
 static void example_destroy(wgpu_example_context_t* context)
 {
-  camera_release(context->camera);
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
+  UNUSED_VAR(context);
+
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
 }
 
