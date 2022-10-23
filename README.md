@@ -421,7 +421,7 @@ This example shows how to display a 360-degree video where the viewer has contro
 
 #### [Shadertoy](src/examples/video_uploading.c)
 
-Minimal "[shadertoy](https://www.shadertoy.com/) launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Cube lines](https://www.shadertoy.com/view/NslGRN)'.
+Minimal "[shadertoy](https://www.shadertoy.com/) launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Seascape](https://www.shadertoy.com/view/Ms2SD1)'.
 
 #### [Gerstner Waves](src/examples/gerstner_waves.c)
 

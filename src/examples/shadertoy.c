@@ -7,10 +7,10 @@
  * WebGPU Example - Shadertoy
  *
  * Minimal "shadertoy launcher" using WebGPU, demonstrating how to load an
- * example Shadertoy shader 'Cube lines'.
+ * example Shadertoy shader 'Seascape'.
  *
  * Ref:
- * https://www.shadertoy.com/view/NslGRN
+ * https://www.shadertoy.com/view/Ms2SD1
  * https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
  * -------------------------------------------------------------------------- */
 
