@@ -23,6 +23,7 @@
 
 // Constants
 #define MAX_NUM_LIGHTS 1024
+
 static const uint32_t max_num_lights   = (uint32_t)MAX_NUM_LIGHTS;
 static const uint8_t light_data_stride = 8;
 static vec3 light_extent_min           = {-50.f, -30.f, -50.f};
@@ -767,9 +768,9 @@ static void setup_render_passes()
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
-          .r = 1.0f,
-          .g = 1.0f,
-          .b = 1.0f,
+          .r = FLT_MAX,
+          .g = FLT_MAX,
+          .b = FLT_MAX,
           .a = 1.0f,
         },
       };
@@ -803,12 +804,13 @@ static void setup_render_passes()
     // Render pass depth stencil attachment descriptor
     write_gbuffer_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view            = depth_texture_view,
-        .depthLoadOp     = WGPULoadOp_Clear,
-        .depthStoreOp    = WGPUStoreOp_Store,
-        .depthClearValue = 1.0f,
-        .clearDepth      = 1.0f,
-        .clearStencil    = 0,
+        .view              = depth_texture_view,
+        .depthLoadOp       = WGPULoadOp_Clear,
+        .depthStoreOp      = WGPUStoreOp_Store,
+        .depthClearValue   = 1.0f,
+        .clearDepth        = 1.0f,
+        .clearStencil      = 1,
+        .stencilClearValue = 1,
       };
 
     // Render pass descriptor
@@ -867,7 +869,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   // Model uniform buffer
   {
     const WGPUBufferDescriptor buffer_desc = {
-      .size  = 4 * 16 * 2, // two 4x4 matrix
+      .size  = sizeof(mat4) * 2, // two 4x4 matrix
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     };
     model_uniform_buffer
@@ -878,7 +880,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   // Camera uniform buffer
   {
     const WGPUBufferDescriptor buffer_desc = {
-      .size  = 4 * 16, // 4x4 matrix
+      .size  = sizeof(mat4), // 4x4 matrix
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     };
     camera_uniform_buffer
@@ -892,12 +894,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = model_uniform_buffer,
-        .size    = 4 * 16 * 2, // two 4x4 matrix
+        .size    = sizeof(mat4) * 2, // two 4x4 matrix
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
         .buffer  = camera_uniform_buffer,
-        .size    = 4 * 16, // 4x4 matrix
+        .size    = sizeof(mat4), // 4x4 matrix
       },
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -959,9 +961,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     gbuffer_textures_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "GBuffer textures bind group",
-                              .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                gbuffers_debug_view_pipeline, 0),
+                              .label      = "GBuffer textures bind group",
+                              .layout     = gbuffer_textures_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
