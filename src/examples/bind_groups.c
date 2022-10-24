@@ -41,7 +41,7 @@ static struct gltf_model_t* model = NULL;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 static WGPURenderPipeline pipeline;
 static WGPUPipelineLayout pipeline_layout;
