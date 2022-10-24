@@ -201,6 +201,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     cube->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
+        .label      = "Cube bind group",
         .layout     = bind_group_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bind_group_entries),
         .entries    = bind_group_entries,
