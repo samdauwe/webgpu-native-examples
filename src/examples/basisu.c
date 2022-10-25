@@ -77,7 +77,7 @@ static struct {
   texture_t alpha;
 } textures = {0};
 
-// GUI
+// GUI - current texture type
 static int32_t current_texture_type = 0;
 
 // Other variables
