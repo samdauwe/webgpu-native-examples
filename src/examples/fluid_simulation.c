@@ -1151,6 +1151,16 @@ static void render_program_setup_render_pass()
   };
 }
 
+static void render_program_initialize(wgpu_context_t* wgpu_context)
+{
+  render_program_prepare_vertex_buffer(wgpu_context);
+  render_program_prepare_pipelines(wgpu_context);
+  render_program_setup_rgb_buffer(wgpu_context);
+  render_program_setup_render_uniforms(wgpu_context);
+  render_program_setup_bind_group(wgpu_context);
+  render_program_setup_render_pass();
+}
+
 /* Dispatch a draw command to render on the canvas */
 static void render_program_dispatch(wgpu_context_t* wgpu_context,
                                     WGPUCommandEncoder command_encoder)
