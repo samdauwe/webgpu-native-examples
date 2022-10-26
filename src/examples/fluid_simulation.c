@@ -386,6 +386,26 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.u_symmetry, wgpu_context, UNIFORM_MOUSE_TYPE, 1, NULL);
 }
 
+/* Destruct uniforms */
+static void uniforms_buffers_destroy()
+{
+  uniform_destroy(&uniforms.time);
+  uniform_destroy(&uniforms.dt);
+  uniform_destroy(&uniforms.mouse);
+  uniform_destroy(&uniforms.grid);
+  uniform_destroy(&uniforms.sim_speed);
+  uniform_destroy(&uniforms.vel_force);
+  uniform_destroy(&uniforms.vel_radius);
+  uniform_destroy(&uniforms.vel_diff);
+  uniform_destroy(&uniforms.dye_force);
+  uniform_destroy(&uniforms.dye_radius);
+  uniform_destroy(&uniforms.dye_diff);
+  uniform_destroy(&uniforms.viscosity);
+  uniform_destroy(&uniforms.u_vorticity);
+  uniform_destroy(&uniforms.contain_fluid);
+  uniform_destroy(&uniforms.u_symmetry);
+}
+
 /* -------------------------------------------------------------------------- *
  * Program
  * -------------------------------------------------------------------------- */
@@ -989,6 +1009,8 @@ static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 static void render_program_destroy()
 {
   wgpu_destroy_buffer(&render_program.vertex_buffer);
+  uniform_destroy(&uniforms.u_render_intensity);
+  uniform_destroy(&uniforms.u_render_dye);
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_program.render_pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, render_program.render_bind_group)
 }
@@ -1267,6 +1289,9 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
+    if (imgui_overlay_button(context->imgui_overlay, "Reset")) {
+      simulation_reset();
+    }
   }
 }
 
@@ -1384,7 +1409,10 @@ static int example_render(wgpu_example_context_t* context)
 
 static void example_destroy(wgpu_example_context_t* context)
 {
+  UNUSED_VAR(context);
+
   dynamic_buffers_destroy();
+  uniforms_buffers_destroy();
   programs_destroy();
   render_program_destroy();
 }
