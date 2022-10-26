@@ -1237,6 +1237,7 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    init_sizes(context->wgpu_context);
     dynamic_buffers_init(context->wgpu_context);
     uniforms_buffers_init(context->wgpu_context);
     programs_init(context->wgpu_context);
