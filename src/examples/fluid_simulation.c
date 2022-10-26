@@ -337,6 +337,11 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
   global_uniforms[type] = this;
 }
 
+static void uniform_destroy(uniform_t* this)
+{
+  wgpu_destroy_buffer(&this->buffer);
+}
+
 /* Update the GPU buffer if the value has changed */
 static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
                            float* value, uint32_t value_count)
@@ -1251,6 +1256,7 @@ static int example_initialize(wgpu_example_context_t* context)
     dynamic_buffers_init(context->wgpu_context);
     uniforms_buffers_init(context->wgpu_context);
     programs_init(context->wgpu_context);
+    render_program_initialize(context->wgpu_context);
     prepared = true;
     return 0;
   }
@@ -1378,6 +1384,9 @@ static int example_render(wgpu_example_context_t* context)
 
 static void example_destroy(wgpu_example_context_t* context)
 {
+  dynamic_buffers_destroy();
+  programs_destroy();
+  render_program_destroy();
 }
 
 void example_fluid_simulation(int argc, char* argv[])
