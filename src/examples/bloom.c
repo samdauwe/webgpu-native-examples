@@ -30,13 +30,13 @@ static struct {
   struct gltf_model_t* ufo;
   struct gltf_model_t* ufo_glow;
   struct gltf_model_t* skybox;
-} models;
+} models = {0};
 
 static struct {
   wgpu_buffer_t scene;
   wgpu_buffer_t skybox;
   wgpu_buffer_t blur_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 typedef struct {
   mat4 projection;
@@ -65,26 +65,26 @@ static struct {
   WGPURenderPipeline glow_pass;
   WGPURenderPipeline phong_pass;
   WGPURenderPipeline skybox;
-} pipelines;
+} pipelines = {0};
 
 static struct {
   WGPUPipelineLayout blur;
   WGPUPipelineLayout scene;
   WGPUPipelineLayout skybox;
-} pipeline_layouts;
+} pipeline_layouts = {0};
 
 static struct {
   WGPUBindGroup blur_vert;
   WGPUBindGroup blur_horz;
   WGPUBindGroup scene;
   WGPUBindGroup skybox;
-} bind_groups;
+} bind_groups = {0};
 
 static struct {
   WGPUBindGroupLayout blur;
   WGPUBindGroupLayout scene;
   WGPUBindGroupLayout skybox;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 // Framebuffer for offscreen rendering
 typedef struct {
@@ -106,7 +106,7 @@ static struct {
   uint32_t width, height;
   WGPUSampler sampler;
   frame_buffer_t frame_buffers[2];
-} offscreen_pass;
+} offscreen_pass = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
 static WGPURenderPassDescriptor render_pass_desc;
