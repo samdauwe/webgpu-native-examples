@@ -698,7 +698,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                 .depthStencil = &depth_stencil_state,
                                 .multisample  = multisample_state,
                               });
-      ASSERT(pipelines.blur_horz);
+      ASSERT(pipelines.blur_horz != NULL);
 
       // Partial cleanup
       WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -766,7 +766,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(pipelines.phong_pass);
+    ASSERT(pipelines.phong_pass != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -818,7 +818,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(pipelines.glow_pass);
+    ASSERT(pipelines.glow_pass != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -873,7 +873,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(pipelines.skybox);
+    ASSERT(pipelines.skybox != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
