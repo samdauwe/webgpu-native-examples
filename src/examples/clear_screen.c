@@ -106,6 +106,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 
   /* Get command buffer */
   WGPUCommandBuffer command_buffer = wgpu_get_command_buffer(cmd_encoder);
+  ASSERT(command_buffer != NULL)
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
   return command_buffer;
