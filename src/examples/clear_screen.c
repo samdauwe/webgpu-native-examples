@@ -75,10 +75,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   render_pass.color_attachments[0].view
     = context->wgpu_context->swap_chain.frame_buffer;
 
-  // Figure out how far along duration we are, between 0.0 and 1.0
+  /* Figure out how far along duration we are, between 0.0 and 1.0 */
   const float t = cos(context->frame.timestamp_millis * 0.001f) * 0.5f + 0.5f;
 
-  // Interpolate between two colors
+  /* Interpolate between two colors */
   render_pass.color_attachments[0].clearColor = lerp(
     &(WGPUColor){
       .r = 0.0f,
@@ -92,19 +92,19 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     },
     t);
 
-  // Create command encoder
+  /* Create command encoder */
   WGPUCommandEncoder cmd_encoder
     = wgpuDeviceCreateCommandEncoder(context->wgpu_context->device, NULL);
 
-  // Create render pass
+  /* Create render pass */
   WGPURenderPassEncoder rpass
     = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass.descriptor);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(rpass);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer = wgpu_get_command_buffer(cmd_encoder);
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
