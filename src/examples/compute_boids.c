@@ -146,6 +146,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .label      = "compute bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
@@ -154,6 +155,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(compute_bind_group_layout != NULL)
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
+    .label                = "compute pipeline layout",
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &compute_bind_group_layout,
   };
