@@ -146,7 +146,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .entryCount = 3,
+    .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
   compute_bind_group_layout
