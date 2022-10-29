@@ -324,6 +324,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   wgpu_shader_t boids_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
+                    .label = "update sprites compute shader",
                     .file  = "shaders/compute_boids/updateSprites.wgsl",
                     .entry = "main",
                   });
@@ -333,7 +334,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .file = "shaders/compute_boids/sprite.wgsl",
+              .label = "sprite vertex shader",
+              .file  = "shaders/compute_boids/sprite.wgsl",
               .entry = "vert_main",
             },
             .buffer_count = 2,
@@ -345,6 +347,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
+              .label = "sprite fragment shader",
               .file  = "shaders/compute_boids/sprite.wgsl",
               .entry = "frag_main",
             },
