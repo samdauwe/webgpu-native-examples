@@ -234,8 +234,6 @@ static void dynamic_buffers_destroy()
   dynamic_buffer_destroy(&dynamic_buffers.pressure0);
 
   dynamic_buffer_destroy(&dynamic_buffers.vorticity);
-
-  dynamic_buffer_destroy(&dynamic_buffers.rgb_buffer);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1009,6 +1007,7 @@ static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 static void render_program_destroy()
 {
   wgpu_destroy_buffer(&render_program.vertex_buffer);
+  dynamic_buffer_destroy(&dynamic_buffers.rgb_buffer);
   uniform_destroy(&uniforms.u_render_intensity);
   uniform_destroy(&uniforms.u_render_dye);
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_program.render_pipeline)
