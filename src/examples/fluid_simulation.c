@@ -202,7 +202,7 @@ static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
 
   dynamic_buffer_init(&dynamic_buffers.dye, wgpu_context, 3, settings.dye_w,
                       settings.dye_h);
-  dynamic_buffer_init(&dynamic_buffers.dye0, wgpu_context, 4, settings.dye_w,
+  dynamic_buffer_init(&dynamic_buffers.dye0, wgpu_context, 3, settings.dye_w,
                       settings.dye_h);
 
   dynamic_buffer_init(&dynamic_buffers.divergence, wgpu_context, 1,
