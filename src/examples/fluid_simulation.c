@@ -24,6 +24,15 @@
 
 #define MAX_DIMENSIONS 3
 
+typedef enum {
+  DYNAMIC_BUFFER_VELOCITY,
+  DYNAMIC_BUFFER_DYE,
+  DYNAMIC_BUFFER_DIVERGENCE,
+  DYNAMIC_BUFFER_PRESSURE,
+  DYNAMIC_BUFFER_VORTICITY,
+  DYNAMIC_BUFFER_RGB,
+} dynamic_buffer_type_t;
+
 static struct {
   uint32_t grid_size;
   uint32_t grid_w;
@@ -45,7 +54,7 @@ static struct {
   float viscosity;
   uint32_t vorticity;
   uint32_t pressure_iterations;
-  int32_t buffer_view;
+  dynamic_buffer_type_t buffer_view;
   float dt;
   float time;
 } settings = {
@@ -62,7 +71,7 @@ static struct {
   .viscosity              = 0.8f,
   .vorticity              = 2,
   .pressure_iterations    = 100,
-  .buffer_view            = 0,
+  .buffer_view            = DYNAMIC_BUFFER_DYE,
   .dt                     = 0.0f,
   .time                   = 0.0f,
 };
@@ -163,15 +172,6 @@ static void dynamic_buffer_clear(dynamic_buffer_t* this)
 
   free(empty_buffer);
 }
-
-typedef enum {
-  DYNAMIC_BUFFER_VELOCITY,
-  DYNAMIC_BUFFER_DYE,
-  DYNAMIC_BUFFER_DIVERGENCE,
-  DYNAMIC_BUFFER_PRESSURE,
-  DYNAMIC_BUFFER_VORTICITY,
-  DYNAMIC_BUFFER_RGB,
-} dynamic_buffer_type_t;
 
 static struct {
   dynamic_buffer_t velocity;
