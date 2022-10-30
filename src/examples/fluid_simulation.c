@@ -1177,7 +1177,7 @@ static void render_program_setup_render_pass()
   };
 }
 
-static void render_program_initialize(wgpu_context_t* wgpu_context)
+static void render_program_init(wgpu_context_t* wgpu_context)
 {
   render_program_prepare_vertex_buffer(wgpu_context);
   render_program_prepare_pipelines(wgpu_context);
@@ -1277,7 +1277,7 @@ static int example_initialize(wgpu_example_context_t* context)
     dynamic_buffers_init(context->wgpu_context);
     uniforms_buffers_init(context->wgpu_context);
     programs_init(context->wgpu_context);
-    render_program_initialize(context->wgpu_context);
+    render_program_init(context->wgpu_context);
     prepared = true;
     return 0;
   }
