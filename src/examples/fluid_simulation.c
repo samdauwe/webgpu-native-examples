@@ -444,7 +444,7 @@ static void program_init_defaults(program_t* this)
 static void program_init(program_t* this, wgpu_context_t* wgpu_context,
                          dynamic_buffer_t** buffers, uint32_t buffer_count,
                          uniform_t** uniforms, uint32_t uniform_count,
-                         const char* shader_wgsl_path, uint32_t dispatch_x,
+                         const char* shader_wgsl_filename, uint32_t dispatch_x,
                          uint32_t dispatch_y)
 {
   program_init_defaults(this);
@@ -452,6 +452,9 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
   /* Create the shader module using the WGSL string and use it to create a
    * compute pipeline with 'auto' binding layout */
   {
+    char shader_wgsl_path[STRMAX];
+    snprintf(shader_wgsl_path, strlen(shader_wgsl_filename) + 25 + 1,
+             "shaders/fluid_simulation/%s", shader_wgsl_filename);
     wgpu_shader_t comp_shader
       = wgpu_shader_create(wgpu_context, &(wgpu_shader_desc_t){
                                            /* Compute shader WGSL */
@@ -536,10 +539,10 @@ static void init_advect_dye_program(program_t* this,
     &uniforms.grid, /* */
     &uniforms.dt,   /* */
   };
-  const char* shader_wgsl_path = "advect_dye_shader.wgsl";
+  const char* shader_wgsl_filename = "advect_dye_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.dye_w, settings.dye_h);
 }
 
@@ -554,10 +557,10 @@ static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
     &uniforms.grid, /* */
     &uniforms.dt,   /* */
   };
-  const char* shader_wgsl_path = "advect_shader.wgsl";
+  const char* shader_wgsl_filename = "advect_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -571,10 +574,10 @@ static void init_boundary_div_program(program_t* this,
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "boundary_pressure_shader.wgsl";
+  const char* shader_wgsl_filename = "boundary_pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -588,10 +591,10 @@ static void init_boundary_pressure_program(program_t* this,
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "boundary_pressure_shader.wgsl";
+  const char* shader_wgsl_filename = "boundary_pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -605,10 +608,10 @@ static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
     &uniforms.grid,          /* */
     &uniforms.contain_fluid, /* */
   };
-  const char* shader_wgsl_path = "boundary_shader.wgsl";
+  const char* shader_wgsl_filename = "boundary_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -623,10 +626,10 @@ static void init_clear_pressure_program(program_t* this,
     &uniforms.grid,      /* */
     &uniforms.viscosity, /* */
   };
-  const char* shader_wgsl_path = "clear_pressure_shader.wgsl";
+  const char* shader_wgsl_filename = "clear_pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -638,10 +641,10 @@ static void init_checker_program(program_t* this, wgpu_context_t* wgpu_context)
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "checkerboard_shader.wgsl";
+  const char* shader_wgsl_filename = "checkerboard_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.dye_w, settings.dye_h);
 }
 
@@ -655,10 +658,10 @@ static void init_divergence_program(program_t* this,
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "divergence_shader.wgsl";
+  const char* shader_wgsl_filename = "divergence_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -673,10 +676,10 @@ static void init_gradient_subtract_program(program_t* this,
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "gradient_subtract_shader.wgsl";
+  const char* shader_wgsl_filename = "gradient_subtract_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -690,10 +693,10 @@ static void init_pressure_program(program_t* this, wgpu_context_t* wgpu_context)
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "pressure_shader.wgsl";
+  const char* shader_wgsl_filename = "pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -714,10 +717,10 @@ static void init_update_dye_program(program_t* this,
     &uniforms.dt,         /* */
     &uniforms.u_symmetry, /* */
   };
-  const char* shader_wgsl_path = "update_dye_shader.wgsl";
+  const char* shader_wgsl_filename = "update_dye_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.dye_w, settings.dye_h);
 }
 
@@ -737,10 +740,10 @@ static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
     &uniforms.time,       /* */
     &uniforms.u_symmetry, /* */
   };
-  const char* shader_wgsl_path = "update_velocity_shader.wgsl";
+  const char* shader_wgsl_filename = "update_velocity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -757,10 +760,10 @@ static void init_vorticity_confinment_program(program_t* this,
     &uniforms.dt,          /* */
     &uniforms.u_vorticity, /* */
   };
-  const char* shader_wgsl_path = "vorticity_confinment_shader.wgsl";
+  const char* shader_wgsl_filename = "vorticity_confinment_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
@@ -774,10 +777,10 @@ static void init_vorticity_program(program_t* this,
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
   };
-  const char* shader_wgsl_path = "vorticity_shader.wgsl";
+  const char* shader_wgsl_filename = "vorticity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_path,
+               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
                settings.grid_w, settings.grid_h);
 }
 
