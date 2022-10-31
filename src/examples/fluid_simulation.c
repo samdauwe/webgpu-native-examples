@@ -34,7 +34,7 @@ typedef enum {
 } dynamic_buffer_type_t;
 
 static struct {
-  uint32_t grid_size;
+  float grid_size;
   uint32_t grid_w;
   uint32_t grid_h;
   uint32_t dye_size;
@@ -43,8 +43,8 @@ static struct {
   uint32_t rdx;
   uint32_t dye_rdx;
   float dx;
-  uint32_t sim_speed;
-  bool contain_fluid;
+  float sim_speed;
+  float contain_fluid;
   float velocity_add_intensity;
   float velocity_add_radius;
   float velocity_diffusion;
@@ -52,28 +52,32 @@ static struct {
   float dye_add_radius;
   float dye_diffusion;
   float viscosity;
-  uint32_t vorticity;
+  float vorticity;
+  float render_intensity_multiplier;
+  float render_dye_buffer;
   uint32_t pressure_iterations;
   dynamic_buffer_type_t buffer_view;
   float dt;
   float time;
 } settings = {
-  .grid_size              = 512,
-  .dye_size               = 2048,
-  .sim_speed              = 5,
-  .contain_fluid          = true,
-  .velocity_add_intensity = 0.1f,
-  .velocity_add_radius    = 0.0001f,
-  .velocity_diffusion     = 0.9999f,
-  .dye_add_intensity      = 4.0f,
-  .dye_add_radius         = 0.001f,
-  .dye_diffusion          = 0.994f,
-  .viscosity              = 0.8f,
-  .vorticity              = 2,
-  .pressure_iterations    = 100,
-  .buffer_view            = DYNAMIC_BUFFER_DYE,
-  .dt                     = 0.0f,
-  .time                   = 0.0f,
+  .grid_size                   = 512.0f,
+  .dye_size                    = 2048,
+  .sim_speed                   = 5.0f,
+  .contain_fluid               = 1.0f,
+  .velocity_add_intensity      = 0.1f,
+  .velocity_add_radius         = 0.0001f,
+  .velocity_diffusion          = 0.9999f,
+  .dye_add_intensity           = 4.0f,
+  .dye_add_radius              = 0.001f,
+  .dye_diffusion               = 0.994f,
+  .viscosity                   = 0.8f,
+  .vorticity                   = 2.0f,
+  .render_intensity_multiplier = 1.0f,
+  .render_dye_buffer           = 1.0f,
+  .pressure_iterations         = 100,
+  .buffer_view                 = DYNAMIC_BUFFER_VORTICITY,
+  .dt                          = 0.0f,
+  .time                        = 0.0f,
 };
 
 static struct {
@@ -300,6 +304,49 @@ static void uniform_init_defaults(uniform_t* this)
   memset(this, 0, sizeof(*this));
 }
 
+static float* uniform_get_setting_value(uniform_type_t type)
+{
+
+  switch (type) {
+    case UNIFORM_TIME: /* time */
+      return &settings.time;
+    case UNIFORM_DT: /* dt */
+      return &settings.dt;
+    case UNIFORM_MOUSE_INFOS: /* mouseInfos */
+      return NULL;
+    case UNIFORM_GRID_SIZE: /* gridSize */
+      return &settings.grid_size;
+    case UNIFORM_SIM_SPEED: /* sim_speed */
+      return &settings.sim_speed;
+    case UNIFORM_VELOCITY_ADD_INTENSITY: /* velocity_add_intensity */
+      return &settings.velocity_add_intensity;
+    case UNIFORM_VELOCITY_ADD_RADIUS: /* velocity_add_radius */
+      return &settings.velocity_add_radius;
+    case UNIFORM_VELOCITY_DIFFUSION: /* velocity_diffusion */
+      return &settings.velocity_diffusion;
+    case UNIFORM_DYE_ADD_INTENSITY: /* dye_add_intensity */
+      return &settings.dye_add_intensity;
+    case UNIFORM_DYE_ADD_RADIUS: /* dye_add_radius */
+      return &settings.dye_add_radius;
+    case UNIFORM_DYE_ADD_DIFFUSION: /* dye_diffusion */
+      return &settings.dye_diffusion;
+    case UNIFORM_VISCOSITY: /* viscosity */
+      return &settings.viscosity;
+    case UNIFORM_VORTICITY: /* vorticity */
+      return &settings.vorticity;
+    case UNIFORM_CONTAIN_FLUID: /* contain_fluid */
+      return &settings.contain_fluid;
+    case UNIFORM_MOUSE_TYPE: /* mouse_type */
+      return NULL;
+    case UNIFORM_RENDER_INTENSITY: /* render_intensity_multiplier */
+      return &settings.render_intensity_multiplier;
+    case UNIFORM_RENDER_DYE: /* render_dye_buffer */
+      return &settings.render_dye_buffer;
+    default:
+      return NULL;
+  }
+}
+
 static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                          uniform_type_t type, uint32_t size, float const* value)
 {
@@ -312,15 +359,16 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
   this->always_update = (size == 1);
 
   if (this->size == 1 || value != NULL) {
+    float const* buff_value = value ? value : uniform_get_setting_value(type);
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size = this->size * sizeof(float),
-                                           .initial.data = value ? value : 0,
+                                           .initial.data = buff_value,
                                          });
     if (value) {
-      memcpy(this->values, value, size);
+      memcpy(this->values, buff_value, size);
     }
   }
   else {
@@ -345,10 +393,17 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
                            float* value, uint32_t value_count)
 {
   if (this->needs_update || this->always_update || value != NULL) {
-    wgpu_queue_write_buffer(
-      wgpu_context, this->buffer.buffer, 0, value ? value : this->values,
-      (value_count ? MIN(this->size, value_count) : this->size)
-        * sizeof(float));
+    if (this->size == 1) {
+      float const* buff_value
+        = value ? value : uniform_get_setting_value(this->type);
+      if (buff_value) {
+        this->values[0] = *buff_value;
+      }
+    }
+    uint32_t s = (value_count ? MIN(this->size, value_count) : this->size)
+                 * sizeof(float);
+    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0,
+                            value ? value : this->values, s);
     this->needs_update = false;
   }
 }
@@ -935,7 +990,7 @@ static struct {
 
 // Shaders
 // clang-format off
-static const char* shader_wgsl = CODE(
+static const char* render_program_shader_wgsl = CODE(
   struct GridSize {
     w : f32,
     h : f32,
@@ -1047,7 +1102,7 @@ static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
                   .label            = "vertex_shader_wgsl",
-                  .wgsl_code.source = shader_wgsl,
+                  .wgsl_code.source = render_program_shader_wgsl,
                   .entry            = "vertex_main",
                 },
                 .buffer_count = 1,
@@ -1060,7 +1115,7 @@ static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
                   .label            = "fragment_shader_wgsl",
-                  .wgsl_code.source = shader_wgsl,
+                  .wgsl_code.source = render_program_shader_wgsl,
                   .entry            = "fragment_main",
                 },
                 .target_count = 1,
@@ -1097,19 +1152,19 @@ static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[0].buffer,
-      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+      .size    = dynamic_buffers.rgb_buffer.buffers[0].size,
     },
     /* Binding 1 : fieldY */
     [1] = (WGPUBindGroupEntry) {
       .binding = 1,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[1].buffer,
-      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+      .size    = dynamic_buffers.rgb_buffer.buffers[1].size,
     },
     /* Binding 2 : fieldZ */
     [2] = (WGPUBindGroupEntry) {
       .binding = 2,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[2].buffer,
-      .size    = dynamic_buffers.rgb_buffer.buffer_size,
+      .size    = dynamic_buffers.rgb_buffer.buffers[2].size,
     },
     /* Binding 3 : uGrid */
     [3] = (WGPUBindGroupEntry) {
