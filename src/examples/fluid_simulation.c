@@ -408,7 +408,7 @@ static void uniforms_buffers_destroy()
  * Program
  * -------------------------------------------------------------------------- */
 
-#define PROGRAM_MAX_BUFFER_COUNT 3u
+#define PROGRAM_MAX_BUFFER_COUNT (3u * 3u)
 #define PROGRAM_MAX_UNIFORM_COUNT 8u
 
 /* Creates a shader module, compute pipeline & bind group to use with the GPU */
@@ -475,20 +475,23 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     bg_entries[PROGRAM_MAX_BUFFER_COUNT + PROGRAM_MAX_UNIFORM_COUNT];
   uint32_t bge_i = 0;
   {
-    for (uint32_t i = 0; i < buffer_count; ++i, ++bge_i) {
-      bg_entries[bge_i] = (WGPUBindGroupEntry){
-        .binding = bge_i,
-        .buffer  = buffers[i]->buffers[0].buffer,
-        .offset  = 0,
-        .size    = buffers[i]->buffers[0].size,
-      };
+    for (uint32_t i = 0; i < buffer_count; ++i) {
+      for (uint32_t d = 0; d < buffers[i]->dims; ++d) {
+        bg_entries[bge_i] = (WGPUBindGroupEntry){
+          .binding = bge_i,
+          .buffer  = buffers[i]->buffers[d].buffer,
+          .offset  = 0,
+          .size    = buffers[i]->buffers[d].size,
+        };
+        ++bge_i;
+      }
     }
     for (uint32_t i = 0; i < uniform_count; ++i, ++bge_i) {
       bg_entries[bge_i] = (WGPUBindGroupEntry){
         .binding = bge_i,
         .buffer  = uniforms[i]->buffer.buffer,
         .offset  = 0,
-        .size    = uniforms[i]->size,
+        .size    = uniforms[i]->buffer.size,
       };
     }
   }
