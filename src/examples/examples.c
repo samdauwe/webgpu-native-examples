@@ -29,6 +29,7 @@ void example_cubemap(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
 void example_dynamic_uniform_buffer(int argc, char* argv[]);
 void example_equirectangular_image(int argc, char* argv[]);
+void example_fluid_simulation(int argc, char* argv[]);
 void example_gears(int argc, char* argv[]);
 void example_gerstner_waves(int argc, char* argv[]);
 void example_gltf_loading(int argc, char* argv[]);
@@ -93,6 +94,7 @@ static examplecase_t g_example_cases[] = {
   {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
   {"equirectangular_image", example_equirectangular_image},
+  {"fluid_simulation", example_fluid_simulation},
   {"gears", example_gears},
   {"gerstner_waves", example_gerstner_waves},
   {"gltf_loading", example_gltf_loading},

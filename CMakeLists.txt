@@ -212,6 +212,7 @@ set(SOURCES
     src/examples/deferred_rendering.c
     src/examples/dynamic_uniform_buffer.c
     src/examples/equirectangular_image.c
+    src/examples/fluid_simulation.c
     src/examples/gears.c
     src/examples/gerstner_waves.c
     src/examples/gltf_loading.c
