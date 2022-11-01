@@ -88,7 +88,7 @@ static struct {
   vec2 velocity;
 } mouse_infos = {
   .current  = GLM_VEC2_ZERO_INIT,
-  .last     = GLM_VEC2_ZERO_INIT,
+  .last     = {0.0f, 1.0f}, /* y position needs to be inverted */
   .velocity = GLM_VEC2_ZERO_INIT,
 };
 
