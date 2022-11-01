@@ -59,6 +59,7 @@ static struct {
   dynamic_buffer_type_t buffer_view;
   float dt;
   float time;
+  vec4 mouse;
 } settings = {
   .grid_size                   = 512.0f,
   .dye_size                    = 2048,
@@ -75,9 +76,10 @@ static struct {
   .render_intensity_multiplier = 1.0f,
   .render_dye_buffer           = 1.0f,
   .pressure_iterations         = 100,
-  .buffer_view                 = DYNAMIC_BUFFER_VORTICITY,
+  .buffer_view                 = DYNAMIC_BUFFER_DYE,
   .dt                          = 0.0f,
   .time                        = 0.0f,
+  .mouse                       = GLM_VEC4_ZERO_INIT,
 };
 
 static struct {
@@ -245,23 +247,23 @@ static void dynamic_buffers_destroy()
  * -------------------------------------------------------------------------- */
 
 typedef enum {
-  UNIFORM_TIME,                   /* time */
-  UNIFORM_DT,                     /* dt */
-  UNIFORM_MOUSE_INFOS,            /* mouseInfos */
-  UNIFORM_GRID_SIZE,              /* gridSize */
-  UNIFORM_SIM_SPEED,              /* sim_speed */
-  UNIFORM_VELOCITY_ADD_INTENSITY, /* velocity_add_intensity */
-  UNIFORM_VELOCITY_ADD_RADIUS,    /* velocity_add_radius */
-  UNIFORM_VELOCITY_DIFFUSION,     /* velocity_diffusion */
-  UNIFORM_DYE_ADD_INTENSITY,      /* dye_add_intensity */
-  UNIFORM_DYE_ADD_RADIUS,         /* dye_add_radius */
-  UNIFORM_DYE_ADD_DIFFUSION,      /* dye_diffusion */
-  UNIFORM_VISCOSITY,              /* viscosity */
-  UNIFORM_VORTICITY,              /* vorticity */
-  UNIFORM_CONTAIN_FLUID,          /* contain_fluid */
-  UNIFORM_MOUSE_TYPE,             /* mouse_type */
-  UNIFORM_RENDER_INTENSITY,       /* render_intensity_multiplier */
-  UNIFORM_RENDER_DYE,             /* render_dye_buffer */
+  UNIFORM_TIME,                        /* time */
+  UNIFORM_DT,                          /* dt */
+  UNIFORM_MOUSE_INFOS,                 /* mouseInfos */
+  UNIFORM_GRID_SIZE,                   /* gridSize */
+  UNIFORM_SIM_SPEED,                   /* sim_speed */
+  UNIFORM_VELOCITY_ADD_INTENSITY,      /* velocity_add_intensity */
+  UNIFORM_VELOCITY_ADD_RADIUS,         /* velocity_add_radius */
+  UNIFORM_VELOCITY_DIFFUSION,          /* velocity_diffusion */
+  UNIFORM_DYE_ADD_INTENSITY,           /* dye_add_intensity */
+  UNIFORM_DYE_ADD_RADIUS,              /* dye_add_radius */
+  UNIFORM_DYE_ADD_DIFFUSION,           /* dye_diffusion */
+  UNIFORM_VISCOSITY,                   /* viscosity */
+  UNIFORM_VORTICITY,                   /* vorticity */
+  UNIFORM_CONTAIN_FLUID,               /* contain_fluid */
+  UNIFORM_MOUSE_TYPE,                  /* mouse_type */
+  UNIFORM_RENDER_INTENSITY_MULTIPLIER, /* render_intensity_multiplier */
+  UNIFORM_RENDER_DYE_BUFFER,           /* render_dye_buffer */
   UNIFORM_COUNT,
 } uniform_type_t;
 
@@ -313,7 +315,7 @@ static float* uniform_get_setting_value(uniform_type_t type)
     case UNIFORM_DT: /* dt */
       return &settings.dt;
     case UNIFORM_MOUSE_INFOS: /* mouseInfos */
-      return NULL;
+      return settings.mouse;
     case UNIFORM_GRID_SIZE: /* gridSize */
       return &settings.grid_size;
     case UNIFORM_SIM_SPEED: /* sim_speed */
@@ -338,9 +340,9 @@ static float* uniform_get_setting_value(uniform_type_t type)
       return &settings.contain_fluid;
     case UNIFORM_MOUSE_TYPE: /* mouse_type */
       return NULL;
-    case UNIFORM_RENDER_INTENSITY: /* render_intensity_multiplier */
+    case UNIFORM_RENDER_INTENSITY_MULTIPLIER: /* render_intensity_multiplier */
       return &settings.render_intensity_multiplier;
-    case UNIFORM_RENDER_DYE: /* render_dye_buffer */
+    case UNIFORM_RENDER_DYE_BUFFER: /* render_dye_buffer */
       return &settings.render_dye_buffer;
     default:
       return NULL;
@@ -367,8 +369,8 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
                                            .size = this->size * sizeof(float),
                                            .initial.data = buff_value,
                                          });
-    if (value) {
-      memcpy(this->values, buff_value, size);
+    if (buff_value) {
+      memcpy(this->values, buff_value, this->size * sizeof(float));
     }
   }
   else {
@@ -393,17 +395,16 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
                            float* value, uint32_t value_count)
 {
   if (this->needs_update || this->always_update || value != NULL) {
-    if (this->size == 1) {
-      float const* buff_value
-        = value ? value : uniform_get_setting_value(this->type);
-      if (buff_value) {
-        this->values[0] = *buff_value;
-      }
+    float const* buff_value
+      = value ? value : uniform_get_setting_value(this->type);
+    if (buff_value) {
+      memcpy(this->values, buff_value, this->size * sizeof(float));
     }
-    uint32_t s = (value_count ? MIN(this->size, value_count) : this->size)
-                 * sizeof(float);
-    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0,
-                            value ? value : this->values, s);
+    uint32_t buff_size
+      = (value_count ? MIN(this->size, value_count) : this->size)
+        * sizeof(float);
+    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0, this->values,
+                            buff_size);
     this->needs_update = false;
   }
 }
@@ -955,10 +956,8 @@ static void init_sizes(wgpu_context_t* wgpu_context)
   settings.grid_h = grid_size.height;
 
   /* Calculate dye & canvas buffer dimensions */
-  WGPUExtent3D dye_size = get_preferred_dimensions(
-    settings.dye_size, wgpu_context, max_buffer_size, max_canvas_size);
-  settings.dye_w = dye_size.width;
-  settings.dye_h = dye_size.height;
+  settings.dye_w = (float)wgpu_context->surface.width;
+  settings.dye_h = (float)wgpu_context->surface.height;
 
   /* Useful values for the simulation */
   settings.rdx     = settings.grid_size * 4;
@@ -1210,9 +1209,9 @@ static void render_program_setup_render_uniforms(wgpu_context_t* wgpu_context)
   const float value = 1;
 
   uniform_init(&uniforms.u_render_intensity, wgpu_context,
-               UNIFORM_RENDER_INTENSITY, 1, &value);
-  uniform_init(&uniforms.u_render_dye, wgpu_context, UNIFORM_RENDER_DYE, 1,
-               &value);
+               UNIFORM_RENDER_INTENSITY_MULTIPLIER, 1, &value);
+  uniform_init(&uniforms.u_render_dye, wgpu_context, UNIFORM_RENDER_DYE_BUFFER,
+               1, &value);
 }
 
 static void render_program_setup_render_pass()
@@ -1233,7 +1232,7 @@ static void render_program_setup_render_pass()
   /* Render pass descriptor */
   render_program.render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
-    .colorAttachments       = render_program.render_pass.color_attachments,
+    .colorAttachments       = &render_program.render_pass.color_attachments[0],
     .depthStencilAttachment = NULL,
   };
 }
@@ -1373,6 +1372,12 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
   for (uint32_t i = 0; i < (uint32_t)UNIFORM_COUNT; ++i) {
     uniform_update(global_uniforms[i], wgpu_context, NULL, 0);
   }
+
+  /* Updated  mouse state */
+  mouse_infos.current[0]
+    = context->mouse_position[0] / context->wgpu_context->surface.width;
+  mouse_infos.current[1]
+    = 1.0f - context->mouse_position[1] / context->wgpu_context->surface.height;
 
   /* Update mouse uniform */
   glm_vec2_sub(mouse_infos.current, mouse_infos.last, mouse_infos.velocity);
