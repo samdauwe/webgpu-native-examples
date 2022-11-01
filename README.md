@@ -490,20 +490,20 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### March - September 2022
+### March - October 2022
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
 * [x] ~~Use helper function for buffer creation to achieve more compact code~~
 * [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
 * [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
+* [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
 
-### October 2022
+### November 2022
 
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
-* [ ] [WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)
 
-### November - December 2022
+### December 2022 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
