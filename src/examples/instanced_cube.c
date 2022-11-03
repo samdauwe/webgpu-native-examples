@@ -42,7 +42,7 @@ static const char* instanced_vertex_shader_wgsl = CODE(
     var output : VertexOutput;
     output.Position = uniforms.modelViewProjectionMatrix[instanceIdx] * position;
     output.fragUV = uv;
-    output.fragPosition = 0.5 * (position + vec4<f32>(1.0, 1.0, 1.0, 1.0));
+    output.fragPosition = 0.5 * (position + vec4(1.0));
     return output;
   }
 );
