@@ -252,6 +252,7 @@ set(SOURCES
     src/examples/textured_quad.c
     src/examples/triangle.c
     src/examples/two_cubes.c
+    src/examples/vertex_buffer.c
     src/examples/video_uploading.c
     src/examples/wireframe_vertex_pulling.c
 )
