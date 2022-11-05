@@ -101,6 +101,14 @@ float2 avg8(const float2* v0, const float2* v1)
   return ret;
 }
 
+static void wgpu_buffer_write_mapped_range(WGPUBuffer buffer, size_t offset,
+                                           void* data, size_t data_size)
+{
+  void* mapping = wgpuBufferGetMappedRange(buffer, offset, data_size);
+  ASSERT(mapping)
+  memcpy(mapping, data, data_size);
+}
+
 static void divide(const float2* v0, const float2* v1, const float2* v2,
                    int recursion_limit)
 {
@@ -136,10 +144,8 @@ static void divide(const float2* v0, const float2* v1, const float2* v2,
     {w1, COLOR(w1)},   //
     {w3, COLOR(w3)},   //
   };
-  void* mapping = wgpuBufferGetMappedRange(
-    vertices_buffer, num_vertices * sizeof(vertex_t), sizeof(data));
-  ASSERT(mapping)
-  memcpy(mapping, data, sizeof(data));
+  wgpu_buffer_write_mapped_range(
+    vertices_buffer, num_vertices * sizeof(vertex_t), data, sizeof(data));
   num_vertices += 8;
 
   if (--recursion_limit > 0) {
