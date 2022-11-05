@@ -451,6 +451,10 @@ WebGPU demo featuring marching cubes and bloom post-processing via compute shade
 
 WebGPU demo featuring an implementation of Jos Stam's ["Real-Time Fluid Dynamics for Games" paper](https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf). This example has been ported from [this JavaScript implementation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation) to native code.
 
+#### [Vertex Buffer](src/examples/vertex_buffer.c)
+
+This example shows how to map a GPU buffer and use the function wgpuBufferGetMappedRange. This example is based on the [vertex_buffer](https://github.com/juj/wasm_webgpu/blob/main/samples/vertex_buffer/vertex_buffer.c) test case.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
