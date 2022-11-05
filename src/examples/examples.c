@@ -68,6 +68,7 @@ void example_textured_cube(int argc, char* argv[]);
 void example_textured_quad(int argc, char* argv[]);
 void example_triangle(int argc, char* argv[]);
 void example_two_cubes(int argc, char* argv[]);
+void example_vertex_buffer(int argc, char* argv[]);
 void example_video_uploading(int argc, char* argv[]);
 void example_wireframe_vertex_pulling(int argc, char* argv[]);
 
@@ -133,6 +134,7 @@ static examplecase_t g_example_cases[] = {
   {"textured_quad", example_textured_quad},
   {"triangle", example_triangle},
   {"two_cubes", example_two_cubes},
+  {"vertex_buffer", example_vertex_buffer},
   {"video_uploading", example_video_uploading},
   {"wireframe_vertex_pulling", example_wireframe_vertex_pulling},
 };
