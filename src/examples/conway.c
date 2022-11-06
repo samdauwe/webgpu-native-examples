@@ -122,7 +122,7 @@ static struct {
 
 // Textures
 static WGPUTextureFormat COMPUTE_TEX_FORMAT = WGPUTextureFormat_RGBA8Unorm;
-static texture_t textures[2];
+static texture_t textures[2]                = {0};
 
 // Resources for the graphics part of the example
 static struct {
