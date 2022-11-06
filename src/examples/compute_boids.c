@@ -29,21 +29,21 @@ static const uint32_t PARTICLES_PER_GROUP = 64;
 
 // Sim parameters
 static struct sim_params_t {
-  float delta_t;        // deltaT
-  float rule1_distance; // rule1Distance
-  float rule2_distance; // rule2Distance
-  float rule3_distance; // rule3Distance
-  float rule1_scale;    // rule1Scale
-  float rule2_scale;    // rule2Scale
-  float rule3_scale;    // rule3Scale
+  float delta_t;        /* deltaT */
+  float rule1_distance; /* rule1Distance */
+  float rule2_distance; /* rule2Distance */
+  float rule3_distance; /* rule3Distance */
+  float rule1_scale;    /* rule1Scale */
+  float rule2_scale;    /* rule2Scale */
+  float rule3_scale;    /* rule3Scale */
 } sim_param_data = {
-  .delta_t        = 0.04f,  // deltaT
-  .rule1_distance = 0.10f,  // rule1Distance
-  .rule2_distance = 0.025f, // rule2Distance
-  .rule3_distance = 0.025f, // rule3Distance
-  .rule1_scale    = 0.02f,  // rule1Scale
-  .rule2_scale    = 0.05f,  // rule2Scale
-  .rule3_scale    = 0.005f, // rule3Scale
+  .delta_t        = 0.04f,  /* deltaT */
+  .rule1_distance = 0.10f,  /* rule1Distance */
+  .rule2_distance = 0.025f, /* rule2Distance */
+  .rule3_distance = 0.025f, /* rule3Distance */
+  .rule1_scale    = 0.02f,  /* rule1Scale */
+  .rule2_scale    = 0.05f,  /* rule2Scale */
+  .rule3_scale    = 0.005f, /* rule3Scale */
 };
 
 // Used to configure Sim parameters in GUI
@@ -53,19 +53,19 @@ static struct {
   float* param_ref;
 } sim_params_mappings[7] = {
   // clang-format off
-  // deltaT
+  /* deltaT */
   { .label = "deltaT",        .param_ref = &sim_param_data.delta_t },
-  // rule1Distance
+  /* rule1Distance */
   { .label = "rule1Distance", .param_ref = &sim_param_data.rule1_distance },
-  // rule2Distance
+  /* rule2Distance */
   { .label = "rule2Distance", .param_ref = &sim_param_data.rule2_distance },
-  // rule3Distance
+  /* rule3Distance */
   { .label = "rule3Distance", .param_ref = &sim_param_data.rule3_distance },
-  // rule1Scale
+  /* rule1Scale */
   { .label = "rule1Scale",    .param_ref = &sim_param_data.rule1_scale },
-  // rule2Scale
+  /* rule2Scale */
   { .label = "rule2Scale",    .param_ref = &sim_param_data.rule2_scale },
-  // rule3Scale
+  /* rule3Scale */
   { .label = "rule3Scale",    .param_ref = &sim_param_data.rule3_scale },
   // clang-format on
 };
