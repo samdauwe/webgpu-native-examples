@@ -24,7 +24,7 @@ typedef struct vertex_t {
 static struct {
   texture_t color_map;
   texture_t compute_target;
-} textures;
+} textures = {0};
 
 // Resources for the graphics part of the example
 static struct {
@@ -35,7 +35,7 @@ static struct {
                                          // compute shader image manipulation
   WGPURenderPipeline pipeline;           // Image display pipeline
   WGPUPipelineLayout pipeline_layout;    // Layout of the graphics pipeline
-} graphics;
+} graphics = {0};
 
 // Resources for the compute part of the example
 static struct Compute {
