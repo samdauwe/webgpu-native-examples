@@ -67,7 +67,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
    };
   low_res_target_texture.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(low_res_target_texture.texture != NULL)
+  ASSERT(low_res_target_texture.texture != NULL);
 
   WGPUTextureViewDescriptor texture_view_dec = {
     .format          = wgpu_context->swap_chain.format,
@@ -79,7 +79,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   };
   low_res_target_texture.view
     = wgpuTextureCreateView(low_res_target_texture.texture, &texture_view_dec);
-  ASSERT(low_res_target_texture.view != NULL)
+  ASSERT(low_res_target_texture.view != NULL);
 
   WGPUSamplerDescriptor sampler_desc = {
     .label         = "Nearest Neighbor Sampler",
@@ -95,7 +95,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   };
   low_res_target_texture.sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(low_res_target_texture.sampler != NULL)
+  ASSERT(low_res_target_texture.sampler != NULL);
 
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
@@ -116,7 +116,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_group_upscale != NULL)
+  ASSERT(bind_group_upscale != NULL);
 }
 
 static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
@@ -176,7 +176,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
-  ASSERT(render_pipelines.triangle_conservative != NULL)
+  ASSERT(render_pipelines.triangle_conservative != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -238,7 +238,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
-  ASSERT(render_pipelines.triangle_regular != NULL)
+  ASSERT(render_pipelines.triangle_regular != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -301,7 +301,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
-  ASSERT(render_pipelines.lines != NULL)
+  ASSERT(render_pipelines.lines != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -339,7 +339,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout_upscale != NULL)
+  ASSERT(bind_group_layout_upscale != NULL);
 
   // Create the pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -347,7 +347,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout_upscale,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
@@ -406,7 +406,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
-  ASSERT(render_pipelines.upscale != NULL)
+  ASSERT(render_pipelines.upscale != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
