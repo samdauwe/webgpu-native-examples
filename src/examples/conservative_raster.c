@@ -153,7 +153,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader SPIR-V
-          .label = "Triangle and lines red fragment shader",
+          .label = "Triangle and lines red colored fragment shader",
           .file = "shaders/conservative_raster/triangle_and_lines_red.frag.spv",
         },
         .target_count = 1,
@@ -205,7 +205,8 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Vertex shader SPIR-V
-          .file = "shaders/conservative_raster/triangle_and_lines.vert.spv",
+          .label = "Triangle and lines vertex shader",
+          .file  = "shaders/conservative_raster/triangle_and_lines.vert.spv",
         },
         .buffer_count = 0,
         .buffers      = NULL,
@@ -216,6 +217,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader SPIR-V
+        .label = "Triangle and lines blue colored fragment shader",
         .file = "shaders/conservative_raster/triangle_and_lines_blue.frag.spv",
       },
       .target_count = 1,
@@ -268,7 +270,8 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Vertex shader SPIR-V
-          .file = "shaders/conservative_raster/triangle_and_lines.vert.spv",
+          .label = "Triangle and lines vertex shader",
+          .file  = "shaders/conservative_raster/triangle_and_lines.vert.spv",
         },
         .buffer_count = 0,
         .buffers      = NULL,
@@ -279,6 +282,7 @@ static void prepare_pipeline_lines(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader SPIR-V
+        .label = "Triangle and lines white colored fragment shader",
         .file = "shaders/conservative_raster/triangle_and_lines_white.frag.spv",
       },
       .target_count = 1,
