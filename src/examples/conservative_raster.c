@@ -44,7 +44,7 @@ static struct {
   WGPURenderPipeline triangle_regular;
   WGPURenderPipeline lines;
   WGPURenderPipeline upscale;
-} render_pipelines;
+} render_pipelines = {0};
 
 // Other variables
 static const char* example_title = "Conservative-raster";
