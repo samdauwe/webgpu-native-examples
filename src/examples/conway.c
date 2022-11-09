@@ -406,6 +406,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     compute.bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
+        .label  = "Compute bind group layout",
         .layout = wgpuComputePipelineGetBindGroupLayout(compute.pipeline, 0),
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
