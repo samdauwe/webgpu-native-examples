@@ -130,7 +130,7 @@ static struct {
   WGPUBindGroup bind_groups[2];
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
-} graphics;
+} graphics = {0};
 
 // Resources for the compute part of the example
 static struct {
@@ -138,13 +138,13 @@ static struct {
   WGPUBindGroup bind_groups[2];
   WGPUPipelineLayout pipeline_layout;
   WGPUComputePipeline pipeline;
-} compute;
+} compute = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 static bool is_forward = true;
 
