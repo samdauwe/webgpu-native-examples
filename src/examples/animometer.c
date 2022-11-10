@@ -182,6 +182,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .label      = "Time bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
@@ -203,6 +204,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor dynamic_bgl_desc = {
+    .label      = "Dynamic bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(dynamic_bgl_entries),
     .entries    = dynamic_bgl_entries,
   };
@@ -215,6 +217,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout bgl_pipeline[2]
     = {time_bind_group_layout, bind_group_layout};
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+    .label                = "Pipeline layout",
     .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bgl_pipeline),
     .bindGroupLayouts     = bgl_pipeline,
   };
@@ -225,6 +228,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout bgl_dynamic_pipeline[2]
     = {time_bind_group_layout, dynamic_bind_group_layout};
   WGPUPipelineLayoutDescriptor _dynamic_pipeline_layout_desc = {
+    .label                = "Dynamic pipeline layout",
     .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bgl_dynamic_pipeline),
     .bindGroupLayouts     = bgl_dynamic_pipeline,
   };
