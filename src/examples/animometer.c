@@ -132,7 +132,7 @@ static float start_time          = -1.0f;
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   static const float vertices_data[(4 + 4) * 3] = {
-    // position data          /**/ color data
+    // position data          /**/ color data              //
     0.0f,  0.1f,  0.0f, 1.0f, /**/ 1.0f, 0.0f, 0.0f, 1.0f, //
     -0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 1.0f, 0.0f, 1.0f, //
     0.1f,  -0.1f, 0.0f, 1.0f, /**/ 0.0f, 0.0f, 1.0f, 1.0f, //
