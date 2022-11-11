@@ -154,7 +154,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .entryCount = (uint32_t)ARRAY_SIZE(bind_group_layout_entries),
       .entries    = bind_group_layout_entries,
     });
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   /*
    * Bind groups
@@ -207,7 +207,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .entryCount = (uint32_t)ARRAY_SIZE(bind_group_entries),
         .entries    = bind_group_entries,
       });
-    ASSERT(cube->bind_group != NULL)
+    ASSERT(cube->bind_group != NULL);
   }
 }
 
@@ -248,7 +248,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       // The pipeline layout is based on the bind group layout we created above
       .bindGroupLayouts = &bind_group_layout,
     });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 
   // Construct the different states making up the pipeline
 
