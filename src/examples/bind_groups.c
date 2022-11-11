@@ -365,6 +365,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     cube_t* cube = &cubes[i];
 
     WGPUBufferDescriptor uniform_buffer_desc = {
+      .label            = "Cube uniform buffer - view matrices",
       .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size             = sizeof(view_matrices_t),
       .mappedAtCreation = false,
