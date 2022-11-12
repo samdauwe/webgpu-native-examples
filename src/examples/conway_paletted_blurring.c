@@ -201,6 +201,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   // Create uniforms buffer
   uniforms.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(uniforms.desc),
                   });
@@ -233,6 +234,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
     // Create the texture
     WGPUTextureDescriptor texture_desc = {
+      .label         = "Compute texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -249,6 +251,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Compute texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -262,6 +265,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     // Create sampler to sample to pick from the texture and write to the screen
     tex->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .label         = "Compute texture sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
