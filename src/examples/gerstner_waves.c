@@ -320,10 +320,12 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
     // Create the bind group layout
     bind_group_layouts.uniforms = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = "Bind group layout - Gerstner Waves mesh",
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
     ASSERT(bind_group_layouts.uniforms != NULL);
   }
 
@@ -353,6 +355,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     bind_group_layouts.textures = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = "Bind group layout - Sea color texture",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -367,6 +370,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
+      .label                = "Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layout_array),
       .bindGroupLayouts     = bind_groups_layout_array,
     });
