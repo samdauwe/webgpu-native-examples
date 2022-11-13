@@ -206,12 +206,12 @@ static WGPUSampler non_filtering_sampler;
 static struct {
   WGPUBindGroupLayout uniforms;
   WGPUBindGroupLayout textures;
-} bind_group_layouts;
+} bind_group_layouts = {0};
 
 static struct {
   WGPUBindGroup uniforms;
   WGPUBindGroup textures;
-} bind_groups;
+} bind_groups = {0};
 
 static WGPUPipelineLayout pipeline_layout;
 static WGPURenderPipeline pipeline;
