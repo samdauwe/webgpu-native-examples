@@ -230,7 +230,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(graphics.bind_group_pre_compute != NULL)
+    ASSERT(graphics.bind_group_pre_compute != NULL);
   }
 
   // Final image (after compute shader processing)
@@ -260,7 +260,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(graphics.bind_group_post_compute != NULL)
+    ASSERT(graphics.bind_group_post_compute != NULL);
   }
 }
 
@@ -333,7 +333,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(graphics.bind_group_layout != NULL)
+    ASSERT(graphics.bind_group_layout != NULL);
   }
 
   // Graphics pipeline layout
@@ -344,7 +344,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &graphics.bind_group_layout,
                             });
-    ASSERT(graphics.pipeline_layout != NULL)
+    ASSERT(graphics.pipeline_layout != NULL);
   }
 }
 
@@ -459,7 +459,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     };
     compute.bind_group_layout
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(compute.bind_group_layout != NULL)
+    ASSERT(compute.bind_group_layout != NULL);
   }
 
   // Compute pipeline layout
@@ -470,7 +470,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     };
     compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(compute.pipeline_layout != NULL)
+    ASSERT(compute.pipeline_layout != NULL);
   }
 
   // Compute pipeline bind group
@@ -494,7 +494,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     };
     compute.bind_group
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(compute.bind_group != NULL)
+    ASSERT(compute.bind_group != NULL);
   }
 
   // One pipeline for each effect
