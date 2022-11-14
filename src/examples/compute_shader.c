@@ -79,7 +79,7 @@ static const char* shader_names[3] = {"emboss", "edgedetect", "sharpen"};
 static struct {
   mat4 projection;
   mat4 model_view;
-} ubo_vs;
+} ubo_vs = {0};
 
 // Other variables
 static const char* example_title = "Compute Shader Image Load/Store";
