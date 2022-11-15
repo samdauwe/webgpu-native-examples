@@ -85,20 +85,24 @@ static void load_assets(wgpu_context_t* wgpu_context)
     = (float)wgpu_context->surface.height / (float)wgpu_context->surface.width;
 
   // WebGPU style (y points upwards)
+  // clang-format off
   struct vertex_t vertices_y_pos[4] = {
     {.pos = {-1.0f * ar, -1.0f, 1.0f}, .uv = {0.0f, 1.0f}}, //
-    {.pos = {-1.0f * ar, 1.0f, 1.0f}, .uv = {0.0f, 0.0f}},  //
-    {.pos = {1.0f * ar, 1.0f, 1.0f}, .uv = {1.0f, 0.0f}},   //
-    {.pos = {1.0f * ar, -1.0f, 1.0f}, .uv = {1.0f, 1.0f}},  //
+    {.pos = {-1.0f * ar,  1.0f, 1.0f}, .uv = {0.0f, 0.0f}}, //
+    {.pos = { 1.0f * ar,  1.0f, 1.0f}, .uv = {1.0f, 0.0f}}, //
+    {.pos = { 1.0f * ar, -1.0f, 1.0f}, .uv = {1.0f, 1.0f}}, //
   };
+  // clang-format on
 
   // Vulkan style (y points downwards)
+  // clang-format off
   struct vertex_t vertices_y_neg[4] = {
-    {.pos = {-1.0f * ar, 1.0f, 1.0f}, .uv = {0.0f, 1.0f}},  //
+    {.pos = {-1.0f * ar,  1.0f, 1.0f}, .uv = {0.0f, 1.0f}}, //
     {.pos = {-1.0f * ar, -1.0f, 1.0f}, .uv = {0.0f, 0.0f}}, //
-    {.pos = {1.0f * ar, -1.0f, 1.0f}, .uv = {1.0f, 0.0f}},  //
-    {.pos = {1.0f * ar, 1.0f, 1.0f}, .uv = {1.0f, 1.0f}},   //
+    {.pos = { 1.0f * ar, -1.0f, 1.0f}, .uv = {1.0f, 0.0f}}, //
+    {.pos = { 1.0f * ar,  1.0f, 1.0f}, .uv = {1.0f, 1.0f}}, //
   };
+  // clang-format on
 
   quad.vertices_y_up = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
