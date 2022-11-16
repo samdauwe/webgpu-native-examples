@@ -48,7 +48,7 @@ static WGPURenderPipeline reflection_pipeline;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Render state
 static struct {
