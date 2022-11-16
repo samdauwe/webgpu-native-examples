@@ -62,7 +62,7 @@ static bool prepared             = false;
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
 {
-  // Index buffer
+  /* Index buffer */
   {
     static const uint32_t index_data[6 * 6] = {
       0,  1,  2,  0,  2,  3, //
@@ -86,7 +86,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     });
   }
 
-  // Cube vertices data
+  /* Cube vertices data */
   {
     static const float vertex_data[6 * 4 * 6] = {
       -1.f, -1.f, 1.f,  1.f, 0.f, 0.f, 1.f,  -1.f, 1.f,  1.f, 0.f, 0.f, //
@@ -116,7 +116,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     });
   }
 
-  // Plane vertice data
+  /* Plane vertice data */
   {
     static const float plane_data[6 * 4] = {
       -2.f, -1.f, -2.f, 0.5f, 0.5f, 0.5f, 2.f,  -1.f, -2.f, 0.5f, 0.5f, 0.5f, //
@@ -134,7 +134,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Camera data buffer
+  /* Camera data buffer */
   {
     camera_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
@@ -144,10 +144,10 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                                          });
   }
 
-  // Camera projection matrix
+  /* Camera projection matrix */
   glm_perspective(glm_rad(45.0f), 1.f, 1.0f, 100.0f, camera_data.proj);
 
-  // Transform buffers
+  /* Transform buffers */
   {
     mat4 transform = GLM_MAT4_IDENTITY_INIT;
     transform_buffer[0]
@@ -171,7 +171,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // attachment is acquired in render loop.
       .loadOp     = WGPULoadOp_Clear,
@@ -184,10 +184,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachments,
@@ -197,7 +197,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform buffer (Vertex shader) => cameraData
@@ -230,7 +230,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
   ASSERT(bind_group_layout != NULL);
 
-  // Pipeline layout
+  /* Pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &bind_group_layout,
@@ -242,7 +242,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind groups
+  /* Bind groups */
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(bind_group); ++i) {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = {
@@ -271,14 +271,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 // Create the graphics pipeline
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -286,7 +286,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     cube_reflection, 6 * sizeof(float),
     // Attribute location 0: Position
@@ -294,7 +294,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Attribute location 1: Color
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, 3 * sizeof(float)));
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
@@ -305,7 +305,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers = &cube_reflection_vertex_buffer_layout,
           });
 
-  // Fragment states
+  /* Fragment states */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
@@ -325,16 +325,16 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets      = &color_target_state,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Cube rendering pipeline
+  /* Cube rendering pipeline */
   {
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = WGPUTextureFormat_Depth24PlusStencil8,
@@ -342,7 +342,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "cube_render_pipeline",
@@ -356,9 +356,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     ASSERT(pipeline != NULL)
   }
 
-  // Plane rendering pipeline
+  /* Plane rendering pipeline */
   {
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = WGPUTextureFormat_Depth24PlusStencil8,
@@ -368,7 +368,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     depth_stencil_state.stencilBack.passOp  = WGPUStencilOperation_Replace;
     depth_stencil_state.depthCompare        = WGPUCompareFunction_Less;
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     plane_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "plane_render_pipeline",
@@ -382,9 +382,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     ASSERT(plane_pipeline != NULL)
   }
 
-  // Cube reflection rendering pipeline
+  /* Cube reflection rendering pipeline */
   {
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = WGPUTextureFormat_Depth24PlusStencil8,
@@ -396,7 +396,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     depth_stencil_state.stencilBack.passOp   = WGPUStencilOperation_Replace;
     depth_stencil_state.depthCompare         = WGPUCompareFunction_Less;
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     reflection_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "cube_reflection_render_pipeline",
@@ -410,7 +410,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     ASSERT(reflection_pipeline != NULL)
   }
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_reflection.module);
@@ -418,14 +418,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void update_camera_view(wgpu_context_t* wgpu_context)
 {
-  // Update render state
+  /* Update render state */
   render_state.a = (render_state.a + 1) % 256;
   render_state.b += 0.002f;
   if (render_state.b >= 1.0f) {
     render_state.b = 0.0f;
   }
 
-  // Update camera view
+  /* Update camera view */
   glm_lookat((vec3){8.f * sin(glm_rad(render_state.b * 360.f)),  // x (eye)
                     2.f,                                         // y (eye)
                     8.f * cos(glm_rad(render_state.b * 360.f))}, // z (eye)
@@ -433,7 +433,7 @@ static void update_camera_view(wgpu_context_t* wgpu_context)
              (vec3){0.0f, 1.0f, 0.0f},                           // up
              camera_data.view);
 
-  // Update uniform buffer
+  /* Update uniform buffer */
   wgpu_queue_write_buffer(wgpu_context, camera_buffer.buffer, 0, &camera_data,
                           camera_buffer.size);
 }
@@ -472,7 +472,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass.descriptor);
 
-    // Render cube
+    /* Render cube */
     {
       wgpuRenderPassEncoderSetPipeline(rpass_enc, pipeline);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bind_group[0], 0, 0);
@@ -483,7 +483,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 36, 1, 0, 0, 0);
     }
 
-    // Render plane
+    /* Render plane */
     {
       wgpuRenderPassEncoderSetStencilReference(rpass_enc, 0x1);
       wgpuRenderPassEncoderSetPipeline(rpass_enc, plane_pipeline);
@@ -493,7 +493,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderDrawIndexed(rpass_enc, 6, 1, 0, 0, 0);
     }
 
-    // Render cube reflection
+    /* Render cube reflection */
     {
       wgpuRenderPassEncoderSetPipeline(rpass_enc, reflection_pipeline);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bind_group[1], 0, 0);
@@ -506,10 +506,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
   }
 
-  // Draw ui overlay
+  /*Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL)
@@ -520,19 +520,19 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  // Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
 
-  // Submit to queue
+  /* Submit to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return 0;
