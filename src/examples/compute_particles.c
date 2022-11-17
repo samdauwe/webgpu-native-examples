@@ -112,7 +112,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   wgpu_context_t* wgpu_context = context->wgpu_context;
 
-  // Update uniform buffer data
+  /* Update uniform buffer data */
   compute.ubo.delta_t = context->frame_timer * 2.5f;
   if (!attach_to_cursor) {
     compute.ubo.dest_x = sin(glm_rad(timer * 360.0f)) * 0.75f;
@@ -130,7 +130,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
     compute.ubo.dest_y = normalized_my;
   }
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(wgpu_context, compute.uniform_buffer.buffer, 0,
                           &compute.ubo, compute.uniform_buffer.size);
 }
@@ -138,10 +138,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Initialize the uniform buffer block
+  /* Initialize the uniform buffer block */
   compute.ubo.particle_count = PARTICLE_COUNT;
 
-  // Compute shader uniform buffer block
+  /* Compute shader uniform buffer block */
   compute.uniform_buffer = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
