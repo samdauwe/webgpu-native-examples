@@ -223,6 +223,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     }
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .label      = "Bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
@@ -232,6 +233,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   // Create the pipeline layout
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+    .label                = "Pipeline layout",
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &graphics.bind_group_layout,
   };
@@ -352,6 +354,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   };
 
   WGPUBindGroupDescriptor bg_desc = {
+    .label      = "Bind group",
     .layout     = graphics.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
