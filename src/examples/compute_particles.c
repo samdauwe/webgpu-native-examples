@@ -25,7 +25,7 @@ static bool attach_to_cursor = false;
 static struct {
   texture_t particle;
   texture_t gradient;
-} textures;
+} textures = {0};
 
 // Resources for the graphics part of the example
 static struct {
@@ -34,7 +34,7 @@ static struct {
   WGPUBindGroup bind_group; // Particle system rendering shader bindings
   WGPUPipelineLayout pipeline_layout; // Layout of the graphics pipeline
   WGPURenderPipeline pipeline;        // Particle rendering pipeline
-} graphics;
+} graphics = {0};
 
 // Resources for the compute part of the example
 static struct {
@@ -53,13 +53,13 @@ static struct {
     float dest_y;               // y position of the attractor
     int32_t particle_count;
   } ubo;
-} compute;
+} compute = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // SSBO particle declaration
 typedef struct particle_t {
