@@ -268,6 +268,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Create sampler to sample from the color attachments
   offscreen_pass.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "Offscreen pass sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
