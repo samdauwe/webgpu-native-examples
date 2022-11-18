@@ -363,6 +363,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the bind group layout
     bind_group_layouts.scene = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Scene bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -371,6 +372,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label                = "Scene pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.scene,
                             });
@@ -416,6 +418,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the bind group layout
     bind_group_layouts.skybox = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Skybox bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -424,6 +427,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label                = "Skybox pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.skybox,
                             });
