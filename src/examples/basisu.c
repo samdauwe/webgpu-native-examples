@@ -302,8 +302,6 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
     quad, sizeof(vertex_t),
-    // Attribute descriptions
-    // Describes memory layout and shader positions
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, offsetof(vertex_t, pos)),
     // Attribute location 1: Texture coordinates
