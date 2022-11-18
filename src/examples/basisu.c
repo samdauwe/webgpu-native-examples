@@ -52,10 +52,10 @@ static struct {
 } ubo_vs = {0};
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout; // solid
+static WGPUPipelineLayout pipeline_layout = NULL; // solid
 
 // Pipeline
-static WGPURenderPipeline pipeline; // solid
+static WGPURenderPipeline pipeline = NULL; // solid
 
 // Render pass descriptor for frame buffer writes
 static struct {
