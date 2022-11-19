@@ -101,7 +101,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Transform
+      // Binding 0 : Transform
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -112,7 +112,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Sampler
+      // Binding 1 : Sampler
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -121,7 +121,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Texture view
+      // Binding 2 : Texture view
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
