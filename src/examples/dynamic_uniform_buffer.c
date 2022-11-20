@@ -400,10 +400,11 @@ static void update_dynamic_uniform_buffer(wgpu_example_context_t* context,
         glm_vec3_add(rotations[index], rotation_speed_scaled, rotations[index]);
 
         // Update matrices
-        vec3 pos
-          = {-((dim * offset[0]) / 2.0f) + offset[0] / 2.0f + x * offset[0],
-             -((dim * offset[1]) / 2.0f) + offset[1] / 2.0f + y * offset[1],
-             -((dim * offset[2]) / 2.0f) + offset[2] / 2.0f + z * offset[2]};
+        vec3 pos = {
+          -((dim * offset[0]) / 2.0f) + offset[0] / 2.0f + x * offset[0],
+          -((dim * offset[1]) / 2.0f) + offset[1] / 2.0f + y * offset[1],
+          -((dim * offset[2]) / 2.0f) + offset[2] / 2.0f + z * offset[2],
+        };
         glm_mat4_identity(*modelMat);
         glm_translate(*modelMat, pos);
         glm_rotate(*modelMat, rotations[index][0], (vec3){1.0f, 1.0f, 0.0f});
