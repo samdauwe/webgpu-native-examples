@@ -61,14 +61,14 @@ static WGPUPipelineLayout pipeline_layout;
 static WGPURenderPipeline pipeline;
 
 // Bindings
-static WGPUBindGroupLayout bind_group_layout;
-static WGPUBindGroup bind_group;
+static WGPUBindGroupLayout bind_group_layout = NULL;
+static WGPUBindGroup bind_group              = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Render bundle
 static WGPURenderBundle render_bundle;
