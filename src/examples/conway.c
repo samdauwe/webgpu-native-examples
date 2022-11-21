@@ -263,7 +263,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Uniforms
+        // Binding 0 : Uniforms
         .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -273,7 +273,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Input compute buffer as texture
+        // Binding 1 : Input compute buffer as texture
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -284,7 +284,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-         // Output compute buffer as texture
+         // Binding 2 : Output compute buffer as texture
         .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
