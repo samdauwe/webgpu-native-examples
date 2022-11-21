@@ -319,7 +319,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Current compute texture updated by the compute shader
+        // Binding 0 : Current compute texture updated by the compute shader
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -330,7 +330,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Sampler for  the texture
+        // Binding 1 : Sampler for  the texture
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
