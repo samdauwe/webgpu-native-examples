@@ -246,8 +246,6 @@ static void prepare_mouse_state(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Create the uniform bind group (note 'rotDeg' is copied here, not bound in
-  // any way)
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
