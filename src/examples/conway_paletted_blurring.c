@@ -306,7 +306,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Input automata texture
+        /* Binding 0: Input automata texture */
         .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -317,7 +317,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Output automata texture
+        /* Binding 1: Output automata texture */
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
@@ -328,7 +328,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Input trail texture
+        /* Binding 2: Input trail texture */
         .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -339,7 +339,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
-        // Binding 3: Output trail texture
+        /* Binding 3: Output trail texture */
         .binding    = 3,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
@@ -374,7 +374,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Texture from compute
+        /* Texture from compute */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -385,7 +385,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Sampler for  the texture
+        /* Sampler for  the texture */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
