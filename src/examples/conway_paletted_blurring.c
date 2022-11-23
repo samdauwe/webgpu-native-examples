@@ -467,6 +467,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     compute.bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
+        .label  = "Compute bind group",
         .layout = wgpuComputePipelineGetBindGroupLayout(compute.pipeline, 0),
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
@@ -498,6 +499,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     graphics.bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
+        .label  = "Graphics bind group",
         .layout = wgpuRenderPipelineGetBindGroupLayout(graphics.pipeline, 0),
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
@@ -514,6 +516,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_shader_t conway_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
+                      .label            = "Compute shader WGSL",
                       .wgsl_code.source = compute_shader_wgsl,
                       .entry            = "main",
                     });
@@ -522,7 +525,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     compute.pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Effect pipeline",
+        .label   = "Effect compute pipeline",
         .layout  = compute.pipeline_layout,
         .compute = conway_comp_shader.programmable_stage_descriptor,
       });
