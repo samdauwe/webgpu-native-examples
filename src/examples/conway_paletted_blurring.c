@@ -280,24 +280,26 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   }
 
   // Setup the initial cellular automata
-  uint8_t* b = malloc(compute_width * compute_height * COMPUTE_TEX_BYTES
-                      * sizeof(uint8_t));
-  ASSERT(b);
-  bool has_life = false;
-  uint8_t v     = 0;
-  for (uint32_t y = 0; y < compute_height; ++y) {
-    for (uint32_t x = 0; x < compute_width; ++x) {
-      has_life = random_float() > 0.8f;
-      v        = has_life ? 255 : 0;
-      b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 0] = v;
-      b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 1] = v;
-      b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 2] = v;
-      b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 3] = 255;
+  {
+    uint8_t* b = malloc(compute_width * compute_height * COMPUTE_TEX_BYTES
+                        * sizeof(uint8_t));
+    ASSERT(b);
+    bool has_life = false;
+    uint8_t v     = 0;
+    for (uint32_t y = 0; y < compute_height; ++y) {
+      for (uint32_t x = 0; x < compute_width; ++x) {
+        has_life = random_float() > 0.8f;
+        v        = has_life ? 255 : 0;
+        b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 0] = v;
+        b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 1] = v;
+        b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 2] = v;
+        b[COMPUTE_TEX_BYTES * (x + y * compute_width) + 3] = 255;
+      }
     }
+    wgpu_image_to_texure(wgpu_context, textures.cells[0].texture, b,
+                         texture_extent, COMPUTE_TEX_BYTES);
+    free(b);
   }
-  wgpu_image_to_texure(wgpu_context, textures.cells[0].texture, b,
-                       texture_extent, COMPUTE_TEX_BYTES);
-  free(b);
 }
 
 static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
