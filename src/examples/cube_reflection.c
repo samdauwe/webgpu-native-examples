@@ -29,20 +29,20 @@ static struct {
 } camera_data = {0};
 
 // Other buffers
-static wgpu_buffer_t camera_buffer;
-static wgpu_buffer_t transform_buffer[2];
+static wgpu_buffer_t camera_buffer       = {0};
+static wgpu_buffer_t transform_buffer[2] = {0};
 
 // Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroup bind_group[2];
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroup bind_group[2]           = {0};
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipelines
-static WGPURenderPipeline pipeline;
-static WGPURenderPipeline plane_pipeline;
-static WGPURenderPipeline reflection_pipeline;
+static WGPURenderPipeline pipeline            = NULL;
+static WGPURenderPipeline plane_pipeline      = NULL;
+static WGPURenderPipeline reflection_pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
