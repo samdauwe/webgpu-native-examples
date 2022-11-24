@@ -199,7 +199,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group layout
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Texture view
+      // Binding 0 : Texture view
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -210,7 +210,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Sampler
+      //  Binding 1 : Sampler
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
