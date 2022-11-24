@@ -33,7 +33,7 @@ static struct {
 };
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipeline
 static WGPURenderPipeline pipeline = NULL;
