@@ -470,6 +470,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     write_gbuffers_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
+        .label                = "Write gbuffers pipeline layout",
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &scene_uniform_bind_group_layout,
       });
@@ -485,6 +486,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     gbuffers_debug_view_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
+        .label                = "GBuffers debug view pipeline layout",
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
@@ -501,6 +503,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     deferred_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
+        .label                = "Deferred render pipeline layout",
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
