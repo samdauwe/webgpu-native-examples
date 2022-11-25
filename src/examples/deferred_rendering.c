@@ -156,23 +156,25 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
              sizeof(vec2));
     }
     // Push vertex attributes for an additional ground plane
+    // clang-format off
     static const vec3 ground_plane_positions[4] = {
       {-100.0f, 20.0f, -100.0f}, //
-      {100.0f, 20.0f, 100.0f},   //
-      {-100.0f, 20.0f, 100.0f},  //
-      {100.0f, 20.0f, -100.0f}   //
+      { 100.0f, 20.0f,  100.0f}, //
+      {-100.0f, 20.0f,  100.0f}, //
+      { 100.0f, 20.0f, -100.0f}, //
     };
+    // clang-format on
     static const vec3 ground_plane_normals[4] = {
       {0.0f, 1.0f, 0.0f}, //
       {0.0f, 1.0f, 0.0f}, //
       {0.0f, 1.0f, 0.0f}, //
-      {0.0f, 1.0f, 0.0f}  //
+      {0.0f, 1.0f, 0.0f}, //
     };
     static const vec2 ground_plane_uvs[4] = {
       {0.0f, 0.0f}, //
       {1.0f, 1.0f}, //
       {0.0f, 1.0f}, //
-      {1.0f, 0.0f}  //
+      {1.0f, 0.0f}, //
     };
     const uint64_t offset = dragon_mesh->positions.count * vertex_stride;
     for (uint64_t i = 0; i < ground_plane_vertex_count; ++i) {
