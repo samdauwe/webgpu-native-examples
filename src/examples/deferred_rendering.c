@@ -411,6 +411,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     scene_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Scene uniform bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -452,10 +453,12 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
       },
     };
     lights.buffer_compute_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = "Lights buffer compute bind group layout",
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
     ASSERT(lights.buffer_compute_bind_group_layout != NULL);
   }
 }
