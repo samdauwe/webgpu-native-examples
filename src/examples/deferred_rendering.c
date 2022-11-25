@@ -39,9 +39,9 @@ static struct {
 static stanford_dragon_mesh_t stanford_dragon_mesh = {0};
 
 // Vertex and index buffers
-static WGPUBuffer vertex_buffer;
-static WGPUBuffer index_buffer;
-static uint32_t index_count;
+static WGPUBuffer vertex_buffer = NULL;
+static WGPUBuffer index_buffer  = NULL;
+static uint32_t index_count     = 0;
 
 // GBuffer
 static struct {
@@ -51,13 +51,13 @@ static struct {
 } gbuffer = {0};
 
 // Depth texture
-static WGPUTexture depth_texture;
-static WGPUTextureView depth_texture_view;
+static WGPUTexture depth_texture          = NULL;
+static WGPUTextureView depth_texture_view = NULL;
 
 // Uniform buffers
-static WGPUBuffer model_uniform_buffer;
-static WGPUBuffer camera_uniform_buffer;
-static WGPUBuffer surface_size_uniform_buffer;
+static WGPUBuffer model_uniform_buffer        = NULL;
+static WGPUBuffer camera_uniform_buffer       = NULL;
+static WGPUBuffer surface_size_uniform_buffer = NULL;
 
 // Lights
 static struct {
@@ -74,26 +74,26 @@ static struct {
 } lights = {0};
 
 // Bind groups
-static WGPUBindGroup scene_uniform_bind_group;
-static WGPUBindGroup surface_size_uniform_bind_group;
-static WGPUBindGroup gbuffer_textures_bind_group;
+static WGPUBindGroup scene_uniform_bind_group        = NULL;
+static WGPUBindGroup surface_size_uniform_bind_group = NULL;
+static WGPUBindGroup gbuffer_textures_bind_group     = NULL;
 
 // Bind group layouts
-static WGPUBindGroupLayout scene_uniform_bind_group_layout;
-static WGPUBindGroupLayout surface_size_uniform_bind_group_layout;
-static WGPUBindGroupLayout gbuffer_textures_bind_group_layout;
+static WGPUBindGroupLayout scene_uniform_bind_group_layout        = NULL;
+static WGPUBindGroupLayout surface_size_uniform_bind_group_layout = NULL;
+static WGPUBindGroupLayout gbuffer_textures_bind_group_layout     = NULL;
 
 // Pipelines
-static WGPURenderPipeline write_gbuffers_pipeline;
-static WGPURenderPipeline gbuffers_debug_view_pipeline;
-static WGPURenderPipeline deferred_render_pipeline;
-static WGPUComputePipeline light_update_compute_pipeline;
+static WGPURenderPipeline write_gbuffers_pipeline        = NULL;
+static WGPURenderPipeline gbuffers_debug_view_pipeline   = NULL;
+static WGPURenderPipeline deferred_render_pipeline       = NULL;
+static WGPUComputePipeline light_update_compute_pipeline = NULL;
 
 // Pipeline layouts
-static WGPUPipelineLayout write_gbuffers_pipeline_layout;
-static WGPUPipelineLayout gbuffers_debug_view_pipeline_layout;
-static WGPUPipelineLayout deferred_render_pipeline_layout;
-static WGPUPipelineLayout light_update_compute_pipeline_layout;
+static WGPUPipelineLayout write_gbuffers_pipeline_layout       = NULL;
+static WGPUPipelineLayout gbuffers_debug_view_pipeline_layout  = NULL;
+static WGPUPipelineLayout deferred_render_pipeline_layout      = NULL;
+static WGPUPipelineLayout light_update_compute_pipeline_layout = NULL;
 
 // Render pass descriptor
 static struct {
