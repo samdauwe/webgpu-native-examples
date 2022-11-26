@@ -127,7 +127,7 @@ static wgpu_buffer_t indices = {0};
 static struct {
   wgpu_buffer_t scene;
   wgpu_buffer_t gerstner_wave_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 // Uniform buffer data
 static float start_time = 0;
@@ -201,7 +201,7 @@ static bool gerstner_waves_normalized = false;
 
 // Texture and sampler for sea color image
 static texture_t sea_color_texture;
-static WGPUSampler non_filtering_sampler;
+static WGPUSampler non_filtering_sampler = NULL;
 
 static struct {
   WGPUBindGroupLayout uniforms;
@@ -213,8 +213,8 @@ static struct {
   WGPUBindGroup textures;
 } bind_groups = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPURenderPipeline pipeline;
+static WGPUPipelineLayout pipeline_layout = NULL;
+static WGPURenderPipeline pipeline        = NULL;
 
 static const uint32_t sample_count = 4;
 static struct {
