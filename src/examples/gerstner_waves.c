@@ -256,6 +256,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   // Create vertex buffer
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane mesh vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = plane_mesh.vertex_count * sizeof(plane_vertex_t),
                     .count = plane_mesh.vertex_count,
@@ -265,6 +266,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   // Create index buffer
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane mesh index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = plane_mesh.index_count * sizeof(uint32_t),
                     .count = plane_mesh.index_count,
@@ -279,6 +281,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 
   // Create non-filtering sampler
   WGPUSamplerDescriptor sampler_desc = {
+    .label         = "Non-filtering sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
