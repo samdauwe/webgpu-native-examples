@@ -605,9 +605,9 @@ static void init_orbit_camera_matrices()
              (vec3){1.0f, 0.0f, 0.0f});
   glm_translate(scene_data.model_matrix,
                 (vec3){
-                  -plane_mesh.width / 2.0f,  // center plane x
-                  -plane_mesh.height / 2.0f, // center plane y
-                  0.0f,                      // center plane z
+                  -plane_mesh.width / 2.0f,  /* center plane x */
+                  -plane_mesh.height / 2.0f, /* center plane y */
+                  0.0f,                      /* center plane z */
                 });
 }
 
