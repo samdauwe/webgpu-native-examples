@@ -478,7 +478,7 @@ static int example_draw(wgpu_example_context_t* context)
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
 
   if (!context->paused) {
