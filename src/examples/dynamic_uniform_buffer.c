@@ -450,15 +450,21 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 
   // Prepare per-object matrices with offsets and random rotations
   for (uint32_t i = 0; i < OBJECT_INSTANCES; ++i) {
-    glm_vec3_copy((vec3){random_float_min_max(-1.0f, 1.0f),
-                         random_float_min_max(-1.0f, 1.0f),
-                         random_float_min_max(-1.0f, 1.0f)},
-                  rotations[i]);
+    glm_vec3_copy(
+      (vec3){
+        random_float_min_max(-1.0f, 1.0f),
+        random_float_min_max(-1.0f, 1.0f),
+        random_float_min_max(-1.0f, 1.0f),
+      },
+      rotations[i]);
     glm_vec3_scale(rotations[i], PI2, rotations[i]);
-    glm_vec3_copy((vec3){random_float_min_max(-1.0f, 1.0f),
-                         random_float_min_max(-1.0f, 1.0f),
-                         random_float_min_max(-1.0f, 1.0f)},
-                  rotation_speeds[i]);
+    glm_vec3_copy(
+      (vec3){
+        random_float_min_max(-1.0f, 1.0f),
+        random_float_min_max(-1.0f, 1.0f),
+        random_float_min_max(-1.0f, 1.0f),
+      },
+      rotation_speeds[i]);
   }
 
   update_uniform_buffers(context);
