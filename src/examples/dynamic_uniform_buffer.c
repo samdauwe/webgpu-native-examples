@@ -57,8 +57,8 @@ static struct {
 } ubo_data_dynamic[OBJECT_INSTANCES] = {0};
 
 // Pipeline
-static WGPUPipelineLayout pipeline_layout;
-static WGPURenderPipeline pipeline;
+static WGPUPipelineLayout pipeline_layout = NULL;
+static WGPURenderPipeline pipeline        = NULL;
 
 // Bindings
 static WGPUBindGroupLayout bind_group_layout = NULL;
@@ -71,7 +71,7 @@ static struct {
 } render_pass = {0};
 
 // Render bundle
-static WGPURenderBundle render_bundle;
+static WGPURenderBundle render_bundle = NULL;
 
 // Render bundle setting & animation timer
 static bool render_bundles   = true;
