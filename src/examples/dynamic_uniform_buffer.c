@@ -111,6 +111,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
   // Create vertex buffer
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertex_buffer),
                     .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
@@ -126,6 +127,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
   // Create index buffer
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(index_buffer),
                     .count = (uint32_t)ARRAY_SIZE(index_buffer),
