@@ -69,7 +69,7 @@ static struct {
   WGPUBindGroup alpha;
 } bind_groups = {0};
 
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // Basis Universal textures
 static struct {
