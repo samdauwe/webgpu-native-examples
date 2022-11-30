@@ -213,7 +213,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
   // Model matrix
   glm_mat4_identity(view_matrices.model);
-  glm_scale(view_matrices.model, (vec3){1000.f, 1000.f, 1000.f});
+  glm_scale(view_matrices.model, (vec3){1000.0f, 1000.0f, 1000.0f});
 
   // Model view projection matrix
   glm_mat4_identity(cube.view_mtx.model_view_projection);
