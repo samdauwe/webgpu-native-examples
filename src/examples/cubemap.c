@@ -73,7 +73,7 @@ static struct {
 } render_pass = {0};
 
 // Texture and sampler
-static texture_t cubemap_texture;
+static texture_t cubemap_texture = {0};
 
 // Other variables
 static const char* example_title = "Cubemap";
