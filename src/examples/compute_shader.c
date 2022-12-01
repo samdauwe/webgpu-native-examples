@@ -187,6 +187,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
   // Vertex buffer
   vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertex_t) * 4,
                     .initial.data = vertices,
@@ -194,6 +195,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
   // Index buffer
   index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(uint32_t) * (uint32_t)ARRAY_SIZE(indices),
                     .count = (uint32_t)ARRAY_SIZE(indices),
