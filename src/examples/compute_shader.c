@@ -563,10 +563,10 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_compute(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_FAILURE;
   }
 
-  return 1;
+  return EXIT_SUCCESS;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
@@ -675,13 +675,13 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return example_draw(context);
 }
