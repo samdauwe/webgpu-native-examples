@@ -311,7 +311,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Texture view (Fragment shader)
+        // Binding 1: Texture view (Fragment shader)
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -322,7 +322,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Sampler (Fragment shader)
+        // Binding 2: Sampler (Fragment shader)
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
