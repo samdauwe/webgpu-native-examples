@@ -52,9 +52,9 @@ static struct {
   WGPURenderPassDescriptor descriptor;
 } render_pass;
 
-static wgpu_buffer_t vertex_buffer;
-static wgpu_buffer_t index_buffer;
-static wgpu_buffer_t uniform_buffer_vs;
+static wgpu_buffer_t vertex_buffer     = {0};
+static wgpu_buffer_t index_buffer      = {0};
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 // Compute shaders containing convolution kernels (and effects)
 static struct {
