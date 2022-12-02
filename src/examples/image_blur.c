@@ -25,17 +25,17 @@ static uint32_t uniform_buffer_data[2] = {0, 1};
 static wgpu_buffer_t blur_params_buffer;
 
 // Pipelines
-static WGPUComputePipeline blur_pipeline;
-static WGPURenderPipeline fullscreen_quad_pipeline;
+static WGPUComputePipeline blur_pipeline           = NULL;
+static WGPURenderPipeline fullscreen_quad_pipeline = NULL;
 
 // Bind groups
-static WGPUBindGroup compute_constants_bind_group;
-static WGPUBindGroup compute_bind_groups[3];
-static WGPUBindGroup show_result_bind_group;
+static WGPUBindGroup compute_constants_bind_group = NULL;
+static WGPUBindGroup compute_bind_groups[3]       = {0};
+static WGPUBindGroup show_result_bind_group       = NULL;
 
 // Texture and sampler
-static texture_t texture;
-static texture_t blur_textures[2];
+static texture_t texture          = {0};
+static texture_t blur_textures[2] = {0};
 
 // Settings
 static struct {
