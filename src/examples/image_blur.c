@@ -503,16 +503,16 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_render_pass(context->wgpu_context);
     update_settings(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return example_draw(context);
 }
