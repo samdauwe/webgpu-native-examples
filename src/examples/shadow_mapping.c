@@ -277,7 +277,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .buffer = (WGPUBufferBindingLayout) {
             .type             = WGPUBufferBindingType_Uniform,
             .hasDynamicOffset = false,
-            .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+            .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
           },
           .sampler = {0},
         },
@@ -342,7 +342,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
       },
       .sampler = {0},
     },
@@ -595,7 +595,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       &(WGPUBufferDescriptor){
         // Two 4x4 viewProj matrices, one for the camera and one for the light.
         // Then a vec3 for the light position.
-        .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .size  = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
     ASSERT(uniform_buffers.scene);
@@ -607,7 +607,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = uniform_buffers.scene,
-        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
       },
     };
     bind_groups.scene_shadow = wgpuDeviceCreateBindGroup(
@@ -626,7 +626,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = uniform_buffers.scene,
-        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec3),
+        .size    = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
       },
       [1] = (WGPUBindGroupEntry) {
         .binding     = 1,
