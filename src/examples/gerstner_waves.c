@@ -163,6 +163,7 @@ static struct {
     vec2 padding2;
   } waves[5];
   float amplitude_sum; // Sum of waves amplitudes
+  float padding;       // The shader uses 168 bytes
 } gerstner_wave_params = {
   .waves = {
     {
