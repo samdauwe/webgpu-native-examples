@@ -10,7 +10,7 @@
  * colored quad.
  *
  * Ref:
- * https://github.com/Palats/webgpu/blob/main/src/demos/minimal.ts
+ * https://github.com/Palats/webgpu/blob/main/demos/demos/minimal.ts
  * -------------------------------------------------------------------------- */
 
 // Shaders
@@ -45,7 +45,7 @@ static const char* vertex_shader_wgsl = CODE(
 );
 
 static const char* fragment_shader_wgsl = CODE(
-  @stage(fragment)
+  @fragment
   fn main(@location(0) coord: vec2<f32>) -> @location(0) vec4<f32> {
     return vec4<f32>(coord.x, coord.y, 0.5, 1.0);
   }
