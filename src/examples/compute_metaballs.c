@@ -1632,7 +1632,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
       wgpu_context, &(wgpu_buffer_desc_t){
                       .label = "metaballs indirect draw buffer",
                       .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Indirect
-                             | WGPUBufferUsage_CopyDst,
+                               | WGPUBufferUsage_CopyDst,
                       .size = sizeof(this->indirect_render_array),
                   });
 
@@ -2280,6 +2280,7 @@ typedef struct {
   float cut_off;
   float outer_cut_off;
   float intensity;
+  vec2 padding;
 } spot_light_info_t;
 
 typedef struct {
@@ -3839,7 +3840,7 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
                                            .label = "metaballs ubo",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
-                                           .size = sizeof(metaballs_ubo_data),
+                                           .size         = 32,
                                            .initial.data = metaballs_ubo_data,
                                          });
   }
