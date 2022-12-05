@@ -1192,7 +1192,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   uniform_buffers.light_position = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(options.light_position),
+                    .size  = 16,
                     .initial.data = options.light_position,
                   });
 
@@ -1202,7 +1202,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       wgpu_context,
       &(wgpu_buffer_desc_t){
         .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-        .size         = sizeof(options.base_colors[i]),
+        .size         = 16,
         .initial.data = options.base_colors[i],
       });
   }
