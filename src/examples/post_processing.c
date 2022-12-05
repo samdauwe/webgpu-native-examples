@@ -1389,6 +1389,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.persp_camera = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
+       .label  = "Perspective camera bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.scene_meshes, 0),
        .entryCount = 1,
        .entries    = &(WGPUBindGroupEntry) {
@@ -1407,6 +1408,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.ortho_camera = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
+       .label  = "Orthographic camera bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
                                                       0),
        .entryCount = 1,
@@ -1426,6 +1428,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.quad_transform = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
+       .label  = "Fullscreen quad transform uniform block",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
                                                       1),
        .entryCount = 1,
@@ -1462,6 +1465,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.quad_sampler = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Quad sampler uniform bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 pipelines.fullscreen_quad, 2),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
@@ -1475,6 +1479,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.quad_tween = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
+       .label  = "Quad tween uniform bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(
          pipelines.fullscreen_quad, 3),
        .entryCount = 1,
@@ -1494,6 +1499,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.light_position = wgpuDeviceCreateBindGroup(
           wgpu_context->device,
           &(WGPUBindGroupDescriptor) {
+           .label  = "Light position uniform bind group",
            .layout = wgpuRenderPipelineGetBindGroupLayout(
              pipelines.scene_meshes, 1),
            .entryCount = 1,
@@ -1515,6 +1521,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       bind_groups.base_colors[i] = wgpuDeviceCreateBindGroup(
             wgpu_context->device,
             &(WGPUBindGroupDescriptor) {
+             .label  = "Base color uniform group",
              .layout = wgpuRenderPipelineGetBindGroupLayout(
                pipelines.scene_meshes, i + 1),
              .entryCount = 1,
