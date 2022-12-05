@@ -1976,7 +1976,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       });
   }
 
-  /* Render instanced spheres scene to default swapchainTexture */
+  /**
+   * Render instanced spheres scene to default swapchainTexture
+   */
   {
     render_passes.scene_render.color_attachments[0].clearColor = (WGPUColor){
       .r = 0.225f,
@@ -2046,7 +2048,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   render_passes.post_fx.color_attachments[0].view
     = wgpu_context->swap_chain.frame_buffer;
 
-  /* Render postfx fullscreen quad to screen */
+  /**
+   * Render postfx fullscreen quad to screen
+   */
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_passes.post_fx.descriptor);
