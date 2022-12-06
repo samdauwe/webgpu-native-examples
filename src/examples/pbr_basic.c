@@ -34,18 +34,18 @@ static struct {
   // clang-format off
   // Setup some default materials (source:
   // https://seblagarde.wordpress.com/2011/08/17/feeding-a-physical-based-lighting-mode/)
-  { .name = "Gold", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.0f, 0.765557f, 0.336057f } } },
-  { .name = "Copper", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.955008f, 0.637427f, 0.538163f } } },
+  { .name = "Gold", .    params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.000000f, 0.765557f, 0.336057f } } },
+  { .name = "Copper",   .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.955008f, 0.637427f, 0.538163f } } },
   { .name = "Chromium", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.549585f, 0.556114f, 0.554256f } } },
-  { .name = "Nickel", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.659777f, 0.608679f, 0.525649f } } },
+  { .name = "Nickel",   .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.659777f, 0.608679f, 0.525649f } } },
   { .name = "Titanium", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.541931f, 0.496791f, 0.449419f } } },
-  { .name = "Cobalt", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.662124f, 0.654864f, 0.633732f } } },
+  { .name = "Cobalt",   .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.662124f, 0.654864f, 0.633732f } } },
   { .name = "Platinum", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.672411f, 0.637331f, 0.585456f } } },
   // Testing materials
-  { .name = "White", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.0f, 1.0f, 1.0f } } },
-  { .name = "Red", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.0f, 0.0f, 0.0f } } },
-  { .name = "Blue", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.0f, 0.0f, 1.0f } } },
-  { .name = "Black", .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.0f, 0.0f, 0.0f } } },
+  { .name = "White",    .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.0f, 1.0f, 1.0f } } },
+  { .name = "Red",      .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 1.0f, 0.0f, 0.0f } } },
+  { .name = "Blue",     .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.0f, 0.0f, 1.0f } } },
+  { .name = "Black",    .params = { .roughness = 0.1f, .metallic = 1.0f, .color = { 0.0f, 0.0f, 0.0f } } },
   // clang-format on
 };
 
@@ -55,10 +55,10 @@ static struct {
   struct gltf_model_t* object;
 } models[4] = {
   // clang-format off
-  { .name = "Sphere", .filelocation = "models/sphere.gltf" },
-  { .name = "Teapot", .filelocation = "models/teapot.gltf" },
+  { .name = "Sphere",    .filelocation = "models/sphere.gltf" },
+  { .name = "Teapot",    .filelocation = "models/teapot.gltf" },
   { .name = "Torusknot", .filelocation = "models/torusknot.gltf" },
-  { .name = "Venus", .filelocation = "models/venus.gltf" },
+  { .name = "Venus",     .filelocation = "models/venus.gltf" },
   // clang-format on
 };
 
