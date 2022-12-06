@@ -1782,7 +1782,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass = {
     .color_attachment[0]= (WGPURenderPassColorAttachment) {
-        .view       = NULL,
+        .view       = NULL, /* Assigned later */
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearColor = (WGPUColor) {
