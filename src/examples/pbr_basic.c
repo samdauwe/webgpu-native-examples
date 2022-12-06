@@ -483,7 +483,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 
   // Object parameter uniform buffer
   {
-    uniform_buffers.object_params.model_size = sizeof(vec3);
+    uniform_buffers.object_params.model_size = sizeof(vec4);
     uniform_buffers.object_params.buffer_size
       = calc_constant_buffer_byte_size(sizeof(object_params_dynamic));
     WGPUBufferDescriptor ubo_desc = {
