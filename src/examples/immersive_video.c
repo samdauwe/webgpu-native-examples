@@ -49,10 +49,10 @@ static struct {
 };
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipeline
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -61,10 +61,10 @@ static struct {
 } render_pass = {0};
 
 // The bind group layout
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // The bind group
-static WGPUBindGroup bind_group;
+static WGPUBindGroup bind_group = NULL;
 
 // Texture and sampler
 static struct video_texture_t {
