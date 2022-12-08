@@ -179,7 +179,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(frame_buf->color.texture != NULL)
+    ASSERT(frame_buf->color.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -193,7 +193,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->color.texture_view
       = wgpuTextureCreateView(frame_buf->color.texture, &texture_view_dec);
-    ASSERT(frame_buf->color.texture_view != NULL)
+    ASSERT(frame_buf->color.texture_view != NULL);
   }
 
   // Depth stencil attachment
@@ -209,7 +209,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->depth.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(frame_buf->depth.texture != NULL)
+    ASSERT(frame_buf->depth.texture != NULL);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -224,7 +224,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->depth.texture_view
       = wgpuTextureCreateView(frame_buf->depth.texture, &texture_view_dec);
-    ASSERT(frame_buf->depth.texture_view != NULL)
+    ASSERT(frame_buf->depth.texture_view != NULL);
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
@@ -283,7 +283,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
-  ASSERT(offscreen_pass.sampler != NULL)
+  ASSERT(offscreen_pass.sampler != NULL);
 
   // Create two frame buffers
   prepare_offscreen_frame_buffer(wgpu_context, &offscreen_pass.frame_buffers[0],
@@ -337,7 +337,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.blur != NULL)
+    ASSERT(bind_group_layouts.blur != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.blur = wgpuDeviceCreatePipelineLayout(
@@ -346,7 +346,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.blur,
                             });
-    ASSERT(pipeline_layouts.blur != NULL)
+    ASSERT(pipeline_layouts.blur != NULL);
   }
 
   // Bind group layout for scene rendering
@@ -372,7 +372,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.scene != NULL)
+    ASSERT(bind_group_layouts.scene != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
@@ -381,7 +381,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.scene,
                             });
-    ASSERT(pipeline_layouts.scene != NULL)
+    ASSERT(pipeline_layouts.scene != NULL);
   }
 
   // Bind group layout for skybox rendering
@@ -427,7 +427,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.skybox != NULL)
+    ASSERT(bind_group_layouts.skybox != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
@@ -436,7 +436,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.skybox,
                             });
-    ASSERT(pipeline_layouts.skybox != NULL)
+    ASSERT(pipeline_layouts.skybox != NULL);
   }
 }
 
@@ -471,7 +471,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.blur_vert != NULL)
+    ASSERT(bind_groups.blur_vert != NULL);
   }
   // Horizontal blur
   {
@@ -501,7 +501,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.blur_horz != NULL)
+    ASSERT(bind_groups.blur_horz != NULL);
   }
 
   // Bind group for scene rendering
@@ -523,7 +523,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.scene != NULL)
+    ASSERT(bind_groups.scene != NULL);
   }
 
   // Bind group for skybox rendering
@@ -554,7 +554,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.skybox != NULL)
+    ASSERT(bind_groups.skybox != NULL);
   }
 }
 
