@@ -24,7 +24,7 @@
 
 static bool bloom = true;
 
-static texture_t cubemap;
+static texture_t cubemap = {0};
 
 static struct {
   struct gltf_model_t* ufo;
