@@ -179,6 +179,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->color.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(frame_buf->color.texture != NULL)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -192,6 +193,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->color.texture_view
       = wgpuTextureCreateView(frame_buf->color.texture, &texture_view_dec);
+    ASSERT(frame_buf->color.texture_view != NULL)
   }
 
   // Depth stencil attachment
@@ -207,6 +209,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->depth.texture
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(frame_buf->depth.texture != NULL)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -221,6 +224,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     };
     frame_buf->depth.texture_view
       = wgpuTextureCreateView(frame_buf->depth.texture, &texture_view_dec);
+    ASSERT(frame_buf->depth.texture_view != NULL)
   }
 
   // Create a separate render pass for the offscreen rendering as it may differ
@@ -279,6 +283,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(offscreen_pass.sampler != NULL)
 
   // Create two frame buffers
   prepare_offscreen_frame_buffer(wgpu_context, &offscreen_pass.frame_buffers[0],
