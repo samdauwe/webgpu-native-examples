@@ -52,7 +52,7 @@ static const char* fragment_shader_wgsl = CODE(
 );
 // clang-format on
 
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
