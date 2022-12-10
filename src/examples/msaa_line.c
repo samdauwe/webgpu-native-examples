@@ -34,21 +34,21 @@ typedef struct {
 static wgpu_buffer_t vertices = {0};
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipeline
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // Render bundle
-static WGPURenderBundle render_bundle;
+static WGPURenderBundle render_bundle = NULL;
 
 // Multi-sampled texture
-static WGPUTexture multisampled_texture;
-static WGPUTextureView multisampled_framebuffer;
+static WGPUTexture multisampled_texture         = NULL;
+static WGPUTextureView multisampled_framebuffer = NULL;
 
 // Other variables
 static const char* example_title = "MSAA Line";
