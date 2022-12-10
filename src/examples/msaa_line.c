@@ -56,7 +56,7 @@ static bool prepared             = false;
 
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  uint32_t vertex_count = NUMBER_OF_LINES * 2;
+  const uint32_t vertex_count = NUMBER_OF_LINES * 2;
   vertex_t vertex_data[vertex_count];
   float percent = 0, sin_value = 0, cos_value = 0;
   for (uint32_t i = 0; i < NUMBER_OF_LINES; ++i) {
