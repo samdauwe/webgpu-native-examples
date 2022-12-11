@@ -353,7 +353,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "compute pipeline main layout",
+      .label      = "Compute pipeline main layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -363,7 +363,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 
     // Compute pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "compute pipeline layouts",
+      .label                = "Compute pipeline layouts",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &compute.bind_group_layout,
     };
@@ -397,7 +397,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       }
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "rendering pipeline main layout",
+      .label      = "Rendering pipeline main layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -407,7 +407,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 
     // Render pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "rendering pipeline layouts",
+      .label                = "Rendering pipeline layouts",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &graphics.bind_group_layout,
     };
