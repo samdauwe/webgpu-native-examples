@@ -531,6 +531,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         .layout  = compute.pipeline_layout,
         .compute = conway_comp_shader.programmable_stage_descriptor,
       });
+    ASSERT(compute.pipeline != NULL);
 
     // Partial cleanup
     wgpu_shader_release(&conway_comp_shader);
@@ -594,6 +595,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .fragment    = &fragment_state,
                               .multisample = multisample_state,
                             });
+    ASSERT(graphics.pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
