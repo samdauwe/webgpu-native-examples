@@ -314,7 +314,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
-                      .label = "mesh_vertex_shader",
+                      .label = "Mesh vertex shader",
                       .file  = "shaders/multi_sampling/mesh.vert.spv",
                     },
                     .buffer_count = 1,
@@ -326,7 +326,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
-                      .label = "mesh_fragment_shader",
+                      .label = "Mesh fragment shader",
                       .file  = "shaders/multi_sampling/mesh.frag.spv",
                     },
                     .target_count = 1,
@@ -345,7 +345,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     pipelines.normal = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "normal_render_pipeline",
+                              .label        = "Normal render pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
@@ -368,7 +368,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     pipelines.msaa = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "msaa_render_pipeline",
+                              .label        = "MSAA rrender pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
