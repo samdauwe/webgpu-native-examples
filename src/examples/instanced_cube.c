@@ -225,7 +225,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Uniform bind group
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "cube_bind_group",
+    .label      = "Cube bind group",
     .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
     .entryCount = 1,
     .entries    = &(WGPUBindGroupEntry) {
@@ -284,7 +284,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .label            = "instanced_vertex_shader_wgsl",
+              .label            = "Instanced vertex shader wgsl",
               .wgsl_code.source = instanced_vertex_shader_wgsl,
             },
             .buffer_count = 1,
@@ -296,7 +296,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .label            = "vertex_position_color_fragment_shader_wgsl",
+              .label            = "Vertex position color fragment shader wgsl",
               .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
             },
             .target_count = 1,
@@ -313,7 +313,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "instanced_cube_render_pipeline",
+                            .label        = "Instanced cube render pipeline",
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
