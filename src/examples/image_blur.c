@@ -53,7 +53,7 @@ static uint32_t image_height = 0;
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Other variables
 static const char* example_title = "Image Blur";
