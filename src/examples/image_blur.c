@@ -138,6 +138,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   // Compute shader blur parameters
   blur_params_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Compute shader blur parameters",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 8,
                   });
@@ -293,7 +294,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_shader_t blur_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
-                      .file = "shaders/image_blur/blur.wgsl",
+                      .label = "Blur compute shader WGSL",
+                      .file  = "shaders/image_blur/blur.wgsl",
                     });
 
     // Compute pipeline
