@@ -302,7 +302,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "image_blur_render_pipeline",
+        .label   = "Image blur render pipeline",
         .compute = blur_comp_shader.programmable_stage_descriptor,
       });
     ASSERT(blur_pipeline != NULL);
@@ -333,7 +333,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   wgpu_context, &(wgpu_vertex_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
                     // Vertex shader WGSL
-                    .label            = "fullscreen_textured_quad_wgsl",
+                    .label            = "Fullscreen texturedquad wgsl",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "vert_main"
                   },
@@ -344,7 +344,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   wgpu_context, &(wgpu_fragment_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
                     // Fragment shader WGSL
-                    .label            = "fullscreen_textured_quad_wgsl",
+                    .label            = "Fullscreen textured quad wgsl",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "frag_main"
                   },
@@ -362,7 +362,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     fullscreen_quad_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "fullscreen_quad_pipeline",
+                              .label       = "Fullscreen quad pipeline",
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
                               .fragment    = &fragment_state,
