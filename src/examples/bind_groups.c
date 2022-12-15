@@ -320,7 +320,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "cube_render_pipeline",
+                            .label        = "Cube render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
