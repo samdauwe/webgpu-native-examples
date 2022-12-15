@@ -24,7 +24,7 @@ struct view_matrices_t {
   mat4 projection;
   mat4 view;
   mat4 model;
-} view_matrices_t;
+} view_matrices_t = {0};
 
 typedef struct cube_t {
   struct view_matrices_t matrices;
@@ -43,10 +43,10 @@ static struct {
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-static WGPURenderPipeline pipeline;
-static WGPUPipelineLayout pipeline_layout;
+static WGPURenderPipeline pipeline        = NULL;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // Other variables
 static const char* example_title = "Using Bind Groups";
