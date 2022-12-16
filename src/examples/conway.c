@@ -330,7 +330,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1 : Sampler for  the texture
+        // Binding 1 : Sampler for the texture
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
