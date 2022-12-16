@@ -206,7 +206,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
           (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding),
     };
     tex->texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(tex->texture)
+    ASSERT(tex->texture);
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -219,7 +219,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
       .arrayLayerCount = 1,
     };
     tex->view = wgpuTextureCreateView(tex->texture, &texture_view_dec);
-    ASSERT(tex->view)
+    ASSERT(tex->view);
 
     // Create sampler to sample to pick from the texture and write to the screen
     tex->sampler = wgpuDeviceCreateSampler(
@@ -240,7 +240,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
   // Setup the initial texture1, with some initial data.
   uint8_t* b = malloc(compute_width * compute_height * 4 * sizeof(uint8_t));
-  ASSERT(b)
+  ASSERT(b);
   bool has_life = false;
   uint8_t v     = 0;
   for (uint32_t y = 0; y < compute_height; ++y) {
@@ -302,7 +302,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     };
     compute.bind_group_layout
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(compute.bind_group_layout != NULL)
+    ASSERT(compute.bind_group_layout != NULL);
 
     // Compute pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
@@ -312,7 +312,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     };
     compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(compute.pipeline_layout != NULL)
+    ASSERT(compute.pipeline_layout != NULL);
   }
 
   /* Graphics pipeline layout */
@@ -346,7 +346,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     };
     graphics.bind_group_layout
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(graphics.bind_group_layout != NULL)
+    ASSERT(graphics.bind_group_layout != NULL);
 
     // Render pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
@@ -356,7 +356,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     };
     graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(graphics.pipeline_layout != NULL)
+    ASSERT(graphics.pipeline_layout != NULL);
   }
 }
 
@@ -414,7 +414,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(compute.bind_groups[i] != NULL)
+    ASSERT(compute.bind_groups[i] != NULL);
   }
 
   // Create 2 bind group for the render pipeline, depending on what is the
@@ -441,7 +441,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(graphics.bind_groups[i] != NULL)
+    ASSERT(graphics.bind_groups[i] != NULL);
   }
 }
 
@@ -597,7 +597,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
