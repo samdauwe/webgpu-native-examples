@@ -228,7 +228,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupDescriptor bg_desc = {
       .label      = "Compute bind group 1",
       .layout     = wgpuComputePipelineGetBindGroupLayout(blur_pipeline, 1),
-      .entryCount = 3,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
     compute_bind_groups[1]
@@ -260,7 +260,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupDescriptor bg_desc = {
       .label      = "Compute bind group 2",
       .layout     = wgpuComputePipelineGetBindGroupLayout(blur_pipeline, 1),
-      .entryCount = 3,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
     compute_bind_groups[2]
@@ -272,10 +272,12 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
+        // Binding 0 : texture sampler
         .binding = 0,
         .sampler = texture.sampler,
       },
       [1] = (WGPUBindGroupEntry) {
+        // Binding 1 : blur texture
         .binding     = 1,
         .textureView = blur_textures[1].view,
       },
@@ -284,7 +286,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       .label = "Uniform bind group",
       .layout
       = wgpuRenderPipelineGetBindGroupLayout(fullscreen_quad_pipeline, 0),
-      .entryCount = 2,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
     show_result_bind_group
