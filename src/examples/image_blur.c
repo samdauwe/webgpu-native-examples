@@ -208,17 +208,17 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : texture
+        // Binding 1 : texture
         .binding     = 1,
         .textureView = blur_textures[0].view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1 : blur texture
+        // Binding 2 : blur texture
         .binding     = 2,
         .textureView = blur_textures[1].view,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2 : uniform buffer
+        // Binding 3 : uniform buffer
         .binding = 3,
         .buffer  = uniform_buffers[1].buffer,
         .offset  = 0,
@@ -240,14 +240,17 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
+        // Binding 1 : texture
         .binding     = 1,
         .textureView = blur_textures[1].view,
       },
       [1] = (WGPUBindGroupEntry) {
+        // Binding 2 : blur texture
         .binding     = 2,
         .textureView = blur_textures[0].view,
       },
       [2] = (WGPUBindGroupEntry) {
+        // Binding 3 : uniform buffer
         .binding = 3,
         .buffer  = uniform_buffers[0].buffer,
         .offset  = 0,
