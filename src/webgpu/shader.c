@@ -191,9 +191,11 @@ WGPUFragmentState wgpu_create_fragment_state(wgpu_context_t* wgpu_context,
   fragment_state.module = wgpu_create_shader_module(wgpu_context, shader_desc);
   ASSERT(fragment_state.module);
 
-  fragment_state.entryPoint  = shader_desc->entry ? shader_desc->entry : "main",
-  fragment_state.targetCount = desc->target_count,
-  fragment_state.targets     = desc->targets;
+  fragment_state.entryPoint = shader_desc->entry ? shader_desc->entry : "main",
+  fragment_state.constantCount = desc->constant_count,
+  fragment_state.constants     = desc->constants;
+  fragment_state.targetCount   = desc->target_count,
+  fragment_state.targets       = desc->targets;
 
   return fragment_state;
 }

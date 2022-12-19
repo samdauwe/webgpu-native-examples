@@ -51,6 +51,8 @@ WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
 
 typedef struct wgpu_fragment_state_t {
   wgpu_shader_desc_t shader_desc;
+  uint32_t constant_count;
+  WGPUConstantEntry const* constants;
   uint32_t target_count;
   WGPUColorTargetState const* targets;
 } wgpu_fragment_state_t;
