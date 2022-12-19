@@ -754,6 +754,14 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
+  // Constants
+  WGPUConstantEntry constant_entries[1] = {
+    [0] = (WGPUConstantEntry){
+      .key   = "shadowDepthTextureSize",
+      .value = shadow_depth_texture_size,
+    },
+  };
+
   // Depth stencil state
   WGPUDepthStencilState depth_stencil_state = {
     .depthWriteEnabled = true,
@@ -807,8 +815,10 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                   .file  = "shaders/shadow_mapping/fragment.wgsl",
                   .entry = "main",
                 },
-                .target_count = 1,
-                .targets      = &color_target_state,
+                .constant_count = (uint32_t)ARRAY_SIZE(constant_entries),
+                .constants      = constant_entries,
+                .target_count   = 1,
+                .targets        = &color_target_state,
               });
 
   // Multisample state
