@@ -55,9 +55,8 @@ static WGPUTexture depth_texture          = NULL;
 static WGPUTextureView depth_texture_view = NULL;
 
 // Uniform buffers
-static WGPUBuffer model_uniform_buffer        = NULL;
-static WGPUBuffer camera_uniform_buffer       = NULL;
-static WGPUBuffer surface_size_uniform_buffer = NULL;
+static WGPUBuffer model_uniform_buffer  = NULL;
+static WGPUBuffer camera_uniform_buffer = NULL;
 
 // Lights
 static struct {
@@ -74,14 +73,12 @@ static struct {
 } lights = {0};
 
 // Bind groups
-static WGPUBindGroup scene_uniform_bind_group        = NULL;
-static WGPUBindGroup surface_size_uniform_bind_group = NULL;
-static WGPUBindGroup gbuffer_textures_bind_group     = NULL;
+static WGPUBindGroup scene_uniform_bind_group    = NULL;
+static WGPUBindGroup gbuffer_textures_bind_group = NULL;
 
 // Bind group layouts
-static WGPUBindGroupLayout scene_uniform_bind_group_layout        = NULL;
-static WGPUBindGroupLayout surface_size_uniform_bind_group_layout = NULL;
-static WGPUBindGroupLayout gbuffer_textures_bind_group_layout     = NULL;
+static WGPUBindGroupLayout scene_uniform_bind_group_layout    = NULL;
+static WGPUBindGroupLayout gbuffer_textures_bind_group_layout = NULL;
 
 // Pipelines
 static WGPURenderPipeline write_gbuffers_pipeline        = NULL;
@@ -363,28 +360,6 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     ASSERT(lights.buffer_bind_group_layout != NULL);
   }
 
-  // Surface size uniform bind group layout
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Fragment shader) - SurfaceConstants
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Fragment,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type           = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(vec2),
-        },
-        .sampler = {0},
-      }
-    };
-    surface_size_uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(surface_size_uniform_bind_group_layout != NULL);
-  }
-
   // Scene uniform bind group layout
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
@@ -480,8 +455,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
   // GBuffers debug view pipeline layout
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      gbuffer_textures_bind_group_layout,     // set 0
-      surface_size_uniform_bind_group_layout, // set 1
+      gbuffer_textures_bind_group_layout, // set 0
     };
     gbuffers_debug_view_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
@@ -496,9 +470,8 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
   // Deferred render pipeline layout
   {
     WGPUBindGroupLayout bind_group_layouts[3] = {
-      gbuffer_textures_bind_group_layout,     // set 0
-      lights.buffer_bind_group_layout,        // set 1
-      surface_size_uniform_bind_group_layout, // set 2
+      gbuffer_textures_bind_group_layout, // set 0
+      lights.buffer_bind_group_layout,    // set 1
     };
     deferred_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
@@ -921,36 +894,6 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(scene_uniform_bind_group != NULL);
   }
 
-  // Surface size uniform buffer
-  {
-    const WGPUBufferDescriptor buffer_desc = {
-      .size  = 4 * 2,
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    };
-    surface_size_uniform_buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(surface_size_uniform_buffer)
-  }
-
-  // Surface size uniform bind group
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .buffer  = surface_size_uniform_buffer,
-        .size    = 4 * 2,
-      },
-    };
-    surface_size_uniform_bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Surface size uniform bind group",
-                              .layout = surface_size_uniform_bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(surface_size_uniform_bind_group != NULL);
-  }
-
   // GBuffer textures bind group
   {
     WGPUBindGroupEntry bg_entries[3] = {
@@ -1170,13 +1113,6 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_mat4_transpose(invert_transpose_model_matrix);
   wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer, 64,
                        invert_transpose_model_matrix, sizeof(mat4));
-
-  // Pass the surface size to shader to help sample from gBuffer textures using
-  // coord
-  const vec2 surface_size_data
-    = {(float)wgpu_context->surface.width, (float)wgpu_context->surface.height};
-  wgpuQueueWriteBuffer(wgpu_context->queue, surface_size_uniform_buffer, 0,
-                       surface_size_data, sizeof(vec2));
 }
 
 /**
@@ -1329,8 +1265,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                        gbuffers_debug_view_pipeline);
       wgpuRenderPassEncoderSetBindGroup(debug_view_pass, 0,
                                         gbuffer_textures_bind_group, 0, 0);
-      wgpuRenderPassEncoderSetBindGroup(debug_view_pass, 1,
-                                        surface_size_uniform_bind_group, 0, 0);
       wgpuRenderPassEncoderDraw(debug_view_pass, 6, 1, 0, 0);
       wgpuRenderPassEncoderEnd(debug_view_pass);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, debug_view_pass)
@@ -1348,8 +1282,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                         gbuffer_textures_bind_group, 0, 0);
       wgpuRenderPassEncoderSetBindGroup(deferred_rendering_pass, 1,
                                         lights.buffer_bind_group, 0, 0);
-      wgpuRenderPassEncoderSetBindGroup(deferred_rendering_pass, 2,
-                                        surface_size_uniform_bind_group, 0, 0);
       wgpuRenderPassEncoderDraw(deferred_rendering_pass, 6, 1, 0, 0);
       wgpuRenderPassEncoderEnd(deferred_rendering_pass);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, deferred_rendering_pass)
@@ -1415,20 +1347,17 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(TextureView, depth_texture_view)
   WGPU_RELEASE_RESOURCE(Buffer, model_uniform_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, camera_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, surface_size_uniform_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, lights.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, lights.extent_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, lights.config_uniform_buffer)
   WGPU_RELEASE_RESOURCE(BindGroup, lights.buffer_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroup, lights.buffer_compute_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroup, scene_uniform_bind_group)
-  WGPU_RELEASE_RESOURCE(BindGroup, surface_size_uniform_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroup, gbuffer_textures_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, lights.buffer_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
                         lights.buffer_compute_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, scene_uniform_bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, surface_size_uniform_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, gbuffer_textures_bind_group_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, write_gbuffers_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, gbuffers_debug_view_pipeline)
