@@ -454,7 +454,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
 
   // GBuffers debug view pipeline layout
   {
-    WGPUBindGroupLayout bind_group_layouts[2] = {
+    WGPUBindGroupLayout bind_group_layouts[1] = {
       gbuffer_textures_bind_group_layout, // set 0
     };
     gbuffers_debug_view_pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -469,7 +469,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
 
   // Deferred render pipeline layout
   {
-    WGPUBindGroupLayout bind_group_layouts[3] = {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
       gbuffer_textures_bind_group_layout, // set 0
       lights.buffer_bind_group_layout,    // set 1
     };
@@ -597,6 +597,18 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
+  // Constants
+  WGPUConstantEntry constant_entries[2] = {
+    [0] = (WGPUConstantEntry){
+      .key   = "canvasSizeWidth",
+      .value = wgpu_context->surface.width,
+    },
+    [1] = (WGPUConstantEntry){
+      .key   = "canvasSizeHeight",
+      .value = wgpu_context->surface.height,
+    },
+  };
+
   // Vertex state
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
         wgpu_context, &(wgpu_vertex_state_t){
@@ -617,8 +629,10 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
           .file  = "shaders/deferred_rendering/fragmentGBuffersDebugView.wgsl",
           .entry = "main",
         },
-        .target_count = 1,
-        .targets      = &color_target_state,
+        .constant_count = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants      = constant_entries,
+        .target_count   = 1,
+        .targets        = &color_target_state,
       });
 
   // Multisample state
