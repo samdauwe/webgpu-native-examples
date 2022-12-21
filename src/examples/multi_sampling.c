@@ -26,7 +26,7 @@ static struct {
   } color;
 } multi_sample_target = {0};
 
-static struct gltf_model_t* gltf_model;
+static struct gltf_model_t* gltf_model = NULL;
 
 static wgpu_buffer_t uniform_buffer;
 
