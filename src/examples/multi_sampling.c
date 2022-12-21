@@ -166,6 +166,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Vertex shader ubo bind group layout",
       .entryCount = 1,
       .entries    = &bgl_entry,
     };
@@ -199,6 +200,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Textures bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -215,6 +217,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     // Pipeline layout
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_sets),
       .bindGroupLayouts     = bind_group_layout_sets,
     };
