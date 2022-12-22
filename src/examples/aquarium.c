@@ -474,13 +474,13 @@ typedef enum {
 } model_name_t;
 
 typedef enum {
-  FISH,
-  FISHINSTANCEDDRAW,
-  INNER,
-  SEAWEED,
-  GENERIC,
-  OUTSIDE,
-  GROUPMAX,
+  MODELGROUP_FISH,
+  MODELGROUP_FISHINSTANCEDDRAW,
+  MODELGROUP_INNER,
+  MODELGROUP_SEAWEED,
+  MODELGROUP_GENERIC,
+  MODELGROUP_OUTSIDE,
+  MODELGROUP_GROUPMAX,
 } model_group_t;
 
 typedef enum {
@@ -745,7 +745,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SmallFishA",
     .name            = MODELSMALLFISHA,
-    .type            = FISH,
+    .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishReflectionFragmentShader",
     .fog             = true,
@@ -753,7 +753,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "MediumFishA",
     .name            = MODELMEDIUMFISHA,
-    .type            = FISH,
+    .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -761,7 +761,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "MediumFishB",
     .name            = MODELMEDIUMFISHB,
-    .type            = FISH,
+    .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishReflectionFragmentShader",
     .fog             = true,
@@ -769,7 +769,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "BigFishA",
     .name            = MODELBIGFISHA,
-    .type            = FISH,
+    .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -777,7 +777,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "BigFishB",
     .name            = MODELBIGFISHB,
-    .type            = FISH,
+    .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -785,7 +785,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SmallFishA",
     .name            = MODELSMALLFISHAINSTANCEDDRAWS,
-    .type            = FISHINSTANCEDDRAW,
+    .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishReflectionFragmentShader",
     .fog             = true,
@@ -793,7 +793,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "MediumFishA",
     .name            = MODELMEDIUMFISHAINSTANCEDDRAWS,
-    .type            = FISHINSTANCEDDRAW,
+    .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -801,7 +801,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "MediumFishB",
     .name            = MODELMEDIUMFISHBINSTANCEDDRAWS,
-    .type            = FISHINSTANCEDDRAW,
+    .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishReflectionFragmentShader",
     .fog             = true,
@@ -809,7 +809,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "BigFishA",
     .name            = MODELBIGFISHAINSTANCEDDRAWS,
-    .type            = FISHINSTANCEDDRAW,
+    .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -817,7 +817,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "BigFishB",
     .name            = MODELBIGFISHBINSTANCEDDRAWS,
-    .type            = FISHINSTANCEDDRAW,
+    .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
     .fog             = true,
@@ -825,7 +825,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "Arch",
     .name            = MODELARCH,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -833,7 +833,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "Coral",
     .name            = MODELCORAL,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -841,7 +841,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "CoralStoneA",
     .name            = MODELCORALSTONEA,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -849,7 +849,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "CoralStoneB",
     .name            = MODELCORALSTONEB,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -857,7 +857,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "EnvironmentBox",
     .name            = MODELENVIRONMENTBOX,
-    .type            = OUTSIDE,
+    .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
     .fog             = false,
@@ -865,7 +865,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "FloorBase_Baked",
     .name            = MODELFLOORBASE_BAKED,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -873,7 +873,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "GlobeBase",
     .name            = MODELGLOBEBASE,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
     .fog             = false,
@@ -881,7 +881,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "GlobeInner",
     .name            = MODELGLOBEINNER,
-    .type            = INNER,
+    .type            = MODELGROUP_INNER,
     .shader.vertex   = "innerRefractionMapVertexShader",
     .shader.fragment = "innerRefractionMapFragmentShader",
     .fog             = false,
@@ -889,7 +889,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "RockA",
     .name            = MODELROCKA,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -897,7 +897,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "RockB",
     .name            = MODELROCKB,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -905,7 +905,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "RockC",
     .name            = MODELROCKC,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -913,7 +913,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "RuinColumn",
     .name            = MODELRUINCOLUMN,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -921,7 +921,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "Stone",
     .name            = MODELSTONE,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -929,7 +929,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SunknShipBoxes",
     .name            = MODELSUNKNSHIPBOXES,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -937,7 +937,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SunknShipDeck",
     .name            = MODELSUNKNSHIPDECK,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -945,7 +945,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SunknShipHull",
     .name            = MODELSUNKNSHIPHULL,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -953,7 +953,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SunknSub",
     .name            = MODELSUNKNSUB,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -961,7 +961,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SeaweedA",
     .name            = MODELSEAWEEDA,
-    .type            = SEAWEED,
+    .type            = MODELGROUP_SEAWEED,
     .shader.vertex   = "seaweedVertexShader",
     .shader.fragment = "seaweedFragmentShader",
     .fog             = false,
@@ -969,7 +969,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SeaweedB",
     .name            = MODELSEAWEEDB,
-    .type            = SEAWEED,
+    .type            = MODELGROUP_SEAWEED,
     .shader.vertex   = "seaweedVertexShader",
     .shader.fragment = "seaweedFragmentShader",
     .fog             = false,
@@ -977,7 +977,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "Skybox",
     .name            = MODELSKYBOX,
-    .type            = OUTSIDE,
+    .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
     .fog             = false,
@@ -985,7 +985,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "SupportBeams",
     .name            = MODELSUPPORTBEAMS,
-    .type            = OUTSIDE,
+    .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = false,
@@ -993,7 +993,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   {
     .name_str        = "TreasureChest",
     .name            = MODELTREASURECHEST,
-    .type            = GENERIC,
+    .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
@@ -2721,6 +2721,9 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static int32_t aquarium_load_models(aquarium_t* this);
+static int32_t aquarium_load_model(aquarium_t* this,
+                                   const g_scene_info_t* info);
 static int32_t aquarium_load_placement(aquarium_t* this);
 
 static float get_current_time_point()
@@ -2830,10 +2833,6 @@ static void aquarium_reset_fps_time(aquarium_t* this)
 {
   this->g.start = get_current_time_point();
   this->g.then  = this->g.start;
-}
-
-static void aquarium_load_models(aquarium_t* this)
-{
 }
 
 static void aquarium_load_fish_scenario(aquarium_t* this)
@@ -5549,6 +5548,28 @@ load_placement_end:
   cJSON_Delete(placement_json);
   free(file_read_result.data);
   return status;
+}
+
+static int32_t aquarium_load_models(aquarium_t* this)
+{
+  const bool enable_instanced_draw = aquarium_settings.enable_instanced_draw;
+  for (uint32_t i = 0; i < MODELMAX; ++i) {
+    const g_scene_info_t* info = &g_scene_info[i];
+    if ((enable_instanced_draw && info->type == MODELGROUP_FISH)
+        || ((!enable_instanced_draw)
+            && info->type == MODELGROUP_FISHINSTANCEDDRAW)) {
+      continue;
+    }
+    aquarium_load_model(this, info);
+  }
+
+  return EXIT_SUCCESS;
+}
+
+/* Load vertex and index buffers, textures and program for each model. */
+static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
+{
+  return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
