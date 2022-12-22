@@ -1885,7 +1885,7 @@ static void resource_helper_create(resource_helper_t* this)
 }
 
 static const char*
-resource_helper_get_prop_placementPath(resource_helper_t* this)
+resource_helper_get_prop_placementPath(const resource_helper_t* this)
 {
   return this->prop_placement_path;
 }
@@ -1945,7 +1945,7 @@ sc_queue_def(behavior_t*, behavior);
 
 typedef struct {
   wgpu_context_t* wgpu_context;
-  context_t* context;
+  context_t context;
   light_world_position_uniform_t light_world_position_uniform;
   world_uniforms_t world_uniforms;
   light_uniforms_t light_uniforms;
@@ -1986,6 +1986,8 @@ static void context_init_defaults(context_t* this)
 static void context_create(context_t* this)
 {
   context_init_defaults(this);
+
+  resource_helper_create(&this->resource_helper);
 }
 
 static void context_detroy(context_t* this)
@@ -2476,6 +2478,11 @@ static void context_update_world_uniforms(context_t* this, aquarium_t* aquarium)
     sizeof(light_world_position_uniform_t));
 }
 
+static resource_helper_t* context_get_resource_helper(context_t* this)
+{
+  return &this->resource_helper;
+}
+
 static buffer_dawn_t* context_create_buffer_f32(context_t* this,
                                                 int32_t num_components,
                                                 float* buf, size_t buf_count,
@@ -2797,6 +2804,9 @@ static void aquarium_calculate_fish_count(aquarium_t* this)
 
 static void aquarium_init(aquarium_t* this)
 {
+  /* Create context */
+  context_create(&this->context);
+
   aquarium_calculate_fish_count(this);
 
   /* Avoid resource allocation in the first render loop */
@@ -2877,7 +2887,7 @@ aquarium_get_elapsed_time(aquarium_t* this,
 
 static void aquarium_update_world_uniforms(aquarium_t* this)
 {
-  context_update_world_uniforms(this->context, this);
+  context_update_world_uniforms(&this->context, this);
 }
 
 static void
@@ -2901,8 +2911,8 @@ aquarium_update_global_uniforms(aquarium_t* this,
 
   float near_plane   = 1.0f;
   float far_plane    = 25000.0f;
-  const float aspect = (float)context_get_client_width(this->context)
-                       / (float)context_get_client_height(this->context);
+  const float aspect = (float)context_get_client_width(&this->context)
+                       / (float)context_get_client_height(&this->context);
   float top
     = tan(deg_to_rad(g_settings.field_of_view * g_settings.fov_fudge) * 0.5f)
       * near_plane;
@@ -2942,7 +2952,7 @@ aquarium_update_global_uniforms(aquarium_t* this,
                     light_world_position_uniform->light_world_pos, g->v3t1, 3);
 
   /* Update world uniforms  */
-  context_update_world_uniforms(this->context, this);
+  context_update_world_uniforms(&this->context, this);
 }
 
 static void aquarium_update_and_draw(aquarium_t* this);
@@ -2952,7 +2962,7 @@ static void aquarium_render(aquarium_t* this,
 {
   matrix_reset_pseudoRandom();
 
-  context_pre_frame(this->context);
+  context_pre_frame(&this->context);
 
   /* Global Uniforms should update after command reallocation. */
   aquarium_update_global_uniforms(this, wgpu_example_context);
@@ -2981,7 +2991,7 @@ static void aquarium_render(aquarium_t* this,
       aquarium_calculate_fish_count(this);
       bool enable_dynamic_buffer_offset
         = aquarium_settings.enable_dynamic_buffer_offset;
-      context_realloc_resource(this->context, this->pre_fish_count,
+      context_realloc_resource(&this->context, this->pre_fish_count,
                                this->cur_fish_count,
                                enable_dynamic_buffer_offset);
       this->pre_fish_count = this->cur_fish_count;
@@ -5467,8 +5477,21 @@ static void seaweed_model_update_per_instance_uniforms(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-int load_placement(aquarium_t* aquarium, const char* const placement)
+/* Load world matrices of models from json file. */
+int load_placement(aquarium_t* aquarium)
 {
+  const resource_helper_t* resource_helper
+    = context_get_resource_helper(&aquarium->context);
+  const char* prop_path
+    = resource_helper_get_prop_placementPath(resource_helper);
+  if (!file_exists(prop_path)) {
+    log_fatal("Could not load placements file %s", prop_path);
+    return EXIT_FAILURE;
+  }
+  file_read_result_t file_read_result = {0};
+  read_file(prop_path, &file_read_result, true);
+  const char* const placement = (const char* const)file_read_result.data;
+
   const cJSON* objects           = NULL;
   const cJSON* object            = NULL;
   const cJSON* name              = NULL;
@@ -5529,6 +5552,7 @@ int load_placement(aquarium_t* aquarium, const char* const placement)
   }
 load_placement_end:
   cJSON_Delete(placement_json);
+  free(file_read_result.data);
   return status;
 }
 
@@ -5536,24 +5560,10 @@ void example_aquarium(int argc, char* argv[])
 {
 #if 10
   aquarium_t aquarium;
+  aquarium_init(&aquarium);
   aquarium_setup_model_enum_map(&aquarium);
 
-  resource_helper_t rh;
-  resource_helper_create(&rh);
-
-  const char* filename = resource_helper_get_prop_placementPath(&rh);
-
-  if (!file_exists(filename)) {
-    log_fatal("Could not load texture from %s", filename);
-    return;
-  }
-
-  file_read_result_t file_read_result = {0};
-  read_file(filename, &file_read_result, true);
-
-  load_placement(&aquarium, (const char* const)file_read_result.data);
-
-  free(file_read_result.data);
+  load_placement(&aquarium);
 #elif 1
   aquarium_t aquarium;
   aquarium_setup_model_enum_map(&aquarium);
