@@ -1956,6 +1956,7 @@ typedef struct {
     char key[STRMAX];
     model_name_t value;
   } model_enum_map[MODELMAX];
+  void* aquarium_models[MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
   int32_t test_time;
@@ -2720,6 +2721,8 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static int32_t aquarium_load_placement(aquarium_t* this);
+
 static float get_current_time_point()
 {
   return 0.0f;
@@ -2830,10 +2833,6 @@ static void aquarium_reset_fps_time(aquarium_t* this)
 }
 
 static void aquarium_load_models(aquarium_t* this)
-{
-}
-
-static void aquarium_load_placement(aquarium_t* this)
 {
 }
 
@@ -3019,6 +3018,8 @@ static void aquarium_update_and_draw(aquarium_t* this)
  * Model - Defines generic model.
  * -------------------------------------------------------------------------- */
 
+#define MAX_WORLD_MATRIX_COUNT (16u)
+
 typedef enum {
   BUFFERTYPE_POSITION,
   BUFFERTYPE_NORMAL,
@@ -3037,11 +3038,7 @@ typedef enum {
   TEXTURETYPE_MAX,
 } texture_type_t;
 
-typedef struct {
-  float* data;
-  size_t data_size;
-} float_array_t;
-sc_array_def(float_array_t, float_array);
+typedef float world_matrix_t[16];
 
 typedef struct {
   model_group_t type;
@@ -3049,7 +3046,8 @@ typedef struct {
   program_t* program;
   bool blend;
 
-  struct sc_array_float_array world_matrices;
+  world_matrix_t world_matrices[MAX_WORLD_MATRIX_COUNT];
+  uint16_t world_matrix_count;
   texture_t* texture_map[TEXTURETYPE_MAX];
   buffer_dawn_t* buffer_map[BUFFERTYPE_MAX];
 } model_t;
@@ -5472,21 +5470,17 @@ static void seaweed_model_update_per_instance_uniforms(
   this->instance++;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
 /* Load world matrices of models from json file. */
-int load_placement(aquarium_t* aquarium)
+static int32_t aquarium_load_placement(aquarium_t* this)
 {
+  int32_t status = EXIT_FAILURE;
   const resource_helper_t* resource_helper
-    = context_get_resource_helper(&aquarium->context);
+    = context_get_resource_helper(&this->context);
   const char* prop_path
     = resource_helper_get_prop_placementPath(resource_helper);
   if (!file_exists(prop_path)) {
     log_fatal("Could not load placements file %s", prop_path);
-    return EXIT_FAILURE;
+    return status;
   }
   file_read_result_t file_read_result = {0};
   read_file(prop_path, &file_read_result, true);
@@ -5497,64 +5491,70 @@ int load_placement(aquarium_t* aquarium)
   const cJSON* name              = NULL;
   const cJSON* world_matrix      = NULL;
   const cJSON* world_matrix_item = NULL;
-  int status                     = 0;
   cJSON* placement_json          = cJSON_Parse(placement);
   if (placement_json == NULL) {
     const char* error_ptr = cJSON_GetErrorPtr();
     if (error_ptr != NULL) {
       fprintf(stderr, "Error before: %s\n", error_ptr);
     }
-    status = 0;
     goto load_placement_end;
   }
 
   if (!cJSON_IsObject(placement_json)
       || !cJSON_HasObjectItem(placement_json, "objects")) {
     fprintf(stderr, "Invalid placements file\n");
-    status = 0;
     goto load_placement_end;
   }
 
   objects = cJSON_GetObjectItemCaseSensitive(placement_json, "objects");
   if (!cJSON_IsArray(objects)) {
     fprintf(stderr, "Objects item is not an array\n");
-    status = 0;
     goto load_placement_end;
   }
 
-  uint32_t cnts[MODELMAX] = {0};
+  model_name_t model_name         = MODELMAX;
+  uint16_t model_world_matrix_ctr = 0;
 
   cJSON_ArrayForEach(object, objects)
   {
-    name = cJSON_GetObjectItemCaseSensitive(object, "name");
+    name       = cJSON_GetObjectItemCaseSensitive(object, "name");
+    model_name = MODELMAX;
     if (cJSON_IsString(name) && (name->valuestring != NULL)) {
-      printf("name \"%s\"\n", name->valuestring);
+      model_name
+        = aquarium_map_model_name_str_to_model_name(this, name->valuestring);
     }
 
     world_matrix = cJSON_GetObjectItemCaseSensitive(object, "worldMatrix");
-    if (cJSON_IsArray(world_matrix) && cJSON_GetArraySize(world_matrix) == 16) {
+    if (model_name != MODELMAX && cJSON_IsArray(world_matrix)
+        && cJSON_GetArraySize(world_matrix) == 16) {
+      model_t* model = (model_t*)this->aquarium_models[model_name];
+      world_matrix_t* model_world_matrix
+        = &model->world_matrices[model->world_matrix_count++];
+      model_world_matrix_ctr = 0;
+
       cJSON_ArrayForEach(world_matrix_item, world_matrix)
       {
         if (!cJSON_IsNumber(world_matrix_item)) {
-          status = 0;
           goto load_placement_end;
         }
-        // printf("\t\t\tvalue = %f\n", world_matrix_item->valuedouble);
+        (*model_world_matrix)[model_world_matrix_ctr++]
+          = (float)world_matrix_item->valuedouble;
       }
-      model_name_t mn = aquarium_map_model_name_str_to_model_name(
-        aquarium, name->valuestring);
-      cnts[mn]++;
     }
   }
 
-  for (uint32_t i = 0; i < MODELMAX; ++i) {
-    printf("%d,", cnts[i]);
-  }
+  status = EXIT_SUCCESS;
+
 load_placement_end:
   cJSON_Delete(placement_json);
   free(file_read_result.data);
   return status;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void example_aquarium(int argc, char* argv[])
 {
@@ -5563,7 +5563,7 @@ void example_aquarium(int argc, char* argv[])
   aquarium_init(&aquarium);
   aquarium_setup_model_enum_map(&aquarium);
 
-  load_placement(&aquarium);
+  // load_placement(&aquarium);
 #elif 1
   aquarium_t aquarium;
   aquarium_setup_model_enum_map(&aquarium);
