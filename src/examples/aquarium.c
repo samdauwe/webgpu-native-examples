@@ -3,11 +3,15 @@
 
 #include <limits.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <cJSON.h>
 #include <sc_array.h>
 #include <sc_queue.h>
+
+#ifdef __linux__
+#include <unistd.h>
+const char* slash = "/";
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Aquarium
@@ -53,7 +57,7 @@
  * transpose, inverse, translation, etc.
  * -------------------------------------------------------------------------- */
 
-static long long MATRIX_RANDOM_RANGE_ = 4294967296;
+static const long long MATRIX_RANDOM_RANGE_ = 4294967296;
 
 static void matrix_mul_matrix_matrix4(float* dst, const float* a,
                                       const float* b)
@@ -1843,6 +1847,50 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Resource Helper
+ * -------------------------------------------------------------------------- */
+
+static const char* aquarium_folder = "Aquarium";
+static const char* models_folder   = "models";
+static const char* shaders_folder  = "shaders";
+static const char* textures_folder = "textures";
+
+static const char* const sky_box_urls[6] = {
+  "GlobeOuter_EM_positive_x.jpg", "GlobeOuter_EM_negative_x.jpg",
+  "GlobeOuter_EM_positive_y.jpg", "GlobeOuter_EM_negative_y.jpg",
+  "GlobeOuter_EM_positive_z.jpg", "GlobeOuter_EM_negative_z.jpg",
+};
+
+typedef struct {
+  char image_path[STRMAX];
+  char sky_box_urls_path[6][STRMAX];
+  char program_path[STRMAX];
+  char prop_placement_path[STRMAX];
+  char model_path[STRMAX];
+  char fish_behavior_path[STRMAX];
+} resource_helper_t;
+
+static void resource_helper_init_defaults(resource_helper_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void resource_helper_create(resource_helper_t* this)
+{
+  resource_helper_init_defaults(this);
+
+  snprintf(this->prop_placement_path, sizeof(this->prop_placement_path),
+           "%s%s%s%s%s", models_folder, slash, aquarium_folder, slash,
+           "PropPlacement.js");
+}
+
+static const char*
+resource_helper_get_prop_placementPath(resource_helper_t* this)
+{
+  return this->prop_placement_path;
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium context - Defines the render context.
  * -------------------------------------------------------------------------- */
 
@@ -1855,6 +1903,7 @@ typedef struct {
   uint32_t client_height;
   uint32_t pre_total_instance;
   uint32_t cur_total_instance;
+  resource_helper_t resource_helper;
   uint32_t msaa_sample_count;
   struct sc_array_command_buffer command_buffers;
   struct {
@@ -5489,7 +5538,10 @@ void example_aquarium(int argc, char* argv[])
   aquarium_t aquarium;
   aquarium_setup_model_enum_map(&aquarium);
 
-  const char* filename = "/home/sdauwe/GitHub/aquarium/assets/PropPlacement.js";
+  resource_helper_t rh;
+  resource_helper_create(&rh);
+
+  const char* filename = resource_helper_get_prop_placementPath(&rh);
 
   if (!file_exists(filename)) {
     log_fatal("Could not load texture from %s", filename);
