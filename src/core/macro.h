@@ -30,6 +30,10 @@
 #define SQRT2 1.41421356237309504880f    /* sqrt(2) */
 #define SQRT2_2 0.707106781186547524401f /* sqrt(2)/2 */
 
+#define THOUSAND 1000L
+#define MILLION 1000000L
+#define BILLION 1000000000L
+
 /* Constant used to define the minimal number value */
 #define EPSILON 1e-5f /* epsilon */
 
