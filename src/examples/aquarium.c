@@ -2754,9 +2754,20 @@ static int32_t aquarium_load_fish_scenario(aquarium_t* this);
 static int32_t aquarium_load_model(aquarium_t* this,
                                    const g_scene_info_t* info);
 
-static float get_current_time_point()
+static uint64_t get_current_time_point_ns()
 {
-  return 0.0f;
+  long int ns;
+  uint64_t timepoint;
+  time_t sec;
+  struct timespec spec;
+
+  clock_gettime(CLOCK_REALTIME, &spec);
+  sec = spec.tv_sec;
+  ns  = spec.tv_nsec;
+
+  timepoint = (uint64_t)sec * BILLION + (uint64_t)ns;
+
+  return timepoint;
 }
 
 static void aquarium_init_defaults(aquarium_t* this)
@@ -2767,7 +2778,7 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->pre_fish_count = 0;
   this->test_time      = INT_MAX;
 
-  this->g.then      = get_current_time_point();
+  this->g.then      = get_current_time_point_ns();
   this->g.mclock    = 0.0f;
   this->g.eye_clock = 0.0f;
   this->g.alpha     = "1";
@@ -2859,7 +2870,7 @@ static int32_t aquarium_get_pre_fish_count(aquarium_t* this)
 
 static void aquarium_reset_fps_time(aquarium_t* this)
 {
-  this->g.start = get_current_time_point();
+  this->g.start = get_current_time_point_ns();
   this->g.then  = this->g.start;
 }
 
