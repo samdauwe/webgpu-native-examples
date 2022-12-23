@@ -539,6 +539,14 @@ typedef struct {
   bool fog;
 } g_scene_info_t;
 
+#define FISH_BEHAVIOR_COUNT (3u)
+
+typedef struct {
+  uint32_t frame;
+  char op;
+  uint32_t count;
+} g_fish_behavior_t;
+
 typedef struct {
   const char* name;
   model_name_t model_name;
@@ -997,6 +1005,24 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
     .shader.vertex   = "",
     .shader.fragment = "",
     .fog             = true,
+  },
+};
+
+static const g_fish_behavior_t g_fish_behaviors[FISH_BEHAVIOR_COUNT] = {
+  {
+    .frame = 200,
+    .op    = '+',
+    .count = 5000,
+  },
+  {
+    .frame = 200,
+    .op    = '+',
+    .count = 15000,
+  },
+  {
+    .frame = 200,
+    .op    = '-',
+    .count = 5000,
   },
 };
 
@@ -1960,6 +1986,7 @@ typedef struct {
   int32_t cur_fish_count;
   int32_t pre_fish_count;
   int32_t test_time;
+  behavior_t fish_behaviors[FISH_BEHAVIOR_COUNT];
   struct sc_queue_behavior fish_behavior;
 } aquarium_t;
 
@@ -2721,10 +2748,11 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static int32_t aquarium_load_placement(aquarium_t* this);
 static int32_t aquarium_load_models(aquarium_t* this);
+static int32_t aquarium_load_fish_scenario(aquarium_t* this);
 static int32_t aquarium_load_model(aquarium_t* this,
                                    const g_scene_info_t* info);
-static int32_t aquarium_load_placement(aquarium_t* this);
 
 static float get_current_time_point()
 {
@@ -2833,10 +2861,6 @@ static void aquarium_reset_fps_time(aquarium_t* this)
 {
   this->g.start = get_current_time_point();
   this->g.then  = this->g.start;
-}
-
-static void aquarium_load_fish_scenario(aquarium_t* this)
-{
 }
 
 static void aquarium_load_resource(aquarium_t* this)
@@ -5561,6 +5585,17 @@ static int32_t aquarium_load_models(aquarium_t* this)
       continue;
     }
     aquarium_load_model(this, info);
+  }
+
+  return EXIT_SUCCESS;
+}
+
+static int32_t aquarium_load_fish_scenario(aquarium_t* this)
+{
+  for (uint32_t i = 0; i < FISH_BEHAVIOR_COUNT; ++i) {
+    behavior_create(&this->fish_behaviors[i], g_fish_behaviors[i].frame,
+                    g_fish_behaviors[i].op, g_fish_behaviors[i].count);
+    sc_queue_add_last(&this->fish_behavior, &this->fish_behaviors[i]);
   }
 
   return EXIT_SUCCESS;
