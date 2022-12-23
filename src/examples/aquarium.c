@@ -436,41 +436,41 @@ float deg_to_rad(float degrees)
 
 typedef enum {
   /* Begin of background */
-  MODELRUINCOLUMN,
-  MODELARCH,
-  MODELROCKA,
-  MODELROCKB,
-  MODELROCKC,
-  MODELSUNKNSHIPBOXES,
-  MODELSUNKNSHIPDECK,
-  MODELSUNKNSHIPHULL,
-  MODELFLOORBASE_BAKED,
-  MODELSUNKNSUB,
-  MODELCORAL,
-  MODELSTONE,
-  MODELCORALSTONEA,
-  MODELCORALSTONEB,
-  MODELGLOBEBASE,
-  MODELTREASURECHEST,
-  MODELENVIRONMENTBOX,
-  MODELSUPPORTBEAMS,
-  MODELSKYBOX,
-  MODELGLOBEINNER,
-  MODELSEAWEEDA,
-  MODELSEAWEEDB,
+  MODELNAME_MODELRUINCOLUMN,
+  MODELNAME_MODELARCH,
+  MODELNAME_MODELROCKA,
+  MODELNAME_MODELROCKB,
+  MODELNAME_MODELROCKC,
+  MODELNAME_MODELSUNKNSHIPBOXES,
+  MODELNAME_MODELSUNKNSHIPDECK,
+  MODELNAME_MODELSUNKNSHIPHULL,
+  MODELNAME_MODELFLOORBASE_BAKED,
+  MODELNAME_MODELSUNKNSUB,
+  MODELNAME_MODELCORAL,
+  MODELNAME_MODELSTONE,
+  MODELNAME_MODELCORALSTONEA,
+  MODELNAME_MODELCORALSTONEB,
+  MODELNAME_MODELGLOBEBASE,
+  MODELNAME_MODELTREASURECHEST,
+  MODELNAME_MODELENVIRONMENTBOX,
+  MODELNAME_MODELSUPPORTBEAMS,
+  MODELNAME_MODELSKYBOX,
+  MODELNAME_MODELGLOBEINNER,
+  MODELNAME_MODELSEAWEEDA,
+  MODELNAME_MODELSEAWEEDB,
 
   /* Begin of fish */
-  MODELSMALLFISHA,
-  MODELMEDIUMFISHA,
-  MODELMEDIUMFISHB,
-  MODELBIGFISHA,
-  MODELBIGFISHB,
-  MODELSMALLFISHAINSTANCEDDRAWS,
-  MODELMEDIUMFISHAINSTANCEDDRAWS,
-  MODELMEDIUMFISHBINSTANCEDDRAWS,
-  MODELBIGFISHAINSTANCEDDRAWS,
-  MODELBIGFISHBINSTANCEDDRAWS,
-  MODELMAX,
+  MODELNAME_MODELSMALLFISHA,
+  MODELNAME_MODELMEDIUMFISHA,
+  MODELNAME_MODELMEDIUMFISHB,
+  MODELNAME_MODELBIGFISHA,
+  MODELNAME_MODELBIGFISHB,
+  MODELNAME_MODELSMALLFISHAINSTANCEDDRAWS,
+  MODELNAME_MODELMEDIUMFISHAINSTANCEDDRAWS,
+  MODELNAME_MODELMEDIUMFISHBINSTANCEDDRAWS,
+  MODELNAME_MODELBIGFISHAINSTANCEDDRAWS,
+  MODELNAME_MODELBIGFISHBINSTANCEDDRAWS,
+  MODELNAME_MODELMAX,
 } model_name_t;
 
 typedef enum {
@@ -681,7 +681,7 @@ typedef struct {
 
 typedef struct {
   float world[16];
-  float world_unverse_transpose[16];
+  float world_inverse_transpose[16];
   float world_view_projection[16];
 } world_uniforms_t;
 
@@ -749,10 +749,10 @@ static struct {
   uint32_t msaa_sample_count;     /* MSAA sample count */
 } aquarium_settings;
 
-static const g_scene_info_t g_scene_info[MODELMAX] = {
+static const g_scene_info_t g_scene_info[MODELNAME_MODELMAX] = {
   {
     .name_str        = "SmallFishA",
-    .name            = MODELSMALLFISHA,
+    .name            = MODELNAME_MODELSMALLFISHA,
     .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishReflectionFragmentShader",
@@ -760,7 +760,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "MediumFishA",
-    .name            = MODELMEDIUMFISHA,
+    .name            = MODELNAME_MODELMEDIUMFISHA,
     .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -768,7 +768,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "MediumFishB",
-    .name            = MODELMEDIUMFISHB,
+    .name            = MODELNAME_MODELMEDIUMFISHB,
     .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishReflectionFragmentShader",
@@ -776,7 +776,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "BigFishA",
-    .name            = MODELBIGFISHA,
+    .name            = MODELNAME_MODELBIGFISHA,
     .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -784,7 +784,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "BigFishB",
-    .name            = MODELBIGFISHB,
+    .name            = MODELNAME_MODELBIGFISHB,
     .type            = MODELGROUP_FISH,
     .shader.vertex   = "fishVertexShader",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -792,7 +792,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SmallFishA",
-    .name            = MODELSMALLFISHAINSTANCEDDRAWS,
+    .name            = MODELNAME_MODELSMALLFISHAINSTANCEDDRAWS,
     .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishReflectionFragmentShader",
@@ -800,7 +800,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "MediumFishA",
-    .name            = MODELMEDIUMFISHAINSTANCEDDRAWS,
+    .name            = MODELNAME_MODELMEDIUMFISHAINSTANCEDDRAWS,
     .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -808,7 +808,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "MediumFishB",
-    .name            = MODELMEDIUMFISHBINSTANCEDDRAWS,
+    .name            = MODELNAME_MODELMEDIUMFISHBINSTANCEDDRAWS,
     .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishReflectionFragmentShader",
@@ -816,7 +816,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "BigFishA",
-    .name            = MODELBIGFISHAINSTANCEDDRAWS,
+    .name            = MODELNAME_MODELBIGFISHAINSTANCEDDRAWS,
     .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -824,7 +824,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "BigFishB",
-    .name            = MODELBIGFISHBINSTANCEDDRAWS,
+    .name            = MODELNAME_MODELBIGFISHBINSTANCEDDRAWS,
     .type            = MODELGROUP_FISHINSTANCEDDRAW,
     .shader.vertex   = "fishVertexShaderInstancedDraws",
     .shader.fragment = "fishNormalMapFragmentShader",
@@ -832,7 +832,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "Arch",
-    .name            = MODELARCH,
+    .name            = MODELNAME_MODELARCH,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -840,7 +840,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "Coral",
-    .name            = MODELCORAL,
+    .name            = MODELNAME_MODELCORAL,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -848,7 +848,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "CoralStoneA",
-    .name            = MODELCORALSTONEA,
+    .name            = MODELNAME_MODELCORALSTONEA,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -856,7 +856,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "CoralStoneB",
-    .name            = MODELCORALSTONEB,
+    .name            = MODELNAME_MODELCORALSTONEB,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -864,7 +864,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "EnvironmentBox",
-    .name            = MODELENVIRONMENTBOX,
+    .name            = MODELNAME_MODELENVIRONMENTBOX,
     .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
@@ -872,7 +872,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "FloorBase_Baked",
-    .name            = MODELFLOORBASE_BAKED,
+    .name            = MODELNAME_MODELFLOORBASE_BAKED,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -880,7 +880,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "GlobeBase",
-    .name            = MODELGLOBEBASE,
+    .name            = MODELNAME_MODELGLOBEBASE,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
@@ -888,7 +888,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "GlobeInner",
-    .name            = MODELGLOBEINNER,
+    .name            = MODELNAME_MODELGLOBEINNER,
     .type            = MODELGROUP_INNER,
     .shader.vertex   = "innerRefractionMapVertexShader",
     .shader.fragment = "innerRefractionMapFragmentShader",
@@ -896,7 +896,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "RockA",
-    .name            = MODELROCKA,
+    .name            = MODELNAME_MODELROCKA,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -904,7 +904,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "RockB",
-    .name            = MODELROCKB,
+    .name            = MODELNAME_MODELROCKB,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -912,7 +912,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "RockC",
-    .name            = MODELROCKC,
+    .name            = MODELNAME_MODELROCKC,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -920,7 +920,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "RuinColumn",
-    .name            = MODELRUINCOLUMN,
+    .name            = MODELNAME_MODELRUINCOLUMN,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -928,7 +928,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "Stone",
-    .name            = MODELSTONE,
+    .name            = MODELNAME_MODELSTONE,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -936,7 +936,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SunknShipBoxes",
-    .name            = MODELSUNKNSHIPBOXES,
+    .name            = MODELNAME_MODELSUNKNSHIPBOXES,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -944,7 +944,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SunknShipDeck",
-    .name            = MODELSUNKNSHIPDECK,
+    .name            = MODELNAME_MODELSUNKNSHIPDECK,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -952,7 +952,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SunknShipHull",
-    .name            = MODELSUNKNSHIPHULL,
+    .name            = MODELNAME_MODELSUNKNSHIPHULL,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -960,7 +960,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SunknSub",
-    .name            = MODELSUNKNSUB,
+    .name            = MODELNAME_MODELSUNKNSUB,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -968,7 +968,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SeaweedA",
-    .name            = MODELSEAWEEDA,
+    .name            = MODELNAME_MODELSEAWEEDA,
     .type            = MODELGROUP_SEAWEED,
     .shader.vertex   = "seaweedVertexShader",
     .shader.fragment = "seaweedFragmentShader",
@@ -976,7 +976,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SeaweedB",
-    .name            = MODELSEAWEEDB,
+    .name            = MODELNAME_MODELSEAWEEDB,
     .type            = MODELGROUP_SEAWEED,
     .shader.vertex   = "seaweedVertexShader",
     .shader.fragment = "seaweedFragmentShader",
@@ -984,7 +984,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "Skybox",
-    .name            = MODELSKYBOX,
+    .name            = MODELNAME_MODELSKYBOX,
     .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "diffuseVertexShader",
     .shader.fragment = "diffuseFragmentShader",
@@ -992,7 +992,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "SupportBeams",
-    .name            = MODELSUPPORTBEAMS,
+    .name            = MODELNAME_MODELSUPPORTBEAMS,
     .type            = MODELGROUP_OUTSIDE,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -1000,7 +1000,7 @@ static const g_scene_info_t g_scene_info[MODELMAX] = {
   },
   {
     .name_str        = "TreasureChest",
-    .name            = MODELTREASURECHEST,
+    .name            = MODELNAME_MODELTREASURECHEST,
     .type            = MODELGROUP_GENERIC,
     .shader.vertex   = "",
     .shader.fragment = "",
@@ -1029,7 +1029,7 @@ static const g_fish_behavior_t g_fish_behaviors[FISH_BEHAVIOR_COUNT] = {
 static const fish_t fish_table[5] = {
   {
     .name             = "SmallFishA",
-    .model_name       = MODELSMALLFISHA,
+    .model_name       = MODELNAME_MODELSMALLFISHA,
     .type             = FISHENUM_SMALL,
     .speed            = 1.0f,
     .speed_range      = 1.5f,
@@ -1044,7 +1044,7 @@ static const fish_t fish_table[5] = {
   },
   {
     .name             = "MediumFishA",
-    .model_name       = MODELMEDIUMFISHA,
+    .model_name       = MODELNAME_MODELMEDIUMFISHA,
     .type             = FISHENUM_MEDIUM,
     .speed            = 1.0f,
     .speed_range      = 2.0f,
@@ -1059,7 +1059,7 @@ static const fish_t fish_table[5] = {
   },
   {
     .name             = "MediumFishB",
-    .model_name       = MODELMEDIUMFISHB,
+    .model_name       = MODELNAME_MODELMEDIUMFISHB,
     .type             = FISHENUM_MEDIUM,
     .speed            = 0.5f,
     .speed_range      = 4.0f,
@@ -1074,7 +1074,7 @@ static const fish_t fish_table[5] = {
   },
   {
     .name             = "BigFishA",
-    .model_name       = MODELBIGFISHA,
+    .model_name       = MODELNAME_MODELBIGFISHA,
     .type             = FISHENUM_BIG,
     .speed            = 0.5f,
     .speed_range      = 0.5f,
@@ -1093,7 +1093,7 @@ static const fish_t fish_table[5] = {
   },
   {
     .name             = "BigFishB",
-    .model_name       = MODELBIGFISHA,
+    .model_name       = MODELNAME_MODELBIGFISHA,
     .type             = FISHENUM_BIG,
     .speed            = 0.5f,
     .speed_range      = 0.5f,
@@ -1982,8 +1982,8 @@ typedef struct {
   struct {
     char key[STRMAX];
     model_name_t value;
-  } model_enum_map[MODELMAX];
-  void* aquarium_models[MODELMAX];
+  } model_enum_map[MODELNAME_MODELMAX];
+  void* aquarium_models[MODELNAME_MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
   int32_t test_time;
@@ -2740,6 +2740,10 @@ static void context_update_all_fish_data(context_t* this)
                              sizeof(fish_per_t) * this->cur_total_instance);
 }
 
+static void context_begin_render_pass(context_t* this)
+{
+}
+
 static void context_destory_fish_resource(context_t* this)
 {
   buffer_manager_destroy_buffer_pool(this->buffer_manager);
@@ -2835,7 +2839,8 @@ static void aquarium_calculate_fish_count(aquarium_t* this)
         }
       }
       num_left = num_left - num_float;
-      this->fish_count[fish_info->model_name - MODELSMALLFISHA] = num_float;
+      this->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA]
+        = num_float;
     }
   }
 }
@@ -2880,8 +2885,8 @@ static model_name_t
 aquarium_map_model_name_str_to_model_name(aquarium_t* this,
                                           const char* model_name_str)
 {
-  model_name_t model_name = MODELMAX;
-  for (uint32_t i = 0; i < MODELMAX; ++i) {
+  model_name_t model_name = MODELNAME_MODELMAX;
+  for (uint32_t i = 0; i < MODELNAME_MODELMAX; ++i) {
     if (strcmp(this->model_enum_map[i].key, model_name_str) == 0) {
       model_name = this->model_enum_map[i].value;
       break;
@@ -2892,7 +2897,7 @@ aquarium_map_model_name_str_to_model_name(aquarium_t* this,
 
 static void aquarium_setup_model_enum_map(aquarium_t* this)
 {
-  for (uint32_t i = 0; i < MODELMAX; ++i) {
+  for (uint32_t i = 0; i < MODELNAME_MODELMAX; ++i) {
     snprintf(this->model_enum_map[i].key, strlen(g_scene_info[i].name_str) + 1,
              "%s", g_scene_info[i].name_str);
     this->model_enum_map[i].value = g_scene_info[i].name;
@@ -3022,20 +3027,6 @@ static void aquarium_render(aquarium_t* this)
   aquarium_update_and_draw(this);
 }
 
-static void aquarium_update_and_draw(aquarium_t* this)
-{
-  bool draw_per_model = aquarium_settings.draw_per_model;
-  int32_t fish_begin  = aquarium_settings.enable_instanced_draw ?
-                          MODELSMALLFISHAINSTANCEDDRAWS :
-                          MODELSMALLFISHA;
-  int32_t fish_end    = aquarium_settings.enable_instanced_draw ?
-                          MODELBIGFISHBINSTANCEDDRAWS :
-                          MODELBIGFISHB;
-
-  for (uint32_t i = MODELRUINCOLUMN; i <= MODELSEAWEEDB; ++i) {
-  }
-}
-
 /* -------------------------------------------------------------------------- *
  * Model - Defines generic model.
  * -------------------------------------------------------------------------- */
@@ -3103,6 +3094,27 @@ static void model_set_program(model_t* this, program_t* prgm)
   this->program = prgm;
 }
 
+static void model_prepare_for_draw(model_t* this)
+{
+}
+
+static void
+model_update_per_instance_uniforms(model_t* this,
+                                   const world_uniforms_t* world_uniforms)
+{
+}
+
+static void model_draw(model_t* this)
+{
+}
+
+static void model_update_fish_per_uniforms(model_t* this, float x, float y,
+                                           float z, float next_x, float next_y,
+                                           float next_z, float scale,
+                                           float time, int index)
+{
+}
+
 /* -------------------------------------------------------------------------- *
  * Fish model - Defined fish model
  *  - Updates fish specific uniforms.
@@ -3136,15 +3148,18 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
 static void fish_model_prepare_for_draw(fish_model_t* this)
 {
   this->fish_per_offset = 0;
-  for (uint32_t i = 0; i < this->model.name - MODELSMALLFISHA; ++i) {
+  for (uint32_t i = 0; i < this->model.name - MODELNAME_MODELSMALLFISHA; ++i) {
     const fish_t* fish_info = &fish_table[i];
     this->fish_per_offset
-      += this->aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+      += this->aquarium
+           ->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
   }
 
-  const fish_t* fish_info = &fish_table[this->model.name - MODELSMALLFISHA];
+  const fish_t* fish_info
+    = &fish_table[this->model.name - MODELNAME_MODELSMALLFISHA];
   this->cur_instance
-    = this->aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+    = this->aquarium
+        ->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
 }
 
 /* -------------------------------------------------------------------------- *
@@ -3209,13 +3224,13 @@ static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
-  const fish_t* fish_info                = &fish_table[name - MODELSMALLFISHA];
-  this->fish_vertex_uniforms.fish_length = fish_info->fish_length;
+  const fish_t* fish_info = &fish_table[name - MODELNAME_MODELSMALLFISHA];
+  this->fish_vertex_uniforms.fish_length      = fish_info->fish_length;
   this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
   this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
 
   this->fish_model.cur_instance
-    = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+    = aquarium->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
   this->fish_model.pre_instance = this->fish_model.cur_instance;
 }
 
@@ -3662,13 +3677,14 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
   this->context      = aquarium_context;
   this->wgpu_context = aquarium_context->wgpu_context;
 
-  const fish_t* fish_info = &fish_table[name - MODELSMALLFISHAINSTANCEDDRAWS];
+  const fish_t* fish_info
+    = &fish_table[name - MODELNAME_MODELSMALLFISHAINSTANCEDDRAWS];
   this->fish_vertex_uniforms.fish_length      = fish_info->fish_length;
   this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
   this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
 
   this->instance
-    = aquarium->fish_count[fish_info->model_name - MODELSMALLFISHA];
+    = aquarium->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
   this->fish_pers
     = malloc(this->instance + sizeof(fish_model_instanced_draw_fish_per));
   memset(this->fish_pers, 0, sizeof(*this->fish_pers));
@@ -4231,7 +4247,7 @@ static void generic_model_initialize(generic_model_t* this)
     vertex_buffer_layouts[4].stepMode       = WGPUVertexStepMode_Vertex;
     vertex_buffer_layouts[4].attributeCount = 1;
     vertex_buffer_layouts[4].attributes     = &vertex_attributes[4];
-    if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+    if (this->textures.normal && this->model.name != MODELNAME_MODELGLOBEBASE) {
       vertex_buffer_layout_count = 5;
     }
     else {
@@ -4281,10 +4297,11 @@ static void generic_model_initialize(generic_model_t* this)
     bgl_entries[6].texture.viewDimension    = WGPUTextureViewDimension_Cube;
     bgl_entries[6].texture.multisampled     = false;
     if (this->textures.skybox && this->textures.reflection
-        && this->model.name != MODELGLOBEBASE) {
+        && this->model.name != MODELNAME_MODELGLOBEBASE) {
       bgl_entry_count = 7;
     }
-    else if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+    else if (this->textures.normal
+             && this->model.name != MODELNAME_MODELGLOBEBASE) {
       bgl_entry_count = 4;
     }
     else {
@@ -4346,7 +4363,7 @@ static void generic_model_initialize(generic_model_t* this)
     bg_entries[0].offset             = 0;
     bg_entries[0].size               = sizeof(light_uniforms_t);
     if (this->textures.skybox && this->textures.reflection
-        && this->model.name != MODELGLOBEBASE) {
+        && this->model.name != MODELNAME_MODELGLOBEBASE) {
       bg_entry_count            = 7;
       bg_entries[1].binding     = 1;
       bg_entries[1].sampler     = this->textures.reflection->sampler,
@@ -4361,7 +4378,8 @@ static void generic_model_initialize(generic_model_t* this)
       bg_entries[6].binding     = 6;
       bg_entries[6].textureView = this->textures.skybox->view;
     }
-    else if (this->textures.normal && this->model.name != MODELGLOBEBASE) {
+    else if (this->textures.normal
+             && this->model.name != MODELNAME_MODELGLOBEBASE) {
       bg_entry_count            = 4;
       bg_entries[1].binding     = 1;
       bg_entries[1].sampler     = this->textures.diffuse->sampler;
@@ -5534,20 +5552,20 @@ static int32_t aquarium_load_placement(aquarium_t* this)
     goto load_placement_end;
   }
 
-  model_name_t model_name         = MODELMAX;
+  model_name_t model_name         = MODELNAME_MODELMAX;
   uint16_t model_world_matrix_ctr = 0;
 
   cJSON_ArrayForEach(object, objects)
   {
     name       = cJSON_GetObjectItemCaseSensitive(object, "name");
-    model_name = MODELMAX;
+    model_name = MODELNAME_MODELMAX;
     if (cJSON_IsString(name) && (name->valuestring != NULL)) {
       model_name
         = aquarium_map_model_name_str_to_model_name(this, name->valuestring);
     }
 
     world_matrix = cJSON_GetObjectItemCaseSensitive(object, "worldMatrix");
-    if (model_name != MODELMAX && cJSON_IsArray(world_matrix)
+    if (model_name != MODELNAME_MODELMAX && cJSON_IsArray(world_matrix)
         && cJSON_GetArraySize(world_matrix) == 16) {
       model_t* model = (model_t*)this->aquarium_models[model_name];
       world_matrix_t* model_world_matrix
@@ -5576,7 +5594,7 @@ load_placement_end:
 static int32_t aquarium_load_models(aquarium_t* this)
 {
   const bool enable_instanced_draw = aquarium_settings.enable_instanced_draw;
-  for (uint32_t i = 0; i < MODELMAX; ++i) {
+  for (uint32_t i = 0; i < MODELNAME_MODELMAX; ++i) {
     const g_scene_info_t* info = &g_scene_info[i];
     if ((enable_instanced_draw && info->type == MODELGROUP_FISH)
         || ((!enable_instanced_draw)
@@ -5604,6 +5622,109 @@ static int32_t aquarium_load_fish_scenario(aquarium_t* this)
 static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
 {
   return EXIT_SUCCESS;
+}
+
+static void aquarium_update_and_draw(aquarium_t* this)
+{
+  global_t* g                      = &this->g;
+  world_uniforms_t* world_uniforms = &this->world_uniforms;
+
+  bool draw_per_model = aquarium_settings.draw_per_model;
+  int32_t fish_begin  = aquarium_settings.enable_instanced_draw ?
+                          MODELNAME_MODELSMALLFISHAINSTANCEDDRAWS :
+                          MODELNAME_MODELSMALLFISHA;
+  int32_t fish_end    = aquarium_settings.enable_instanced_draw ?
+                          MODELNAME_MODELBIGFISHBINSTANCEDDRAWS :
+                          MODELNAME_MODELBIGFISHB;
+
+  for (uint32_t i = MODELNAME_MODELRUINCOLUMN; i <= MODELNAME_MODELSEAWEEDB;
+       ++i) {
+    model_t* model = this->aquarium_models[i];
+    model_prepare_for_draw(model);
+
+    for (uint32_t w = 0; w < model->world_matrix_count; ++i) {
+      world_matrix_t* world_matrix = &model->world_matrices[i];
+      memcpy(world_uniforms->world, *world_matrix, 16 * sizeof(float));
+      matrix_mul_matrix_matrix4(
+        world_uniforms->world_view_projection, world_uniforms->world,
+        this->light_world_position_uniform.view_projection);
+      matrix_inverse4(g->world_inverse, world_uniforms->world);
+      matrix_transpose4(world_uniforms->world_inverse_transpose,
+                        g->world_inverse);
+
+      model_update_per_instance_uniforms(model, world_uniforms);
+      if (!draw_per_model) {
+        model_draw(model);
+      }
+    }
+  }
+
+  for (int i = fish_begin; i <= fish_end; ++i) {
+    model_t* model = (model_t*)this->aquarium_models[i];
+    model_prepare_for_draw(model);
+
+    const fish_t* fish_info = &fish_table[i - fish_begin];
+    int numFish             = this->fish_count[i - fish_begin];
+    float fish_base_clock   = g->mclock * g_settings.fish_speed;
+    float fish_radius       = fish_info->radius;
+    float fish_radius_range = fish_info->radius_range;
+    float fish_speed        = fish_info->speed;
+    float fish_speed_range  = fish_info->speed_range;
+    float fish_tail_speed = fish_info->tail_speed * g_settings.fish_tail_speed;
+    float fish_offset     = g_settings.fish_offset;
+    // float fishClockSpeed  = g_fishSpeed;
+    float fish_height = g_settings.fish_height + fish_info->height_offset;
+    float fish_height_range
+      = g_settings.fish_height_range * fish_info->height_range;
+    float fish_xclock = g_settings.fish_xclock;
+    float fish_yclock = g_settings.fish_yclock;
+    float fish_zclock = g_settings.fish_zclock;
+
+    for (int ii = 0; ii < numFish; ++ii) {
+      float fish_clock = fish_base_clock + ii * fish_offset;
+      float speed
+        = fish_speed + ((float)matrix_pseudo_random()) * fish_speed_range;
+      float scale = 1.0f + ((float)matrix_pseudo_random()) * 1.0f;
+      float x_radius
+        = fish_radius + ((float)matrix_pseudo_random()) * fish_radius_range;
+      float y_radius
+        = 2.0f + ((float)matrix_pseudo_random()) * fish_height_range;
+      float z_radius
+        = fish_radius + ((float)matrix_pseudo_random()) * fish_radius_range;
+      float fishSpeedClock = fish_clock * speed;
+      float x_clock        = fishSpeedClock * fish_xclock;
+      float y_clock        = fishSpeedClock * fish_yclock;
+      float z_clock        = fishSpeedClock * fish_zclock;
+
+      model_update_fish_per_uniforms(
+        model, sin(x_clock) * x_radius, sin(y_clock) * y_radius + fish_height,
+        cos(z_clock) * z_radius, sin(x_clock - 0.04f) * x_radius,
+        sin(y_clock - 0.01f) * y_radius + fish_height,
+        cos(z_clock - 0.04f) * z_radius, scale,
+        fmod((g->mclock + ii * g_settings.tail_offset_mult) * fish_tail_speed
+               * speed,
+             PI * 2.0f),
+        ii);
+
+      if (!draw_per_model) {
+        model_update_per_instance_uniforms(model, world_uniforms);
+        model_draw(model);
+      }
+    }
+  }
+
+  if (draw_per_model) {
+    context_update_all_fish_data(&this->context);
+    context_begin_render_pass(&this->context);
+    for (int i = 0; i <= MODELNAME_MODELMAX; ++i) {
+      if (i >= MODELNAME_MODELSMALLFISHA && (i < fish_begin || i > fish_end)) {
+        continue;
+      }
+
+      model_t* model = (model_t*)this->aquarium_models[i];
+      model_draw(model);
+    }
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
