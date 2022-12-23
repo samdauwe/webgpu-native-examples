@@ -1970,6 +1970,7 @@ typedef struct {
 sc_queue_def(behavior_t*, behavior);
 
 typedef struct {
+  wgpu_example_context_t* wgpu_example_context;
   wgpu_context_t* wgpu_context;
   context_t context;
   light_world_position_uniform_t light_world_position_uniform;
@@ -2754,20 +2755,10 @@ static int32_t aquarium_load_fish_scenario(aquarium_t* this);
 static int32_t aquarium_load_model(aquarium_t* this,
                                    const g_scene_info_t* info);
 
-static uint64_t get_current_time_point_ns()
+static uint64_t
+get_current_time_point_ms(wgpu_example_context_t* wgpu_example_context)
 {
-  long int ns;
-  uint64_t timepoint;
-  time_t sec;
-  struct timespec spec;
-
-  clock_gettime(CLOCK_REALTIME, &spec);
-  sec = spec.tv_sec;
-  ns  = spec.tv_nsec;
-
-  timepoint = (uint64_t)sec * BILLION + (uint64_t)ns;
-
-  return timepoint;
+  return wgpu_example_context->frame.timestamp_millis;
 }
 
 static void aquarium_init_defaults(aquarium_t* this)
@@ -2778,7 +2769,7 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->pre_fish_count = 0;
   this->test_time      = INT_MAX;
 
-  this->g.then      = get_current_time_point_ns();
+  this->g.then      = 0.0f;
   this->g.mclock    = 0.0f;
   this->g.eye_clock = 0.0f;
   this->g.alpha     = "1";
@@ -2813,6 +2804,8 @@ static void aquarium_init_defaults(aquarium_t* this)
 static void aquarium_create(aquarium_t* this)
 {
   aquarium_init_defaults(this);
+
+  this->g.then = get_current_time_point_ms(this->wgpu_example_context);
 }
 
 static void aquarium_calculate_fish_count(aquarium_t* this)
@@ -2870,7 +2863,7 @@ static int32_t aquarium_get_pre_fish_count(aquarium_t* this)
 
 static void aquarium_reset_fps_time(aquarium_t* this)
 {
-  this->g.start = get_current_time_point_ns();
+  this->g.start = get_current_time_point_ms(this->wgpu_example_context);
   this->g.then  = this->g.start;
 }
 
@@ -2906,12 +2899,10 @@ static void aquarium_setup_model_enum_map(aquarium_t* this)
   }
 }
 
-static float
-aquarium_get_elapsed_time(aquarium_t* this,
-                          wgpu_example_context_t* wgpu_example_context)
+static float aquarium_get_elapsed_time(aquarium_t* this)
 {
   // Update our time
-  float now          = wgpu_example_context->frame.timestamp_millis;
+  float now          = this->wgpu_example_context->frame.timestamp_millis;
   float elapsed_time = now - this->g.then;
   this->g.then       = now;
 
@@ -2923,15 +2914,13 @@ static void aquarium_update_world_uniforms(aquarium_t* this)
   context_update_world_uniforms(&this->context, this);
 }
 
-static void
-aquarium_update_global_uniforms(aquarium_t* this,
-                                wgpu_example_context_t* wgpu_example_context)
+static void aquarium_update_global_uniforms(aquarium_t* this)
 {
   global_t* g = &this->g;
   light_world_position_uniform_t* light_world_position_uniform
     = &this->light_world_position_uniform;
 
-  float elapsed_time = aquarium_get_elapsed_time(this, wgpu_example_context);
+  float elapsed_time = aquarium_get_elapsed_time(this);
   g->mclock += elapsed_time * g_settings.speed;
   g->eye_clock += elapsed_time * g_settings.eye_speed;
 
@@ -2990,15 +2979,14 @@ aquarium_update_global_uniforms(aquarium_t* this,
 
 static void aquarium_update_and_draw(aquarium_t* this);
 
-static void aquarium_render(aquarium_t* this,
-                            wgpu_example_context_t* wgpu_example_context)
+static void aquarium_render(aquarium_t* this)
 {
   matrix_reset_pseudoRandom();
 
   context_pre_frame(&this->context);
 
   /* Global Uniforms should update after command reallocation. */
-  aquarium_update_global_uniforms(this, wgpu_example_context);
+  aquarium_update_global_uniforms(this);
 
   if (aquarium_settings.simulate_fish_come_and_go) {
     if (!sc_queue_empty(&this->fish_behavior)) {
