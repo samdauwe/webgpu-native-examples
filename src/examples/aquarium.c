@@ -2907,6 +2907,22 @@ static void aquarium_setup_model_enum_map(aquarium_t* this)
   }
 }
 
+static int32_t aquarium_load_models(aquarium_t* this)
+{
+  const bool enable_instanced_draw = aquarium_settings.enable_instanced_draw;
+  for (uint32_t i = 0; i < MODELNAME_MODELMAX; ++i) {
+    const g_scene_info_t* info = &g_scene_info[i];
+    if ((enable_instanced_draw && info->type == MODELGROUP_FISH)
+        || ((!enable_instanced_draw)
+            && info->type == MODELGROUP_FISHINSTANCEDDRAW)) {
+      continue;
+    }
+    aquarium_load_model(this, info);
+  }
+
+  return EXIT_SUCCESS;
+}
+
 static void aquarium_calculate_fish_count(aquarium_t* this)
 {
   /* Calculate fish count for each type of fish */
@@ -5625,22 +5641,6 @@ load_placement_end:
   cJSON_Delete(placement_json);
   free(file_read_result.data);
   return status;
-}
-
-static int32_t aquarium_load_models(aquarium_t* this)
-{
-  const bool enable_instanced_draw = aquarium_settings.enable_instanced_draw;
-  for (uint32_t i = 0; i < MODELNAME_MODELMAX; ++i) {
-    const g_scene_info_t* info = &g_scene_info[i];
-    if ((enable_instanced_draw && info->type == MODELGROUP_FISH)
-        || ((!enable_instanced_draw)
-            && info->type == MODELGROUP_FISHINSTANCEDDRAW)) {
-      continue;
-    }
-    aquarium_load_model(this, info);
-  }
-
-  return EXIT_SUCCESS;
 }
 
 static int32_t aquarium_load_fish_scenario(aquarium_t* this)
