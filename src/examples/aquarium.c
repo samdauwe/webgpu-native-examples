@@ -3073,6 +3073,8 @@ static void aquarium_render(aquarium_t* this)
                                this->cur_fish_count,
                                enable_dynamic_buffer_offset);
       this->pre_fish_count = this->cur_fish_count;
+
+      aquarium_reset_fps_time(this);
     }
   }
 
