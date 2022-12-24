@@ -2788,6 +2788,7 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static void aquarium_calculate_fish_count(aquarium_t* this);
 static int32_t aquarium_load_placement(aquarium_t* this);
 static int32_t aquarium_load_models(aquarium_t* this);
 static int32_t aquarium_load_fish_scenario(aquarium_t* this);
@@ -2845,39 +2846,6 @@ static void aquarium_create(aquarium_t* this)
   aquarium_init_defaults(this);
 
   this->g.then = get_current_time_point_ms(this->wgpu_example_context);
-}
-
-static void aquarium_calculate_fish_count(aquarium_t* this)
-{
-  /* Calculate fish count for each type of fish */
-  int32_t num_left = this->cur_fish_count;
-  for (int i = 0; i < FISHENUM_MAX; ++i) {
-    for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(fish_table); ++i) {
-      const fish_t* fish_info = &fish_table[i];
-      if (fish_info->type != i) {
-        continue;
-      }
-      int32_t num_float = num_left;
-      if (i == FISHENUM_BIG) {
-        int32_t temp = this->cur_fish_count < g_settings.num_fish_small ? 1 : 2;
-        num_float    = MIN(num_left, temp);
-      }
-      else if (i == FISHENUM_MEDIUM) {
-        if (this->cur_fish_count < g_settings.num_fish_medium) {
-          num_float = MIN(num_left, this->cur_fish_count / 10);
-        }
-        else if (this->cur_fish_count < g_settings.num_fish_big) {
-          num_float = MIN(num_left, g_settings.num_fish_left_small);
-        }
-        else {
-          num_float = MIN(num_left, g_settings.num_fish_left_big);
-        }
-      }
-      num_left = num_left - num_float;
-      this->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA]
-        = num_float;
-    }
-  }
 }
 
 static void aquarium_init(aquarium_t* this)
@@ -2939,9 +2907,42 @@ static void aquarium_setup_model_enum_map(aquarium_t* this)
   }
 }
 
+static void aquarium_calculate_fish_count(aquarium_t* this)
+{
+  /* Calculate fish count for each type of fish */
+  int32_t num_left = this->cur_fish_count;
+  for (int i = 0; i < FISHENUM_MAX; ++i) {
+    for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(fish_table); ++i) {
+      const fish_t* fish_info = &fish_table[i];
+      if (fish_info->type != i) {
+        continue;
+      }
+      int32_t num_float = num_left;
+      if (i == FISHENUM_BIG) {
+        int32_t temp = this->cur_fish_count < g_settings.num_fish_small ? 1 : 2;
+        num_float    = MIN(num_left, temp);
+      }
+      else if (i == FISHENUM_MEDIUM) {
+        if (this->cur_fish_count < g_settings.num_fish_medium) {
+          num_float = MIN(num_left, this->cur_fish_count / 10);
+        }
+        else if (this->cur_fish_count < g_settings.num_fish_big) {
+          num_float = MIN(num_left, g_settings.num_fish_left_small);
+        }
+        else {
+          num_float = MIN(num_left, g_settings.num_fish_left_big);
+        }
+      }
+      num_left = num_left - num_float;
+      this->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA]
+        = num_float;
+    }
+  }
+}
+
 static float aquarium_get_elapsed_time(aquarium_t* this)
 {
-  // Update our time
+  /* Update our time */
   float now          = this->wgpu_example_context->frame.timestamp_millis;
   float elapsed_time = now - this->g.then;
   this->g.then       = now;
@@ -2986,7 +2987,7 @@ static void aquarium_update_global_uniforms(aquarium_t* this)
   float xOff   = width * g_settings.net_offset[0] * g_settings.net_offset_mult;
   float yOff   = height * g_settings.net_offset[1] * g_settings.net_offset_mult;
 
-  // set frustum and camera look at
+  /* Set frustum and camera look at */
   matrix_frustum(g->projection, left + xOff, right + xOff, bottom + yOff,
                  top + yOff, near_plane, far_plane);
   matrix_camera_look_at(light_world_position_uniform->view_inverse,
