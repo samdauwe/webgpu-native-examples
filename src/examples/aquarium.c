@@ -1889,11 +1889,10 @@ static const char* const sky_box_urls[6] = {
 
 typedef struct {
   char image_path[STRMAX];
-  char sky_box_urls_path[6][STRMAX];
+  char sky_box_paths[6][STRMAX];
   char program_path[STRMAX];
   char prop_placement_path[STRMAX];
   char model_path[STRMAX];
-  char fish_behavior_path[STRMAX];
 } resource_helper_t;
 
 static void resource_helper_init_defaults(resource_helper_t* this)
@@ -1905,15 +1904,51 @@ static void resource_helper_create(resource_helper_t* this)
 {
   resource_helper_init_defaults(this);
 
-  snprintf(this->prop_placement_path, sizeof(this->prop_placement_path),
-           "%s%s%s%s%s", models_folder, slash, aquarium_folder, slash,
-           "PropPlacement.js");
+  /* Model path */
+  snprintf(this->model_path, sizeof(this->model_path), "%s%s%s%s",
+           models_folder, slash, aquarium_folder, slash);
+
+  /* Placement path */
+  snprintf(this->prop_placement_path, sizeof(this->prop_placement_path), "%s%s",
+           this->model_path, "PropPlacement.js");
+
+  /* Image path */
+  snprintf(this->image_path, sizeof(this->image_path), "%s%s%s%s",
+           textures_folder, slash, aquarium_folder, slash);
+
+  /* Program path */
+  snprintf(this->program_path, sizeof(this->program_path), "%s%s%s%s",
+           shaders_folder, slash, aquarium_folder, slash);
+
+  /* Skybox urls */
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(sky_box_urls); ++i) {
+    snprintf(this->sky_box_paths[i], sizeof(this->sky_box_paths[i]), "%s%s",
+             this->image_path, sky_box_urls[i]);
+  }
 }
 
 static const char*
-resource_helper_get_prop_placementPath(const resource_helper_t* this)
+resource_helper_get_prop_placement_path(const resource_helper_t* this)
 {
   return this->prop_placement_path;
+}
+
+static const char* resource_helper_get_image_path(const resource_helper_t* this)
+{
+  return this->image_path;
+}
+
+static void resource_helper_get_model_path(const resource_helper_t* this,
+                                           const char* model_name,
+                                           char (*dst)[STRMAX])
+{
+  snprintf((char*)dst, sizeof(dst), "%s%s.js", this->model_path, model_name);
+}
+
+static const char*
+resource_helper_get_program_path(const resource_helper_t* this)
+{
+  return this->program_path;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -5517,7 +5552,7 @@ static int32_t aquarium_load_placement(aquarium_t* this)
   const resource_helper_t* resource_helper
     = context_get_resource_helper(&this->context);
   const char* prop_path
-    = resource_helper_get_prop_placementPath(resource_helper);
+    = resource_helper_get_prop_placement_path(resource_helper);
   if (!file_exists(prop_path)) {
     log_fatal("Could not load placements file %s", prop_path);
     return status;
@@ -5621,6 +5656,14 @@ static int32_t aquarium_load_fish_scenario(aquarium_t* this)
 /* Load vertex and index buffers, textures and program for each model. */
 static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
 {
+  int32_t status = EXIT_FAILURE;
+  const resource_helper_t* resource_helper
+    = context_get_resource_helper(&this->context);
+  const char* image_path   = resource_helper_get_image_path(resource_helper);
+  const char* program_path = resource_helper_get_program_path(resource_helper);
+  char model_path[STRMAX]  = {0};
+  resource_helper_get_model_path(resource_helper, info->name_str, &model_path);
+
   return EXIT_SUCCESS;
 }
 
@@ -5738,8 +5781,7 @@ void example_aquarium(int argc, char* argv[])
   aquarium_t aquarium;
   aquarium_init(&aquarium);
   aquarium_setup_model_enum_map(&aquarium);
-
-  // load_placement(&aquarium);
+  aquarium_load_models(&aquarium);
 #elif 1
   aquarium_t aquarium;
   aquarium_setup_model_enum_map(&aquarium);
