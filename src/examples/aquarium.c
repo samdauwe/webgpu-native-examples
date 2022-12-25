@@ -537,6 +537,7 @@ typedef struct {
     const char* fragment;
   } shader;
   bool fog;
+  bool blend;
 } g_scene_info_t;
 
 #define FISH_BEHAVIOR_COUNT (3u)
@@ -1942,7 +1943,7 @@ static void resource_helper_get_model_path(const resource_helper_t* this,
                                            const char* model_name,
                                            char (*dst)[STRMAX])
 {
-  snprintf((char*)dst, sizeof(dst), "%s%s.js", this->model_path, model_name);
+  snprintf((char*)dst, sizeof(*dst), "%s%s.js", this->model_path, model_name);
 }
 
 static const char*
@@ -2918,6 +2919,7 @@ static int32_t aquarium_load_models(aquarium_t* this)
       continue;
     }
     aquarium_load_model(this, info);
+    break;
   }
 
   return EXIT_SUCCESS;
@@ -5656,6 +5658,13 @@ static int32_t aquarium_load_fish_scenario(aquarium_t* this)
   return EXIT_SUCCESS;
 }
 
+static model_t* context_create_model(context_t* this, aquarium_t* aquarium,
+                                     model_group_t type, model_name_t name,
+                                     bool blend)
+{
+  return NULL;
+}
+
 /* Load vertex and index buffers, textures and program for each model. */
 static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
 {
@@ -5666,8 +5675,87 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
   const char* program_path = resource_helper_get_program_path(resource_helper);
   char model_path[STRMAX]  = {0};
   resource_helper_get_model_path(resource_helper, info->name_str, &model_path);
+  if (!file_exists(model_path)) {
+    log_fatal("Could not load model file %s", model_path);
+    return status;
+  }
 
-  return EXIT_SUCCESS;
+  file_read_result_t file_read_result = {0};
+  read_file(model_path, &file_read_result, true);
+  const char* const model_data = (const char* const)file_read_result.data;
+
+  const cJSON* models        = NULL;
+  const cJSON* model_item    = NULL;
+  const cJSON* texture_array = NULL;
+  const cJSON* texture_item  = NULL;
+  const cJSON* arrays        = NULL;
+  const cJSON* array_item    = NULL;
+  cJSON* model_json          = cJSON_Parse(model_data);
+  if (model_json == NULL) {
+    const char* error_ptr = cJSON_GetErrorPtr();
+    if (error_ptr != NULL) {
+      fprintf(stderr, "Error before: %s\n", error_ptr);
+    }
+    goto load_model_end;
+  }
+
+  if (!cJSON_IsObject(model_json)
+      || !cJSON_HasObjectItem(model_json, "models")) {
+    fprintf(stderr, "Invalid models file\n");
+    goto load_model_end;
+  }
+
+  models = cJSON_GetObjectItemCaseSensitive(model_json, "models");
+  if (!cJSON_IsArray(models)) {
+    fprintf(stderr, "Models item is not an array\n");
+    goto load_model_end;
+  }
+
+  model_t* model = NULL;
+  if (aquarium_settings.enable_alpha_blending && info->type != MODELGROUP_INNER
+      && info->type != MODELGROUP_OUTSIDE) {
+    model = context_create_model(&this->context, this, info->type, info->name,
+                                 true);
+  }
+  else {
+    model = context_create_model(&this->context, this, info->type, info->name,
+                                 info->blend);
+  }
+
+  model_item = cJSON_GetArrayItem(models, cJSON_GetArraySize(models) - 1);
+  {
+    /* Set up textures */
+    texture_array = cJSON_GetObjectItemCaseSensitive(model_item, "textures");
+    cJSON_ArrayForEach(texture_item, texture_array)
+    {
+      const char* name  = texture_item->string;
+      const char* image = texture_item->valuestring;
+      printf("Found name '%s', set to image '%s'\n", name, image);
+    }
+
+    /* Set up vertices */
+    arrays = cJSON_GetObjectItemCaseSensitive(model_item, "fields");
+    cJSON_ArrayForEach(array_item, arrays)
+    {
+      const char* name = array_item->string;
+      int32_t num_components
+        = cJSON_GetObjectItemCaseSensitive(array_item, "numComponents")
+            ->valueint;
+      const char* type
+        = cJSON_GetObjectItemCaseSensitive(array_item, "type")->valuestring;
+      printf("Found name '%s', num_components = %d, type = %s\n", name,
+             num_components, type);
+      if (strcmp(name, "indices") == 0) {
+      }
+      else {
+      }
+    }
+  }
+
+load_model_end:
+  cJSON_Delete(model_json);
+  free(file_read_result.data);
+  return status;
 }
 
 static void aquarium_update_and_draw(aquarium_t* this)
