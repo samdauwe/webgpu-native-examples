@@ -533,8 +533,8 @@ typedef struct {
   model_name_t name;
   model_group_t type;
   struct {
-    const char* vertex;
-    const char* fragment;
+    char vertex[STRMAX];
+    char fragment[STRMAX];
   } program;
   bool fog;
   bool blend;
@@ -3143,6 +3143,10 @@ static void model_destroy(model_t* this)
       buf = NULL;
     }
   }
+}
+
+static void model_init(model_t* this)
+{
 }
 
 static void model_set_program(model_t* this, program_t* prgm)
@@ -5758,11 +5762,30 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
      * DM+NM
      * DM+NM+RM
      */
-    const char* vs_id;
-    const char* fs_id;
+    char vs_id[STRMAX];
+    char fs_id[STRMAX];
+    char concat_id[STRMAX * 2];
 
-    vs_id = info->program.vertex;
-    fs_id = info->program.fragment;
+    snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
+    snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
+
+    if ((strcmp(vs_id, "") == 0) && (strcmp(fs_id, "") == 0)) {
+    }
+    else {
+      snprintf(vs_id, sizeof(vs_id), "%s", "diffuseVertexShader");
+      snprintf(fs_id, sizeof(fs_id), "%s", "diffuseFragmentShader");
+    }
+
+    snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
+
+    printf("%s\n", concat_id);
+
+    program_t* program = NULL;
+    {
+    }
+
+    model_set_program(model, program);
+    model_init(model);
   }
 
 load_model_end:
@@ -5885,7 +5908,7 @@ void example_aquarium(int argc, char* argv[])
   aquarium_t aquarium;
   aquarium_init(&aquarium);
   aquarium_setup_model_enum_map(&aquarium);
-  aquarium_load_models(&aquarium);
+  // aquarium_load_models(&aquarium);
 #elif 1
   aquarium_t aquarium;
   aquarium_setup_model_enum_map(&aquarium);
