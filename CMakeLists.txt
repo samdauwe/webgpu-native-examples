@@ -142,6 +142,7 @@ set(HEADERS
     src/core/camera.h
     src/core/file.h
     src/core/frustum.h
+    src/core/hashmap.h
     src/core/input.h
     src/core/log.h
     src/core/macro.h
@@ -170,6 +171,7 @@ set(SOURCES
     src/core/camera.c
     src/core/file.c
     src/core/frustum.c
+    src/core/hashmap.c
     src/core/log.c
     src/core/math.c
     src/core/utils.c
