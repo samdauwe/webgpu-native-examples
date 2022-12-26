@@ -10,7 +10,7 @@
 
 #ifdef __linux__
 #include <unistd.h>
-const char* slash = "/";
+static const char* slash = "/";
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -365,7 +365,7 @@ static void matrix_camera_look_at(float* dst, const float* eye,
 
 static long long matrix_random_seed_ = 0;
 
-void matrix_reset_pseudoRandom()
+static void matrix_reset_pseudoRandom()
 {
   matrix_random_seed_ = 0;
 }
@@ -377,7 +377,7 @@ static double matrix_pseudo_random()
   return ((double)matrix_random_seed_) / ((double)MATRIX_RANDOM_RANGE_);
 }
 
-void matrix_translation(float* dst, const float* v)
+static void matrix_translation(float* dst, const float* v)
 {
   dst[0]  = 1;
   dst[1]  = 0;
@@ -397,7 +397,7 @@ void matrix_translation(float* dst, const float* v)
   dst[15] = 1;
 }
 
-void matrix_translate(float* m, const float* v)
+static void matrix_translate(float* m, const float* v)
 {
   float v0  = v[0];
   float v1  = v[1];
@@ -425,7 +425,7 @@ void matrix_translate(float* m, const float* v)
   m[15] = m03 * v0 + m13 * v1 + m23 * v2 + m33;
 }
 
-float deg_to_rad(float degrees)
+static float deg_to_rad(float degrees)
 {
   return degrees * PI / 180.0f;
 }
@@ -1569,9 +1569,9 @@ static size_t ring_buffer_get_available_size(ring_buffer_t* this)
   return this->size - this->tail;
 }
 
-bool ring_buffer_push(ring_buffer_t* this, WGPUCommandEncoder encoder,
-                      WGPUBuffer dest_buffer, size_t src_offset,
-                      size_t dest_offset, void* pixels, size_t size)
+static bool ring_buffer_push(ring_buffer_t* this, WGPUCommandEncoder encoder,
+                             WGPUBuffer dest_buffer, size_t src_offset,
+                             size_t dest_offset, void* pixels, size_t size)
 {
   memcpy(((unsigned char*)this->pixels) + src_offset, pixels, size);
   wgpuCommandEncoderCopyBufferToBuffer(encoder, this->buf, src_offset,
@@ -2059,8 +2059,9 @@ static void context_detroy(context_t* this)
 {
 }
 
-static void context_initialize(context_t* this)
+static bool context_initialize(context_t* this)
 {
+  return true;
 }
 
 static void context_set_window_size(context_t* this, uint32_t window_width,
@@ -2789,6 +2790,7 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static float aquarium_get_elapsed_time(aquarium_t* this);
 static void aquarium_calculate_fish_count(aquarium_t* this);
 static int32_t aquarium_load_placement(aquarium_t* this);
 static int32_t aquarium_load_models(aquarium_t* this);
@@ -2849,15 +2851,24 @@ static void aquarium_create(aquarium_t* this)
   this->g.then = get_current_time_point_ms(this->wgpu_example_context);
 }
 
-static void aquarium_init(aquarium_t* this)
+static bool aquarium_init(aquarium_t* this)
 {
   /* Create context */
   context_create(&this->context);
 
+  if (!context_initialize(&this->context)) {
+    return false;
+  }
+
   aquarium_calculate_fish_count(this);
+
+  printf("Init resources ...\n");
+  aquarium_get_elapsed_time(this);
 
   /* Avoid resource allocation in the first render loop */
   this->pre_fish_count = this->cur_fish_count;
+
+  return true;
 }
 
 static int32_t aquarium_get_cur_fish_count(aquarium_t* this)
@@ -3636,11 +3647,11 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
   }
 }
 
-void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this, float x,
-                                              float y, float z, float next_x,
-                                              float next_y, float next_z,
-                                              float scale, float time,
-                                              int index)
+static void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this,
+                                                     float x, float y, float z,
+                                                     float next_x, float next_y,
+                                                     float next_z, float scale,
+                                                     float time, int index)
 {
   index += this->fish_model.fish_per_offset;
   fish_per_t* fish_pers = &this->context->fish_pers[index];
@@ -4144,7 +4155,7 @@ static void fish_model_instanced_draw_draw(fish_model_instanced_draw_t* this)
   this->instance = 0;
 }
 
-void fish_model_instanced_draw_update_fish_per_uniforms(
+static void fish_model_instanced_draw_update_fish_per_uniforms(
   fish_model_instanced_draw_t* this, float x, float y, float z, float next_x,
   float next_y, float next_z, float scale, float time, int index)
 {
@@ -5897,24 +5908,60 @@ static void aquarium_update_and_draw(aquarium_t* this)
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+/* -------------------------------------------------------------------------- *
+ * Aquarium Example
+ * -------------------------------------------------------------------------- */
+
+// Other variables
+static const char* example_title = "Aquarium";
+static bool prepared             = false;
+static aquarium_t aquarium       = {0};
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    aquarium_create(&aquarium);
+    prepared = true;
+    if (!aquarium_init(&aquarium)) {
+      return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  return example_draw(context);
+}
+
+// Clean up used resources
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+}
 
 void example_aquarium(int argc, char* argv[])
 {
-#if 10
-  aquarium_t aquarium;
-  aquarium_init(&aquarium);
-  aquarium_setup_model_enum_map(&aquarium);
-  // aquarium_load_models(&aquarium);
-#elif 1
-  aquarium_t aquarium;
-  aquarium_setup_model_enum_map(&aquarium);
-  model_name_t mn
-    = aquarium_map_model_name_str_to_model_name(&aquarium, "BigFishB");
-  printf("DONE;");
-
-#endif
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+      .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
+    },
+    .example_initialize_func      = &example_initialize,
+    .example_render_func          = &example_render,
+    .example_destroy_func         = &example_destroy,
+  });
+  // clang-format on
 }
