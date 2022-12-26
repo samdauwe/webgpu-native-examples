@@ -2117,20 +2117,31 @@ static void set_msaa_sample_count(context_t* this, uint32_t msaa_sample_count)
   this->msaa_sample_count = msaa_sample_count;
 }
 
+static texture_t context_create_texture(context_t* this, const char* name,
+                                        const char* url)
+{
+  UNUSED_VAR(name);
+
+  return wgpu_create_texture_from_file(this->wgpu_context, url, NULL);
+}
+
+static texture_t context_create_cubemap_texture(context_t* this,
+                                                const char* name,
+                                                const char (*urls)[6][STRMAX])
+{
+  UNUSED_VAR(name);
+
+  return wgpu_create_texture_cubemap_from_files(
+    this->wgpu_context, (const char**)urls,
+    &(struct wgpu_texture_load_options_t){
+      .flip_y = false,
+    });
+}
+
 static WGPUSampler
 context_create_sampler(context_t* this, WGPUSamplerDescriptor const* descriptor)
 {
   return wgpuDeviceCreateSampler(this->device, descriptor);
-}
-
-static texture_t context_create_skybox(context_t* this,
-                                       const char (*sky_urls)[6][STRMAX])
-{
-  return wgpu_create_texture_cubemap_from_files(
-    this->wgpu_context, (const char**)sky_urls,
-    &(struct wgpu_texture_load_options_t){
-      .flip_y = false,
-    });
 }
 
 static WGPUBuffer context_create_buffer_from_data(context_t* this,
@@ -2909,7 +2920,8 @@ static bool aquarium_init(aquarium_t* this)
     = context_get_resource_helper(&this->context);
   const char sky_urls[6][STRMAX];
   resource_helper_get_sky_box_urls(resource_helper, &sky_urls);
-  texture_t skybox = context_create_skybox(&this->context, &sky_urls);
+  texture_t skybox
+    = context_create_cubemap_texture(&this->context, "skybox", &sky_urls);
   memcpy(&this->texture_map[TEXTURETYPE_SKYBOX], &skybox, sizeof(texture_t));
 
   /* Init general buffer and binding groups for dawn backend. */
