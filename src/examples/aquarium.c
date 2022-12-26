@@ -1928,6 +1928,14 @@ static void resource_helper_create(resource_helper_t* this)
   }
 }
 
+static void resource_helper_get_sky_box_urls(const resource_helper_t* this,
+                                             char (*dst)[6][STRMAX])
+{
+  for (uint8_t i = 0; i < 6; ++i) {
+    snprintf((char*)dst[i], sizeof(*dst[i]), "%s", this->sky_box_paths[i]);
+  }
+}
+
 static const char*
 resource_helper_get_prop_placement_path(const resource_helper_t* this)
 {
@@ -2094,6 +2102,11 @@ static WGPUSampler
 context_create_sampler(context_t* this, WGPUSamplerDescriptor const* descriptor)
 {
   return wgpuDeviceCreateSampler(this->device, descriptor);
+}
+
+static void context_create_texture(context_t* this, texture_t* texture,
+                                   char (*url)[6][STRMAX])
+{
 }
 
 static WGPUBuffer context_create_buffer_from_data(context_t* this,
@@ -2790,7 +2803,9 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static void aquarium_load_resource(aquarium_t* this);
 static float aquarium_get_elapsed_time(aquarium_t* this);
+static void aquarium_setup_model_enum_map(aquarium_t* this);
 static void aquarium_calculate_fish_count(aquarium_t* this);
 static int32_t aquarium_load_placement(aquarium_t* this);
 static int32_t aquarium_load_models(aquarium_t* this);
@@ -2865,8 +2880,22 @@ static bool aquarium_init(aquarium_t* this)
   printf("Init resources ...\n");
   aquarium_get_elapsed_time(this);
 
+  const resource_helper_t* resource_helper
+    = context_get_resource_helper(&this->context);
+  char sky_urls[6][STRMAX];
+  resource_helper_get_sky_box_urls(resource_helper, &sky_urls);
+  texture_t skybox;
+  context_create_texture(&this->context, &skybox, &sky_urls);
+
+  /* Init general buffer and binding groups for dawn backend. */
+  context_init_general_resources(&this->context, this);
   /* Avoid resource allocation in the first render loop */
   this->pre_fish_count = this->cur_fish_count;
+
+  aquarium_setup_model_enum_map(this);
+  aquarium_load_resource(this);
+
+  printf("End loading.\n");
 
   return true;
 }
