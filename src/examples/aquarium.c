@@ -491,6 +491,24 @@ typedef enum {
 } fish_num_t;
 
 typedef enum {
+  BUFFERTYPE_POSITION,
+  BUFFERTYPE_NORMAL,
+  BUFFERTYPE_TEX_COORD,
+  BUFFERTYPE_TANGENT,
+  BUFFERTYPE_BI_NORMAL,
+  BUFFERTYPE_INDICES,
+  BUFFERTYPE_MAX,
+} buffer_type_t;
+
+typedef enum {
+  TEXTURETYPE_DIFFUSE,
+  TEXTURETYPE_NORMAL_MAP,
+  TEXTURETYPE_REFLECTION_MAP,
+  TEXTURETYPE_SKYBOX,
+  TEXTURETYPE_MAX,
+} texture_type_t;
+
+typedef enum {
   /* Enable alpha blending */
   ENABLEALPHABLENDING,
   /* Go through instanced draw */
@@ -1929,7 +1947,7 @@ static void resource_helper_create(resource_helper_t* this)
 }
 
 static void resource_helper_get_sky_box_urls(const resource_helper_t* this,
-                                             char (*dst)[6][STRMAX])
+                                             const char (*dst)[6][STRMAX])
 {
   for (uint8_t i = 0; i < 6; ++i) {
     snprintf((char*)dst[i], sizeof(*dst[i]), "%s", this->sky_box_paths[i]);
@@ -2027,6 +2045,7 @@ typedef struct {
     char key[STRMAX];
     model_name_t value;
   } model_enum_map[MODELNAME_MODELMAX];
+  texture_t texture_map[TEXTURETYPE_MAX];
   void* aquarium_models[MODELNAME_MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
@@ -2104,9 +2123,14 @@ context_create_sampler(context_t* this, WGPUSamplerDescriptor const* descriptor)
   return wgpuDeviceCreateSampler(this->device, descriptor);
 }
 
-static void context_create_texture(context_t* this, texture_t* texture,
-                                   char (*url)[6][STRMAX])
+static texture_t context_create_skybox(context_t* this,
+                                       const char (*sky_urls)[6][STRMAX])
 {
+  return wgpu_create_texture_cubemap_from_files(
+    this->wgpu_context, (const char**)sky_urls,
+    &(struct wgpu_texture_load_options_t){
+      .flip_y = false,
+    });
 }
 
 static WGPUBuffer context_create_buffer_from_data(context_t* this,
@@ -2803,6 +2827,7 @@ static void context_destory_fish_resource(context_t* this)
  * Aquarium - Main class functions.
  * -------------------------------------------------------------------------- */
 
+static void aquarium_reset_fps_time(aquarium_t* this);
 static void aquarium_load_resource(aquarium_t* this);
 static float aquarium_get_elapsed_time(aquarium_t* this);
 static void aquarium_setup_model_enum_map(aquarium_t* this);
@@ -2882,10 +2907,10 @@ static bool aquarium_init(aquarium_t* this)
 
   const resource_helper_t* resource_helper
     = context_get_resource_helper(&this->context);
-  char sky_urls[6][STRMAX];
+  const char sky_urls[6][STRMAX];
   resource_helper_get_sky_box_urls(resource_helper, &sky_urls);
-  texture_t skybox;
-  context_create_texture(&this->context, &skybox, &sky_urls);
+  texture_t skybox = context_create_skybox(&this->context, &sky_urls);
+  memcpy(&this->texture_map[TEXTURETYPE_SKYBOX], &skybox, sizeof(texture_t));
 
   /* Init general buffer and binding groups for dawn backend. */
   context_init_general_resources(&this->context, this);
@@ -2895,7 +2920,10 @@ static bool aquarium_init(aquarium_t* this)
   aquarium_setup_model_enum_map(this);
   aquarium_load_resource(this);
 
-  printf("End loading.\n");
+  printf("End loading.\nCost %0.3f ms totally.",
+         aquarium_get_elapsed_time(this));
+
+  aquarium_reset_fps_time(this);
 
   return true;
 }
@@ -3128,24 +3156,6 @@ static void aquarium_render(aquarium_t* this)
  * -------------------------------------------------------------------------- */
 
 #define MAX_WORLD_MATRIX_COUNT (16u)
-
-typedef enum {
-  BUFFERTYPE_POSITION,
-  BUFFERTYPE_NORMAL,
-  BUFFERTYPE_TEX_COORD,
-  BUFFERTYPE_TANGENT,
-  BUFFERTYPE_BI_NORMAL,
-  BUFFERTYPE_INDICES,
-  BUFFERTYPE_MAX,
-} buffer_type_t;
-
-typedef enum {
-  TEXTURETYPE_DIFFUSE,
-  TEXTURETYPE_NORMAL_MAP,
-  TEXTURETYPE_REFLECTION_MAP,
-  TEXTURETYPE_SKYBOX,
-  TEXTURETYPE_MAX,
-} texture_type_t;
 
 typedef float world_matrix_t[16];
 
