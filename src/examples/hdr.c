@@ -175,12 +175,12 @@ static void load_assets(wgpu_context_t* wgpu_context)
   }
   // Load cube map
   static const char* cubemap[6] = {
-    "textures/cubemaps/uffizi_cube_px.png", // Right
-    "textures/cubemaps/uffizi_cube_nx.png", // Left
-    "textures/cubemaps/uffizi_cube_py.png", // Top
-    "textures/cubemaps/uffizi_cube_ny.png", // Bottom
-    "textures/cubemaps/uffizi_cube_pz.png", // Back
-    "textures/cubemaps/uffizi_cube_nz.png", // Front
+    "textures/cubemaps/uffizi_cube_px.png", /* Right */
+    "textures/cubemaps/uffizi_cube_nx.png", /* Left */
+    "textures/cubemaps/uffizi_cube_py.png", /* Top */
+    "textures/cubemaps/uffizi_cube_ny.png", /* Bottom */
+    "textures/cubemaps/uffizi_cube_pz.png", /* Back */
+    "textures/cubemaps/uffizi_cube_nz.png", /* Front */
   };
   textures.envmap = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
