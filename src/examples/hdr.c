@@ -316,6 +316,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                               .lodMaxClamp   = 1.0f,
                               .maxAnisotropy = 1,
                             });
+    ASSERT(offscreen_pass.sampler != NULL);
   }
 
   // Bloom separable filter pass
