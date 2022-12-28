@@ -111,7 +111,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   };
   bind_group_upscale = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "upscale bind group",
+                            .label      = "Upscale bind group",
                             .layout     = bind_group_layout_upscale,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
@@ -478,7 +478,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   {
     // Render pass descriptor
     WGPURenderPassDescriptor render_pass_desc = (WGPURenderPassDescriptor){
-      .label                  = "full resolution",
+      .label                  = "Full resolution",
       .colorAttachmentCount   = 1,
       .colorAttachments       = &(WGPURenderPassColorAttachment) {
         .view       = view,
