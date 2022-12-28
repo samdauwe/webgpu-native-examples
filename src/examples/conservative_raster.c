@@ -27,16 +27,16 @@
  * -------------------------------------------------------------------------- */
 
 // Texture
-static texture_t low_res_target_texture;
+static texture_t low_res_target_texture = {0};
 
 // Bind group layout
-static WGPUBindGroupLayout bind_group_layout_upscale;
+static WGPUBindGroupLayout bind_group_layout_upscale = NULL;
 
 // Bind group
-static WGPUBindGroup bind_group_upscale;
+static WGPUBindGroup bind_group_upscale = NULL;
 
 // Pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Render pipelines
 static struct {
