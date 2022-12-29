@@ -306,6 +306,7 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
 
     bind_groups.compute[0] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Compute shader bind group 0",
                               .layout     = bind_group_layouts.compute,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -340,6 +341,7 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
 
     bind_groups.compute[1] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Compute shader bind group 1",
                               .layout     = bind_group_layouts.compute,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -363,6 +365,7 @@ static void setup_render_bind_group(wgpu_context_t* wgpu_context)
 
   bind_groups.render = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = "Render bind group",
                             .layout     = bind_group_layouts.render,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
