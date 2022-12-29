@@ -153,7 +153,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
 
-  // Set 0 for passing vertex shader ubo
+  /* Set 0 for passing vertex shader ubo */
   {
     WGPUBindGroupLayoutEntry bgl_entry= {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
@@ -175,7 +175,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_vs != NULL);
   }
 
-  // Set 1 for fragment shader images (taken from glTF model)
+  /* Set 1 for fragment shader images (taken from glTF model) */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -209,7 +209,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.textures != NULL);
   }
 
-  // Pipeline layout using the bind group layouts
+  /* Pipeline layout using the bind group layouts */
   {
     WGPUBindGroupLayout bind_group_layout_sets[2] = {
       bind_group_layouts.ubo_vs,   // set 0
@@ -229,7 +229,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind group for scene matrices
+  /* Bind group for scene matrices */
   {
     WGPUBindGroupEntry bg_entry = {
       // Binding 0: Uniform buffer (Vertex shader) => UBOScene
@@ -247,7 +247,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_group != NULL);
   }
 
-  // Bind group for materials
+  /* Bind group for materials */
   {
     wgpu_gltf_materials_t materials = wgpu_gltf_model_get_materials(gltf_model);
     for (uint32_t i = 0; i < materials.material_count; ++i) {
