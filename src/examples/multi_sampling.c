@@ -408,6 +408,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_vs),
     });
+  ASSERT(uniform_buffer.buffer != NULL);
 
   update_uniform_buffers(context);
 }
