@@ -109,6 +109,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     };
     cube_vertices = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Cube vertices data",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                       .size  = sizeof(vertex_data),
                       .count = (uint32_t)ARRAY_SIZE(vertex_data),
@@ -124,6 +125,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     };
     plane_vertices = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Plane vertice data",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                       .size  = sizeof(plane_data),
                       .count = (uint32_t)ARRAY_SIZE(plane_data),
@@ -138,6 +140,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     camera_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Camera data buffer",
                                            .usage = WGPUBufferUsage_CopyDst
                                                     | WGPUBufferUsage_Uniform,
                                            .size = sizeof(camera_data),
@@ -152,6 +155,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     mat4 transform = GLM_MAT4_IDENTITY_INIT;
     transform_buffer[0]
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Transform buffer 0",
                                            .usage = WGPUBufferUsage_CopyDst
                                                     | WGPUBufferUsage_Uniform,
                                            .size         = sizeof(mat4),
@@ -161,6 +165,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     glm_translate(transform, (vec3){0.f, -2.f, 0.f});
     transform_buffer[1]
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Transform buffer 1",
                                            .usage = WGPUBufferUsage_CopyDst
                                                     | WGPUBufferUsage_Uniform,
                                            .size         = sizeof(mat4),
