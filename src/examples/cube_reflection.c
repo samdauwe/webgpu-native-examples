@@ -244,7 +244,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                    &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -274,7 +274,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .entries    = bg_entries,
     };
     bind_group[i] = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_group[i] != NULL)
+    ASSERT(bind_group[i] != NULL);
   }
 }
 
@@ -355,7 +355,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     /* Create rendering pipeline using the specified states */
     pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "cube_render_pipeline",
+                              .label        = "Cube render pipeline",
                               .layout       = pipeline_layout,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
@@ -363,7 +363,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(pipeline != NULL)
+    ASSERT(pipeline != NULL);
   }
 
   /* Plane rendering pipeline */
@@ -389,7 +389,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(plane_pipeline != NULL)
+    ASSERT(plane_pipeline != NULL);
   }
 
   /* Cube reflection rendering pipeline */
@@ -417,7 +417,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(reflection_pipeline != NULL)
+    ASSERT(reflection_pipeline != NULL);
   }
 
   /* Partial cleanup */
@@ -522,7 +522,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
