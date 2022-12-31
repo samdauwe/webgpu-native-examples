@@ -127,6 +127,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor) {
+      .label      = "Bind group layout",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Fragment shader)
@@ -146,6 +147,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Pipeline layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label                = "Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &uniform_bind_group_layout,
                           });
@@ -158,6 +160,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor) {
+     .label      = "Bind group",
      .layout     = uniform_bind_group_layout,
      .entryCount = 1,
      .entries    = &(WGPUBindGroupEntry) {
