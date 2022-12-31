@@ -73,14 +73,14 @@ static struct {
   uint32_t offset;
 } ubo_fs = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPURenderPipeline pipeline;
+static WGPUPipelineLayout pipeline_layout = NULL;
+static WGPURenderPipeline pipeline        = NULL;
 
-static WGPUBindGroupLayout uniform_bind_group_layout;
-static WGPUBindGroup uniform_bind_group;
+static WGPUBindGroupLayout uniform_bind_group_layout = NULL;
+static WGPUBindGroup uniform_bind_group              = NULL;
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // Other variables
 static const char* example_title = "Pseudorandom Number Generation";
