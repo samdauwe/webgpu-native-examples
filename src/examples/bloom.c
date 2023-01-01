@@ -242,6 +242,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
         .a = 0.0f,
       },
   };
+
   // Depth stencil attachment
   frame_buf->render_pass_desc.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
@@ -253,6 +254,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
       .stencilStoreOp = WGPUStoreOp_Store,
       .clearStencil   = 0,
     };
+
   // Render pass descriptor
   frame_buf->render_pass_desc.render_pass_descriptor
     = (WGPURenderPassDescriptor){
