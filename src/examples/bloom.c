@@ -469,12 +469,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.blur_vert = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout     = bind_group_layouts.blur,
+                              .label  = "Full screen vertical blur bind group",
+                              .layout = bind_group_layouts.blur,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
     ASSERT(bind_groups.blur_vert != NULL);
   }
+
   // Horizontal blur
   {
     WGPUBindGroupEntry bg_entries[3] = {
@@ -499,6 +501,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.blur_horz = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label = "Full screen horizontal blur bind group",
                               .layout     = bind_group_layouts.blur,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -520,7 +523,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.scene = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Scene bind group",
+                              .label      = "Scene rendering bind group",
                               .layout     = bind_group_layouts.scene,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -552,6 +555,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.skybox = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Skybox rendering bind group",
                               .layout     = bind_group_layouts.skybox,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
