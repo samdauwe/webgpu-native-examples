@@ -108,8 +108,8 @@ static struct {
   frame_buffer_t frame_buffers[2];
 } offscreen_pass = {0};
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 static const char* example_title = "Bloom (Offscreen Rendering)";
 static bool prepared             = false;
