@@ -949,14 +949,16 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Phong and color pass vertex shader uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_scene_t),
     });
 
-  // Blur parameters uniform buffers
+  // Blur parameters uniform buffer
   uniform_buffers.blur_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Blur parameters uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_blur_params_t),
     });
@@ -965,6 +967,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.skybox = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Skybox parameters uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_scene_t),
     });
