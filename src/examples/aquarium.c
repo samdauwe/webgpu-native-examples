@@ -2004,6 +2004,8 @@ resource_helper_get_program_path(const resource_helper_t* this)
  * Aquarium context - Defines the render context.
  * -------------------------------------------------------------------------- */
 
+#define MAX_TEXTURE_COUNT 64u
+
 sc_array_def(WGPUCommandBuffer, command_buffer);
 
 typedef struct {
@@ -2067,7 +2069,13 @@ typedef struct {
     char key[STRMAX];
     model_name_t value;
   } model_enum_map[MODELNAME_MODELMAX];
-  texture_t texture_map[TEXTURETYPE_MAX];
+  struct {
+    char key[STRMAX];
+    texture_t value;
+  } texture_map[MAX_TEXTURE_COUNT];
+  uint32_t texture_count;
+  WGPUShaderModule vertex_shaders[VERTEX_SHADER_MAX];
+  WGPUShaderModule fragment_shaders[FRAGMENT_SHADER_MAX];
   void* aquarium_models[MODELNAME_MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
