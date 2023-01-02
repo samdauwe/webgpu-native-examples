@@ -656,7 +656,7 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
 
   bool is_hdr = stbi_is_hdr_from_memory((stbi_uc*)data, data_size);
   int width = 0, height = 0, read_comps = 4;
-  stbi_set_flip_vertically_on_load(false);
+  stbi_set_flip_vertically_on_load(options->flip_y);
   uint8_t* pixel_data
     = is_hdr ? (uint8_t*)stbi_loadf_from_memory((stbi_uc*)data, data_size,
                                                 &width, &height, &read_comps,
