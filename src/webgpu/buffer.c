@@ -100,3 +100,15 @@ WGPUCommandBuffer wgpu_copy_buffer_to_texture(
 
   return command_buffer;
 }
+
+void copy_padding_buffer(unsigned char* dst, unsigned char* src, int32_t width,
+                         int32_t height, int32_t kPadding)
+{
+  unsigned char* s = src;
+  unsigned char* d = dst;
+  for (int32_t i = 0; i < height; ++i) {
+    memcpy(d, s, width * 4);
+    s += width * 4;
+    d += kPadding * 4;
+  }
+}

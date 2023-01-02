@@ -45,4 +45,7 @@ WGPUCommandBuffer wgpu_copy_buffer_to_texture(
   struct wgpu_context_t* wgpu_context, WGPUImageCopyBuffer* buffer_copy_view,
   WGPUImageCopyTexture* texture_copy_view, WGPUExtent3D* texture_size);
 
+void copy_padding_buffer(unsigned char* dst, unsigned char* src, int32_t width,
+                         int32_t height, int32_t kPadding);
+
 #endif // BUFFER_H_
