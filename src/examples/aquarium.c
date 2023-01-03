@@ -2932,6 +2932,20 @@ static void aquarium_create(aquarium_t* this)
   this->g.then = get_current_time_point_ms(this->wgpu_example_context);
 }
 
+/**
+ * @brief Extends the texture map by inserting a new texture, effectively
+ * increasing the map size by the number of elements inserted.
+ */
+static void aquarium_texture_map_insert(aquarium_t* this, const char* key,
+                                        texture_t* texture)
+{
+  snprintf(this->texture_map[this->texture_count].key,
+           sizeof(this->texture_map[this->texture_count].key), "%s", key);
+  memcpy(&this->texture_map[this->texture_count].value, texture,
+         sizeof(texture_t));
+  this->texture_count++;
+}
+
 static bool aquarium_init(aquarium_t* this)
 {
   /* Create context */
@@ -2952,7 +2966,7 @@ static bool aquarium_init(aquarium_t* this)
   resource_helper_get_sky_box_urls(resource_helper, &sky_urls);
   texture_t skybox
     = context_create_cubemap_texture(&this->context, "skybox", &sky_urls);
-  memcpy(&this->texture_map[TEXTURETYPE_SKYBOX], &skybox, sizeof(texture_t));
+  aquarium_texture_map_insert(this, "skybox", &skybox);
 
   /* Init general buffer and binding groups for dawn backend. */
   context_init_general_resources(&this->context, this);
