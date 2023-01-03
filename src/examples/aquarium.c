@@ -2932,6 +2932,10 @@ static void aquarium_create(aquarium_t* this)
   this->g.then = get_current_time_point_ms(this->wgpu_example_context);
 }
 
+/**
+ * @brief Lookup the index of the specified key.
+ * @returns The index of the key or -1 if the key does not  exists.
+ */
 static int32_t aquarium_texture_map_lookup_index(aquarium_t* this,
                                                  const char* key)
 {
