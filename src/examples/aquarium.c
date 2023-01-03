@@ -2932,6 +2932,19 @@ static void aquarium_create(aquarium_t* this)
   this->g.then = get_current_time_point_ms(this->wgpu_example_context);
 }
 
+static int32_t aquarium_texture_map_lookup_index(aquarium_t* this,
+                                                 const char* key)
+{
+  int32_t index = -1;
+  for (uint32_t i = 0; i < this->texture_count; ++i) {
+    if (strcmp(this->texture_map[i].key, key) == 0) {
+      index = i;
+      break;
+    }
+  }
+  return index;
+}
+
 /**
  * @brief Extends the texture map by inserting a new texture, effectively
  * increasing the map size by the number of elements inserted.
