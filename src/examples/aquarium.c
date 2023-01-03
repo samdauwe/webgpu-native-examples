@@ -2952,11 +2952,14 @@ static int32_t aquarium_texture_map_lookup_index(aquarium_t* this,
 static void aquarium_texture_map_insert(aquarium_t* this, const char* key,
                                         texture_t* texture)
 {
-  snprintf(this->texture_map[this->texture_count].key,
-           sizeof(this->texture_map[this->texture_count].key), "%s", key);
-  memcpy(&this->texture_map[this->texture_count].value, texture,
-         sizeof(texture_t));
-  this->texture_count++;
+  int32_t key_index     = aquarium_texture_map_lookup_index(this, key);
+  uint32_t insert_index = (key_index == -1) ? this->texture_count : key_index;
+  uint32_t texture_count_inc = (key_index == -1) ? 1 : 0;
+
+  snprintf(this->texture_map[insert_index].key,
+           sizeof(this->texture_map[insert_index].key), "%s", key);
+  memcpy(&this->texture_map[insert_index].value, texture, sizeof(texture_t));
+  this->texture_count += texture_count_inc;
 }
 
 static bool aquarium_init(aquarium_t* this)
