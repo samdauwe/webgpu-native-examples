@@ -5860,7 +5860,14 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
     {
       const char* name  = texture_item->string;
       const char* image = texture_item->valuestring;
-      printf("Found name '%s', set to image '%s'\n", name, image);
+
+      if (aquarium_texture_map_lookup_index(this, image) == -1) {
+        char image_url[STRMAX] = {0};
+        snprintf(image_url, sizeof(image_url), "%s%s", image_path, image);
+        texture_t texture
+          = context_create_texture(&this->context, name, image_url);
+        aquarium_texture_map_insert(this, image, &texture);
+      }
     }
 
     /* Set up vertices */
