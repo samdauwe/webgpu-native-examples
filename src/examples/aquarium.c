@@ -565,6 +565,28 @@ typedef enum {
 } toggle_t;
 
 /* -------------------------------------------------------------------------- *
+ * Aquarium - Global enums convertion functions
+ * -------------------------------------------------------------------------- */
+
+static texture_type_t string_to_texture_type(const char* texture_type_str)
+{
+  texture_type_t texture_type = TEXTURETYPE_MAX;
+  if (strcmp(texture_type_str, "diffuse") == 0) {
+    texture_type = TEXTURETYPE_DIFFUSE;
+  }
+  else if (strcmp(texture_type_str, "normalMap") == 0) {
+    texture_type = TEXTURETYPE_NORMAL_MAP;
+  }
+  else if (strcmp(texture_type_str, "reflectionMap") == 0) {
+    texture_type = TEXTURETYPE_REFLECTION_MAP;
+  }
+  else if (strcmp(texture_type_str, "skybox") == 0) {
+    texture_type = TEXTURETYPE_SKYBOX;
+  }
+  return texture_type;
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium - Global classes
  * -------------------------------------------------------------------------- */
 
@@ -5879,6 +5901,11 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
           = context_create_texture(&this->context, name, image_url);
         aquarium_texture_map_insert(this, image, &texture);
       }
+
+      texture_type_t texture_type = string_to_texture_type(name);
+      ASSERT(texture_type < TEXTURETYPE_MAX);
+      model->texture_map[texture_type]
+        = aquarium_texture_map_lookup_texture(this, image);
     }
 
     /* Set up vertices */
