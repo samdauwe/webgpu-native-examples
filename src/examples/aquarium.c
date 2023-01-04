@@ -2950,6 +2950,17 @@ static int32_t aquarium_texture_map_lookup_index(aquarium_t* this,
 }
 
 /**
+ * @brief Looks up the texture mapped to a key in the texture map.
+ * @return Pointer to the texture of NULL if the key does not exists
+ */
+static texture_t* aquarium_texture_map_lookup_texture(aquarium_t* this,
+                                                      const char* key)
+{
+  int32_t key_index = aquarium_texture_map_lookup_index(this, key);
+  return (key_index != -1) ? &this->texture_map[key_index].value : NULL;
+}
+
+/**
  * @brief Extends the texture map by inserting a new texture, effectively
  * increasing the map size by the number of elements inserted.
  */
