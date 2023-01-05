@@ -137,6 +137,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   offscreen_rendering.pixel_data.buffer = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Pixel output buffer",
       .usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
       .size
       = (uint64_t)(offscreen_rendering.pixel_data.buffer_dimensions
@@ -159,6 +160,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Color attachment
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "Color attachment texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -172,6 +174,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
+      .label           = "Color attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -200,6 +203,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_desc = {
+      .label           = "Depth stencil attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
