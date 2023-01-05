@@ -615,7 +615,7 @@ static int example_draw(wgpu_example_context_t* context)
       = build_copy_texture_to_buffer_command_buffer(wgpu_context);
   }
 
-  // Submit to queue
+  // Submit command buffer to queue
   submit_command_buffers(context);
 
   // Submit frame
