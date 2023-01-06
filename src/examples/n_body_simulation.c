@@ -148,7 +148,7 @@ static void init_bodies(wgpu_context_t* wgpu_context)
 {
   const float radius = 0.6f;
   float* positions   = storage_buffers.positions_in.positions;
-  ASSERT(positions)
+  ASSERT(positions);
   float longitude = 0.0f, latitude = 0.0f;
   for (uint32_t i = 0; i < num_bodies; ++i) {
     longitude            = 2.0f * PI * random_float();
@@ -580,7 +580,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
