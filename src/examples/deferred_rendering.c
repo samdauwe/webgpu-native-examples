@@ -989,6 +989,7 @@ static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
   light_update_compute_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
+      .label   = "Light update compute pipeline",
       .layout  = light_update_compute_pipeline_layout,
       .compute = light_update_comp_shader.programmable_stage_descriptor,
     });
