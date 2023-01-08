@@ -762,6 +762,12 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[0],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
+        .clearColor= (WGPUColor) {
+          .r = NAN,
+          .g = NAN,
+          .b = NAN,
+          .a = NAN,
+         },
         .clearValue = (WGPUColor) {
           .r = FLT_MAX,
           .g = FLT_MAX,
@@ -775,6 +781,12 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[1],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
+        .clearColor= (WGPUColor) {
+          .r = NAN,
+          .g = NAN,
+          .b = NAN,
+          .a = NAN,
+         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -788,6 +800,12 @@ static void setup_render_passes()
         .view       = gbuffer.texture_views[2],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
+        .clearColor= (WGPUColor) {
+          .r = NAN,
+          .g = NAN,
+          .b = NAN,
+          .a = NAN,
+         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -825,6 +843,12 @@ static void setup_render_passes()
         .view       = NULL, // view is acquired and set in render loop.
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
+        .clearColor= (WGPUColor) {
+          .r = NAN,
+          .g = NAN,
+          .b = NAN,
+          .a = NAN,
+         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
