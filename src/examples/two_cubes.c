@@ -60,16 +60,16 @@ static struct {
 } view_matrices = {0};
 
 // Pipeline
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render bundle
-static WGPURenderBundle render_bundle;
+static WGPURenderBundle render_bundle = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Other variables
 static const char* example_title = "Two Cubes";
