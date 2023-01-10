@@ -5920,8 +5920,27 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
         = cJSON_GetObjectItemCaseSensitive(array_item, "type")->valuestring;
       buffer_dawn_t* buffer = NULL;
       if (strcmp(name, "indices") == 0) {
+        ASSERT(strcmp(type, "Uint16Array") == 0);
+        const cJSON* data
+          = cJSON_GetObjectItemCaseSensitive(array_item, "data");
+        if (data != NULL && cJSON_IsArray(data)) {
+          uint16_t* vec
+            = (uint16_t*)malloc(cJSON_GetArraySize(data) * sizeof(uint16_t));
+          uint64_t vec_count     = 0;
+          const cJSON* data_item = NULL;
+          cJSON_ArrayForEach(data_item, data)
+          {
+            if (cJSON_IsNumber(data_item)) {
+              vec[vec_count++] = (float)data_item->valuedouble;
+            }
+          }
+          buffer = context_create_buffer_uint16(
+            &this->context, num_components, vec, vec_count, vec_count, false);
+          free(vec);
+        }
       }
       else {
+        ASSERT(strcmp(type, "Float32Array") == 0);
         const cJSON* data
           = cJSON_GetObjectItemCaseSensitive(array_item, "data");
         if (data != NULL && cJSON_IsArray(data)) {
