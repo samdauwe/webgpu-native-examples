@@ -5918,51 +5918,66 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
             ->valueint;
       const char* type
         = cJSON_GetObjectItemCaseSensitive(array_item, "type")->valuestring;
-      printf("Found name '%s', num_components = %d, type = %s\n", name,
-             num_components, type);
+      buffer_dawn_t* buffer = NULL;
       if (strcmp(name, "indices") == 0) {
       }
       else {
+        const cJSON* data
+          = cJSON_GetObjectItemCaseSensitive(array_item, "data");
+        if (data != NULL && cJSON_IsArray(data)) {
+          float* vec = (float*)malloc(cJSON_GetArraySize(data) * sizeof(float));
+          uint64_t vec_count     = 0;
+          const cJSON* data_item = NULL;
+          cJSON_ArrayForEach(data_item, data)
+          {
+            if (cJSON_IsNumber(data_item)) {
+              vec[vec_count++] = (float)data_item->valuedouble;
+            }
+          }
+          buffer = context_create_buffer_f32(&this->context, num_components,
+                                             vec, vec_count, false);
+          free(vec);
+        }
       }
     }
-
-    /**
-     * setup program
-     * There are 3 programs
-     * DM
-     * DM+NM
-     * DM+NM+RM
-     */
-    char vs_id[STRMAX];
-    char fs_id[STRMAX];
-    char concat_id[STRMAX * 2];
-
-    snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
-    snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
-
-    if ((strcmp(vs_id, "") == 0) && (strcmp(fs_id, "") == 0)) {
-    }
-    else {
-      snprintf(vs_id, sizeof(vs_id), "%s", "diffuseVertexShader");
-      snprintf(fs_id, sizeof(fs_id), "%s", "diffuseFragmentShader");
-    }
-
-    snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
-
-    printf("%s\n", concat_id);
-
-    program_t* program = NULL;
-    {
-    }
-
-    model_set_program(model, program);
-    model_init(model);
   }
 
-load_model_end:
-  cJSON_Delete(model_json);
-  free(file_read_result.data);
-  return status;
+  /**
+   * setup program
+   * There are 3 programs
+   * DM
+   * DM+NM
+   * DM+NM+RM
+   */
+  char vs_id[STRMAX];
+  char fs_id[STRMAX];
+  char concat_id[STRMAX * 2];
+
+  snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
+  snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
+
+  if ((strcmp(vs_id, "") == 0) && (strcmp(fs_id, "") == 0)) {
+  }
+  else {
+    snprintf(vs_id, sizeof(vs_id), "%s", "diffuseVertexShader");
+    snprintf(fs_id, sizeof(fs_id), "%s", "diffuseFragmentShader");
+  }
+
+  snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
+
+  printf("%s\n", concat_id);
+
+  program_t* program = NULL;
+  {
+  }
+
+  model_set_program(model, program);
+  model_init(model);
+}
+
+load_model_end : cJSON_Delete(model_json);
+free(file_read_result.data);
+return status;
 }
 
 static void aquarium_update_and_draw(aquarium_t* this)
