@@ -5982,6 +5982,12 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
           free(vec);
         }
       }
+
+      if (buffer != NULL) {
+        buffer_type_t buffer_type = string_to_buffer_type(name);
+        ASSERT(buffer_type < BUFFERTYPE_MAX);
+        model->buffer_map[buffer_type] = buffer;
+      }
     }
   }
 
