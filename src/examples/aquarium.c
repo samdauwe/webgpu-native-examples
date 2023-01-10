@@ -586,6 +586,30 @@ static texture_type_t string_to_texture_type(const char* texture_type_str)
   return texture_type;
 }
 
+static buffer_type_t string_to_buffer_type(const char* buffer_type_str)
+{
+  buffer_type_t buffer_type = BUFFERTYPE_MAX;
+  if (strcmp(buffer_type_str, "position") == 0) {
+    buffer_type = BUFFERTYPE_POSITION;
+  }
+  else if (strcmp(buffer_type_str, "normal") == 0) {
+    buffer_type = BUFFERTYPE_NORMAL;
+  }
+  else if (strcmp(buffer_type_str, "texCoord") == 0) {
+    buffer_type = BUFFERTYPE_TEX_COORD;
+  }
+  else if (strcmp(buffer_type_str, "tangent") == 0) {
+    buffer_type = BUFFERTYPE_TANGENT;
+  }
+  else if (strcmp(buffer_type_str, "binormal") == 0) {
+    buffer_type = BUFFERTYPE_BI_NORMAL;
+  }
+  else if (strcmp(buffer_type_str, "indices") == 0) {
+    buffer_type = BUFFERTYPE_INDICES;
+  }
+  return buffer_type;
+}
+
 /* -------------------------------------------------------------------------- *
  * Aquarium - Global classes
  * -------------------------------------------------------------------------- */
