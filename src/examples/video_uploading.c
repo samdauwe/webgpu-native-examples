@@ -183,10 +183,12 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   // Uniform bind group
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
+      // Binding 0 : video texture sampler
       .binding = 0,
       .sampler = video_texture.sampler,
     },
     [1] = (WGPUBindGroupEntry) {
+      // Binding 1 : video texture view
       .binding     = 1,
       .textureView = video_texture.view,
     },
@@ -194,6 +196,7 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
+      .label      = "Uniform bind group",
       .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
