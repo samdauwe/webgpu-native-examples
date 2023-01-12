@@ -89,11 +89,11 @@ static void setup_multisample_target(wgpu_context_t* wgpu_context)
   {
     // Create the multi-sampled texture
     WGPUTextureDescriptor multisampled_frame_desc = {
-       .label        = "Multi-sampled texture",
+      .label         = "Multi-sampled texture",
       .size          = (WGPUExtent3D){
-        .width               = wgpu_context->surface.width,
-        .height              = wgpu_context->surface.height,
-        .depthOrArrayLayers  = 1,
+        .width              = wgpu_context->surface.width,
+        .height             = wgpu_context->surface.height,
+        .depthOrArrayLayers = 1,
       },
       .mipLevelCount = 1,
       .sampleCount   = msaa_sample_count,
