@@ -155,7 +155,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   /* Set 0 for passing vertex shader ubo */
   {
-    WGPUBindGroupLayoutEntry bgl_entry= {
+    WGPUBindGroupLayoutEntry bgl_entry = {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
