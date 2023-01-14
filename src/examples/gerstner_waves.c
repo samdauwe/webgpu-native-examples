@@ -778,13 +778,13 @@ static int example_draw(wgpu_context_t* wgpu_context)
   // Present the current buffer to the swap chain
   wgpu_swap_chain_present(wgpu_context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   update_controls(context);
   update_uniform_buffers_scene(context);
