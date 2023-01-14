@@ -241,7 +241,7 @@ static void prepare_example(wgpu_example_context_t* context)
 }
 
 // Prepare the plane mesh
-static void prepare_plane_mesh()
+static void prepare_plane_mesh(void)
 {
   plane_mesh_init(&plane_mesh, &(plane_mesh_init_options_t){
                                  .width   = 12.0f,
@@ -598,7 +598,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
   ASSERT(render_pass.multisampled_framebuffer.view != NULL);
 }
 
-static void init_orbit_camera_matrices()
+static void init_orbit_camera_matrices(void)
 {
   // Model matrix
   glm_mat4_identity(scene_data.model_matrix);
