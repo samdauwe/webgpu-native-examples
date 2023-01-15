@@ -2241,7 +2241,8 @@ static WGPUBuffer context_create_buffer_from_data(context_t* this,
   return buffer;
 }
 
-static program_t* context_create_program(const char* vs_id, const char* fs_id) {
+static program_t* context_create_program(const char* vs_id, const char* fs_id)
+{
   return NULL;
 }
 
@@ -3026,6 +3027,23 @@ static void aquarium_texture_map_insert(aquarium_t* this, const char* key,
            sizeof(this->texture_map[insert_index].key), "%s", key);
   memcpy(&this->texture_map[insert_index].value, texture, sizeof(texture_t));
   this->texture_count += texture_count_inc;
+}
+
+static int32_t aquarium_program_map_lookup_index(aquarium_t* this,
+                                                 const char* key)
+{
+  return -1;
+}
+
+static program_t* aquarium_program_map_lookup_program(aquarium_t* this,
+                                                      const char* key)
+{
+  return NULL;
+}
+
+static void aquarium_program_map_insert(aquarium_t* this, const char* key,
+                                        program_t* program)
+{
 }
 
 static bool aquarium_init(aquarium_t* this)
@@ -6004,6 +6022,7 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
      */
     char vs_id[STRMAX];
     char fs_id[STRMAX];
+    char concat_id[STRMAX * 2];
 
     snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
     snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
@@ -6029,6 +6048,7 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
     }
 
     program_t* program = NULL;
+    snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
     {
     }
 
