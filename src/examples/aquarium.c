@@ -503,6 +503,7 @@ typedef enum {
 typedef enum {
   TEXTURETYPE_DIFFUSE,
   TEXTURETYPE_NORMAL_MAP,
+  TEXTURETYPE_REFLECTION,
   TEXTURETYPE_REFLECTION_MAP,
   TEXTURETYPE_SKYBOX,
   TEXTURETYPE_MAX,
@@ -1708,7 +1709,7 @@ static void ring_buffer_map_callback(WGPUBufferMapAsyncStatus status,
   if (status == WGPUBufferMapAsyncStatus_Success) {
     ring_buffer_t* ring_buffer = (ring_buffer_t*)user_data;
     ring_buffer->mapped_data   = (uint64_t*)wgpuBufferGetMappedRange(
-        ring_buffer->buf, 0, ring_buffer->size);
+      ring_buffer->buf, 0, ring_buffer->size);
     ASSERT(ring_buffer->mapped_data);
 
     sc_queue_add_last(
@@ -5989,44 +5990,52 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
         model->buffer_map[buffer_type] = buffer;
       }
     }
+
+    /**
+     * setup program
+     * There are 3 programs
+     * DM
+     * DM+NM
+     * DM+NM+RM
+     */
+    char vs_id[STRMAX];
+    char fs_id[STRMAX];
+
+    snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
+    snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
+
+    if ((strcmp(vs_id, "") == 0) && (strcmp(fs_id, "") == 0)) {
+      model->texture_map[TEXTURETYPE_SKYBOX]
+        = &this->texture_map[TEXTURETYPE_SKYBOX].value;
+    }
+    else if (model->texture_map[TEXTURETYPE_REFLECTION] != NULL) {
+      snprintf(vs_id, sizeof(vs_id), "%s", "reflectionMapVertexShader");
+      snprintf(fs_id, sizeof(fs_id), "%s", "reflectionMapFragmentShader");
+
+      model->texture_map[TEXTURETYPE_SKYBOX]
+        = &this->texture_map[TEXTURETYPE_SKYBOX].value;
+    }
+    else if (model->texture_map[TEXTURETYPE_NORMAL_MAP] != NULL) {
+      snprintf(vs_id, sizeof(vs_id), "%s", "normalMapVertexShader");
+      snprintf(fs_id, sizeof(fs_id), "%s", "normalMapFragmentShader");
+    }
+    else {
+      snprintf(vs_id, sizeof(vs_id), "%s", "diffuseVertexShader");
+      snprintf(fs_id, sizeof(fs_id), "%s", "diffuseFragmentShader");
+    }
+
+    program_t* program = NULL;
+    {
+    }
+
+    model_set_program(model, program);
+    model_init(model);
   }
 
-  /**
-   * setup program
-   * There are 3 programs
-   * DM
-   * DM+NM
-   * DM+NM+RM
-   */
-  char vs_id[STRMAX];
-  char fs_id[STRMAX];
-  char concat_id[STRMAX * 2];
-
-  snprintf(vs_id, sizeof(vs_id), "%s", info->program.vertex);
-  snprintf(fs_id, sizeof(fs_id), "%s", info->program.fragment);
-
-  if ((strcmp(vs_id, "") == 0) && (strcmp(fs_id, "") == 0)) {
-  }
-  else {
-    snprintf(vs_id, sizeof(vs_id), "%s", "diffuseVertexShader");
-    snprintf(fs_id, sizeof(fs_id), "%s", "diffuseFragmentShader");
-  }
-
-  snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
-
-  printf("%s\n", concat_id);
-
-  program_t* program = NULL;
-  {
-  }
-
-  model_set_program(model, program);
-  model_init(model);
-}
-
-load_model_end : cJSON_Delete(model_json);
-free(file_read_result.data);
-return status;
+load_model_end:
+  cJSON_Delete(model_json);
+  free(file_read_result.data);
+  return status;
 }
 
 static void aquarium_update_and_draw(aquarium_t* this)
