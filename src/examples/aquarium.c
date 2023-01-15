@@ -2241,6 +2241,10 @@ static WGPUBuffer context_create_buffer_from_data(context_t* this,
   return buffer;
 }
 
+static program_t* context_create_program(const char* vs_id, const char* fs_id) {
+  return NULL;
+}
+
 static WGPUImageCopyBuffer
 context_create_image_copy_buffer(context_t* this, WGPUBuffer buffer,
                                  uint32_t offset, uint32_t bytes_per_row,
