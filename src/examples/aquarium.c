@@ -757,7 +757,7 @@ typedef struct {
   float then;
   float mclock;
   float eye_clock;
-  const char* alpha;
+  float alpha;
 } global_t;
 
 typedef struct {
@@ -1435,6 +1435,10 @@ typedef struct {
   char fragment_shader_wgsl_path[STRMAX];
   wgpu_shader_t vs_module;
   wgpu_shader_t fs_module;
+  struct {
+    bool enable_alpha_blending;
+    float alpha;
+  } options;
 } program_t;
 
 /* Forward declarations */
@@ -1475,6 +1479,13 @@ static WGPUShaderModule program_get_vs_module(program_t* this)
 static WGPUShaderModule program_get_fs_module(program_t* this)
 {
   return this->fs_module.module;
+}
+
+static void program_set_options(program_t* this, bool enable_alpha_blending,
+                                float alpha)
+{
+  this->options.enable_alpha_blending = enable_alpha_blending;
+  this->options.alpha                 = alpha;
 }
 
 static void program_compile_program(program_t* this)
@@ -2241,7 +2252,8 @@ static WGPUBuffer context_create_buffer_from_data(context_t* this,
   return buffer;
 }
 
-static program_t* context_create_program(const char* vs_id, const char* fs_id)
+static program_t* context_create_program(context_t* this, const char* vs_id,
+                                         const char* fs_id)
 {
   return NULL;
 }
@@ -2948,7 +2960,7 @@ static void aquarium_init_defaults(aquarium_t* this)
   this->g.then      = 0.0f;
   this->g.mclock    = 0.0f;
   this->g.eye_clock = 0.0f;
-  this->g.alpha     = "1";
+  this->g.alpha     = 1.0f;
 
   this->light_uniforms.light_color[0] = 1.0f;
   this->light_uniforms.light_color[1] = 1.0f;
@@ -6049,7 +6061,24 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
 
     program_t* program = NULL;
     snprintf(concat_id, sizeof(concat_id), "%s%s", vs_id, fs_id);
-    {
+    if (aquarium_program_map_lookup_index(this, concat_id) != -1) {
+      program = aquarium_program_map_lookup_program(this, concat_id);
+    }
+    else {
+      char vs_id_path[STRMAX];
+      char fs_id_path[STRMAX];
+      snprintf(vs_id_path, sizeof(vs_id_path), "%s%s", program_path, vs_id);
+      snprintf(fs_id_path, sizeof(fs_id_path), "%s%s", program_path, fs_id);
+      program = context_create_program(&this->context, vs_id_path, fs_id_path);
+      if (aquarium_settings.enable_alpha_blending
+          && info->type != MODELGROUP_INNER
+          && info->type != MODELGROUP_OUTSIDE) {
+        program_set_options(program, true, this->g.alpha);
+      }
+      else {
+        program_set_options(program, false, this->g.alpha);
+      }
+      aquarium_program_map_insert(this, concat_id, program);
     }
 
     model_set_program(model, program);
