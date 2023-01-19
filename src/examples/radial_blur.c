@@ -624,7 +624,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "phongpass_vertex_shader",
+                .label = "Phongpass vertex shader",
                 .file  = "shaders/radial_blur/phongpass.vert.spv",
               },
               .buffer_count = 1,
@@ -636,7 +636,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .label = "phongpass_fragment_shader",
+                .label = "Phongpass fragment shader",
                 .file  = "shaders/radial_blur/phongpass.frag.spv",
               },
               .target_count = 1,
