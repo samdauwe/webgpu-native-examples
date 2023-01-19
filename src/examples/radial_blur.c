@@ -582,7 +582,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     pipelines.offscreen_display = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "debug_render_pipeline",
+                              .label        = "Debug render pipeline",
                               .layout       = pipeline_layouts.radial_blur,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
