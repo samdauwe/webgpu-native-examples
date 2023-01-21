@@ -566,7 +566,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   write_gbuffers_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "write_gbuffers_render_pipeline",
+                            .label        = "Write GBuffers render pipeline",
                             .layout       = write_gbuffers_pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
