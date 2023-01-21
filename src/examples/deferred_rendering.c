@@ -1,5 +1,4 @@
 #include "example_base.h"
-#include "examples.h"
 #include "meshes.h"
 
 #include <string.h>
@@ -752,7 +751,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
   depth_texture_view = wgpuTextureCreateView(depth_texture, &texture_view_dec);
 }
 
-static void setup_render_passes()
+static void setup_render_passes(void)
 {
   /* Write GBuffer pass */
   {
