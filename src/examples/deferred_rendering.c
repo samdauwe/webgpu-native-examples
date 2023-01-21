@@ -495,17 +495,17 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
 
   // Color target state
   WGPUColorTargetState color_target_states[3] = {
-    // position
+    // Position
     [0] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_RGBA32Float,
       .writeMask = WGPUColorWriteMask_All,
     },
-    // normal
+    // Normal
     [1] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_RGBA32Float,
       .writeMask = WGPUColorWriteMask_All,
     },
-    // albedo
+    // Albedo
     [2] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_BGRA8Unorm,
       .writeMask = WGPUColorWriteMask_All,
@@ -871,8 +871,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   {
     lights.config_uniform_buffer_size = sizeof(uint32_t);
     lights.config_uniform_buffer      = wgpuDeviceCreateBuffer(
-           wgpu_context->device,
-           &(WGPUBufferDescriptor){
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
              .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
              .size             = lights.config_uniform_buffer_size,
              .mappedAtCreation = true,
@@ -1046,8 +1046,8 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
   {
     lights.extent_buffer_size = 4 * 8;
     lights.extent_buffer      = wgpuDeviceCreateBuffer(
-           wgpu_context->device,
-           &(WGPUBufferDescriptor){
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
              .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
              .size  = lights.extent_buffer_size,
       });
