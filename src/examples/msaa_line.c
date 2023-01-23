@@ -1,9 +1,6 @@
 #include "example_base.h"
-#include "examples.h"
 
 #include <string.h>
-
-#include "../webgpu/imgui_overlay.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - MSAA Line
