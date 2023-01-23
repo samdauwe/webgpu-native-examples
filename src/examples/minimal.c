@@ -82,7 +82,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Render pass descriptor
   render_pass.descriptor = (WGPURenderPassDescriptor){
-    .colorAttachmentCount = 1,
+    .colorAttachmentCount = 1u,
     .colorAttachments     = render_pass.color_attachments,
   };
 }
