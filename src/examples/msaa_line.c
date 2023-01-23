@@ -198,7 +198,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader SPIR-V
-                      .label = "vertex_shader",
+                      .label = "Vertex shader",
                       .file  = "shaders/msaa_line/shader.vert.spv",
                     },
                     .buffer_count = 1,
@@ -210,7 +210,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader SPIR-V
-                      .label = "fragment_shader",
+                      .label = "Fragment shader",
                       .file  = "shaders/msaa_line/shader.frag.spv",
                     },
                     .target_count = 1,
