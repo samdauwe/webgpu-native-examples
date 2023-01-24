@@ -54,8 +54,8 @@ static const char* fragment_shader_wgsl = CODE(
 
 // Vertex buffers
 static struct {
-  wgpu_buffer_t positions; // Positions
-  wgpu_buffer_t colors;    // Colors
+  wgpu_buffer_t positions; /* Positions */
+  wgpu_buffer_t colors;    /* Colors */
 } square = {0};
 
 // Pipeline
