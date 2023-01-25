@@ -71,32 +71,32 @@ static struct {
 };
 
 // WebGPU buffers
-static WGPUBuffer sim_param_buffer; /* Simulation Parameter Buffer */
-static WGPUBuffer particle_buffers[2];
-static WGPUBuffer sprite_vertex_buffer;
+static WGPUBuffer sim_param_buffer     = NULL; /* Simulation Parameter Buffer */
+static WGPUBuffer particle_buffers[2]  = {0};
+static WGPUBuffer sprite_vertex_buffer = NULL;
 
 // The pipeline layouts
-static WGPUPipelineLayout compute_pipeline_layout;
-static WGPUPipelineLayout render_pipeline_layout;
+static WGPUPipelineLayout compute_pipeline_layout = NULL;
+static WGPUPipelineLayout render_pipeline_layout  = NULL;
 
 // Pipelines
-static WGPUComputePipeline compute_pipeline;
-static WGPURenderPipeline render_pipeline;
+static WGPUComputePipeline compute_pipeline = NULL;
+static WGPURenderPipeline render_pipeline   = NULL;
 
 // Bind groups and layouts
-static WGPUBindGroup particle_bind_groups[2];
-static WGPUBindGroupLayout compute_bind_group_layout;
+static WGPUBindGroup particle_bind_groups[2]         = {0};
+static WGPUBindGroupLayout compute_bind_group_layout = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Other variables
 static const char* example_title = "Compute Boids";
 static bool prepared             = false;
-static uint32_t work_group_count;
+static uint32_t work_group_count = 0;
 
 // Prepare vertex buffers
 static void prepare_vertices(wgpu_context_t* wgpu_context)
