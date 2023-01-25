@@ -373,7 +373,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "boids_render_pipeline",
+                            .label       = "Boids render pipeline",
                             .layout      = render_pipeline_layout,
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
