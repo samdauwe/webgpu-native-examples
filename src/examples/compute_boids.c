@@ -207,10 +207,10 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   srand((unsigned int)time(NULL)); // randomize seed
   for (uint32_t i = 0; i < NUM_PARTICLES; i += 4) {
     const size_t chunk       = i * 4;
-    particle_data[chunk + 0] = 2 * (random_float() - 0.5f);        // posx
-    particle_data[chunk + 1] = 2 * (random_float() - 0.5f);        // posy
-    particle_data[chunk + 2] = 2 * (random_float() - 0.5f) * 0.1f; // velx
-    particle_data[chunk + 3] = 2 * (random_float() - 0.5f) * 0.1f; // vely
+    particle_data[chunk + 0] = 2 * (random_float() - 0.5f);        /* posx */
+    particle_data[chunk + 1] = 2 * (random_float() - 0.5f);        /* posy */
+    particle_data[chunk + 2] = 2 * (random_float() - 0.5f) * 0.1f; /* velx */
+    particle_data[chunk + 3] = 2 * (random_float() - 0.5f) * 0.1f; /* vely */
   }
 
   // Creates two buffers of particle data each of size NUM_PARTICLES the two
