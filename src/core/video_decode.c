@@ -32,7 +32,7 @@ static struct video_decode_state_t {
   .decode_buf         = NULL,
 };
 
-int init_video_decode()
+int init_video_decode(void)
 {
   return 0;
 }
@@ -209,12 +209,12 @@ static int on_frame_decoded(AVFrame* frame, int write_debug_frames)
   return 0;
 }
 
-static void init_duration()
+static void init_duration(void)
 {
   s_state.duration_base = av_gettime();
 }
 
-static int64_t get_duration_us()
+static int64_t get_duration_us(void)
 {
   int64_t duration = av_gettime() - s_state.duration_base;
   return duration;
@@ -235,7 +235,7 @@ static void sleep_to_pts(AVPacket* packet)
     av_usleep(delay_us);
   }
 }
-static void* decode_thread_main()
+static void* decode_thread_main(void)
 {
   AVFrame* frame    = av_frame_alloc();
   AVFrame* framergb = av_frame_alloc();
@@ -329,7 +329,7 @@ static void* decode_thread_main()
   return 0;
 }
 
-int start_video_decode()
+int start_video_decode(void)
 {
   pthread_create(&s_state.decode_thread, NULL, decode_thread_main, NULL);
   return 0;
