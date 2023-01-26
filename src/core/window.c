@@ -173,7 +173,7 @@ void window_get_aspect_ratio(window_t* window, float* aspect_ratio)
   *aspect_ratio = (float)window->surface.width / (float)window->surface.height;
 }
 
-/* input related functions */
+/* Input related functions */
 
 void input_poll_events(void)
 {
