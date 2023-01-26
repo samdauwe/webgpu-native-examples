@@ -36,7 +36,7 @@ typedef struct {
 } camera_t;
 
 /* camera creating/releasing */
-camera_t* camera_create();
+camera_t* camera_create(void);
 void camera_release(camera_t* camera);
 
 /* camera updating */

@@ -4,7 +4,7 @@
 
 /* camera creating/releasing */
 
-camera_t* camera_create()
+camera_t* camera_create(void)
 {
   camera_t* camera = (camera_t*)malloc(sizeof(camera_t));
   memset(camera, 0, sizeof(camera_t));
