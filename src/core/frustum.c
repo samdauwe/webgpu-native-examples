@@ -6,7 +6,7 @@
 
 /* frustum creating/releasing */
 
-frustum_t* frustum_create()
+frustum_t* frustum_create(void)
 {
   frustum_t* frustum = (frustum_t*)malloc(sizeof(frustum_t));
   memset(frustum, 0, sizeof(frustum_t));

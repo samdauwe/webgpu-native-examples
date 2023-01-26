@@ -20,7 +20,7 @@ typedef struct frustum_t {
 } frustum_t;
 
 /* frustum creating/releasing */
-frustum_t* frustum_create();
+frustum_t* frustum_create(void);
 void frustum_release(frustum_t* frustum);
 
 /* frustum updating */
