@@ -613,7 +613,7 @@ static void init_orbit_camera_matrices(void)
 
 static void update_uniform_buffers_scene(wgpu_example_context_t* context)
 {
-  wgpu_context_t* wgpu_context = context->wgpu_context;
+  const wgpu_context_t* wgpu_context = context->wgpu_context;
 
   // Elapsed time
   if (!context->paused) {
