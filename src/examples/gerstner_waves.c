@@ -298,7 +298,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniforms
+        // Binding 0: Uniforms - Scene data
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
