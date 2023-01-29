@@ -127,6 +127,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
   };
   quad.indices_ccw = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad indices buffer - CCW",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(uint32_t) * 6,
                     .count = (uint32_t)ARRAY_SIZE(indices_ccw),
@@ -138,6 +139,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
   };
   quad.indices_cw = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad indices buffer - CW",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(uint32_t) * 6,
                     .count = (uint32_t)ARRAY_SIZE(indices_cw),
