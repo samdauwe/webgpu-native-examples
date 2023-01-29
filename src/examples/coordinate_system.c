@@ -106,12 +106,14 @@ static void load_assets(wgpu_context_t* wgpu_context)
 
   quad.vertices_y_up = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad vertices buffer - Y up",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(struct vertex_t) * 4,
                     .initial.data = vertices_y_pos,
                   });
   quad.vertices_y_down = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Quad vertices buffer - Y down",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(struct vertex_t) * 4,
                     .initial.data = vertices_y_neg,
