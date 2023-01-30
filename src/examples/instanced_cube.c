@@ -188,7 +188,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_mat4_identity(view_matrices.tmp);
 }
 
-static void prepare_model_matrices()
+static void prepare_model_matrices(void)
 {
   const float step = 4.0f;
 
