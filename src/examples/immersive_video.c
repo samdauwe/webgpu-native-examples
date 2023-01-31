@@ -43,9 +43,10 @@ static struct {
   vec2 mouse_drag_distance;
   bool dragging;
 } mouse_state = {
-  .prev_mouse_position = GLM_VEC2_ZERO_INIT,
-  .mouse_drag_distance = GLM_VEC2_ZERO_INIT,
-  .dragging            = false,
+  .initial_mouse_position = GLM_VEC2_ZERO_INIT,
+  .prev_mouse_position    = GLM_VEC2_ZERO_INIT,
+  .mouse_drag_distance    = GLM_VEC2_ZERO_INIT,
+  .dragging               = false,
 };
 
 // The pipeline layout
