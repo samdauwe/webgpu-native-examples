@@ -137,8 +137,8 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
   const float now = context->frame.timestamp_millis / 1000.0f;
 
   uint32_t m = 0, i = 0;
-  for (uint32_t x = 0; x < x_count; x++) {
-    for (uint32_t y = 0; y < y_count; y++) {
+  for (uint32_t x = 0; x < x_count; ++x) {
+    for (uint32_t y = 0; y < y_count; ++y) {
       memcpy(view_matrices.tmp, view_matrices.model[i], sizeof(mat4));
       glm_rotate(view_matrices.tmp, 1.0f,
                  (vec3){
