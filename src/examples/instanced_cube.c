@@ -1,6 +1,5 @@
 #include "common_shaders.h"
 #include "example_base.h"
-#include "examples.h"
 #include "meshes.h"
 
 #include <string.h>
