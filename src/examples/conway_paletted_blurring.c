@@ -279,7 +279,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     ASSERT(tex->sampler);
   }
 
-  // Setup the initial cellular automata
+  /* Setup the initial cellular automata */
   {
     uint8_t* b = malloc(compute_width * compute_height * COMPUTE_TEX_BYTES
                         * sizeof(uint8_t));
