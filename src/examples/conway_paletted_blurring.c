@@ -141,6 +141,7 @@ static struct {
     uint32_t compute_height;
   } desc;
 } uniforms = {
+  .buffer              = {0},
   .desc.compute_width  = 0u,
   .desc.compute_height = 1u,
 };
