@@ -78,6 +78,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     };
     indices = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Cube indices data",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                       .size  = sizeof(index_data),
                       .count = (uint32_t)ARRAY_SIZE(index_data),
