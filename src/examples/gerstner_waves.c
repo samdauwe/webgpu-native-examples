@@ -200,7 +200,7 @@ static struct {
 static bool gerstner_waves_normalized = false;
 
 // Texture and sampler for sea color image
-static texture_t sea_color_texture;
+static texture_t sea_color_texture       = {0};
 static WGPUSampler non_filtering_sampler = NULL;
 
 static struct {
