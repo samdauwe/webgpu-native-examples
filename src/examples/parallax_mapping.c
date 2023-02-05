@@ -310,7 +310,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
-              .label = "parallax_mapping_vertex_shader",
+              .label = "Parallax mapping vertex shader",
               .file  = "shaders/parallax_mapping/parallax.vert.spv",
             },
             .buffer_count = 1,
@@ -322,7 +322,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .label = "parallax_mapping_fragment_shader",
+              .label = "Parallax mapping fragment shader",
               .file  = "shaders/parallax_mapping/parallax.frag.spv",
             },
             .target_count = 1,
