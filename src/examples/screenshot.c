@@ -190,6 +190,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Depth stencil attachment
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "Depth stencil attachment texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -605,8 +606,8 @@ static int example_draw(wgpu_example_context_t* context)
   bool save_screenshot = !buffer_mapped && screenshot_requested;
   wgpu_context->submit_info.command_buffer_count = save_screenshot ? 3 : 1;
   wgpu_context->submit_info.command_buffers[0]   = build_command_buffer(
-      wgpu_context, &scene_rendering.render_pass.render_pass_descriptor,
-      scene_rendering.pipeline, true);
+    wgpu_context, &scene_rendering.render_pass.render_pass_descriptor,
+    scene_rendering.pipeline, true);
   if (save_screenshot) {
     wgpu_context->submit_info.command_buffers[1] = build_command_buffer(
       wgpu_context, &offscreen_rendering.render_pass.render_pass_descriptor,
