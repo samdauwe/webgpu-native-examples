@@ -216,6 +216,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   // instance.
   uniform_buffer.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = uniform_buffer_size,
                   });
