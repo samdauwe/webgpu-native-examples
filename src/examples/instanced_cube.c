@@ -212,7 +212,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   // Prepare camera view matrices
   prepare_view_matrices(wgpu_context);
 
-  // Unform buffer: allocate a buffer large enough to hold transforms for every
+  // Uniform buffer: allocate a buffer large enough to hold transforms for every
   // instance.
   uniform_buffer.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
