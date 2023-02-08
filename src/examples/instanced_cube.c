@@ -209,7 +209,7 @@ static void prepare_model_matrices(void)
 
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // Camera
+  // Prepare camera view matrices
   prepare_view_matrices(wgpu_context);
 
   // Unform buffer: allocate a buffer large enough to hold transforms for every
