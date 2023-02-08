@@ -171,6 +171,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 {
+  // Calculate aspect ratio
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
