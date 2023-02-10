@@ -62,13 +62,13 @@ static struct {
 };
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPURenderPipeline pipeline;
-static WGPUBindGroupLayout bind_group_layout;
-static WGPUBindGroup bind_group;
+static WGPUPipelineLayout pipeline_layout    = NULL;
+static WGPURenderPipeline pipeline           = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
+static WGPUBindGroup bind_group              = NULL;
 
 static const char* mapping_modes[5] = {
   "Color only",                 //
