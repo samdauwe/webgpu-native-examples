@@ -23,7 +23,7 @@ static struct {
   texture_t normal_height_map;
 } textures = {0};
 
-struct gltf_model_t* plane;
+struct gltf_model_t* plane = NULL;
 
 static struct {
   wgpu_buffer_t vertex_shader;
