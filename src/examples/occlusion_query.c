@@ -522,7 +522,7 @@ static int example_initialize(wgpu_example_context_t* context)
   return 1;
 }
 
-static int32_t get_unmapped_dest_buffer_index()
+static int32_t get_unmapped_dest_buffer_index(void)
 {
   int32_t index = -1;
   for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
@@ -534,7 +534,7 @@ static int32_t get_unmapped_dest_buffer_index()
   return index;
 }
 
-static int32_t get_mapped_dest_buffer_index()
+static int32_t get_mapped_dest_buffer_index(void)
 {
   int32_t index = -1;
   for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
