@@ -54,7 +54,7 @@ static struct {
   WGPUBindGroup sphere;
 } bind_groups = {0};
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
 static WGPURenderPassDescriptor render_pass_desc;
 
 static WGPUPipelineLayout pipeline_layout;
@@ -63,8 +63,8 @@ static WGPUBindGroupLayout bind_group_layout;
 
 static WGPUQuerySet occlusion_query_set;
 static WGPUBuffer occlusion_query_set_src_buffer;
-static WGPUBuffer occlusion_query_set_dst_buffer[MAX_DEST_BUFFERS];
-static bool dest_buffer_mapped[MAX_DEST_BUFFERS] = {0};
+static WGPUBuffer occlusion_query_set_dst_buffer[MAX_DEST_BUFFERS] = {0};
+static bool dest_buffer_mapped[MAX_DEST_BUFFERS]                   = {0};
 
 // Passed query samples
 static uint64_t passed_samples[2] = {1, 1};
@@ -554,8 +554,8 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
   if (status == WGPUBufferMapAsyncStatus_Success) {
     int32_t mapped_dest_buffer_index = get_mapped_dest_buffer_index();
     uint64_t const* mapping          = (uint64_t*)wgpuBufferGetConstMappedRange(
-               occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
-               sizeof(passed_samples));
+      occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
+      sizeof(passed_samples));
     ASSERT(mapping)
     memcpy(passed_samples, mapping, sizeof(passed_samples));
     wgpuBufferUnmap(occlusion_query_set_dst_buffer[mapped_dest_buffer_index]);
