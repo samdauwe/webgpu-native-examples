@@ -54,14 +54,14 @@ static struct {
 } bind_groups = {0};
 
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPUBindGroup bind_group;
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUPipelineLayout pipeline_layout    = NULL;
+static WGPUBindGroup bind_group              = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
-static WGPUQuerySet occlusion_query_set;
-static WGPUBuffer occlusion_query_set_src_buffer;
+static WGPUQuerySet occlusion_query_set                            = NULL;
+static WGPUBuffer occlusion_query_set_src_buffer                   = NULL;
 static WGPUBuffer occlusion_query_set_dst_buffer[MAX_DEST_BUFFERS] = {0};
 static bool dest_buffer_mapped[MAX_DEST_BUFFERS]                   = {0};
 
