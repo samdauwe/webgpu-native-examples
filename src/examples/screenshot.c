@@ -35,9 +35,9 @@ static struct {
   mat4 view;
 } ubo_vs = {0};
 
-static WGPUPipelineLayout pipeline_layout;
-static WGPUBindGroupLayout bind_group_layout;
-static WGPUBindGroup bind_group;
+static WGPUPipelineLayout pipeline_layout    = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
+static WGPUBindGroup bind_group              = NULL;
 
 static const char* screenshot_filename = "Screenshot.png";
 static bool screenshot_requested       = false;
