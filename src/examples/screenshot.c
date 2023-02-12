@@ -110,12 +110,12 @@ static void load_assets(wgpu_context_t* wgpu_context)
 // https://en.wikipedia.org/wiki/Data_structure_alignment#Computing_padding
 static void calculate_buffer_dimensions(uint32_t width, uint32_t height)
 {
-  uint32_t bytes_per_pixel        = sizeof(uint8_t) * 4;
-  uint32_t unpadded_bytes_per_row = width * bytes_per_pixel;
-  uint32_t align                  = (uint32_t)COPY_BYTES_PER_ROW_ALIGNMENT;
-  uint32_t padded_bytes_per_row_padding
+  const uint32_t bytes_per_pixel        = sizeof(uint8_t) * 4;
+  const uint32_t unpadded_bytes_per_row = width * bytes_per_pixel;
+  const uint32_t align = (uint32_t)COPY_BYTES_PER_ROW_ALIGNMENT;
+  const uint32_t padded_bytes_per_row_padding
     = (align - unpadded_bytes_per_row % align) % align;
-  uint32_t padded_bytes_per_row
+  const uint32_t padded_bytes_per_row
     = unpadded_bytes_per_row + padded_bytes_per_row_padding;
   {
     offscreen_rendering.pixel_data.buffer_dimensions.width  = width;
