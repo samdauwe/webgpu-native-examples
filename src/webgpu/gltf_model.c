@@ -1333,7 +1333,7 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
           case cgltf_type_vec3: {
             sampler->outputs_vec4_count = (uint32_t)accessor->count;
             sampler->outputs_vec4       = calloc(sampler->outputs_vec4_count,
-                                           sizeof(*sampler->outputs_vec4));
+                                                 sizeof(*sampler->outputs_vec4));
 
             vec3* buf = calloc(accessor->count, sizeof(vec3));
             memcpy(buf,
@@ -1351,7 +1351,7 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
           case cgltf_type_vec4: {
             sampler->outputs_vec4_count = (uint32_t)accessor->count;
             sampler->outputs_vec4       = calloc(sampler->outputs_vec4_count,
-                                           sizeof(*sampler->outputs_vec4));
+                                                 sizeof(*sampler->outputs_vec4));
 
             vec4* buf = calloc(accessor->count, sizeof(vec4));
             memcpy(buf,
@@ -1655,11 +1655,11 @@ void wgpu_gltf_model_draw(gltf_model_t* model,
   }
 }
 
-wgpu_gltf_materials_t wgpu_gltf_model_get_materials(gltf_model_t* model)
+wgpu_gltf_materials_t wgpu_gltf_model_get_materials(void* model)
 {
   return (wgpu_gltf_materials_t){
-    .materials      = model->materials,
-    .material_count = model->material_count,
+    .materials      = ((gltf_model_t*)model)->materials,
+    .material_count = ((gltf_model_t*)model)->material_count,
   };
 }
 
