@@ -15,7 +15,7 @@
  * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/instancedCube
  * -------------------------------------------------------------------------- */
 
-#define MAX_NUM_INSTANCES 16
+#define MAX_NUM_INSTANCES 16u
 
 // Shaders
 // clang-format off
