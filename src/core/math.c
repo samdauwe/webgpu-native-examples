@@ -11,7 +11,7 @@ float random_float_min_max(float min, float max)
   return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
 }
 
-float random_float()
+float random_float(void)
 {
   return random_float_min_max(0.0f, 1.0f); /* [0, 1.0] */
 }

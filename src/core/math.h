@@ -13,7 +13,7 @@ float random_float_min_max(float min, float max);
  * @brief Generates a random float number in range [0.0f, 1.0f].
  * @return random float number in range [0.0f, 1.0f]
  */
-float random_float();
+float random_float(void);
 
 /**
  * @brief Returns if value v0 and v1 are approximately equal using epsilon as
