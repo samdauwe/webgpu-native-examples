@@ -307,7 +307,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Vertex buffer layout
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     multi_sampling,
-    // Location 0: Position
+    // Location 0: Vertex position
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
     // Location 1: Vertex normal
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
