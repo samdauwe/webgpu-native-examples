@@ -109,7 +109,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   // Create the texture view
   video_texture.view = wgpuTextureCreateView(
     video_texture.texture, &(WGPUTextureViewDescriptor){
-                             .label           = "Video testure view",
+                             .label           = "Video texture view",
                              .format          = WGPUTextureFormat_RGBA8Unorm,
                              .dimension       = WGPUTextureViewDimension_2D,
                              .baseMipLevel    = 0,
@@ -122,7 +122,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   // Create the sampler
   video_texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Video testure sampler",
+                            .label         = "Video texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
