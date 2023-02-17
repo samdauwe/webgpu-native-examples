@@ -599,7 +599,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(pipeline_layout != NULL)
 }
 
-static void setup_bind_groups()
+static void setup_bind_groups(void)
 {
   for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
     webgpu_gear_setup_bind_group(wgpu_gears[i], bind_group_layout);
