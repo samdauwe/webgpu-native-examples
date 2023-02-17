@@ -586,7 +586,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this descriptor set layout
@@ -596,7 +596,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                    &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 }
 
 static void setup_bind_groups(void)
