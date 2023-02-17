@@ -1,5 +1,4 @@
 #include "example_base.h"
-#include "examples.h"
 
 #include <math.h>
 #include <string.h>
