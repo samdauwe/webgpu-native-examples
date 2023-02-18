@@ -27,7 +27,7 @@ static struct {
 
 static struct gltf_model_t* gltf_model = NULL;
 
-static wgpu_buffer_t uniform_buffer;
+static wgpu_buffer_t uniform_buffer = {0};
 
 static struct {
   mat4 projection;
