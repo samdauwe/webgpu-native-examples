@@ -130,12 +130,14 @@ static float start_time          = -1.0f;
 // Prepare vertex buffers
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
+  // clang-format off
   static const float vertices_data[(4 + 4) * 3] = {
     // position data          /**/ color data              //
-    0.0f,  0.1f,  0.0f, 1.0f, /**/ 1.0f, 0.0f, 0.0f, 1.0f, //
+     0.0f,  0.1f, 0.0f, 1.0f, /**/ 1.0f, 0.0f, 0.0f, 1.0f, //
     -0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 1.0f, 0.0f, 1.0f, //
-    0.1f,  -0.1f, 0.0f, 1.0f, /**/ 0.0f, 0.0f, 1.0f, 1.0f, //
+     0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 0.0f, 1.0f, 1.0f, //
   };
+  // clang-format on
 
   vertices.count              = 3u;
   uint64_t vertex_buffer_size = (uint64_t)sizeof(vertices_data);
