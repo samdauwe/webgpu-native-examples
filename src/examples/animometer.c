@@ -92,17 +92,17 @@ static struct {
 } vertices = {0};
 
 //  Uniform buffer
-static WGPUBuffer uniform_buffer;
-static uint64_t time_offset  = 0;
-static float uniform_time[1] = {0};
+static WGPUBuffer uniform_buffer = NULL;
+static uint64_t time_offset      = 0;
+static float uniform_time[1]     = {0};
 
 // The pipeline layouts
 static WGPUPipelineLayout pipeline_layout;
 static WGPUPipelineLayout dynamic_pipeline_layout;
 
 // Pipelines
-static WGPURenderPipeline pipeline;
-static WGPURenderPipeline dynamic_pipeline;
+static WGPURenderPipeline pipeline         = NULL;
+static WGPURenderPipeline dynamic_pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -112,16 +112,16 @@ static struct {
 
 // Render bundles execute the commands previously recorded into the given
 // GPURenderBundles as part of this render pass.
-static WGPURenderBundle render_bundle;
+static WGPURenderBundle render_bundle = NULL;
 
 // Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroupLayout time_bind_group_layout;
-static WGPUBindGroupLayout bind_group_layout;
-static WGPUBindGroupLayout dynamic_bind_group_layout;
+static WGPUBindGroupLayout time_bind_group_layout    = NULL;
+static WGPUBindGroupLayout bind_group_layout         = NULL;
+static WGPUBindGroupLayout dynamic_bind_group_layout = NULL;
 
-static WGPUBindGroup* bind_groups;
-static WGPUBindGroup dynamic_bind_group;
-static WGPUBindGroup time_bind_group;
+static WGPUBindGroup* bind_groups       = NULL;
+static WGPUBindGroup dynamic_bind_group = NULL;
+static WGPUBindGroup time_bind_group    = NULL;
 
 // Other variables
 static const char* example_title = "Animometer";
@@ -286,8 +286,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   aligned_uniform_bytes  = ceil(uniform_bytes / 256.0f) * 256;
   aligned_uniform_floats = aligned_uniform_bytes / sizeof(float);
   uniform_buffer         = wgpuDeviceCreateBuffer(
-            wgpu_context->device,
-            &(WGPUBufferDescriptor){
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
               .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
               .size  = settings.num_triangles * aligned_uniform_bytes + sizeof(float),
     });
