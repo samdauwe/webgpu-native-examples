@@ -152,7 +152,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Time bind group layout
   WGPUBindGroupLayoutEntry time_bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Time
+      // Binding 0: Time
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -173,6 +173,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group layout
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
+      // Binding 0: Time
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
