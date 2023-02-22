@@ -163,7 +163,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
      .layout     = uniform_bind_group_layout,
      .entryCount = 1,
      .entries    = &(WGPUBindGroupEntry) {
-       // Binding 0 : Uniform buffer
+       // Binding 0: Uniform buffer (Fragment shader)
        .binding = 0,
        .buffer  = uniform_buffer_fs.buffer,
        .offset  = 0,
