@@ -76,7 +76,7 @@ static const char* example_title = "Textured Cube";
 static bool prepared             = false;
 
 // Prepare the cube geometry
-static void prepare_cube_mesh()
+static void prepare_cube_mesh(void)
 {
   cube_mesh_init(&cube_mesh);
 }
