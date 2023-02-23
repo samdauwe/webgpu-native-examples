@@ -57,19 +57,19 @@ static struct {
 } view_matrices = {0};
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipeline
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // Texture and sampler
-static texture_t texture;
+static texture_t texture = {0};
 
 // Other variables
 static const char* example_title = "Textured Cube";
