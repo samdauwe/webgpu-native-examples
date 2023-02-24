@@ -186,7 +186,7 @@ static struct {
     perlin_noise_t perlin_noise;
     fractal_noise_t fractal_noise;
   } data_generation;
-} noise_texture;
+} noise_texture = {0};
 
 // Vertex layout for this example
 typedef struct vertex_t {
@@ -222,12 +222,12 @@ static struct {
 } pipelines;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroup bind_group;
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroup bind_group              = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // Other variables
 static const char* example_title = "3D Textures";
