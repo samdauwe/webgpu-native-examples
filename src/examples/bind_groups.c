@@ -336,10 +336,12 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
+  // clang-format off
   static vec3 translations[2] = {
     {-2.0f, 0.0f, 0.0f}, /* Cube 1 */
-    {1.5f, 0.5f, 0.0f},  /* Cube 2 */
+    { 1.5f, 0.5f, 0.0f}, /* Cube 2 */
   };
+  // clang-format on
 
   camera_t* camera = context->camera;
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(cubes); ++i) {
