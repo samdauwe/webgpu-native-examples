@@ -168,7 +168,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   time_bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &time_bgl_desc);
-  ASSERT(time_bind_group_layout != NULL)
+  ASSERT(time_bind_group_layout != NULL);
 
   // Bind group layout
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
@@ -190,7 +190,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(bind_group_layout != NULL)
+  ASSERT(bind_group_layout != NULL);
 
   // Dynamic bind group layout
   WGPUBindGroupLayoutEntry dynamic_bgl_entries[1] = {
@@ -212,7 +212,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   dynamic_bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &dynamic_bgl_desc);
-  ASSERT(dynamic_bind_group_layout != NULL)
+  ASSERT(dynamic_bind_group_layout != NULL);
 
   // Create the pipeline layouts that are used to generate the rendering
   // pipelines that are based on this bind group layouts
@@ -225,7 +225,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
                                                    &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(pipeline_layout != NULL);
 
   WGPUBindGroupLayout bgl_dynamic_pipeline[2]
     = {time_bind_group_layout, dynamic_bind_group_layout};
@@ -236,7 +236,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   dynamic_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &_dynamic_pipeline_layout_desc);
-  ASSERT(dynamic_pipeline_layout != NULL)
+  ASSERT(dynamic_pipeline_layout != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -550,7 +550,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
