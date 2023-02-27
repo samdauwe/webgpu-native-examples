@@ -96,8 +96,8 @@ static uint64_t time_offset      = 0;
 static float uniform_time[1]     = {0};
 
 // The pipeline layouts
-static WGPUPipelineLayout pipeline_layout;
-static WGPUPipelineLayout dynamic_pipeline_layout;
+static WGPUPipelineLayout pipeline_layout         = NULL;
+static WGPUPipelineLayout dynamic_pipeline_layout = NULL;
 
 // Pipelines
 static WGPURenderPipeline pipeline         = NULL;
