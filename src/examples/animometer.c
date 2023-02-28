@@ -163,6 +163,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor time_bgl_desc = {
+    .label      = "Time bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(time_bgl_entries),
     .entries    = time_bgl_entries,
   };
