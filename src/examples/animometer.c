@@ -503,10 +503,10 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_render_pass(context->wgpu_context);
     prepare_render_bundle_encoder(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
