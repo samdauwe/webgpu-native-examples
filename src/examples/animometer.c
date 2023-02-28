@@ -456,7 +456,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Create rendering pipeline layout using the specified states
   WGPURenderPipelineDescriptor pipeline_desc = {
-    .label       = "animometer_render_pipeline",
+    .label       = "Animometer render pipeline",
     .primitive   = primitive_state_desc,
     .vertex      = vertex_state_desc,
     .fragment    = &fragment_state_desc,
