@@ -55,10 +55,10 @@ static int example_initialize(wgpu_example_context_t* context)
     // Setup render pass
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
