@@ -516,9 +516,9 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
-    imgui_overlay_checkBox(context->imgui_overlay, "Render bundles",
+    imgui_overlay_checkBox(context->imgui_overlay, "Render Bundles",
                            &settings.render_bundles);
-    imgui_overlay_checkBox(context->imgui_overlay, "Dynamic offsets",
+    imgui_overlay_checkBox(context->imgui_overlay, "Dynamic Offsets",
                            &settings.dynamic_offsets);
   }
 }
