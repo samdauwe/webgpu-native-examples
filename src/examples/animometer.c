@@ -485,6 +485,7 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
   WGPURenderBundleEncoder render_bundle_encoder
     = wgpuDeviceCreateRenderBundleEncoder(wgpu_context->device,
                                           &(WGPURenderBundleEncoderDescriptor){
+                                            .label = "Render bundle encoder",
                                             .colorFormatsCount = 1,
                                             .colorFormats      = color_formats,
                                             .sampleCount       = 1,
