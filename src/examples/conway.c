@@ -548,10 +548,10 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
