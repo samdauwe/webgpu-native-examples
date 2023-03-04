@@ -235,7 +235,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
                               .lodMaxClamp   = 1.0f,
                               .maxAnisotropy = 1,
                             });
-    ASSERT(tex->sampler)
+    ASSERT(tex->sampler);
   }
 
   // Setup the initial texture1, with some initial data.
