@@ -17,7 +17,7 @@
  * -------------------------------------------------------------------------- */
 
 // Offscreen frame buffer properties
-#define FB_DIM 256
+#define FB_DIM 256u
 #define FB_COLOR_FORMAT WGPUTextureFormat_RGBA8Unorm
 #define FB_DEPTH_FORMAT WGPUTextureFormat_Depth24PlusStencil8
 
