@@ -707,7 +707,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       // Create rendering pipeline using the specified states
       pipelines.blur_horz = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label     = "horizontal_blur_render_pipeline",
+                                .label     = "Horizontal blur render pipeline",
                                 .layout    = pipeline_layouts.blur,
                                 .primitive = primitive_state,
                                 .vertex    = vertex_state,
