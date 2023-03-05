@@ -659,7 +659,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       // Create rendering pipeline using the specified states
       pipelines.blur_vert = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label        = "vertical_blur_render_pipeline",
+                                .label        = "Vertical blur render pipeline",
                                 .layout       = pipeline_layouts.blur,
                                 .primitive    = primitive_state,
                                 .vertex       = vertex_state,
