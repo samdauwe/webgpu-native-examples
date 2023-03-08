@@ -38,7 +38,7 @@ static struct {
                                // compute shader image manipulation
   WGPURenderPipeline pipeline; // Raytraced image display pipeline
   WGPUPipelineLayout pipeline_layout; // Layout of the graphics pipeline
-} graphics;
+} graphics = {0};
 
 // Resources for the compute part of the example
 static struct {
@@ -64,13 +64,13 @@ static struct {
       float fov;
     } camera;
   } ubo;
-} compute;
+} compute = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // SSBO sphere declaration
 typedef struct sphere_t {
