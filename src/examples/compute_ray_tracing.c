@@ -17,9 +17,9 @@
 #define HIGH_QUALITY 0
 
 #if !HIGH_QUALITY
-#define TEX_DIM 1024
+#define TEX_DIM 1024u
 #else
-#define TEX_DIM 2048
+#define TEX_DIM 2048u
 #endif
 
 static texture_t texture_compute_target = {0};
