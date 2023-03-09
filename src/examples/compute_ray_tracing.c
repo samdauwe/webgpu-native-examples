@@ -122,6 +122,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   tex->texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
+      .label         = "Blit target texture",
       .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
       .dimension     = WGPUTextureDimension_2D,
       .size          = (WGPUExtent3D){
@@ -137,6 +138,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   // Create the texture view
   tex->view = wgpuTextureCreateView(tex->texture,
                                     &(WGPUTextureViewDescriptor){
+                                      .label     = "Blit target texture view",
                                       .format    = tex->format,
                                       .dimension = WGPUTextureViewDimension_2D,
                                       .baseMipLevel    = 0,
@@ -148,6 +150,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   // Create sampler
   tex->sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "Blit target texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
