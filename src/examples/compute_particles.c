@@ -120,12 +120,12 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
     compute.ubo.dest_y = 0.0f;
   }
   else {
-    float width  = (float)wgpu_context->surface.width;
-    float height = (float)wgpu_context->surface.height;
+    const float width  = (float)wgpu_context->surface.width;
+    const float height = (float)wgpu_context->surface.height;
 
-    float normalized_mx
+    const float normalized_mx
       = (context->mouse_position[0] - (width / 2.0f)) / (width / 2.0f);
-    float normalized_my
+    const float normalized_my
       = ((height / 2.0f) - context->mouse_position[1]) / (height / 2.0f);
     compute.ubo.dest_x = normalized_mx;
     compute.ubo.dest_y = normalized_my;
