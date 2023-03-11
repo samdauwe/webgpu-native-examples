@@ -14,7 +14,7 @@
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/particles
  * -------------------------------------------------------------------------- */
 
-const uint32_t num_particles               = 100000;
+const uint32_t num_particles               = 50000;
 const uint32_t particle_position_offset    = 0;
 const uint32_t particle_color_offset       = 4 * 4;
 const uint32_t particle_instance_byte_size = 3 * 4 + // position
