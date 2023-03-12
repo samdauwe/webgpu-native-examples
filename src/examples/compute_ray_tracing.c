@@ -300,7 +300,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   graphics.bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(graphics.bind_group_layout != NULL)
+  ASSERT(graphics.bind_group_layout != NULL);
 
   // Create the pipeline layout
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
@@ -335,7 +335,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
   graphics.bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(graphics.bind_group != NULL)
+  ASSERT(graphics.bind_group != NULL);
 }
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
@@ -461,7 +461,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   };
   compute.bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(compute.bind_group_layout != NULL)
+  ASSERT(compute.bind_group_layout != NULL);
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
     .bindGroupLayoutCount = 1,
@@ -469,7 +469,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   };
   compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &compute_pipeline_layout_desc);
-  ASSERT(compute.pipeline_layout != NULL)
+  ASSERT(compute.pipeline_layout != NULL);
 
   /* Compute pipeline bind group */
   WGPUBindGroupEntry bg_entries[4] = {
@@ -636,7 +636,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
