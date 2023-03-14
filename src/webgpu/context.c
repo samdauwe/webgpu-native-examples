@@ -5,10 +5,8 @@
 
 #include "../core/log.h"
 #include "../core/macro.h"
-#include "../core/platform.h"
 #include "../core/window.h"
 
-#include "../webgpu/buffer.h"
 #include "../webgpu/texture.h"
 
 #include "../../lib/wgpu_native/wgpu_native.h"
@@ -178,8 +176,6 @@ void wgpu_setup_deph_stencil(
     .depthLoadOp     = WGPULoadOp_Clear,
     .depthStoreOp    = WGPUStoreOp_Store,
     .depthClearValue = 1.0f,
-    .clearDepth      = 1.0f,
-    .clearStencil    = 0,
   };
 
   // stencilLoadOp & stencilStoreOp must be set if the attachment has stencil
