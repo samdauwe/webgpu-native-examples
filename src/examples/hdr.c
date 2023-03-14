@@ -272,7 +272,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
             .view       = offscreen_pass.color[i].texture_view,
             .loadOp     = WGPULoadOp_Clear,
             .storeOp    = WGPUStoreOp_Store,
-            .clearColor = (WGPUColor) {
+            .clearValue = (WGPUColor) {
               .r = 0.0f,
               .g = 0.0f,
               .b = 0.0f,
@@ -287,10 +287,8 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         .view           = offscreen_pass.depth.texture_view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
-        .clearDepth     = 1.0f,
         .stencilLoadOp  = WGPULoadOp_Clear,
         .stencilStoreOp = WGPUStoreOp_Store,
-        .clearStencil   = 0,
       };
 
     // Render pass descriptor
@@ -339,7 +337,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
             .view       = filter_pass.color[0].texture_view,
             .loadOp     = WGPULoadOp_Clear,
             .storeOp    = WGPUStoreOp_Store,
-            .clearColor = (WGPUColor) {
+            .clearValue = (WGPUColor) {
               .r = 0.0f,
               .g = 0.0f,
               .b = 0.0f,
@@ -696,7 +694,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.025f,
         .g = 0.025f,
         .b = 0.025f,
@@ -706,9 +704,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Depth attachment
   wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  // Set clear sample for this example
-  wgpu_context->depth_stencil.att_desc.clearStencil = 1;
 
   // Render pass descriptor
   render_pass_desc = (WGPURenderPassDescriptor){
@@ -841,7 +836,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // First bloom filter pass (into separate framebuffer)
     color_target_state_desc.format = wgpu_context->swap_chain.format;
     pipelines.bloom[0]             = wgpuDeviceCreateRenderPipeline(
-                  wgpu_context->device, &(WGPURenderPipelineDescriptor){
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                           .label        = "bloom_1_render_pipeline",
                                           .layout       = pipeline_layouts.bloom_filter,
                                           .primitive    = primitive_state_desc,
@@ -855,7 +850,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Second bloom filter pass (into separate framebuffer)
     color_target_state_desc.format = filter_pass.color[0].format;
     pipelines.bloom[1]             = wgpuDeviceCreateRenderPipeline(
-                  wgpu_context->device, &(WGPURenderPipelineDescriptor){
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                           .label        = "bloom_2_render_pipeline",
                                           .layout       = pipeline_layouts.bloom_filter,
                                           .primitive    = primitive_state_desc,
@@ -1017,8 +1012,8 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.dynamic.model_size  = sizeof(int);
   uniform_buffers.dynamic.buffer_size = sizeof(ubo_constants);
   uniform_buffers.dynamic.buffer      = wgpuDeviceCreateBuffer(
-         context->wgpu_context->device,
-         &(WGPUBufferDescriptor){
+    context->wgpu_context->device,
+    &(WGPUBufferDescriptor){
            .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
            .size             = uniform_buffers.dynamic.buffer_size,
            .mappedAtCreation = false,

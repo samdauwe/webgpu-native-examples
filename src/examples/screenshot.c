@@ -225,7 +225,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .view       = offscreen_rendering.color.texture_view,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -239,10 +239,8 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .view           = offscreen_rendering.depth_stencil.texture_view,
       .depthLoadOp    = WGPULoadOp_Clear,
       .depthStoreOp   = WGPUStoreOp_Store,
-      .clearDepth     = 1.0f,
       .stencilLoadOp  = WGPULoadOp_Clear,
       .stencilStoreOp = WGPUStoreOp_Store,
-      .clearStencil   = 0,
     };
 
   // Render pass descriptor
@@ -321,7 +319,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,

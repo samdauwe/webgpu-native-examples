@@ -225,7 +225,7 @@ static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
                       settings.grid_w, settings.grid_h);
 }
 
-static void dynamic_buffers_destroy()
+static void dynamic_buffers_destroy(void)
 {
   dynamic_buffer_destroy(&dynamic_buffers.velocity);
   dynamic_buffer_destroy(&dynamic_buffers.velocity0);
@@ -441,7 +441,7 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 }
 
 /* Destruct uniforms */
-static void uniforms_buffers_destroy()
+static void uniforms_buffers_destroy(void)
 {
   uniform_destroy(&uniforms.time);
   uniform_destroy(&uniforms.dt);
@@ -865,7 +865,7 @@ static void programs_init(wgpu_context_t* wgpu_context)
   init_vorticity_program(&programs.vorticity_program, wgpu_context);
 }
 
-static void programs_destroy()
+static void programs_destroy(void)
 {
   program_destroy(&programs.advect_dye_program);
   program_destroy(&programs.advect_program);
@@ -1064,7 +1064,7 @@ static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void render_program_destroy()
+static void render_program_destroy(void)
 {
   wgpu_destroy_buffer(&render_program.vertex_buffer);
   dynamic_buffer_destroy(&dynamic_buffers.rgb_buffer);
@@ -1214,14 +1214,14 @@ static void render_program_setup_render_uniforms(wgpu_context_t* wgpu_context)
                1, &value);
 }
 
-static void render_program_setup_render_pass()
+static void render_program_setup_render_pass(void)
 {
   /* Color attachment */
   render_program.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -1285,7 +1285,7 @@ static struct {
 };
 
 /* Simulation reset */
-static void simulation_reset()
+static void simulation_reset(void)
 {
   dynamic_buffer_clear(&dynamic_buffers.velocity);
   dynamic_buffer_clear(&dynamic_buffers.dye);

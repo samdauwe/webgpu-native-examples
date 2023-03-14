@@ -136,7 +136,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.025f,
         .g = 0.025f,
         .b = 0.025f,
@@ -146,9 +146,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Depth attachment
   wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  // Set clear sample for this example
-  wgpu_context->depth_stencil.att_desc.clearStencil = 1;
 
   // Render pass descriptor
   render_pass.descriptor = (WGPURenderPassDescriptor){

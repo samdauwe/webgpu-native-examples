@@ -623,7 +623,7 @@ static void prepare_draw_pass_descriptors()
       .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.5f,
@@ -677,7 +677,7 @@ static void prepare_texture_quad_pass_descriptors()
       .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.5f,

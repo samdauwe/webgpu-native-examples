@@ -1629,10 +1629,10 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
   this->indirect_render_array[0] = 500;
   this->indirect_render_buffer   = wgpu_create_buffer(
-      wgpu_context, &(wgpu_buffer_desc_t){
+    wgpu_context, &(wgpu_buffer_desc_t){
                       .label = "metaballs indirect draw buffer",
                       .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Indirect
-                               | WGPUBufferUsage_CopyDst,
+                             | WGPUBufferUsage_CopyDst,
                       .size = sizeof(this->indirect_render_array),
                   });
 
@@ -2543,8 +2543,6 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
       .view         = this->depth_texture.view,
       .depthLoadOp  = WGPULoadOp_Clear,
       .depthStoreOp = WGPUStoreOp_Store,
-      .clearDepth   = 1.0f,
-      .clearStencil = 0,
     };
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 0,
@@ -4556,7 +4554,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
       .view       = this->copy_texture.view,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -4966,7 +4964,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       .view       = this->bloom_texture.view,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
@@ -4985,7 +4983,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   this->block_dim = BLOOM_PASS_TILE_DIM - (BLOOM_PASS_FILTER_SIZE - 1);
   const uint32_t blur_params[2] = {BLOOM_PASS_FILTER_SIZE, this->block_dim};
   this->blur_params_buffer      = wgpu_create_buffer(
-         wgpu_context, &(wgpu_buffer_desc_t){
+    wgpu_context, &(wgpu_buffer_desc_t){
                          .label = "blur params buffer",
                          .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                          .size  = sizeof(blur_params),
@@ -5475,7 +5473,7 @@ static void deferred_pass_create(deferred_pass_t* this,
         .view       = this->g_buffer_texture_normal.view,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -5489,7 +5487,7 @@ static void deferred_pass_create(deferred_pass_t* this,
         .view       = this->g_buffer_texture_diffuse.view,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -5505,8 +5503,6 @@ static void deferred_pass_create(deferred_pass_t* this,
       .depthLoadOp     = WGPULoadOp_Clear,
       .depthStoreOp    = WGPUStoreOp_Store,
       .depthClearValue = 1.0f,
-      .clearDepth      = 1.0f,
-      .clearStencil    = 0,
     };
 
   /* Frame buffer descriptor */

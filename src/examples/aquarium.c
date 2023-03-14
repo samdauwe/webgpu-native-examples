@@ -2778,24 +2778,22 @@ static void context_pre_frame(context_t* this)
     color_attachment.resolveTarget = this->texture_views.backbuffer;
     color_attachment.loadOp        = WGPULoadOp_Clear;
     color_attachment.storeOp       = WGPUStoreOp_Store;
-    color_attachment.clearColor    = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
+    color_attachment.clearValue    = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
   }
   else {
     /* When MSAA is off, we render directly to the backbuffer */
     color_attachment.view       = this->texture_views.backbuffer;
     color_attachment.loadOp     = WGPULoadOp_Clear;
     color_attachment.storeOp    = WGPUStoreOp_Store;
-    color_attachment.clearColor = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
+    color_attachment.clearValue = (WGPUColor){0.f, 0.8f, 1.f, 0.f};
   }
 
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment = {0};
   depth_stencil_attachment.view = this->texture_views.scene_depth_stencil.view;
   depth_stencil_attachment.depthLoadOp    = WGPULoadOp_Clear;
   depth_stencil_attachment.depthStoreOp   = WGPUStoreOp_Store;
-  depth_stencil_attachment.clearDepth     = 1.f;
   depth_stencil_attachment.stencilLoadOp  = WGPULoadOp_Clear;
   depth_stencil_attachment.stencilStoreOp = WGPUStoreOp_Store;
-  depth_stencil_attachment.clearStencil   = 0;
 
   this->render_pass_descriptor.colorAttachmentCount = 1;
   this->render_pass_descriptor.colorAttachments     = &color_attachment;

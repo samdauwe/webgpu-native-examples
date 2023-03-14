@@ -876,7 +876,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.1f,
         .g = 0.2f,
         .b = 0.3f,
@@ -890,9 +890,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view              = demo_state.depth_texture_view,
       .depthLoadOp       = WGPULoadOp_Clear,
       .depthStoreOp      = WGPUStoreOp_Store,
-      .clearDepth        = 1.0f,
       .depthClearValue   = 1.0f,
-      .clearStencil      = 1,
       .stencilClearValue = 1,
     };
 

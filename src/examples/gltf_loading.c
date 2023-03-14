@@ -863,7 +863,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // attachment is acquired in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.25f,
         .g = 0.25f,
         .b = 0.25f,

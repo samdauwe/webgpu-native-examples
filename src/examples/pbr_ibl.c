@@ -546,7 +546,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // Assigned later
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.1f,
         .g = 0.1f,
         .b = 0.1f,
@@ -850,7 +850,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
         .view       = textures.lut_brdf.view,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -1290,7 +1290,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
         .view       = NULL,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.2f,
@@ -1785,7 +1785,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
         .view       = NULL, /* Assigned later */
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.2f,

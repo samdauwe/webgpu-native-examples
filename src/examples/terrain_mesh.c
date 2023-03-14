@@ -267,7 +267,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.812f,
         .g = 0.914f,
         .b = 1.0f,

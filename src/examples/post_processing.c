@@ -1550,7 +1550,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .view       = NULL, /* Assigned later */
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -1564,10 +1564,8 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .view           = offscreen_framebuffer.depth_stencil.texture_view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
-        .clearDepth     = 1.0f,
         .stencilLoadOp  = WGPULoadOp_Clear,
         .stencilStoreOp = WGPUStoreOp_Store,
-        .clearStencil   = 0,
       };
 
     // Render pass descriptor
@@ -1586,7 +1584,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .view       = NULL,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.1f,
           .g = 0.1f,
           .b = 0.1f,
@@ -1912,7 +1910,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   /* Render instanced cubes scene to default swapchainTexture */
   {
-    render_passes.scene_render.color_attachments[0].clearColor = (WGPUColor){
+    render_passes.scene_render.color_attachments[0].clearValue = (WGPUColor){
       .r = 0.1f,
       .g = 0.1f,
       .b = 0.1f,
@@ -1980,7 +1978,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
    * Render instanced spheres scene to default swapchainTexture
    */
   {
-    render_passes.scene_render.color_attachments[0].clearColor = (WGPUColor){
+    render_passes.scene_render.color_attachments[0].clearValue = (WGPUColor){
       .r = 0.225f,
       .g = 0.225f,
       .b = 0.225f,

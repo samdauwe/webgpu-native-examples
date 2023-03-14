@@ -403,8 +403,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .depthLoadOp     = WGPULoadOp_Clear,
         .depthStoreOp    = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,
-        .clearDepth      = 1.0f,
-        .clearStencil    = 0,
       };
 
     shadow_render_pass.descriptor = (WGPURenderPassDescriptor){
@@ -422,7 +420,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, // view is acquired and set in render loop.
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.5f,
         .g = 0.5f,
         .b = 0.5f,
@@ -436,10 +434,8 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .view           = textures.depth_texture.view,
         .depthLoadOp    = WGPULoadOp_Clear,
         .depthStoreOp   = WGPUStoreOp_Store,
-        .clearDepth     = 1.0f,
         .stencilLoadOp  = WGPULoadOp_Clear,
         .stencilStoreOp = WGPUStoreOp_Store,
-        .clearStencil   = 0,
       };
     color_render_pass.descriptor = (WGPURenderPassDescriptor){
       .colorAttachmentCount   = 1,
