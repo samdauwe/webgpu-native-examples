@@ -3,11 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../core/log.h"
 #include "../core/macro.h"
 
 void example_animometer(int argc, char* argv[]);
-// void example_aquarium(int argc, char* argv[]);
+void example_aquarium(int argc, char* argv[]);
 void example_basisu(int argc, char* argv[]);
 void example_bind_groups(int argc, char* argv[]);
 void example_bloom(int argc, char* argv[]);
@@ -77,7 +76,7 @@ static examplecase_t g_example_cases[] = {
   // {"aquarium", example_aquarium},
   {"basisu", example_basisu},
   {"bind_groups", example_bind_groups},
-  {"bloom", example_bloom},
+  // {"bloom", example_bloom},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},
   {"compute_metaballs", example_compute_metaballs},
@@ -92,22 +91,22 @@ static examplecase_t g_example_cases[] = {
   {"coordinate_system", example_coordinate_system},
   {"cube_reflection", example_cube_reflection},
   {"cubemap", example_cubemap},
-  {"deferred_rendering", example_deferred_rendering},
+  // {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
   {"equirectangular_image", example_equirectangular_image},
-  {"fluid_simulation", example_fluid_simulation},
+  // {"fluid_simulation", example_fluid_simulation},
   {"gears", example_gears},
   {"gerstner_waves", example_gerstner_waves},
   {"gltf_loading", example_gltf_loading},
   {"gltf_scene_rendering", example_gltf_scene_rendering},
-  {"hdr", example_hdr},
+  // {"hdr", example_hdr},
   {"image_blur", example_image_blur},
   {"imgui_overlay", example_imgui_overlay},
   {"immersive_video", example_immersive_video},
   {"instanced_cube", example_instanced_cube},
   {"minimal", example_minimal},
   {"msaa_line", example_msaa_line},
-  {"multi_sampling", example_multi_sampling},
+  // {"multi_sampling", example_multi_sampling},
   {"n_body_simulation", example_n_body_simulation},
   {"occlusion_query", example_occlusion_query},
   {"offscreen_rendering", example_offscreen_rendering},
@@ -115,17 +114,17 @@ static examplecase_t g_example_cases[] = {
   {"pbr_basic", example_pbr_basic},
   {"pbr_ibl", example_pbr_ibl},
   {"pbr_texture", example_pbr_texture},
-  {"post_processing", example_post_processing},
+  // {"post_processing", example_post_processing},
   {"prng", example_prng},
   // {"procedural_mesh", example_procedural_mesh},
-  {"radial_blur", example_radial_blur},
+  // {"radial_blur", example_radial_blur},
   {"reversed_z", example_reversed_z},
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
-  {"shadow_mapping", example_shadow_mapping},
+  // {"shadow_mapping", example_shadow_mapping},
   {"skybox", example_skybox},
   {"square", example_square},
-  {"stencil_buffer", example_stencil_buffer},
+  // {"stencil_buffer", example_stencil_buffer},
   {"terrain_mesh", example_terrain_mesh},
   {"text_overlay", example_text_overlay},
   {"texture_3d", example_texture_3d},
@@ -139,12 +138,12 @@ static examplecase_t g_example_cases[] = {
   {"wireframe_vertex_pulling", example_wireframe_vertex_pulling},
 };
 
-int get_number_of_examples()
+int get_number_of_examples(void)
 {
   return ARRAY_SIZE(g_example_cases);
 }
 
-examplecase_t* get_examples()
+examplecase_t* get_examples(void)
 {
   return g_example_cases;
 }
@@ -162,13 +161,13 @@ examplecase_t* get_example_by_name(const char* example_name)
   return example;
 }
 
-examplecase_t* get_random_example()
+examplecase_t* get_random_example(void)
 {
   const int i = rand() % get_number_of_examples();
   return &g_example_cases[i];
 }
 
-void log_example_names()
+void log_example_names(void)
 {
   const int num_examplecases = get_number_of_examples();
   printf("Available examples (%d):\n", num_examplecases);
