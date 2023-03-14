@@ -761,12 +761,6 @@ static void setup_render_passes(void)
         .view       = gbuffer.texture_views[0],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor= (WGPUColor) {
-          .r = NAN,
-          .g = NAN,
-          .b = NAN,
-          .a = NAN,
-         },
         .clearValue = (WGPUColor) {
           .r = FLT_MAX,
           .g = FLT_MAX,
@@ -780,12 +774,6 @@ static void setup_render_passes(void)
         .view       = gbuffer.texture_views[1],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor= (WGPUColor) {
-          .r = NAN,
-          .g = NAN,
-          .b = NAN,
-          .a = NAN,
-         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -799,12 +787,6 @@ static void setup_render_passes(void)
         .view       = gbuffer.texture_views[2],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor= (WGPUColor) {
-          .r = NAN,
-          .g = NAN,
-          .b = NAN,
-          .a = NAN,
-         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
@@ -820,8 +802,6 @@ static void setup_render_passes(void)
         .depthLoadOp       = WGPULoadOp_Clear,
         .depthStoreOp      = WGPUStoreOp_Store,
         .depthClearValue   = 1.0f,
-        .clearDepth        = 1.0f,
-        .clearStencil      = 1,
         .stencilClearValue = 1,
       };
 
@@ -842,12 +822,6 @@ static void setup_render_passes(void)
         .view       = NULL, // view is acquired and set in render loop.
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor= (WGPUColor) {
-          .r = NAN,
-          .g = NAN,
-          .b = NAN,
-          .a = NAN,
-         },
         .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,

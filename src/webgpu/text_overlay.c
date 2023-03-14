@@ -363,7 +363,7 @@ static void text_overlay_setup_render_pass(text_overlay_t* text_overlay)
       // Don't clear the framebuffer (like the renderpass from the example does)
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,

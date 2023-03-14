@@ -290,7 +290,7 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   ASSERT(uniform_bind_group != NULL)
 }
 
-static void setup_render_pass()
+static void setup_render_pass(void)
 {
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
@@ -311,8 +311,6 @@ static void setup_render_pass()
     .depthLoadOp     = WGPULoadOp_Clear,
     .depthStoreOp    = WGPUStoreOp_Store,
     .depthClearValue = 1.0f,
-    .clearDepth      = 1.0f,
-    .clearStencil    = 0,
   };
 
   // Render pass descriptor
@@ -659,7 +657,7 @@ static void update_simulation_ubo_data(wgpu_context_t* wgpu_context)
                           simulation_ubo_buffer.size);
 }
 
-static void update_transformation_matrix()
+static void update_transformation_matrix(void)
 {
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -3.0f});
@@ -668,7 +666,7 @@ static void update_transformation_matrix()
                view_matrices.model_view_projection);
 }
 
-static void update_uniform_buffer_vs_data()
+static void update_uniform_buffer_vs_data(void)
 {
   mat4* view = &view_matrices.view;
 

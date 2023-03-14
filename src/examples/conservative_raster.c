@@ -450,7 +450,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
         .view       = low_res_target_texture.view,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,
@@ -484,7 +484,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
         .view       = view,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
-        .clearColor = (WGPUColor) {
+        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 0.0f,

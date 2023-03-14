@@ -899,7 +899,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
       .resolveTarget = NULL,
       .loadOp        = WGPULoadOp_Clear,
       .storeOp       = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = BACKGROUND_COLOR[0],
         .g = BACKGROUND_COLOR[1],
         .b = BACKGROUND_COLOR[2],

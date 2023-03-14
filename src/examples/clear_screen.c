@@ -31,7 +31,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 1.0f,
         .g = 1.0f,
         .b = 1.0f,
@@ -79,7 +79,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   const float t = cos(context->frame.timestamp_millis * 0.001f) * 0.5f + 0.5f;
 
   /* Interpolate between two colors */
-  render_pass.color_attachments[0].clearColor = lerp(
+  render_pass.color_attachments[0].clearValue = lerp(
     &(WGPUColor){
       .r = 0.0f,
       .g = 0.0f,
