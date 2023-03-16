@@ -153,7 +153,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   compute_bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(compute_bind_group_layout != NULL)
+  ASSERT(compute_bind_group_layout != NULL);
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
     .label                = "Compute pipeline layout",
@@ -168,7 +168,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUPipelineLayoutDescriptor render_pipeline_layout_desc = {0};
   render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &render_pipeline_layout_desc);
-  ASSERT(render_pipeline_layout != NULL)
+  ASSERT(render_pipeline_layout != NULL);
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -465,7 +465,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   // Get command buffer
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
+  ASSERT(command_buffer != NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
