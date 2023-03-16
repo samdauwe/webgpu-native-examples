@@ -372,6 +372,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .layout  = compute_pipeline_layout,
       .compute = boids_comp_shader.programmable_stage_descriptor,
     });
+  ASSERT(compute_pipeline != NULL);
 
   // Create rendering pipeline using the specified states
   render_pipeline = wgpuDeviceCreateRenderPipeline(
@@ -383,6 +384,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
+  ASSERT(render_pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
