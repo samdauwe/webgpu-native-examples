@@ -246,7 +246,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Compute bind group layout",
+      .label      = "Particle compute bind group layout",
       .layout     = compute_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
