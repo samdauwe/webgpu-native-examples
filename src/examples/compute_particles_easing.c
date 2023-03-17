@@ -182,6 +182,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     }
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .label      = "Compute bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
