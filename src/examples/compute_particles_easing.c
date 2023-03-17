@@ -148,6 +148,7 @@ static void prepare_particle_buffer(wgpu_context_t* wgpu_context)
   // Create vertex buffer
   compute.particle_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Compute particle vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = sizeof(initial_particle_data),
