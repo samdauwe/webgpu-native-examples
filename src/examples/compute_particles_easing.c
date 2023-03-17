@@ -39,7 +39,7 @@ static struct {
   WGPUBindGroup uniforms_bind_group;
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
-} graphics;
+} graphics = {0};
 
 // Resources for the compute part of the example
 static struct {
@@ -49,14 +49,14 @@ static struct {
   WGPUBindGroup particle_bind_group;
   WGPUPipelineLayout pipeline_layout;
   WGPUComputePipeline pipeline;
-} compute;
+} compute = {0};
 
 // Texture and sampler
-static texture_t particle_texture;
+static texture_t particle_texture = {0};
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // Other variables
 static const char* example_title = "Compute Shader Particle Easing";
