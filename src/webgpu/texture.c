@@ -489,7 +489,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
        ++array_layer) {
     uint32_t view_index = array_layer * mip_level_count;
     views[view_index]   = wgpuTextureCreateView(
-        texture, &(WGPUTextureViewDescriptor){
+      texture, &(WGPUTextureViewDescriptor){
                    .label           = "src_view",
                    .aspect          = WGPUTextureAspect_All,
                    .baseMipLevel    = 0,
@@ -503,7 +503,7 @@ wgpu_mipmap_generator_generate_mipmap(wgpu_mipmap_generator_t* mipmap_generator,
     for (uint32_t i = 1; i < texture_desc->mipLevelCount; ++i) {
       const uint32_t target_mip = view_index + i;
       views[target_mip]         = wgpuTextureCreateView(
-                mip_texture, &(WGPUTextureViewDescriptor){
+        mip_texture, &(WGPUTextureViewDescriptor){
                                .label           = "dst_view",
                                .aspect          = WGPUTextureAspect_All,
                                .baseMipLevel    = dst_mip_level++,
@@ -656,7 +656,7 @@ texture_result_t wgpu_texture_client_load_texture_from_memory(
 
   bool is_hdr = stbi_is_hdr_from_memory((stbi_uc*)data, data_size);
   int width = 0, height = 0, read_comps = 4;
-  stbi_set_flip_vertically_on_load(options->flip_y);
+  stbi_set_flip_vertically_on_load(options ? options->flip_y : false);
   uint8_t* pixel_data
     = is_hdr ? (uint8_t*)stbi_loadf_from_memory((stbi_uc*)data, data_size,
                                                 &width, &height, &read_comps,
