@@ -106,7 +106,7 @@ static examplecase_t g_example_cases[] = {
   {"instanced_cube", example_instanced_cube},
   {"minimal", example_minimal},
   {"msaa_line", example_msaa_line},
-  // {"multi_sampling", example_multi_sampling},
+  {"multi_sampling", example_multi_sampling},
   {"n_body_simulation", example_n_body_simulation},
   {"occlusion_query", example_occlusion_query},
   {"offscreen_rendering", example_offscreen_rendering},
