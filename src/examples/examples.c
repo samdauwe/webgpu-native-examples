@@ -121,7 +121,7 @@ static examplecase_t g_example_cases[] = {
   {"reversed_z", example_reversed_z},
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
-  // {"shadow_mapping", example_shadow_mapping},
+  {"shadow_mapping", example_shadow_mapping},
   {"skybox", example_skybox},
   {"square", example_square},
   // {"stencil_buffer", example_stencil_buffer},
