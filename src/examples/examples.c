@@ -117,7 +117,7 @@ static examplecase_t g_example_cases[] = {
   // {"post_processing", example_post_processing},
   {"prng", example_prng},
   // {"procedural_mesh", example_procedural_mesh},
-  // {"radial_blur", example_radial_blur},
+  {"radial_blur", example_radial_blur},
   {"reversed_z", example_reversed_z},
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
