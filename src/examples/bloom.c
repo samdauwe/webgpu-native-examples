@@ -245,11 +245,13 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Depth stencil attachment
   frame_buf->render_pass_desc.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
-      .view           = frame_buf->depth.texture_view,
-      .depthLoadOp    = WGPULoadOp_Clear,
-      .depthStoreOp   = WGPUStoreOp_Store,
-      .stencilLoadOp  = WGPULoadOp_Clear,
-      .stencilStoreOp = WGPUStoreOp_Store,
+      .view              = frame_buf->depth.texture_view,
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .depthClearValue   = 1.0f,
+      .stencilLoadOp     = WGPULoadOp_Clear,
+      .stencilStoreOp    = WGPUStoreOp_Store,
+      .stencilClearValue = 0,
     };
 
   // Render pass descriptor

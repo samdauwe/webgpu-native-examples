@@ -76,7 +76,7 @@ static examplecase_t g_example_cases[] = {
   // {"aquarium", example_aquarium},
   {"basisu", example_basisu},
   {"bind_groups", example_bind_groups},
-  // {"bloom", example_bloom},
+  {"bloom", example_bloom},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},
   {"compute_metaballs", example_compute_metaballs},
