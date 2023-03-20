@@ -172,10 +172,11 @@ void wgpu_setup_deph_stencil(
     wgpu_context->depth_stencil.texture, &depth_texture_view_dec);
 
   wgpu_context->depth_stencil.att_desc = (WGPURenderPassDepthStencilAttachment){
-    .view            = wgpu_context->depth_stencil.texture_view,
-    .depthLoadOp     = WGPULoadOp_Clear,
-    .depthStoreOp    = WGPUStoreOp_Store,
-    .depthClearValue = 1.0f,
+    .view              = wgpu_context->depth_stencil.texture_view,
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilClearValue = 0,
   };
 
   // stencilLoadOp & stencilStoreOp must be set if the attachment has stencil
