@@ -16,7 +16,7 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/stencilbuffer
  * -------------------------------------------------------------------------- */
 
-static struct gltf_model_t* model;
+static struct gltf_model_t* model = NULL;
 
 static struct ubo_vs_t {
   mat4 projection;
@@ -31,7 +31,7 @@ static struct ubo_vs_t {
   .outline_width = 0.025f,
 };
 
-static wgpu_buffer_t uniform_buffer_vs;
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 static struct {
   WGPURenderPipeline stencil;
