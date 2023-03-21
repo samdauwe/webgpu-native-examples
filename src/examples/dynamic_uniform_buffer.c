@@ -16,7 +16,7 @@
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
  * -------------------------------------------------------------------------- */
 
-#define OBJECT_INSTANCES 125
+#define OBJECT_INSTANCES 125u
 #define ALIGNMENT 256 // 256-byte alignment
 
 // Vertex layout for this example
