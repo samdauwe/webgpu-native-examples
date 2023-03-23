@@ -44,7 +44,8 @@ static uint32_t index_count     = 0;
 
 // GBuffer
 static struct {
-  WGPUTexture texture_2d_float;
+  WGPUTexture texture_2d_float32;
+  WGPUTexture texture_2d_float16;
   WGPUTexture texture_albedo;
   WGPUTextureView texture_views[3];
 } gbuffer = {0};
@@ -235,7 +236,24 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .format        = WGPUTextureFormat_RGBA32Float,
       .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     };
-    gbuffer.texture_2d_float
+    gbuffer.texture_2d_float32
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  }
+
+  {
+    WGPUTextureDescriptor texture_desc = {
+      .size          = (WGPUExtent3D) {
+        .width               = wgpu_context->surface.width,
+        .height              = wgpu_context->surface.height,
+        .depthOrArrayLayers  = 2,
+      },
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA16Float,
+      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    gbuffer.texture_2d_float16
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   }
 
@@ -268,11 +286,12 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
     };
 
     gbuffer.texture_views[0]
-      = wgpuTextureCreateView(gbuffer.texture_2d_float, &texture_view_dec);
+      = wgpuTextureCreateView(gbuffer.texture_2d_float32, &texture_view_dec);
 
     texture_view_dec.baseArrayLayer = 1;
+    texture_view_dec.format         = WGPUTextureFormat_RGBA16Float;
     gbuffer.texture_views[1]
-      = wgpuTextureCreateView(gbuffer.texture_2d_float, &texture_view_dec);
+      = wgpuTextureCreateView(gbuffer.texture_2d_float16, &texture_view_dec);
 
     texture_view_dec.format         = WGPUTextureFormat_BGRA8Unorm;
     texture_view_dec.baseArrayLayer = 0;
@@ -501,7 +520,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
     },
     // Normal
     [1] = (WGPUColorTargetState){
-      .format    = WGPUTextureFormat_RGBA32Float,
+      .format    = WGPUTextureFormat_RGBA16Float,
       .writeMask = WGPUColorWriteMask_All,
     },
     // Albedo
@@ -1350,7 +1369,8 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
-  WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_2d_float)
+  WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_2d_float32)
+  WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_2d_float16)
   WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_albedo)
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(gbuffer.texture_views); ++i) {
     WGPU_RELEASE_RESOURCE(TextureView, gbuffer.texture_views[i])
