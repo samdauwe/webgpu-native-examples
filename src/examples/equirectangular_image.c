@@ -50,7 +50,7 @@ static struct {
 };
 
 // Texture and sampler
-static texture_t texture;
+static texture_t texture = {0};
 
 // The pipeline layout
 static WGPUPipelineLayout pipeline_layout;
