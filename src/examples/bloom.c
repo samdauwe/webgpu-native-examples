@@ -23,7 +23,7 @@
 
 static bool bloom = true;
 
-static texture_t cubemap = {0};
+static texture_t cubemap_texture = {0};
 
 static struct {
   struct gltf_model_t* ufo;
@@ -146,8 +146,20 @@ static void load_assets(wgpu_context_t* wgpu_context)
       .filename           = "models/cube.gltf",
       .file_loading_flags = gltf_loading_flags,
     });
-  cubemap = wgpu_create_texture_from_file(wgpu_context,
-                                          "textures/cubemap_space.ktx", NULL);
+  // Cube map
+  static const char* cubemap[6] = {
+    "textures/cubemaps/cubemap_space_px.png", // Right
+    "textures/cubemaps/cubemap_space_nx.png", // Left
+    "textures/cubemaps/cubemap_space_py.png", // Top
+    "textures/cubemaps/cubemap_space_ny.png", // Bottom
+    "textures/cubemaps/cubemap_space_pz.png", // Back
+    "textures/cubemaps/cubemap_space_nz.png", // Front
+  };
+  cubemap_texture = wgpu_create_texture_cubemap_from_files(
+    wgpu_context, cubemap,
+    &(struct wgpu_texture_load_options_t){
+      .flip_y = true, // Flip y to match gcanyon.ktx hdr cubemap
+    });
 }
 
 // Setup the offscreen framebuffer for rendering the mirrored scene
@@ -543,12 +555,12 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         [1] = (WGPUBindGroupEntry) {
          // Binding 1: Fragment shader image sampler
           .binding     = 1,
-          .textureView = cubemap.view,
+          .textureView = cubemap_texture.view,
         },
         [2] = (WGPUBindGroupEntry) {
           // Binding 2: Fragment shader image sampler
           .binding = 2,
-          .sampler = cubemap.sampler,
+          .sampler = cubemap_texture.sampler,
         },
       };
 
@@ -1186,7 +1198,7 @@ static void example_destroy(wgpu_example_context_t* context)
 {
   camera_release(context->camera);
 
-  wgpu_destroy_texture(&cubemap);
+  wgpu_destroy_texture(&cubemap_texture);
 
   wgpu_gltf_model_destroy(models.ufo);
   wgpu_gltf_model_destroy(models.ufo_glow);
