@@ -1824,7 +1824,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader WGSL
-                .label = "instanced-shader_vertex_shader",
+                .label = "Instanced-shader vertex shader",
                 .file  = "shaders/post_processing/instanced-shader.vert.wgsl",
                 .entry = "main"
               },
@@ -1837,7 +1837,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader WGSL
-                .label = "instanced-shader_fragment_shader",
+                .label = "Instanced-shader fragment shader",
                 .file  = "shaders/post_processing/instanced-shader.frag.wgsl",
                 .entry = "main"
               },
