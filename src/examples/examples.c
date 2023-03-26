@@ -114,7 +114,7 @@ static examplecase_t g_example_cases[] = {
   {"pbr_basic", example_pbr_basic},
   {"pbr_ibl", example_pbr_ibl},
   {"pbr_texture", example_pbr_texture},
-  // {"post_processing", example_post_processing},
+  {"post_processing", example_post_processing},
   {"prng", example_prng},
   // {"procedural_mesh", example_procedural_mesh},
   {"radial_blur", example_radial_blur},
