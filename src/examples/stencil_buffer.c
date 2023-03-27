@@ -147,7 +147,8 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Set clear sample for this example
-  wgpu_context->depth_stencil.att_desc.depthClearValue = 1.0f;
+  wgpu_context->depth_stencil.att_desc.depthClearValue   = 1.0f;
+  wgpu_context->depth_stencil.att_desc.stencilClearValue = 1;
 
   // Render pass descriptor
   render_pass.descriptor = (WGPURenderPassDescriptor){
