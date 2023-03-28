@@ -784,25 +784,25 @@ static struct ubo_scene_t {
 };
 
 // Uniform buffers
-static WGPUBuffer scene_uniform_buffer;
+static WGPUBuffer scene_uniform_buffer = NULL;
 
 // Bind group layouts
-static WGPUBindGroupLayout ubo_scene_bind_group_layout;  // UBOScene
-static WGPUBindGroupLayout model_data_bind_group_layout; // ModelData
-static WGPUBindGroupLayout texture_bind_group_layout;    // Texture
+static WGPUBindGroupLayout ubo_scene_bind_group_layout  = NULL; // UBOScene
+static WGPUBindGroupLayout model_data_bind_group_layout = NULL; // ModelData
+static WGPUBindGroupLayout texture_bind_group_layout    = NULL; // Texture
 
 // Bind group
-static WGPUBindGroup ubo_scene_bind_group;
+static WGPUBindGroup ubo_scene_bind_group = NULL;
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipelines
-static WGPURenderPipeline solid_pipeline;
+static WGPURenderPipeline solid_pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 // The glTF model
 static gltf_model_t* gltf_model = NULL;
