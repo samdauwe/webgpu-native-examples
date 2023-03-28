@@ -1039,7 +1039,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
-              .label = "mesh_vertex_shader",
+              .label = "Mesh vertex shader",
               .file  = "shaders/gltf_loading/mesh.vert.spv",
             },
             .buffer_count = 1,
@@ -1051,7 +1051,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .label = "mesh_fragment_shader",
+              .label = "Mesh fragment shader",
               .file  = "shaders/gltf_loading/mesh.frag.spv",
             },
             .target_count = 1,
@@ -1068,7 +1068,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   solid_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "solid_render_pipeline",
+                            .label        = "Solid render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
