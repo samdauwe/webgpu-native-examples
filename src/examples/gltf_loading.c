@@ -889,6 +889,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group for uniform UBOScene
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "UBOScene uniform bind group layout",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
@@ -931,6 +932,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "UBOScene material texture uniform bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -942,6 +944,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group for uniform ModelData
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "ModelData uniform bind group",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => modelData
@@ -961,6 +964,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   // Bind Group
   WGPUBindGroupDescriptor bg_desc = {
+    .label      = "UBO scene bind group",
     .layout     = ubo_scene_bind_group_layout,
     .entryCount = 1,
     .entries = &(WGPUBindGroupEntry) {
@@ -970,7 +974,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .size    = sizeof(ubo_scene),
     },
   };
-
   ubo_scene_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
   ASSERT(ubo_scene_bind_group != NULL);
@@ -983,6 +986,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   // Pipeline layout
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+    .label                = "Pipeline layout",
     .bindGroupLayoutCount = 3,
     .bindGroupLayouts     = bind_group_layouts,
   };
