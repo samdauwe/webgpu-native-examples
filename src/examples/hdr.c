@@ -351,6 +351,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     // Render pass descriptor
     filter_pass.render_pass_desc.render_pass_descriptor
       = (WGPURenderPassDescriptor){
+        .label                  = "Filter render pass descriptor",
         .colorAttachmentCount   = 1,
         .colorAttachments       = filter_pass.render_pass_desc.color_attachment,
         .depthStencilAttachment = NULL,
