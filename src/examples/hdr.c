@@ -244,6 +244,7 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
 // Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
 static void prepare_offscreen(wgpu_context_t* wgpu_context)
 {
+  // Offscreen render pass
   {
     offscreen_pass.width  = wgpu_context->surface.width;
     offscreen_pass.height = wgpu_context->surface.height;
