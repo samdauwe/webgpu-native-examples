@@ -618,7 +618,7 @@ static void update_fps_counter(wgpu_example_context_t* context)
     const float time_since_last_log = now - fps_counter.last_fps_update_time;
     if (time_since_last_log >= fps_counter.fps_update_interval) {
       fps_counter.fps = fps_counter.num_frames_since_fps_update
-                        / (time_since_last_log / 1000.0);
+                        / (time_since_last_log / 1000.0f);
       fps_counter.last_fps_update_time        = now;
       fps_counter.num_frames_since_fps_update = 0;
     }
