@@ -452,7 +452,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
         = clamp_float(shader_inputs_ubo.iVFovDegrees, 10, 1000);
       shader_inputs_ubo_update_needed = true;
     }
-    if (imgui_overlay_checkBox(context->imgui_overlay, "Show input",
+    if (imgui_overlay_checkBox(context->imgui_overlay, "Show Input",
                                &shader_inputs_ubo.iVisualizeInput)) {
       shader_inputs_ubo_update_needed = true;
     }
