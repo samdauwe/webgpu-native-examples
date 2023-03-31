@@ -142,9 +142,9 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
       memcpy(view_matrices.tmp, view_matrices.model[i], sizeof(mat4));
       glm_rotate(view_matrices.tmp, 1.0f,
                  (vec3){
-                   sin(((float)x + 0.5f) * now), // x
-                   cos(((float)y + 0.5f) * now), // y
-                   0.0f                          // z
+                   sin(((float)x + 0.5f) * now), /* x */
+                   cos(((float)y + 0.5f) * now), /* y */
+                   0.0f                          /* z */
                  });
 
       glm_mat4_mul(view_matrices.view, view_matrices.tmp, view_matrices.tmp);
