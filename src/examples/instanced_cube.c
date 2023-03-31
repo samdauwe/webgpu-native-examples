@@ -199,9 +199,9 @@ static void prepare_model_matrices(void)
       glm_mat4_identity(view_matrices.model[m]);
       glm_translate(view_matrices.model[m],
                     (vec3){
-                      step * (x - x_count / 2.0f + 0.5f), // x
-                      step * (y - y_count / 2.0f + 0.5f), // y
-                      0.0f                                // z
+                      step * (x - x_count / 2.0f + 0.5f), /* x */
+                      step * (y - y_count / 2.0f + 0.5f), /* y */
+                      0.0f                                /* z */
                     });
       ++m;
     }
