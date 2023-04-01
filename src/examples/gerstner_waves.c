@@ -367,8 +367,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   // Create the pipeline layout from bind group layouts
   WGPUBindGroupLayout bind_groups_layout_array[2] = {
-    bind_group_layouts.uniforms, // Group 0
-    bind_group_layouts.textures  // Group 1
+    bind_group_layouts.uniforms, /* Group 0 */
+    bind_group_layouts.textures  /* Group 1 */
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
