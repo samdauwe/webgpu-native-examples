@@ -217,7 +217,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   texture_t* texture_array[2]       = {&textures.opaque, &textures.alpha};
   WGPUBindGroup* bindgroup_array[2] = {&bind_groups.opaque, &bind_groups.alpha};
 
-  // Bind Group for opaque and alphatexture
+  // Bind Group for opaque and alpha texture
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(texture_array); ++i) {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
