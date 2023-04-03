@@ -590,7 +590,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     graphics.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "conway_graphics_pipeline",
+                              .label       = "Conway graphics pipeline",
                               .layout      = graphics.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
