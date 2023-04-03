@@ -426,10 +426,10 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_pipeline_upscale(context->wgpu_context);
     create_low_res_target(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
