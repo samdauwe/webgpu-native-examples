@@ -152,12 +152,12 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Fragment shader texture view
+        /* Binding 0 : Fragment shader texture view */
         .binding     = 0,
         .textureView = textures.cw.view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding = 1,
         .sampler = textures.cw.sampler,
       },
@@ -176,12 +176,12 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Fragment shader texture view
+        /* Binding 0 : Fragment shader texture view */
         .binding     = 0,
         .textureView = textures.ccw.view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding = 1,
         .sampler = textures.ccw.sampler,
       },
