@@ -446,7 +446,7 @@ static int example_draw(wgpu_example_context_t* context)
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
 
-  // Submit command buffers to queue
+  // Submit command buffer to queue
   submit_command_buffers(context);
 
   // Submit frame
