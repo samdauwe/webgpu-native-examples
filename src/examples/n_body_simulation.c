@@ -411,6 +411,7 @@ static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
   wgpu_shader_t compute_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
+                    .label = "Compute shader WGSL",
                     .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                     .entry = "cs_main",
                   });
