@@ -339,7 +339,8 @@ void example_msaa_line(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
+     .title = example_title,
+     .vsync = true,
     },
     .example_window_config = (window_config_t){
      .width  = 800,
