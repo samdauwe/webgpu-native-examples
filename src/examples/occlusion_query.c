@@ -227,6 +227,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Occlusion query set
   occlusion_query_set = wgpuDeviceCreateQuerySet(
     wgpu_context->device, &(WGPUQuerySetDescriptor){
+                            .label = "Occlusion query set",
                             .type  = WGPUQueryType_Occlusion,
                             .count = 2,
                           });
