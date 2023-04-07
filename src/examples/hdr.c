@@ -440,7 +440,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(bind_group_layouts.models != NULL)
+    ASSERT(bind_group_layouts.models != NULL);
 
     // Create the pipeline layout
     pipeline_layouts.models = wgpuDeviceCreatePipelineLayout(
@@ -448,7 +448,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.models,
                             });
-    ASSERT(pipeline_layouts.models != NULL)
+    ASSERT(pipeline_layouts.models != NULL);
   }
 
   // Bind group layout for bloom filter & G-Buffer composition
@@ -515,7 +515,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                                 .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                                 .entries    = bgl_entries,
                               });
-      ASSERT(bind_group_layouts.bloom_filter != NULL)
+      ASSERT(bind_group_layouts.bloom_filter != NULL);
 
       // Create the pipeline layout
       pipeline_layouts.bloom_filter = wgpuDeviceCreatePipelineLayout(
@@ -525,7 +525,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .bindGroupLayoutCount = 1,
           .bindGroupLayouts     = &bind_group_layouts.bloom_filter,
         });
-      ASSERT(pipeline_layouts.bloom_filter != NULL)
+      ASSERT(pipeline_layouts.bloom_filter != NULL);
     }
 
     // G-Buffer composition
@@ -536,7 +536,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                                 .entryCount = 4u,
                                 .entries    = bgl_entries,
                               });
-      ASSERT(bind_group_layouts.composition != NULL)
+      ASSERT(bind_group_layouts.composition != NULL);
 
       // Create the pipeline layout
       pipeline_layouts.composition = wgpuDeviceCreatePipelineLayout(
@@ -546,7 +546,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
           .bindGroupLayoutCount = 1,
           .bindGroupLayouts     = &bind_group_layouts.composition,
         });
-      ASSERT(pipeline_layouts.composition != NULL)
+      ASSERT(pipeline_layouts.composition != NULL);
     }
   }
 }
@@ -688,7 +688,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.composition
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.composition != NULL)
+    ASSERT(bind_groups.composition != NULL);
   }
 }
 
