@@ -139,8 +139,10 @@ wgpu_shader_t wgpu_shader_create(wgpu_context_t* wgpu_context,
   ASSERT(shader.module);
 
   shader.programmable_stage_descriptor = (WGPUProgrammableStageDescriptor){
-    .module     = shader.module,
-    .entryPoint = desc->entry ? desc->entry : "main",
+    .module        = shader.module,
+    .entryPoint    = desc->entry ? desc->entry : "main",
+    .constantCount = desc->constants.count,
+    .constants     = desc->constants.entries,
   };
 
   return shader;

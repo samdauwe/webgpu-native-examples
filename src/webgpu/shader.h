@@ -15,6 +15,10 @@ typedef struct wgpu_shader_desc_t {
     const char* source;
   } wgsl_code; /* WGSL source code ( ref: https://www.w3.org/TR/WGSL ) */
   const char* entry;
+  struct {
+    uint32_t count;
+    WGPUConstantEntry const* entries;
+  } constants;
 } wgpu_shader_desc_t;
 
 typedef struct wgpu_shader_t {
