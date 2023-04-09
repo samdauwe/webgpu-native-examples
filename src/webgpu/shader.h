@@ -18,7 +18,7 @@ typedef struct wgpu_shader_desc_t {
   struct {
     uint32_t count;
     WGPUConstantEntry const* entries;
-  } constants;
+  } constants; /* pipeline shader constants*/
 } wgpu_shader_desc_t;
 
 typedef struct wgpu_shader_t {
