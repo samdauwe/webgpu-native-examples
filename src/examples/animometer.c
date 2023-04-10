@@ -338,6 +338,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   dynamic_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     (&(WGPUBindGroupDescriptor){
+      .label      = "Dynamic bind group",
       .layout     = dynamic_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(dynamic_bg_entries),
       .entries    = dynamic_bg_entries,
