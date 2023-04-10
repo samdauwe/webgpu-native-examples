@@ -276,7 +276,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   float frame_timestamp_millis = context->frame.timestamp_millis;
 
   // Update uniforms
-  if (start_time < 0.f) {
+  if (start_time < 0.0f) {
     start_time = frame_timestamp_millis;
   }
   uniform_time[0] = (frame_timestamp_millis - start_time) / 1000.0f;
