@@ -449,6 +449,14 @@ typedef struct {
   uint32_t workgroup_size_y;
 } raytracer_t;
 
+static void raytracer_init_defaults(raytracer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->workgroup_size_x = 16;
+  this->workgroup_size_y = 16;
+}
+
 /* -------------------------------------------------------------------------- *
  * Tonemapper implements a tonemapper to convert a linear-light framebuffer to
  * a gamma-correct, tonemapped framebuffer used for presentation.
