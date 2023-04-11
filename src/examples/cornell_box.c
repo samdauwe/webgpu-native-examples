@@ -434,6 +434,22 @@ static void radiosity_run(radiosity_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Raytracer renders the scene using a software ray-tracing compute pipeline.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  wgpu_context_t* wgpu_context;
+  common_t* common;
+  texture_t frame_buffer;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUComputePipeline pipeline;
+  uint32_t workgroup_size_x;
+  uint32_t workgroup_size_y;
+} raytracer_t;
+
+/* -------------------------------------------------------------------------- *
  * Tonemapper implements a tonemapper to convert a linear-light framebuffer to
  * a gamma-correct, tonemapped framebuffer used for presentation.
  * -------------------------------------------------------------------------- */
