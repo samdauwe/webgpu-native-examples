@@ -611,6 +611,31 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
   }
 }
 
+static void raytracer_destroy(raytracer_t* this)
+{
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+}
+
+static void raytracer_run(raytracer_t* this, WGPUCommandEncoder command_encoder)
+{
+  WGPUComputePassEncoder pass_encoder
+    = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
+  wgpuComputePassEncoderSetPipeline(pass_encoder, this->pipeline);
+  wgpuComputePassEncoderSetBindGroup(
+    pass_encoder, 0, this->common->uniforms.bind_group, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 1, this->bind_group, 0,
+                                     NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    pass_encoder,
+    ceil(this->frame_buffer->size.width / (float)this->workgroup_size_x),
+    ceil(this->frame_buffer->size.height / (float)this->workgroup_size_y), 1);
+  wgpuComputePassEncoderEnd(pass_encoder);
+  WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
+}
+
 /* -------------------------------------------------------------------------- *
  * Tonemapper implements a tonemapper to convert a linear-light framebuffer to
  * a gamma-correct, tonemapped framebuffer used for presentation.
