@@ -140,7 +140,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   {
     // Texture
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Radiosity.lightmap",
+      .label         = "Radiosity.lightmap texture",
       .size          = (WGPUExtent3D) {
         .width              = this->lightmap_width,
         .height             = this->lightmap_height,
@@ -160,6 +160,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     // Texture view
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Radiosity.lightmap texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -171,6 +172,22 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     this->lightmap.view
       = wgpuTextureCreateView(this->lightmap.texture, &texture_view_dec);
     ASSERT(this->lightmap.view != NULL);
+
+    // Sampler
+    WGPUSamplerDescriptor sampler_desc = {
+      .label         = "Radiosity.lightmap texture sampler",
+      .addressModeU  = WGPUAddressMode_ClampToEdge,
+      .addressModeV  = WGPUAddressMode_ClampToEdge,
+      .addressModeW  = WGPUAddressMode_ClampToEdge,
+      .minFilter     = WGPUFilterMode_Linear,
+      .magFilter     = WGPUFilterMode_Linear,
+      .mipmapFilter  = WGPUFilterMode_Nearest,
+      .lodMinClamp   = 0.0f,
+      .lodMaxClamp   = (float)1,
+      .maxAnisotropy = 1,
+    };
+    this->lightmap.sampler
+      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
   }
 
   /* Accumulation buffer */
@@ -440,7 +457,7 @@ static void radiosity_run(radiosity_t* this,
 typedef struct {
   wgpu_context_t* wgpu_context;
   common_t* common;
-  texture_t frame_buffer;
+  texture_t* frame_buffer;
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
   WGPUPipelineLayout pipeline_layout;
@@ -455,6 +472,143 @@ static void raytracer_init_defaults(raytracer_t* this)
 
   this->workgroup_size_x = 16;
   this->workgroup_size_y = 16;
+}
+
+static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
+                             common_t* common, radiosity_t* radiosity,
+                             texture_t* frame_buffer)
+{
+  raytracer_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+  this->common       = common;
+  this->frame_buffer = frame_buffer;
+
+  /* Bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: lightmap
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2DArray,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: sampler
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+        .sampler = (WGPUSamplerBindingLayout) {
+          .type  = WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: framebuffer
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Compute,
+        .storageTexture = {
+          .access = WGPUStorageTextureAccess_WriteOnly,
+          .format = radiosity->lightmap_format,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+    };
+    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "'Raytracer.bindGroupLayout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: lightmap
+        .binding = 0,
+        .textureView  = radiosity->lightmap.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: sampler
+        .binding     = 1,
+        .sampler = radiosity->lightmap.sampler,
+
+      },
+      [2] = (WGPUBindGroupEntry) {
+        // Binding 2: framebuffer
+        .binding = 2,
+        .textureView = frame_buffer->view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "rendererBindGroup",
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_group != NULL);
+  }
+
+  /* Compute pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->common->uniforms.bind_group_layout, /* Group 0 */
+      this->bind_group_layout,                  /* Group 1 */
+    };
+    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
+      .label                = "raytracerPipelineLayout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &compute_pipeline_layout_desc);
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Raytracer compute pipeline */
+  {
+    /* Constants */
+    WGPUConstantEntry constant_entries[2] = {
+      [0] = (WGPUConstantEntry) {
+        .key   = "WorkgroupSizeX",
+        .value = this->workgroup_size_x,
+      },
+      [1] = (WGPUConstantEntry) {
+        .key   = "WorkgroupSizeY",
+        .value = this->workgroup_size_y,
+      },
+    };
+
+    /* Compute shader */
+    wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .label           = "raytracer_comp_shader",
+                      .file            = "shaders/cornell_box/raytracer.wgsl",
+                      .entry           = "main",
+                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
+                      .constants.entries = constant_entries,
+                    });
+
+    /* Compute pipeline*/
+    this->pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .label   = "raytracerPipeline",
+        .layout  = this->pipeline_layout,
+        .compute = raytracer_comp_shader.programmable_stage_descriptor,
+      });
+
+    /* Cleanup */
+    wgpu_shader_release(&raytracer_comp_shader);
+  }
 }
 
 /* -------------------------------------------------------------------------- *
