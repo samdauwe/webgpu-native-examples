@@ -2,6 +2,17 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Cornell Box
+ *
+ * A classic Cornell box, using a lightmap generated using software ray-tracing.
+ *
+ * Ref:
+ * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell
+ * -------------------------------------------------------------------------- */
+
 /* -------------------------------------------------------------------------- *
  * Common holds the shared WGSL between the shaders, including the common
  * uniform buffer.
@@ -1089,4 +1100,91 @@ static void tonemapper_run(tonemapper_t* this,
     ceil(this->height / (float)this->workgroup_size_y), 1);
   wgpuComputePassEncoderEnd(pass_encoder);
   WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
+}
+
+/* -------------------------------------------------------------------------- *
+ * Cornell box example.
+ * -------------------------------------------------------------------------- */
+
+// Example structs
+static struct {
+  texture_t framebuffer;
+  scene_t scene;
+  common_t common;
+  radiosity_t radiosity;
+  rasterizer_t rasterizer;
+  raytracer_t raytracer;
+} example;
+
+// GUI
+typedef enum {
+  RENDERER_RASTERIZER,
+  RENDERER_RAYTRACER,
+} renderer_t;
+
+static struct {
+  renderer_t renderer;
+  bool rotate_camera;
+} example_parms = {
+  .renderer      = RENDERER_RASTERIZER,
+  .rotate_camera = true,
+};
+
+static const char* renderer_names[2] = {"Rasterizer", "Raytracer"};
+
+// Other variables
+static const char* example_title = "Cornell box";
+static bool prepared             = false;
+
+static create_frame_buffer(wgpu_context_t* wgpu_context)
+{
+  // Create the texture
+  WGPUExtent3D texture_extent = {
+    .width              = wgpu_context->surface.width,
+    .height             = wgpu_context->surface.height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "framebuffer texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_RGBA16Float,
+    .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_StorageBinding
+             | WGPUTextureUsage_TextureBinding,
+  };
+  example.framebuffer.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(example.framebuffer.texture != NULL);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "framebuffer texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  example.framebuffer.view
+    = wgpuTextureCreateView(example.framebuffer.texture, &texture_view_dec);
+  ASSERT(example.framebuffer.view != NULL);
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    int32_t current_renderer_index
+      = (example_parms.renderer == RENDERER_RASTERIZER) ? 0 : 1;
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Renderer",
+                                &current_renderer_index, renderer_names, 11)) {
+      example_parms.renderer = (current_renderer_index == 0) ?
+                                 RENDERER_RASTERIZER :
+                                 RENDERER_RAYTRACER;
+    }
+    imgui_overlay_checkBox(context->imgui_overlay, "Rotate Camera",
+                           &example_parms.rotate_camera);
+  }
 }
