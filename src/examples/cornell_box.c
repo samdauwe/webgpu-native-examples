@@ -29,6 +29,10 @@ typedef struct {
   uint64_t frame;
 } common_t;
 
+static void common_upate(common_t* common, bool rotate_camera, float aspect)
+{
+}
+
 /* -------------------------------------------------------------------------- *
  * Scene holds the cornell-box scene information.
  * -------------------------------------------------------------------------- */
@@ -958,7 +962,8 @@ static void tonemapper_init_defaults(tonemapper_t* this)
 
 static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
                               common_t* common, texture_t* input,
-                              texture_t* output)
+                              WGPUTextureView output,
+                              WGPUTextureFormat output_format)
 {
   tonemapper_init_defaults(this);
 
@@ -987,7 +992,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = {
           .access = WGPUStorageTextureAccess_WriteOnly,
-          .format = output->format,
+          .format = output_format,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
       },
@@ -1012,7 +1017,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
       [1] = (WGPUBindGroupEntry) {
         // Binding 1: output
         .binding     = 1,
-        .textureView = output->view,
+        .textureView = output,
       },
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
@@ -1108,7 +1113,7 @@ static void tonemapper_run(tonemapper_t* this,
 
 // Example structs
 static struct {
-  texture_t framebuffer;
+  texture_t frame_buffer;
   scene_t scene;
   common_t common;
   radiosity_t radiosity;
@@ -1136,7 +1141,7 @@ static const char* renderer_names[2] = {"Rasterizer", "Raytracer"};
 static const char* example_title = "Cornell box";
 static bool prepared             = false;
 
-static create_frame_buffer(wgpu_context_t* wgpu_context)
+static void create_frame_buffer(wgpu_context_t* wgpu_context)
 {
   // Create the texture
   WGPUExtent3D texture_extent = {
@@ -1154,9 +1159,9 @@ static create_frame_buffer(wgpu_context_t* wgpu_context)
     .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_StorageBinding
              | WGPUTextureUsage_TextureBinding,
   };
-  example.framebuffer.texture
+  example.frame_buffer.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(example.framebuffer.texture != NULL);
+  ASSERT(example.frame_buffer.texture != NULL);
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -1168,9 +1173,9 @@ static create_frame_buffer(wgpu_context_t* wgpu_context)
     .baseArrayLayer  = 0,
     .arrayLayerCount = 1,
   };
-  example.framebuffer.view
-    = wgpuTextureCreateView(example.framebuffer.texture, &texture_view_dec);
-  ASSERT(example.framebuffer.view != NULL);
+  example.frame_buffer.view
+    = wgpuTextureCreateView(example.frame_buffer.texture, &texture_view_dec);
+  ASSERT(example.frame_buffer.view != NULL);
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
@@ -1187,4 +1192,104 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
     imgui_overlay_checkBox(context->imgui_overlay, "Rotate Camera",
                            &example_parms.rotate_camera);
   }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  WGPUTextureView canvas_texture = wgpu_context->swap_chain.frame_buffer;
+  WGPUCommandEncoder command_encoder
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  // Update uniforms
+  common_upate(&example.common, example_parms.rotate_camera,
+               wgpu_context->surface.width
+                 / (float)wgpu_context->surface.height);
+
+  // Software raytracing
+  radiosity_run(&example.radiosity, command_encoder);
+
+  switch (example_parms.renderer) {
+    case RENDERER_RASTERIZER: {
+      rasterizer_run(&example.rasterizer, command_encoder);
+    } break;
+    case RENDERER_RAYTRACER: {
+      raytracer_run(&example.raytracer, command_encoder);
+    } break;
+  }
+
+  // Tone mapping
+  {
+    tonemapper_t tonemapper;
+    tonemapper_create(&tonemapper, wgpu_context, &example.common,
+                      &example.frame_buffer, canvas_texture,
+                      wgpu_context->swap_chain.format);
+    tonemapper_run(&tonemapper, command_encoder);
+    tonemapper_destroy(&tonemapper);
+  }
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer = wgpu_get_command_buffer(command_encoder);
+  ASSERT(command_buffer != NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, command_encoder)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+
+  return example_draw(context);
+}
+
+// Clean up used resources
+static void example_destroy(wgpu_example_context_t* context)
+{
+  wgpu_destroy_texture(&example.frame_buffer);
+  raytracer_destroy(&example.raytracer);
+  rasterizer_destroy(&example.rasterizer);
+  radiosity_destroy(&example.radiosity);
+  common_destroy(&example.common);
+  scene_destroy(&example.scene);
+}
+
+void example_shadow_mapping(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
+    },
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy
+  });
+  // clang-format on
 }
