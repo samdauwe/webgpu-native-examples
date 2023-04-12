@@ -51,7 +51,7 @@ typedef struct {
   uint32_t index_count;
   WGPUBuffer vertices;
   WGPUBuffer indices;
-  WGPUVertexBufferLayout* vertex_buffer_layout;
+  WGPUVertexBufferLayout vertex_buffer_layout;
   WGPUBuffer quad_buffer;
   struct {
     uint32_t length;
@@ -448,6 +448,289 @@ static void radiosity_run(radiosity_t* this,
     ceil(this->lightmap_height
          / (float)this->accumulation_to_lightmap_workgroup_size_y),
     this->lightmap_depth_or_array_layers);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Rasterizer renders the scene using a regular raserization graphics pipeline.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  wgpu_context_t* wgpu_context;
+  common_t* common;
+  scene_t* scene;
+  texture_t depth_texture;
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline pipeline;
+} rasterizer_t;
+
+static void rasterizer_init_defaults(rasterizer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
+                              common_t* common, scene_t* scene,
+                              radiosity_t* radiosity, texture_t* frame_buffer)
+{
+  rasterizer_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+  this->common       = common;
+  this->scene        = scene;
+
+  /* Depth texture */
+  {
+    // Create the texture
+    WGPUExtent3D texture_extent = {
+      .width              = frame_buffer->size.width,
+      .height             = frame_buffer->size.height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "RasterizerRenderer.depthTexture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_Depth24Plus,
+      .usage         = WGPUTextureUsage_RenderAttachment,
+    };
+    this->depth_texture.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->depth_texture.texture != NULL);
+
+    // Create the texture view
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->depth_texture.view
+      = wgpuTextureCreateView(this->depth_texture.texture, &texture_view_dec);
+    ASSERT(this->depth_texture.view != NULL);
+  }
+
+  /* Render pass */
+  {
+    // Color attachment
+    this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = frame_buffer->view,
+     .loadOp     = WGPULoadOp_Clear,
+     .storeOp    = WGPUStoreOp_Store,
+     .clearValue = (WGPUColor) {
+       .r = 0.1f,
+       .g = 0.2f,
+       .b = 0.3f,
+       .a = 1.0f,
+       },
+     };
+
+    // Depth-stencil attachment
+    this->render_pass.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view            = this->depth_texture.view,
+        .depthClearValue = 1.0f,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+      };
+
+    // Render pass descriptor
+    this->render_pass.descriptor = (WGPURenderPassDescriptor){
+      .label                  = "RasterizerRenderer.renderPassDescriptor",
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = this->render_pass.color_attachments,
+      .depthStencilAttachment = &this->render_pass.depth_stencil_attachment,
+    };
+  }
+
+  /* Bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: lightmap
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2DArray,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: sampler
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+        .sampler = (WGPUSamplerBindingLayout) {
+          .type  = WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+    };
+    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = "'RasterizerRenderer.bindGroupLayout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: lightmap
+        .binding = 0,
+        .textureView  = radiosity->lightmap.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: sampler
+        .binding     = 1,
+        .sampler = radiosity->lightmap.sampler,
+
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "RasterizerRenderer.bindGroup",
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_group != NULL);
+  }
+
+  /* Render pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->common->uniforms.bind_group_layout, /* Group 0 */
+      this->bind_group_layout,                  /* Group 1 */
+    };
+    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
+      .label                = "RasterizerRenderer.pipelineLayout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &compute_pipeline_layout_desc);
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Rasterizer render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state_desc = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+      .format    = frame_buffer->format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state_desc
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24Plus,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
+
+    // Vertex state
+    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+      .shader_desc = (wgpu_shader_desc_t){
+        // Vertex shader WGSL
+        .label = "RasterizerRenderer.vertex.module",
+        .file  = "shaders/cornell_box/rasterizer.wgsl",
+        .entry = "vs_main",
+      },
+      .buffer_count = 1,
+      .buffers      = &this->scene->vertex_buffer_layout,
+    });
+
+    // Fragment state
+    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+      wgpu_context, &(wgpu_fragment_state_t){
+      .shader_desc = (wgpu_shader_desc_t){
+        // Fragment shader WGSL
+        .label = "RasterizerRenderer.vertex.module",
+        .file  = "shaders/cornell_box/rasterizer.wgsl",
+        .entry = "fs_main",
+      },
+      .target_count = 1,
+      .targets = &color_target_state_desc,
+    });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state_desc
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Create rendering pipeline using the specified states
+    this->pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "RasterizerRenderer.pipeline",
+                              .layout       = this->pipeline_layout,
+                              .primitive    = primitive_state_desc,
+                              .vertex       = vertex_state_desc,
+                              .fragment     = &fragment_state_desc,
+                              .depthStencil = &depth_stencil_state_desc,
+                              .multisample  = multisample_state_desc,
+                            });
+    ASSERT(this->pipeline != NULL);
+
+    // Shader modules are no longer needed once the graphics pipeline has been
+    // created
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  }
+}
+
+static void rasterizer_destroy(rasterizer_t* this)
+{
+  wgpu_destroy_texture(&this->depth_texture);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+}
+
+static void rasterizer_run(rasterizer_t* this,
+                           WGPUCommandEncoder command_encoder)
+{
+  WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
+    command_encoder, &this->render_pass.descriptor);
+  wgpuRenderPassEncoderSetPipeline(pass_encoder, this->pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(pass_encoder, 0, this->scene->vertices,
+                                       0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(pass_encoder, this->scene->indices,
+                                      WGPUIndexFormat_Uint16, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
+                                    this->common->uniforms.bind_group, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, this->bind_group, 0, 0);
+  wgpuRenderPassEncoderDrawIndexed(pass_encoder, this->scene->index_count, 1, 0,
+                                   0, 0);
+  wgpuRenderPassEncoderEnd(pass_encoder);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
 }
 
 /* -------------------------------------------------------------------------- *
