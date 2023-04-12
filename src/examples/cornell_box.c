@@ -29,6 +29,15 @@ typedef struct {
   uint64_t frame;
 } common_t;
 
+static void common_create(common_t* common, wgpu_context_t* wgpu_context,
+                          WGPUBuffer quads)
+{
+}
+
+static void common_destroy(common_t* common)
+{
+}
+
 static void common_upate(common_t* common, bool rotate_camera, float aspect)
 {
 }
@@ -76,6 +85,14 @@ typedef struct {
   float light_width;
   float light_height;
 } scene_t;
+
+static void scene_create(scene_t* scene, wgpu_context_t* wgpu_context)
+{
+}
+
+static void scene_destroy(scene_t* scene)
+{
+}
 
 /* -------------------------------------------------------------------------- *
  * Radiosity computes lightmaps, calculated by software raytracing of light in
@@ -1176,6 +1193,27 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
   example.frame_buffer.view
     = wgpuTextureCreateView(example.frame_buffer.texture, &texture_view_dec);
   ASSERT(example.frame_buffer.view != NULL);
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    create_frame_buffer(context->wgpu_context);
+    scene_create(&example.scene, context->wgpu_context);
+    common_create(&example.common, context->wgpu_context,
+                  example.scene.quad_buffer);
+    radiosity_create(&example.radiosity, context->wgpu_context, &example.common,
+                     &example.scene);
+    rasterizer_create(&example.rasterizer, context->wgpu_context,
+                      &example.common, &example.scene, &example.radiosity,
+                      &example.frame_buffer);
+    raytracer_create(&example.raytracer, context->wgpu_context, &example.common,
+                     &example.radiosity, &example.frame_buffer);
+    prepared = true;
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
