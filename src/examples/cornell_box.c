@@ -198,18 +198,23 @@ static void common_destroy(common_t* this)
   WGPU_RELEASE_RESOURCE(BindGroup, this->uniforms.bind_group)
 }
 
+typedef struct {
+  bool rotate_camera;
+  float aspect;
+} common_update_params_t;
+
 /* Updates the uniform buffer data */
-static void common_upate(common_t* this, bool rotate_camera, float aspect)
+static void common_update(common_t* this, common_update_params_t* params)
 {
   glm_mat4_identity(this->ubo_vs.view_matrix);
   glm_mat4_identity(this->ubo_vs.mvp);
   glm_mat4_identity(this->ubo_vs.inv_mvp);
 
   glm_mat4_identity(this->ubo_vs.projection_matrix);
-  glm_perspective(PI2 / 8.0f, aspect, 0.5f, 100.0f,
+  glm_perspective(PI2 / 8.0f, params->aspect, 0.5f, 100.0f,
                   this->ubo_vs.projection_matrix);
 
-  const float view_rotation = rotate_camera ? this->frame / 1000.0f : 0.0f;
+  float view_rotation = params->rotate_camera ? this->frame / 1000.0f : 0.0f;
   glm_lookat(
     (vec3){sin(view_rotation) * 15.0f, 5.0f, cos(view_rotation) * 15.0f},
     (vec3){0.0f, 5.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f},
@@ -796,7 +801,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       = wgpuTextureCreateView(this->lightmap.texture, &texture_view_dec);
     ASSERT(this->lightmap.view != NULL);
 
-    // Sampler
+    // Texture sampler
     WGPUSamplerDescriptor sampler_desc = {
       .label         = "Radiosity.lightmap texture sampler",
       .addressModeU  = WGPUAddressMode_ClampToEdge,
@@ -806,11 +811,12 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       .magFilter     = WGPUFilterMode_Linear,
       .mipmapFilter  = WGPUFilterMode_Nearest,
       .lodMinClamp   = 0.0f,
-      .lodMaxClamp   = (float)1,
+      .lodMaxClamp   = 1.0f,
       .maxAnisotropy = 1,
     };
     this->lightmap.sampler
       = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+    ASSERT(this->lightmap.sampler != NULL);
   }
 
   /* Accumulation buffer */
@@ -828,7 +834,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
   /* Uniform buffer */
   {
-    this->accumulation_buffer = wgpu_create_buffer(
+    this->uniform_buffer = wgpu_create_buffer(
       this->wgpu_context,
       &(wgpu_buffer_desc_t){
         .label = "Radiosity.uniformBuffer",
@@ -929,6 +935,11 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     ASSERT(this->pipeline_layout != NULL);
   }
 
+  /* Compute shader */
+  shader_store_entry radiosity_wgsl = {0};
+  concat_shader_store_entries(&shader_store.common, &shader_store.radiosity,
+                              &radiosity_wgsl);
+
   /* Radiosity compute pipeline */
   {
     /* Constants */
@@ -945,14 +956,15 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     /* Compute shader */
     wgpu_shader_t radiosity_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .label           = "radiosity_comp_shader",
-                      .file            = "shaders/cornell_box/radiosity.wgsl",
-                      .entry           = "radiosity",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
+      wgpu_context,
+      &(wgpu_shader_desc_t){
+        // Compute shader WGSL
+        .label             = "radiosity_comp_shader",
+        .wgsl_code         = {(const char*)radiosity_wgsl.read_result.data},
+        .entry             = "radiosity",
+        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants.entries = constant_entries,
+      });
 
     /* Compute pipeline*/
     this->radiosity_pipeline = wgpuDeviceCreateComputePipeline(
@@ -983,14 +995,15 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     /* Compute shader */
     wgpu_shader_t accumulation_to_lightmap_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .label           = "accumulation_to_lightmap_comp_shader",
-                      .file            = "shaders/cornell_box/radiosity.wgsl",
-                      .entry           = "accumulation_to_lightmap",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
+      wgpu_context,
+      &(wgpu_shader_desc_t){
+        // Compute shader WGSL
+        .label             = "accumulation_to_lightmap_comp_shader",
+        .wgsl_code         = {(const char*)radiosity_wgsl.read_result.data},
+        .entry             = "accumulation_to_lightmap",
+        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants.entries = constant_entries,
+      });
 
     /* Compute pipeline*/
     this->accumulation_to_lightmap_pipeline = wgpuDeviceCreateComputePipeline(
@@ -1004,6 +1017,11 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     /* Cleanup */
     wgpu_shader_release(&accumulation_to_lightmap_comp_shader);
+  }
+
+  /* Cleanup */
+  if (radiosity_wgsl.read_result.size > 0) {
+    free(radiosity_wgsl.read_result.data);
   }
 }
 
@@ -1020,8 +1038,7 @@ static void radiosity_destroy(radiosity_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffer.buffer)
 }
 
-static void radiosity_run(radiosity_t* this,
-                          WGPUComputePassEncoder command_encoder)
+static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
@@ -1049,33 +1066,36 @@ static void radiosity_run(radiosity_t* this,
     this->scene->light_center[2],   // light_center z */
   };
   wgpu_queue_write_buffer(wgpu_context, this->uniform_buffer.buffer, 0,
-                          &uniform_data_f32, sizeof(uniform_data_f32));
+                          &uniform_data_f32[0], sizeof(uniform_data_f32));
 
   // Dispatch the radiosity workgroups
+  wgpu_context->cpass_enc
+    = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
   wgpuComputePassEncoderSetBindGroup(
-    command_encoder, 0, this->common->uniforms.bind_group, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(command_encoder, 1, this->bind_group, 0,
-                                     NULL);
-  wgpuComputePassEncoderSetPipeline(command_encoder, this->radiosity_pipeline);
-  wgpuComputePassEncoderDispatchWorkgroups(command_encoder,
+    wgpu_context->cpass_enc, 0, this->common->uniforms.bind_group, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
+                                     this->bind_group, 0, NULL);
+  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
+                                    this->radiosity_pipeline);
+  wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
                                            this->workgroups_per_frame, 1, 1);
-  wgpuComputePassEncoderEnd(command_encoder);
 
   // Then copy the 'accumulation' data to 'lightmap'
-  wgpuComputePassEncoderSetPipeline(command_encoder,
+  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
                                     this->accumulation_to_lightmap_pipeline);
   wgpuComputePassEncoderDispatchWorkgroups(
-    command_encoder,
+    wgpu_context->cpass_enc,
     ceil(this->lightmap_width
          / (float)this->accumulation_to_lightmap_workgroup_size_x),
     ceil(this->lightmap_height
          / (float)this->accumulation_to_lightmap_workgroup_size_y),
     this->lightmap_depth_or_array_layers);
+  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
+  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
 }
 
 /* --------------------------------------------------------------------------
- * * Rasterizer renders the scene using a regular raserization graphics
- * pipeline.
+ * Rasterizer renders the scene using a regular raserization graphics pipeline.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -1275,14 +1295,19 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       });
     depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
+    // Shader code
+    shader_store_entry rasterizer_wgsl = {0};
+    concat_shader_store_entries(&shader_store.common, &shader_store.rasterizer,
+                                &rasterizer_wgsl);
+
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Vertex shader WGSL
-        .label = "RasterizerRenderer.vertex.module",
-        .file  = "shaders/cornell_box/rasterizer.wgsl",
-        .entry = "vs_main",
+        .label     = "RasterizerRenderer.vertex.module",
+        .wgsl_code = {(const char*)rasterizer_wgsl.read_result.data},
+        .entry     = "vs_main",
       },
       .buffer_count = 1,
       .buffers      = &this->scene->vertex_buffer_layout,
@@ -1293,9 +1318,9 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader WGSL
-        .label = "RasterizerRenderer.vertex.module",
-        .file  = "shaders/cornell_box/rasterizer.wgsl",
-        .entry = "fs_main",
+        .label     = "RasterizerRenderer.vertex.module",
+        .wgsl_code = {(const char*)rasterizer_wgsl.read_result.data},
+        .entry     = "fs_main",
       },
       .target_count = 1,
       .targets = &color_target_state_desc,
@@ -1325,6 +1350,9 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     // been created
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    if (rasterizer_wgsl.read_result.size > 0) {
+      free(rasterizer_wgsl.read_result.data);
+    }
   }
 }
 
@@ -1340,26 +1368,29 @@ static void rasterizer_destroy(rasterizer_t* this)
 static void rasterizer_run(rasterizer_t* this,
                            WGPUCommandEncoder command_encoder)
 {
-  WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     command_encoder, &this->render_pass.descriptor);
-  wgpuRenderPassEncoderSetPipeline(pass_encoder, this->pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    pass_encoder, 0, this->scene->vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(pass_encoder, this->scene->indices.buffer,
-                                      WGPUIndexFormat_Uint16, 0,
-                                      WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                       this->scene->vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, this->scene->indices.buffer,
+    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     this->common->uniforms.bind_group, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, this->bind_group, 0, 0);
-  wgpuRenderPassEncoderDrawIndexed(pass_encoder, this->scene->index_count, 1, 0,
-                                   0, 0);
-  wgpuRenderPassEncoderEnd(pass_encoder);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
+                                    this->bind_group, 0, 0);
+  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                   this->scene->index_count, 1, 0, 0, 0);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 }
 
 /* --------------------------------------------------------------------------
- * * Raytracer renders the scene using a software ray-tracing compute
- * pipeline.
+ * Raytracer renders the scene using a software ray-tracing compute pipeline.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -1495,15 +1526,19 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
     };
 
     /* Compute shader */
+    shader_store_entry raytracer_wgsl = {0};
+    concat_shader_store_entries(&shader_store.common, &shader_store.raytracer,
+                                &raytracer_wgsl);
     wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .label           = "raytracer_comp_shader",
-                      .file            = "shaders/cornell_box/raytracer.wgsl",
-                      .entry           = "main",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
+      wgpu_context,
+      &(wgpu_shader_desc_t){
+        // Compute shader WGSL
+        .label             = "raytracer_comp_shader",
+        .wgsl_code         = {(const char*)raytracer_wgsl.read_result.data},
+        .entry             = "main",
+        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants.entries = constant_entries,
+      });
 
     /* Compute pipeline*/
     this->pipeline = wgpuDeviceCreateComputePipeline(
@@ -1516,6 +1551,9 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
 
     /* Cleanup */
     wgpu_shader_release(&raytracer_comp_shader);
+    if (raytracer_wgsl.read_result.size > 0) {
+      free(raytracer_wgsl.read_result.data);
+    }
   }
 }
 
@@ -1529,25 +1567,26 @@ static void raytracer_destroy(raytracer_t* this)
 
 static void raytracer_run(raytracer_t* this, WGPUCommandEncoder command_encoder)
 {
-  WGPUComputePassEncoder pass_encoder
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  wgpu_context->cpass_enc
     = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
-  wgpuComputePassEncoderSetPipeline(pass_encoder, this->pipeline);
+  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc, this->pipeline);
   wgpuComputePassEncoderSetBindGroup(
-    pass_encoder, 0, this->common->uniforms.bind_group, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(pass_encoder, 1, this->bind_group, 0,
-                                     NULL);
+    wgpu_context->cpass_enc, 0, this->common->uniforms.bind_group, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
+                                     this->bind_group, 0, NULL);
   wgpuComputePassEncoderDispatchWorkgroups(
-    pass_encoder,
+    wgpu_context->cpass_enc,
     ceil(this->frame_buffer->size.width / (float)this->workgroup_size_x),
     ceil(this->frame_buffer->size.height / (float)this->workgroup_size_y), 1);
-  wgpuComputePassEncoderEnd(pass_encoder);
-  WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
+  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
+  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
 }
 
 /* --------------------------------------------------------------------------
- * * Tonemapper implements a tonemapper to convert a linear-light
- * framebuffer to a gamma-correct, tonemapped framebuffer used for
- * presentation.
+ * Tonemapper implements a tonemapper to convert a linear-light framebuffer to a
+ * gamma-correct, tonemapped framebuffer used for presentation.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -1671,15 +1710,19 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
     };
 
     /* Compute shader */
+    shader_store_entry tonemapper_wgsl = {0};
+    concat_shader_store_entries(&shader_store.common, &shader_store.tonemapper,
+                                &tonemapper_wgsl);
     wgpu_shader_t tonemapper_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .label           = "tonemapper_comp_shader",
-                      .file            = "shaders/cornell_box/tonemapper.wgsl",
-                      .entry           = "main",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
+      wgpu_context,
+      &(wgpu_shader_desc_t){
+        // Compute shader WGSL
+        .label             = "tonemapper_comp_shader",
+        .wgsl_code         = {(const char*)tonemapper_wgsl.read_result.data},
+        .entry             = "main",
+        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants.entries = constant_entries,
+      });
 
     /* Compute pipeline*/
     this->pipeline = wgpuDeviceCreateComputePipeline(
@@ -1692,6 +1735,9 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
 
     /* Cleanup */
     wgpu_shader_release(&tonemapper_comp_shader);
+    if (tonemapper_wgsl.read_result.size > 0) {
+      free(tonemapper_wgsl.read_result.data);
+    }
   }
 }
 
@@ -1706,20 +1752,22 @@ static void tonemapper_destroy(tonemapper_t* this)
 static void tonemapper_run(tonemapper_t* this,
                            WGPUCommandEncoder command_encoder)
 {
-  WGPUComputePassEncoder pass_encoder
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  wgpu_context->cpass_enc
     = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
-  wgpuComputePassEncoderSetBindGroup(pass_encoder, 0, this->bind_group, 0,
-                                     NULL);
-  wgpuComputePassEncoderSetPipeline(pass_encoder, this->pipeline);
+  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
+                                     this->bind_group, 0, NULL);
+  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc, this->pipeline);
   wgpuComputePassEncoderDispatchWorkgroups(
-    pass_encoder, ceil(this->width / (float)this->workgroup_size_x),
+    wgpu_context->cpass_enc, ceil(this->width / (float)this->workgroup_size_x),
     ceil(this->height / (float)this->workgroup_size_y), 1);
-  wgpuComputePassEncoderEnd(pass_encoder);
-  WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
+  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
+  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
 }
 
 /* --------------------------------------------------------------------------
- * * Cornell box example.
+ * Cornell box example.
  * -------------------------------------------------------------------------- */
 
 // Example structs
@@ -1734,15 +1782,15 @@ static struct {
 
 // GUI
 typedef enum {
-  RENDERER_RASTERIZER,
-  RENDERER_RAYTRACER,
+  Renderer_Rasterizer,
+  Renderer_Raytracer,
 } renderer_t;
 
 static struct {
   renderer_t renderer;
   bool rotate_camera;
 } example_parms = {
-  .renderer      = RENDERER_RASTERIZER,
+  .renderer      = Renderer_Rasterizer,
   .rotate_camera = true,
 };
 
@@ -1787,6 +1835,23 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
   example.frame_buffer.view
     = wgpuTextureCreateView(example.frame_buffer.texture, &texture_view_dec);
   ASSERT(example.frame_buffer.view != NULL);
+
+  // Texture sampler
+  WGPUSamplerDescriptor sampler_desc = {
+    .label         = "framebuffer texture sampler",
+    .addressModeU  = WGPUAddressMode_ClampToEdge,
+    .addressModeV  = WGPUAddressMode_ClampToEdge,
+    .addressModeW  = WGPUAddressMode_ClampToEdge,
+    .minFilter     = WGPUFilterMode_Linear,
+    .magFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUFilterMode_Nearest,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  example.frame_buffer.sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(example.frame_buffer.sampler != NULL);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -1815,12 +1880,12 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     int32_t current_renderer_index
-      = (example_parms.renderer == RENDERER_RASTERIZER) ? 0 : 1;
+      = (example_parms.renderer == Renderer_Rasterizer) ? 0 : 1;
     if (imgui_overlay_combo_box(context->imgui_overlay, "Renderer",
                                 &current_renderer_index, renderer_names, 11)) {
       example_parms.renderer = (current_renderer_index == 0) ?
-                                 RENDERER_RASTERIZER :
-                                 RENDERER_RAYTRACER;
+                                 Renderer_Rasterizer :
+                                 Renderer_Raytracer;
     }
     imgui_overlay_checkBox(context->imgui_overlay, "Rotate Camera",
                            &example_parms.rotate_camera);
@@ -1834,18 +1899,21 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   // Update uniforms
-  common_upate(&example.common, example_parms.rotate_camera,
-               wgpu_context->surface.width
-                 / (float)wgpu_context->surface.height);
+  common_update(&example.common,
+                &(common_update_params_t){
+                  .rotate_camera = example_parms.rotate_camera,
+                  .aspect        = wgpu_context->surface.width
+                            / (float)wgpu_context->surface.height,
+                });
 
   // Software raytracing
   radiosity_run(&example.radiosity, command_encoder);
 
   switch (example_parms.renderer) {
-    case RENDERER_RASTERIZER: {
+    case Renderer_Rasterizer: {
       rasterizer_run(&example.rasterizer, command_encoder);
     } break;
-    case RENDERER_RAYTRACER: {
+    case Renderer_Raytracer: {
       raytracer_run(&example.raytracer, command_encoder);
     } break;
   }
