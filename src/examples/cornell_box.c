@@ -175,6 +175,10 @@ static void common_upate(common_t* this, bool rotate_camera, float aspect)
  * Scene holds the cornell-box scene information.
  * -------------------------------------------------------------------------- */
 
+#define SCENE_QUADS_LENGTH 19u
+#define SCENE_QUAD_STRIDE (16 * 4)
+#define SCENE_QUAD_VERTEX_STRIDE (4 * 10)
+
 typedef struct {
   vec3 center;
   vec3 right;
@@ -182,6 +186,55 @@ typedef struct {
   vec3 color;
   float emissive;
 } quad_t;
+
+typedef enum {
+  QuadType_Convex,
+  QuadType_Concave,
+} quad_type_t;
+
+/**
+ * @brief Calculates the length of a vec3
+ *
+ * @param {ReadonlyVec3} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+static float vec3_len(vec3 v)
+{
+  const float x = v[0];
+  const float y = v[1];
+  const float z = v[2];
+
+  return sqrt(x * x + y * y + z * z);
+}
+
+/**
+ * @brief Calculates the squared length of a vec3
+ *
+ * @param {ReadonlyVec3} a vector to calculate squared length of
+ * @returns {Number} squared length of a
+ */
+static float vec3_sqr_len(vec3 v)
+{
+  const float x = v[0];
+  const float y = v[1];
+  const float z = v[2];
+
+  return x * x + y * y + z * z;
+}
+
+static void vec3_sign(vec3 v, quad_type_t type, vec3* dst)
+{
+  glm_vec3_copy(v, *dst);
+  if (type == QuadType_Convex) {
+    glm_vec3_negate(*dst);
+  }
+}
+
+static void reciprocal(vec3 v, vec3* dst)
+{
+  const float s = 1.0f / vec3_sqr_len(v);
+  glm_vec3_mul((vec3){s, s, s}, v, *dst);
+}
 
 //      ─────────┐
 //     ╱  +Y    ╱│
@@ -191,42 +244,382 @@ typedef struct {
 //    │        │╱
 //    └────────┘
 typedef enum {
-  Positive_X,
-  Positive_Y,
-  Positive_Z,
-  Negative_X,
-  Negative_Y,
-  Negative_Z,
+  CubeFace_Positive_X,
+  CubeFace_Positive_Y,
+  CubeFace_Positive_Z,
+  CubeFace_Negative_X,
+  CubeFace_Negative_Y,
+  CubeFace_Negative_Z,
 } cube_face_t;
+
+typedef struct {
+  vec3 center;
+  float width;
+  float height;
+  float depth;
+  float rotation;
+  vec3* color;
+  uint8_t color_count;
+  quad_type_t type;
+} box_params_t;
+
+static void create_box(box_params_t* params, quad_t* quads)
+{
+  //      ─────────┐
+  //     ╱  +Y    ╱│
+  //    ┌────────┐ │        y
+  //    │        │+X        ^
+  //    │   +Z   │ │        │ -z
+  //    │        │╱         │╱
+  //    └────────┘          └─────> x
+  vec3 x = {
+    cos(params->rotation) * (params->width / 2.0f), /* x */
+    0.0f,                                           /* y */
+    sin(params->rotation) * (params->depth / 2.0f)  /* z */
+  };
+  vec3 y = {0.0f, params->height / 2.0f, 0.0f};
+  vec3 z = {
+    sin(params->rotation) * (params->width / 2.0f), /* x */
+    0.0f,                                           /* y */
+    -cos(params->rotation) * (params->depth / 2.0f) /* z */
+  };
+  vec3 colors[6] = {0};
+  for (uint8_t i = 0; i < 6; ++i) {
+    glm_vec3_copy(params->color[MIN(i, params->color_count - 1)], colors[i]);
+  }
+
+  /* Box faces */
+  {
+    /* PositiveX */
+    quad_t* quad = &quads[0];
+    glm_vec3_add(params->center, x, quad->center);
+    vec3 vec3_tmp = GLM_VEC3_ZERO_INIT;
+    glm_vec3_negate_to(z, vec3_tmp);
+    vec3_sign(vec3_tmp, params->type, &quad->right);
+    glm_vec3_copy(y, quad->up);
+    glm_vec3_copy(colors[CubeFace_Positive_X], quad->color);
+
+    /* PositiveY */
+    quad = &quads[1];
+    glm_vec3_add(params->center, y, quad->center);
+    vec3_sign(x, params->type, &quad->right);
+    glm_vec3_negate_to(z, quad->up);
+    glm_vec3_copy(colors[CubeFace_Positive_Y], quad->color);
+
+    /* PositiveZ */
+    quad = &quads[2];
+    glm_vec3_add(params->center, z, quad->center);
+    vec3_sign(x, params->type, &quad->right);
+    glm_vec3_copy(y, quad->up);
+    glm_vec3_copy(colors[CubeFace_Positive_Z], quad->color);
+
+    /* NegativeX */
+    quad = &quads[3];
+    glm_vec3_sub(params->center, x, quad->center);
+    vec3_sign(z, params->type, &quad->right);
+    glm_vec3_copy(y, quad->up);
+    glm_vec3_copy(colors[CubeFace_Negative_X], quad->color);
+
+    /* NegativeY */
+    quad = &quads[4];
+    glm_vec3_sub(params->center, y, quad->center);
+    vec3_sign(x, params->type, &quad->right);
+    glm_vec3_copy(z, quad->up);
+    glm_vec3_copy(colors[CubeFace_Negative_Y], quad->color);
+
+    /* NegativeZ */
+    quad = &quads[5];
+    glm_vec3_sub(params->center, z, quad->center);
+    glm_vec3_negate_to(x, vec3_tmp);
+    vec3_sign(vec3_tmp, params->type, &quad->right);
+    glm_vec3_copy(y, quad->up);
+    glm_vec3_copy(colors[CubeFace_Negative_Z], quad->color);
+  }
+}
+
+static quad_t light = {
+  .center   = {0.0f, 9.95f, 0.0f},
+  .right    = {1.0f, 0.0f, 0.0f},
+  .up       = {0.0f, 0.0f, 1.0f},
+  .color    = {5.0f, 5.0f, 5.0f},
+  .emissive = 1.0f,
+};
 
 typedef struct {
   uint32_t vertex_count;
   uint32_t index_count;
-  WGPUBuffer vertices;
-  WGPUBuffer indices;
+  wgpu_buffer_t vertices;
+  wgpu_buffer_t indices;
   WGPUVertexBufferLayout vertex_buffer_layout;
+  WGPUVertexAttribute vertex_buffer_layout_attributes[3];
   wgpu_buffer_t quad_buffer;
-  struct {
-    uint32_t length;
-    void* data;
-  } quads;
+  quad_t quads[SCENE_QUADS_LENGTH];
+  uint32_t quads_length;
   vec3 light_center;
   float light_width;
   float light_height;
 } scene_t;
 
-static void scene_create(scene_t* scene, wgpu_context_t* wgpu_context)
+static void scene_init_defaults(scene_t* this)
 {
+  memset(this, 0, sizeof(*this));
+
+  this->quads_length = SCENE_QUADS_LENGTH;
+
+  glm_vec3_copy(light.center, this->light_center);
+  this->light_width  = vec3_len(light.right);
+  this->light_height = vec3_len(light.up);
 }
 
-static void scene_destroy(scene_t* scene)
+static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
 {
+  scene_init_defaults(this);
+
+  /* Quads */
+  {
+    /* Box 1 - quads */
+    {
+      vec3 color_array[6] = {
+        {0.0f, 0.5f, 0.0f}, /* PositiveX */
+        {0.5f, 0.5f, 0.5f}, /* PositiveY */
+        {0.5f, 0.5f, 0.5f}, /* PositiveZ */
+        {0.5f, 0.0f, 0.0f}, /* NegativeX */
+        {0.5f, 0.5f, 0.5f}, /* NegativeY */
+        {0.5f, 0.5f, 0.5f}, /* NegativeZ */
+      };
+      create_box(
+        &(box_params_t){
+          .center      = {0.0f, 5.0f, 0.0f},
+          .width       = 10.0f,
+          .height      = 10.0f,
+          .depth       = 10.0f,
+          .rotation    = 0.0f,
+          .color       = color_array,
+          .color_count = (uint32_t)ARRAY_SIZE(color_array),
+          .type        = QuadType_Concave,
+        },
+        &this->quads[0]);
+    }
+
+    /* Box 2 - quads */
+    {
+      vec3 color_array[1] = {{0.8f, 0.8f, 0.8f}};
+      create_box(
+        &(box_params_t){
+          .center      = {1.5f, 1.5f, 1.0f},
+          .width       = 3.0f,
+          .height      = 3.0f,
+          .depth       = 3.0f,
+          .rotation    = 0.3f,
+          .color       = color_array,
+          .color_count = (uint32_t)ARRAY_SIZE(color_array),
+          .type        = QuadType_Convex,
+        },
+        &this->quads[6]);
+    }
+
+    /* Box 3 - quads */
+    {
+      vec3 color_array[1] = {{0.8f, 0.8f, 0.8f}};
+      create_box(
+        &(box_params_t){
+          .center      = {-2.0f, 3.0f, -2.0f},
+          .width       = 3.0f,
+          .height      = 6.0f,
+          .depth       = 3.0f,
+          .rotation    = -0.4f,
+          .color       = color_array,
+          .color_count = (uint32_t)ARRAY_SIZE(color_array),
+          .type        = QuadType_Convex,
+        },
+        &this->quads[12]);
+    }
+
+    /* Light quad */
+    memcpy(&this->quads[18], &light, sizeof(light));
+  }
+
+  /* Quad buffer */
+  {
+    float quad_data[SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH]          = {0};
+    float vertex_data[SCENE_QUADS_LENGTH * SCENE_QUAD_VERTEX_STRIDE] = {0};
+    uint32_t index_data[SCENE_QUADS_LENGTH * 9] = {0}; /* TODO: 6? */
+    uint32_t quad_data_offset                   = 0;
+    uint32_t vertex_data_offset                 = 0;
+    uint32_t index_data_offset                  = 0;
+    for (uint32_t quad_idx = 0; quad_idx < SCENE_QUADS_LENGTH; ++quad_idx) {
+      quad_t* quad = &this->quads[quad_idx];
+      vec3 normal  = GLM_VEC3_ZERO_INIT;
+      glm_vec3_cross(quad->right, quad->up, normal);
+      glm_vec3_normalize(normal);
+      quad_data[quad_data_offset++] = normal[0];
+      quad_data[quad_data_offset++] = normal[1];
+      quad_data[quad_data_offset++] = normal[2];
+      quad_data[quad_data_offset++] = -glm_vec3_dot(normal, quad->center);
+
+      vec3 inv_right = GLM_VEC3_ZERO_INIT;
+      reciprocal(quad->right, &inv_right);
+      quad_data[quad_data_offset++] = inv_right[0];
+      quad_data[quad_data_offset++] = inv_right[1];
+      quad_data[quad_data_offset++] = inv_right[2];
+      quad_data[quad_data_offset++] = -glm_vec3_dot(inv_right, quad->center);
+
+      vec3 inv_up = GLM_VEC3_ZERO_INIT;
+      reciprocal(quad->up, &inv_up);
+      quad_data[quad_data_offset++] = inv_up[0];
+      quad_data[quad_data_offset++] = inv_up[1];
+      quad_data[quad_data_offset++] = inv_up[2];
+      quad_data[quad_data_offset++] = -glm_vec3_dot(inv_up, quad->center);
+
+      quad_data[quad_data_offset++] = quad->color[0];
+      quad_data[quad_data_offset++] = quad->color[1];
+      quad_data[quad_data_offset++] = quad->color[2];
+      quad_data[quad_data_offset++] = quad->emissive;
+
+      // a ----- b
+      // |       |
+      // |   m   |
+      // |       |
+      // c ----- d
+      vec3 a = GLM_VEC3_ZERO_INIT;
+      glm_vec3_sub(quad->center, quad->right, a);
+      glm_vec3_add(a, quad->up, a);
+      vec3 b = GLM_VEC3_ZERO_INIT;
+      glm_vec3_add(quad->center, quad->right, b);
+      glm_vec3_add(b, quad->up, b);
+      vec3 c = GLM_VEC3_ZERO_INIT;
+      glm_vec3_sub(quad->center, quad->right, c);
+      glm_vec3_sub(c, quad->up, c);
+      vec3 d = GLM_VEC3_ZERO_INIT;
+      glm_vec3_add(quad->center, quad->right, d);
+      glm_vec3_sub(d, quad->up, d);
+
+      vertex_data[vertex_data_offset++] = a[0];
+      vertex_data[vertex_data_offset++] = a[1];
+      vertex_data[vertex_data_offset++] = a[2];
+      vertex_data[vertex_data_offset++] = 1;
+      vertex_data[vertex_data_offset++] = 0; // uv.x
+      vertex_data[vertex_data_offset++] = 1; // uv.y
+      vertex_data[vertex_data_offset++] = quad_idx;
+      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
+
+      vertex_data[vertex_data_offset++] = b[0];
+      vertex_data[vertex_data_offset++] = b[1];
+      vertex_data[vertex_data_offset++] = b[2];
+      vertex_data[vertex_data_offset++] = 1;
+      vertex_data[vertex_data_offset++] = 1; // uv.x
+      vertex_data[vertex_data_offset++] = 1; // uv.y
+      vertex_data[vertex_data_offset++] = quad_idx;
+      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
+
+      vertex_data[vertex_data_offset++] = c[0];
+      vertex_data[vertex_data_offset++] = c[1];
+      vertex_data[vertex_data_offset++] = c[2];
+      vertex_data[vertex_data_offset++] = 1;
+      vertex_data[vertex_data_offset++] = 0; // uv.x
+      vertex_data[vertex_data_offset++] = 0; // uv.y
+      vertex_data[vertex_data_offset++] = quad_idx;
+      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
+
+      vertex_data[vertex_data_offset++] = d[0];
+      vertex_data[vertex_data_offset++] = d[1];
+      vertex_data[vertex_data_offset++] = d[2];
+      vertex_data[vertex_data_offset++] = 1;
+      vertex_data[vertex_data_offset++] = 1; // uv.x
+      vertex_data[vertex_data_offset++] = 0; // uv.y
+      vertex_data[vertex_data_offset++] = quad_idx;
+      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
+      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
+
+      index_data[index_data_offset++] = this->vertex_count + 0; // a
+      index_data[index_data_offset++] = this->vertex_count + 2; // c
+      index_data[index_data_offset++] = this->vertex_count + 1; // b
+      index_data[index_data_offset++] = this->vertex_count + 1; // b
+      index_data[index_data_offset++] = this->vertex_count + 2; // c
+      index_data[index_data_offset++] = this->vertex_count + 3; // d
+      this->index_count += 6;
+      this->vertex_count += 4;
+    }
+
+    /* Quads storage buffer */
+    this->quad_buffer = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .label        = "Scene.quad_buffer",
+                      .size         = SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH,
+                      .usage        = WGPUBufferUsage_Storage,
+                      .initial.data = quad_data,
+                    });
+
+    /* Quads vertices */
+    this->vertices
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Scene.vertices",
+                                           .size  = sizeof(vertex_data),
+                                           .usage = WGPUBufferUsage_Vertex,
+                                           .initial.data = vertex_data,
+                                         });
+
+    /* Quads indices */
+    this->indices
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Scene.indices",
+                                           .size  = sizeof(index_data),
+                                           .usage = WGPUBufferUsage_Index,
+                                           .initial.data = index_data,
+                                         });
+  }
+
+  /* Vertex buffer layout */
+  {
+    WGPUVertexAttribute attributes[3] = {
+      [0] = (WGPUVertexAttribute) {
+        // position
+        .shaderLocation = 0,
+        .offset         = 0 * 4,
+        .format         = WGPUVertexFormat_Float32x4,
+      },
+      [1] = (WGPUVertexAttribute) {
+        // uv
+        .shaderLocation = 0,
+        .offset         = 4 * 4,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [2] = (WGPUVertexAttribute) {
+        // color
+        .shaderLocation = 0,
+        .offset         = 7 * 4,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+    };
+    memcpy(&this->vertex_buffer_layout_attributes[0], attributes,
+           sizeof(attributes));
+    this->vertex_buffer_layout = (WGPUVertexBufferLayout){
+      .arrayStride    = SCENE_QUAD_VERTEX_STRIDE,
+      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
+      .attributes     = this->vertex_buffer_layout_attributes,
+    };
+  }
 }
 
-/* -------------------------------------------------------------------------- *
- * Radiosity computes lightmaps, calculated by software raytracing of light in
- * the scene.
- * -------------------------------------------------------------------------- */
+static void scene_destroy(scene_t* this)
+{
+  wgpu_destroy_buffer(&this->vertices);
+  wgpu_destroy_buffer(&this->indices);
+  wgpu_destroy_buffer(&this->quad_buffer);
+}
+
+/* --------------------------------------------------------------------------
+ * * Radiosity computes lightmaps, calculated by software raytracing of
+ * light in the scene.
+ * --------------------------------------------------------------------------
+ */
 
 typedef struct {
   // The output lightmap format and dimensions
@@ -242,8 +635,8 @@ typedef struct {
   // Number of radiosity workgroups dispatched per frame.
   uint32_t workgroups_per_frame;
   uint32_t photons_per_frame;
-  // Maximum value that can be added to the 'accumulation' buffer, per photon,
-  // across all texels.
+  // Maximum value that can be added to the 'accumulation' buffer, per
+  // photon, across all texels.
   uint32_t photon_energy;
   // The total number of lightmap texels for all quads.
   uint32_t total_lightmap_texels;
@@ -305,7 +698,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       .size          = (WGPUExtent3D) {
         .width              = this->lightmap_width,
         .height             = this->lightmap_height,
-        .depthOrArrayLayers = this->scene->quads.length,
+        .depthOrArrayLayers = this->scene->quads_length,
       },
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -317,7 +710,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     this->lightmap.texture
       = wgpuDeviceCreateTexture(this->wgpu_context->device, &texture_desc);
     ASSERT(this->lightmap.texture != NULL);
-    this->lightmap_depth_or_array_layers = this->scene->quads.length;
+    this->lightmap_depth_or_array_layers = this->scene->quads_length;
 
     // Texture view
     WGPUTextureViewDescriptor texture_view_dec = {
@@ -357,11 +750,11 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       this->wgpu_context, &(wgpu_buffer_desc_t){
                             .label = "Radiosity.accumulationBuffer",
                             .size = this->lightmap_width * this->lightmap_height
-                                    * this->scene->quads.length * 16,
+                                    * this->scene->quads_length * 16,
                             .usage = WGPUBufferUsage_Storage,
                           });
     this->total_lightmap_texels = this->lightmap_width * this->lightmap_height
-                                  * this->scene->quads.length;
+                                  * this->scene->quads_length;
   }
 
   /* Uniform buffer */
@@ -570,8 +963,8 @@ static void radiosity_run(radiosity_t* this,
   // Calculate the 'accumulation' -> 'lightmap' scale factor from
   // 'accumulationMean'
   const float accumulation_to_lightmap_scale = 1.0f / this->accumulation_mean;
-  // If 'accumulationMean' is greater than 'kAccumulationMeanMax', then reduce
-  // the 'accumulation' buffer values to prevent u32 overflow.
+  // If 'accumulationMean' is greater than 'kAccumulationMeanMax', then
+  // reduce the 'accumulation' buffer values to prevent u32 overflow.
   const float accumulation_buffer_scale
     = this->accumulation_mean > 2 * this->accumulation_mean_max ? 0.5f : 1.0f;
   this->accumulation_mean *= accumulation_buffer_scale;
@@ -611,9 +1004,11 @@ static void radiosity_run(radiosity_t* this,
     this->lightmap_depth_or_array_layers);
 }
 
-/* -------------------------------------------------------------------------- *
- * Rasterizer renders the scene using a regular raserization graphics pipeline.
- * -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+ * * Rasterizer renders the scene using a regular raserization graphics
+ * pipeline.
+ * --------------------------------------------------------------------------
+ */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -858,8 +1253,8 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
                             });
     ASSERT(this->pipeline != NULL);
 
-    // Shader modules are no longer needed once the graphics pipeline has been
-    // created
+    // Shader modules are no longer needed once the graphics pipeline has
+    // been created
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
@@ -880,9 +1275,9 @@ static void rasterizer_run(rasterizer_t* this,
   WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
     command_encoder, &this->render_pass.descriptor);
   wgpuRenderPassEncoderSetPipeline(pass_encoder, this->pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(pass_encoder, 0, this->scene->vertices,
-                                       0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(pass_encoder, this->scene->indices,
+  wgpuRenderPassEncoderSetVertexBuffer(
+    pass_encoder, 0, this->scene->vertices.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(pass_encoder, this->scene->indices.buffer,
                                       WGPUIndexFormat_Uint16, 0,
                                       WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
@@ -894,9 +1289,11 @@ static void rasterizer_run(rasterizer_t* this,
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
 }
 
-/* -------------------------------------------------------------------------- *
- * Raytracer renders the scene using a software ray-tracing compute pipeline.
- * -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+ * * Raytracer renders the scene using a software ray-tracing compute
+ * pipeline.
+ * --------------------------------------------------------------------------
+ */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1080,10 +1477,12 @@ static void raytracer_run(raytracer_t* this, WGPUCommandEncoder command_encoder)
   WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
 }
 
-/* -------------------------------------------------------------------------- *
- * Tonemapper implements a tonemapper to convert a linear-light framebuffer to
- * a gamma-correct, tonemapped framebuffer used for presentation.
- * -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+ * * Tonemapper implements a tonemapper to convert a linear-light
+ * framebuffer to a gamma-correct, tonemapped framebuffer used for
+ * presentation.
+ * --------------------------------------------------------------------------
+ */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1253,9 +1652,10 @@ static void tonemapper_run(tonemapper_t* this,
   WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass_encoder)
 }
 
-/* -------------------------------------------------------------------------- *
- * Cornell box example.
- * -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+ * * Cornell box example.
+ * --------------------------------------------------------------------------
+ */
 
 // Example structs
 static struct {
@@ -1445,7 +1845,7 @@ static void example_destroy(wgpu_example_context_t* context)
   scene_destroy(&example.scene);
 }
 
-void example_shadow_mapping(int argc, char* argv[])
+void example_cornell_box(int argc, char* argv[])
 {
   // clang-format off
   example_run(argc, argv, &(refexport_t){
