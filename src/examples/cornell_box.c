@@ -14,6 +14,76 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Shader store
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  const char* filename;
+  file_read_result_t read_result;
+} shader_store_entry;
+
+static struct {
+  shader_store_entry common;
+  shader_store_entry radiosity;
+  shader_store_entry rasterizer;
+  shader_store_entry raytracer;
+  shader_store_entry tonemapper;
+} shader_store = {
+  .common.filename     = "shaders/cornell_box/common.wgsl",
+  .radiosity.filename  = "shaders/cornell_box/radiosity.wgsl",
+  .rasterizer.filename = "shaders/cornell_box/rasterizer.wgsl",
+  .raytracer.filename  = "shaders/cornell_box/raytracer.wgsl",
+  .tonemapper.filename = "shaders/cornell_box/tonemapper.wgsl",
+};
+
+static void initialize_shader_store_entry(shader_store_entry* entry)
+{
+  read_file(entry->filename, &entry->read_result, true);
+  log_debug("Read file: %s, size: %d bytes\n", entry->filename,
+            entry->read_result.size);
+  ASSERT(entry->read_result.size > 0);
+}
+
+static void create_shader_store(void)
+{
+  initialize_shader_store_entry(&shader_store.common);
+  initialize_shader_store_entry(&shader_store.radiosity);
+  initialize_shader_store_entry(&shader_store.rasterizer);
+  initialize_shader_store_entry(&shader_store.raytracer);
+  initialize_shader_store_entry(&shader_store.tonemapper);
+}
+
+static void destroy_shader_store_entry(shader_store_entry* entry)
+{
+  if (entry->read_result.size > 0) {
+    free(entry->read_result.data);
+    entry->read_result.size = 0;
+  }
+}
+
+static void destroy_shader_store(void)
+{
+  destroy_shader_store_entry(&shader_store.common);
+  destroy_shader_store_entry(&shader_store.radiosity);
+  destroy_shader_store_entry(&shader_store.rasterizer);
+  destroy_shader_store_entry(&shader_store.raytracer);
+  destroy_shader_store_entry(&shader_store.tonemapper);
+}
+
+static void concat_shader_store_entries(shader_store_entry* e1,
+                                        shader_store_entry* e2,
+                                        shader_store_entry* dst)
+{
+  dst->read_result.size = e1->read_result.size + 1 + e2->read_result.size;
+  dst->read_result.data = malloc(dst->read_result.size);
+
+  memcpy(dst->read_result.data, e1->read_result.data, e1->read_result.size);
+  dst->read_result.data[e1->read_result.size] = 10; /* New line character*/
+  memcpy(dst->read_result.data + e1->read_result.size + 1 * sizeof(uint8_t),
+         e2->read_result.data, e2->read_result.size);
+}
+
+/* -------------------------------------------------------------------------- *
  * Common holds the shared WGSL between the shaders, including the common
  * uniform buffer.
  * -------------------------------------------------------------------------- */
@@ -618,8 +688,7 @@ static void scene_destroy(scene_t* this)
 /* --------------------------------------------------------------------------
  * * Radiosity computes lightmaps, calculated by software raytracing of
  * light in the scene.
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 typedef struct {
   // The output lightmap format and dimensions
@@ -1007,8 +1076,7 @@ static void radiosity_run(radiosity_t* this,
 /* --------------------------------------------------------------------------
  * * Rasterizer renders the scene using a regular raserization graphics
  * pipeline.
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1292,8 +1360,7 @@ static void rasterizer_run(rasterizer_t* this,
 /* --------------------------------------------------------------------------
  * * Raytracer renders the scene using a software ray-tracing compute
  * pipeline.
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1481,8 +1548,7 @@ static void raytracer_run(raytracer_t* this, WGPUCommandEncoder command_encoder)
  * * Tonemapper implements a tonemapper to convert a linear-light
  * framebuffer to a gamma-correct, tonemapped framebuffer used for
  * presentation.
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -1654,8 +1720,7 @@ static void tonemapper_run(tonemapper_t* this,
 
 /* --------------------------------------------------------------------------
  * * Cornell box example.
- * --------------------------------------------------------------------------
- */
+ * -------------------------------------------------------------------------- */
 
 // Example structs
 static struct {
@@ -1727,6 +1792,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    create_shader_store();
     create_frame_buffer(context->wgpu_context);
     scene_create(&example.scene, context->wgpu_context);
     common_create(&example.common, context->wgpu_context,
@@ -1827,6 +1893,8 @@ static int example_draw(wgpu_example_context_t* context)
 
 static int example_render(wgpu_example_context_t* context)
 {
+  UNUSED_VAR(context);
+
   if (!prepared) {
     return 1;
   }
@@ -1837,6 +1905,9 @@ static int example_render(wgpu_example_context_t* context)
 // Clean up used resources
 static void example_destroy(wgpu_example_context_t* context)
 {
+  UNUSED_VAR(context);
+
+  destroy_shader_store();
   wgpu_destroy_texture(&example.frame_buffer);
   raytracer_destroy(&example.raytracer);
   rasterizer_destroy(&example.rasterizer);
