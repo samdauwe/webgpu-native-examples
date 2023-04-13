@@ -19,27 +19,156 @@
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  /** The common uniform buffer bind group and layout */
+  /* The common uniform buffer bind group and layout */
   struct {
     WGPUBindGroupLayout bind_group_layout;
     WGPUBindGroup bind_group;
   } uniforms;
   wgpu_context_t* wgpu_context;
   wgpu_buffer_t uniform_buffer;
+  struct {
+    mat4 view_matrix;
+    mat4 mvp;
+    mat4 inv_mvp;
+    mat4 projection_matrix;
+  } ubo_vs;
   uint64_t frame;
 } common_t;
 
-static void common_create(common_t* common, wgpu_context_t* wgpu_context,
-                          WGPUBuffer quads)
+static void common_init_defaults(common_t* this)
 {
+  memset(this, 0, sizeof(*this));
 }
 
-static void common_destroy(common_t* common)
+static void common_create(common_t* this, wgpu_context_t* wgpu_context,
+                          wgpu_buffer_t* quads)
 {
+  common_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+
+  /* Uniform buffer */
+  this->uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Common.uniformBuffer",
+                    .size  = 0 +     //
+                            4 * 16 + // mvp
+                            4 * 16 + // inv_mvp
+                            4 * 4,   // seed
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                  });
+
+  /* Uniforms bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // common_uniforms
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .minBindingSize   = this->uniform_buffer.size,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // quads
+        .binding = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type              = WGPUBufferBindingType_Uniform,
+          .minBindingSize   = quads->size,
+        },
+        .sampler = {0},
+      },
+    };
+    this->uniforms.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Common.bindGroupLayout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->uniforms.bind_group_layout != NULL)
+  }
+
+  /* Uniforms bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        // common_uniforms
+        .binding = 0,
+        .buffer  = this->uniform_buffer.buffer,
+        .offset  = 0,
+        .size    = this->uniform_buffer.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // quads
+        .binding = 0,
+        .buffer  = quads->buffer,
+        .offset  = 0,
+        .size    = quads->size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "Common.bindGroup",
+      .layout     = this->uniforms.bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->uniforms.bind_group
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->uniforms.bind_group != NULL)
+  }
 }
 
-static void common_upate(common_t* common, bool rotate_camera, float aspect)
+static void common_destroy(common_t* this)
 {
+  wgpu_destroy_buffer(&this->uniform_buffer);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->uniforms.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->uniforms.bind_group)
+}
+
+/* Updates the uniform buffer data */
+static void common_upate(common_t* this, bool rotate_camera, float aspect)
+{
+  glm_mat4_identity(this->ubo_vs.view_matrix);
+  glm_mat4_identity(this->ubo_vs.mvp);
+  glm_mat4_identity(this->ubo_vs.inv_mvp);
+
+  glm_mat4_identity(this->ubo_vs.projection_matrix);
+  glm_perspective(PI2 / 8.0f, aspect, 0.5f, 100.0f,
+                  this->ubo_vs.projection_matrix);
+
+  const float view_rotation = rotate_camera ? this->frame / 1000.0f : 0.0f;
+  glm_lookat(
+    (vec3){sin(view_rotation) * 15.0f, 5.0f, cos(view_rotation) * 15.0f},
+    (vec3){0.0f, 5.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f},
+    this->ubo_vs.view_matrix);
+  glm_mat4_mul(this->ubo_vs.projection_matrix, this->ubo_vs.view_matrix,
+               this->ubo_vs.mvp);
+  glm_mat4_inv(this->ubo_vs.mvp, this->ubo_vs.inv_mvp);
+
+  float uniform_data_f32[35] = {0};
+  uint8_t i                  = 0;
+  for (uint8_t r = 0; r < 4; ++r) {
+    for (uint8_t c = 0; c < 4; ++c) {
+      uniform_data_f32[i++] = this->ubo_vs.mvp[r][c];
+    }
+  }
+  for (uint8_t r = 0; r < 4; ++r) {
+    for (uint8_t c = 0; c < 4; ++c) {
+      uniform_data_f32[i++] = this->ubo_vs.inv_mvp[r][c];
+    }
+  }
+  const float mult     = (float)0xffffffff;
+  uniform_data_f32[32] = (uint32_t)(mult * random_float());
+  uniform_data_f32[33] = (uint32_t)(mult * random_float());
+  uniform_data_f32[34] = (uint32_t)(mult * random_float());
+
+  wgpu_queue_write_buffer(this->wgpu_context, this->uniform_buffer.buffer, 0,
+                          uniform_data_f32, sizeof(uniform_data_f32));
+
+  this->frame++;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -76,7 +205,7 @@ typedef struct {
   WGPUBuffer vertices;
   WGPUBuffer indices;
   WGPUVertexBufferLayout vertex_buffer_layout;
-  WGPUBuffer quad_buffer;
+  wgpu_buffer_t quad_buffer;
   struct {
     uint32_t length;
     void* data;
@@ -1201,7 +1330,7 @@ static int example_initialize(wgpu_example_context_t* context)
     create_frame_buffer(context->wgpu_context);
     scene_create(&example.scene, context->wgpu_context);
     common_create(&example.common, context->wgpu_context,
-                  example.scene.quad_buffer);
+                  &example.scene.quad_buffer);
     radiosity_create(&example.radiosity, context->wgpu_context, &example.common,
                      &example.scene);
     rasterizer_create(&example.rasterizer, context->wgpu_context,
