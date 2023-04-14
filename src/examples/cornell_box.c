@@ -633,7 +633,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
                       .initial.data = quad_data,
                     });
 
-    /* Quads vertices */
+    /* Quads vertices buffer */
     this->vertices
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "Scene.vertices",
@@ -642,7 +642,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
                                            .initial.data = vertex_data,
                                          });
 
-    /* Quads indices */
+    /* Quads indices buffer */
     this->indices
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "Scene.indices",
@@ -663,13 +663,13 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
       },
       [1] = (WGPUVertexAttribute) {
         // uv
-        .shaderLocation = 0,
+        .shaderLocation = 1,
         .offset         = 4 * 4,
         .format         = WGPUVertexFormat_Float32x3,
       },
       [2] = (WGPUVertexAttribute) {
         // color
-        .shaderLocation = 0,
+        .shaderLocation = 2,
         .offset         = 7 * 4,
         .format         = WGPUVertexFormat_Float32x3,
       },
