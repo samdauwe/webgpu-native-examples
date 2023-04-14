@@ -574,8 +574,8 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
       vertex_data[vertex_data_offset++] = a[1];
       vertex_data[vertex_data_offset++] = a[2];
       vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 0; // uv.x
-      vertex_data[vertex_data_offset++] = 1; // uv.y
+      vertex_data[vertex_data_offset++] = 0; /* uv.x */
+      vertex_data[vertex_data_offset++] = 1; /* uv.y */
       vertex_data[vertex_data_offset++] = quad_idx;
       vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
       vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
@@ -585,8 +585,8 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
       vertex_data[vertex_data_offset++] = b[1];
       vertex_data[vertex_data_offset++] = b[2];
       vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 1; // uv.x
-      vertex_data[vertex_data_offset++] = 1; // uv.y
+      vertex_data[vertex_data_offset++] = 1; /* uv.x */
+      vertex_data[vertex_data_offset++] = 1; /* uv.y */
       vertex_data[vertex_data_offset++] = quad_idx;
       vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
       vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
@@ -596,8 +596,8 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
       vertex_data[vertex_data_offset++] = c[1];
       vertex_data[vertex_data_offset++] = c[2];
       vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 0; // uv.x
-      vertex_data[vertex_data_offset++] = 0; // uv.y
+      vertex_data[vertex_data_offset++] = 0; /* uv.x */
+      vertex_data[vertex_data_offset++] = 0; /* uv.y */
       vertex_data[vertex_data_offset++] = quad_idx;
       vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
       vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
@@ -607,19 +607,19 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
       vertex_data[vertex_data_offset++] = d[1];
       vertex_data[vertex_data_offset++] = d[2];
       vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 1; // uv.x
-      vertex_data[vertex_data_offset++] = 0; // uv.y
+      vertex_data[vertex_data_offset++] = 1; /* uv.x */
+      vertex_data[vertex_data_offset++] = 0; /* uv.y */
       vertex_data[vertex_data_offset++] = quad_idx;
       vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
       vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
       vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
 
-      index_data[index_data_offset++] = this->vertex_count + 0; // a
-      index_data[index_data_offset++] = this->vertex_count + 2; // c
-      index_data[index_data_offset++] = this->vertex_count + 1; // b
-      index_data[index_data_offset++] = this->vertex_count + 1; // b
-      index_data[index_data_offset++] = this->vertex_count + 2; // c
-      index_data[index_data_offset++] = this->vertex_count + 3; // d
+      index_data[index_data_offset++] = this->vertex_count + 0; /* a */
+      index_data[index_data_offset++] = this->vertex_count + 2; /* c */
+      index_data[index_data_offset++] = this->vertex_count + 1; /* b */
+      index_data[index_data_offset++] = this->vertex_count + 1; /* b */
+      index_data[index_data_offset++] = this->vertex_count + 2; /* c */
+      index_data[index_data_offset++] = this->vertex_count + 3; /* d */
       this->index_count += 6;
       this->vertex_count += 4;
     }
