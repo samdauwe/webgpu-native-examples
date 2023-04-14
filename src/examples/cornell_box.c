@@ -146,7 +146,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
         .binding = 1,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
-          .type              = WGPUBufferBindingType_Uniform,
+          .type              = WGPUBufferBindingType_ReadOnlyStorage,
           .minBindingSize   = quads->size,
         },
         .sampler = {0},
