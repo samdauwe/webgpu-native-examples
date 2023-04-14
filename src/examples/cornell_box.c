@@ -215,6 +215,7 @@ static void common_update(common_t* this, common_update_params_t* params)
                   this->ubo_vs.projection_matrix);
 
   float view_rotation = params->rotate_camera ? this->frame / 1000.0f : 0.0f;
+
   glm_lookat(
     (vec3){sin(view_rotation) * 15.0f, 5.0f, cos(view_rotation) * 15.0f},
     (vec3){0.0f, 5.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f},
