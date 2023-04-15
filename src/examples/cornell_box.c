@@ -17,6 +17,8 @@
  * Shader store
  * -------------------------------------------------------------------------- */
 
+#define PRESENTATION_FORMAT "bgra8unorm"
+
 typedef struct {
   const char* filename;
   file_read_result_t read_result;
