@@ -209,6 +209,7 @@ set(SOURCES
     src/examples/conway.c
     src/examples/conway_paletted_blurring.c
     src/examples/coordinate_system.c
+    src/examples/cornell_box.c
     src/examples/cube_reflection.c
     src/examples/cubemap.c
     src/examples/deferred_rendering.c
