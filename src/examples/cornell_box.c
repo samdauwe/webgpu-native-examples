@@ -73,16 +73,11 @@ static void destroy_shader_store(void)
 }
 
 static void concat_shader_store_entries(shader_store_entry* e1,
-                                        shader_store_entry* e2,
-                                        shader_store_entry* dst)
+                                        shader_store_entry* e2, char** dst)
 {
-  dst->read_result.size = e1->read_result.size + 1 + e2->read_result.size;
-  dst->read_result.data = malloc(dst->read_result.size);
-
-  memcpy(dst->read_result.data, e1->read_result.data, e1->read_result.size);
-  dst->read_result.data[e1->read_result.size] = 10; /* New line character*/
-  memcpy(dst->read_result.data + e1->read_result.size + 1 * sizeof(uint8_t),
-         e2->read_result.data, e2->read_result.size);
+  uint32_t total_size = e1->read_result.size + 1 + e2->read_result.size + 1;
+  *dst                = malloc(total_size);
+  sprintf(*dst, "%s\n%s\0", e1->read_result.data, e2->read_result.data);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -175,7 +170,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
       },
       [1] = (WGPUBindGroupEntry) {
         // quads
-        .binding = 0,
+        .binding = 1,
         .buffer  = quads->buffer,
         .offset  = 0,
         .size    = quads->size,
@@ -792,7 +787,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     // Texture view
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Radiosity.lightmap texture view",
-      .dimension       = WGPUTextureViewDimension_2D,
+      .dimension       = WGPUTextureViewDimension_2DArray,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
       .mipLevelCount   = 1,
@@ -939,9 +934,9 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   }
 
   /* Compute shader */
-  shader_store_entry radiosity_wgsl = {0};
+  char* wgsl_code = {0};
   concat_shader_store_entries(&shader_store.common, &shader_store.radiosity,
-                              &radiosity_wgsl);
+                              &wgsl_code);
 
   /* Radiosity compute pipeline */
   {
@@ -959,15 +954,14 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     /* Compute shader */
     wgpu_shader_t radiosity_comp_shader = wgpu_shader_create(
-      wgpu_context,
-      &(wgpu_shader_desc_t){
-        // Compute shader WGSL
-        .label             = "radiosity_comp_shader",
-        .wgsl_code         = {(const char*)radiosity_wgsl.read_result.data},
-        .entry             = "radiosity",
-        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
-        .constants.entries = constant_entries,
-      });
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .label           = "radiosity_comp_shader",
+                      .wgsl_code       = {wgsl_code},
+                      .entry           = "radiosity",
+                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
+                      .constants.entries = constant_entries,
+                    });
 
     /* Compute pipeline*/
     this->radiosity_pipeline = wgpuDeviceCreateComputePipeline(
@@ -998,15 +992,14 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     /* Compute shader */
     wgpu_shader_t accumulation_to_lightmap_comp_shader = wgpu_shader_create(
-      wgpu_context,
-      &(wgpu_shader_desc_t){
-        // Compute shader WGSL
-        .label             = "accumulation_to_lightmap_comp_shader",
-        .wgsl_code         = {(const char*)radiosity_wgsl.read_result.data},
-        .entry             = "accumulation_to_lightmap",
-        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
-        .constants.entries = constant_entries,
-      });
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .label           = "accumulation_to_lightmap_comp_shader",
+                      .wgsl_code       = {wgsl_code},
+                      .entry           = "accumulation_to_lightmap",
+                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
+                      .constants.entries = constant_entries,
+                    });
 
     /* Compute pipeline*/
     this->accumulation_to_lightmap_pipeline = wgpuDeviceCreateComputePipeline(
@@ -1023,9 +1016,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   }
 
   /* Cleanup */
-  if (radiosity_wgsl.read_result.size > 0) {
-    free(radiosity_wgsl.read_result.data);
-  }
+  free(wgsl_code);
 }
 
 static void radiosity_destroy(radiosity_t* this)
@@ -1299,9 +1290,9 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
     // Shader code
-    shader_store_entry rasterizer_wgsl = {0};
+    char* wgsl_code = {0};
     concat_shader_store_entries(&shader_store.common, &shader_store.rasterizer,
-                                &rasterizer_wgsl);
+                                &wgsl_code);
 
     // Vertex state
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
@@ -1309,7 +1300,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .shader_desc = (wgpu_shader_desc_t){
         // Vertex shader WGSL
         .label     = "RasterizerRenderer.vertex.module",
-        .wgsl_code = {(const char*)rasterizer_wgsl.read_result.data},
+        .wgsl_code  = {wgsl_code},
         .entry     = "vs_main",
       },
       .buffer_count = 1,
@@ -1322,7 +1313,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader WGSL
         .label     = "RasterizerRenderer.vertex.module",
-        .wgsl_code = {(const char*)rasterizer_wgsl.read_result.data},
+        .wgsl_code  = {wgsl_code},
         .entry     = "fs_main",
       },
       .target_count = 1,
@@ -1353,9 +1344,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     // been created
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
-    if (rasterizer_wgsl.read_result.size > 0) {
-      free(rasterizer_wgsl.read_result.data);
-    }
+    free(wgsl_code);
   }
 }
 
@@ -1529,19 +1518,18 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
     };
 
     /* Compute shader */
-    shader_store_entry raytracer_wgsl = {0};
+    char* wgsl_code = {0};
     concat_shader_store_entries(&shader_store.common, &shader_store.raytracer,
-                                &raytracer_wgsl);
+                                &wgsl_code);
     wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
-      wgpu_context,
-      &(wgpu_shader_desc_t){
-        // Compute shader WGSL
-        .label             = "raytracer_comp_shader",
-        .wgsl_code         = {(const char*)raytracer_wgsl.read_result.data},
-        .entry             = "main",
-        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
-        .constants.entries = constant_entries,
-      });
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .label           = "raytracer_comp_shader",
+                      .wgsl_code       = {wgsl_code},
+                      .entry           = "main",
+                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
+                      .constants.entries = constant_entries,
+                    });
 
     /* Compute pipeline*/
     this->pipeline = wgpuDeviceCreateComputePipeline(
@@ -1554,9 +1542,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
 
     /* Cleanup */
     wgpu_shader_release(&raytracer_comp_shader);
-    if (raytracer_wgsl.read_result.size > 0) {
-      free(raytracer_wgsl.read_result.data);
-    }
+    free(wgsl_code);
   }
 }
 
@@ -1713,19 +1699,18 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
     };
 
     /* Compute shader */
-    shader_store_entry tonemapper_wgsl = {0};
+    char* wgsl_code = {0};
     concat_shader_store_entries(&shader_store.common, &shader_store.tonemapper,
-                                &tonemapper_wgsl);
+                                &wgsl_code);
     wgpu_shader_t tonemapper_comp_shader = wgpu_shader_create(
-      wgpu_context,
-      &(wgpu_shader_desc_t){
-        // Compute shader WGSL
-        .label             = "tonemapper_comp_shader",
-        .wgsl_code         = {(const char*)tonemapper_wgsl.read_result.data},
-        .entry             = "main",
-        .constants.count   = (uint32_t)ARRAY_SIZE(constant_entries),
-        .constants.entries = constant_entries,
-      });
+      wgpu_context, &(wgpu_shader_desc_t){
+                      // Compute shader WGSL
+                      .label           = "tonemapper_comp_shader",
+                      .wgsl_code       = {wgsl_code},
+                      .entry           = "main",
+                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
+                      .constants.entries = constant_entries,
+                    });
 
     /* Compute pipeline*/
     this->pipeline = wgpuDeviceCreateComputePipeline(
@@ -1738,9 +1723,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
 
     /* Cleanup */
     wgpu_shader_release(&tonemapper_comp_shader);
-    if (tonemapper_wgsl.read_result.size > 0) {
-      free(tonemapper_wgsl.read_result.data);
-    }
+    free(wgsl_code);
   }
 }
 
@@ -1821,8 +1804,15 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
     .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_StorageBinding
              | WGPUTextureUsage_TextureBinding,
   };
-  example.frame_buffer.texture
-    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  example.frame_buffer = (texture_t){
+    .size.width      = texture_extent.width,
+    .size.height     = texture_extent.height,
+    .size.depth      = texture_extent.depthOrArrayLayers,
+    .mip_level_count = texture_desc.mipLevelCount,
+    .format          = texture_desc.format,
+    .dimension       = texture_desc.dimension,
+    .texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc),
+  };
   ASSERT(example.frame_buffer.texture != NULL);
 
   // Create the texture view
@@ -1898,7 +1888,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   WGPUTextureView canvas_texture = wgpu_context->swap_chain.frame_buffer;
-  WGPUCommandEncoder command_encoder
+  wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   // Update uniforms
@@ -1910,34 +1900,35 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                 });
 
   // Software raytracing
-  radiosity_run(&example.radiosity, command_encoder);
+  radiosity_run(&example.radiosity, wgpu_context->cmd_enc);
 
   switch (example_parms.renderer) {
     case Renderer_Rasterizer: {
-      rasterizer_run(&example.rasterizer, command_encoder);
+      rasterizer_run(&example.rasterizer, wgpu_context->cmd_enc);
     } break;
     case Renderer_Raytracer: {
-      raytracer_run(&example.raytracer, command_encoder);
+      raytracer_run(&example.raytracer, wgpu_context->cmd_enc);
     } break;
   }
 
   // Tone mapping
   {
-    tonemapper_t tonemapper;
+    /*tonemapper_t tonemapper;
     tonemapper_create(&tonemapper, wgpu_context, &example.common,
                       &example.frame_buffer, canvas_texture,
                       wgpu_context->swap_chain.format);
-    tonemapper_run(&tonemapper, command_encoder);
-    tonemapper_destroy(&tonemapper);
+    tonemapper_run(&tonemapper, wgpu_context->cmd_enc);
+    tonemapper_destroy(&tonemapper);*/
   }
 
   // Draw ui overlay
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   // Get command buffer
-  WGPUCommandBuffer command_buffer = wgpu_get_command_buffer(command_encoder);
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, command_encoder)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
 }
