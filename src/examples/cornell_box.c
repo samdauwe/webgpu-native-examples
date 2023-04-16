@@ -1585,6 +1585,7 @@ typedef struct {
   WGPUBindGroup bind_group;
   WGPUPipelineLayout pipeline_layout;
   WGPUComputePipeline pipeline;
+  texture_t* input;
   float width;
   float height;
   uint32_t workgroup_size_x;
@@ -1601,13 +1602,13 @@ static void tonemapper_init_defaults(tonemapper_t* this)
 
 static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
                               common_t* common, texture_t* input,
-                              WGPUTextureView output,
                               WGPUTextureFormat output_format)
 {
   tonemapper_init_defaults(this);
 
   this->wgpu_context = wgpu_context;
   this->common       = common;
+  this->input        = input;
   this->width        = input->size.width;
   this->height       = input->size.height;
 
@@ -1643,30 +1644,6 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
                               .entries    = bgl_entries,
                             });
     ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: input
-        .binding     = 0,
-        .textureView = input->view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        // Binding 1: output
-        .binding     = 1,
-        .textureView = output,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Tonemapper.bindGroup",
-                              .layout     = this->bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(this->bind_group != NULL);
   }
 
   /* Compute pipeline layout */
@@ -1727,6 +1704,37 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
   }
 }
 
+static void tonemapper_update_bind_group(tonemapper_t* this,
+                                         WGPUTextureView output)
+{
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: input
+        .binding     = 0,
+        .textureView = this->input->view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: output
+        .binding     = 1,
+        .textureView = output,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      this->wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = "Tonemapper.bindGroup",
+        .layout     = this->bind_group_layout,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(this->bind_group != NULL);
+  }
+}
+
 static void tonemapper_destroy(tonemapper_t* this)
 {
   WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
@@ -1764,6 +1772,7 @@ static struct {
   radiosity_t radiosity;
   rasterizer_t rasterizer;
   raytracer_t raytracer;
+  tonemapper_t tonemapper;
 } example;
 
 // GUI
@@ -1862,6 +1871,9 @@ static int example_initialize(wgpu_example_context_t* context)
                       &example.frame_buffer);
     raytracer_create(&example.raytracer, context->wgpu_context, &example.common,
                      &example.radiosity, &example.frame_buffer);
+    tonemapper_create(&example.tonemapper, context->wgpu_context,
+                      &example.common, &example.frame_buffer,
+                      context->wgpu_context->swap_chain.format);
     prepared = true;
     return EXIT_SUCCESS;
   }
@@ -1912,14 +1924,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   // Tone mapping
-  {
-    /*tonemapper_t tonemapper;
-    tonemapper_create(&tonemapper, wgpu_context, &example.common,
-                      &example.frame_buffer, canvas_texture,
-                      wgpu_context->swap_chain.format);
-    tonemapper_run(&tonemapper, wgpu_context->cmd_enc);
-    tonemapper_destroy(&tonemapper);*/
-  }
+  tonemapper_update_bind_group(&example.tonemapper, canvas_texture);
+  tonemapper_run(&example.tonemapper, wgpu_context->cmd_enc);
 
   // Draw ui overlay
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
@@ -1971,6 +1977,7 @@ static void example_destroy(wgpu_example_context_t* context)
 
   destroy_shader_store();
   wgpu_destroy_texture(&example.frame_buffer);
+  tonemapper_destroy(&example.tonemapper);
   raytracer_destroy(&example.raytracer);
   rasterizer_destroy(&example.rasterizer);
   radiosity_destroy(&example.radiosity);
