@@ -377,6 +377,10 @@ A simple N-body simulation based particle system implemented using WebGPU.
 
 Simple GPU ray tracer with shadows and reflections using a compute shader. No scene geometry is rendered in the graphics pass.
 
+#### [Cornell Box](src/examples/cornell_box.c)
+
+A classic Cornell box, using a lightmap generated using software ray-tracing.
+
 ### User Interface
 
 #### [Text rendering](src/examples/text_overlay.c)
@@ -503,15 +507,13 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
 * [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
 
-### January 2023
-
-* [ ] [Aquarium](https://github.com/webatintel/aquarium)
-
-### February 2023 - ...
+### April 2023 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
 * [ ] Extend command-line options
+* [ ] [Cornell Box](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell)
+* [ ] [Aquarium](https://github.com/webatintel/aquarium)
 * [ ] [Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
 * [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
