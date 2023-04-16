@@ -72,8 +72,9 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
   });
 
   /* WebGPU device creation */
-  WGPUFeatureName required_features[1] = {
+  WGPUFeatureName required_features[2] = {
     WGPUFeatureName_TextureCompressionBC,
+    WGPUFeatureName_BGRA8UnormStorage,
   };
   WGPUDeviceDescriptor deviceDescriptor = {
     .requiredFeaturesCount = (uint32_t)ARRAY_SIZE(required_features),
@@ -93,6 +94,7 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
     WGPUFeatureName_TextureCompressionETC2,
     WGPUFeatureName_TextureCompressionASTC,
     WGPUFeatureName_IndirectFirstInstance,
+    WGPUFeatureName_BGRA8UnormStorage,
     WGPUFeatureName_DepthClipControl,
     WGPUFeatureName_DawnShaderFloat16,
     WGPUFeatureName_DawnInternalUsages,
