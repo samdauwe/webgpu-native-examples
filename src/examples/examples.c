@@ -23,6 +23,7 @@ void example_conservative_raster(int argc, char* argv[]);
 void example_conway(int argc, char* argv[]);
 void example_conway_paletted_blurring(int argc, char* argv[]);
 void example_coordinate_system(int argc, char* argv[]);
+void example_cornell_box(int argc, char* argv[]);
 void example_cube_reflection(int argc, char* argv[]);
 void example_cubemap(int argc, char* argv[]);
 void example_deferred_rendering(int argc, char* argv[]);
@@ -89,6 +90,7 @@ static examplecase_t g_example_cases[] = {
   {"conway", example_conway},
   {"conway_paletted_blurring", example_conway_paletted_blurring},
   {"coordinate_system", example_coordinate_system},
+  {"cornell_box", example_cornell_box},
   {"cube_reflection", example_cube_reflection},
   {"cubemap", example_cubemap},
   {"deferred_rendering", example_deferred_rendering},
