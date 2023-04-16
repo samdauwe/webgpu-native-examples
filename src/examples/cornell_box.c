@@ -77,7 +77,7 @@ static void concat_shader_store_entries(shader_store_entry* e1,
 {
   uint32_t total_size = e1->read_result.size + 1 + e2->read_result.size + 1;
   *dst                = malloc(total_size);
-  sprintf(*dst, "%s\n%s\0", e1->read_result.data, e2->read_result.data);
+  sprintf(*dst, "%s\n%s%c", e1->read_result.data, e2->read_result.data, '\0');
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1586,8 +1586,7 @@ typedef struct {
   WGPUPipelineLayout pipeline_layout;
   WGPUComputePipeline pipeline;
   texture_t* input;
-  float width;
-  float height;
+  texture_t* output;
   uint32_t workgroup_size_x;
   uint32_t workgroup_size_y;
 } tonemapper_t;
@@ -1602,15 +1601,14 @@ static void tonemapper_init_defaults(tonemapper_t* this)
 
 static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
                               common_t* common, texture_t* input,
-                              WGPUTextureFormat output_format)
+                              texture_t* output)
 {
   tonemapper_init_defaults(this);
 
   this->wgpu_context = wgpu_context;
   this->common       = common;
   this->input        = input;
-  this->width        = input->size.width;
-  this->height       = input->size.height;
+  this->output       = output;
 
   /* Bind group layout */
   {
@@ -1632,7 +1630,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = {
           .access = WGPUStorageTextureAccess_WriteOnly,
-          .format = output_format,
+          .format = output->format,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
       },
@@ -1644,6 +1642,31 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
                               .entries    = bgl_entries,
                             });
     ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: input
+        .binding     = 0,
+        .textureView = this->input->view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: output
+        .binding     = 1,
+        .textureView = output->view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      this->wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = "Tonemapper.bindGroup",
+        .layout     = this->bind_group_layout,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(this->bind_group != NULL);
   }
 
   /* Compute pipeline layout */
@@ -1704,37 +1727,6 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
   }
 }
 
-static void tonemapper_update_bind_group(tonemapper_t* this,
-                                         WGPUTextureView output)
-{
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: input
-        .binding     = 0,
-        .textureView = this->input->view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        // Binding 1: output
-        .binding     = 1,
-        .textureView = output,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      this->wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .label      = "Tonemapper.bindGroup",
-        .layout     = this->bind_group_layout,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(this->bind_group != NULL);
-  }
-}
-
 static void tonemapper_destroy(tonemapper_t* this)
 {
   WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
@@ -1754,10 +1746,250 @@ static void tonemapper_run(tonemapper_t* this,
                                      this->bind_group, 0, NULL);
   wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc, this->pipeline);
   wgpuComputePassEncoderDispatchWorkgroups(
-    wgpu_context->cpass_enc, ceil(this->width / (float)this->workgroup_size_x),
-    ceil(this->height / (float)this->workgroup_size_y), 1);
+    wgpu_context->cpass_enc,
+    ceil(this->input->size.width / (float)this->workgroup_size_x),
+    ceil(this->input->size.height / (float)this->workgroup_size_y), 1);
   wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
   WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+}
+
+/* --------------------------------------------------------------------------
+ * Result renderer.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  wgpu_context_t* wgpu_context;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline pipeline;
+  struct {
+    WGPURenderPassColorAttachment color_att_descriptors[1];
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
+} result_renderer_t;
+
+static void result_renderer_init_defaults(result_renderer_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void result_renderer_create(result_renderer_t* this,
+                                   wgpu_context_t* wgpu_context,
+                                   texture_t* texture)
+{
+  result_renderer_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+
+  /* Bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Fragment shader image view
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Fragment shader image sampler
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout) {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      }
+    };
+    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Quad bind group layout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        // Binding 0: Fragment shader image sampler
+        .binding     = 0,
+        .textureView = texture->view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        // Binding 1: Fragment shader image sampler
+        .binding = 1,
+        .sampler = texture->sampler,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Quad bind group",
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_group != NULL);
+  }
+
+  /* Pipeline layout */
+  {
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .bindGroupLayoutCount = 1,
+                              .bindGroupLayouts     = &this->bind_group_layout,
+                            });
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Render pass */
+  {
+    // Color attachment
+    this->render_pass.color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
+        .view       = NULL, // Assigned later
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 0.0f,
+        },
+    };
+
+    // Depth attachment
+    wgpu_setup_deph_stencil(wgpu_context, NULL);
+
+    // Render pass descriptor
+    this->render_pass.descriptor = (WGPURenderPassDescriptor){
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = this->render_pass.color_att_descriptors,
+      .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
+    };
+  }
+
+  /* Render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth24PlusStencil8,
+        .depth_write_enabled = true,
+      });
+
+    // Vertex state
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
+              wgpu_context, &(wgpu_vertex_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Vertex shader SPIR-V
+                .label = "quad_vertex_shader",
+                .file  = "shaders/cornell_box/quad.vert.spv",
+              },
+              .buffer_count = 0,
+              .buffers      = NULL,
+            });
+
+    // Fragment state
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+              wgpu_context, &(wgpu_fragment_state_t){
+              .shader_desc = (wgpu_shader_desc_t){
+                // Fragment shader SPIR-V
+                .label = "quad_fragment_shader",
+                .file  = "shaders/cornell_box/quad.frag.spv",
+              },
+              .target_count = 1,
+              .targets      = &color_target_state,
+            });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Render pipeline description
+    WGPURenderPipelineDescriptor pipeline_desc = {
+      .label        = "Quad render pipeline",
+      .layout       = this->pipeline_layout,
+      .primitive    = primitive_state,
+      .depthStencil = &depth_stencil_state,
+      .vertex       = vertex_state,
+      .fragment     = &fragment_state,
+      .multisample  = multisample_state,
+    };
+    this->pipeline
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
+    ASSERT(this->pipeline != NULL);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  }
+}
+
+static void result_renderer_destroy(result_renderer_t* this)
+{
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+}
+
+static void result_renderer_run(result_renderer_t* this,
+                                WGPUCommandEncoder command_encoder,
+                                WGPUTextureView frame_buffer)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  // Set target frame buffer
+  this->render_pass.color_att_descriptors[0].view = frame_buffer;
+
+  // Create render pass encoder for encoding drawing commands
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    command_encoder, &this->render_pass.descriptor);
+
+  // Set viewport
+  wgpuRenderPassEncoderSetViewport(
+    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
+    (float)wgpu_context->surface.height, 0.0f, 1.0f);
+
+  // Set scissor rectangle
+  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
+                                      wgpu_context->surface.width,
+                                      wgpu_context->surface.height);
+
+  // Draw textured quad
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                    this->bind_group, 0, 0);
+  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+
+  // End render pass
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 }
 
 /* --------------------------------------------------------------------------
@@ -1766,13 +1998,17 @@ static void tonemapper_run(tonemapper_t* this,
 
 // Example structs
 static struct {
-  texture_t frame_buffer;
+  struct {
+    texture_t input;
+    texture_t output;
+  } frame_buffer;
   scene_t scene;
   common_t common;
   radiosity_t radiosity;
   rasterizer_t rasterizer;
   raytracer_t raytracer;
   tonemapper_t tonemapper;
+  result_renderer_t result_renderer;
 } example;
 
 // GUI
@@ -1795,7 +2031,9 @@ static const char* renderer_names[2] = {"Rasterizer", "Raytracer"};
 static const char* example_title = "Cornell box";
 static bool prepared             = false;
 
-static void create_frame_buffer(wgpu_context_t* wgpu_context)
+static void create_frame_buffer(wgpu_context_t* wgpu_context,
+                                texture_t* frame_buffer,
+                                WGPUTextureFormat format)
 {
   // Create the texture
   WGPUExtent3D texture_extent = {
@@ -1809,11 +2047,11 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
     .mipLevelCount = 1,
     .sampleCount   = 1,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = WGPUTextureFormat_RGBA16Float,
+    .format        = format,
     .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_StorageBinding
              | WGPUTextureUsage_TextureBinding,
   };
-  example.frame_buffer = (texture_t){
+  *frame_buffer = (texture_t){
     .size.width      = texture_extent.width,
     .size.height     = texture_extent.height,
     .size.depth      = texture_extent.depthOrArrayLayers,
@@ -1822,7 +2060,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
     .dimension       = texture_desc.dimension,
     .texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc),
   };
-  ASSERT(example.frame_buffer.texture != NULL);
+  ASSERT(frame_buffer->texture != NULL);
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
@@ -1834,9 +2072,9 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
     .baseArrayLayer  = 0,
     .arrayLayerCount = 1,
   };
-  example.frame_buffer.view
-    = wgpuTextureCreateView(example.frame_buffer.texture, &texture_view_dec);
-  ASSERT(example.frame_buffer.view != NULL);
+  frame_buffer->view
+    = wgpuTextureCreateView(frame_buffer->texture, &texture_view_dec);
+  ASSERT(frame_buffer->view != NULL);
 
   // Texture sampler
   WGPUSamplerDescriptor sampler_desc = {
@@ -1851,16 +2089,19 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context)
     .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,
   };
-  example.frame_buffer.sampler
+  frame_buffer->sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(example.frame_buffer.sampler != NULL);
+  ASSERT(frame_buffer->sampler != NULL);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     create_shader_store();
-    create_frame_buffer(context->wgpu_context);
+    create_frame_buffer(context->wgpu_context, &example.frame_buffer.input,
+                        WGPUTextureFormat_RGBA16Float);
+    create_frame_buffer(context->wgpu_context, &example.frame_buffer.output,
+                        WGPUTextureFormat_BGRA8Unorm);
     scene_create(&example.scene, context->wgpu_context);
     common_create(&example.common, context->wgpu_context,
                   &example.scene.quad_buffer);
@@ -1868,12 +2109,14 @@ static int example_initialize(wgpu_example_context_t* context)
                      &example.scene);
     rasterizer_create(&example.rasterizer, context->wgpu_context,
                       &example.common, &example.scene, &example.radiosity,
-                      &example.frame_buffer);
+                      &example.frame_buffer.input);
     raytracer_create(&example.raytracer, context->wgpu_context, &example.common,
-                     &example.radiosity, &example.frame_buffer);
+                     &example.radiosity, &example.frame_buffer.input);
     tonemapper_create(&example.tonemapper, context->wgpu_context,
-                      &example.common, &example.frame_buffer,
-                      context->wgpu_context->swap_chain.format);
+                      &example.common, &example.frame_buffer.input,
+                      &example.frame_buffer.output);
+    result_renderer_create(&example.result_renderer, context->wgpu_context,
+                           &example.frame_buffer.output);
     prepared = true;
     return EXIT_SUCCESS;
   }
@@ -1887,7 +2130,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
     int32_t current_renderer_index
       = (example_parms.renderer == Renderer_Rasterizer) ? 0 : 1;
     if (imgui_overlay_combo_box(context->imgui_overlay, "Renderer",
-                                &current_renderer_index, renderer_names, 11)) {
+                                &current_renderer_index, renderer_names, 2)) {
       example_parms.renderer = (current_renderer_index == 0) ?
                                  Renderer_Rasterizer :
                                  Renderer_Raytracer;
@@ -1899,7 +2142,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  WGPUTextureView canvas_texture = wgpu_context->swap_chain.frame_buffer;
+  WGPUTextureView frame_buffer = wgpu_context->swap_chain.frame_buffer;
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
@@ -1924,8 +2167,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   // Tone mapping
-  tonemapper_update_bind_group(&example.tonemapper, canvas_texture);
   tonemapper_run(&example.tonemapper, wgpu_context->cmd_enc);
+
+  // Render result
+  result_renderer_run(&example.result_renderer, wgpu_context->cmd_enc,
+                      frame_buffer);
 
   // Draw ui overlay
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
@@ -1976,7 +2222,9 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
 
   destroy_shader_store();
-  wgpu_destroy_texture(&example.frame_buffer);
+  wgpu_destroy_texture(&example.frame_buffer.input);
+  wgpu_destroy_texture(&example.frame_buffer.output);
+  result_renderer_destroy(&example.result_renderer);
   tonemapper_destroy(&example.tonemapper);
   raytracer_destroy(&example.raytracer);
   rasterizer_destroy(&example.rasterizer);
