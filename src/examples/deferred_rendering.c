@@ -21,7 +21,7 @@
  * -------------------------------------------------------------------------- */
 
 // Constants
-#define MAX_NUM_LIGHTS 1024
+#define MAX_NUM_LIGHTS 1024u
 
 static const uint32_t max_num_lights   = (uint32_t)MAX_NUM_LIGHTS;
 static const uint8_t light_data_stride = 8;
