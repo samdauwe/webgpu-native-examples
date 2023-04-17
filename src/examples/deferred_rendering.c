@@ -126,7 +126,7 @@ static void
 prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
                                  stanford_dragon_mesh_t* dragon_mesh)
 {
-  // Create the model vertex buffer
+  /* Create the model vertex buffer */
   {
     const uint8_t ground_plane_vertex_count = 4;
     // position: vec3, normal: vec3, uv: vec2
@@ -185,7 +185,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
     wgpuBufferUnmap(vertex_buffer);
   }
 
-  // Create the model index buffer
+  /* Create the model index buffer */
   {
     const uint8_t ground_plane_index_count = 2;
     index_count = (dragon_mesh->triangles.count + ground_plane_index_count) * 3;
