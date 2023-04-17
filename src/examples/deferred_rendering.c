@@ -238,6 +238,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
     };
     gbuffer.texture_2d_float32
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(gbuffer.texture_2d_float32 != NULL);
   }
 
   {
@@ -255,6 +256,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
     };
     gbuffer.texture_2d_float16
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(gbuffer.texture_2d_float16 != NULL);
   }
 
   {
@@ -272,6 +274,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
     };
     gbuffer.texture_albedo
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(gbuffer.texture_albedo != NULL);
   }
 
   {
@@ -297,6 +300,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
     texture_view_dec.baseArrayLayer = 0;
     gbuffer.texture_views[2]
       = wgpuTextureCreateView(gbuffer.texture_albedo, &texture_view_dec);
+    ASSERT(gbuffer.texture_views[2] != NULL);
   }
 }
 
