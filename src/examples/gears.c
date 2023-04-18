@@ -148,11 +148,11 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   gear->rot_speed  = gearinfo->rot_speed;
 
   /* Vertex buffer */
-  gear->vbo.buffer.count = (6         // /* front face */
-                            + 4       // /* front sides of teeth */
-                            + 6       // /* back face */
-                            + 4       // /* back sides of teeth */
-                            + (4 * 5) // /* draw outward faces of teeth */
+  gear->vbo.buffer.count = (6         /* front face */
+                            + 4       /* front sides of teeth */
+                            + 6       /* back face */
+                            + 4       /* back sides of teeth */
+                            + (4 * 5) /* draw outward faces of teeth */
                             )
                            * gearinfo->num_teeth;
   gear->vbo.buffer.size  = gear->vbo.buffer.count * sizeof(vertex_t);
