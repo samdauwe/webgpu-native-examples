@@ -372,7 +372,7 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   gear->vbo.buffer = wgpu_create_buffer(
     gear->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "Gear vertex shader",
+      .label        = "Gear vertex buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
       .size         = gear->vbo.buffer.size,
       .count        = gear->vbo.buffer.count,
@@ -382,6 +382,7 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   // Index buffer
   gear->ibo.buffer
     = wgpu_create_buffer(gear->wgpu_context, &(wgpu_buffer_desc_t){
+                                               .label = "Gear index buffer",
                                                .usage = WGPUBufferUsage_CopyDst
                                                         | WGPUBufferUsage_Index,
                                                .size  = gear->ibo.buffer.size,
