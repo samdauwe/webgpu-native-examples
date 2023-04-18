@@ -161,11 +161,11 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   int32_t vertex_counter = 0;
 
   /* Index buffer */
-  gear->ibo.buffer.count = (4         // /* front face */
-                            + 2       // /* front sides of teeth */
-                            + 4       // /* back face */
-                            + 2       // /* back sides of teeth */
-                            + (2 * 5) // /* draw outward faces of teeth */
+  gear->ibo.buffer.count = (4         /* front face */
+                            + 2       /* front sides of teeth */
+                            + 4       /* back face */
+                            + 2       /* back sides of teeth */
+                            + (2 * 5) /* draw outward faces of teeth */
                             )
                            * 3 * gearinfo->num_teeth;
   gear->ibo.buffer.size = gear->ibo.buffer.count * sizeof(uint32_t);
