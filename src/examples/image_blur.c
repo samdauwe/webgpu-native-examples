@@ -533,6 +533,7 @@ static int example_render(wgpu_example_context_t* context)
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
+
   WGPU_RELEASE_RESOURCE(TextureView, blur_textures[0].view)
   WGPU_RELEASE_RESOURCE(TextureView, blur_textures[1].view)
   WGPU_RELEASE_RESOURCE(Texture, blur_textures[0].texture)
