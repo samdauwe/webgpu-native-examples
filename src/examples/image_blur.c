@@ -126,7 +126,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // buffer 0 and buffer 1
+  /* buffer 0 and buffer 1 */
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(uniform_buffers); ++i) {
     uniform_buffers[i] = wgpu_create_buffer(
       wgpu_context,
@@ -137,7 +137,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       });
   }
 
-  // Compute shader blur parameters
+  /* Compute shader blur parameters */
   blur_params_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Compute shader blur parameters",
@@ -145,7 +145,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                     .size  = 8,
                   });
 
-  // Compute constants bind group
+  /* Compute constants bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
@@ -172,7 +172,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(compute_constants_bind_group != NULL);
   }
 
-  // Compute bind group 0
+  /* Compute bind group 0 */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -204,7 +204,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(compute_bind_groups[0] != NULL);
   }
 
-  // Compute bind group 1
+  /* Compute bind group 1 */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -236,7 +236,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(compute_bind_groups[1] != NULL);
   }
 
-  // Compute bind group 2
+  /* Compute bind group 2 */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -268,7 +268,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(compute_bind_groups[2] != NULL);
   }
 
-  // Uniform bind group
+  /* Uniform bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
