@@ -310,13 +310,13 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       = float_random(0.0f, 1.0f) * 10.0f; // scalarOffset
 
     WGPUBindGroupEntry bg_entries[1] = {
-          [0] = (WGPUBindGroupEntry) {
-            .binding = 0,
-            .buffer = uniform_buffer,
-            .offset = i * aligned_uniform_bytes,
-            .size = 6 * sizeof(float),
-          },
-        };
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer = uniform_buffer,
+        .offset = i * aligned_uniform_bytes,
+        .size = 6 * sizeof(float),
+      },
+    };
 
     bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, (&(WGPUBindGroupDescriptor){
