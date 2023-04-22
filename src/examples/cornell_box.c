@@ -516,7 +516,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
   {
     float quad_data[SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH]          = {0};
     float vertex_data[SCENE_QUADS_LENGTH * SCENE_QUAD_VERTEX_STRIDE] = {0};
-    uint32_t index_data[SCENE_QUADS_LENGTH * 9] = {0}; /* TODO: 6? */
+    uint16_t index_data[SCENE_QUADS_LENGTH * 9] = {0}; /* TODO: 6? */
     uint32_t quad_data_offset                   = 0;
     uint32_t vertex_data_offset                 = 0;
     uint32_t index_data_offset                  = 0;
