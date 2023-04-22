@@ -1274,7 +1274,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     };
 
     // Color target state
-    WGPUBlendState blend_state = wgpu_create_blend_state(true);
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
       .format    = frame_buffer->format,
       .blend     = &blend_state,
