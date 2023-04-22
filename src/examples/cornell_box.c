@@ -221,7 +221,7 @@ static void common_update(common_t* this, common_update_params_t* params)
                this->ubo_vs.mvp);
   glm_mat4_inv(this->ubo_vs.mvp, this->ubo_vs.inv_mvp);
 
-  float uniform_data_f32[35] = {0};
+  float uniform_data_f32[36] = {0};
   uint8_t i                  = 0;
   for (uint8_t r = 0; r < 4; ++r) {
     for (uint8_t c = 0; c < 4; ++c) {
@@ -792,7 +792,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       .baseMipLevel    = 0,
       .mipLevelCount   = 1,
       .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
+      .arrayLayerCount = this->lightmap_depth_or_array_layers,
       .aspect          = WGPUTextureAspect_All,
     };
     this->lightmap.view
@@ -1050,7 +1050,7 @@ static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
   this->accumulation_mean *= accumulation_buffer_scale;
 
   // Update the radiosity uniform buffer data.
-  const float uniform_data_f32[7] = {
+  const float uniform_data_f32[8] = {
     accumulation_to_lightmap_scale, // accumulation_to_lightmap_scale */
     accumulation_buffer_scale,      // accumulation_buffer_scale */
     this->scene->light_width,       // light_width */
