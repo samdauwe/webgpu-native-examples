@@ -3,7 +3,6 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
-#include "../core/log.h"
 #include "../core/macro.h"
 
 /* -------------------------------------------------------------------------- *
