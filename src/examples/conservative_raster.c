@@ -233,7 +233,7 @@ static void prepare_pipeline_triangle_regular(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipelines.triangle_regular = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Regular Rasterization",
+                            .label       = "Regular Rasterization pipeline",
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
                             .fragment    = &fragment_state,
