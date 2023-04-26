@@ -737,7 +737,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Record record render pass
+  // Record render pass
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        vertices.buffer, 0, WGPU_WHOLE_SIZE);
