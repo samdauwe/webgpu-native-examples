@@ -281,7 +281,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 
   // Create non-filtering sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Non-filtering sampler",
+    .label         = "Non-filtering texture sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
