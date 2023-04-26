@@ -294,7 +294,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout for Gerstner Waves mesh rendering & parameters
+  /* Bind group layout for Gerstner Waves mesh rendering & parameters */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -332,7 +332,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.uniforms != NULL);
   }
 
-  // Bind group layout for sea color texture
+  /* Bind group layout for sea color texture */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -365,7 +365,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.textures != NULL);
   }
 
-  // Create the pipeline layout from bind group layouts
+  /* Create the pipeline layout from bind group layouts */
   WGPUBindGroupLayout bind_groups_layout_array[2] = {
     bind_group_layouts.uniforms, /* Group 0 */
     bind_group_layouts.textures  /* Group 1 */
