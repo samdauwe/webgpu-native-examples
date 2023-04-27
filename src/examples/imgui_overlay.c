@@ -44,29 +44,29 @@ static int example_initialize(wgpu_example_context_t* context)
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   if (imgui_overlay == NULL) {
-    // Create and intialize ImGui ovelay
+    /* Create and intialize ImGui ovelay */
     imgui_overlay = imgui_overlay_create(wgpu_context);
   }
 
-  // Create command encoder
+  // Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Start the Dear ImGui frame
+  /* Start the Dear ImGui frame */
   imgui_overlay_new_frame(imgui_overlay, wgpu_context->context);
 
   static bool show_demo_window    = true;
   static bool show_another_window = true;
   static ImVec4 clearColor        = {0.45f, 0.55f, 0.60f, 1.00f};
 
-  // Show the ImGui demo window
+  /* Show the ImGui demo window */
   {
     if (show_demo_window) {
       igShowDemoWindow(&show_demo_window);
     }
   }
 
-  // Show a simple window that we created ourselves.
+  /* Show a simple window that we created ourselves. */
   {
     static float f     = 0.0f;
     static int counter = 0;
@@ -109,7 +109,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   imgui_overlay_draw_frame(imgui_overlay,
                            wgpu_context->swap_chain.frame_buffer);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
