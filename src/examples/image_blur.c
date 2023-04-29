@@ -506,7 +506,7 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_initialize(wgpu_example_context_t* context)
