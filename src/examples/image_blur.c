@@ -95,8 +95,11 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     ASSERT(blur_textures[i].view != NULL);
   }
 
-  image_width  = texture.size.width;
-  image_height = texture.size.height;
+  /* Image size */
+  {
+    image_width  = texture.size.width;
+    image_height = texture.size.height;
+  }
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
