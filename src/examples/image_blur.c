@@ -396,7 +396,7 @@ static void update_settings(wgpu_context_t* wgpu_context)
   uniform_buffer_data[0] = settings.filter_size;
   uniform_buffer_data[1] = block_dim;
 
-  // Map uniform buffer and update it
+  // Map uniform buffer and update the blur parameters
   wgpu_queue_write_buffer(wgpu_context, blur_params_buffer.buffer, 0,
                           &uniform_buffer_data, sizeof(uniform_buffer_data));
 }
