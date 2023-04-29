@@ -301,7 +301,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 // Create the compute & graphics pipelines
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Blur compute pipeline
+  /* Blur compute pipeline */
   {
     // Compute shader
     wgpu_shader_t blur_comp_shader = wgpu_shader_create(
@@ -324,7 +324,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_shader_release(&blur_comp_shader);
   }
 
-  // Fullscreen quad render pipeline
+  /* Fullscreen quad render pipeline */
   {
     // Primitive state
     WGPUPrimitiveState primitive_state = {
