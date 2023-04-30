@@ -344,8 +344,9 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   // clang-format on
 
   camera_t* camera = context->camera;
+  cube_t* cube     = NULL;
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(cubes); ++i) {
-    cube_t* cube = &cubes[i];
+    cube = &cubes[i];
     glm_mat4_identity(cube->matrices.model);
     glm_translate(cube->matrices.model, translations[i]);
     glm_mat4_copy(camera->matrices.perspective, cube->matrices.projection);
