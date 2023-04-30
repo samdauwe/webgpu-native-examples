@@ -107,8 +107,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   bind_group_layout_entries[0] = (WGPUBindGroupLayoutEntry) {
     // Shader binding point
     .binding = 0,
-    // Accessible from the vertex shader only (flags can be combined to make it
-    // accessible to multiple shader stages)
+    // Accessible from the vertex shader only
     .visibility = WGPUShaderStage_Vertex,
     .buffer = (WGPUBufferBindingLayout) {
       .type             = WGPUBufferBindingType_Uniform,
