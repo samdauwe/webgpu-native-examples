@@ -376,7 +376,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout for models
+  /* Bind group layout for models */
   {
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -451,7 +451,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.models != NULL);
   }
 
-  // Bind group layout for bloom filter & G-Buffer composition
+  /* Bind group layout for bloom filter & G-Buffer composition */
   {
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
