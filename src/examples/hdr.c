@@ -16,8 +16,8 @@
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr
  * -------------------------------------------------------------------------- */
 
-#define NUMBER_OF_CONSTANTS 3
-#define ALIGNMENT 256 // 256-byte alignment
+#define NUMBER_OF_CONSTANTS 3u
+#define ALIGNMENT 256u // 256-byte alignment
 
 static bool bloom          = false;
 static bool display_skybox = true;
