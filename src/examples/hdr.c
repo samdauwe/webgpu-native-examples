@@ -438,6 +438,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the bind group layout
     bind_group_layouts.models = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Models bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
