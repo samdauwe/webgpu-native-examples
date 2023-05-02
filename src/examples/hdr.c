@@ -228,6 +228,7 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
