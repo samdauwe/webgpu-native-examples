@@ -363,6 +363,7 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
     float const* buff_value = value ? value : uniform_get_setting_value(type);
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Uniform buffer",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size = this->size * sizeof(float),
@@ -375,6 +376,7 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
   else {
     this->buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Uniform buffer",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size = this->size * sizeof(float),
