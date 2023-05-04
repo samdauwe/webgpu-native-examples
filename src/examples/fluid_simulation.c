@@ -21,7 +21,7 @@
  * Fluid simulation : https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
  * -------------------------------------------------------------------------- */
 
-#define MAX_DIMENSIONS 3
+#define MAX_DIMENSIONS 3u
 
 typedef enum {
   DYNAMIC_BUFFER_VELOCITY,
