@@ -512,12 +512,13 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     char shader_wgsl_path[STRMAX];
     snprintf(shader_wgsl_path, strlen(shader_wgsl_filename) + 25 + 1,
              "shaders/fluid_simulation/%s", shader_wgsl_filename);
-    wgpu_shader_t comp_shader
-      = wgpu_shader_create(wgpu_context, &(wgpu_shader_desc_t){
-                                           /* Compute shader WGSL */
-                                           .file  = shader_wgsl_path,
-                                           .entry = "main",
-                                         });
+    wgpu_shader_t comp_shader = wgpu_shader_create(
+      wgpu_context, &(wgpu_shader_desc_t){
+                      /* Compute shader WGSL */
+                      .label = "Fluid simulation compute shader",
+                      .file  = shader_wgsl_path,
+                      .entry = "main",
+                    });
     this->compute_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
