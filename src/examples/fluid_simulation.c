@@ -491,7 +491,7 @@ static struct {
   program_t update_program;
   program_t vorticity_confinment_program;
   program_t vorticity_program;
-} programs;
+} programs = {0};
 
 static void program_init_defaults(program_t* this)
 {
