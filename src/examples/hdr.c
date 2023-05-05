@@ -799,7 +799,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                               .depthStencil = &depth_stencil_state_desc,
                               .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.composition);
+    ASSERT(pipelines.composition != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
