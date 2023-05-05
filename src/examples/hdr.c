@@ -511,7 +511,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
 
-    // Bloom filter pipeline layout
+    /* Bloom filter pipeline layout */
     {
       // Create the bind group layout
       bind_group_layouts.bloom_filter = wgpuDeviceCreateBindGroupLayout(
@@ -533,7 +533,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       ASSERT(pipeline_layouts.bloom_filter != NULL);
     }
 
-    // G-Buffer composition
+    /* G-Buffer composition */
     {
       // Create the bind group layout
       bind_group_layouts.composition = wgpuDeviceCreateBindGroupLayout(
