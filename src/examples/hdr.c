@@ -186,6 +186,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
     &(struct wgpu_texture_load_options_t){
       .flip_y = true, /* Flip y to match uffizi_cube_nz.ktx hdr cubemap */
     });
+  ASSERT(textures.envmap.texture != NULL);
 }
 
 void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
