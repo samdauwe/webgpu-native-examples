@@ -753,7 +753,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   /* Full screen pipelines */
 
-  // Final fullscreen composition pass pipeline
+  /* Final fullscreen composition pass pipeline */
   {
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
@@ -806,7 +806,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
-  // Bloom pass
+  /* Bloom pass */
   {
     // Additive blending
     WGPUBlendState blend_state_radial_blur = {
@@ -877,7 +877,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     ASSERT(pipelines.bloom[1] != NULL);
   }
 
-  // Object rendering pipelines
+  /* Object rendering pipelines */
   {
     // Use vertex input state from glTF model setup
     WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
