@@ -860,7 +860,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                           .depthStencil = &depth_stencil_state_desc,
                                           .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.bloom[0]);
+    ASSERT(pipelines.bloom[0] != NULL);
 
     // Second bloom filter pass (into separate framebuffer)
     color_target_state_desc.format = filter_pass.color[0].format;
@@ -874,7 +874,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                           .depthStencil = NULL,
                                           .multisample  = multisample_state_desc,
                             });
-    ASSERT(pipelines.bloom[1]);
+    ASSERT(pipelines.bloom[1] != NULL);
   }
 
   // Object rendering pipelines
