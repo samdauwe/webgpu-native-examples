@@ -440,8 +440,8 @@ static void scene_init_defaults(scene_t* this)
   this->quads_length = SCENE_QUADS_LENGTH;
 
   glm_vec3_copy(light.center, this->light_center);
-  this->light_width  = vec3_len(light.right);
-  this->light_height = vec3_len(light.up);
+  this->light_width  = vec3_len(light.right) * 2.0f;
+  this->light_height = vec3_len(light.up) * 2.0f;
 }
 
 static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
