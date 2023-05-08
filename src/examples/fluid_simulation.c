@@ -266,7 +266,7 @@ typedef enum {
   UNIFORM_COUNT,
 } uniform_type_t;
 
-#define MAX_UNIFORM_VALUE_COUNT 7
+#define MAX_UNIFORM_VALUE_COUNT 7u
 
 /* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
