@@ -565,6 +565,7 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     };
     this->bind_group
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->bind_group != NULL);
   }
 
   this->dispatch_x = dispatch_x;
