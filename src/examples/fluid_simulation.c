@@ -195,7 +195,7 @@ static struct {
 
   /* The r,g,b buffer containing the data to render */
   dynamic_buffer_t rgb_buffer;
-} dynamic_buffers;
+} dynamic_buffers = {0};
 
 /* Initialize dynamic buffers */
 static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
