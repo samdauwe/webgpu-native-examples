@@ -524,6 +524,7 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
       &(WGPUComputePipelineDescriptor){
         .compute = comp_shader.programmable_stage_descriptor,
       });
+    ASSERT(this->compute_pipeline != NULL);
     wgpu_shader_release(&comp_shader);
   }
 
