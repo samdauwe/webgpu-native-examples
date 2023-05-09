@@ -20,7 +20,7 @@
  * -------------------------------------------------------------------------- */
 
 #define NUMBER_OF_LINES 50u
-static const uint32_t sample_count = 4;
+static const uint32_t sample_count = 4u;
 
 typedef struct {
   vec2 position;
