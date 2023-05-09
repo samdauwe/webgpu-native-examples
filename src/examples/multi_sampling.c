@@ -15,7 +15,7 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/multisampling/multisampling.cpp
  * -------------------------------------------------------------------------- */
 
-static const uint32_t msaa_sample_count = 4;
+static const uint32_t msaa_sample_count = 4u;
 static bool use_msaa                    = false;
 
 static struct {
