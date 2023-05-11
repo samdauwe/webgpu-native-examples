@@ -170,7 +170,7 @@ void camera_update_view_matrix(camera_t* camera)
   }
 
   glm_vec4_mul(
-    (vec4){camera->position[0], camera->position[1], camera->position[2], 0.f},
+    (vec4){camera->position[0], camera->position[1], camera->position[2], 0.0f},
     (vec4){-1.0f, 1.0f, -1.0f, 1.0f}, camera->view_pos);
 
   camera->updated = true;
