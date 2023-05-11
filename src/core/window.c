@@ -221,8 +221,8 @@ static void glfw_window_key_callback(GLFWwindow* src_window, int key,
 
     if (window->callbacks.key_callback) {
       /* Determine modifier */
-      int ctrl_key = (mods & GLFW_MOD_CONTROL);
-      int alt_key  = (mods & GLFW_MOD_ALT);
+      const int ctrl_key = (mods & GLFW_MOD_CONTROL);
+      const int alt_key  = (mods & GLFW_MOD_ALT);
       /* Remap GLFW keycode to internal code */
       keycode_t key_code = remap_glfw_key_code(key);
       /* Determine button action */
