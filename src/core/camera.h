@@ -35,11 +35,11 @@ typedef struct {
   } keys;
 } camera_t;
 
-/* camera creating/releasing */
+/* Camera creating/releasing */
 camera_t* camera_create(void);
 void camera_release(camera_t* camera);
 
-/* camera updating */
+/* Camera updating */
 void camera_update(camera_t* camera, float delta_time);
 bool camera_update_pad(camera_t* camera, vec2 axis_left, vec2 axis_right,
                        float delta_time);
@@ -55,12 +55,12 @@ void camera_set_perspective(camera_t* camera, float fov, float aspect,
                             float znear, float zfar);
 void camera_update_aspect_ratio(camera_t* camera, float aspect);
 
-/* property retrieving */
+/* Property retrieving */
 bool camera_moving(camera_t* camera);
 float camera_get_near_clip(camera_t* camera);
 float camera_get_far_clip(camera_t* camera);
 
-/* projection helpers */
+/* Projection helpers */
 
 typedef enum {
   ClipSpaceNearZ_NegativeOne = 0x00000000, // OpenGL
