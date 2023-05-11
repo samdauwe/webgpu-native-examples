@@ -27,7 +27,7 @@ typedef struct {
   void (*resize_callback)(window_t* window, int width, int height);
 } callbacks_t;
 
-/* window related functions */
+/* Window related functions */
 window_t* window_create(window_config_t* config);
 void window_destroy(window_t* window);
 int window_should_close(window_t* window);
@@ -38,7 +38,7 @@ void* window_get_surface(window_t* window);
 void window_get_size(window_t* window, uint32_t* width, uint32_t* height);
 void window_get_aspect_ratio(window_t* window, float* aspect_ratio);
 
-/* input related functions */
+/* Input related functions */
 void input_poll_events(void);
 void input_query_cursor(window_t* window, float* xpos, float* ypos);
 void input_set_callbacks(window_t* window, callbacks_t callbacks);
