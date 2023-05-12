@@ -105,6 +105,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
       .format        = WGPUTextureFormat_RGBA8Unorm,
       .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
   });
+  ASSERT(video_texture.texture != NULL);
 
   // Create the texture view
   video_texture.view = wgpuTextureCreateView(
