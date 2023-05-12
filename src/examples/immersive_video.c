@@ -254,7 +254,7 @@ static bool window_resized(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // iResolution: viewport resolution (in pixels)
+  /* iResolution: viewport resolution (in pixels) */
   if (window_resized(context->wgpu_context)) {
     shader_inputs_ubo.iResolution[0]
       = (float)context->wgpu_context->surface.width;
@@ -263,7 +263,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
     shader_inputs_ubo_update_needed = true;
   }
 
-  // iMouse: mouse pixel coords. xy: current (if MLB down), zw: click
+  /* iMouse: mouse pixel coords. xy: current (if MLB down), zw: click */
   if (!mouse_state.dragging && context->mouse_buttons.left) {
     glm_vec2_copy(context->mouse_position, mouse_state.prev_mouse_position);
     mouse_state.dragging = true;
@@ -283,7 +283,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
     mouse_state.dragging = false;
   }
 
-  // Map uniform buffer and update when needed
+  /* Map uniform buffer and update when needed */
   if (shader_inputs_ubo_update_needed) {
     wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                             &shader_inputs_ubo, uniform_buffer_vs.size);
