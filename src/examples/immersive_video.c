@@ -312,6 +312,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size         = sizeof(shader_inputs_ubo),
       .initial.data = &shader_inputs_ubo,
     });
+  ASSERT(uniform_buffer_vs.buffer != NULL);
 
   update_uniform_buffers(context);
 }
