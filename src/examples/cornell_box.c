@@ -2042,7 +2042,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "framebuffer texture",
+    .label         = "Framebuffer texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
@@ -2064,7 +2064,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "framebuffer texture view",
+    .label           = "Framebuffer texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -2078,7 +2078,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
 
   // Texture sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "framebuffer texture sampler",
+    .label         = "Framebuffer texture sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
