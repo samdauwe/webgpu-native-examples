@@ -689,8 +689,8 @@ static void scene_destroy(scene_t* this)
 }
 
 /* --------------------------------------------------------------------------
- * * Radiosity computes lightmaps, calculated by software raytracing of
- * light in the scene.
+ * Radiosity computes lightmaps, calculated by software raytracing of light in
+ * the scene.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
