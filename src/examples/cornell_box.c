@@ -1853,7 +1853,7 @@ static void result_renderer_create(result_renderer_t* this,
   {
     // Color attachment
     this->render_pass.color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-        .view       = NULL, // Assigned later
+        .view       = NULL, /* Assigned later */
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
