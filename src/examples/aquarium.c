@@ -3333,11 +3333,27 @@ typedef struct {
   uint16_t world_matrix_count;
   texture_t* texture_map[TEXTURETYPE_MAX];
   buffer_dawn_t* buffer_map[BUFFERTYPE_MAX];
+  /* Function pointers */
+  void (*set_program)(void* this, program_t* prgm);
+  void (*init)(void* this);
+  void (*prepare_for_draw)(void* this);
+  void (*update_per_instance_uniforms)(void* this,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(void* this);
+  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
+                                   float next_x, float next_y, float next_z,
+                                   float scale, float time, int index);
 } model_t;
 
 static void model_init_defaults(model_t* this)
 {
   memset(this, 0, sizeof(*this));
+}
+
+static void model_set_program(void* this, program_t* prgm)
+{
+  model_t* model = (model_t*)this;
+  model->program = prgm;
 }
 
 static void model_create(model_t* this, model_group_t type, model_name_t name,
@@ -3346,6 +3362,8 @@ static void model_create(model_t* this, model_group_t type, model_name_t name,
   this->type  = type;
   this->name  = name;
   this->blend = blend;
+
+  this->set_program = model_set_program;
 }
 
 static void model_destroy(model_t* this)
@@ -3357,36 +3375,6 @@ static void model_destroy(model_t* this)
       buf = NULL;
     }
   }
-}
-
-static void model_init(model_t* this)
-{
-}
-
-static void model_set_program(model_t* this, program_t* prgm)
-{
-  this->program = prgm;
-}
-
-static void model_prepare_for_draw(model_t* this)
-{
-}
-
-static void
-model_update_per_instance_uniforms(model_t* this,
-                                   const world_uniforms_t* world_uniforms)
-{
-}
-
-static void model_draw(model_t* this)
-{
-}
-
-static void model_update_fish_per_uniforms(model_t* this, float x, float y,
-                                           float z, float next_x, float next_y,
-                                           float next_z, float scale,
-                                           float time, int index)
-{
 }
 
 /* -------------------------------------------------------------------------- *
@@ -6077,8 +6065,8 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
       aquarium_program_map_insert(this, concat_id, program);
     }
 
-    model_set_program(model, program);
-    model_init(model);
+    model->set_program(model, program);
+    model->init(model);
   }
 
 load_model_end:
@@ -6103,7 +6091,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
   for (uint32_t i = MODELNAME_MODELRUINCOLUMN; i <= MODELNAME_MODELSEAWEEDB;
        ++i) {
     model_t* model = this->aquarium_models[i];
-    model_prepare_for_draw(model);
+    model->prepare_for_draw(model);
 
     for (uint32_t w = 0; w < model->world_matrix_count; ++i) {
       world_matrix_t* world_matrix = &model->world_matrices[i];
@@ -6115,16 +6103,16 @@ static void aquarium_update_and_draw(aquarium_t* this)
       matrix_transpose4(world_uniforms->world_inverse_transpose,
                         g->world_inverse);
 
-      model_update_per_instance_uniforms(model, world_uniforms);
+      model->update_per_instance_uniforms(model, world_uniforms);
       if (!draw_per_model) {
-        model_draw(model);
+        model->draw(model);
       }
     }
   }
 
   for (int i = fish_begin; i <= fish_end; ++i) {
     model_t* model = (model_t*)this->aquarium_models[i];
-    model_prepare_for_draw(model);
+    model->prepare_for_draw(model);
 
     const fish_t* fish_info = &fish_table[i - fish_begin];
     int numFish             = this->fish_count[i - fish_begin];
@@ -6159,7 +6147,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
       float y_clock        = fishSpeedClock * fish_yclock;
       float z_clock        = fishSpeedClock * fish_zclock;
 
-      model_update_fish_per_uniforms(
+      model->update_fish_per_uniforms(
         model, sin(x_clock) * x_radius, sin(y_clock) * y_radius + fish_height,
         cos(z_clock) * z_radius, sin(x_clock - 0.04f) * x_radius,
         sin(y_clock - 0.01f) * y_radius + fish_height,
@@ -6170,8 +6158,8 @@ static void aquarium_update_and_draw(aquarium_t* this)
         ii);
 
       if (!draw_per_model) {
-        model_update_per_instance_uniforms(model, world_uniforms);
-        model_draw(model);
+        model->update_per_instance_uniforms(model, world_uniforms);
+        model->draw(model);
       }
     }
   }
@@ -6185,7 +6173,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
       }
 
       model_t* model = (model_t*)this->aquarium_models[i];
-      model_draw(model);
+      model->draw(model);
     }
   }
 }
