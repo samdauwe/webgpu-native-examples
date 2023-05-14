@@ -3334,15 +3334,13 @@ typedef struct {
   texture_t* texture_map[TEXTURETYPE_MAX];
   buffer_dawn_t* buffer_map[BUFFERTYPE_MAX];
   /* Function pointers */
-  void (*set_program)(void* this, program_t* prgm);
-  void (*init)(void* this);
+  void (*destroy)(void* this);
   void (*prepare_for_draw)(void* this);
   void (*update_per_instance_uniforms)(void* this,
                                        const world_uniforms_t* world_uniforms);
   void (*draw)(void* this);
-  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
-                                   float next_x, float next_y, float next_z,
-                                   float scale, float time, int index);
+  void (*set_program)(void* this, program_t* prgm);
+  void (*init)(void* this);
 } model_t;
 
 static void model_init_defaults(model_t* this)
@@ -3368,6 +3366,10 @@ static void model_create(model_t* this, model_group_t type, model_name_t name,
 
 static void model_destroy(model_t* this)
 {
+  if (this->destroy != NULL) {
+    this->destroy(this);
+  }
+
   for (uint32_t i = 0; i < BUFFERTYPE_MAX; ++i) {
     buffer_dawn_t* buf = this->buffer_map[i];
     if (buf) {
@@ -3389,6 +3391,17 @@ typedef struct {
   int32_t cur_instance;
   int32_t fish_per_offset;
   aquarium_t* aquarium;
+  /* Function pointers */
+  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
+                                   float next_x, float next_y, float next_z,
+                                   float scale, float time, int index);
+  void (*destroy)(void* this);
+  void (*prepare_for_draw)(void* this);
+  void (*update_per_instance_uniforms)(void* this,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(void* this);
+  void (*set_program)(void* this, program_t* prgm);
+  void (*init)(void* this);
 } fish_model_t;
 
 static void fish_model_init_defaults(fish_model_t* this)
@@ -6111,7 +6124,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
   }
 
   for (int i = fish_begin; i <= fish_end; ++i) {
-    model_t* model = (model_t*)this->aquarium_models[i];
+    fish_model_t* model = (fish_model_t*)this->aquarium_models[i];
     model->prepare_for_draw(model);
 
     const fish_t* fish_info = &fish_table[i - fish_begin];
