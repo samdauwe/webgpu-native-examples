@@ -364,12 +364,12 @@ static void matrix_camera_look_at(float* dst, const float* eye,
 
 static long long matrix_random_seed_ = 0;
 
-static void matrix_reset_pseudoRandom()
+static void matrix_reset_pseudoRandom(void)
 {
   matrix_random_seed_ = 0;
 }
 
-static double matrix_pseudo_random()
+static double matrix_pseudo_random(void)
 {
   matrix_random_seed_
     = (134775813 * matrix_random_seed_ + 1) % MATRIX_RANDOM_RANGE_;
@@ -1430,8 +1430,8 @@ static void behavior_set_frame(behavior_t* this, int32_t frame)
 
 typedef struct {
   void* context;
-  char vertex_shader_wgsl_path[STRMAX];
-  char fragment_shader_wgsl_path[STRMAX];
+  char vertex_shader_path[STRMAX];
+  char fragment_shader_path[STRMAX];
   wgpu_shader_t vs_module;
   wgpu_shader_t fs_module;
   struct {
@@ -1443,7 +1443,7 @@ typedef struct {
 /* Forward declarations */
 static wgpu_shader_t context_create_shader_module(void* context,
                                                   WGPUShaderStage shader_stage,
-                                                  const char* shader_wgsl_path);
+                                                  const char* shader_path);
 
 static void program_init_defaults(program_t* this)
 {
@@ -1451,17 +1451,16 @@ static void program_init_defaults(program_t* this)
 }
 
 static void program_create(program_t* this, void* context,
-                           const char* vertex_shader_wgsl_path,
-                           const char* fragment_shader_wgsl_path)
+                           const char* vertex_shader_path,
+                           const char* fragment_shader_path)
 {
   program_init_defaults(this);
   this->context = context;
 
-  snprintf(this->vertex_shader_wgsl_path, strlen(vertex_shader_wgsl_path) + 1,
-           "%s", vertex_shader_wgsl_path);
-  snprintf(this->fragment_shader_wgsl_path,
-           strlen(fragment_shader_wgsl_path) + 1, "%s",
-           fragment_shader_wgsl_path);
+  snprintf(this->vertex_shader_path, strlen(vertex_shader_path) + 1, "%s",
+           vertex_shader_path);
+  snprintf(this->fragment_shader_path, strlen(fragment_shader_path) + 1, "%s",
+           fragment_shader_path);
 }
 
 static void program_destroy(program_t* this)
@@ -1490,9 +1489,9 @@ static void program_set_options(program_t* this, bool enable_alpha_blending,
 static void program_compile_program(program_t* this)
 {
   this->vs_module = context_create_shader_module(
-    this->context, WGPUShaderStage_Vertex, this->vertex_shader_wgsl_path);
+    this->context, WGPUShaderStage_Vertex, this->vertex_shader_path);
   this->fs_module = context_create_shader_module(
-    this->context, WGPUShaderStage_Fragment, this->fragment_shader_wgsl_path);
+    this->context, WGPUShaderStage_Fragment, this->fragment_shader_path);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2322,14 +2321,14 @@ context_copy_buffer_to_buffer(context_t* this, WGPUBuffer src_buffer,
 
 static wgpu_shader_t context_create_shader_module(void* context,
                                                   WGPUShaderStage shader_stage,
-                                                  const char* shader_wgsl_path)
+                                                  const char* shader_path)
 {
   UNUSED_VAR(shader_stage);
 
   wgpu_shader_t shader = wgpu_shader_create(((context_t*)context)->wgpu_context,
                                             &(wgpu_shader_desc_t){
                                               /* Shader WGSL */
-                                              .file  = shader_wgsl_path,
+                                              .file  = shader_path,
                                               .entry = "main",
                                             });
   ASSERT(shader.module);
@@ -3391,7 +3390,7 @@ static void model_update_fish_per_uniforms(model_t* this, float x, float y,
 }
 
 /* -------------------------------------------------------------------------- *
- * Fish model - Defined fish model
+ * Fish model - Defines thefish model
  *  - Updates fish specific uniforms.
  *  - Implement common functions of fish models.
  * -------------------------------------------------------------------------- */
