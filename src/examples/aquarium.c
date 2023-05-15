@@ -5818,6 +5818,10 @@ static void seaweed_model_update_seaweed_model_time(void* this, float time)
   UNUSED_VAR(time);
 }
 
+/* -------------------------------------------------------------------------- *
+ * Helper functions.
+ * -------------------------------------------------------------------------- */
+
 /* Load world matrices of models from json file. */
 static int32_t aquarium_load_placement(aquarium_t* this)
 {
