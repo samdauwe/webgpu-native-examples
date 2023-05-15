@@ -5498,6 +5498,8 @@ typedef struct {
   wgpu_context_t* wgpu_context;
   context_t* context;
   int32_t instance;
+  /* Function pointers */
+  void (*update_seaweed_model_time)(void* this, float time);
 } seaweed_model_t;
 
 static void seaweed_model_destroy(void* this);
@@ -5506,6 +5508,7 @@ static void seaweed_model_update_per_instance_uniforms(
   void* this, const world_uniforms_t* world_uniforms);
 static void seaweed_model_draw(void* this);
 static void seaweed_model_initialize(void* this);
+static void seaweed_model_update_seaweed_model_time(void* this, float time);
 
 static void seaweed_model_init_defaults(seaweed_model_t* this)
 {
@@ -5522,7 +5525,9 @@ static void seaweed_model_create(seaweed_model_t* this, context_t* context,
                                  model_name_t name, bool blend)
 {
   seaweed_model_init_defaults(this);
+  this->update_seaweed_model_time = seaweed_model_update_seaweed_model_time;
 
+  /* Create model and set function pointers */
   model_create(&this->model, type, name, blend);
   this->model.destroy          = seaweed_model_destroy;
   this->model.prepare_for_draw = seaweed_model_prepare_for_draw;
@@ -5805,6 +5810,12 @@ static void seaweed_model_update_per_instance_uniforms(
     = model->aquarium->g.mclock + model->instance;
 
   model->instance++;
+}
+
+static void seaweed_model_update_seaweed_model_time(void* this, float time)
+{
+  UNUSED_VAR(this);
+  UNUSED_VAR(time);
 }
 
 /* Load world matrices of models from json file. */
