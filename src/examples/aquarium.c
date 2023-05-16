@@ -5162,6 +5162,7 @@ typedef struct {
     WGPUBuffer light_factor;
     WGPUBuffer view;
   } uniform_buffers;
+  aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   context_t* context;
   /* Function pointers */
@@ -5183,11 +5184,12 @@ static void outside_model_init_defaults(outside_model_t* this)
 }
 
 static void outside_model_create(outside_model_t* this, context_t* context,
-                                 model_group_t type, model_name_t name,
-                                 bool blend)
+                                 aquarium_t* aquarium, model_group_t type,
+                                 model_name_t name, bool blend)
 {
   outside_model_init_defaults(this);
 
+  this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
