@@ -5164,6 +5164,14 @@ typedef struct {
   } uniform_buffers;
   wgpu_context_t* wgpu_context;
   context_t* context;
+  /* Function pointers */
+  void (*destroy)(void* self);
+  void (*prepare_for_draw)(void* self);
+  void (*update_per_instance_uniforms)(void* self,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(void* self);
+  void (*set_program)(void* self, program_t* prgm);
+  void (*init)(void* self);
 } outside_model_t;
 
 static void outside_model_init_defaults(outside_model_t* this)
