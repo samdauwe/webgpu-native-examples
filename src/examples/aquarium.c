@@ -5175,6 +5175,13 @@ typedef struct {
   void (*init)(void* self);
 } outside_model_t;
 
+static void outside_model_destroy(void* self);
+static void outside_model_prepare_for_draw(void* self);
+static void outside_model_update_per_instance_uniforms(
+  void* self, const world_uniforms_t* world_uniforms);
+static void outside_model_draw(void* self);
+static void outside_model_initialize(void* self);
+
 static void outside_model_init_defaults(outside_model_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -5189,6 +5196,15 @@ static void outside_model_create(outside_model_t* this, context_t* context,
 {
   outside_model_init_defaults(this);
 
+  /* Set function pointers */
+  this->destroy          = outside_model_destroy;
+  this->prepare_for_draw = outside_model_prepare_for_draw;
+  this->update_per_instance_uniforms
+    = outside_model_update_per_instance_uniforms;
+  this->draw        = outside_model_draw;
+  this->set_program = model_set_program;
+  this->init        = outside_model_initialize;
+
   this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
@@ -5196,8 +5212,10 @@ static void outside_model_create(outside_model_t* this, context_t* context,
   model_create(&this->model, type, name, blend);
 }
 
-static void outside_model_destroy(outside_model_t* this)
+static void outside_model_destroy(void* self)
 {
+  outside_model_t* this = (outside_model_t*)self;
+
   WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
@@ -5208,8 +5226,9 @@ static void outside_model_destroy(outside_model_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
 }
 
-static void outside_model_initialize(outside_model_t* this)
+static void outside_model_initialize(void* self)
 {
+  outside_model_t* this        = (outside_model_t*)self;
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
   WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
@@ -5412,8 +5431,9 @@ static void outside_model_initialize(outside_model_t* this)
     &this->light_factor_uniforms, sizeof(light_uniforms_t));
 }
 
-static void outside_model_draw(outside_model_t* this)
+static void outside_model_draw(void* self)
 {
+  outside_model_t* this             = (outside_model_t*)self;
   WGPURenderPassEncoder render_pass = this->context->render_pass;
   wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
@@ -5445,8 +5465,10 @@ static void outside_model_draw(outside_model_t* this)
 }
 
 static void outside_model_update_per_instance_uniforms(
-  outside_model_t* this, const world_uniforms_t* world_uniforms)
+  void* self, const world_uniforms_t* world_uniforms)
 {
+  outside_model_t* this = (outside_model_t*)self;
+
   memcpy(&this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
 
   context_update_buffer_data(
@@ -5549,6 +5571,7 @@ static void seaweed_model_create(seaweed_model_t* this, context_t* context,
   this->update_per_instance_uniforms
     = seaweed_model_update_per_instance_uniforms;
   this->draw                      = seaweed_model_draw;
+  this->set_program               = model_set_program;
   this->init                      = seaweed_model_initialize;
   this->update_seaweed_model_time = seaweed_model_update_seaweed_model_time;
 
