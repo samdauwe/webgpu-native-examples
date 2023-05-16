@@ -5209,7 +5209,15 @@ static void outside_model_create(outside_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
+  /* Create model and set function pointers */
   model_create(&this->model, type, name, blend);
+  this->model.destroy          = outside_model_destroy;
+  this->model.prepare_for_draw = outside_model_prepare_for_draw;
+  this->model.update_per_instance_uniforms
+    = outside_model_update_per_instance_uniforms;
+  this->model.draw        = outside_model_draw;
+  this->model.set_program = model_set_program;
+  this->model.init        = outside_model_initialize;
 }
 
 static void outside_model_destroy(void* self)
