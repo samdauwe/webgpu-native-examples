@@ -4800,6 +4800,13 @@ typedef struct {
   void (*set_program)(void* self, program_t* prgm);
 } inner_model_t;
 
+static void inner_model_initialize(void* self);
+static void inner_model_destroy(void* self);
+static void inner_model_prepare_for_draw(void* self);
+static void inner_model_update_per_instance_uniforms(
+  void* self, const world_uniforms_t* world_uniforms);
+static void inner_model_draw(void* self);
+
 static void inner_model_init_defaults(inner_model_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -4815,6 +4822,14 @@ static void inner_model_create(inner_model_t* this, context_t* context,
 {
   inner_model_init_defaults(this);
 
+  /* Set function pointers */
+  this->init                         = inner_model_initialize;
+  this->destroy                      = inner_model_destroy;
+  this->prepare_for_draw             = inner_model_prepare_for_draw;
+  this->update_per_instance_uniforms = inner_model_update_per_instance_uniforms;
+  this->draw                         = inner_model_draw;
+  this->set_program                  = model_set_program;
+
   this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
@@ -4822,8 +4837,10 @@ static void inner_model_create(inner_model_t* this, context_t* context,
   model_create(&this->model, type, name, blend);
 }
 
-static void inner_model_destroy(inner_model_t* this)
+static void inner_model_destroy(void* self)
 {
+  inner_model_t* this = (inner_model_t*)self;
+
   WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
@@ -4834,8 +4851,9 @@ static void inner_model_destroy(inner_model_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
 }
 
-static void inner_model_initialize(inner_model_t* this)
+static void inner_model_initialize(void* self)
 {
+  inner_model_t* this          = (inner_model_t*)self;
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
   WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
@@ -5091,8 +5109,9 @@ static void inner_model_initialize(inner_model_t* this)
                           sizeof(this->inner_uniforms));
 }
 
-static void inner_model_draw(inner_model_t* this)
+static void inner_model_draw(void* self)
 {
+  inner_model_t* this               = (inner_model_t*)self;
   WGPURenderPassEncoder render_pass = this->context->render_pass;
   wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
@@ -5121,9 +5140,11 @@ static void inner_model_draw(inner_model_t* this)
 }
 
 static void
-inner_model_update_per_instance_uniforms(inner_model_t* this,
+inner_model_update_per_instance_uniforms(void* self,
                                          const world_uniforms_t* world_uniforms)
 {
+  inner_model_t* this = (inner_model_t*)self;
+
   memcpy(&this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
 
   context_update_buffer_data(
