@@ -4834,7 +4834,15 @@ static void inner_model_create(inner_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
+  /* Create model and set function pointers */
   model_create(&this->model, type, name, blend);
+  this->model.init             = inner_model_initialize;
+  this->model.destroy          = inner_model_destroy;
+  this->model.prepare_for_draw = inner_model_prepare_for_draw;
+  this->model.update_per_instance_uniforms
+    = inner_model_update_per_instance_uniforms;
+  this->model.draw        = inner_model_draw;
+  this->model.set_program = model_set_program;
 }
 
 static void inner_model_destroy(void* self)
