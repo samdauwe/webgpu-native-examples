@@ -4787,6 +4787,7 @@ typedef struct {
     WGPUBuffer inner;
     WGPUBuffer view;
   } uniform_buffers;
+  aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   context_t* context;
 } inner_model_t;
@@ -4801,11 +4802,12 @@ static void inner_model_init_defaults(inner_model_t* this)
 }
 
 static void inner_model_create(inner_model_t* this, context_t* context,
-                               model_group_t type, model_name_t name,
-                               bool blend)
+                               aquarium_t* aquarium, model_group_t type,
+                               model_name_t name, bool blend)
 {
   inner_model_init_defaults(this);
 
+  this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
