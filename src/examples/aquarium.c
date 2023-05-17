@@ -4790,6 +4790,14 @@ typedef struct {
   aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   context_t* context;
+  /* Function pointers */
+  void (*init)(void* self);
+  void (*destroy)(void* self);
+  void (*prepare_for_draw)(void* self);
+  void (*update_per_instance_uniforms)(void* self,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(void* self);
+  void (*set_program)(void* self, program_t* prgm);
 } inner_model_t;
 
 static void inner_model_init_defaults(inner_model_t* this)
