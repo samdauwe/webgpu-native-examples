@@ -4417,6 +4417,7 @@ typedef struct {
     WGPUBuffer light_factor;
     WGPUBuffer world;
   } uniform_buffers;
+  aquarium_t* aquarium;
   wgpu_context_t* wgpu_context;
   context_t* context;
   int32_t instance;
@@ -4431,11 +4432,12 @@ static void generic_model_init_defaults(generic_model_t* this)
 }
 
 static void generic_model_create(generic_model_t* this, context_t* context,
-                                 model_group_t type, model_name_t name,
-                                 bool blend)
+                                 aquarium_t* aquarium, model_group_t type,
+                                 model_name_t name, bool blend)
 {
   generic_model_init_defaults(this);
 
+  this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
