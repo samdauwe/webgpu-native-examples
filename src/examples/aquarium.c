@@ -4465,7 +4465,15 @@ static void generic_model_create(generic_model_t* this, context_t* context,
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
 
+  /* Create model and set function pointers */
   model_create(&this->model, type, name, blend);
+  this->model.init             = generic_model_initialize;
+  this->model.destroy          = generic_model_destroy;
+  this->model.prepare_for_draw = generic_model_prepare_for_draw;
+  this->model.update_per_instance_uniforms
+    = generic_model_update_per_instance_uniforms;
+  this->model.draw        = generic_model_draw;
+  this->model.set_program = model_set_program;
 }
 
 static void generic_model_destroy(void* self)
