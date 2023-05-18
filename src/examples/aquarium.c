@@ -4421,6 +4421,14 @@ typedef struct {
   wgpu_context_t* wgpu_context;
   context_t* context;
   int32_t instance;
+  /* Function pointers */
+  void (*init)(void* self);
+  void (*destroy)(void* self);
+  void (*prepare_for_draw)(void* self);
+  void (*update_per_instance_uniforms)(void* self,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(void* self);
+  void (*set_program)(void* self, program_t* prgm);
 } generic_model_t;
 
 static void generic_model_init_defaults(generic_model_t* this)
