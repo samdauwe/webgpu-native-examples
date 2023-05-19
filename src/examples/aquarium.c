@@ -3394,16 +3394,16 @@ typedef struct {
   wgpu_context_t* wgpu_context;
   context_t* context;
   /* Function pointers */
-  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
-                                   float next_x, float next_y, float next_z,
-                                   float scale, float time, int index);
+  void (*init)(void* this);
   void (*destroy)(void* this);
   void (*prepare_for_draw)(void* this);
   void (*update_per_instance_uniforms)(void* this,
                                        const world_uniforms_t* world_uniforms);
+  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
+                                   float next_x, float next_y, float next_z,
+                                   float scale, float time, int index);
   void (*draw)(void* this);
   void (*set_program)(void* this, program_t* prgm);
-  void (*init)(void* this);
 } fish_model_t;
 
 static void fish_model_init_defaults(fish_model_t* this)
