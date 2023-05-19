@@ -3406,6 +3406,8 @@ typedef struct {
   void (*set_program)(void* this, program_t* prgm);
 } fish_model_t;
 
+static void fish_model_prepare_for_draw(void* self);
+
 static void fish_model_init_defaults(fish_model_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -3424,8 +3426,9 @@ static void fish_model_create(fish_model_t* this, context_t* context,
   model_create(&this->model, type, name, blend);
 }
 
-static void fish_model_prepare_for_draw(fish_model_t* this)
+static void fish_model_prepare_for_draw(void* self)
 {
+  fish_model_t* this    = (fish_model_t*)self;
   this->fish_per_offset = 0;
   for (uint32_t i = 0; i < this->model.name - MODELNAME_MODELSMALLFISHA; ++i) {
     const fish_t* fish_info = &fish_table[i];
