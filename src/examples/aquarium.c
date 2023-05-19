@@ -3419,6 +3419,9 @@ static void fish_model_create(fish_model_t* this, context_t* context,
 {
   fish_model_init_defaults(this);
 
+  /* Set function pointers */
+  this->prepare_for_draw = fish_model_prepare_for_draw;
+
   this->aquarium     = aquarium;
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
