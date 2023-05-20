@@ -3391,8 +3391,6 @@ typedef struct {
   int32_t cur_instance;
   int32_t fish_per_offset;
   aquarium_t* aquarium;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
   /* Function pointers */
   void (*init)(void* this);
   void (*destroy)(void* this);
@@ -3413,18 +3411,16 @@ static void fish_model_init_defaults(fish_model_t* this)
   memset(this, 0, sizeof(*this));
 }
 
-static void fish_model_create(fish_model_t* this, context_t* context,
-                              aquarium_t* aquarium, model_group_t type,
-                              model_name_t name, bool blend)
+static void fish_model_create(fish_model_t* this, model_group_t type,
+                              model_name_t name, bool blend,
+                              aquarium_t* aquarium)
 {
   fish_model_init_defaults(this);
 
   /* Set function pointers */
   this->prepare_for_draw = fish_model_prepare_for_draw;
 
-  this->aquarium     = aquarium;
-  this->context      = context;
-  this->wgpu_context = context->wgpu_context;
+  this->aquarium = aquarium;
 
   model_create(&this->model, type, name, blend);
 }
@@ -3504,7 +3500,7 @@ static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
 {
   fish_model_draw_init_defaults(this);
 
-  fish_model_create(&this->fish_model, context, aquarium, type, name, blend);
+  fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
@@ -3957,7 +3953,7 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
 {
   fish_model_instanced_draw_init_defaults(this);
 
-  fish_model_create(&this->fish_model, context, aquarium, type, name, blend);
+  fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
   this->context      = context;
   this->wgpu_context = context->wgpu_context;
