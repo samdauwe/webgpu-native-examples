@@ -3495,6 +3495,17 @@ typedef struct {
   void (*draw)(void* this);
 } fish_model_draw_t;
 
+static void fish_model_draw_initialize(void* self);
+static void fish_model_draw_destroy(void* self);
+static void fish_model_draw_update_per_instance_uniforms(
+  void* this, const world_uniforms_t* world_uniforms);
+static void fish_model_draw_update_fish_per_uniforms(void* this, float x,
+                                                     float y, float z,
+                                                     float next_x, float next_y,
+                                                     float next_z, float scale,
+                                                     float time, int index);
+static void fish_model_draw_draw(void* self);
+
 static void fish_model_draw_init_defaults(fish_model_draw_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -3512,6 +3523,14 @@ static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
 {
   fish_model_draw_init_defaults(this);
 
+  /* Set function pointers */
+  this->init    = fish_model_draw_initialize;
+  this->destroy = fish_model_draw_destroy;
+  this->update_per_instance_uniforms
+    = fish_model_draw_update_per_instance_uniforms;
+  this->update_fish_per_uniforms = fish_model_draw_update_fish_per_uniforms;
+  this->draw                     = fish_model_draw_draw;
+
   fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
   this->context      = context;
@@ -3527,8 +3546,9 @@ static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
   this->fish_model.pre_instance = this->fish_model.cur_instance;
 }
 
-static void fish_model_draw_init(fish_model_draw_t* this)
+static void fish_model_draw_initialize(void* self)
 {
+  fish_model_draw_t* this      = (fish_model_draw_t*)self;
   wgpu_context_t* wgpu_context = this->wgpu_context;
   model_t* model               = &this->fish_model.model;
 
@@ -3811,8 +3831,10 @@ static void fish_model_draw_init(fish_model_draw_t* this)
     &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
 }
 
-static void fish_model_draw_destroy(fish_model_draw_t* this)
+static void fish_model_draw_destroy(void* self)
 {
+  fish_model_draw_t* this = (fish_model_draw_t*)self;
+
   WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout_model)
   WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
@@ -3821,8 +3843,10 @@ static void fish_model_draw_destroy(fish_model_draw_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
 }
 
-static void fish_model_draw_draw(fish_model_draw_t* this)
+static void fish_model_draw_draw(void* self)
 {
+  fish_model_draw_t* this = (fish_model_draw_t*)self;
+
   if (this->fish_model.cur_instance == 0) {
     return;
   }
@@ -3869,12 +3893,14 @@ static void fish_model_draw_draw(fish_model_draw_t* this)
   }
 }
 
-static void fish_model_draw_update_fish_per_uniforms(fish_model_draw_t* this,
-                                                     float x, float y, float z,
+static void fish_model_draw_update_fish_per_uniforms(void* self, float x,
+                                                     float y, float z,
                                                      float next_x, float next_y,
                                                      float next_z, float scale,
                                                      float time, int index)
 {
+  fish_model_draw_t* this = (fish_model_draw_t*)self;
+
   index += this->fish_model.fish_per_offset;
   fish_per_t* fish_pers = &this->context->fish_pers[index];
 
