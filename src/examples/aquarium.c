@@ -3893,6 +3893,13 @@ static void fish_model_draw_draw(void* self)
   }
 }
 
+static void fish_model_draw_update_per_instance_uniforms(
+  void* this, const world_uniforms_t* world_uniforms)
+{
+  UNUSED_VAR(this);
+  UNUSED_VAR(world_uniforms);
+}
+
 static void fish_model_draw_update_fish_per_uniforms(void* self, float x,
                                                      float y, float z,
                                                      float next_x, float next_y,
@@ -3902,8 +3909,7 @@ static void fish_model_draw_update_fish_per_uniforms(void* self, float x,
   fish_model_draw_t* this = (fish_model_draw_t*)self;
 
   index += this->fish_model.fish_per_offset;
-  fish_per_t* fish_pers = &this->context->fish_pers[index];
-
+  fish_per_t* fish_pers        = &this->context->fish_pers[index];
   fish_pers->world_position[0] = x;
   fish_pers->world_position[1] = y;
   fish_pers->world_position[2] = z;
