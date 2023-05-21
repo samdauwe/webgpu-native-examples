@@ -3988,6 +3988,15 @@ typedef struct {
   void (*draw)(void* this);
 } fish_model_instanced_draw_t;
 
+static void fish_model_instanced_draw_initialize(void* self);
+static void fish_model_instanced_draw_destroy(void* self);
+static void fish_model_instanced_draw_update_per_instance_uniforms(
+  void* this, const world_uniforms_t* world_uniforms);
+static void fish_model_instanced_draw_update_fish_per_uniforms(
+  void* this, float x, float y, float z, float next_x, float next_y,
+  float next_z, float scale, float time, int index);
+static void fish_model_instanced_draw_draw(void* self);
+
 static void
 fish_model_instanced_draw_init_defaults(fish_model_instanced_draw_t* this)
 {
@@ -4039,7 +4048,8 @@ static void fish_model_instanced_draw_destroy(fish_model_instanced_draw_t* this)
   free(this->fish_pers);
 }
 
-static void fish_model_instanced_draw_init(fish_model_instanced_draw_t* this)
+static void
+fish_model_instanced_draw_initialize(fish_model_instanced_draw_t* this)
 {
   if (this->instance == 0) {
     return;
