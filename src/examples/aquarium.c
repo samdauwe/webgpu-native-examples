@@ -3976,6 +3976,16 @@ typedef struct {
   int32_t instance;
   wgpu_context_t* wgpu_context;
   context_t* context;
+  /* Function pointers */
+  void (*init)(void* this);
+  void (*destroy)(void* this);
+  void (*update_per_instance_uniforms)(void* this,
+                                       const world_uniforms_t* world_uniforms);
+  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
+                                   float next_x, float next_y, float next_z,
+                                   float scale, float time, int index);
+  void (*prepare_for_draw)(void* this);
+  void (*draw)(void* this);
 } fish_model_instanced_draw_t;
 
 static void
