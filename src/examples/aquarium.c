@@ -3995,6 +3995,7 @@ static void fish_model_instanced_draw_update_per_instance_uniforms(
 static void fish_model_instanced_draw_update_fish_per_uniforms(
   void* this, float x, float y, float z, float next_x, float next_y,
   float next_z, float scale, float time, int index);
+static void fish_model_instanced_draw_prepare_for_draw(void* self);
 static void fish_model_instanced_draw_draw(void* self);
 
 static void
@@ -4023,7 +4024,8 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
     = fish_model_instanced_draw_update_per_instance_uniforms;
   this->update_fish_per_uniforms
     = fish_model_instanced_draw_update_fish_per_uniforms;
-  this->draw = fish_model_instanced_draw_draw;
+  this->prepare_for_draw = fish_model_instanced_draw_prepare_for_draw;
+  this->draw             = fish_model_instanced_draw_draw;
 
   fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
@@ -4399,6 +4401,11 @@ static void fish_model_instanced_draw_initialize(void* self)
     &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
 }
 
+static void fish_model_instanced_draw_prepare_for_draw(void* this)
+{
+  UNUSED_VAR(this);
+}
+
 static void fish_model_instanced_draw_draw(void* self)
 {
   fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
@@ -4440,6 +4447,13 @@ static void fish_model_instanced_draw_draw(void* self)
                                    this->buffers.indices->total_components,
                                    this->instance, 0, 0, 0);
   this->instance = 0;
+}
+
+static void fish_model_instanced_draw_update_per_instance_uniforms(
+  void* this, const world_uniforms_t* world_uniforms)
+{
+  UNUSED_VAR(this);
+  UNUSED_VAR(world_uniforms);
 }
 
 static void fish_model_instanced_draw_update_fish_per_uniforms(
