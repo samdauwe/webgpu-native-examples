@@ -4016,6 +4016,15 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
 {
   fish_model_instanced_draw_init_defaults(this);
 
+  /* Set function pointers */
+  this->init    = fish_model_instanced_draw_initialize;
+  this->destroy = fish_model_instanced_draw_destroy;
+  this->update_per_instance_uniforms
+    = fish_model_instanced_draw_update_per_instance_uniforms;
+  this->update_fish_per_uniforms
+    = fish_model_instanced_draw_update_fish_per_uniforms;
+  this->draw = fish_model_instanced_draw_draw;
+
   fish_model_create(&this->fish_model, type, name, blend, aquarium);
 
   this->context      = context;
@@ -4034,8 +4043,9 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
   memset(this->fish_pers, 0, sizeof(*this->fish_pers));
 }
 
-static void fish_model_instanced_draw_destroy(fish_model_instanced_draw_t* this)
+static void fish_model_instanced_draw_destroy(void* self)
 {
+  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
   WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
@@ -4048,9 +4058,10 @@ static void fish_model_instanced_draw_destroy(fish_model_instanced_draw_t* this)
   free(this->fish_pers);
 }
 
-static void
-fish_model_instanced_draw_initialize(fish_model_instanced_draw_t* this)
+static void fish_model_instanced_draw_initialize(void* self)
 {
+  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
+
   if (this->instance == 0) {
     return;
   }
@@ -4388,8 +4399,10 @@ fish_model_instanced_draw_initialize(fish_model_instanced_draw_t* this)
     &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
 }
 
-static void fish_model_instanced_draw_draw(fish_model_instanced_draw_t* this)
+static void fish_model_instanced_draw_draw(void* self)
 {
+  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
+
   if (this->instance == 0) {
     return;
   }
@@ -4430,9 +4443,10 @@ static void fish_model_instanced_draw_draw(fish_model_instanced_draw_t* this)
 }
 
 static void fish_model_instanced_draw_update_fish_per_uniforms(
-  fish_model_instanced_draw_t* this, float x, float y, float z, float next_x,
-  float next_y, float next_z, float scale, float time, int index)
+  void* self, float x, float y, float z, float next_x, float next_y,
+  float next_z, float scale, float time, int index)
 {
+  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
   fish_model_instanced_draw_fish_per* fish_pers = &this->fish_pers[index];
 
   fish_pers->world_position[0] = x;
