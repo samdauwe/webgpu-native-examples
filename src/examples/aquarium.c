@@ -4327,8 +4327,10 @@ static void fish_model_instanced_draw_initialize(void* self)
     sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
-  // Fish models includes small, medium and big. Some of them contains
-  // reflection and skybox texture, but some doesn't.
+  /**
+   * Fish models includes small, medium and big. Some of them contains
+   * reflection and skybox texture, but some doesn't.
+   */
   {
     WGPUBindGroupEntry bg_entries[8] = {
       [0] = (WGPUBindGroupEntry) {
