@@ -3380,7 +3380,7 @@ static void model_destroy(model_t* this)
 }
 
 /* -------------------------------------------------------------------------- *
- * Fish model - Defines thefish model
+ * Fish model - Defines the fish model
  *  - Updates fish specific uniforms.
  *  - Implement common functions of fish models.
  * -------------------------------------------------------------------------- */
