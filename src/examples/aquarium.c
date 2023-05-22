@@ -3193,9 +3193,9 @@ static void aquarium_calculate_fish_count(aquarium_t* this)
 static float aquarium_get_elapsed_time(aquarium_t* this)
 {
   /* Update our time */
-  float now          = this->wgpu_example_context->frame.timestamp_millis;
-  float elapsed_time = now - this->g.then;
-  this->g.then       = now;
+  const float now          = this->wgpu_example_context->frame.timestamp_millis;
+  const float elapsed_time = now - this->g.then;
+  this->g.then             = now;
 
   return elapsed_time;
 }
