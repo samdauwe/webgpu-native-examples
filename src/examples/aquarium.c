@@ -3078,7 +3078,7 @@ static bool aquarium_init(aquarium_t* this)
 
   /* Init general buffer and binding groups for dawn backend. */
   context_init_general_resources(&this->context, this);
-  /* Avoid resource allocation in the first render loop */
+  /* Avoid resource allocation in the first render loop. */
   this->pre_fish_count = this->cur_fish_count;
 
   aquarium_setup_model_enum_map(this);
