@@ -5751,7 +5751,7 @@ static void seaweed_model_create(seaweed_model_t* this, context_t* context,
 {
   seaweed_model_init_defaults(this);
 
-  /* Set function pointers */
+  /* Set seaweed model function pointers */
   this->destroy          = seaweed_model_destroy;
   this->prepare_for_draw = seaweed_model_prepare_for_draw;
   this->update_per_instance_uniforms
