@@ -5636,7 +5636,7 @@ static void outside_model_draw(void* self)
     render_pass, 1, this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
     render_pass, 2, this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
-  // diffuseShader doesn't have to input tangent buffer or binormal buffer.
+  /* diffuseShader doesn't have to input tangent buffer or binormal buffer. */
   if (this->buffers.tangent->valid && this->buffers.bi_normal->valid) {
     wgpuRenderPassEncoderSetVertexBuffer(
       render_pass, 3, this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
