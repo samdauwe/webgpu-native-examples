@@ -4885,7 +4885,7 @@ static void generic_model_update_per_instance_uniforms(
 }
 
 /* -------------------------------------------------------------------------- *
- * Inner model - Defines inner model.
+ * Inner model - Defines the inner model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
