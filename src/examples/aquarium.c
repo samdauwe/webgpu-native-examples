@@ -4961,7 +4961,7 @@ static void inner_model_create(inner_model_t* this, context_t* context,
 {
   inner_model_init_defaults(this);
 
-  /* Set function pointers */
+  /* Set inner model function pointers */
   this->init                         = inner_model_initialize;
   this->destroy                      = inner_model_destroy;
   this->prepare_for_draw             = inner_model_prepare_for_draw;
