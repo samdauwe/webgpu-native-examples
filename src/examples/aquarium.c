@@ -5664,7 +5664,7 @@ static void outside_model_update_per_instance_uniforms(
 }
 
 /* -------------------------------------------------------------------------- *
- * Seaweed model - Defines seaweed model.
+ * Seaweed model - Defines the seaweed model.
  * -------------------------------------------------------------------------- */
 
 typedef struct {
