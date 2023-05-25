@@ -338,7 +338,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                     .targets      = &color_target_state,
                   });
 
-  // Normal non-MSAA rendering pipeline
+  /* Normal non-MSAA rendering pipeline */
   {
     // Multisample state
     WGPUMultisampleState multisample_state
@@ -361,7 +361,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     ASSERT(pipelines.normal != NULL);
   }
 
-  // MSAA rendering pipeline
+  /* MSAA rendering pipeline */
   {
     // Multisample state
     WGPUMultisampleState multisample_state
