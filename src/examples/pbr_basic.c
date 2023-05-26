@@ -91,18 +91,18 @@ static struct {
     uint64_t buffer_size;
     uint64_t model_size;
   } object_params;
-} uniform_buffers;
+} uniform_buffers = {0};
 
 static struct {
   mat4 projection;
   mat4 model;
   mat4 view;
   vec3 cam_pos;
-} ubo_matrices;
+} ubo_matrices = {0};
 
 static struct {
   vec4 lights[4];
-} ubo_params;
+} ubo_params = {0};
 
 static struct matrial_params_dynamic_t {
   float roughness;
@@ -116,8 +116,8 @@ static struct object_params_dynamic_t {
   uint8_t padding[244];
 } object_params_dynamic[GRID_DIM * GRID_DIM] = {0};
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 static WGPUPipelineLayout pipeline_layout;
 static WGPURenderPipeline pipeline;
