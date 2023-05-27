@@ -5,7 +5,6 @@
 
 #include "../webgpu/gltf_model.h"
 #include "../webgpu/imgui_overlay.h"
-#include "../webgpu/texture.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Physical Based Shading Basics
