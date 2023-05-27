@@ -19,8 +19,8 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/pbrbasic/pbrbasic.cpp
  * -------------------------------------------------------------------------- */
 
-#define GRID_DIM 7
-#define ALIGNMENT 256 // 256-byte alignment
+#define GRID_DIM 7u
+#define ALIGNMENT 256u // 256-byte alignment
 
 static struct {
   const char* name;
