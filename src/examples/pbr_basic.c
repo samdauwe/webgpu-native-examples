@@ -425,10 +425,12 @@ static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
 static void update_lights(wgpu_example_context_t* context)
 {
   const float p = 15.0f;
+  // clang-format off
   glm_vec4_copy((vec4){-p, -p * 0.5f, -p, 1.0f}, ubo_params.lights[0]);
-  glm_vec4_copy((vec4){-p, -p * 0.5f, p, 1.0f}, ubo_params.lights[1]);
-  glm_vec4_copy((vec4){p, -p * 0.5f, p, 1.0f}, ubo_params.lights[2]);
-  glm_vec4_copy((vec4){p, -p * 0.5f, -p, 1.0f}, ubo_params.lights[3]);
+  glm_vec4_copy((vec4){-p, -p * 0.5f,  p, 1.0f}, ubo_params.lights[1]);
+  glm_vec4_copy((vec4){ p, -p * 0.5f,  p, 1.0f}, ubo_params.lights[2]);
+  glm_vec4_copy((vec4){ p, -p * 0.5f, -p, 1.0f}, ubo_params.lights[3]);
+  // clang-format on
 
   if (!context->paused) {
     float timer             = context->timer;
