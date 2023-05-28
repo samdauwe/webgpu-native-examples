@@ -162,7 +162,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
+      /* Binding 0: Uniform buffer (Vertex shader & Fragment shader) */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
@@ -172,7 +172,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Uniform buffer (Fragment shader)
+      /* Binding 1: Uniform buffer (Fragment shader) */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
@@ -182,7 +182,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Dynamic uniform buffer (Fragment shader)
+      /* Binding 2: Dynamic uniform buffer (Fragment shader) */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
@@ -193,7 +193,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
-      // Binding 3: Dynamic uniform buffer (Vertex shader)
+      /* Binding 3: Dynamic uniform buffer (Vertex shader) */
       .binding    = 3,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
