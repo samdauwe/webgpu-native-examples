@@ -409,7 +409,7 @@ static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
         = glm_clamp((float)y / (float)(GRID_DIM - 1), 0.05f, 1.0f);
       glm_vec3_copy(materials[current_material_index].params.color,
                     (*mat_params).color);
-      index++;
+      ++index;
     }
   }
 
