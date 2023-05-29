@@ -67,6 +67,34 @@ typedef struct indexed_cube_mesh_t {
 void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh);
 
 /* -------------------------------------------------------------------------- *
+ * Sphere mesh
+ * -------------------------------------------------------------------------- */
+
+typedef struct sphere_mesh_t {
+  struct {
+    float* data;
+    uint64_t size;
+  } vertices;
+  struct {
+    uint16_t* data;
+    uint64_t size;
+  } indices;
+} sphere_mesh_t;
+
+typedef struct sphere_mesh_layout_t {
+  uint32_t vertex_stride;
+  uint32_t positions_offset;
+  uint32_t normal_offset;
+  uint32_t uv_offset;
+} sphere_mesh_layout_t;
+
+void sphere_mesh_layout_init(sphere_mesh_layout_t* sphere_layout);
+void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
+                      uint32_t width_segments, uint32_t height_segments,
+                      float randomness);
+void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh);
+
+/* -------------------------------------------------------------------------- *
  * Stanford Dragon
  * -------------------------------------------------------------------------- */
 

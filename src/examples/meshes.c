@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../core/macro.h"
+#include "../core/math.h"
 
 /* -------------------------------------------------------------------------- *
  * Plane mesh
@@ -191,6 +192,144 @@ void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh)
     colors[4 * i + 2] = 255 * (z + 1) / 2;
     colors[4 * i + 3] = 255;
   }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Sphere mesh
+ * -------------------------------------------------------------------------- */
+
+void sphere_mesh_layout_init(sphere_mesh_layout_t* sphere_layout)
+{
+  sphere_layout->vertex_stride    = 8 * 4;
+  sphere_layout->positions_offset = 0;
+  sphere_layout->normal_offset    = 3 * 4;
+  sphere_layout->uv_offset        = 6 * 4;
+}
+
+void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
+                      uint32_t width_segments, uint32_t height_segments,
+                      float randomness)
+{
+  width_segments  = MAX(3u, floor(width_segments));
+  height_segments = MAX(2u, floor(height_segments));
+
+  uint32_t vertices_count
+    = (width_segments + 1) * (height_segments + 1) * (3 + 3 + 2);
+  float* vertices = (float*)malloc(vertices_count * sizeof(float));
+
+  uint32_t indices_count = width_segments * height_segments * 3;
+  uint16_t* indices      = (uint16_t*)malloc(indices_count * sizeof(uint16_t));
+
+  vec3 first_vertex = GLM_VEC3_ZERO_INIT;
+  vec3 vertex       = GLM_VEC3_ZERO_INIT;
+  vec3 normal       = GLM_VEC3_ZERO_INIT;
+
+  uint32_t index      = 0;
+  uint32_t grid_count = height_segments + 1;
+  uint16_t** grid     = (uint16_t**)malloc(grid_count * sizeof(uint16_t*));
+
+  /* Generate vertices, normals and uvs */
+  uint32_t vc = 0, ic = 0, gc = 0;
+  for (uint32_t iy = 0; iy <= height_segments; ++iy) {
+    uint16_t* vertices_row
+      = (uint16_t*)malloc((width_segments + 1) * sizeof(uint16_t));
+    uint32_t vri  = 0;
+    const float v = iy / (float)height_segments;
+
+    // special case for the poles
+    float u_offset = 0.0f;
+    if (iy == 0) {
+      u_offset = 0.5f / width_segments;
+    }
+    else if (iy == height_segments) {
+      u_offset = -0.5f / width_segments;
+    }
+
+    for (uint32_t ix = 0; ix <= width_segments; ++ix) {
+      const float u = ix / (float)width_segments;
+
+      /* Poles should just use the same position all the way around. */
+      if (ix == width_segments) {
+        glm_vec3_copy(first_vertex, vertex);
+      }
+      else if (ix == 0 || (iy != 0 && iy != height_segments)) {
+        const float rr
+          = radius + (random_float() - 0.5f) * 2.0f * randomness * radius;
+
+        /* vertex */
+        vertex[0] = -rr * cos(u * PI * 2.0f) * sin(v * PI);
+        vertex[1] = rr * cos(v * PI);
+        vertex[2] = rr * sin(u * PI * 2.0f) * sin(v * PI);
+
+        if (ix == 0) {
+          glm_vec3_copy(vertex, first_vertex);
+        }
+      }
+      vertices[vc++] = vertex[0];
+      vertices[vc++] = vertex[1];
+      vertices[vc++] = vertex[2];
+
+      /* normal */
+      glm_vec3_copy(vertex, normal);
+      glm_vec3_normalize(normal);
+      vertices[vc++] = normal[0];
+      vertices[vc++] = normal[1];
+      vertices[vc++] = normal[2];
+
+      /* uv */
+      vertices[vc++]      = u + u_offset;
+      vertices[vc++]      = 1 - v;
+      vertices_row[vri++] = index++;
+    }
+
+    grid[gc++] = vertices_row;
+  }
+
+  /* indices */
+  uint16_t a = 0, b = 0, c = 0, d = 0;
+  for (uint32_t iy = 0; iy < height_segments; ++iy) {
+    for (uint32_t ix = 0; ix < width_segments; ++ix) {
+      a = grid[iy][ix + 1];
+      b = grid[iy][ix];
+      c = grid[iy + 1][ix];
+      d = grid[iy + 1][ix + 1];
+
+      if (iy != 0) {
+        indices[ic++] = a;
+        indices[ic++] = b;
+        indices[ic++] = d;
+      }
+      if (iy != height_segments - 1) {
+        indices[ic++] = b;
+        indices[ic++] = c;
+        indices[ic++] = d;
+      }
+    }
+  }
+
+  /* Cleanup temporary grid */
+  for (uint32_t gci = 0; gci < grid_count; ++gci) {
+    free(grid[gci]);
+  }
+  free(grid);
+
+  /* Sphere */
+  memset(sphere_mesh, 0, sizeof(*sphere_mesh));
+  sphere_mesh->vertices.data = vertices;
+  sphere_mesh->vertices.size = vc;
+  sphere_mesh->indices.data  = indices;
+  sphere_mesh->indices.size  = ic;
+}
+
+void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh)
+{
+  if (sphere_mesh->vertices.data) {
+    free(sphere_mesh->vertices.data);
+  }
+  if (sphere_mesh->indices.data) {
+    free(sphere_mesh->indices.data);
+  }
+  memset(sphere_mesh, 0, sizeof(*sphere_mesh));
 }
 
 /* -------------------------------------------------------------------------- *
