@@ -73,11 +73,11 @@ void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh);
 typedef struct sphere_mesh_t {
   struct {
     float* data;
-    uint64_t size;
+    uint64_t length;
   } vertices;
   struct {
     uint16_t* data;
-    uint64_t size;
+    uint64_t length;
   } indices;
 } sphere_mesh_t;
 

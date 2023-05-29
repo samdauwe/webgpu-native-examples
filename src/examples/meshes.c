@@ -315,10 +315,10 @@ void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
 
   /* Sphere */
   memset(sphere_mesh, 0, sizeof(*sphere_mesh));
-  sphere_mesh->vertices.data = vertices;
-  sphere_mesh->vertices.size = vc;
-  sphere_mesh->indices.data  = indices;
-  sphere_mesh->indices.size  = ic;
+  sphere_mesh->vertices.data   = vertices;
+  sphere_mesh->vertices.length = vc;
+  sphere_mesh->indices.data    = indices;
+  sphere_mesh->indices.length  = ic;
 }
 
 void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh)
