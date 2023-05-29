@@ -11,7 +11,7 @@
  * This example shows how to use render bundles. It renders a large number of
  * meshes individually as a proxy for a more complex scene in order to
  * demonstrate the reduction in time spent to issue render commands. (Typically
- * a scene like this would make use of instancing to reduce draw overhead.
+ * a scene like this would make use of instancing to reduce draw overhead.)
  *
  * Ref:
  * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/renderBundles
@@ -69,7 +69,7 @@ static struct {
   uint32_t asteroid_count;
 } settings = {
   .use_render_bundles = true,
-  .asteroid_count     = 5000,
+  .asteroid_count     = 500,
 };
 
 // Mesh render pipeline
@@ -91,11 +91,13 @@ static bool prepared             = false;
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   const uint32_t uniform_buffer_size = 4 * 16; /* 4x4 matrix */
-  uniform_buffer                     = wgpu_create_buffer(
+
+  uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                                        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                                        .size  = uniform_buffer_size,
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = uniform_buffer_size,
                   });
+  ASSERT(uniform_buffer.buffer != NULL);
 }
 
 static void prepare_planet_texture(wgpu_context_t* wgpu_context)
@@ -132,6 +134,9 @@ static void prepare_texture_sampler(wgpu_context_t* wgpu_context)
     .addressModeW  = WGPUAddressMode_ClampToEdge,
     .magFilter     = WGPUFilterMode_Linear,
     .minFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUFilterMode_Nearest,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,
   };
   textures.sampler
@@ -435,12 +440,12 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
                view_matrices.model_view_projection);
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffer(wgpu_example_context_t* context)
 {
   update_transformation_matrix(context);
 
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer.buffer, 0,
-                          &view_matrices.transform, sizeof(mat4));
+                          &view_matrices.model_view_projection, sizeof(mat4));
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
@@ -574,7 +579,6 @@ static int example_initialize(wgpu_example_context_t* context)
     ensure_enough_asteroids(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepare_view_matrices(context->wgpu_context);
-    update_uniform_buffers(context);
     create_create_frame_bind_group(context->wgpu_context);
     update_render_bundle(context->wgpu_context);
     prepared = true;
@@ -609,11 +613,10 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return EXIT_FAILURE;
   }
-  const int draw_result = example_draw(context);
   if (!context->paused) {
-    update_uniform_buffers(context);
+    update_uniform_buffer(context);
   }
-  return draw_result;
+  return example_draw(context);
 }
 
 // Clean up used resources
@@ -645,8 +648,9 @@ void example_render_bundles(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
+      .title                       = example_title,
+      .overlay                     = true,
+      .overlay_deph_stencil_format = WGPUTextureFormat_Depth24Plus,
   },
   .example_initialize_func = &example_initialize,
   .example_render_func     = &example_render,

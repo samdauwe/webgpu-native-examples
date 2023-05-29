@@ -217,7 +217,7 @@ void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
     = (width_segments + 1) * (height_segments + 1) * (3 + 3 + 2);
   float* vertices = (float*)malloc(vertices_count * sizeof(float));
 
-  uint32_t indices_count = width_segments * height_segments * 3;
+  uint32_t indices_count = width_segments * height_segments * 6;
   uint16_t* indices      = (uint16_t*)malloc(indices_count * sizeof(uint16_t));
 
   vec3 first_vertex = GLM_VEC3_ZERO_INIT;
