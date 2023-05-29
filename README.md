@@ -319,6 +319,10 @@ Uses the instancing feature for rendering (many) instances of the same mesh from
 
 Demonstrated how to use occlusion queries to get the number of fragment samples that pass all the per-fragment tests for a set of drawing commands.
 
+#### [Render bundles](src/examples/render_bundles.c)
+
+This example shows how to use render bundles. It renders a large number of meshes individually as a proxy for a more complex scene in order to demonstrate the reduction in time spent to issue render commands. (Typically a scene like this would make use of instancing to reduce draw overhead.)
+
 ### Physically Based Rendering
 
 Physical based rendering as a lighting technique that achieves a more realistic and dynamic look by applying approximations of bidirectional reflectance distribution functions based on measured real-world material parameters and environment lighting.
@@ -507,7 +511,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
 * [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
 
-### April 2023 - ...
+### June 2023 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
