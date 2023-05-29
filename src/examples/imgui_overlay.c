@@ -45,7 +45,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   if (imgui_overlay == NULL) {
     /* Create and intialize ImGui ovelay */
-    imgui_overlay = imgui_overlay_create(wgpu_context);
+    imgui_overlay = imgui_overlay_create(wgpu_context,
+                                         WGPUTextureFormat_Depth24PlusStencil8);
   }
 
   // Create command encoder */

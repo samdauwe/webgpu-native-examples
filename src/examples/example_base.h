@@ -59,6 +59,8 @@ typedef struct {
   bool vsync;
   /** @brief Enable UI overlay */
   bool overlay;
+  /** @brief Depth stencil format of UI overlay */
+  WGPUTextureFormat overlay_deph_stencil_format;
   /** @brief Create texture client */
   bool create_texture_client;
 } wgpu_example_settings_t;

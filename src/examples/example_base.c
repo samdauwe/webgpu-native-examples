@@ -349,7 +349,13 @@ static void intialize_imgui(wgpu_example_context_t* context,
   context->show_imgui_overlay = example_settings->overlay;
   if (context->show_imgui_overlay) {
     // Create and intialize ImGui ovelay
-    context->imgui_overlay = imgui_overlay_create(context->wgpu_context);
+    WGPUTextureFormat format
+      = (example_settings->overlay_deph_stencil_format
+             != WGPUTextureFormat_Undefined ?
+           example_settings->overlay_deph_stencil_format :
+           WGPUTextureFormat_Depth24PlusStencil8);
+    context->imgui_overlay
+      = imgui_overlay_create(context->wgpu_context, format);
   }
 }
 

@@ -14,7 +14,6 @@
 #endif
 #define ImDrawCallback_ResetRenderState (ImDrawCallback)(-1)
 
-#include "../core/log.h"
 #include "../core/macro.h"
 #include "shader.h"
 
@@ -42,6 +41,7 @@ typedef struct imgui_overlay {
     WGPUTextureView texture_view;
     WGPUSampler sampler;
   } font;
+  WGPUTextureFormat depth_stencil_format;
   WGPURenderPipeline pipeline;
   WGPUPipelineLayout pipeline_layout;
   wgpu_buffer_t uniform_buffer;
@@ -69,13 +69,15 @@ typedef struct imgui_overlay {
 
 // Initialize styles, keys, etc.
 static void imgui_overlay_init(imgui_overlay_t* imgui_overlay,
-                               wgpu_context_t* wgpu_context)
+                               wgpu_context_t* wgpu_context,
+                               WGPUTextureFormat format)
 {
   // Configure ImGUI overlay settings
   imgui_overlay->wgpu_context = wgpu_context;
 
-  imgui_overlay->vertex_buffer.size = 0;
-  imgui_overlay->index_buffer.size  = 0;
+  imgui_overlay->depth_stencil_format = format;
+  imgui_overlay->vertex_buffer.size   = 0;
+  imgui_overlay->index_buffer.size    = 0;
 
   imgui_overlay->draw_buffers.index.size        = 3000;
   imgui_overlay->draw_buffers.vertex.size       = 3000;
@@ -247,7 +249,10 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
   };
 
   // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
+  wgpu_setup_deph_stencil(wgpu_context,
+                          &(deph_stencil_texture_creation_options){
+                            .format = imgui_overlay->depth_stencil_format,
+                          });
 
   // Render pass descriptor
   imgui_overlay->render_pass_desc = (WGPURenderPassDescriptor){
@@ -343,7 +348,7 @@ static void imgui_overlay_prepare_pipeline(imgui_overlay_t* imgui_overlay)
   // Depth stencil state
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = imgui_overlay->depth_stencil_format,
       .depth_write_enabled = false,
     });
 
@@ -450,13 +455,14 @@ static void imgui_overlay_prepare_uniform_buffer(imgui_overlay_t* imgui_overlay)
   }
 }
 
-imgui_overlay_t* imgui_overlay_create(wgpu_context_t* wgpu_context)
+imgui_overlay_t* imgui_overlay_create(wgpu_context_t* wgpu_context,
+                                      WGPUTextureFormat format)
 {
   imgui_overlay_t* imgui_overlay
     = (imgui_overlay_t*)malloc(sizeof(imgui_overlay_t));
 
   // Prepare ImGui overlay
-  imgui_overlay_init(imgui_overlay, wgpu_context);
+  imgui_overlay_init(imgui_overlay, wgpu_context, format);
   // Create the pipeline layout that is used to generate the rendering
   // pipelines
   imgui_overlay_setup_pipeline_layout(imgui_overlay);
@@ -718,7 +724,7 @@ void imgui_overlay_render(imgui_overlay_t* imgui_overlay)
   imgui_overlay_update_buffers(imgui_overlay);
 }
 
-bool imgui_overlay_want_capture_mouse()
+bool imgui_overlay_want_capture_mouse(void)
 {
   ImGuiIO* io = igGetIO();
   return io->WantCaptureMouse;

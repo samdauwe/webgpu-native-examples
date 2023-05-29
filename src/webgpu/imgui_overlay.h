@@ -3,15 +3,14 @@
 
 #include "context.h"
 
-#include "buffer.h"
-
 #include "../examples/example_base.h"
 
 struct ImDrawData;
 typedef struct imgui_overlay imgui_overlay_t;
 
 /* imgui overlay creating/releasing */
-imgui_overlay_t* imgui_overlay_create(wgpu_context_t* wgpu_context);
+imgui_overlay_t* imgui_overlay_create(wgpu_context_t* wgpu_context,
+                                      WGPUTextureFormat format);
 void imgui_overlay_release(imgui_overlay_t* imgui_overlay);
 
 /* Property getters / setters */
