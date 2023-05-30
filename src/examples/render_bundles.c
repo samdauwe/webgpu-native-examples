@@ -66,7 +66,7 @@ static WGPUBindGroup frame_bind_group = NULL;
 // Settings
 static struct {
   bool use_render_bundles;
-  uint32_t asteroid_count;
+  int32_t asteroid_count;
 } settings = {
   .use_render_bundles = true,
   .asteroid_count     = 500,
@@ -267,7 +267,8 @@ static void ensure_enough_asteroids(wgpu_context_t* wgpu_context)
   mat4 tmp_mat              = GLM_MAT4_IDENTITY_INIT;
   uint32_t asteroids_length = (uint32_t)ARRAY_SIZE(scene.asteroids);
   float radius = 0.0f, angle = 0.0f, x = 0.0f, y = 0.0f, z = 0.0f;
-  for (uint32_t i = renderables_length; i <= settings.asteroid_count; ++i) {
+  for (uint32_t i = renderables_length; i <= (uint32_t)settings.asteroid_count;
+       ++i) {
     /* Place copies of the asteroid in a ring. */
     radius = random_float() * 1.7f + 1.25f;
     angle  = random_float() * PI * 2.0f;
@@ -448,12 +449,23 @@ static void update_uniform_buffer(wgpu_example_context_t* context)
                           &view_matrices.model_view_projection, sizeof(mat4));
 }
 
+static void update_render_bundle(wgpu_context_t* wgpu_context);
+
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
     imgui_overlay_checkBox(context->imgui_overlay, "Use Render Bundles",
                            &settings.use_render_bundles);
+    if (imgui_overlay_slider_int(context->imgui_overlay, "Asteroid Count",
+                                 &settings.asteroid_count, 500, 10000)) {
+      /**
+       * If the content of the scene changes the render bundle must be
+       * recreated.
+       */
+      ensure_enough_asteroids(context->wgpu_context);
+      update_render_bundle(context->wgpu_context);
+    }
   }
 }
 
@@ -473,7 +485,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
      * complex scene, which helps demonstrate the potential time savings a     \
      * render bundle can provide.)                                             \
      */                                                                        \
-    uint32_t count = 0;                                                        \
+    int32_t count = 0;                                                         \
     for (uint32_t ri = 0; ri < renderables_length; ++ri) {                     \
       wgpu##Type##SetBindGroup(rpass_enc, 1, renderables[ri].bind_group, 0,    \
                                0);                                             \
@@ -506,6 +518,8 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
  */
 static void update_render_bundle(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(RenderBundle, render_bundle)
+
   WGPUTextureFormat color_formats[1] = {wgpu_context->swap_chain.format};
   WGPURenderBundleEncoder render_bundle_encoder
     = wgpuDeviceCreateRenderBundleEncoder(
