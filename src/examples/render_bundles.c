@@ -42,7 +42,7 @@ static struct {
   texture_t planet;
   texture_t moon;
   WGPUSampler sampler;
-} textures;
+} textures = {0};
 
 // View matrices
 static struct {
