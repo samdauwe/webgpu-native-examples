@@ -110,6 +110,7 @@ static void prepare_planet_texture(wgpu_context_t* wgpu_context)
   };
   textures.planet = wgpu_create_texture_from_file(wgpu_context, file,
                                                   &wgpu_texture_load_options);
+  ASSERT(textures.planet.texture != NULL);
 }
 
 static void prepare_moon_texture(wgpu_context_t* wgpu_context)
