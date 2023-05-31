@@ -178,6 +178,7 @@ static void create_sphere_renderable(wgpu_context_t* wgpu_context,
                     .initial.data = sphere_mesh.indices.data,
                     .count        = sphere_mesh.indices.length,
                   });
+  ASSERT(renderable->indices.buffer != NULL);
 
   /* Cleanup */
   sphere_mesh_destroy(&sphere_mesh);
