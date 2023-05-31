@@ -168,6 +168,7 @@ static void create_sphere_renderable(wgpu_context_t* wgpu_context,
                     .initial.data = sphere_mesh.vertices.data,
                     .count        = sphere_mesh.vertices.length,
                   });
+  ASSERT(renderable->vertices.buffer != NULL);
 
   /* Create an index buffer from the sphere data. */
   renderable->indices = wgpu_create_buffer(
