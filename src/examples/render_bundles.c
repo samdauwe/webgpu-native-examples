@@ -123,6 +123,7 @@ static void prepare_moon_texture(wgpu_context_t* wgpu_context)
   };
   textures.moon = wgpu_create_texture_from_file(wgpu_context, file,
                                                 &wgpu_texture_load_options);
+  ASSERT(textures.moon.texture != NULL);
 }
 
 static void prepare_texture_sampler(wgpu_context_t* wgpu_context)
