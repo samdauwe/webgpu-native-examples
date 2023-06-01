@@ -174,6 +174,7 @@ static void create_sphere_renderable(wgpu_context_t* wgpu_context,
   /* Create an index buffer from the sphere data. */
   renderable->indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Sphere index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sphere_mesh.indices.length * sizeof(uint16_t),
                     .initial.data = sphere_mesh.indices.data,
