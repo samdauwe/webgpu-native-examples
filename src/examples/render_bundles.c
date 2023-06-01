@@ -212,6 +212,7 @@ static void create_sphere_bind_group(wgpu_context_t* wgpu_context,
   const uint32_t uniform_buffer_size  = 4 * 16; /* 4x4 matrix */
   renderables[renderable_id].uniforms = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Renderable uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = uniform_buffer_size,
                     .initial.data = transform,
