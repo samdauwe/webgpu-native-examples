@@ -298,7 +298,7 @@ static void ensure_enough_asteroids(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
     .view       = NULL, /* Assigned later */
     .loadOp     = WGPULoadOp_Clear,
@@ -311,13 +311,13 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context,
                           &(deph_stencil_texture_creation_options){
                             .format = WGPUTextureFormat_Depth24Plus,
                           });
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachments,
