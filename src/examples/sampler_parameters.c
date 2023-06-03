@@ -1,0 +1,395 @@
+#include "example_base.h"
+
+#include <string.h>
+
+#include "../webgpu/imgui_overlay.h"
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Sampler Parameters
+ *
+ * Visualizes what all the sampler parameters do. Shows a textured plane at
+ * various scales (rotated, head-on, in perspective, and in vanishing
+ * perspective). The bottom-right view shows the raw contents of the 4 mipmap
+ * levels of the test texture (16x16, 8x8, 4x4, and 2x2).
+ *
+ * Ref:
+ * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/samplerParameters
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  float flange_log_size;
+  bool highlight_flange;
+  float animation;
+} init_config = {
+  .flange_log_size  = 1.0f,
+  .highlight_flange = false,
+  .animation        = 0.1f,
+};
+
+// Uniform buffer
+static wgpu_buffer_t buf_config = {0};
+
+// Checkerboard texture
+texture_t checkerboard = {0};
+
+// Render pipelines
+static WGPURenderPipeline show_texture_render_pipeline    = NULL;
+static WGPURenderPipeline textured_square_render_pipeline = NULL;
+
+//
+// GUI controls
+//
+
+static const WGPUSamplerDescriptor init_sampler_descriptor = {
+  .addressModeU  = WGPUAddressMode_ClampToEdge,
+  .addressModeV  = WGPUAddressMode_ClampToEdge,
+  .addressModeW  = WGPUAddressMode_ClampToEdge,
+  .magFilter     = WGPUFilterMode_Linear,
+  .minFilter     = WGPUFilterMode_Linear,
+  .mipmapFilter  = WGPUFilterMode_Linear,
+  .lodMinClamp   = 0.0f,
+  .lodMaxClamp   = 4.0f,
+  .maxAnisotropy = 1,
+};
+
+typedef enum preset_enum_t {
+  Preset_Initial      = 0,
+  Preset_Checkerboard = 1,
+  Preset_Smooth       = 2,
+  Preset_Crunchy      = 3,
+  Preset_Count        = 4,
+} preset_enum_t;
+
+static WGPUSamplerDescriptor presets[4] = {
+  [Preset_Checkerboard] = (WGPUSamplerDescriptor) {
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+  },
+};
+
+static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  /* Create uniform buffer */
+  buf_config = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Uniform bufer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = 128,
+                  });
+  ASSERT(buf_config.buffer != NULL);
+
+  /* View-projection matrix set up so it doesn't transform anything at z=0. */
+  const uint32_t camera_dist = 3;
+  mat4 view_proj             = GLM_MAT4_IDENTITY_INIT;
+  glm_perspective(2 * atan(1.0f / kCameraDist), 1, 0.1f, 100.0f, view_proj);
+  glm_translate(view_proj, (vec3){0, 0, -camera_dist});
+
+  /* Update uniform buffer data */
+  wgpu_queue_write_buffer(context->wgpu_context, buf_config.buffer, 0,
+                          &view_proj, sizeof(mat4));
+}
+
+static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
+{
+  mat4 matrices[15] = {0};
+
+  /* Row 1: Scale by 2 */
+  {
+    /* Column 1 */
+    glm_mat4_identity(matrices[0]);
+    glm_rotate_z(matrices[0], PI / 16, matrices[0]);
+    glm_scale(matrices[0], (vec3){2, 2, 1});
+    /* Column 2 */
+    glm_mat4_identity(matrices[1]);
+    glm_scale(matrices[1], (vec3){2, 2, 1});
+    /* Column 3 */
+    glm_mat4_identity(matrices[2]);
+    glm_rotate_x(matrices[2], -PI * 0.3f, matrices[2]);
+    glm_scale(matrices[2], (vec3){2, 2, 1});
+    /* Column 4 */
+    glm_mat4_identity(matrices[3]);
+    glm_rotate_x(matrices[3], -PI * 0.42f, matrices[3]);
+    glm_scale(matrices[3], (vec3){2, 2, 1});
+  }
+
+  /* Row 2: Scale by 1 */
+  {
+    /* Column 1 */
+    glm_mat4_identity(matrices[4]);
+    glm_rotate_z(matrices[4], PI / 16, matrices[4]);
+    /* Column 2 */
+    glm_mat4_identity(matrices[5]);
+    /* Column 3 */
+    glm_mat4_identity(matrices[6]);
+    glm_rotate_x(matrices[6], -PI * 0.3f, matrices[6]);
+    /* Column 4 */
+    glm_mat4_identity(matrices[7]);
+    glm_rotate_x(matrices[7], -PI * 0.42f, matrices[7]);
+  }
+
+  /* Row 3: Scale by 0.9 */
+  {
+    /* Column 1 */
+    glm_mat4_identity(matrices[8]);
+    glm_rotate_z(matrices[8], PI / 16, matrices[8]);
+    glm_scale(matrices[8], (vec3){0.9, 0.9, 1});
+    /* Column 2 */
+    glm_mat4_identity(matrices[9]);
+    glm_scale(matrices[9], (vec3){0.9, 0.9, 1});
+    /* Column 3 */
+    glm_mat4_identity(matrices[10]);
+    glm_rotate_x(matrices[10], -PI * 0.3f, matrices[10]);
+    glm_scale(matrices[10], (vec3){0.9, 0.9, 1});
+    /* Column 4 */
+    glm_mat4_identity(matrices[11]);
+    glm_rotate_x(matrices[11], -PI * 0.42f, matrices[11]);
+    glm_scale(matrices[11], (vec3){0.9, 0.9, 1});
+  }
+
+  /* Row 4: Scale by 0.3 */
+  {
+    /* Column 1 */
+    glm_mat4_identity(matrices[12]);
+    glm_rotate_z(matrices[12], PI / 16, matrices[12]);
+    glm_scale(matrices[12], (vec3){0.3, 0.3, 1});
+    /* Column 2 */
+    glm_mat4_identity(matrices[13]);
+    glm_scale(matrices[13], (vec3){0.3, 0.3, 1});
+    /* Column 3 */
+    glm_mat4_identity(matrices[14]);
+    glm_rotate_x(matrices[14], -PI * 0.3f, matrices[14]);
+    glm_scale(matrices[14], (vec3){0.3, 0.3, 1});
+  }
+}
+
+//
+// Initialize test texture
+//
+// Set up a texture with 4 mip levels, each containing a differently-colored
+// checkerboard with 1x1 pixels (so when rendered the checkerboards are
+// different sizes). This is different from a normal mipmap where each level
+// would look like a lower-resolution version of the previous one.
+// Level 0 is 16x16 white/black
+// Level 1 is 8x8 blue/black
+// Level 2 is 4x4 yellow/black
+// Level 3 is 2x2 pink/black
+static void initialize_test_texture(wgpu_context_t* wgpu_context)
+{
+  const uint32_t texture_mip_levels = 4;
+  const uint32_t texture_base_size  = 16;
+
+  /* Checkerboard texture */
+  WGPUTextureDescriptor texture_desc = {
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+    .format        = WGPUTextureFormat_RGBA8Unorm,
+    .dimension     = WGPUTextureDimension_2D,
+    .mipLevelCount = texture_mip_levels,
+    .sampleCount   = 1,
+      .size          = (WGPUExtent3D) {
+      .width               = texture_base_size,
+      .height              = texture_base_size,
+      .depthOrArrayLayers  = 1,
+    },
+  };
+  checkerboard.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+
+  /* Checkerboard texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .format          = texture_desc.format,
+    .dimension       = WGPUTextureViewDimension_2D,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = texture_desc.mipLevelCount,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+    .aspect          = WGPUTextureAspect_All,
+  };
+  checkerboard.view = wgpuTextureCreateView(wgpu_context->depth_stencil.texture,
+                                            &texture_view_dec);
+
+  /* Checkerboard texture data */
+  uint8_t color_for_level[4][4] = {
+    {255, 255, 255, 255}, //
+    {30, 136, 229, 255},  // blue
+    {255, 193, 7, 255},   // yellow
+    {216, 27, 96, 255},   // pink
+  };
+  uint8_t color_black[4] = {0, 0, 0, 255};
+  uint32_t index         = 0;
+  for (uint32_t mip_level = 0; mip_level < texture_mip_levels; ++mip_level) {
+    /* Sizes: 16, 8, 4, 2 */
+    const uint32_t size      = pow(2, texture_mip_levels - mip_level);
+    const uint32_t data_size = size * size * 4 * sizeof(uint8_t);
+    uint8_t* data            = (uint8_t*)malloc(data_size);
+    memset(data, 0, sizeof(data_size));
+    for (uint32_t y = 0; y < size; ++y) {
+      for (uint32_t x = 0; x < size; ++x) {
+        index = (y * size + x) * 4;
+        for (uint8_t c = 0; c < 4; ++c) {
+          data[index + c]
+            = (x + y) % 2 ? color_for_level[mip_level][c] : color_black[c];
+        }
+      }
+    }
+    wgpuQueueWriteTexture(wgpu_context->queue,
+      &(WGPUImageCopyTexture) {
+        .texture = checkerboard.texture,
+        .mipLevel = mip_level,
+        .origin = (WGPUOrigin3D) {
+          .x = 0,
+          .y = 0,
+          .z = 0,
+      },
+      .aspect = WGPUTextureAspect_All,
+      },
+      data, data_size,
+      &(WGPUTextureDataLayout){
+        .offset       = 0,
+        .bytesPerRow  = size * 4,
+        .rowsPerImage = size,
+      },
+      &(WGPUExtent3D){
+        .width              = size,
+        .height             = size,
+        .depthOrArrayLayers = ,
+      });
+    free(data);
+  }
+}
+
+//
+// "Debug" view of the actual texture contents
+//
+static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Vertex state
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Vertex shader WGSL
+      .label = "Debug view vertex shader WGSL",
+      .file  = "shaders/sampler_parameters/showTexture.wgsl",
+      .entry = "vmain"
+    },
+  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Fragment shader WGSL
+      .label = "Debug view fragment shader WGSL",
+      .file  = "shaders/sampler_parameters/fmain.wgsl",
+      .entry = "fmain"
+    },
+    .target_count = 1,
+    .targets = &color_target_state,
+  });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Create rendering pipeline using the specified states
+  show_texture_render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label        = "Show texture render pipeline",
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
+                          });
+  ASSERT(show_texture_render_pipeline != NULL);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+//
+// Pipeline for drawing the test squares
+//
+static void
+prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_Back,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Vertex state
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Vertex shader WGSL
+      .label = "Textured square vertex shader WGSL",
+      .file  = "shaders/sampler_parameters/texturedSquare.wgsl",
+      .entry = "vmain"
+    },
+  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+    .shader_desc = (wgpu_shader_desc_t){
+      // Fragment shader WGSL
+      .label = "Textured square fragment shader WGSL",
+      .file  = "shaders/sampler_parameters/texturedSquare.wgsl",
+      .entry = "fmain"
+    },
+    .target_count = 1,
+    .targets = &color_target_state,
+  });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Create rendering pipeline using the specified states
+  textured_square_render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label        = "Textured square render pipeline",
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
+                          });
+  ASSERT(textured_square_render_pipeline != NULL);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
