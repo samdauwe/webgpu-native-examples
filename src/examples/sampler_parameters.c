@@ -20,7 +20,7 @@ static struct {
   float flange_log_size;
   bool highlight_flange;
   float animation;
-} init_config = {
+} config = {
   .flange_log_size  = 1.0f,
   .highlight_flange = false,
   .animation        = 0.1f,
@@ -29,12 +29,25 @@ static struct {
 // Uniform buffer
 static wgpu_buffer_t buf_config = {0};
 
+// Storage buffer
+static wgpu_buffer_t buf_matrices = {0};
+
 // Checkerboard texture
 texture_t checkerboard = {0};
 
 // Render pipelines
 static WGPURenderPipeline show_texture_render_pipeline    = NULL;
 static WGPURenderPipeline textured_square_render_pipeline = NULL;
+
+// Render pass descriptor for frame buffer writes
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDescriptor descriptor;
+} render_pass = {0};
+
+// Other variables
+static const char* example_title = "Sampler Parameters";
+static bool prepared             = false;
 
 //
 // GUI controls
@@ -87,6 +100,20 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   /* Update uniform buffer data */
   wgpu_queue_write_buffer(context->wgpu_context, buf_config.buffer, 0,
                           &view_proj, sizeof(mat4));
+}
+
+static void update_config_buffer(wgpu_example_context_t* context)
+{
+  const float t       = (context->frame.timestamp_millis / 1000.0f) * 0.5f;
+  const float data[4] = {
+    cos(t) * config.animation,                 //
+    sin(t) * config.animation,                 //
+    pow(2, config.flange_log_size - 1) / 2.0f, //
+    config.highlight_flange,                   //
+  };
+
+  wgpu_queue_write_buffer(context->wgpu_context, buf_config.buffer, 64,
+                          &data[0], sizeof(data));
 }
 
 static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
@@ -160,6 +187,13 @@ static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
     glm_rotate_x(matrices[14], -PI * 0.3f, matrices[14]);
     glm_scale(matrices[14], (vec3){0.3, 0.3, 1});
   }
+
+  buf_matrices = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
+                    .size  = sizeof(matrices),
+                    .initial.data = matrices,
+                  });
 }
 
 //
@@ -255,6 +289,30 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
       });
     free(data);
   }
+}
+
+static void setup_render_pass(wgpu_context_t* wgpu_context)
+{
+  /* Color attachment */
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+    .view       = NULL, /* Assigned later */
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = (WGPUColor) {
+      .r = 0.2f,
+      .g = 0.2f,
+      .b = 0.2f,
+      .a = 1.0f,
+    },
+  };
+
+  /* Render pass descriptor */
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = NULL,
+  };
 }
 
 //
@@ -392,4 +450,132 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  // Set target frame buffer
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass.descriptor);
+
+  /* Draw test squares */
+  {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     textured_square_render_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
+                                      0);
+    for (let i = 0; i < pow(viewport_grid_size, 2) - 1; ++i) {
+      const uint32_t vp_x = viewport_grid_stride * (i % viewport_grid_size) + 1;
+      const uint32_t vp_y
+        = viewport_grid_stride * floor(i / (float)viewport_grid_size) + 1;
+      wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, vp_x, vp_y,
+                                       viewport_size, viewport_size, 0.0f,
+                                       1.0f);
+      wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, i);
+    }
+  }
+
+  /* Show texture contents */
+  {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     show_texture_render_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      show_texture_bind_group, 0, 0);
+    const uint32_t last_viewport
+      = (viewport_grid_size - 1) * viewport_grid_stride + 1;
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, last_viewport,
+                                     last_viewport, 32, 32, 0.0f, 1.0f);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc,
+                                     last_viewport + 32, last_viewport, 16, 16,
+                                     0.0f, 1.0f);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 1);
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc,
+                                     last_viewport + 32, last_viewport + 16, 8,
+                                     8, 0.0f, 1.0f);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 2);
+    wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc,
+                                     last_viewport + 32, last_viewport + 24, 4,
+                                     4, 0.0f, 1.0f);
+    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 3);
+  }
+
+  // End render pass
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    prepared = true;
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
+}
+
+static int example_draw(wgpu_context_t* wgpu_context)
+{
+  // Get next image in the swap chain (back/front buffer)
+  wgpu_swap_chain_get_current_image(wgpu_context);
+
+  // Create command buffer
+  WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
+  ASSERT(command_buffer != NULL);
+
+  // Submit command buffer to the queue
+  wgpu_flush_command_buffers(wgpu_context, &command_buffer, 1);
+
+  // Present the current buffer to the swap chain
+  wgpu_swap_chain_present(wgpu_context);
+
+  return 0;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return EXIT_FAILURE;
+  }
+  if (!context->paused) {
+    update_config_buffer(context);
+  }
+  return example_draw(context);
+}
+
+// Clean up used resources
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+}
+
+void example_sampler_parameters(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true,
+  },
+  .example_initialize_func = &example_initialize,
+  .example_render_func     = &example_render,
+  .example_destroy_func    = &example_destroy
+  });
+  // clang-format on
 }
