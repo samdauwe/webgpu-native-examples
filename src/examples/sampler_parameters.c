@@ -159,18 +159,18 @@ static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
     /* Column 1 */
     glm_mat4_identity(matrices[8]);
     glm_rotate_z(matrices[8], PI / 16, matrices[8]);
-    glm_scale(matrices[8], (vec3){0.9, 0.9, 1});
+    glm_scale(matrices[8], (vec3){0.9f, 0.9f, 1.0f});
     /* Column 2 */
     glm_mat4_identity(matrices[9]);
-    glm_scale(matrices[9], (vec3){0.9, 0.9, 1});
+    glm_scale(matrices[9], (vec3){0.9f, 0.9f, 1});
     /* Column 3 */
     glm_mat4_identity(matrices[10]);
     glm_rotate_x(matrices[10], -PI * 0.3f, matrices[10]);
-    glm_scale(matrices[10], (vec3){0.9, 0.9, 1});
+    glm_scale(matrices[10], (vec3){0.9f, 0.9f, 1.0f});
     /* Column 4 */
     glm_mat4_identity(matrices[11]);
     glm_rotate_x(matrices[11], -PI * 0.42f, matrices[11]);
-    glm_scale(matrices[11], (vec3){0.9, 0.9, 1});
+    glm_scale(matrices[11], (vec3){0.9f, 0.9f, 1.0f});
   }
 
   /* Row 4: Scale by 0.3 */
@@ -178,14 +178,14 @@ static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
     /* Column 1 */
     glm_mat4_identity(matrices[12]);
     glm_rotate_z(matrices[12], PI / 16, matrices[12]);
-    glm_scale(matrices[12], (vec3){0.3, 0.3, 1});
+    glm_scale(matrices[12], (vec3){0.3f, 0.3f, 1.0f});
     /* Column 2 */
     glm_mat4_identity(matrices[13]);
-    glm_scale(matrices[13], (vec3){0.3, 0.3, 1});
+    glm_scale(matrices[13], (vec3){0.3f, 0.3f, 1.0f});
     /* Column 3 */
     glm_mat4_identity(matrices[14]);
     glm_rotate_x(matrices[14], -PI * 0.3f, matrices[14]);
-    glm_scale(matrices[14], (vec3){0.3, 0.3, 1});
+    glm_scale(matrices[14], (vec3){0.3f, 0.3f, 1.0f});
   }
 
   buf_matrices = wgpu_create_buffer(
