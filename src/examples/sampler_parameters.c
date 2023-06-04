@@ -16,6 +16,8 @@
  * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/samplerParameters
  * -------------------------------------------------------------------------- */
 
+#define CANVAS_SIZE 600u
+
 static struct {
   float flange_log_size;
   bool highlight_flange;
@@ -33,17 +35,27 @@ static wgpu_buffer_t buf_config = {0};
 static wgpu_buffer_t buf_matrices = {0};
 
 // Checkerboard texture
-texture_t checkerboard = {0};
+static texture_t checkerboard = {0};
 
 // Render pipelines
 static WGPURenderPipeline show_texture_render_pipeline    = NULL;
 static WGPURenderPipeline textured_square_render_pipeline = NULL;
+
+// Bind groups
+static WGPUBindGroup show_texture_bind_group    = NULL;
+static WGPUBindGroup textured_square_bind_group = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
+
+// Viewport properties
+static uint32_t texture_base_size    = 0;
+static uint32_t viewport_size        = 0;
+static uint32_t viewport_grid_size   = 0;
+static uint32_t viewport_grid_stride = 0;
 
 // Other variables
 static const char* example_title = "Sampler Parameters";
@@ -53,7 +65,7 @@ static bool prepared             = false;
 // GUI controls
 //
 
-static const WGPUSamplerDescriptor init_sampler_descriptor = {
+static WGPUSamplerDescriptor sampler_descriptor = {
   .addressModeU  = WGPUAddressMode_ClampToEdge,
   .addressModeV  = WGPUAddressMode_ClampToEdge,
   .addressModeW  = WGPUAddressMode_ClampToEdge,
@@ -80,6 +92,14 @@ static WGPUSamplerDescriptor presets[4] = {
   },
 };
 
+static void prepare_canvas(void)
+{
+  const uint32_t canvas_size = CANVAS_SIZE;
+  viewport_grid_size         = 4;
+  viewport_grid_stride       = floor(canvas_size / (float)viewport_grid_size);
+  viewport_size              = viewport_grid_stride - 2;
+}
+
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   /* Create uniform buffer */
@@ -94,22 +114,22 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   /* View-projection matrix set up so it doesn't transform anything at z=0. */
   const uint32_t camera_dist = 3;
   mat4 view_proj             = GLM_MAT4_IDENTITY_INIT;
-  glm_perspective(2 * atan(1.0f / kCameraDist), 1, 0.1f, 100.0f, view_proj);
-  glm_translate(view_proj, (vec3){0, 0, -camera_dist});
+  glm_perspective(2.0f * atan(1.0f / camera_dist), 1, 0.1f, 100.0f, view_proj);
+  glm_translate(view_proj, (vec3){0.0f, 0.0f, -camera_dist});
 
   /* Update uniform buffer data */
-  wgpu_queue_write_buffer(context->wgpu_context, buf_config.buffer, 0,
-                          &view_proj, sizeof(mat4));
+  wgpu_queue_write_buffer(wgpu_context, buf_config.buffer, 0, &view_proj,
+                          sizeof(mat4));
 }
 
 static void update_config_buffer(wgpu_example_context_t* context)
 {
   const float t       = (context->frame.timestamp_millis / 1000.0f) * 0.5f;
   const float data[4] = {
-    cos(t) * config.animation,                 //
-    sin(t) * config.animation,                 //
-    pow(2, config.flange_log_size - 1) / 2.0f, //
-    config.highlight_flange,                   //
+    cos(t) * config.animation,                   //
+    sin(t) * config.animation,                   //
+    (pow(2, config.flange_log_size) - 1) / 2.0f, //
+    config.highlight_flange,                     //
   };
 
   wgpu_queue_write_buffer(context->wgpu_context, buf_config.buffer, 64,
@@ -210,7 +230,7 @@ static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
 static void initialize_test_texture(wgpu_context_t* wgpu_context)
 {
   const uint32_t texture_mip_levels = 4;
-  const uint32_t texture_base_size  = 16;
+  texture_base_size                 = 16;
 
   /* Checkerboard texture */
   WGPUTextureDescriptor texture_desc = {
@@ -285,13 +305,66 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
       &(WGPUExtent3D){
         .width              = size,
         .height             = size,
-        .depthOrArrayLayers = ,
+        .depthOrArrayLayers = 1,
       });
     free(data);
   }
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void update_textured_square_sampler(wgpu_context_t* wgpu_context)
+{
+  /* Destroy current sampler */
+  WGPU_RELEASE_RESOURCE(Sampler, checkerboard.sampler)
+
+  /* Create sampler */
+  sampler_descriptor.maxAnisotropy
+    = (sampler_descriptor.minFilter == WGPUFilterMode_Linear
+       && sampler_descriptor.magFilter == WGPUFilterMode_Linear
+       && sampler_descriptor.minFilter == WGPUFilterMode_Linear) ?
+        sampler_descriptor.maxAnisotropy :
+        1;
+  checkerboard.sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_descriptor);
+}
+
+static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
+{
+  /* Destroy current bind group */
+  WGPU_RELEASE_RESOURCE(BindGroup, show_texture_bind_group)
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[4] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = buf_config.buffer,
+        .size    = buf_config.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = buf_matrices.buffer,
+        .size    = buf_matrices.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding  = 2,
+        .sampler  = checkerboard.sampler,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding     = 3,
+        .textureView = checkerboard.view
+      },
+    };
+  show_texture_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label  = "Textured square bind group",
+                            .layout = wgpuRenderPipelineGetBindGroupLayout(
+                              textured_square_render_pipeline, 0),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(show_texture_bind_group != NULL);
+}
+
+static void setup_render_pass(void)
 {
   /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
@@ -352,7 +425,7 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
     .shader_desc = (wgpu_shader_desc_t){
       // Fragment shader WGSL
       .label = "Debug view fragment shader WGSL",
-      .file  = "shaders/sampler_parameters/fmain.wgsl",
+      .file  = "shaders/sampler_parameters/showTexture.wgsl",
       .entry = "fmain"
     },
     .target_count = 1,
@@ -369,18 +442,34 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   show_texture_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Show texture render pipeline",
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
+                            .label       = "Show texture render pipeline",
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
+                            .multisample = multisample_state,
                           });
   ASSERT(show_texture_render_pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void prepare_show_texture_bind_group(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupEntry bg_entry = (WGPUBindGroupEntry){
+    .binding     = 0,
+    .textureView = checkerboard.view,
+  };
+  show_texture_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label  = "Show texture bind group",
+                            .layout = wgpuRenderPipelineGetBindGroupLayout(
+                              show_texture_render_pipeline, 0),
+                            .entryCount = 1,
+                            .entries    = &bg_entry,
+                          });
+  ASSERT(show_texture_bind_group != NULL);
 }
 
 //
@@ -404,6 +493,18 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
+  // Constants
+  WGPUConstantEntry constant_entries[2] = {
+    [0] = (WGPUConstantEntry){
+      .key   = "canvasSizeWidth",
+      .value = (double)texture_base_size,
+    },
+    [1] = (WGPUConstantEntry){
+      .key   = "canvasSizeHeight",
+      .value =(double)viewport_size,
+    },
+  };
+
   // Vertex state
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
@@ -413,6 +514,8 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
       .file  = "shaders/sampler_parameters/texturedSquare.wgsl",
       .entry = "vmain"
     },
+    .constant_count = (uint32_t)ARRAY_SIZE(constant_entries),
+    .constants      = constant_entries,
   });
 
   // Fragment state
@@ -424,8 +527,8 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
       .file  = "shaders/sampler_parameters/texturedSquare.wgsl",
       .entry = "fmain"
     },
-    .target_count = 1,
-    .targets = &color_target_state,
+    .target_count   = 1,
+    .targets        = &color_target_state,
   });
 
   // Multisample state
@@ -438,18 +541,24 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   textured_square_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Textured square render pipeline",
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
+                            .label       = "Textured square render pipeline",
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
+                            .multisample = multisample_state,
                           });
   ASSERT(textured_square_render_pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
@@ -467,9 +576,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   {
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                      textured_square_render_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                      0);
-    for (let i = 0; i < pow(viewport_grid_size, 2) - 1; ++i) {
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      textured_square_bind_group, 0, 0);
+    for (uint32_t i = 0; i < pow(viewport_grid_size, 2) - 1; ++i) {
       const uint32_t vp_x = viewport_grid_stride * (i % viewport_grid_size) + 1;
       const uint32_t vp_y
         = viewport_grid_stride * floor(i / (float)viewport_grid_size) + 1;
@@ -523,6 +632,17 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    prepare_canvas();
+    initialize_test_texture(context->wgpu_context);
+    prepare_debug_view_render_pipeline(context->wgpu_context);
+    prepare_show_texture_bind_group(context->wgpu_context);
+    prepare_textured_square_render_pipeline(context->wgpu_context);
+    prepare_uniform_buffer(context->wgpu_context);
+    prepare_storage_buffer(context->wgpu_context);
+    update_config_buffer(context);
+    update_textured_square_sampler(context->wgpu_context);
+    update_textured_square_bind_group(context->wgpu_context);
+    setup_render_pass();
     prepared = true;
     return EXIT_SUCCESS;
   }
@@ -556,13 +676,20 @@ static int example_render(wgpu_example_context_t* context)
   if (!context->paused) {
     update_config_buffer(context);
   }
-  return example_draw(context);
+  return example_draw(context->wgpu_context);
 }
 
 // Clean up used resources
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
+  wgpu_destroy_texture(&checkerboard);
+  WGPU_RELEASE_RESOURCE(Buffer, buf_config.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, buf_matrices.buffer)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, show_texture_render_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, textured_square_render_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, show_texture_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, textured_square_bind_group)
 }
 
 void example_sampler_parameters(int argc, char* argv[])
@@ -572,6 +699,10 @@ void example_sampler_parameters(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
       .title   = example_title,
       .overlay = true,
+  },
+  .example_window_config = (window_config_t){
+    .width  = CANVAS_SIZE,
+    .height = CANVAS_SIZE,
   },
   .example_initialize_func = &example_initialize,
   .example_render_func     = &example_render,
