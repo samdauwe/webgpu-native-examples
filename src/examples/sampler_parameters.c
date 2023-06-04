@@ -258,8 +258,8 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
     .arrayLayerCount = 1,
     .aspect          = WGPUTextureAspect_All,
   };
-  checkerboard.view = wgpuTextureCreateView(wgpu_context->depth_stencil.texture,
-                                            &texture_view_dec);
+  checkerboard.view
+    = wgpuTextureCreateView(checkerboard.texture, &texture_view_dec);
 
   /* Checkerboard texture data */
   uint8_t color_for_level[4][4] = {
@@ -330,7 +330,7 @@ static void update_textured_square_sampler(wgpu_context_t* wgpu_context)
 static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
 {
   /* Destroy current bind group */
-  WGPU_RELEASE_RESOURCE(BindGroup, show_texture_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, textured_square_bind_group)
 
   /* Create bind group */
   WGPUBindGroupEntry bg_entries[4] = {
@@ -353,7 +353,7 @@ static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
         .textureView = checkerboard.view
       },
     };
-  show_texture_bind_group = wgpuDeviceCreateBindGroup(
+  textured_square_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
                             .label  = "Textured square bind group",
                             .layout = wgpuRenderPipelineGetBindGroupLayout(
@@ -361,7 +361,7 @@ static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(show_texture_bind_group != NULL);
+  ASSERT(textured_square_bind_group != NULL);
 }
 
 static void setup_render_pass(void)
@@ -397,7 +397,7 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
@@ -482,7 +482,7 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
@@ -496,11 +496,11 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
   // Constants
   WGPUConstantEntry constant_entries[2] = {
     [0] = (WGPUConstantEntry){
-      .key   = "canvasSizeWidth",
+      .key   = "kTextureBaseSize",
       .value = (double)texture_base_size,
     },
     [1] = (WGPUConstantEntry){
-      .key   = "canvasSizeHeight",
+      .key   = "kViewportSize",
       .value =(double)viewport_size,
     },
   };

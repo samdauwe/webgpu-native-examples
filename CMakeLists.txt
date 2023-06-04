@@ -242,6 +242,7 @@ set(SOURCES
     src/examples/radial_blur.c
     src/examples/render_bundles.c
     src/examples/reversed_z.c
+    src/examples/sampler_parameters.c
     src/examples/screenshot.c
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c

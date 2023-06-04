@@ -231,6 +231,10 @@ This example shows how to how to load [Basis Universal](https://github.com/Binom
 
 This example shows the use of reversed z technique for better utilization of depth buffer precision. The left column uses regular method, while the right one uses reversed z technique. Both are using depth32float as their depth buffer format. A set of red and green planes are positioned very close to each other. Higher sets are placed further from camera (and are scaled for better visual purpose). To use  reversed z to render your scene, you will need depth store value to be 0.0, depth compare function to be greater, and remap depth range by multiplying an additional matrix to your projection matrix.
 
+#### [Sampler Parameters](src/examples/sampler_parameters.c)
+
+Visualizes what all the sampler parameters do. Shows a textured plane at various scales (rotated, head-on, in perspective, and in vanishing perspective). The bottom-right view shows the raw contents of the 4 mipmap levels of the test texture (16x16, 8x8, 4x4, and 2x2).
+
 #### [Conservative rasterization](src/examples/conservative_raster.c)
 
 This example shows how to render with conservative rasterization (native extension with limited support).

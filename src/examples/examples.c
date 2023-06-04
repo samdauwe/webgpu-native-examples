@@ -55,6 +55,7 @@ void example_procedural_mesh(int argc, char* argv[]);
 void example_radial_blur(int argc, char* argv[]);
 void example_render_bundles(int argc, char* argv[]);
 void example_reversed_z(int argc, char* argv[]);
+void example_sampler_parameters(int argc, char* argv[]);
 void example_screenshot(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
 void example_shadow_mapping(int argc, char* argv[]);
@@ -123,6 +124,7 @@ static examplecase_t g_example_cases[] = {
   {"radial_blur", example_radial_blur},
   {"render_bundles", example_render_bundles},
   {"reversed_z", example_reversed_z},
+  {"sampler_parameters", example_sampler_parameters},
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
