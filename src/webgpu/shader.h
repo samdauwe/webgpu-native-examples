@@ -47,6 +47,8 @@ void wgpu_shader_release(wgpu_shader_t* shader);
 
 typedef struct wgpu_vertex_state_t {
   wgpu_shader_desc_t shader_desc;
+  uint32_t constant_count;
+  WGPUConstantEntry const* constants;
   uint32_t buffer_count;
   WGPUVertexBufferLayout const* buffers;
 } wgpu_vertex_state_t;

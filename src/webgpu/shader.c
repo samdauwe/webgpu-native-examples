@@ -170,9 +170,11 @@ WGPUVertexState wgpu_create_vertex_state(wgpu_context_t* wgpu_context,
   vertex_state.module = wgpu_create_shader_module(wgpu_context, shader_desc);
   ASSERT(vertex_state.module);
 
-  vertex_state.entryPoint  = shader_desc->entry ? shader_desc->entry : "main",
-  vertex_state.bufferCount = desc->buffer_count,
-  vertex_state.buffers     = desc->buffers;
+  vertex_state.entryPoint    = shader_desc->entry ? shader_desc->entry : "main",
+  vertex_state.constantCount = desc->constant_count,
+  vertex_state.constants     = desc->constants;
+  vertex_state.bufferCount   = desc->buffer_count,
+  vertex_state.buffers       = desc->buffers;
 
   return vertex_state;
 }
