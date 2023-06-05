@@ -118,7 +118,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   glm_translate(view_proj, (vec3){0.0f, 0.0f, -camera_dist});
 
   /* Update uniform buffer data */
-  wgpu_queue_write_buffer(wgpu_context, buf_config.buffer, 0, &view_proj,
+  wgpu_queue_write_buffer(wgpu_context, buf_config.buffer, 0, view_proj,
                           sizeof(mat4));
 }
 
@@ -563,7 +563,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
   wgpu_context->cmd_enc
@@ -614,14 +614,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 3);
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
