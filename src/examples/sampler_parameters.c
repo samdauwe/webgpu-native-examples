@@ -262,14 +262,14 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
     = wgpuTextureCreateView(checkerboard.texture, &texture_view_dec);
 
   /* Checkerboard texture data */
-  uint8_t color_for_level[4][4] = {
+  const uint8_t color_for_level[4][4] = {
     {255, 255, 255, 255}, //
     {30, 136, 229, 255},  // blue
     {255, 193, 7, 255},   // yellow
     {216, 27, 96, 255},   // pink
   };
-  uint8_t color_black[4] = {0, 0, 0, 255};
-  uint32_t index         = 0;
+  const uint8_t color_black[4] = {0, 0, 0, 255};
+  uint32_t index               = 0;
   for (uint32_t mip_level = 0; mip_level < texture_mip_levels; ++mip_level) {
     /* Sizes: 16, 8, 4, 2 */
     const uint32_t size      = pow(2, texture_mip_levels - mip_level);
