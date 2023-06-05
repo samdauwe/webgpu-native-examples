@@ -210,6 +210,7 @@ static void prepare_storage_buffer(wgpu_context_t* wgpu_context)
 
   buf_matrices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Matrices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
                     .size  = sizeof(matrices),
                     .initial.data = matrices,
