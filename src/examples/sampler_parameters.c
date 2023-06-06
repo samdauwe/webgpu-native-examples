@@ -66,6 +66,7 @@ static bool prepared             = false;
 //
 
 static WGPUSamplerDescriptor sampler_descriptor = {
+  .label         = "Checkerboard texture sampler",
   .addressModeU  = WGPUAddressMode_ClampToEdge,
   .addressModeV  = WGPUAddressMode_ClampToEdge,
   .addressModeW  = WGPUAddressMode_ClampToEdge,
