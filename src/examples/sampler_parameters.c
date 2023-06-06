@@ -266,10 +266,10 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
 
   /* Checkerboard texture data */
   const uint8_t color_for_level[4][4] = {
-    {255, 255, 255, 255}, //
-    {30, 136, 229, 255},  // blue
-    {255, 193, 7, 255},   // yellow
-    {216, 27, 96, 255},   // pink
+    {255, 255, 255, 255}, /*        */
+    {30, 136, 229, 255},  /* blue   */
+    {255, 193, 7, 255},   /* yellow */
+    {216, 27, 96, 255},   /* pink   */
   };
   const uint8_t color_black[4] = {0, 0, 0, 255};
   uint32_t index               = 0;
