@@ -265,6 +265,7 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
   };
   checkerboard.view
     = wgpuTextureCreateView(checkerboard.texture, &texture_view_dec);
+  ASSERT(checkerboard.view != NULL);
 
   /* Checkerboard texture data */
   const uint8_t color_for_level[4][4] = {
