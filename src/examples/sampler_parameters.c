@@ -250,6 +250,7 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
   };
   checkerboard.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(checkerboard.texture != NULL);
 
   /* Checkerboard texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
