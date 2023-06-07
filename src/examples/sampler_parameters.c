@@ -331,6 +331,7 @@ static void update_textured_square_sampler(wgpu_context_t* wgpu_context)
         1;
   checkerboard.sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_descriptor);
+  ASSERT(checkerboard.sampler != NULL);
 }
 
 static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
