@@ -83,7 +83,6 @@ static void load_assets(wgpu_context_t* wgpu_context)
  */
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-
   /*
    * Bind group layout
    *
