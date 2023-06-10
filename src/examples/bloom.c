@@ -180,7 +180,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Color attachment
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "offscreen_frame_buffer_color_texture",
+      .label         = "Offscreen frame buffer color texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
