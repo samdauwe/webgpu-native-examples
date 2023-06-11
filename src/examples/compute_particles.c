@@ -184,7 +184,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : Particle color map texture
+      /* Binding 0 : Particle color map texture */
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -195,7 +195,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1 : Particle color map sampler
+      /* Binding 1 : Particle color map sampler */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -204,7 +204,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2 : Particle gradient ramp texture
+      /* Binding 2 : Particle gradient ramp texture */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -215,7 +215,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
-      // Binding 3 : Particle gradient ramp sampler
+      /* Binding 3 : Particle gradient ramp sampler */
       .binding    = 3,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
