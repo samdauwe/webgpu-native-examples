@@ -337,22 +337,22 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Particle color map texture
+      /* Binding 0 : Particle color map texture */
       .binding     = 0,
       .textureView = textures.particle.view,
     },
     [1] = (WGPUBindGroupEntry) {
-       // Binding 1 : Particle color map sampler
+       /* Binding 1 : Particle color map sampler */
       .binding = 1,
       .sampler = textures.particle.sampler,
     },
     [2] = (WGPUBindGroupEntry) {
-       // Binding 2 : Particle gradient ramp texture
+       /* Binding 2 : Particle gradient ramp texture */
       .binding     = 2,
       .textureView = textures.gradient.view,
     },
     [3] = (WGPUBindGroupEntry) {
-      // Binding 3 : Particle gradient ramp sampler
+      /* Binding 3 : Particle gradient ramp sampler */
       .binding = 3,
       .sampler = textures.gradient.sampler,
     }
