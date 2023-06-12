@@ -308,7 +308,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
   WGPUVertexBufferLayout vert_buf[2] = {
     [0] = (WGPUVertexBufferLayout) {
-      // instanced particles buffer
+      // Instanced particles buffer
       .arrayStride    = 4 * 4,
       .stepMode       = WGPUVertexStepMode_Instance,
       .attributeCount = (uint32_t)ARRAY_SIZE(vert_buff_attrs_0),
