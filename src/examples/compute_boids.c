@@ -16,7 +16,7 @@
  * data is used to draw instanced particles.
  *
  * Ref:
- * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/computeBoids
+ * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/computeBoids
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/boids
  * -------------------------------------------------------------------------- */
 
