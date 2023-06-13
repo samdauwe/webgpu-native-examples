@@ -244,7 +244,8 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
 
   {
     WGPUTextureDescriptor texture_desc = {
-      .size          = (WGPUExtent3D) {
+      .label = "GBuffer texture view",
+      .size  = (WGPUExtent3D) {
         .width               = wgpu_context->surface.width,
         .height              = wgpu_context->surface.height,
         .depthOrArrayLayers  = 2,
