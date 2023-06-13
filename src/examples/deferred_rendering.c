@@ -282,6 +282,7 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
 
   {
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "GBuffer albedo texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = WGPUTextureFormat_RGBA32Float,
       .baseMipLevel    = 0,
