@@ -110,7 +110,7 @@ static void from_euler(float x, float y, float z, versor* dest)
 }
 
 /* -------------------------------------------------------------------------- *
- * Gerstner Waves example
+ * Gerstner Waves example.
  * -------------------------------------------------------------------------- */
 
 // Plane mesh
