@@ -78,18 +78,18 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      //  Binding 1: Fragment shader uniform buffer
+      /* Binding 1: Fragment shader uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(mat4), // 4x4 matrix
+        .minBindingSize   = sizeof(mat4), /* 4x4 matrix */
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader texture view
+      /* Binding 1: Fragment shader texture view */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -100,7 +100,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Fragment shader texture sampler
+      /* Binding 2: Fragment shader texture sampler */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
