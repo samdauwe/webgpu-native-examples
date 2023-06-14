@@ -17,7 +17,7 @@
  * -------------------------------------------------------------------------- */
 
 #define OBJECT_INSTANCES 125u
-#define ALIGNMENT 256 // 256-byte alignment
+#define ALIGNMENT 256u // 256-byte alignment
 
 // Vertex layout for this example
 typedef struct {
@@ -333,7 +333,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     for (uint32_t i = 0; i < OBJECT_INSTANCES; ++i) {                          \
       /* One dynamic offset per dynamic bind group to offset into the ubo      \
        * containing all model matrices*/                                       \
-      uint32_t dynamic_offset = i * (uint32_t)ALIGNMENT;                       \
+      uint32_t dynamic_offset = i * ALIGNMENT;                                 \
       /* Bind the bind group for rendering a mesh using the dynamic offset */  \
       wgpu##Type##SetBindGroup(rpass_enc, 0, bind_group, 1, &dynamic_offset);  \
       wgpu##Type##DrawIndexed(rpass_enc, indices.count, 1, 0, 0, 0);           \
