@@ -305,7 +305,7 @@ void gltf_model_load_images(gltf_model_t* model, cgltf_data* data)
     cgltf_image* image = &data->images[i];
     gltf_image_t* img  = &model->images[i];
     // Load texture from image file
-    char image_uri[STRMAX];
+    char image_uri[STRMAX] = {0};
     get_relative_file_path(model->uri, image->uri, image_uri);
     img->texture = wgpu_create_texture_from_file(wgpu_context, image_uri, NULL);
   }
