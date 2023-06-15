@@ -418,7 +418,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
       vec3 pos_min = GLM_VEC3_ZERO_INIT;
       vec3 pos_max = GLM_VEC3_ZERO_INIT;
 
-      // Vertices
+      /* Vertices */
       {
         float* buffer_pos       = NULL;
         float* buffer_normals   = NULL;
@@ -497,7 +497,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
         }
       }
 
-      // Indices
+      /* Indices */
       {
         cgltf_accessor* accessor       = primitive->indices;
         cgltf_buffer_view* buffer_view = accessor->buffer_view;
