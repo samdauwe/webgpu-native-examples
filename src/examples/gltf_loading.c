@@ -609,9 +609,9 @@ gltf_model_t* gltf_model_load_from_file(gltf_model_load_options_t* load_options)
       gltf_model->meshes = calloc(gltf_model->mesh_count, sizeof(gltf_mesh_t));
 
       gltf_vertex_t* vertices    = NULL;
-      gltf_model->vertices.count = 0;
+      gltf_model->vertices.count = 0u;
       uint32_t* indices          = NULL;
-      gltf_model->indices.count  = 0;
+      gltf_model->indices.count  = 0u;
 
       // Recursively create all nodes.
       for (cgltf_size i = 0, len = scene->nodes_count; i < len; ++i) {
