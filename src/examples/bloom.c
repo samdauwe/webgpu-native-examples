@@ -225,7 +225,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "offscreen_frame_buffer_depth_stencil_texture_view",
+      .label           = "Offscreen frame buffer depth stencil texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
