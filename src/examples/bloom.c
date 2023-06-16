@@ -211,7 +211,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Depth stencil attachment
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "offscreen_frame_buffer_depth_stencil_texture",
+      .label         = "Offscreen frame buffer depth stencil texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
