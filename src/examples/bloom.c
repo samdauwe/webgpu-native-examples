@@ -270,6 +270,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   // Render pass descriptor
   frame_buf->render_pass_desc.render_pass_descriptor
     = (WGPURenderPassDescriptor){
+      .label                = "Render pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = frame_buf->render_pass_desc.color_attachment,
       .depthStencilAttachment
