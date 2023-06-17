@@ -227,6 +227,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
     &(struct wgpu_texture_load_options_t){
       .flip_y = true, // Flip y to match pisa_cube.ktx hdr cubemap
     });
+  ASSERT(textures.environment_cube.texture)
 }
 
 static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
