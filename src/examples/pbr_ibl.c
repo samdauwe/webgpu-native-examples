@@ -232,7 +232,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout for objects
+  /* Bind group layout for objects */
   {
     WGPUBindGroupLayoutEntry bgl_entries[10] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -346,7 +346,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.objects != NULL);
   }
 
-  // Bind group layout for skybox
+  /* Bind group layout for skybox */
   {
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
