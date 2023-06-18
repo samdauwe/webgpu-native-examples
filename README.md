@@ -267,6 +267,10 @@ Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to
 
 Basic offscreen rendering in two passes. First pass renders the mirrored scene to a separate framebuffer with color and depth attachments, second pass samples from that color attachment for rendering a mirror surface.
 
+#### [Out-of-bounds Viewport](src/examples/out_of_bounds_viewport.c)
+
+WebGPU doesn't let you set the viewport’s values to be out-of-bounds. Therefore, the viewport’s values need to be clamped to the screen-size, which means the viewport values can’t be defined in a way that makes the viewport go off the screen. This example shows how to render a viewport out-of-bounds.
+
 #### [Stencil buffer](src/examples/stencil_buffer.c)
 
 Uses the stencil buffer and its compare functionality for rendering a 3D model with dynamic outlines.

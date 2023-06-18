@@ -7,7 +7,7 @@
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Out-of-bounds Viewport
  *
- * WebGPU don’t let you set the viewport’s values to be out-of-bounds.
+ * WebGPU doesn't let you set the viewport’s values to be out-of-bounds.
  * Therefore, the viewport’s values need to be clamped to the screen-size, which
  * means the viewport values can’t be defined in a way that makes the viewport
  * go off the screen. This example shows how to render a viewport out-of-bounds.
