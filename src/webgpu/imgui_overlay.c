@@ -759,9 +759,9 @@ bool imgui_overlay_input_float(imgui_overlay_t* imgui_overlay,
 
 bool imgui_overlay_slider_float(imgui_overlay_t* imgui_overlay,
                                 const char* caption, float* value, float min,
-                                float max)
+                                float max, const char* format)
 {
-  bool res = igSliderFloat(caption, value, min, max, "%.1f", 0);
+  bool res = igSliderFloat(caption, value, min, max, format, 0);
   if (res) {
     imgui_overlay->updated = true;
   };

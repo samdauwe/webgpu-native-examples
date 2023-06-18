@@ -32,7 +32,7 @@ bool imgui_overlay_input_float(imgui_overlay_t* imgui_overlay,
                                const char* format);
 bool imgui_overlay_slider_float(imgui_overlay_t* imgui_overlay,
                                 const char* caption, float* value, float min,
-                                float max);
+                                float max, const char* format);
 bool imgui_overlay_slider_int(imgui_overlay_t* imgui_overlay,
                               const char* caption, int32_t* value, int32_t min,
                               int32_t max);
