@@ -534,7 +534,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
     if (imgui_overlay_slider_float(context->imgui_overlay, "LOD bias",
                                    &ubo_vs.lod_bias, 0.0f,
-                                   (float)texture.mip_levels)) {
+                                   (float)texture.mip_levels, "%.1f")) {
       update_uniform_buffers(context);
     }
     if (imgui_overlay_combo_box(context->imgui_overlay, "Sampler type",

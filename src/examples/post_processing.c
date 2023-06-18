@@ -1875,7 +1875,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
     imgui_overlay_checkBox(context->imgui_overlay, "Animatable",
                            &options.animatable);
     if (imgui_overlay_slider_float(context->imgui_overlay, "Tween Factor",
-                                   &options.tween_factor, 0.0f, 1.0f)) {
+                                   &options.tween_factor, 0.0f, 1.0f, "%.1f")) {
       update_tween_factor(context->wgpu_context);
     }
   }
