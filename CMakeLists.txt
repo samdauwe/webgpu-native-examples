@@ -231,8 +231,9 @@ set(SOURCES
     src/examples/multi_sampling.c
     src/examples/n_body_simulation.c
     src/examples/occlusion_query.c
-    src/examples/offscreen_rendering.c
     src/examples/parallax_mapping.c
+    src/examples/offscreen_rendering.c
+    src/examples/out_of_bounds_viewport.c
     src/examples/pbr_basic.c
     src/examples/pbr_ibl.c
     src/examples/pbr_texture.c

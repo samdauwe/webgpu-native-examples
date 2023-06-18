@@ -45,6 +45,7 @@ void example_multi_sampling(int argc, char* argv[]);
 void example_n_body_simulation(int argc, char* argv[]);
 void example_occlusion_query(int argc, char* argv[]);
 void example_offscreen_rendering(int argc, char* argv[]);
+void example_out_of_bounds_viewport(int argc, char* argv[]);
 void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
 void example_pbr_ibl(int argc, char* argv[]);
@@ -114,6 +115,7 @@ static examplecase_t g_example_cases[] = {
   {"n_body_simulation", example_n_body_simulation},
   {"occlusion_query", example_occlusion_query},
   {"offscreen_rendering", example_offscreen_rendering},
+  {"out_of_bounds_viewport", example_out_of_bounds_viewport},
   {"parallax_mapping", example_parallax_mapping},
   {"pbr_basic", example_pbr_basic},
   {"pbr_ibl", example_pbr_ibl},
