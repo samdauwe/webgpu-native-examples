@@ -1059,10 +1059,12 @@ static const char* render_program_shader_wgsl = CODE(
 
 static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
+  // clang-format off
   const float vertices[24] = {
     -1, -1, 0, 1, -1, 1, 0, 1, 1, -1, 0, 1,
-    1,  -1, 0, 1, -1, 1, 0, 1, 1, 1,  0, 1,
+     1, -1, 0, 1, -1, 1, 0, 1, 1,  1, 0, 1,
   };
+  // clang-format on
 
   render_program.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
