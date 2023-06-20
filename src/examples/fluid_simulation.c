@@ -509,7 +509,7 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
   /* Create the shader module using the WGSL string and use it to create a
    * compute pipeline with 'auto' binding layout */
   {
-    char shader_wgsl_path[STRMAX];
+    char shader_wgsl_path[STRMAX] = {0};
     snprintf(shader_wgsl_path, strlen(shader_wgsl_filename) + 25 + 1,
              "shaders/fluid_simulation/%s", shader_wgsl_filename);
     wgpu_shader_t comp_shader = wgpu_shader_create(
