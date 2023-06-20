@@ -958,7 +958,7 @@ static void init_sizes(wgpu_context_t* wgpu_context)
   }
 
   /* Calculate simulation buffer dimensions */
-  WGPUExtent3D grid_size = get_preferred_dimensions(
+  const WGPUExtent3D grid_size = get_preferred_dimensions(
     settings.grid_size, wgpu_context, max_buffer_size, max_canvas_size);
   settings.grid_w = grid_size.width;
   settings.grid_h = grid_size.height;
