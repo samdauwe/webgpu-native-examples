@@ -506,8 +506,10 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
 {
   program_init_defaults(this);
 
-  /* Create the shader module using the WGSL string and use it to create a
-   * compute pipeline with 'auto' binding layout */
+  /*
+   * Create the shader module using the WGSL string and use it to create a
+   * compute pipeline with 'auto' binding layout
+   */
   {
     char shader_wgsl_path[STRMAX] = {0};
     snprintf(shader_wgsl_path, strlen(shader_wgsl_filename) + 25 + 1,
@@ -528,8 +530,10 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_release(&comp_shader);
   }
 
-  /* Concat the buffer & uniforms and format the entries to the right WebGPU
-   * format */
+  /*
+   * Concat the buffer & uniforms and format the entries to the right WebGPU
+   * format
+   */
   WGPUBindGroupEntry
     bg_entries[PROGRAM_MAX_BUFFER_COUNT + PROGRAM_MAX_UNIFORM_COUNT];
   uint32_t bge_i = 0;
