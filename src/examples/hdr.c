@@ -994,7 +994,7 @@ static void update_params(wgpu_example_context_t* context)
 static void update_dynamic_uniform_buffers(wgpu_example_context_t* context)
 {
   // Set constant values
-  for (uint32_t i = 0; i < (uint32_t)NUMBER_OF_CONSTANTS; ++i) {
+  for (uint32_t i = 0; i < NUMBER_OF_CONSTANTS; ++i) {
     ubo_constants[i].value = (int32_t)i;
   }
 
