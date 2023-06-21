@@ -129,7 +129,7 @@ static struct {
 } uniform_buffers = {0};
 
 // Uniform buffer data
-static float start_time = 0;
+static float start_time = 0.f;
 static struct {
   float elapsed_time;
   float padding[3];
