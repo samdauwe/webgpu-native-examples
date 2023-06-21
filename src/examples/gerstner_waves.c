@@ -298,7 +298,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniforms - Scene data
+        /* Binding 0: Uniforms - Scene data */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
@@ -309,7 +309,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: GerstnerWavesUniforms
+        /* Binding 1: GerstnerWavesUniforms */
         .binding    = 1,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
@@ -336,7 +336,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Sampler
+        /* Binding 0: Sampler */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -345,7 +345,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .texture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Texture view
+        /* Binding 1: Texture view */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -386,14 +386,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Uniforms
+        /* Binding 0: Uniforms */
         .binding = 0,
         .buffer  = uniform_buffers.scene.buffer,
         .offset  = 0,
         .size    = uniform_buffers.scene.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: GerstnerWavesUniforms
+        /* Binding 1: GerstnerWavesUniforms */
         .binding = 1,
         .buffer  = uniform_buffers.gerstner_wave_params.buffer,
         .offset  = 0,
@@ -415,12 +415,12 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-         // Binding 0: Sampler
+         /* Binding 0: Sampler */
         .binding = 0,
         .sampler = non_filtering_sampler,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Texture view
+        /* Binding 1: Texture view */
         .binding     = 1,
         .textureView = sea_color_texture.view,
       }
