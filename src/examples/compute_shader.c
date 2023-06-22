@@ -135,6 +135,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
       .mipLevelCount = tex->mip_level_count,
       .sampleCount   = 1,
     });
+  ASSERT(tex->texture != NULL)
 
   // Create the texture view
   tex->view = wgpuTextureCreateView(tex->texture,
