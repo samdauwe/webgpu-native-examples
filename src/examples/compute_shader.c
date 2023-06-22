@@ -208,7 +208,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Input image (before compute post processing)
+  /* Input image (before compute post processing) */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -239,7 +239,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(graphics.bind_group_pre_compute != NULL);
   }
 
-  // Final image (after compute shader processing)
+  /* Final image (after compute shader processing) */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
