@@ -148,6 +148,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
                                       .baseArrayLayer  = 0,
                                       .arrayLayerCount = 1,
                                     });
+  ASSERT(tex->view != NULL)
 
   // Create sampler
   tex->sampler = wgpuDeviceCreateSampler(
