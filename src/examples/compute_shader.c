@@ -164,6 +164,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+  ASSERT(tex->sampler != NULL)
 }
 
 // Setup vertices for a single uv-mapped quad
