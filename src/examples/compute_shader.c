@@ -439,7 +439,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void prepare_compute(wgpu_context_t* wgpu_context)
 {
-  // Compute pipeline bind group layout
+  /* Compute pipeline bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -473,7 +473,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     ASSERT(compute.bind_group_layout != NULL);
   }
 
-  // Compute pipeline layout
+  /* Compute pipeline layout */
   {
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
       .bindGroupLayoutCount = 1,
@@ -484,7 +484,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     ASSERT(compute.pipeline_layout != NULL);
   }
 
-  // Compute pipeline bind group
+  /* Compute pipeline bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
@@ -508,7 +508,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
     ASSERT(compute.bind_group != NULL);
   }
 
-  // One pipeline for each effect
+  /* One pipeline for each effect */
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(compute_shaders); ++i) {
     // Compute shader
     wgpu_shader_t comp_shader
