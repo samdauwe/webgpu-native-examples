@@ -300,7 +300,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Graphics bind group layout
+  /* Graphics bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -344,7 +344,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(graphics.bind_group_layout != NULL);
   }
 
-  // Graphics pipeline layout
+  /* Graphics pipeline layout */
   {
     graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
