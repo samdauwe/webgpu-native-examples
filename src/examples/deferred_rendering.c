@@ -8,13 +8,16 @@
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Deferred Rendering
  *
- * This example shows how to do deferred rendering with webgpu.
- * Render geometry info to multiple targets in the gBuffers in the first pass.
- * In this sample we have 3 gBuffers for positions, normals, and albedo.
- * And then do the lighting in a second pass with per fragment data read from
- * gBuffers so it's independent of scene complexity. We also update light
- * position in a compute shader, where further operations like tile/cluster
- * culling could happen.
+ * This example shows how to do deferred rendering with webgpu. Render geometry
+ * info to multiple targets in the gBuffers in the first pass. In this sample we
+ * have 2 gBuffers for normals and albedo, along with a depth texture. And then
+ * do the lighting in a second pass with per fragment data read from gBuffers so
+ * it's independent of scene complexity. World-space positions are reconstructed
+ * from the depth texture and camera matrix. We also update light position in a
+ * compute shader, where further operations like tile/cluster culling could
+ * happen. The debug view shows the depth buffer on the left (flipped and scaled
+ * a bit to make it more visible), the normal G buffer in the middle, and the
+ * albedo G-buffer on the right side of the screen.
  *
  * Ref:
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/deferredRendering
