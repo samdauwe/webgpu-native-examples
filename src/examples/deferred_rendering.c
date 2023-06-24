@@ -47,19 +47,16 @@ static uint32_t index_count     = 0;
 
 // GBuffer
 static struct {
-  WGPUTexture texture_2d_float32;
   WGPUTexture texture_2d_float16;
   WGPUTexture texture_albedo;
+  WGPUTexture texture_depth;
   WGPUTextureView texture_views[3];
 } gbuffer = {0};
 
-// Depth texture
-static WGPUTexture depth_texture          = NULL;
-static WGPUTextureView depth_texture_view = NULL;
-
 // Uniform buffers
-static WGPUBuffer model_uniform_buffer  = NULL;
-static WGPUBuffer camera_uniform_buffer = NULL;
+static wgpu_buffer_t model_uniform_buffer  = {0};
+static wgpu_buffer_t camera_uniform_buffer = {0};
+static uint64_t camera_uniform_buffer_size = 0;
 
 // Lights
 static struct {
@@ -97,7 +94,7 @@ static WGPUPipelineLayout light_update_compute_pipeline_layout = NULL;
 
 // Render pass descriptor
 static struct {
-  WGPURenderPassColorAttachment color_attachments[3];
+  WGPURenderPassColorAttachment color_attachments[2];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } write_gbuffer_pass = {0};
@@ -228,25 +225,6 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
 {
   {
     WGPUTextureDescriptor texture_desc = {
-      .label = "GBuffer texture",
-      .size  = (WGPUExtent3D) {
-        .width               = wgpu_context->surface.width,
-        .height              = wgpu_context->surface.height,
-        .depthOrArrayLayers  = 2,
-      },
-      .mipLevelCount = 1,
-      .sampleCount   = 1,
-      .dimension     = WGPUTextureDimension_2D,
-      .format        = WGPUTextureFormat_RGBA32Float,
-      .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-    };
-    gbuffer.texture_2d_float32
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(gbuffer.texture_2d_float32 != NULL);
-  }
-
-  {
-    WGPUTextureDescriptor texture_desc = {
       .label = "GBuffer texture view",
       .size  = (WGPUExtent3D) {
         .width               = wgpu_context->surface.width,
@@ -284,10 +262,29 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
   }
 
   {
+    WGPUTextureDescriptor texture_desc = {
+        .label = "GBuffer depth texture",
+        .size  = (WGPUExtent3D) {
+            .width               = wgpu_context->surface.width,
+            .height              = wgpu_context->surface.height,
+            .depthOrArrayLayers  = 2,
+        },
+        .mipLevelCount = 1,
+        .sampleCount   = 1,
+        .dimension     = WGPUTextureDimension_2D,
+        .format        = WGPUTextureFormat_Depth24Plus,
+        .usage         = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    gbuffer.texture_depth
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(gbuffer.texture_depth != NULL);
+  }
+
+  {
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "GBuffer albedo texture view",
       .dimension       = WGPUTextureViewDimension_2D,
-      .format          = WGPUTextureFormat_RGBA32Float,
+      .format          = WGPUTextureFormat_Undefined,
       .baseMipLevel    = 0,
       .mipLevelCount   = 1,
       .baseArrayLayer  = 0,
@@ -295,18 +292,19 @@ static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
       .aspect          = WGPUTextureAspect_All,
     };
 
+    texture_view_dec.format = WGPUTextureFormat_RGBA16Float;
     gbuffer.texture_views[0]
-      = wgpuTextureCreateView(gbuffer.texture_2d_float32, &texture_view_dec);
-
-    texture_view_dec.baseArrayLayer = 1;
-    texture_view_dec.format         = WGPUTextureFormat_RGBA16Float;
-    gbuffer.texture_views[1]
       = wgpuTextureCreateView(gbuffer.texture_2d_float16, &texture_view_dec);
+    ASSERT(gbuffer.texture_views[0] != NULL);
 
-    texture_view_dec.format         = WGPUTextureFormat_BGRA8Unorm;
-    texture_view_dec.baseArrayLayer = 0;
-    gbuffer.texture_views[2]
+    texture_view_dec.format = WGPUTextureFormat_BGRA8Unorm;
+    gbuffer.texture_views[1]
       = wgpuTextureCreateView(gbuffer.texture_albedo, &texture_view_dec);
+    ASSERT(gbuffer.texture_views[1] != NULL);
+
+    texture_view_dec.format = WGPUTextureFormat_Depth24Plus;
+    gbuffer.texture_views[2]
+      = wgpuTextureCreateView(gbuffer.texture_depth, &texture_view_dec);
     ASSERT(gbuffer.texture_views[2] != NULL);
   }
 }
@@ -337,11 +335,11 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Albedo texture view
+        // Binding 2: depth texture view
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
-          .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
+          .sampleType    = WGPUTextureSampleType_Depth,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .storageTexture = {0},
@@ -358,7 +356,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
 
   // Lights buffer bind group layout
   {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Storage buffer (Fragment shader) - LightsBuffer
         .binding    = 0,
@@ -376,6 +374,16 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(uint32_t),
+        },
+        .storageTexture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: Uniform buffer (Fragment shader) - LightExtent
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(mat4) * 2,
         },
         .storageTexture = {0},
       },
@@ -408,7 +416,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
           .type           = WGPUBufferBindingType_Uniform,
-          .minBindingSize = 4 * 16, // 4x4 matrix
+          .minBindingSize = 4 * 16 * 2, // two 4x4 matrix
         },
         .storageTexture = {0},
       },
@@ -451,7 +459,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
           .type           = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(vec4) * 2,
+          .minBindingSize = camera_uniform_buffer_size,
         },
         .storageTexture = {0},
       },
@@ -523,19 +531,14 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
   };
 
   // Color target state
-  WGPUColorTargetState color_target_states[3] = {
-    // Position
-    [0] = (WGPUColorTargetState){
-      .format    = WGPUTextureFormat_RGBA32Float,
-      .writeMask = WGPUColorWriteMask_All,
-    },
+  WGPUColorTargetState color_target_states[2] = {
     // Normal
-    [1] = (WGPUColorTargetState){
+    [0] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_RGBA16Float,
       .writeMask = WGPUColorWriteMask_All,
     },
     // Albedo
-    [2] = (WGPUColorTargetState){
+    [1] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_BGRA8Unorm,
       .writeMask = WGPUColorWriteMask_All,
     },
@@ -751,36 +754,6 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-static void prepare_depth_texture(wgpu_context_t* wgpu_context)
-{
-  WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
-    .depthOrArrayLayers = 1,
-  };
-  WGPUTextureDescriptor texture_desc = {
-    .size          = texture_extent,
-    .mipLevelCount = 1,
-    .sampleCount   = 1,
-    .dimension     = WGPUTextureDimension_2D,
-    .format        = WGPUTextureFormat_Depth24Plus,
-    .usage         = WGPUTextureUsage_RenderAttachment,
-  };
-  depth_texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-
-  // Create the texture view
-  WGPUTextureViewDescriptor texture_view_dec = {
-    .dimension       = WGPUTextureViewDimension_2D,
-    .format          = texture_desc.format,
-    .baseMipLevel    = 0,
-    .mipLevelCount   = 1,
-    .baseArrayLayer  = 0,
-    .arrayLayerCount = 1,
-    .aspect          = WGPUTextureAspect_All,
-  };
-  depth_texture_view = wgpuTextureCreateView(depth_texture, &texture_view_dec);
-}
-
 static void setup_render_passes(void)
 {
   /* Write GBuffer pass */
@@ -792,19 +765,6 @@ static void setup_render_passes(void)
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
-          .r = FLT_MAX,
-          .g = FLT_MAX,
-          .b = FLT_MAX,
-          .a = 1.0f,
-        },
-      };
-
-    write_gbuffer_pass.color_attachments[1] =
-      (WGPURenderPassColorAttachment) {
-        .view       = gbuffer.texture_views[1],
-        .loadOp     = WGPULoadOp_Clear,
-        .storeOp    = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor) {
           .r = 0.0f,
           .g = 0.0f,
           .b = 1.0f,
@@ -812,9 +772,9 @@ static void setup_render_passes(void)
         },
       };
 
-    write_gbuffer_pass.color_attachments[2] =
+    write_gbuffer_pass.color_attachments[1] =
       (WGPURenderPassColorAttachment) {
-        .view       = gbuffer.texture_views[2],
+        .view       = gbuffer.texture_views[1],
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -828,7 +788,7 @@ static void setup_render_passes(void)
     // Render pass depth stencil attachment descriptor
     write_gbuffer_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view              = depth_texture_view,
+        .view              = gbuffer.texture_views[2],
         .depthLoadOp       = WGPULoadOp_Clear,
         .depthStoreOp      = WGPUStoreOp_Store,
         .depthClearValue   = 1.0f,
@@ -890,24 +850,24 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 
   // Model uniform buffer
   {
-    const WGPUBufferDescriptor buffer_desc = {
-      .size  = sizeof(mat4) * 2, // two 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    };
-    model_uniform_buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(model_uniform_buffer);
+    model_uniform_buffer = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+        .size  = sizeof(mat4) * 2, // two 4x4 matrix
+      });
+    ASSERT(model_uniform_buffer.buffer);
   }
 
   // Camera uniform buffer
   {
-    const WGPUBufferDescriptor buffer_desc = {
-      .size  = sizeof(mat4), // 4x4 matrix
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-    };
-    camera_uniform_buffer
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
-    ASSERT(camera_uniform_buffer);
+    camera_uniform_buffer = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+        .size  = sizeof(mat4) * 2, // two 4x4 matrix
+      });
+    ASSERT(camera_uniform_buffer.buffer);
   }
 
   // Scene uniform bind group
@@ -915,13 +875,13 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = model_uniform_buffer,
-        .size    = sizeof(mat4) * 2, // two 4x4 matrix
+        .buffer  = model_uniform_buffer.buffer,
+        .size    = model_uniform_buffer.size, // two 4x4 matrix
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = camera_uniform_buffer,
-        .size    = sizeof(mat4), // 4x4 matrix
+        .buffer  = camera_uniform_buffer.buffer,
+        .size    = camera_uniform_buffer.size, // two 4x4 matrix
       },
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -1063,7 +1023,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
 
   /* Lights buffer bind group */
   {
-    WGPUBindGroupEntry bg_entries[2] = {
+    WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = lights.buffer,
@@ -1073,6 +1033,11 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
         .binding = 1,
         .buffer  = lights.config_uniform_buffer,
         .size    = lights.config_uniform_buffer_size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = camera_uniform_buffer.buffer,
+        .size    = camera_uniform_buffer.size,
       },
     };
     lights.buffer_bind_group = wgpuDeviceCreateBindGroup(
@@ -1140,20 +1105,17 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
   // Move the model so it's centered.
   mat4 model_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_translate(model_matrix, (vec3){0.0f, -5.0f, 0.0f});
-  glm_translate(model_matrix, (vec3){0.0f, -40.0f, 0.0f});
+  glm_translate(model_matrix, (vec3){0.0f, -45.0f, 0.0f});
 
   // Write data to buffers
-  wgpuQueueWriteBuffer(wgpu_context->queue, camera_uniform_buffer, 0,
-                       view_proj_matrix, sizeof(mat4));
-  wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer, 0,
+  wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer.buffer, 0,
                        model_matrix, sizeof(mat4));
 
   // Normal model data
   mat4 invert_transpose_model_matrix = GLM_MAT4_IDENTITY_INIT;
   glm_mat4_inv(model_matrix, invert_transpose_model_matrix);
   glm_mat4_transpose(invert_transpose_model_matrix);
-  wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer, 64,
+  wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer.buffer, 64,
                        invert_transpose_model_matrix, sizeof(mat4));
 }
 
@@ -1208,8 +1170,14 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   mat4* camera_view_proj = get_camera_view_proj_matrix(context);
-  wgpuQueueWriteBuffer(context->wgpu_context->queue, camera_uniform_buffer, 0,
-                       *camera_view_proj, sizeof(mat4));
+  wgpuQueueWriteBuffer(context->wgpu_context->queue,
+                       camera_uniform_buffer.buffer, 0, *camera_view_proj,
+                       sizeof(mat4));
+  mat4 camera_inv_view_proj = GLM_MAT4_IDENTITY_INIT;
+  glm_mat4_inv(*camera_view_proj, camera_inv_view_proj);
+  wgpuQueueWriteBuffer(context->wgpu_context->queue,
+                       camera_uniform_buffer.buffer, 64, camera_inv_view_proj,
+                       sizeof(mat4));
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -1219,7 +1187,6 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_vertex_and_index_buffers(context->wgpu_context,
                                      &stanford_dragon_mesh);
     prepare_gbuffer_texture_render_targets(context->wgpu_context);
-    prepare_depth_texture(context->wgpu_context);
     prepare_bind_group_layouts(context->wgpu_context);
     prepare_render_pipeline_layouts(context->wgpu_context);
     prepare_write_gbuffers_pipeline(context->wgpu_context);
@@ -1296,7 +1263,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   {
     if (settings.current_render_mode == RenderMode_GBuffer_View) {
       // GBuffers debug view
-      // Left: position
+      // Left: depth
       // Middle: normal
       // Right: albedo (use uv to mimic a checkerboard texture)
       texture_quad_pass.color_attachments[0].view
@@ -1380,16 +1347,14 @@ static void example_destroy(wgpu_example_context_t* context)
   UNUSED_VAR(context);
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer)
-  WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_2d_float32)
   WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_2d_float16)
   WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_albedo)
+  WGPU_RELEASE_RESOURCE(Texture, gbuffer.texture_depth)
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(gbuffer.texture_views); ++i) {
     WGPU_RELEASE_RESOURCE(TextureView, gbuffer.texture_views[i])
   }
-  WGPU_RELEASE_RESOURCE(Texture, depth_texture)
-  WGPU_RELEASE_RESOURCE(TextureView, depth_texture_view)
-  WGPU_RELEASE_RESOURCE(Buffer, model_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, camera_uniform_buffer)
+  wgpu_destroy_buffer(&model_uniform_buffer);
+  wgpu_destroy_buffer(&camera_uniform_buffer);
   WGPU_RELEASE_RESOURCE(Buffer, lights.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, lights.extent_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, lights.config_uniform_buffer)
