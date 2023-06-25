@@ -845,7 +845,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* default sampler */
   this->default_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "default webgpu renderer sampler",
+                            .label         = "Default webgpu renderer sampler",
                             .addressModeU  = WGPUAddressMode_Repeat,
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
