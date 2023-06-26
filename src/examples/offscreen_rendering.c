@@ -171,6 +171,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Create sampler to sample from the attachment in the fragment shader
   offscreen_pass.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "Texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
