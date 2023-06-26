@@ -140,6 +140,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Color attachment
   {
     WGPUTextureDescriptor texture_desc = {
+      .label         = "Texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
