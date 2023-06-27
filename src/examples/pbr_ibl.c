@@ -20,8 +20,8 @@
  * http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
  * -------------------------------------------------------------------------- */
 
-#define SINGLE_ROW_OBJECT_COUNT 10
-#define ALIGNMENT 256 // 256-byte alignment
+#define SINGLE_ROW_OBJECT_COUNT 10u
+#define ALIGNMENT 256u // 256-byte alignment
 
 #define BRDF_LUT_DIM 512
 #define IRRADIANCE_CUBE_DIM 64
