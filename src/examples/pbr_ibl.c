@@ -406,7 +406,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 {
-  // Create the pipeline layout for objects
+  /* Create the pipeline layout for objects */
   {
     pipeline_layouts.pbr = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
@@ -417,7 +417,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.pbr != NULL);
   }
 
-  // Create the pipeline layout for skybox
+  /* Create the pipeline layout for skybox */
   {
     pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
