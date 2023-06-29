@@ -431,7 +431,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind group for objects
+  /* Bind group for objects */
   {
     WGPUBindGroupEntry bg_entries[10] = {
       [0] = (WGPUBindGroupEntry) {
@@ -504,7 +504,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.objects != NULL);
   }
 
-  // Bind group for skybox
+  /* Bind group for skybox */
   {
     WGPUBindGroupEntry bg_entries[4] = {
       [0] = (WGPUBindGroupEntry) {
