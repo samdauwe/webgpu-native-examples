@@ -768,7 +768,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   {
     textures.lut_brdf.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "lut_brdf_texture_sampler",
+                              .label         = "LUT BRDF texture sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
