@@ -734,7 +734,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   // Create the texture
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "lut_brdf_texture",
+      .label         = "LUT BRDF texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
