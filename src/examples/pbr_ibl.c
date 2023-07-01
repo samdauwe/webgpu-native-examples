@@ -751,7 +751,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   // Create the texture view
   {
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "lut_brdf_texture_view",
+      .label           = "LUT BRDF texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = format,
       .baseMipLevel    = 0,
