@@ -922,7 +922,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   // Create the texture
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "irradiance_cube_texture",
+      .label         = "Irradiance cube texture",
       .size          = texture_extent,
       .mipLevelCount = num_mips,
       .sampleCount   = 1,
