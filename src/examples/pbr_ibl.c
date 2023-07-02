@@ -939,7 +939,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   // Create the texture view
   {
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "irradiance_cube_texture_view",
+      .label           = "Irradiance cube texture view",
       .dimension       = WGPUTextureViewDimension_Cube,
       .format          = format,
       .baseMipLevel    = 0,
