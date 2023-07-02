@@ -866,6 +866,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
      },
   };
   render_pass.render_pass_descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachment,
     .depthStencilAttachment = NULL,
