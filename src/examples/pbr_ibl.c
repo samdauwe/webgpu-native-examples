@@ -956,7 +956,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   {
     textures.irradiance_cube.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label        = "irradiance_cube_texture_sampler",
+                              .label        = "Irradiance cube texture sampler",
                               .addressModeU = WGPUAddressMode_ClampToEdge,
                               .addressModeV = WGPUAddressMode_ClampToEdge,
                               .addressModeW = WGPUAddressMode_ClampToEdge,
