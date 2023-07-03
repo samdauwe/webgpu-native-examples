@@ -724,14 +724,14 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   const WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
   const int32_t dim              = (int32_t)BRDF_LUT_DIM;
 
-  // Texture dimensions
+  /* Texture dimensions */
   WGPUExtent3D texture_extent = {
     .width              = dim,
     .height             = dim,
     .depthOrArrayLayers = 1,
   };
 
-  // Create the texture
+  /* Create the texture */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "LUT BRDF texture",
@@ -748,7 +748,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     ASSERT(textures.lut_brdf.texture != NULL);
   }
 
-  // Create the texture view
+  /* Create the texture view */
   {
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "LUT BRDF texture view",
@@ -764,7 +764,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     ASSERT(textures.lut_brdf.view != NULL);
   }
 
-  // Create the sampler
+  /* Create the sampler */
   {
     textures.lut_brdf.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
@@ -782,7 +782,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     ASSERT(textures.lut_brdf.sampler != NULL);
   }
 
-  // Look-up-table (from BRDF) pipeline
+  /* Look-up-table (from BRDF) pipeline */
   WGPURenderPipeline pipeline = NULL;
   {
     // Primitive state
@@ -848,7 +848,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Create the actual renderpass
+  /* Create the actual renderpass */
   struct {
     WGPURenderPassColorAttachment color_attachment[1];
     WGPURenderPassDescriptor render_pass_descriptor;
@@ -872,7 +872,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     .depthStencilAttachment = NULL,
   };
 
-  // Render
+  /* Render */
   {
     wgpu_context->cmd_enc
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -898,7 +898,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
   }
 
-  // Cleanup
+  /* Cleanup */
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline);
 }
 
