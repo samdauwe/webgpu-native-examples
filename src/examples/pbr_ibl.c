@@ -812,7 +812,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "genbrdflut_vertex_shader",
+                .label = "Gen BRDF LUT vertex shader",
                 .file  = "shaders/pbr_ibl/genbrdflut.vert.spv",
               },
               .buffer_count = 0,
