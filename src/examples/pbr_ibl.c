@@ -824,7 +824,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .label = "genbrdflut_fragment_shader",
+                .label = "Gen BRDF LUT fragment shader",
                 .file  = "shaders/pbr_ibl/genbrdflut.frag.spv",
               },
               .target_count = 1,
