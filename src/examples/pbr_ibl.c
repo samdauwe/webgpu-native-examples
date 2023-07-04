@@ -1090,7 +1090,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       uint64_t buffer_size;
       uint64_t model_size;
     } fs;
-  } irradiance_cube_ubos;
+  } irradiance_cube_ubos = {0};
 
   // Vertex shader parameter uniform buffer
   {
