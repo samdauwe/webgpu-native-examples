@@ -909,7 +909,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   const int32_t dim              = (int32_t)IRRADIANCE_CUBE_DIM;
   const uint32_t num_mips        = (uint32_t)IRRADIANCE_CUBE_NUM_MIPS;
   ASSERT(num_mips == ((uint32_t)(floor(log2(dim)))) + 1);
-  const uint32_t array_layer_count = 6; // Cube map
+  const uint32_t array_layer_count = 6u; // Cube map
 
   /** Pre-filtered cube map **/
   // Texture dimensions
