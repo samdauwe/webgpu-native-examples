@@ -1420,7 +1420,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
   // Create the texture
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "prefiltered_cube_texture",
+      .label         = "Prefiltered cube texture",
       .size          = texture_extent,
       .mipLevelCount = num_mips,
       .sampleCount   = 1,
