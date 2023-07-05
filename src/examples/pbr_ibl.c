@@ -1037,12 +1037,12 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   // Update shader push constant block data
   {
     mat4 matrices[6] = {
-      GLM_MAT4_IDENTITY_INIT, // POSITIVE_X
-      GLM_MAT4_IDENTITY_INIT, // NEGATIVE_X
-      GLM_MAT4_IDENTITY_INIT, // POSITIVE_Y
-      GLM_MAT4_IDENTITY_INIT, // NEGATIVE_Y
-      GLM_MAT4_IDENTITY_INIT, // POSITIVE_Z
-      GLM_MAT4_IDENTITY_INIT, // NEGATIVE_Z
+      GLM_MAT4_IDENTITY_INIT, /* POSITIVE_X */
+      GLM_MAT4_IDENTITY_INIT, /* NEGATIVE_X */
+      GLM_MAT4_IDENTITY_INIT, /* POSITIVE_Y */
+      GLM_MAT4_IDENTITY_INIT, /* NEGATIVE_Y */
+      GLM_MAT4_IDENTITY_INIT, /* POSITIVE_Z */
+      GLM_MAT4_IDENTITY_INIT, /* NEGATIVE_Z */
     };
     // NEGATIVE_X
     glm_rotate(matrices[0], glm_rad(90.0f), (vec3){0.0f, 1.0f, 0.0f});
