@@ -1210,6 +1210,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
   {
     pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label                = "Pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layout,
                             });
