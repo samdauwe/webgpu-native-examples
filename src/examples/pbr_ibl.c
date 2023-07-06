@@ -1504,7 +1504,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
         for (uint32_t i = 0; i < num_mips; ++i) {
           idx = (array_layer * num_mips) + i;
           WGPUTextureViewDescriptor texture_view_dec = {
-            .label           = "prefiltered_cube_offscreen_texture_view",
+            .label           = "Prefiltered cube offscreen texture view",
             .aspect          = WGPUTextureAspect_All,
             .dimension       = WGPUTextureViewDimension_2D,
             .format          = texture_desc.format,
