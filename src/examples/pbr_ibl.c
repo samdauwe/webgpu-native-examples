@@ -1454,7 +1454,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
   {
     textures.prefiltered_cube.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label = "prefiltered_cube_texture_sampler",
+                              .label = "Prefiltered cube texture sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
