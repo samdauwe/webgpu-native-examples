@@ -1437,7 +1437,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
   // Create the texture view
   {
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "prefiltered_cube_texture_view",
+      .label           = "Prefiltered cube texture view",
       .dimension       = WGPUTextureViewDimension_Cube,
       .format          = format,
       .baseMipLevel    = 0,
