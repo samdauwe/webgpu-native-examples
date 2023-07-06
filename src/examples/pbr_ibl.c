@@ -1480,7 +1480,7 @@ static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
     {
       // Create the texture
       WGPUTextureDescriptor texture_desc = {
-        .label         = "prefiltered_cube_offscreen_texture",
+        .label         = "Prefiltered cube offscreen texture",
         .size          = (WGPUExtent3D) {
           .width              = dim,
           .height             = dim,
