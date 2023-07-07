@@ -1991,6 +1991,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     uniform_buffers.material_params.buffer_size
       = calc_constant_buffer_byte_size(sizeof(material_params_dynamic));
     WGPUBufferDescriptor ubo_desc = {
+      .label            = "Material parameter uniform buffer",
       .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size             = uniform_buffers.material_params.buffer_size,
       .mappedAtCreation = false,
