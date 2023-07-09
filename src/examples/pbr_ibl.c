@@ -2009,6 +2009,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     uniform_buffers.object_params.buffer_size
       = calc_constant_buffer_byte_size(sizeof(object_params_dynamic));
     WGPUBufferDescriptor ubo_desc = {
+      .label            = "Object parameter uniform buffer",
       .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size             = uniform_buffers.object_params.buffer_size,
       .mappedAtCreation = false,
