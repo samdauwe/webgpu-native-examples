@@ -1958,10 +1958,10 @@ static void update_params(wgpu_context_t* wgpu_context)
                           &ubo_params, uniform_buffers.ubo_params.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Object vertex shader uniform buffer
+  /* Object vertex shader uniform buffer */
   uniform_buffers.object = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -1970,7 +1970,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_matrices),
     });
 
-  // Skybox vertex shader uniform buffer
+  /* Skybox vertex shader uniform buffer */
   uniform_buffers.skybox = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -1979,7 +1979,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_matrices),
     });
 
-  // Shared parameter uniform buffer
+  /* Shared parameter uniform buffer */
   uniform_buffers.ubo_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -1988,7 +1988,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_params),
     });
 
-  // Material parameter uniform buffer
+  /* Material parameter uniform buffer */
   {
     uniform_buffers.material_params.model_size = sizeof(vec3) + sizeof(vec3);
     uniform_buffers.material_params.buffer_size
@@ -2003,7 +2003,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       = wgpuDeviceCreateBuffer(context->wgpu_context->device, &ubo_desc);
   }
 
-  // Object parameter uniform buffer
+  /* Object parameter uniform buffer */
   {
     uniform_buffers.object_params.model_size = sizeof(vec4);
     uniform_buffers.object_params.buffer_size
