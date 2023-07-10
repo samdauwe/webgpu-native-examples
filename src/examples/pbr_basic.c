@@ -454,7 +454,7 @@ static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
 /* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Object vertex shader uniform buffer
+  /* Object vertex shader uniform buffer */
   uniform_buffers.ubo_matrices = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -462,7 +462,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_matrices),
     });
 
-  // Shared parameter uniform buffer
+  /* Shared parameter uniform buffer */
   uniform_buffers.ubo_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -470,7 +470,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_params),
     });
 
-  // Material parameter uniform buffer
+  /* Material parameter uniform buffer */
   {
     uniform_buffers.material_params.model_size = sizeof(vec2) + sizeof(vec3);
     uniform_buffers.material_params.buffer_size
@@ -485,7 +485,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     ASSERT(uniform_buffers.material_params.buffer != NULL);
   }
 
-  // Object parameter uniform buffer
+  /* Object parameter uniform buffer */
   {
     uniform_buffers.object_params.model_size = sizeof(vec4);
     uniform_buffers.object_params.buffer_size
