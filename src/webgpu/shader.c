@@ -112,7 +112,7 @@ WGPUShaderModule wgpu_create_shader_module_from_wgsl(WGPUDevice device,
     .chain  = {
       .sType = WGPUSType_ShaderModuleWGSLDescriptor,
     },
-    .source = source,
+    .code = source,
   };
 
   WGPUShaderModuleDescriptor shader_module_desc = {
