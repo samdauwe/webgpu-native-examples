@@ -163,12 +163,12 @@ static const quality_option_t QUALITIES[3] = {
 
 static quality_settings_enum _quality = QualitySettings_Low;
 
-static quality_option_t settings_get_quality_level()
+static quality_option_t settings_get_quality_level(void)
 {
   return QUALITIES[_quality];
 }
 
-static quality_settings_enum settings_get_quality()
+static quality_settings_enum settings_get_quality(void)
 {
   return _quality;
 }
@@ -851,7 +851,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
                             .addressModeW  = WGPUAddressMode_Repeat,
                             .minFilter     = WGPUFilterMode_Linear,
                             .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
                             .lodMinClamp   = 0.0f,
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
@@ -4997,7 +4997,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
                             .minFilter     = WGPUFilterMode_Linear,
                             .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
                             .lodMinClamp   = 0.0f,
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
@@ -5785,7 +5785,7 @@ static struct {
 static const char* example_title = "Compute Metaballs";
 static bool prepared             = false;
 
-static void example_rearrange()
+static void example_rearrange(void)
 {
   deferred_pass_rearrange(&example_state.deferred_pass);
   metaballs_rearrange(&example_state.metaballs);
@@ -5924,7 +5924,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           view_ubo, sizeof(*view_ubo));
 }
 
-static void suppress_unused_functions()
+static void suppress_unused_functions(void)
 {
   UNUSED_VAR(SHADOW_MAP_SIZE);
 
