@@ -216,7 +216,7 @@ static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
       .addressModeW  = WGPUAddressMode_Repeat,
       .magFilter     = WGPUFilterMode_Linear,
       .minFilter     = WGPUFilterMode_Linear,
-      .mipmapFilter  = WGPUFilterMode_Linear,
+      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
       .lodMinClamp   = 0.0f,
       .lodMaxClamp   = 1.0f,
       .maxAnisotropy = 1,

@@ -129,7 +129,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
                             .minFilter     = WGPUFilterMode_Linear,
                             .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Nearest,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
                             .maxAnisotropy = 1,
                           });
   ASSERT(video_texture.sampler != NULL);

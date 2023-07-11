@@ -254,7 +254,7 @@ static void prepare_sampler(wgpu_context_t* wgpu_context)
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
                             .minFilter     = WGPUFilterMode_Nearest,
                             .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Nearest,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
                             .compare       = WGPUCompareFunction_Less,
                             .lodMinClamp   = 0.0f,
                             .lodMaxClamp   = 1.0f,

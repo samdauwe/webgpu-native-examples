@@ -87,7 +87,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
     .addressModeW  = WGPUAddressMode_ClampToEdge,
     .minFilter     = WGPUFilterMode_Nearest,
     .magFilter     = WGPUFilterMode_Nearest,
-    .mipmapFilter  = WGPUFilterMode_Nearest,
+    .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
     .lodMinClamp   = 0.0f,
     .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,

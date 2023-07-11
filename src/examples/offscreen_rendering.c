@@ -177,7 +177,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
                             .minFilter     = WGPUFilterMode_Linear,
                             .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
                             .lodMinClamp   = 0.0f,
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,

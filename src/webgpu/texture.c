@@ -278,7 +278,7 @@ wgpu_mipmap_generator_create(wgpu_context_t* wgpu_context)
     .addressModeW  = WGPUAddressMode_ClampToEdge,
     .minFilter     = WGPUFilterMode_Linear,
     .magFilter     = WGPUFilterMode_Nearest,
-    .mipmapFilter  = WGPUFilterMode_Nearest,
+    .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
     .lodMinClamp   = 0.0f,
     .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,
@@ -1387,9 +1387,9 @@ wgpu_create_texture(wgpu_context_t* wgpu_context,
 
   const bool is_size_power_of_2 = is_power_of_2(texture_result->width)
                                   && is_power_of_2(texture_result->height);
-  WGPUFilterMode mipmapFilter = is_size_power_of_2 && !is_cubemap ?
-                                  WGPUFilterMode_Linear :
-                                  WGPUFilterMode_Nearest;
+  WGPUMipmapFilterMode mipmapFilter = is_size_power_of_2 && !is_cubemap ?
+                                        WGPUMipmapFilterMode_Linear :
+                                        WGPUMipmapFilterMode_Nearest;
   WGPUAddressMode address_mode
     = options ? options->address_mode : WGPUAddressMode_ClampToEdge;
 
@@ -1609,7 +1609,7 @@ texture_t wgpu_create_empty_texture(wgpu_context_t* wgpu_context)
     .addressModeW  = WGPUAddressMode_Repeat,
     .minFilter     = WGPUFilterMode_Linear,
     .magFilter     = WGPUFilterMode_Linear,
-    .mipmapFilter  = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
     .lodMinClamp   = 0.0f,
     .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,

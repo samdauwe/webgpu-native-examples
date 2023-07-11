@@ -1358,7 +1358,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
       .addressModeW  = WGPUAddressMode_Repeat,
       .magFilter     = WGPUFilterMode_Linear,
       .minFilter     = WGPUFilterMode_Linear,
-      .mipmapFilter  = WGPUFilterMode_Linear,
+      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
       .lodMinClamp   = 0.0f,
       .lodMaxClamp   = 1.0f,
       .maxAnisotropy = 1,
