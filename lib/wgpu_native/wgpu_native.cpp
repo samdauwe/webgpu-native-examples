@@ -119,7 +119,7 @@ static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
   }
 
   std::vector<dawn_native::Adapter> adapters
-    = gpuContext.dawn_native.instance->GetAdapters();
+    = gpuContext.dawn_native.instance->EnumerateAdapters();
   for (auto reqType : typePriority) {
     for (const dawn_native::Adapter& adapter : adapters) {
       wgpu::AdapterProperties ap;
@@ -146,7 +146,7 @@ static void LogAvailableAdapters()
   Initialize();
 
   fprintf(stderr, "Available adapters:\n");
-  for (auto&& a : gpuContext.dawn_native.instance->GetAdapters()) {
+  for (auto&& a : gpuContext.dawn_native.instance->EnumerateAdapters()) {
     wgpu::AdapterProperties p;
     a.GetProperties(&p);
     fprintf(
