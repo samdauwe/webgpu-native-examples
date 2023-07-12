@@ -764,7 +764,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
     ASSERT(textures.lut_brdf.view != NULL);
   }
 
-  /* Create the sampler */
+  /* Create the texture sampler */
   {
     textures.lut_brdf.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
