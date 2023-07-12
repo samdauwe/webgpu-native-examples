@@ -982,7 +982,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     {
       // Create the texture
       WGPUTextureDescriptor texture_desc = {
-        .label         = "irradiance_cube_offscreen_texture",
+        .label         = "Irradiance cube offscreen texture",
         .size          = (WGPUExtent3D) {
           .width              = dim,
           .height             = dim,
