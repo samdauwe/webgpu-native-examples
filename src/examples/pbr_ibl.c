@@ -976,9 +976,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     WGPUTextureView texture_views[6 * (uint32_t)IRRADIANCE_CUBE_NUM_MIPS];
   } offscreen;
 
-  // Offscreen framebuffer
+  /* Offscreen framebuffer */
   {
-    // Color attachment
+    /* Color attachment */
     {
       // Create the texture
       WGPUTextureDescriptor texture_desc = {
@@ -999,7 +999,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
         = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
       ASSERT(offscreen.texture != NULL);
 
-      // Create the texture views
+      /* Create the texture views */
       uint32_t idx = 0;
       for (uint32_t array_layer = 0; array_layer < array_layer_count;
            ++array_layer) {
@@ -1034,7 +1034,7 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     uint8_t padding[248];
   } push_block_fs[(uint32_t)IRRADIANCE_CUBE_NUM_MIPS * 6];
 
-  // Update shader push constant block data
+  /* Update shader push constant block data */
   {
     mat4 matrices[6] = {
       GLM_MAT4_IDENTITY_INIT, /* POSITIVE_X */
@@ -1044,19 +1044,19 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
       GLM_MAT4_IDENTITY_INIT, /* POSITIVE_Z */
       GLM_MAT4_IDENTITY_INIT, /* NEGATIVE_Z */
     };
-    // NEGATIVE_X
+    /* NEGATIVE_X */
     glm_rotate(matrices[0], glm_rad(90.0f), (vec3){0.0f, 1.0f, 0.0f});
     glm_rotate(matrices[0], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
-    // NEGATIVE_X
+    /* NEGATIVE_X */
     glm_rotate(matrices[1], glm_rad(-90.0f), (vec3){0.0f, 1.0f, 0.0f});
     glm_rotate(matrices[1], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
-    // POSITIVE_Y
+    /* POSITIVE_Y */
     glm_rotate(matrices[2], glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
-    // NEGATIVE_Y
+    /* NEGATIVE_Y */
     glm_rotate(matrices[3], glm_rad(-90.0f), (vec3){1.0f, 0.0f, 0.0f});
-    // POSITIVE_Z
+    /* POSITIVE_Z */
     glm_rotate(matrices[4], glm_rad(180.0f), (vec3){1.0f, 0.0f, 0.0f});
-    // NEGATIVE_Z
+    /* NEGATIVE_Z */
     glm_rotate(matrices[5], glm_rad(180.0f), (vec3){0.0f, 0.0f, 1.0f});
 
     mat4 projection = GLM_MAT4_IDENTITY_INIT;
