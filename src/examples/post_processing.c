@@ -132,23 +132,23 @@ static void orthographic_camera_set_position(orthographic_camera_t* camera,
 static void
 orthographic_camera_update_view_matrix(orthographic_camera_t* camera)
 {
-  glm_lookat(camera->position,         // eye
-             camera->look_at_position, // center
-             camera->UP_VECTOR,        // up
-             camera->view_matrix       // dest
+  glm_lookat(camera->position,         /* eye    */
+             camera->look_at_position, /* center */
+             camera->UP_VECTOR,        /* up     */
+             camera->view_matrix       /* dest   */
   );
 }
 
 static void
 orthographic_camera_update_projection_matrix(orthographic_camera_t* camera)
 {
-  glm_ortho(camera->left,             // left
-            camera->right,            // right
-            camera->bottom,           // bottom
-            camera->top,              // top
-            camera->near,             // nearZ
-            camera->far,              // farZ
-            camera->projection_matrix // dest
+  glm_ortho(camera->left,             /* left   */
+            camera->right,            /* right  */
+            camera->bottom,           /* bottom */
+            camera->top,              /* top    */
+            camera->near,             /* nearZ  */
+            camera->far,              // farZ   */
+            camera->projection_matrix /* dest   */
   );
 }
 
