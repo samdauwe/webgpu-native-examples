@@ -222,21 +222,21 @@ static void perspective_camera_set_position(perspective_camera_t* camera,
 
 static void perspective_camera_update_view_matrix(perspective_camera_t* camera)
 {
-  glm_lookat(camera->position,         // eye
-             camera->look_at_position, // center
-             camera->UP_VECTOR,        // up
-             camera->view_matrix       // dest
+  glm_lookat(camera->position,         /* eye    */
+             camera->look_at_position, /* center */
+             camera->UP_VECTOR,        /* up     */
+             camera->view_matrix       /* dest   */
   );
 }
 
 static void
 perspective_camera_update_projection_matrix(perspective_camera_t* camera)
 {
-  glm_perspective(camera->field_of_view,    // fovy
-                  camera->aspect,           // aspect
-                  camera->near,             // nearZ
-                  camera->far,              // farZ
-                  camera->projection_matrix // dest
+  glm_perspective(camera->field_of_view,    /* fovy   */
+                  camera->aspect,           /* aspect */
+                  camera->near,             /* nearZ  */
+                  camera->far,              /* farZ   */
+                  camera->projection_matrix /* dest   */
   );
 }
 
