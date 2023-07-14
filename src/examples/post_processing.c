@@ -882,6 +882,7 @@ generate_gpu_buffers_from_geometry(wgpu_context_t* wgpu_context,
     = geometry->indices.data_size / sizeof(geometry->indices.data[0]);
   gpu_buffers->indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Indices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = geometry->indices.data_size,
                     .count = index_count,
