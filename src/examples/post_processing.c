@@ -862,6 +862,7 @@ generate_gpu_buffers_from_geometry(wgpu_context_t* wgpu_context,
   /* Normals */
   gpu_buffers->normals = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Normals buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = geometry->normals.data_size,
                     .initial.data = geometry->normals.data,
