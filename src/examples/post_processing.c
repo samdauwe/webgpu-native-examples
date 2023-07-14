@@ -871,6 +871,7 @@ generate_gpu_buffers_from_geometry(wgpu_context_t* wgpu_context,
   /* UVs */
   gpu_buffers->uvs = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "UVs buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = geometry->uvs.data_size,
                     .initial.data = geometry->uvs.data,
