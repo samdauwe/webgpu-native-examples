@@ -1174,6 +1174,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Orthographic camera uniform block */
   uniform_buffers.ortho_camera = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Orthographic camera uniform block",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 16 * 2 * sizeof(float),
                   });
