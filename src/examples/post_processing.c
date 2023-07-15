@@ -432,22 +432,22 @@ static geometry_t* create_plane(geometry_t* plane, plane_desc_t* plane_desc)
   plane->uvs.data       = (float*)malloc(plane->uvs.data_size);
   plane->indices.data   = (uint32_t*)malloc(plane->indices.data_size);
 
-  build_plane(plane->positions.data, // vertices
-              plane->normals.data,   // normal
-              plane->uvs.data,       // uv
-              plane->indices.data,   // indices
-              width,                 // width
-              height,                // height
-              0,                     // depth
-              w_segs,                // w_segs
-              h_segs,                // h_segs
-              0,                     // u
-              1,                     // v
-              2,                     // w
-              1,                     // u_dir
-              -1,                    // v_dir
-              0,                     // i
-              0                      // ii
+  build_plane(plane->positions.data, /* vertices */
+              plane->normals.data,   /* normal   */
+              plane->uvs.data,       /* uv       */
+              plane->indices.data,   /* indices  */
+              width,                 /* width    */
+              height,                /* height   */
+              0,                     /* depth    */
+              w_segs,                /* w_segs   */
+              h_segs,                /* h_segs   */
+              0,                     /* u        */
+              1,                     /* v        */
+              2,                     /* w        */
+              1,                     /* u_dir    */
+              -1,                    /* v_dir    */
+              0,                     /* i        */
+              0                      /* ii       */
   );
 
   return plane;
