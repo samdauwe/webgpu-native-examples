@@ -1166,6 +1166,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Perspective camera uniform block */
   uniform_buffers.persp_camera = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Perspective camera uniform block",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 16 * 2 * sizeof(float),
                   });
