@@ -1191,6 +1191,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Tween factor uniform block */
   uniform_buffers.quad_tween_factor = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Tween factor uniform block",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(options.tween_factor),
                     .initial.data = &options.tween_factor,
