@@ -1211,6 +1211,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     uniform_buffers.base_colors[i] = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
+        .label        = "Instanced scenes base colors",
         .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
         .size         = 16,
         .initial.data = options.base_colors[i],
