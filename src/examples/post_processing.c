@@ -1183,6 +1183,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   transform_init(&quad_transform);
   uniform_buffers.quad_transform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Fullscreen quad transform uniform block",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 16 * sizeof(float),
                   });
