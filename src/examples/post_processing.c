@@ -1200,6 +1200,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Instanced scenes light position as a typed 32 bit array */
   uniform_buffers.light_position = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Instanced scenes light position",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 16,
                     .initial.data = options.light_position,
