@@ -1230,7 +1230,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
   // Color attachment
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Offscreen  framebuffer color attachment",
+      .label         = "Offscreen framebuffer color attachment texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -1245,6 +1245,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Offscreen framebuffer color attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
