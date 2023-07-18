@@ -1919,7 +1919,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_passes.scene_render.color_attachments[0].view
     = offscreen_framebuffer.color.texture_view;
 
@@ -2057,7 +2057,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       });
   }
 
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_passes.post_fx.color_attachments[0].view
     = wgpu_context->swap_chain.frame_buffer;
 
@@ -2092,7 +2092,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   WGPUCommandBuffer command_buffer
