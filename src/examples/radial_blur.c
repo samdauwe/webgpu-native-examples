@@ -565,7 +565,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "radialblur_vertex_shader",
+                .label = "Radial blur vertex shader",
                 .file  = "shaders/radial_blur/radialblur.vert.spv",
               },
               // Empty vertex input state
