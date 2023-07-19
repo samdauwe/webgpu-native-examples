@@ -259,7 +259,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout for scene rendering
+  /* Bind group layout for scene rendering */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -314,7 +314,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.scene != NULL);
   }
 
-  // Bind group layout for fullscreen radial blur
+  /* Bind group layout for fullscreen radial blur */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
