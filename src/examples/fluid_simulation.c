@@ -128,6 +128,7 @@ static void dynamic_buffer_init(dynamic_buffer_t* this,
   assert(dims <= MAX_DIMENSIONS);
   for (uint32_t dim = 0; dim < dims; ++dim) {
     WGPUBufferDescriptor buffer_desc = {
+      .label = "Dynamic buffer",
       .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopySrc
                | WGPUBufferUsage_CopyDst,
       .size             = this->buffer_size,
