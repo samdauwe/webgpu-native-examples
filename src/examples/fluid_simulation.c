@@ -297,7 +297,7 @@ static struct {
   uniform_t u_symmetry;
   uniform_t u_render_intensity;
   uniform_t u_render_dye;
-} uniforms;
+} uniforms = {0};
 
 static uniform_t* global_uniforms[UNIFORM_COUNT] = {0};
 
