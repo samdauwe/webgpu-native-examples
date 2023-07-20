@@ -563,6 +563,7 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
   /* Create the bind group using these entries & auto-layout detection */
   {
     WGPUBindGroupDescriptor bg_desc = {
+      .label  = "Bind group",
       .layout = wgpuComputePipelineGetBindGroupLayout(this->compute_pipeline,
                                                       0 /* index */),
       .entryCount = bge_i,
