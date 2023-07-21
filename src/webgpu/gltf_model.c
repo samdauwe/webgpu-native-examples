@@ -622,7 +622,7 @@ WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
   }
 }
 
-uint64_t wgpu_gltf_get_vertex_size()
+uint64_t wgpu_gltf_get_vertex_size(void)
 {
   return sizeof(gltf_vertex_t);
 }

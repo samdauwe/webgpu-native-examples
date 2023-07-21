@@ -140,7 +140,7 @@ WGPUVertexAttribute wgpu_gltf_get_vertex_attribute_description(
   uint32_t shader_location, wgpu_gltf_vertex_component_enum_t component);
 
 /** glTF helper functions */
-uint64_t wgpu_gltf_get_vertex_size();
+uint64_t wgpu_gltf_get_vertex_size(void);
 wgpu_gltf_materials_t wgpu_gltf_model_get_materials(void* model);
 void wgpu_gltf_model_prepare_nodes_bind_group(
   struct gltf_model_t* model, WGPUBindGroupLayout bind_group_layout);
