@@ -458,7 +458,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Bind group for full screen blur
-  // Vertical blur
+  /* Vertical blur */
   {
     WGPUBindGroupEntry bg_entries[3] = {
         [0] = (WGPUBindGroupEntry) {
@@ -490,7 +490,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.blur_vert != NULL);
   }
 
-  // Horizontal blur
+  /* Horizontal blur */
   {
     WGPUBindGroupEntry bg_entries[3] = {
         [0] = (WGPUBindGroupEntry) {
@@ -522,7 +522,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.blur_horz != NULL);
   }
 
-  // Bind group for scene rendering
+  /* Bind group for scene rendering */
   {
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
@@ -544,7 +544,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.scene != NULL);
   }
 
-  // Bind group for skybox rendering
+  /* Bind group for skybox rendering */
   {
     WGPUBindGroupEntry bg_entries[3] = {
         [0] = (WGPUBindGroupEntry) {
