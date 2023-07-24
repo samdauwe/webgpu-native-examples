@@ -520,7 +520,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
   }
 
-  /*Draw ui overlay */
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   /* Get command buffer */
