@@ -443,8 +443,8 @@ static void update_camera_view(wgpu_context_t* wgpu_context)
   glm_lookat((vec3){8.f * sin(glm_rad(render_state.b * 360.f)),  /* x (eye) */
                     2.f,                                         /* y (eye) */
                     8.f * cos(glm_rad(render_state.b * 360.f))}, /* z (eye) */
-             (vec3){0.0f, 0.0f, 0.0f},                           /* center */
-             (vec3){0.0f, 1.0f, 0.0f},                           /* up */
+             (vec3){0.0f, 0.0f, 0.0f},                           /* center  */
+             (vec3){0.0f, 1.0f, 0.0f},                           /* up      */
              camera_data.view);
 
   /* Update uniform buffer */
