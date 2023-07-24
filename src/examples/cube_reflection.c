@@ -309,7 +309,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
+              /* Vertex shader SPIR-V */
               .label = "Cube vertex shader",
               .file  = "shaders/cube_reflection/shader.vert.spv",
             },
@@ -321,7 +321,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              /* Fragment shader SPIR-V */
               .label = "Cube fragment shader",
               .file  = "shaders/cube_reflection/shader.frag.spv",
             },
@@ -331,7 +331,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_reflection = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              /* Fragment shader SPIR-V */
               .label = "Cube reflection fragment shader",
               .file  = "shaders/cube_reflection/reflection.frag.spv",
             },
