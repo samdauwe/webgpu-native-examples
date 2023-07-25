@@ -246,28 +246,28 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
 // Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
 static void prepare_offscreen(wgpu_context_t* wgpu_context)
 {
-  // Offscreen render pass
+  /* Offscreen render pass */
   {
     offscreen_pass.width  = wgpu_context->surface.width;
     offscreen_pass.height = wgpu_context->surface.height;
 
     /* Color attachments */
 
-    // Two floating point color buffers
+    /* Two floating point color buffers */
     create_attachment(
       wgpu_context, "offscreen_color_tex_1", WGPUTextureFormat_RGBA8Unorm,
       WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &offscreen_pass.color[0]);
     create_attachment(
       wgpu_context, "offscreen_color_tex_2", WGPUTextureFormat_RGBA8Unorm,
       WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &offscreen_pass.color[1]);
-    // Depth attachment
+    /* Depth attachment */
     create_attachment(wgpu_context, "Offscreen depth texture", depth_format,
                       WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE,
                       &offscreen_pass.depth);
 
-    // Init attachment properties
+    /* Init attachment properties */
 
-    // Color attachment
+    /* Color attachment */
     for (uint32_t i = 0; i < 2; ++i) {
       offscreen_pass.render_pass_desc.color_attachment[i]
           = (WGPURenderPassColorAttachment) {
@@ -295,7 +295,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         .stencilClearValue = 0,
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     offscreen_pass.render_pass_desc.render_pass_descriptor
       = (WGPURenderPassDescriptor){
         .label                = "Offscreen render pass descriptor",
@@ -322,21 +322,21 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     ASSERT(offscreen_pass.sampler != NULL);
   }
 
-  // Bloom separable filter pass
+  /* Bloom separable filter pass */
   {
     filter_pass.width  = wgpu_context->surface.width;
     filter_pass.height = wgpu_context->surface.height;
 
-    // Color attachments
+    /* Color attachments */
 
-    // Floating point color buffer
+    /* Floating point color buffer */
     create_attachment(
       wgpu_context, "Bloom color texture", WGPUTextureFormat_RGBA8Unorm,
       WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &filter_pass.color[0]);
 
-    // Init attachment properties
+    /* Init attachment properties */
 
-    // Color attachment
+    /* Color attachment */
     filter_pass.render_pass_desc.color_attachment[0]
           = (WGPURenderPassColorAttachment) {
             .view       = filter_pass.color[0].texture_view,
@@ -350,7 +350,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
             },
         };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     filter_pass.render_pass_desc.render_pass_descriptor
       = (WGPURenderPassDescriptor){
         .label                  = "Filter render pass descriptor",
@@ -359,7 +359,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
         .depthStencilAttachment = NULL,
       };
 
-    // Create sampler to sample from the color attachment
+    /* Create sampler to sample from the color attachment */
     filter_pass.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
                               .label         = "Filter pass texture sampler",
