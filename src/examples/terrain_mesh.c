@@ -213,6 +213,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
   // Create vertex buffer
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Terrain mesh vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertices_data),
                     .count = (uint32_t)ARRAY_SIZE(vertices_data),
