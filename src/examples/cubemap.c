@@ -306,9 +306,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    // Since we are seeing from inside of the cube
-    // and we are using the regular cube geomtry data with outward-facing
-    // normals, the cullMode should be 'front' or 'none'.
+    // Since we are seeing from inside of the cube and we are using the regular
+    // cube geomtry data with outward-facing normals, the cullMode should be
+    // 'front' or 'none'.
     .cullMode = WGPUCullMode_None,
   };
 
