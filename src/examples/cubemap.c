@@ -272,19 +272,19 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Transform
+      /* Binding 0 : Transform */
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
       .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1 : Sampler
+      /* Binding 1 : Sampler */
       .binding = 1,
       .sampler = cubemap_texture.sampler,
     },
     [2] = (WGPUBindGroupEntry) {
-       // Binding 2 : Texture view
+       /* Binding 2 : Texture view */
       .binding     = 2,
       .textureView = cubemap_texture.view,
     }
