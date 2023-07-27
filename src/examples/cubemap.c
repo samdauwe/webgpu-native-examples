@@ -157,12 +157,12 @@ static void prepare_cubemap_texture(wgpu_context_t* wgpu_context)
 {
   // The order of the array layers is [+X, -X, +Y, -Y, +Z, -Z]
   static const char* cubemap[6] = {
-    "textures/cubemaps/bridge2_px.jpg", /* Right */
-    "textures/cubemaps/bridge2_nx.jpg", /* Left */
-    "textures/cubemaps/bridge2_py.jpg", /* Top */
+    "textures/cubemaps/bridge2_px.jpg", /* Right  */
+    "textures/cubemaps/bridge2_nx.jpg", /* Left   */
+    "textures/cubemaps/bridge2_py.jpg", /* Top    */
     "textures/cubemaps/bridge2_ny.jpg", /* Bottom */
-    "textures/cubemaps/bridge2_pz.jpg", /* Back */
-    "textures/cubemaps/bridge2_nz.jpg", /* Front */
+    "textures/cubemaps/bridge2_pz.jpg", /* Back   */
+    "textures/cubemaps/bridge2_nz.jpg", /* Front  */
   };
   cubemap_texture = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
