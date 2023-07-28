@@ -148,7 +148,7 @@ static void init_bodies(wgpu_context_t* wgpu_context)
 {
   const float radius = 0.6f;
   float* positions   = storage_buffers.positions_in.positions;
-  ASSERT(positions);
+  ASSERT(positions != NULL);
   float longitude = 0.0f, latitude = 0.0f;
   for (uint32_t i = 0; i < num_bodies; ++i) {
     longitude            = 2.0f * PI * random_float();
