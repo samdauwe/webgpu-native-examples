@@ -281,27 +281,27 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(pipeline_layouts.render != NULL);
 }
 
-// Create the bind group for the compute shader.
+/* Create the bind group for the compute shader. */
 static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
 {
   {
     WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Input Positions
+      /* Binding 0 : Input Positions */
       .binding = 0,
       .buffer  = storage_buffers.positions_in.buffer.buffer,
       .offset  = 0,
       .size    = storage_buffers.positions_in.buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1 : Output Positions
+      /* Binding 1 : Output Positions */
       .binding = 1,
       .buffer  = storage_buffers.positions_out.buffer,
       .offset  = 0,
       .size    = storage_buffers.positions_out.size,
     },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2 : Velocities
+      /* Binding 2 : Velocities */
       .binding = 2,
       .buffer  = storage_buffers.velocities.buffer,
       .offset  = 0,
@@ -322,21 +322,21 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Output Positions
+        /* Binding 0 : Output Positions */
         .binding = 0,
         .buffer  = storage_buffers.positions_out.buffer,
         .offset  = 0,
         .size    = storage_buffers.positions_out.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1 : Input Positions
+        /* Binding 1 : Input Positions */
         .binding = 1,
         .buffer  = storage_buffers.positions_in.buffer.buffer,
         .offset  = 0,
         .size    = storage_buffers.positions_in.buffer.size,
       },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2 : Velocities
+      /* Binding 2 : Velocities */
       .binding = 2,
       .buffer  = storage_buffers.velocities.buffer,
       .offset  = 0,
