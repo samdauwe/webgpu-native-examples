@@ -386,7 +386,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer
+  /* Vertex shader uniform buffer */
   uniform_buffers.vertex_shader = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -395,7 +395,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubos.vertex_shader),
     });
 
-  // Fragment shader uniform buffer
+  /* Fragment shader uniform buffer */
   uniform_buffers.fragment_shader = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
