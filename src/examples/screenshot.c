@@ -324,7 +324,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .r = 0.0f,
         .g = 0.0f,
         .b = 0.0f,
-        .a = 0.0f, // Set to 1.0f for transparent background
+        .a = 0.0f, /* Set to 1.0f for transparent background */
       },
   };
 
