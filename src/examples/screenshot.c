@@ -380,7 +380,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "mesh_vertex_shader",
+                .label = "Mesh vertex shader",
                 .file  = "shaders/screenshot/mesh.vert.spv",
               },
               .buffer_count = 1,
