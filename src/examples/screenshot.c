@@ -24,7 +24,7 @@
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/screenshot
  * -------------------------------------------------------------------------- */
 
-#define COPY_BYTES_PER_ROW_ALIGNMENT 256
+#define COPY_BYTES_PER_ROW_ALIGNMENT 256u
 
 static struct gltf_model_t* dragon;
 static wgpu_buffer_t uniform_buffer;
