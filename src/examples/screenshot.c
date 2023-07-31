@@ -129,10 +129,11 @@ static void calculate_buffer_dimensions(uint32_t width, uint32_t height)
 
 static void prepare_offscreen(wgpu_context_t* wgpu_context)
 {
-  // Prepare pixel output buffer
+  /* Prepare pixel output buffer */
   calculate_buffer_dimensions(wgpu_context->surface.width,
                               wgpu_context->surface.height);
-  // The output buffer lets us retrieve the data as an array
+
+  /* The output buffer lets us retrieve the data as an array */
   offscreen_rendering.pixel_data.buffer = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -144,19 +145,19 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                    * offscreen_rendering.pixel_data.buffer_dimensions.height),
     });
 
-  // Attachment formats
+  /* Attachment formats */
   offscreen_rendering.color.format = WGPUTextureFormat_RGBA8UnormSrgb;
   offscreen_rendering.depth_stencil.format
     = WGPUTextureFormat_Depth24PlusStencil8;
 
-  // Create the texture
+  /* Create the texture */
   WGPUExtent3D texture_extent = {
     .width  = offscreen_rendering.pixel_data.buffer_dimensions.width,
     .height = offscreen_rendering.pixel_data.buffer_dimensions.height,
     .depthOrArrayLayers = 1,
   };
 
-  // Color attachment
+  /* Color attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Color attachment texture",
@@ -171,7 +172,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(offscreen_rendering.color.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_desc = {
       .label           = "Color attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -186,7 +187,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
     ASSERT(offscreen_rendering.color.texture_view != NULL);
   }
 
-  // Depth stencil attachment
+  /* Depth stencil attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Depth stencil attachment texture",
@@ -201,7 +202,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(offscreen_rendering.depth_stencil.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_desc = {
       .label           = "Depth stencil attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -219,7 +220,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
   // Create a separate render pass for the offscreen rendering as it may differ
   // from the one used for scene rendering
-  // Color attachment
+  /* Color attachment */
   offscreen_rendering.render_pass.color_attachment[0]
     = (WGPURenderPassColorAttachment) {
       .view       = offscreen_rendering.color.texture_view,
@@ -233,7 +234,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   offscreen_rendering.render_pass.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
       .view           = offscreen_rendering.depth_stencil.texture_view,
@@ -243,7 +244,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       .stencilStoreOp = WGPUStoreOp_Store,
     };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   offscreen_rendering.render_pass.render_pass_descriptor
     = (WGPURenderPassDescriptor){
       .label                = "Render pass descriptor",
