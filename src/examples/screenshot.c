@@ -410,7 +410,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create scene rendering pipeline using the specified states
   scene_rendering.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "gltf_model_render_pipeline",
+                            .label        = "GLTF model render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
