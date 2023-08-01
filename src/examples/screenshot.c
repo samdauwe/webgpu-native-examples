@@ -424,7 +424,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   color_target_state.format    = offscreen_rendering.color.format;
   offscreen_rendering.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "offscreen_render_pipeline",
+                            .label        = "Offscreen render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
