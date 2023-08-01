@@ -570,9 +570,9 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
   UNUSED_VAR(user_data);
 
   if (status == WGPUBufferMapAsyncStatus_Success) {
-    int w            = offscreen_rendering.pixel_data.buffer_dimensions.width;
-    int h            = offscreen_rendering.pixel_data.buffer_dimensions.height;
-    int channels_num = 4;
+    int32_t w = offscreen_rendering.pixel_data.buffer_dimensions.width;
+    int32_t h = offscreen_rendering.pixel_data.buffer_dimensions.height;
+    int32_t channels_num = 4;
 
     size_t pixels_size     = w * h * channels_num;
     uint8_t* pixels        = (uint8_t*)malloc(pixels_size);
