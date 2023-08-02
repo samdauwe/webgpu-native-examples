@@ -1022,9 +1022,13 @@ wgpu_texture_load_from_ktx_file(wgpu_context_t* wgpu_context,
     = ktx_texture->isCubemap ? ktx_texture->baseWidth : resized_width;
   uint32_t texture_height = ktx_texture->baseHeight;
   uint32_t texture_depth  = ktx_texture->isCubemap ? 6u : 1u;
+  uint32_t numLevelsOffset /* bytesPerRow must multiple of 256. */
+    = (uint32_t)(logf(256.0f / 4.0f) / logf(2.0f));
   uint32_t texture_mip_level_count
     = ktx_texture->isCubemap ?
-        1u :
+        (ktx_texture->numLevels > 6u ?
+           ktx_texture->numLevels - numLevelsOffset :
+           1u) :
         calculate_mip_level_count(ktx_texture->baseWidth,
                                   ktx_texture->baseHeight);
   WGPUTextureFormat texture_format = WGPUTextureFormat_RGBA8Unorm;
