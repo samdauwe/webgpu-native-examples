@@ -60,12 +60,12 @@ void example_sampler_parameters(int argc, char* argv[]);
 void example_screenshot(int argc, char* argv[]);
 void example_shadertoy(int argc, char* argv[]);
 void example_shadow_mapping(int argc, char* argv[]);
-void example_skybox(int argc, char* argv[]);
 void example_square(int argc, char* argv[]);
 void example_stencil_buffer(int argc, char* argv[]);
 void example_terrain_mesh(int argc, char* argv[]);
 void example_text_overlay(int argc, char* argv[]);
 void example_texture_3d(int argc, char* argv[]);
+void example_texture_cubemap(int argc, char* argv[]);
 void example_texture_mipmap_gen(int argc, char* argv[]);
 void example_textured_cube(int argc, char* argv[]);
 void example_textured_quad(int argc, char* argv[]);
@@ -130,12 +130,12 @@ static examplecase_t g_example_cases[] = {
   {"screenshot", example_screenshot},
   {"shadertoy", example_shadertoy},
   {"shadow_mapping", example_shadow_mapping},
-  {"skybox", example_skybox},
   {"square", example_square},
   {"stencil_buffer", example_stencil_buffer},
   {"terrain_mesh", example_terrain_mesh},
   {"text_overlay", example_text_overlay},
   {"texture_3d", example_texture_3d},
+  {"texture_cubemap", example_texture_cubemap},
   {"texture_mipmap_gen", example_texture_mipmap_gen},
   {"textured_cube", example_textured_cube},
   {"textured_quad", example_textured_quad},

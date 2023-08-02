@@ -247,12 +247,12 @@ set(SOURCES
     src/examples/screenshot.c
     src/examples/shadertoy.c
     src/examples/shadow_mapping.c
-    src/examples/skybox.c
     src/examples/square.c
     src/examples/stencil_buffer.c
     src/examples/terrain_mesh.c
     src/examples/text_overlay.c
     src/examples/texture_3d.c
+    src/examples/texture_cubemap.c
     src/examples/texture_mipmap_gen.c
     src/examples/textured_cube.c
     src/examples/textured_quad.c

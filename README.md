@@ -211,7 +211,7 @@ This example shows how to bind and sample textures.
 
 This example shows how to render and sample from a cubemap texture.
 
-#### [Skybox](src/examples/skybox.c)
+#### [Cubemap textures](src/examples/texture_cubemap.c)
 
 Loads a cube map texture from disk containing six different faces. All faces and mip levels are uploaded into video memory, and the cubemap is displayed on a skybox as a backdrop and on a 3D model as a reflection.
 
