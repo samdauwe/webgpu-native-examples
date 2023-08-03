@@ -222,7 +222,7 @@ static void gltf_material_init(gltf_material_t* material,
   material->extension.specular_glossiness_texture = NULL;
   material->extension.diffuse_texture             = NULL;
   glm_vec4_one(material->extension.diffuse_factor);
-  glm_vec4_one(material->extension.specular_factor);
+  glm_vec4_zero(material->extension.specular_factor);
   material->pbr_workflows.metallic_roughness  = true;
   material->pbr_workflows.specular_glossiness = false;
   material->bind_group                        = NULL;
@@ -280,8 +280,7 @@ typedef struct gltf_mesh_t {
   bounding_box_t bb;
   bounding_box_t aabb;
   struct {
-    WGPUBuffer buffer;
-    uint64_t size;
+    wgpu_buffer_t buffer;
     WGPUBindGroup bind_group;
   } uniform_buffer;
   struct {
@@ -298,15 +297,19 @@ static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
 
   mesh->wgpu_context = wgpu_context;
   glm_mat4_copy(matrix, mesh->uniform_block.matrix);
-  mesh->uniform_buffer.size   = sizeof(mesh->uniform_block);
-  mesh->uniform_buffer.buffer = wgpu_create_buffer_from_data(
-    wgpu_context, &mesh->uniform_block, mesh->uniform_buffer.size,
-    WGPUBufferUsage_Uniform);
+  mesh->uniform_buffer.buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Object vertex shader uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(mesh->uniform_block),
+                    .initial.data = &mesh->uniform_block,
+                    .initial.size = sizeof(mesh->uniform_block),
+                  });
 }
 
 static void gltf_mesh_destroy(gltf_mesh_t* mesh)
 {
-  WGPU_RELEASE_RESOURCE(Buffer, mesh->uniform_buffer.buffer);
+  wgpu_destroy_buffer(&mesh->uniform_buffer.buffer);
   WGPU_RELEASE_RESOURCE(BindGroup, mesh->uniform_buffer.bind_group);
 
   if (mesh->primitives != NULL) {
@@ -476,13 +479,14 @@ static void gltf_node_update(wgpu_context_t* wgpu_context, gltf_node_t* node)
         glm_mat4_copy(joint_mat, node->mesh->uniform_block.joint_matrix[i]);
       }
       node->mesh->uniform_block.joint_count = (float)skin->joint_count;
-      wgpu_queue_write_buffer(wgpu_context, node->mesh->uniform_buffer.buffer,
-                              0, &node->mesh->uniform_block,
-                              sizeof(node->mesh->uniform_buffer));
+      wgpu_queue_write_buffer(
+        wgpu_context, node->mesh->uniform_buffer.buffer.buffer, 0,
+        &node->mesh->uniform_block, sizeof(node->mesh->uniform_buffer));
     }
     else {
-      wgpu_queue_write_buffer(wgpu_context, node->mesh->uniform_buffer.buffer,
-                              0, &m, sizeof(mat4));
+      wgpu_queue_write_buffer(wgpu_context,
+                              node->mesh->uniform_buffer.buffer.buffer, 0, &m,
+                              sizeof(mat4));
     }
   }
 
@@ -1690,9 +1694,9 @@ gltf_model_prepare_node_bind_group(gltf_model_t* model, gltf_node_t* node,
       .entryCount = 1,
       .entries    = &(WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = node->mesh->uniform_buffer.buffer,
+        .buffer  = node->mesh->uniform_buffer.buffer.buffer,
         .offset  = 0,
-        .size    =  node->mesh->uniform_buffer.size,
+        .size    =  node->mesh->uniform_buffer.buffer.size,
       },
     };
     node->mesh->uniform_buffer.bind_group
