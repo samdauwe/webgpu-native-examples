@@ -100,8 +100,11 @@ static WGPUAddressMode get_wgpu_wrap_mode(int32_t wrap_mode)
     case 33648:
       return WGPUAddressMode_MirrorRepeat;
     default:
-      return WGPUAddressMode_Repeat;
+      break;
   }
+
+  log_warn("Unknown wrap mode for get_wgpu_wrap_mode: %d", wrap_mode);
+  return WGPUAddressMode_Repeat;
 }
 
 static WGPUFilterMode get_wgpu_filter_mode(int32_t filterMode)
@@ -120,8 +123,11 @@ static WGPUFilterMode get_wgpu_filter_mode(int32_t filterMode)
     case 9987:
       return WGPUFilterMode_Linear;
     default:
-      return WGPUFilterMode_Linear;
+      break;
   }
+
+  log_warn("Unknown filter mode for get_wgpu_filter_mode: %d", filterMode);
+  return WGPUFilterMode_Nearest;
 }
 
 /*
@@ -303,7 +309,6 @@ static void gltf_mesh_init(gltf_mesh_t* mesh, wgpu_context_t* wgpu_context,
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(mesh->uniform_block),
                     .initial.data = &mesh->uniform_block,
-                    .initial.size = sizeof(mesh->uniform_block),
                   });
 }
 
@@ -570,8 +575,8 @@ static void gltf_animation_init(gltf_animation_t* animation)
   animation->channels      = NULL;
   animation->channel_count = 0;
 
-  animation->start = 0;
-  animation->end   = 0;
+  animation->start = FLT_MAX;
+  animation->end   = FLT_MIN;
 }
 
 /* glTF Vertex */
@@ -647,14 +652,9 @@ uint64_t wgpu_gltf_get_vertex_size(void)
 typedef struct gltf_model_t {
   wgpu_context_t* wgpu_context;
   char uri[STRMAX];
-  struct {
-    WGPUBuffer buffer;
-    uint32_t count;
-  } vertices;
-  struct {
-    WGPUBuffer buffer;
-    uint32_t count;
-  } indices;
+
+  wgpu_buffer_t vertices;
+  wgpu_buffer_t indices;
 
   mat4 aabb;
 
