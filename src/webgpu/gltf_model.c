@@ -1413,7 +1413,7 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
         channel->path = PathType_SCALE;
       }
       if (chan->target_path == cgltf_animation_path_type_weights) {
-        log_warn("weights not yet supported, skipping channel");
+        log_warn("Weights not yet supported, skipping channel!");
         continue;
       }
       channel->sampler_index = chan->sampler - anim->samplers;
