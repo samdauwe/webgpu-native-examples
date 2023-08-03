@@ -1,5 +1,4 @@
 #include "example_base.h"
-#include "examples.h"
 
 #include <string.h>
 
@@ -20,19 +19,16 @@
 static struct gltf_model_t* gltf_model;
 
 static struct {
-  struct {
-    WGPUBuffer buffer;
-    uint64_t size;
-  } ubo_scene_matrices;
+  wgpu_buffer_t ubo_scene;
   struct {
     mat4 projection;
-    mat4 view;
+    mat4 model;
     vec4 light_pos;
-  } scene_matrices;
+  } ubo_scene_values;
 } shader_data = {
-  .scene_matrices.projection = GLM_MAT4_IDENTITY_INIT,
-  .scene_matrices.view       = GLM_MAT4_IDENTITY_INIT,
-  .scene_matrices.light_pos  = {5.0f, 5.0f, 5.0f, 1.0f},
+  .ubo_scene_values.projection = GLM_MAT4_IDENTITY_INIT,
+  .ubo_scene_values.model      = GLM_MAT4_IDENTITY_INIT,
+  .ubo_scene_values.light_pos  = {5.0f, 5.0f, 5.0f, 1.0f},
 };
 
 static struct {
@@ -87,7 +83,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
    * and materials (textures)
    */
 
-  // Bind group layout to pass scene data to the shader
+  /* Bind group layout to pass scene data to the shader */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -96,12 +92,13 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
           .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(shader_data.scene_matrices),
+          .minBindingSize = sizeof(shader_data.ubo_scene_values),
         },
         .sampler = {0},
         },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "UBOScene bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -110,11 +107,12 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_scene != NULL);
   }
 
-  // Bind group layout to pass the local matrices of a primitive to the shader
+  /* Bind group layout to pass the local matrices of a primitive to the shader
+   */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Vertex shader) => Primitive
+        // Binding 0: Uniform buffer (Vertex shader) => UBOPrimitive
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -125,6 +123,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "UBOPrimitive bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -133,30 +132,31 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_primitive != NULL);
   }
 
-  // Bind group layout to pass skin joint matrices to the shader
+  /* Bind group layout to pass skin joint matrices to the shader */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => JointMatrices
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Storage,
+          .type           = WGPUBufferBindingType_ReadOnlyStorage,
           .minBindingSize = sizeof(mat4),
         },
         .sampler = {0},
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "JointMatrices bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
-    bind_group_layouts.ubo_scene
+    bind_group_layouts.joint_matrices
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(bind_group_layouts.ubo_scene != NULL);
+    ASSERT(bind_group_layouts.joint_matrices != NULL);
   }
 
-  // Bind group layout for passing material textures
+  /* Bind group layout for passing material textures */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
@@ -181,6 +181,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Texture bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -189,7 +190,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.textures != NULL);
   }
 
-  // Pipeline layout using the bind group layouts
+  /* Pipeline layout using the bind group layouts */
   {
     // The pipeline layout uses three sets:
     // Set 0 = Scene matrices (VS)
@@ -204,6 +205,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     // Pipeline layout
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_sets),
       .bindGroupLayouts     = bind_group_layout_sets,
     };
@@ -218,25 +220,24 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   // Pass matrices to the shaders
   camera_t* camera = context->camera;
   glm_mat4_copy(camera->matrices.perspective,
-                shader_data.scene_matrices.projection);
-  glm_mat4_copy(camera->matrices.view, shader_data.scene_matrices.view);
+                shader_data.ubo_scene_values.projection);
+  glm_mat4_copy(camera->matrices.view, shader_data.ubo_scene_values.model);
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(
-    context->wgpu_context, shader_data.ubo_scene_matrices.buffer, 0,
-    &shader_data.scene_matrices, shader_data.ubo_scene_matrices.size);
+  wgpu_queue_write_buffer(context->wgpu_context, shader_data.ubo_scene.buffer,
+                          0, &shader_data.ubo_scene_values,
+                          shader_data.ubo_scene.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Matrices vertex shader uniform buffer
-  shader_data.ubo_scene_matrices.size   = sizeof(shader_data.scene_matrices);
-  shader_data.ubo_scene_matrices.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size             = shader_data.ubo_scene_matrices.size,
-      .mappedAtCreation = false,
+  shader_data.ubo_scene = wgpu_create_buffer(
+    context->wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .label = "Matrices vertex shader uniform buffer",
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+      .size  = sizeof(shader_data.ubo_scene_values),
     });
 
   // Initialize uniform buffers
@@ -251,9 +252,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       [0] = (WGPUBindGroupEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
         .binding = 0,
-        .buffer  = shader_data.ubo_scene_matrices.buffer,
+        .buffer  = shader_data.ubo_scene.buffer,
         .offset  = 0,
-        .size    = shader_data.ubo_scene_matrices.size,
+        .size    = shader_data.ubo_scene.size,
       },
     };
     bind_groups.ubo_scene = wgpuDeviceCreateBindGroup(
@@ -315,7 +316,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .view       = NULL,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearColor = (WGPUColor) {
+      .clearValue = (WGPUColor) {
         .r = 0.025f,
         .g = 0.025f,
         .b = 0.025f,
@@ -327,7 +328,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
   // Set clear sample for this example
-  wgpu_context->depth_stencil.att_desc.clearStencil = 1;
+  wgpu_context->depth_stencil.att_desc.depthClearValue = 1;
 
   // Render pass descriptor
   render_pass.descriptor = (WGPURenderPassDescriptor){
@@ -409,7 +410,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Render pipeline descriptor
   solid_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "gltf_skinning_render_pipeline",
+                            .label        = "GLTF skinning render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state_desc,
                             .vertex       = vertex_state_desc,
@@ -434,10 +435,10 @@ static int example_initialize(wgpu_example_context_t* context)
     setup_bind_groups(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
@@ -460,10 +461,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Set the bind group
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.ubo_scene, 0, 0);
-
   // Set viewport
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
@@ -474,7 +471,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Draw plane
+  // Bind scene matrices descriptor to set 0
+  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                    bind_groups.ubo_scene, 0, 0);
+
+  // Bind pipeline
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, solid_pipeline);
+
+  // Render GLTF model
   static wgpu_gltf_render_flags_enum_t render_flags
     = WGPU_GLTF_RenderFlags_BindImages;
   wgpu_gltf_model_draw(gltf_model, (wgpu_gltf_model_render_options_t){
@@ -484,7 +488,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                    });
 
   // End render pass
-  wgpuRenderPassEncoderEndPass(wgpu_context->rpass_enc);
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   // Draw ui overlay
@@ -515,30 +519,33 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   int draw_result = example_draw(context);
-  if (context->camera->updated) {
-    update_uniform_buffers(context);
-  }
   if (!context->paused) {
     // gltf_model_update_animation(gltf_model, 0, context->frame_timer);
   }
   return draw_result;
 }
 
+static void example_on_view_changed(wgpu_example_context_t* context)
+{
+  update_uniform_buffers(context);
+}
+
+// Clean up used resources
 static void example_destroy(wgpu_example_context_t* context)
 {
   camera_release(context->camera);
   wgpu_gltf_model_destroy(gltf_model);
 
-  WGPU_RELEASE_RESOURCE(Buffer, shader_data.ubo_scene_matrices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, shader_data.ubo_scene.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.ubo_scene)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.ubo_primitive)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.joint_matrices)
@@ -554,11 +561,13 @@ void example_gltf_skinning(int argc, char* argv[])
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
       .title   = example_title,
-      .overlay = true
+      .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
     .example_destroy_func         = &example_destroy,
+    .example_on_view_changed_func = &example_on_view_changed,
   });
   // clang-format on
 }

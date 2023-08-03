@@ -339,6 +339,16 @@ typedef struct gltf_skin_t {
   } ssbo;
 } gltf_skin_t;
 
+static void gltf_skin_destroy(gltf_skin_t* skin)
+{
+  if (skin->inverse_bind_matrix_count > 0) {
+    free(skin->inverse_bind_matrices);
+  }
+  if (skin->joint_count > 0) {
+    free(skin->joints);
+  }
+}
+
 /*
  * glTF node
  */
@@ -759,9 +769,7 @@ void wgpu_gltf_model_destroy(gltf_model_t* model)
 
   if (model->skin_count > 0) {
     for (uint32_t i = 0; i < model->skin_count; ++i) {
-      if (model->skins[i].joint_count > 0) {
-        free(model->skins[i].joints);
-      }
+      gltf_skin_destroy(&model->skins[i]);
     }
     free(model->skins);
   }
@@ -1142,12 +1150,19 @@ static void gltf_model_load_skins(gltf_model_t* model, cgltf_data* data)
     if (skin->inverse_bind_matrices != NULL) {
       cgltf_accessor* accessor            = skin->inverse_bind_matrices;
       cgltf_buffer_view* buffer_view      = accessor->buffer_view;
-      new_skin->inverse_bind_matrix_count = accessor->count;
-      memcpy(new_skin->inverse_bind_matrices,
-             (mat4*)&((unsigned char*)buffer_view->buffer
-                        ->data)[accessor->offset + buffer_view->offset],
-             new_skin->inverse_bind_matrix_count
-               * sizeof(*new_skin->inverse_bind_matrices));
+      cgltf_buffer* buffer                = buffer_view->buffer;
+      new_skin->inverse_bind_matrix_count = (uint32_t)accessor->count;
+
+      if (new_skin->inverse_bind_matrix_count > 0) {
+        new_skin->inverse_bind_matrices
+          = calloc(new_skin->inverse_bind_matrix_count,
+                   sizeof(*new_skin->inverse_bind_matrices));
+        memcpy(new_skin->inverse_bind_matrices,
+               (mat4*)&((unsigned char*)
+                          buffer->data)[accessor->offset + buffer_view->offset],
+               new_skin->inverse_bind_matrix_count
+                 * sizeof(*new_skin->inverse_bind_matrices));
+      }
     }
   }
 }
@@ -1262,7 +1277,9 @@ static void gltf_model_load_animations(gltf_model_t* model, cgltf_data* data)
     cgltf_animation* anim       = &data->animations[i];
     gltf_animation_t* animation = &model->animations[i];
     gltf_animation_init(animation);
-    snprintf(animation->name, strlen(anim->name) + 1, "%s", anim->name);
+    if (anim->name) {
+      snprintf(animation->name, strlen(anim->name) + 1, "%s", anim->name);
+    }
 
     // Samplers
     animation->sampler_count = (uint32_t)anim->samplers_count;
