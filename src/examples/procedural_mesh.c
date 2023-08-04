@@ -39,8 +39,8 @@ static const char* common_shader_wgsl = CODE(
   @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
 
   struct FrameUniforms {
-      world_to_clip: mat4x4<f32>,
-      camera_position: vec3<f32>,
+    world_to_clip: mat4x4<f32>,
+    camera_position: vec3<f32>,
   }
   @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 );
@@ -60,7 +60,7 @@ static const char* vertex_shader_wgsl = CODE(
       var output: VertexOut;
       output.position_clip = vec4(position, 1.0) /* * draw_uniforms.object_to_world * frame_uniforms.world_to_clip */;
       output.position_clip.z = 0;
-      output.position_clip.w = 2;
+      output.position_clip.w = 3;
       output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
       output.normal = normal * mat3x3(
       draw_uniforms.object_to_world[0].xyz,
@@ -296,28 +296,86 @@ static shape_t init_shape(par_shapes_mesh* handle)
   };
 }
 
-static void shape_rotate(shape_t* mesh, float radians, float x, float y,
+static void shape_invert(shape_t* shape, int face, int nfaces)
+{
+  par_shapes_invert(shape->handle, face, nfaces);
+  *shape = init_shape(shape->handle);
+}
+
+static void shape_merge(shape_t* dst, shape_t* src)
+{
+  par_shapes_merge(dst->handle, src->handle);
+  *dst = init_shape(dst->handle);
+}
+
+static void shape_rotate(shape_t* shape, float radians, float x, float y,
                          float z)
 {
-  par_shapes_rotate(mesh->handle, radians, (float[]){x, y, z});
-  *mesh = init_shape(mesh->handle);
+  par_shapes_rotate(shape->handle, radians, (float[]){x, y, z});
+  *shape = init_shape(shape->handle);
 }
 
-static void shape_unweld(shape_t* mesh)
+static void shape_scale(shape_t* shape, float x, float y, float z)
 {
-  par_shapes_unweld(mesh->handle, true);
-  *mesh = init_shape(mesh->handle);
+  par_shapes_scale(shape->handle, x, y, z);
+  *shape = init_shape(shape->handle);
 }
 
-static void shape_compute_normals(shape_t* mesh)
+static void shape_translate(shape_t* shape, float x, float y, float z)
 {
-  par_shapes_compute_normals(mesh->handle);
-  *mesh = init_shape(mesh->handle);
+  par_shapes_translate(shape->handle, x, y, z);
+  *shape = init_shape(shape->handle);
 }
 
-static shape_t init_trefoil_knot(int32_t slices, int32_t stacks, float radius)
+static void shape_unweld(shape_t* shape)
 {
-  return init_shape(par_shapes_create_trefoil_knot(slices, stacks, radius));
+  par_shapes_unweld(shape->handle, true);
+  *shape = init_shape(shape->handle);
+}
+
+static void shape_compute_normals(shape_t* shape)
+{
+  par_shapes_compute_normals(shape->handle);
+  *shape = init_shape(shape->handle);
+}
+
+static shape_t init_cylinder(int32_t slices, int32_t stacks)
+{
+  return init_shape(par_shapes_create_cylinder(slices, stacks));
+}
+
+static shape_t init_dodecahedron(void)
+{
+  return init_shape(par_shapes_create_dodecahedron());
+}
+
+static shape_t init_icosahedron(void)
+{
+  return init_shape(par_shapes_create_icosahedron());
+}
+
+static shape_t init_octahedron(void)
+{
+  return init_shape(par_shapes_create_octahedron());
+}
+
+static void terrain_generator(float const* uv, float* position, void* userdata)
+{
+  UNUSED_VAR(userdata);
+  position[0] = uv[0];
+  position[1] = 0.025f * random_float_min_max(uv[0], uv[1]);
+  position[2] = uv[1];
+}
+
+static shape_t init_parametric(par_shapes_fn fn, int slices, int stacks,
+                               void* userdata)
+{
+  return init_shape(par_shapes_create_parametric(fn, slices, stacks, userdata));
+}
+
+static shape_t init_parametric_disk(int32_t slices, int32_t stacks)
+{
+  return init_shape(par_shapes_create_parametric_disk(slices, stacks));
 }
 
 static shape_t init_parametric_sphere(int32_t slices, int32_t stacks)
@@ -325,11 +383,36 @@ static shape_t init_parametric_sphere(int32_t slices, int32_t stacks)
   return init_shape(par_shapes_create_parametric_sphere(slices, stacks));
 }
 
+static shape_t init_rock(int32_t seed, int32_t subd)
+{
+  return init_shape(par_shapes_create_rock(seed, subd));
+}
+
+static shape_t init_subdivided_sphere(int32_t nsubd)
+{
+  return init_shape(par_shapes_create_subdivided_sphere(nsubd));
+}
+
+static shape_t init_tetrahedron(void)
+{
+  return init_shape(par_shapes_create_tetrahedron());
+}
+
+static shape_t init_torus(int32_t slices, int32_t stacks, float radius)
+{
+  return init_shape(par_shapes_create_torus(slices, stacks, radius));
+}
+
+static shape_t init_trefoil_knot(int32_t slices, int32_t stacks, float radius)
+{
+  return init_shape(par_shapes_create_trefoil_knot(slices, stacks, radius));
+}
+
 /* -------------------------------------------------------------------------- *
  * Procedural Mesh Example
  * -------------------------------------------------------------------------- */
 
-#define MESH_COUNT 2u
+#define MESH_COUNT 11u
 
 typedef struct {
   vec3 position;
@@ -496,6 +579,11 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
                        vec3** meshes_positions, uint32_t* meshes_positions_len,
                        vec3** meshes_normals, uint32_t* meshes_normals_len)
 {
+  /**
+   * Initialize a scene with parametric surfaces and other simple shapes.
+   * @see https://prideout.net/shapes
+   */
+
   uint32_t mesh_index = 0;
 
   /* Trefoil knot */
@@ -537,6 +625,202 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
                 meshes_normals_len);
 
     shape_deinit(&mesh);
+  }
+  /* Icosahedron. */
+  {
+    shape_t mesh = init_icosahedron();
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {-3.f, 1.f, 0.f},
+      .basecolor_roughness = {0.7f, 0.6f, 0.0f, 0.4f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Dodecahedron. */
+  {
+    shape_t mesh = init_dodecahedron();
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {0.0f, 1.0f, 3.0f},
+      .basecolor_roughness = {0.0f, 0.1f, 1.0f, 0.2f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Cylinder with top and bottom caps. */
+  {
+    shape_t disk = init_parametric_disk(10, 2);
+    shape_invert(&disk, 0, 0);
+
+    shape_t cylinder = init_cylinder(10, 4);
+
+    shape_merge(&cylinder, &disk);
+    shape_translate(&cylinder, 0.0f, 0.0f, -1.0f);
+    shape_invert(&disk, 0, 0);
+    shape_merge(&cylinder, &disk);
+
+    shape_scale(&cylinder, 0.5f, 0.5f, 2.0f);
+    shape_rotate(&cylinder, PI_2, 1.0f, 0.0f, 0.0f);
+
+    shape_unweld(&cylinder);
+    shape_compute_normals(&cylinder);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {-3.0f, 0.0f, 3.0f},
+      .basecolor_roughness = {1.0f, 0.0f, 0.0f, 0.3f},
+    };
+
+    append_mesh(mesh_index, &cylinder, meshes, meshes_indices,
+                meshes_indices_len, meshes_positions, meshes_positions_len,
+                meshes_normals, meshes_normals_len);
+
+    shape_deinit(&cylinder);
+    shape_deinit(&disk);
+  }
+  /* Torus. */
+  {
+    shape_t mesh = init_torus(10, 20, 0.2f);
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {3.0f, 1.5f, 3.0f},
+      .basecolor_roughness = {1.0f, 0.5f, 0.0f, 0.2f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Subdivided sphere. */
+  {
+    shape_t mesh = init_subdivided_sphere(3);
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {3.0f, 1.0f, 6.0f},
+      .basecolor_roughness = {0.0f, 1.0f, 0.0f, 0.2f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Tetrahedron. */
+  {
+    shape_t mesh = init_tetrahedron();
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {0.0f, 0.5f, 6.0f},
+      .basecolor_roughness = {1.0f, 0.0f, 1.0f, 0.2f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Octahedron. */
+  {
+    shape_t mesh = init_octahedron();
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {-3.0f, 1.0f, 6.0f},
+      .basecolor_roughness = {0.2f, 0.0f, 1.0f, 0.2f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Rock. */
+  {
+    shape_t mesh = init_rock(123, 4);
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {-6.0f, 0.0f, 3.0f},
+      .basecolor_roughness = {1.0f, 1.0f, 1.0f, 1.0f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Custom parametric (simple terrain) */
+  {
+    shape_t ground = init_parametric(terrain_generator, 40, 40, NULL);
+    shape_translate(&ground, -0.5f, -0.0f, -0.5f);
+    shape_invert(&ground, 0, 0);
+    shape_scale(&ground, 20.0f, 20.0f, 20.f);
+    shape_unweld(&ground);
+    shape_compute_normals(&ground);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {0.0f, 0.0f, 0.0f},
+      .basecolor_roughness = {0.1f, 0.1f, 0.1f, 1.0f},
+    };
+
+    append_mesh(mesh_index, &ground, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&ground);
   }
 }
 
