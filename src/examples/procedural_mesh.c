@@ -31,35 +31,34 @@
 
 // Shaders
 // clang-format off
-static const char* vertex_shader_wgsl = CODE(
-  struct FrameUniforms {
-    world_to_clip: mat4x4<f32>,
-    camera_position: vec3<f32>,
-  }
-  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
-
+static const char* common_shader_wgsl = CODE(
   struct DrawUniforms {
     object_to_world: mat4x4<f32>,
     basecolor_roughness: vec4<f32>,
   }
   @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
 
+  struct FrameUniforms {
+      world_to_clip: mat4x4<f32>,
+      camera_position: vec3<f32>,
+  }
+  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
+);
+
+static const char* vertex_shader_wgsl = CODE(
   struct VertexOut {
     @builtin(position) position_clip: vec4<f32>,
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
   }
-
-  @vertex
-  fn main(
+  @vertex fn main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @builtin(vertex_index) vertex_index: u32,
   ) -> VertexOut {
     var output: VertexOut;
-    output.position_clip = vec4<f32>(position, 1.0);
-    // output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world * frame_uniforms.world_to_clip;
+      output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world * frame_uniforms.world_to_clip;
     output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
     output.normal = normal * mat3x3(
       draw_uniforms.object_to_world[0].xyz,
@@ -73,19 +72,7 @@ static const char* vertex_shader_wgsl = CODE(
   );
 
 static const char* fragment_shader_wgsl = CODE(
-  struct FrameUniforms {
-    world_to_clip: mat4x4<f32>,
-    camera_position: vec3<f32>,
-  }
-  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
-
-  struct DrawUniforms {
-    object_to_world: mat4x4<f32>,
-    basecolor_roughness: vec4<f32>,
-  }
-  @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
-
-  let pi = 3.1415926;
+  const pi = 3.1415926;
 
   fn saturate(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
 
@@ -111,8 +98,7 @@ static const char* fragment_shader_wgsl = CODE(
     return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
   }
 
-  @fragment
-  fn main(
+  @fragment fn main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
@@ -632,6 +618,15 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(demo_state.pipeline_layout != NULL);
 }
 
+static char* concat_strings(const char* s1, const char* s2, const char* delim)
+{
+  uint32_t str_len = strlen(s1) + strlen(delim) + strlen(s2) + 1;
+  char* result     = (char*)malloc(str_len * sizeof(char));
+  memset(result, 0, str_len * sizeof(char));
+  sprintf(result, "%s%s%s", s1, delim, s2);
+  return result;
+}
+
 static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
@@ -669,28 +664,34 @@ static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)
                                                offsetof(vertex_t, normal)))
 
   // Vertex state
+  char* vertex_shader_wgsl_full
+    = concat_strings(common_shader_wgsl, vertex_shader_wgsl, "\n");
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
-                  .wgsl_code.source = vertex_shader_wgsl,
+                  .wgsl_code.source = vertex_shader_wgsl_full,
                   .entry = "main",
                 },
                 .buffer_count = 1,
                 .buffers = &mesh_vertex_buffer_layout,
               });
+  free(vertex_shader_wgsl_full);
 
   // Fragment state
+  char* fragment_shader_wgsl_full
+    = concat_strings(common_shader_wgsl, fragment_shader_wgsl, "\n");
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
-                  .wgsl_code.source = fragment_shader_wgsl,
+                  .wgsl_code.source = fragment_shader_wgsl_full,
                   .entry = "main",
                 },
                 .target_count = 1,
                 .targets = &color_target_state_desc,
               });
+  free(fragment_shader_wgsl_full);
 
   // Multisample state
   WGPUMultisampleState multisample_state
