@@ -57,10 +57,11 @@ static const char* vertex_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @builtin(vertex_index) vertex_index: u32,
   ) -> VertexOut {
-    var output: VertexOut;
-      output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world * frame_uniforms.world_to_clip;
-    output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
-    output.normal = normal * mat3x3(
+      var output: VertexOut;
+      output.position_clip = vec4(position, 1.0) /* * draw_uniforms.object_to_world * frame_uniforms.world_to_clip */;
+      output.position_clip.z = 0;
+      output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
+      output.normal = normal * mat3x3(
       draw_uniforms.object_to_world[0].xyz,
       draw_uniforms.object_to_world[1].xyz,
       draw_uniforms.object_to_world[2].xyz,
