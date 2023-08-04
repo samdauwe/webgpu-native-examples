@@ -60,6 +60,7 @@ static const char* vertex_shader_wgsl = CODE(
       var output: VertexOut;
       output.position_clip = vec4(position, 1.0) /* * draw_uniforms.object_to_world * frame_uniforms.world_to_clip */;
       output.position_clip.z = 0;
+      output.position_clip.w = 2;
       output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
       output.normal = normal * mat3x3(
       draw_uniforms.object_to_world[0].xyz,
@@ -319,6 +320,11 @@ static shape_t init_trefoil_knot(int32_t slices, int32_t stacks, float radius)
   return init_shape(par_shapes_create_trefoil_knot(slices, stacks, radius));
 }
 
+static shape_t init_parametric_sphere(int32_t slices, int32_t stacks)
+{
+  return init_shape(par_shapes_create_parametric_sphere(slices, stacks));
+}
+
 /* -------------------------------------------------------------------------- *
  * Procedural Mesh Example
  * -------------------------------------------------------------------------- */
@@ -380,8 +386,8 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } render_pass;
 
-  drawable_t drawables[1];
-  mesh_t meshes[1];
+  drawable_t drawables[2];
+  mesh_t meshes[2];
 
   struct {
     vec3 position;
@@ -483,7 +489,7 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 {
   uint32_t mesh_index = 0;
 
-  // Trefoil knot
+  /* Trefoil knot */
   {
     shape_t mesh = init_trefoil_knot(10, 128, 0.8f);
     shape_rotate(&mesh, PI_2, 1.0, 0.0, 0.0);
@@ -494,6 +500,27 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
       .mesh_index          = mesh_index,
       .position            = {0.f, 1.f, 0.f},
       .basecolor_roughness = {0.0f, 0.7f, 0.0f, 0.6f},
+    };
+
+    append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
+                meshes_positions, meshes_positions_len, meshes_normals,
+                meshes_normals_len);
+
+    shape_deinit(&mesh);
+  }
+  /* Parametric sphere. */
+  {
+    shape_t mesh = init_parametric_sphere(20, 20);
+    shape_rotate(&mesh, PI_2, 1.0, 0.0, 0.0);
+    shape_unweld(&mesh);
+    shape_compute_normals(&mesh);
+
+    mesh_index++;
+
+    drawables[mesh_index] = (drawable_t){
+      .mesh_index          = mesh_index,
+      .position            = {3.f, 1.f, 0.f},
+      .basecolor_roughness = {0.7f, 0.0f, 0.0f, 0.2f},
     };
 
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
