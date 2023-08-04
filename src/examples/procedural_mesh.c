@@ -329,6 +329,8 @@ static shape_t init_parametric_sphere(int32_t slices, int32_t stacks)
  * Procedural Mesh Example
  * -------------------------------------------------------------------------- */
 
+#define MESH_COUNT 2u
+
 typedef struct {
   vec3 position;
   vec3 normal;
@@ -373,7 +375,10 @@ static struct {
   wgpu_buffer_t index_buffer;
   struct {
     wgpu_buffer_t frame;
-    wgpu_buffer_t draw;
+    struct {
+      wgpu_buffer_t buffer;
+      uint64_t model_size;
+    } draw;
   } uniform_buffers;
 
   WGPUTexture depth_texture;
@@ -386,8 +391,8 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } render_pass;
 
-  drawable_t drawables[2];
-  mesh_t meshes[2];
+  drawable_t drawables[MESH_COUNT];
+  mesh_t meshes[MESH_COUNT];
 
   struct {
     vec3 position;
@@ -401,7 +406,11 @@ static struct {
   } camera;
 
   frame_uniforms_t frame_uniforms;
-  draw_uniforms_t draw_uniforms;
+
+  struct {
+    draw_uniforms_t model;
+    uint8_t padding[176];
+  } draw_uniforms[MESH_COUNT];
 
   struct {
     float xpos;
@@ -615,8 +624,8 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
-          .hasDynamicOffset = false,
-          .minBindingSize = sizeof(draw_uniforms_t),
+          .hasDynamicOffset = true,
+          .minBindingSize = demo_state.uniform_buffers.draw.model_size,
         },
         .sampler = {0},
       },
@@ -779,23 +788,27 @@ static void update_frame_uniform_buffers(wgpu_context_t* wgpu_context)
 static void update_draw_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Update "object to world" xform
-  vec3* drawable_pos   = &demo_state.drawables[0].position;
-  mat4 object_to_world = {
-    {1.0f, 0.0f, 0.0f, 0.0f},                                           //
-    {0.0f, 1.0f, 0.0f, 0.0f},                                           //
-    {0.0f, 0.0f, 1.0f, 0.0f},                                           //
-    {(*drawable_pos)[0], (*drawable_pos)[1], (*drawable_pos)[2], 1.0f}, //
-  };
-  glm_mat4_transpose(object_to_world);
+  for (uint32_t i = 0; i < MESH_COUNT; ++i) {
+    drawable_t* drawable = &demo_state.drawables[i];
+    vec3* drawable_pos   = &drawable->position;
+    mat4 object_to_world = {
+      {1.0f, 0.0f, 0.0f, 0.0f},                                           //
+      {0.0f, 1.0f, 0.0f, 0.0f},                                           //
+      {0.0f, 0.0f, 1.0f, 0.0f},                                           //
+      {(*drawable_pos)[0], (*drawable_pos)[1], (*drawable_pos)[2], 1.0f}, //
+    };
+    glm_mat4_transpose(object_to_world);
 
-  glm_mat4_copy(object_to_world, demo_state.draw_uniforms.object_to_world);
-  glm_vec4_copy(demo_state.drawables[0].basecolor_roughness,
-                demo_state.draw_uniforms.basecolor_roughness);
+    draw_uniforms_t* draw_uniforms = &demo_state.draw_uniforms[i].model;
+    glm_mat4_copy(object_to_world, draw_uniforms->object_to_world);
+    glm_vec4_copy(drawable->basecolor_roughness,
+                  draw_uniforms->basecolor_roughness);
+  }
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, demo_state.uniform_buffers.draw.buffer,
-                          0, &demo_state.draw_uniforms.object_to_world,
-                          demo_state.uniform_buffers.draw.size);
+  wgpu_queue_write_buffer(
+    wgpu_context, demo_state.uniform_buffers.draw.buffer.buffer, 0,
+    demo_state.draw_uniforms, demo_state.uniform_buffers.draw.buffer.size);
 }
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
@@ -809,11 +822,14 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     });
 
   // Create a draw uniform buffer
-  demo_state.uniform_buffers.draw = wgpu_create_buffer(
+  demo_state.uniform_buffers.draw.model_size = sizeof(draw_uniforms_t);
+  demo_state.uniform_buffers.draw.buffer.size
+    = sizeof(demo_state.draw_uniforms);
+  demo_state.uniform_buffers.draw.buffer = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(draw_uniforms_t),
+      .size  = demo_state.uniform_buffers.draw.buffer.size,
     });
 
   update_frame_uniform_buffers(context->wgpu_context);
@@ -846,9 +862,9 @@ static void prepare_bind_groups(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = demo_state.uniform_buffers.draw.buffer,
+        .buffer  = demo_state.uniform_buffers.draw.buffer.buffer,
         .offset  = 0,
-        .size    = demo_state.uniform_buffers.draw.size,
+        .size    = demo_state.uniform_buffers.draw.model_size,
       },
     };
     demo_state.draw_bind_group = wgpuDeviceCreateBindGroup(
@@ -994,7 +1010,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(demo_state.drawables); ++i) {
     uint32_t dynamic_offset = i * ALIGNMENT;
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                      demo_state.draw_bind_group, 0,
+                                      demo_state.draw_bind_group, 1,
                                       &dynamic_offset);
     wgpuRenderPassEncoderDrawIndexed(
       wgpu_context->rpass_enc, demo_state.meshes[i].num_indices, 1,
@@ -1051,7 +1067,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, demo_state.vertex_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, demo_state.index_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, demo_state.uniform_buffers.frame.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, demo_state.uniform_buffers.draw.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, demo_state.uniform_buffers.draw.buffer.buffer)
 
   WGPU_RELEASE_RESOURCE(Texture, demo_state.depth_texture)
   WGPU_RELEASE_RESOURCE(TextureView, demo_state.depth_texture_view)
