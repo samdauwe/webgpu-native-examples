@@ -471,6 +471,10 @@ WebGPU demo featuring an implementation of Jos Stam's ["Real-Time Fluid Dynamics
 
 This example shows how to map a GPU buffer and use the function wgpuBufferGetMappedRange. This example is based on the [vertex_buffer](https://github.com/juj/wasm_webgpu/blob/main/samples/vertex_buffer/vertex_buffer.c) test case.
 
+#### [Procedural Mesh](src/examples/procedural_mesh.c)
+
+This example shows how to efficiently draw several procedurally generated meshes. The [par_shapes](https://prideout.net/shapes) library is used to generate parametric surfaces and other simple shapes.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
