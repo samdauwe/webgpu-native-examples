@@ -24,6 +24,7 @@
  * -------------------------------------------------------------------------- */
 
 #define ALIGNMENT 256u // 256-byte alignment
+#define MESH_COUNT 11u
 
 /* -------------------------------------------------------------------------- *
  * WGSl Shaders
@@ -32,17 +33,17 @@
 // Shaders
 // clang-format off
 static const char* common_shader_wgsl = CODE(
+  struct FrameUniforms {
+    projection: mat4x4<f32>,
+    view: mat4x4<f32>,
+  }
+  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
+
   struct DrawUniforms {
-    object_to_world: mat4x4<f32>,
+    model: mat4x4<f32>,
     basecolor_roughness: vec4<f32>,
   }
   @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
-
-  struct FrameUniforms {
-    world_to_clip: mat4x4<f32>,
-    camera_position: vec3<f32>,
-  }
-  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 );
 
 static const char* vertex_shader_wgsl = CODE(
@@ -57,19 +58,18 @@ static const char* vertex_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @builtin(vertex_index) vertex_index: u32,
   ) -> VertexOut {
+      let modelView = frame_uniforms.view * draw_uniforms.model;
       var output: VertexOut;
-      output.position_clip = vec4(position, 1.0) /* * draw_uniforms.object_to_world * frame_uniforms.world_to_clip */;
-      output.position_clip.z = 0;
-      output.position_clip.w = 3;
-      output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
+      output.position_clip = frame_uniforms.projection * modelView * vec4(position.xyz, 1.0);
+      output.position = (modelView * vec4(position, 1.0)).xyz;
       output.normal = normal * mat3x3(
-      draw_uniforms.object_to_world[0].xyz,
-      draw_uniforms.object_to_world[1].xyz,
-      draw_uniforms.object_to_world[2].xyz,
-    );
-    let index = vertex_index % 3u;
-    output.barycentrics = vec3(f32(index == 0u), f32(index == 1u), f32(index == 2u));
-    return output;
+        draw_uniforms.model[0].xyz,
+        draw_uniforms.model[1].xyz,
+        draw_uniforms.model[2].xyz,
+      );
+      let index = vertex_index % 3u;
+      output.barycentrics = vec3(f32(index == 0u), f32(index == 1u), f32(index == 2u));
+      return output;
   }
   );
 
@@ -105,7 +105,7 @@ static const char* fragment_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
   ) -> @location(0) vec4<f32> {
-    let v = normalize(frame_uniforms.camera_position - position);
+    let v = normalize(position);
     let n = normalize(normal);
 
     let base_color = draw_uniforms.basecolor_roughness.xyz;
@@ -180,55 +180,7 @@ static const char* fragment_shader_wgsl = CODE(
 // clang-format on
 
 /* -------------------------------------------------------------------------- *
- * Math functions
- *
- * @ref
- * https://github.com/michal-z/zig-gamedev/blob/main/libs/zmath/src/zmath.zig
- * -------------------------------------------------------------------------- */
-
-static void look_to_lh(vec3 eyepos, vec3 eyedir, vec3 updir, mat4* dest)
-{
-  vec3 ax = GLM_VEC3_ZERO_INIT, ay = GLM_VEC3_ZERO_INIT,
-       az = GLM_VEC3_ZERO_INIT;
-  glm_normalize_to(eyedir, az);
-  glm_vec3_cross(updir, az, ax);
-  glm_normalize(ax);
-  glm_vec3_cross(az, ax, ay);
-  glm_normalize(ay);
-
-  mat4 mat = {
-    {ax[0], ax[1], ax[2], -glm_vec3_dot(ax, eyepos)}, //
-    {ay[0], ay[1], ay[2], -glm_vec3_dot(ay, eyepos)}, //
-    {az[0], az[1], az[2], -glm_vec3_dot(az, eyepos)}, //
-    {0.0f, 0.0f, 0.0f, 1.0f},                         //
-  };
-  glm_mat4_transpose_to(mat, *dest);
-}
-
-static void perspective_fov_lh(float fovy, float aspect, float near, float far,
-                               mat4* dest)
-{
-  const vec2 scfov = {sin(0.5f * fovy), cos(0.5f * fovy)};
-
-  ASSERT(near > 0.0f && far > 0.0f && far > near);
-  ASSERT(!approx_eq_fabs_eps(scfov[0], 0.0, 0.001));
-  ASSERT(!approx_eq_fabs_eps(far, near, 0.001));
-  ASSERT(!approx_eq_fabs_eps(aspect, 0.0, 0.01));
-
-  const float h = scfov[1] / scfov[0];
-  const float w = h / aspect;
-  const float r = far / (far - near);
-  mat4 mat      = {
-    {w, 0.0f, 0.0f, 0.0f},         //
-    {0.0f, h, 0.0f, 0.0f},         //
-    {0.0f, 0.0f, r, 1.0f},         //
-    {0.0f, 0.0f, -r * near, 0.0f}, //
-  };
-  glm_mat4_copy(mat, *dest);
-}
-
-/* -------------------------------------------------------------------------- *
- * Triangle mesh generation
+ * Mesh generation
  *
  * @ref
  * https://github.com/michal-z/zig-gamedev/blob/main/libs/zmesh/src/Shape.zig
@@ -412,20 +364,18 @@ static shape_t init_trefoil_knot(int32_t slices, int32_t stacks, float radius)
  * Procedural Mesh Example
  * -------------------------------------------------------------------------- */
 
-#define MESH_COUNT 11u
-
 typedef struct {
   vec3 position;
   vec3 normal;
 } vertex_t;
 
 typedef struct {
-  mat4 world_to_clip;
-  vec3 camera_position;
+  mat4 projection_matrix;
+  mat4 view_matrix;
 } frame_uniforms_t;
 
 typedef struct {
-  mat4 object_to_world;
+  mat4 model;
   vec4 basecolor_roughness;
 } draw_uniforms_t;
 
@@ -485,13 +435,13 @@ static struct {
     float yaw;
     mat4 cam_world_to_view;
     mat4 cam_view_to_clip;
-    mat4 cam_world_to_clip;
+    mat4 cam_projection;
   } camera;
 
   frame_uniforms_t frame_uniforms;
 
   struct {
-    draw_uniforms_t model;
+    draw_uniforms_t data;
     uint8_t padding[176];
   } draw_uniforms[MESH_COUNT];
 
@@ -511,7 +461,7 @@ static struct {
   .camera.yaw               = 0.0f,
   .camera.cam_world_to_view = GLM_MAT4_IDENTITY_INIT,
   .camera.cam_view_to_clip  = GLM_MAT4_IDENTITY_INIT,
-  .camera.cam_world_to_clip = GLM_MAT4_IDENTITY_INIT,
+  .camera.cam_projection    = GLM_MAT4_IDENTITY_INIT,
 
   .mouse.xpos = 0.0f,
   .mouse.ypos = 0.0f,
@@ -519,6 +469,17 @@ static struct {
   .example_title = "Procedural Mesh",
   .prepared      = false,
 };
+
+static void setup_camera(wgpu_example_context_t* context)
+{
+  context->camera       = camera_create();
+  context->camera->type = CameraType_LookAt;
+  camera_set_position(context->camera, (vec3){1.0f, -1.0f, -18.0f});
+  camera_set_rotation(context->camera, (vec3){3.0f * PI2, 0.0f, 0.0f});
+  camera_set_rotation_speed(context->camera, 0.25f);
+  camera_set_perspective(context->camera, 25.0f,
+                         context->window_size.aspect_ratio, 0.01f, 200.0f);
+}
 
 static void append_mesh(uint32_t mesh_index, shape_t* mesh, mesh_t* meshes,
                         uint16_t** meshes_indices, uint32_t* meshes_indices_len,
@@ -574,28 +535,28 @@ static void append_mesh(uint32_t mesh_index, shape_t* mesh, mesh_t* meshes,
          mesh->normals.data, mesh->normals.len * sizeof(*mesh->normals.data));
 }
 
+/**
+ * @brief Initialize a scene with parametric surfaces and other simple shapes.
+ * @see https://prideout.net/shapes
+ */
 static void init_scene(drawable_t* drawables, mesh_t* meshes,
                        uint16_t** meshes_indices, uint32_t* meshes_indices_len,
                        vec3** meshes_positions, uint32_t* meshes_positions_len,
                        vec3** meshes_normals, uint32_t* meshes_normals_len)
 {
-  /**
-   * Initialize a scene with parametric surfaces and other simple shapes.
-   * @see https://prideout.net/shapes
-   */
-
   uint32_t mesh_index = 0;
 
   /* Trefoil knot */
   {
     shape_t mesh = init_trefoil_knot(10, 128, 0.8f);
-    shape_rotate(&mesh, PI_2, 1.0, 0.0, 0.0);
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 0.0f, -0.5f, -1.0f);
+    shape_rotate(&mesh, PI_2, 1.0f, 0.0f, 0.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {0.f, 1.f, 0.f},
       .basecolor_roughness = {0.0f, 0.7f, 0.0f, 0.6f},
     };
 
@@ -608,7 +569,9 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Parametric sphere. */
   {
     shape_t mesh = init_parametric_sphere(20, 20);
-    shape_rotate(&mesh, PI_2, 1.0, 0.0, 0.0);
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 3.0f, -0.5f, -1.0f);
+    shape_rotate(&mesh, PI_2, 1.0f, 0.0f, 0.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -616,7 +579,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {3.f, 1.f, 0.f},
       .basecolor_roughness = {0.7f, 0.0f, 0.0f, 0.2f},
     };
 
@@ -629,6 +591,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Icosahedron. */
   {
     shape_t mesh = init_icosahedron();
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, -3.0f, 1.0f, -0.5f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -636,7 +600,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {-3.f, 1.f, 0.f},
       .basecolor_roughness = {0.7f, 0.6f, 0.0f, 0.4f},
     };
 
@@ -649,6 +612,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Dodecahedron. */
   {
     shape_t mesh = init_dodecahedron();
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 0.0f, 1.0f, 3.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -656,7 +621,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {0.0f, 1.0f, 3.0f},
       .basecolor_roughness = {0.0f, 0.1f, 1.0f, 0.2f},
     };
 
@@ -681,6 +645,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
     shape_scale(&cylinder, 0.5f, 0.5f, 2.0f);
     shape_rotate(&cylinder, PI_2, 1.0f, 0.0f, 0.0f);
 
+    shape_scale(&cylinder, 0.5f, 0.5f, 0.5f);
+    shape_translate(&cylinder, -3.0f, 1.0f, 3.0f);
     shape_unweld(&cylinder);
     shape_compute_normals(&cylinder);
 
@@ -688,7 +654,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {-3.0f, 0.0f, 3.0f},
       .basecolor_roughness = {1.0f, 0.0f, 0.0f, 0.3f},
     };
 
@@ -702,6 +667,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Torus. */
   {
     shape_t mesh = init_torus(10, 20, 0.2f);
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 3.0f, 1.0f, 3.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -709,7 +676,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {3.0f, 1.5f, 3.0f},
       .basecolor_roughness = {1.0f, 0.5f, 0.0f, 0.2f},
     };
 
@@ -722,6 +688,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Subdivided sphere. */
   {
     shape_t mesh = init_subdivided_sphere(3);
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 3.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -729,7 +697,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {3.0f, 1.0f, 6.0f},
       .basecolor_roughness = {0.0f, 1.0f, 0.0f, 0.2f},
     };
 
@@ -742,6 +709,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Tetrahedron. */
   {
     shape_t mesh = init_tetrahedron();
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, 0.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -749,7 +718,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {0.0f, 0.5f, 6.0f},
       .basecolor_roughness = {1.0f, 0.0f, 1.0f, 0.2f},
     };
 
@@ -762,6 +730,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Octahedron. */
   {
     shape_t mesh = init_octahedron();
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, -3.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -769,7 +739,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {-3.0f, 1.0f, 6.0f},
       .basecolor_roughness = {0.2f, 0.0f, 1.0f, 0.2f},
     };
 
@@ -782,6 +751,8 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Rock. */
   {
     shape_t mesh = init_rock(123, 4);
+    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
+    shape_translate(&mesh, -6.0f, 1.0f, 3.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
 
@@ -789,7 +760,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {-6.0f, 0.0f, 3.0f},
       .basecolor_roughness = {1.0f, 1.0f, 1.0f, 1.0f},
     };
 
@@ -802,7 +772,7 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Custom parametric (simple terrain) */
   {
     shape_t ground = init_parametric(terrain_generator, 40, 40, NULL);
-    shape_translate(&ground, -0.5f, -0.0f, -0.5f);
+    shape_translate(&ground, -0.6f, 0.01f, -0.5f);
     shape_invert(&ground, 0, 0);
     shape_scale(&ground, 20.0f, 20.0f, 20.f);
     shape_unweld(&ground);
@@ -812,7 +782,6 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
 
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
-      .position            = {0.0f, 0.0f, 0.0f},
       .basecolor_roughness = {0.1f, 0.1f, 0.1f, 1.0f},
     };
 
@@ -953,7 +922,7 @@ static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)
   // Primitive state
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CW,
+    .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
@@ -1039,34 +1008,18 @@ static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-static void update_camera(wgpu_context_t* wgpu_context)
-{
-  look_to_lh(demo_state.camera.position, demo_state.camera.forward,
-             demo_state.camera.updir, &demo_state.camera.cam_world_to_view);
-  perspective_fov_lh(0.25f * PI,
-                     (float)wgpu_context->surface.width
-                       / (float)wgpu_context->surface.height,
-                     0.01f, 200.0f, &demo_state.camera.cam_view_to_clip);
-  glm_mat4_mulN((mat4*[]){&demo_state.camera.cam_world_to_view,
-                          &demo_state.camera.cam_view_to_clip},
-                2, demo_state.camera.cam_world_to_clip);
-}
-
-static void update_frame_uniform_buffers(wgpu_context_t* wgpu_context)
+static void update_frame_uniform_buffers(wgpu_example_context_t* context)
 {
   // Update camera matrices
-  update_camera(wgpu_context);
-
-  // Update "world to clip" (camera) xform
-  glm_mat4_transpose_to(demo_state.camera.cam_world_to_clip,
-                        demo_state.frame_uniforms.world_to_clip);
-  glm_vec3_copy(demo_state.camera.position,
-                demo_state.frame_uniforms.camera_position);
+  camera_t* camera = context->camera;
+  glm_mat4_copy(camera->matrices.perspective,
+                demo_state.frame_uniforms.projection_matrix);
+  glm_mat4_copy(camera->matrices.view, demo_state.frame_uniforms.view_matrix);
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, demo_state.uniform_buffers.frame.buffer,
-                          0, &demo_state.frame_uniforms,
-                          demo_state.uniform_buffers.frame.size);
+  wgpu_queue_write_buffer(
+    context->wgpu_context, demo_state.uniform_buffers.frame.buffer, 0,
+    &demo_state.frame_uniforms, demo_state.uniform_buffers.frame.size);
 }
 
 static void update_draw_uniform_buffers(wgpu_context_t* wgpu_context)
@@ -1075,16 +1028,16 @@ static void update_draw_uniform_buffers(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < MESH_COUNT; ++i) {
     drawable_t* drawable = &demo_state.drawables[i];
     vec3* drawable_pos   = &drawable->position;
-    mat4 object_to_world = {
-      {1.0f, 0.0f, 0.0f, 0.0f},                                           //
-      {0.0f, 1.0f, 0.0f, 0.0f},                                           //
-      {0.0f, 0.0f, 1.0f, 0.0f},                                           //
+    mat4 model           = {
+      {1.0f, 0.0f, 0.0f, 0.0f}, //
+      {0.0f, 1.0f, 0.0f, 0.0f}, //
+      {0.0f, 0.0f, 1.0f, 0.0f}, //
       {(*drawable_pos)[0], (*drawable_pos)[1], (*drawable_pos)[2], 1.0f}, //
     };
-    glm_mat4_transpose(object_to_world);
+    glm_mat4_transpose(model);
 
-    draw_uniforms_t* draw_uniforms = &demo_state.draw_uniforms[i].model;
-    glm_mat4_copy(object_to_world, draw_uniforms->object_to_world);
+    draw_uniforms_t* draw_uniforms = &demo_state.draw_uniforms[i].data;
+    glm_mat4_copy(model, draw_uniforms->model);
     glm_vec4_copy(drawable->basecolor_roughness,
                   draw_uniforms->basecolor_roughness);
   }
@@ -1116,7 +1069,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = demo_state.uniform_buffers.draw.buffer.size,
     });
 
-  update_frame_uniform_buffers(context->wgpu_context);
+  update_frame_uniform_buffers(context);
   update_draw_uniform_buffers(context->wgpu_context);
 }
 
@@ -1205,9 +1158,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
         .a = 1.0f,
       },
   };
@@ -1233,6 +1186,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    setup_camera(context);
     prepare_vertex_and_index_buffer(context->wgpu_context);
     setup_bind_group_layouts(context->wgpu_context);
     setup_render_pipeline_layout(context->wgpu_context);
@@ -1242,19 +1196,17 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_depth_texture(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     demo_state.prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Info")) {
     UNUSED_VAR(context);
-    // imgui_overlay_text(context->imgui_overlay,
-    //                    "Left Mouse Button + drag  :  rotate camera");
-    // imgui_overlay_text(context->imgui_overlay, "W, A, S, D  :  move camera");
+    imgui_overlay_text("%s", "Left Mouse Btn + drag to rotate camera");
   }
 }
 
@@ -1333,20 +1285,25 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!demo_state.prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return example_draw(context);
 }
 
+static void example_on_view_changed(wgpu_example_context_t* context)
+{
+  update_frame_uniform_buffers(context);
+}
+
 static void example_destroy(wgpu_example_context_t* context)
 {
-  UNUSED_VAR(context);
+  camera_release(context->camera);
 
   WGPU_RELEASE_RESOURCE(Buffer, demo_state.vertex_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, demo_state.index_buffer.buffer)
@@ -1376,9 +1333,10 @@ void example_procedural_mesh(int argc, char* argv[])
      .overlay = true,
      .vsync   = true,
     },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy
+    .example_initialize_func      = &example_initialize,
+    .example_render_func          = &example_render,
+    .example_destroy_func         = &example_destroy,
+    .example_on_view_changed_func = &example_on_view_changed,
   });
   // clang-format on
 }
