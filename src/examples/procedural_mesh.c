@@ -79,10 +79,10 @@ static const char* fragment_shader_wgsl = CODE(
 
   // Trowbridge-Reitz GGX normal distribution function.
   fn distributionGgx(n: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
-    let alpha_sq = alpha * alpha;
-    let n_dot_h = saturate(dot(n, h));
-    let k = n_dot_h * n_dot_h * (alpha_sq - 1.0) + 1.0;
-    return alpha_sq / (pi * k * k);
+      let alpha_sq = alpha * alpha;
+      let n_dot_h = saturate(dot(n, h));
+      let k = n_dot_h * n_dot_h * (alpha_sq - 1.0) + 1.0;
+      return alpha_sq / (pi * k * k);
   }
 
   fn geometrySchlickGgx(x: f32, k: f32) -> f32 {
@@ -90,13 +90,13 @@ static const char* fragment_shader_wgsl = CODE(
   }
 
   fn geometrySmith(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, k: f32) -> f32 {
-    let n_dot_v = saturate(dot(n, v));
-    let n_dot_l = saturate(dot(n, l));
-    return geometrySchlickGgx(n_dot_v, k) * geometrySchlickGgx(n_dot_l, k);
+      let n_dot_v = saturate(dot(n, v));
+      let n_dot_l = saturate(dot(n, l));
+      return geometrySchlickGgx(n_dot_v, k) * geometrySchlickGgx(n_dot_l, k);
   }
 
   fn fresnelSchlick(h_dot_v: f32, f0: vec3<f32>) -> vec3<f32> {
-    return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
+     return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
   }
 
   @fragment fn main(
