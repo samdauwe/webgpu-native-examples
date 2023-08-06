@@ -426,17 +426,6 @@ static struct {
   drawable_t drawables[MESH_COUNT];
   mesh_t meshes[MESH_COUNT];
 
-  struct {
-    vec3 position;
-    vec3 forward;
-    vec3 updir;
-    float pitch;
-    float yaw;
-    mat4 cam_world_to_view;
-    mat4 cam_view_to_clip;
-    mat4 cam_projection;
-  } camera;
-
   frame_uniforms_t frame_uniforms;
 
   struct {
@@ -444,27 +433,10 @@ static struct {
     uint8_t padding[176];
   } draw_uniforms[MESH_COUNT];
 
-  struct {
-    float xpos;
-    float ypos;
-  } mouse;
-
   // Other variables
   const char* example_title;
   bool prepared;
 } demo_state = {
-  .camera.position          = {0.0f, 4.0f, -4.0f},
-  .camera.forward           = {0.0f, 0.0f, 1.0f},
-  .camera.updir             = {0.0f, 1.0f, 0.0f},
-  .camera.pitch             = 0.15f * PI,
-  .camera.yaw               = 0.0f,
-  .camera.cam_world_to_view = GLM_MAT4_IDENTITY_INIT,
-  .camera.cam_view_to_clip  = GLM_MAT4_IDENTITY_INIT,
-  .camera.cam_projection    = GLM_MAT4_IDENTITY_INIT,
-
-  .mouse.xpos = 0.0f,
-  .mouse.ypos = 0.0f,
-
   .example_title = "Procedural Mesh",
   .prepared      = false,
 };
