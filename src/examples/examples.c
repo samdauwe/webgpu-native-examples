@@ -100,7 +100,7 @@ static examplecase_t g_example_cases[] = {
   {"deferred_rendering", example_deferred_rendering},
   {"dynamic_uniform_buffer", example_dynamic_uniform_buffer},
   {"equirectangular_image", example_equirectangular_image},
-  // {"fluid_simulation", example_fluid_simulation},
+  {"fluid_simulation", example_fluid_simulation},
   {"gears", example_gears},
   {"gerstner_waves", example_gerstner_waves},
   {"gltf_loading", example_gltf_loading},
