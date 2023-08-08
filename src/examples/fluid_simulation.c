@@ -42,6 +42,14 @@ typedef enum {
   DYNAMIC_BUFFER_RGB,
 } dynamic_buffer_type_t;
 
+typedef enum {
+  INPUT_SYMMETRY_NONE,
+  INPUT_SYMMETRY_HORIZONTAL,
+  INPUT_SYMMETRY_VERTICAL,
+  INPUT_SYMMETRY_BOTH,
+  INPUT_SYMMETRY_CENTER,
+} input_symmetry_t;
+
 static struct {
   float render_mode;
   float grid_size;
@@ -65,9 +73,10 @@ static struct {
   float vorticity;
   float render_intensity_multiplier;
   float render_dye_buffer;
-  uint32_t pressure_iterations;
+  int32_t pressure_iterations;
   dynamic_buffer_type_t buffer_view;
-  float raymarch_steps;
+  float input_symmetry;
+  int32_t raymarch_steps;
   float smoke_density;
   float enable_shadows;
   float shadow_intensity;
@@ -96,6 +105,7 @@ static struct {
   .render_dye_buffer           = 1.0f,
   .pressure_iterations         = 20,
   .buffer_view                 = DYNAMIC_BUFFER_DYE,
+  .input_symmetry              = (float)INPUT_SYMMETRY_NONE,
   .raymarch_steps              = 12.0f,
   .smoke_density               = 40.0f,
   .enable_shadows              = 1.0f,
@@ -369,7 +379,7 @@ static float* uniform_get_setting_value(uniform_type_t type)
     case UNIFORM_CONTAIN_FLUID: /* contain_fluid */
       return &settings.contain_fluid;
     case UNIFORM_MOUSE_TYPE: /* mouse_type */
-      return NULL;
+      return &settings.input_symmetry;
     case UNIFORM_RENDER_INTENSITY_MULTIPLIER: /* render_intensity_multiplier */
       return &settings.render_intensity_multiplier;
     default:
@@ -427,6 +437,9 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
   if (this->needs_update || this->always_update || value != NULL) {
     float const* buff_value
       = value ? value : uniform_get_setting_value(this->type);
+    if (value_count == 1 && buff_value[0] == value[0]) {
+      return;
+    }
     if (buff_value) {
       memcpy(this->values, buff_value, this->size * sizeof(float));
     }
@@ -1528,7 +1541,7 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
   program_dispatch(&programs.boundary_div_program, pass_encoder);
 
   /* Solve the jacobi-pressure equation */
-  for (uint32_t i = 0; i < settings.pressure_iterations; ++i) {
+  for (int32_t i = 0; i < settings.pressure_iterations; ++i) {
     program_dispatch(&programs.pressure_program, pass_encoder);
     /* boundary conditions */
     program_dispatch(&programs.boundary_pressure_program, pass_encoder);
@@ -1565,8 +1578,37 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
+    imgui_overlay_slider_int(context->imgui_overlay, "Pressure Iterations",
+                             &settings.pressure_iterations, 0, 50);
+    static const char* symmetry_types[5]
+      = {"None", "Horizontal", "Vertical", "Both", "Center"};
+    int32_t symmetry_value_int = (int32_t)settings.input_symmetry;
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Mouse Symmetry",
+                                &symmetry_value_int, symmetry_types, 5)) {
+      settings.input_symmetry = (float)symmetry_value_int;
+      uniform_update(&uniforms.symmetry, context->wgpu_context,
+                     &settings.input_symmetry, 1);
+    }
     if (imgui_overlay_button(context->imgui_overlay, "Reset")) {
       simulation_reset();
+    }
+    if (imgui_overlay_header("Smoke Parameters")) {
+      imgui_overlay_slider_int(context->imgui_overlay, "3D resolution",
+                               &settings.raymarch_steps, 5, 20);
+      imgui_overlay_slider_float(context->imgui_overlay, "Light Elevation",
+                                 &settings.light_height, 0.5f, 1.0f, "%.3f");
+      imgui_overlay_slider_float(context->imgui_overlay, "Light Intensity",
+                                 &settings.light_intensity, 0.0f, 1.0f, "%.3f");
+      imgui_overlay_slider_float(context->imgui_overlay, "Light Falloff",
+                                 &settings.light_falloff, 0.5f, 10.0f, "%.3f");
+      bool enable_shadows = settings.enable_shadows != 0.0f;
+      if (imgui_overlay_checkBox(context->imgui_overlay, "Enable Shadows",
+                                 &enable_shadows)) {
+        settings.enable_shadows = enable_shadows ? 1.0f : 0.0f;
+      }
+      imgui_overlay_slider_float(context->imgui_overlay, "Shadow Intensity",
+                                 &settings.shadow_intensity, 0.0f, 50.0f,
+                                 "%.3f");
     }
   }
 }
@@ -1713,7 +1755,7 @@ void example_fluid_simulation(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-    .title  = example_title,
+    .title   = example_title,
     .overlay = true,
     .vsync   = true,
   },
