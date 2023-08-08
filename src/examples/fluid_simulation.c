@@ -24,6 +24,16 @@
 #define MAX_DIMENSIONS 3u
 
 typedef enum {
+  RENDER_MODE_CLASSIC,
+  RENDER_MODE_SMOKE_2D,
+  RENDER_MODE_SMOKE_3D_SHADOWS,
+  RENDER_MODE_DEBUG_VELOCITY,
+  RENDER_MODE_DEBUG_DIVERGENCE,
+  RENDER_MODE_DEBUG_PRESSURE,
+  RENDER_MODE_DEBUG_VORTICITY,
+} render_modes_t;
+
+typedef enum {
   DYNAMIC_BUFFER_VELOCITY,
   DYNAMIC_BUFFER_DYE,
   DYNAMIC_BUFFER_DIVERGENCE,
@@ -33,6 +43,7 @@ typedef enum {
 } dynamic_buffer_type_t;
 
 static struct {
+  float render_mode;
   float grid_size;
   uint32_t grid_w;
   uint32_t grid_h;
@@ -56,26 +67,43 @@ static struct {
   float render_dye_buffer;
   uint32_t pressure_iterations;
   dynamic_buffer_type_t buffer_view;
+  float raymarch_steps;
+  float smoke_density;
+  float enable_shadows;
+  float shadow_intensity;
+  float smoke_height;
+  float light_height;
+  float light_intensity;
+  float light_falloff;
   float dt;
   float time;
   vec4 mouse;
 } settings = {
-  .grid_size                   = 512.0f,
-  .dye_size                    = 2048,
+  .render_mode                 = (float)RENDER_MODE_CLASSIC,
+  .grid_size                   = 128.0f,
+  .dye_size                    = 1024,
   .sim_speed                   = 5.0f,
   .contain_fluid               = 1.0f,
-  .velocity_add_intensity      = 0.1f,
-  .velocity_add_radius         = 0.0001f,
+  .velocity_add_intensity      = 0.2f,
+  .velocity_add_radius         = 0.0002f,
   .velocity_diffusion          = 0.9999f,
-  .dye_add_intensity           = 4.0f,
+  .dye_add_intensity           = 1.0f,
   .dye_add_radius              = 0.001f,
-  .dye_diffusion               = 0.994f,
+  .dye_diffusion               = 0.98f,
   .viscosity                   = 0.8f,
   .vorticity                   = 2.0f,
   .render_intensity_multiplier = 1.0f,
   .render_dye_buffer           = 1.0f,
-  .pressure_iterations         = 100,
+  .pressure_iterations         = 20,
   .buffer_view                 = DYNAMIC_BUFFER_DYE,
+  .raymarch_steps              = 12.0f,
+  .smoke_density               = 40.0f,
+  .enable_shadows              = 1.0f,
+  .shadow_intensity            = 25.0f,
+  .smoke_height                = 0.2f,
+  .light_height                = 1.0f,
+  .light_intensity             = 1.0f,
+  .light_falloff               = 1.0f,
   .dt                          = 0.0f,
   .time                        = 0.0f,
   .mouse                       = GLM_VEC4_ZERO_INIT,
@@ -92,7 +120,7 @@ static struct {
 };
 
 /* -------------------------------------------------------------------------- *
- * Dynamic buffer
+ * Dynamic buffers
  * -------------------------------------------------------------------------- */
 
 /**
@@ -179,6 +207,7 @@ static void dynamic_buffer_clear(dynamic_buffer_t* this)
   free(empty_buffer);
 }
 
+/* Buffers */
 static struct {
   dynamic_buffer_t velocity;
   dynamic_buffer_t velocity0;
@@ -247,6 +276,7 @@ static void dynamic_buffers_destroy(void)
  * -------------------------------------------------------------------------- */
 
 typedef enum {
+  UNIFORM_RENDER_MODE,                 /* render_mode */
   UNIFORM_TIME,                        /* time */
   UNIFORM_DT,                          /* dt */
   UNIFORM_MOUSE_INFOS,                 /* mouseInfos */
@@ -262,12 +292,12 @@ typedef enum {
   UNIFORM_VORTICITY,                   /* vorticity */
   UNIFORM_CONTAIN_FLUID,               /* contain_fluid */
   UNIFORM_MOUSE_TYPE,                  /* mouse_type */
+  UNIFORM_SMOKE_PARAMETERS,            /* smoke_parameters */
   UNIFORM_RENDER_INTENSITY_MULTIPLIER, /* render_intensity_multiplier */
-  UNIFORM_RENDER_DYE_BUFFER,           /* render_dye_buffer */
   UNIFORM_COUNT,
 } uniform_type_t;
 
-#define MAX_UNIFORM_VALUE_COUNT 7u
+#define MAX_UNIFORM_VALUE_COUNT 8u
 
 /* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
@@ -280,6 +310,7 @@ typedef struct {
 } uniform_t;
 
 static struct {
+  uniform_t render_mode;
   uniform_t time;
   uniform_t dt;
   uniform_t mouse;
@@ -292,11 +323,11 @@ static struct {
   uniform_t dye_radius;
   uniform_t dye_diff;
   uniform_t viscosity;
-  uniform_t u_vorticity;
+  uniform_t vorticity;
   uniform_t contain_fluid;
-  uniform_t u_symmetry;
-  uniform_t u_render_intensity;
-  uniform_t u_render_dye;
+  uniform_t symmetry;
+  uniform_t smoke_parameters;
+  uniform_t render_intensity;
 } uniforms = {0};
 
 static uniform_t* global_uniforms[UNIFORM_COUNT] = {0};
@@ -308,16 +339,15 @@ static void uniform_init_defaults(uniform_t* this)
 
 static float* uniform_get_setting_value(uniform_type_t type)
 {
-
   switch (type) {
+    case UNIFORM_RENDER_MODE: /* render_mode */
+      return &settings.render_mode;
     case UNIFORM_TIME: /* time */
       return &settings.time;
     case UNIFORM_DT: /* dt */
       return &settings.dt;
     case UNIFORM_MOUSE_INFOS: /* mouseInfos */
       return settings.mouse;
-    case UNIFORM_GRID_SIZE: /* gridSize */
-      return &settings.grid_size;
     case UNIFORM_SIM_SPEED: /* sim_speed */
       return &settings.sim_speed;
     case UNIFORM_VELOCITY_ADD_INTENSITY: /* velocity_add_intensity */
@@ -342,8 +372,6 @@ static float* uniform_get_setting_value(uniform_type_t type)
       return NULL;
     case UNIFORM_RENDER_INTENSITY_MULTIPLIER: /* render_intensity_multiplier */
       return &settings.render_intensity_multiplier;
-    case UNIFORM_RENDER_DYE_BUFFER: /* render_dye_buffer */
-      return &settings.render_dye_buffer;
     default:
       return NULL;
   }
@@ -414,14 +442,17 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
 /* Initialize uniforms */
 static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
 {
+  float uniform_value = settings.render_mode;
+  uniform_init(&uniforms.render_mode, wgpu_context, UNIFORM_RENDER_MODE, 1,
+               &uniform_value);
   uniform_init(&uniforms.time, wgpu_context, UNIFORM_TIME, 1, NULL);
   uniform_init(&uniforms.dt, wgpu_context, UNIFORM_DT, 1, NULL);
   uniform_init(&uniforms.mouse, wgpu_context, UNIFORM_MOUSE_INFOS, 4, NULL);
-  const float values[7] = {
+  const float grid_values[7] = {
     settings.grid_w, settings.grid_h, settings.dye_w,   settings.dye_h,
     settings.dx,     settings.rdx,    settings.dye_rdx,
   };
-  uniform_init(&uniforms.grid, wgpu_context, UNIFORM_GRID_SIZE, 7, values);
+  uniform_init(&uniforms.grid, wgpu_context, UNIFORM_GRID_SIZE, 7, grid_values);
   uniform_init(&uniforms.sim_speed, wgpu_context, UNIFORM_SIM_SPEED, 1, NULL);
   uniform_init(&uniforms.vel_force, wgpu_context,
                UNIFORM_VELOCITY_ADD_INTENSITY, 1, NULL);
@@ -436,15 +467,26 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
   uniform_init(&uniforms.dye_diff, wgpu_context, UNIFORM_DYE_ADD_DIFFUSION, 1,
                NULL);
   uniform_init(&uniforms.viscosity, wgpu_context, UNIFORM_VISCOSITY, 1, NULL);
-  uniform_init(&uniforms.u_vorticity, wgpu_context, UNIFORM_VORTICITY, 1, NULL);
+  uniform_init(&uniforms.vorticity, wgpu_context, UNIFORM_VORTICITY, 1, NULL);
   uniform_init(&uniforms.contain_fluid, wgpu_context, UNIFORM_CONTAIN_FLUID, 1,
                NULL);
-  uniform_init(&uniforms.u_symmetry, wgpu_context, UNIFORM_MOUSE_TYPE, 1, NULL);
+  uniform_init(&uniforms.symmetry, wgpu_context, UNIFORM_MOUSE_TYPE, 1, NULL);
+  const float smoke_parameter_values[8] = {
+    settings.raymarch_steps,   settings.smoke_density, settings.enable_shadows,
+    settings.shadow_intensity, settings.smoke_height,  settings.light_height,
+    settings.light_intensity,  settings.light_falloff,
+  };
+  uniform_init(&uniforms.smoke_parameters, wgpu_context,
+               UNIFORM_SMOKE_PARAMETERS, 8, smoke_parameter_values);
+  uniform_value = 1;
+  uniform_init(&uniforms.render_intensity, wgpu_context,
+               UNIFORM_RENDER_INTENSITY_MULTIPLIER, 1, &uniform_value);
 }
 
 /* Destruct uniforms */
 static void uniforms_buffers_destroy(void)
 {
+  uniform_destroy(&uniforms.render_mode);
   uniform_destroy(&uniforms.time);
   uniform_destroy(&uniforms.dt);
   uniform_destroy(&uniforms.mouse);
@@ -457,13 +499,15 @@ static void uniforms_buffers_destroy(void)
   uniform_destroy(&uniforms.dye_radius);
   uniform_destroy(&uniforms.dye_diff);
   uniform_destroy(&uniforms.viscosity);
-  uniform_destroy(&uniforms.u_vorticity);
+  uniform_destroy(&uniforms.vorticity);
   uniform_destroy(&uniforms.contain_fluid);
-  uniform_destroy(&uniforms.u_symmetry);
+  uniform_destroy(&uniforms.symmetry);
+  uniform_destroy(&uniforms.smoke_parameters);
+  uniform_destroy(&uniforms.render_intensity);
 }
 
 /* -------------------------------------------------------------------------- *
- * Program
+ * Programs
  * -------------------------------------------------------------------------- */
 
 #define PROGRAM_MAX_BUFFER_COUNT (3u * 3u)
@@ -478,20 +522,21 @@ typedef struct {
 } program_t;
 
 static struct {
-  program_t advect_dye_program;
-  program_t advect_program;
-  program_t boundary_div_program;
-  program_t boundary_pressure_program;
-  program_t boundary_program;
   program_t checker_program;
-  program_t clear_pressure_program;
-  program_t divergence_program;
-  program_t gradient_subtract_program;
-  program_t pressure_program;
   program_t update_dye_program;
   program_t update_program;
-  program_t vorticity_confinment_program;
+  program_t advect_program;
+  program_t boundary_program;
+  program_t divergence_program;
+  program_t boundary_div_program;
+  program_t pressure_program;
+  program_t boundary_pressure_program;
+  program_t gradient_subtract_program;
+  program_t advect_dye_program;
+  program_t clear_pressure_program;
   program_t vorticity_program;
+  program_t vorticity_confinment_program;
+  program_t render_program;
 } programs = {0};
 
 static void program_init_defaults(program_t* this)
@@ -707,8 +752,9 @@ static void init_checker_program(program_t* this, wgpu_context_t* wgpu_context)
   dynamic_buffer_t* program_buffers[1] = {
     &dynamic_buffers.dye, /* */
   };
-  uniform_t* program_uniforms[1] = {
+  uniform_t* program_uniforms[2] = {
     &uniforms.grid, /* */
+    &uniforms.time, /* */
   };
   const char* shader_wgsl_filename = "checkerboard_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
@@ -784,7 +830,7 @@ static void init_update_dye_program(program_t* this,
     &uniforms.dye_diff,   /* */
     &uniforms.time,       /* */
     &uniforms.dt,         /* */
-    &uniforms.u_symmetry, /* */
+    &uniforms.symmetry,   /* */
   };
   const char* shader_wgsl_filename = "update_dye_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
@@ -807,7 +853,7 @@ static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
     &uniforms.vel_diff,   /* */
     &uniforms.dt,         /* */
     &uniforms.time,       /* */
-    &uniforms.u_symmetry, /* */
+    &uniforms.symmetry,   /* */
   };
   const char* shader_wgsl_filename = "update_velocity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
@@ -825,9 +871,9 @@ static void init_vorticity_confinment_program(program_t* this,
     &dynamic_buffers.velocity0, /* out_vorticity */
   };
   uniform_t* program_uniforms[3] = {
-    &uniforms.grid,        /* */
-    &uniforms.dt,          /* */
-    &uniforms.u_vorticity, /* */
+    &uniforms.grid,      /* */
+    &uniforms.dt,        /* */
+    &uniforms.vorticity, /* */
   };
   const char* shader_wgsl_filename = "vorticity_confinment_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
@@ -999,7 +1045,12 @@ static struct {
 
 // Shaders
 // clang-format off
-static const char* render_program_shader_wgsl = CODE(
+/**
+ * @brief 3D Smoke Rendering inspired from @xjorma's shader:
+ * @ref https://www.shadertoy.com/view/WlVyRV
+ */
+static const char* render_program_shader_wgsl_vertex_main = CODE(
+  // -- STRUCT_GRID_SIZE -- //
   struct GridSize {
     w : f32,
     h : f32,
@@ -1009,18 +1060,40 @@ static const char* render_program_shader_wgsl = CODE(
     rdx : f32,
     dyeRdx : f32
   }
+  // -- STRUCT_GRID_SIZE -- //
+
+  // -- STRUCT_MOUSE -- //
+  struct Mouse {
+    pos: vec2<f32>,
+    vel: vec2<f32>,
+  }
+  // -- STRUCT_MOUSE -- //
 
   struct VertexOut {
     @builtin(position) position : vec4<f32>,
     @location(1) uv : vec2<f32>,
   };
 
-  @group(0) @binding(0) var<storage, read_write> fieldX : array<f32>;
-  @group(0) @binding(1) var<storage, read_write> fieldY : array<f32>;
-  @group(0) @binding(2) var<storage, read_write> fieldZ : array<f32>;
+  struct SmokeData {
+    raymarchSteps: f32,
+    smokeDensity: f32,
+    enableShadows: f32,
+    shadowIntensity: f32,
+    smokeHeight: f32,
+    lightHeight: f32,
+    lightIntensity: f32,
+    lightFalloff: f32,
+  }
+
+  @group(0) @binding(0) var<storage, read> fieldX : array<f32>;
+  @group(0) @binding(1) var<storage, read> fieldY : array<f32>;
+  @group(0) @binding(2) var<storage, read> fieldZ : array<f32>;
   @group(0) @binding(3) var<uniform> uGrid : GridSize;
-  @group(0) @binding(4) var<uniform> multiplier : f32;
-  @group(0) @binding(5) var<uniform> isRenderingDye : f32;
+  @group(0) @binding(4) var<uniform> uTime : f32;
+  @group(0) @binding(5) var<uniform> uMouse : Mouse;
+  @group(0) @binding(6) var<uniform> isRenderingDye : f32;
+  @group(0) @binding(7) var<uniform> multiplier : f32;
+  @group(0) @binding(8) var<uniform> smokeData : SmokeData;
 
   @vertex
   fn vertex_main(@location(0) position: vec4<f32>) -> VertexOut
@@ -1030,6 +1103,61 @@ static const char* render_program_shader_wgsl = CODE(
     output.uv = position.xy*.5+.5;
     return output;
   }
+);
+
+static const char* render_program_shader_wgsl_fragment_main = CODE(
+  fn hash12(p: vec2<f32>) -> f32
+  {
+    var p3: vec3<f32>  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  fn getDye(pos : vec3<f32>) -> vec3<f32>
+  {
+    var uv = pos.xy;
+    uv.x *= uGrid.h / uGrid.w;
+    uv = uv * 0.5 + 0.5;
+
+    if(max(uv.x, uv.y) > 1. || min(uv.x, uv.y) < 0.) {
+      return vec3(0);
+    }
+
+    uv = floor(uv*vec2(uGrid.dyeW, uGrid.dyeH));
+    let id = u32(uv.x + uv.y * uGrid.dyeW);
+
+    return vec3(fieldX[id], fieldY[id], fieldZ[id]);
+  }
+
+  fn getLevel(dye: vec3<f32>) -> f32
+  {
+    return max(dye.r, max(dye.g, dye.b));
+  }
+
+  fn getMousePos() -> vec2<f32> {
+    var pos = uMouse.pos;
+    pos = (pos - .5) * 2.;
+    pos.x *= uGrid.w / uGrid.h;
+    return pos;
+  }
+
+  fn getShadow(p: vec3<f32>, lightPos: vec3<f32>, fogSlice: f32) -> f32 {
+    let lightDir: vec3<f32> = normalize(lightPos - p);
+    let lightDist: f32 = pow(max(0., dot(lightPos - p, lightPos - p) - smokeData.lightIntensity + 1.), smokeData.lightFalloff);
+    var shadowDist: f32 = 0.;
+
+    for (var i: f32 = 1.; i <= smokeData.raymarchSteps; i += 1.) {
+      let sp: vec3<f32> = p + mix(0., lightDist*smokeData.smokeHeight, i / smokeData.raymarchSteps) * lightDir;
+      if (sp.z > smokeData.smokeHeight) {
+        break;
+      }
+
+      let height: f32 = getLevel(getDye(sp)) * smokeData.smokeHeight;
+      shadowDist += min(max(0., height - sp.z), fogSlice);
+    }
+
+    return exp(-shadowDist * smokeData.shadowIntensity) / lightDist;
+  }
 
   @fragment
   fn fragment_main(fragData : VertexOut) -> @location(0) vec4<f32>
@@ -1037,24 +1165,78 @@ static const char* render_program_shader_wgsl = CODE(
     var w = uGrid.dyeW;
     var h = uGrid.dyeH;
 
-    if (isRenderingDye != 1.) {
-      w = uGrid.w;
-      h = uGrid.h;
+    if (isRenderingDye != 2.) {
+      if (isRenderingDye > 1.) {
+        w = uGrid.w;
+        h = uGrid.h;
+      }
+
+      let fuv = vec2<f32>((floor(fragData.uv*vec2(w, h))));
+      let id = u32(fuv.x + fuv.y * w);
+
+      let r = fieldX[id] + uTime * 0. + uMouse.pos.x * 0.;
+      let g = fieldY[id];
+      let b = fieldZ[id];
+      var col = vec3(r, g, b);
+
+      if (isRenderingDye > 1.) {
+        if (r < 0.) {col = mix(vec3(0.), vec3(0., 0., 1.), abs(r));}
+        else {col = mix(vec3(0.), vec3(1., 0., 0.), r);}
+      }
+
+      return vec4(col * multiplier, 1);
     }
 
-    let fuv = vec2<f32>((floor(fragData.uv*vec2(w, h))));
-    let id = u32(fuv.x + fuv.y * w);
+    var uv: vec2<f32> = fragData.uv * 2. - 1.;
+    uv.x *= uGrid.dyeW / uGrid.dyeH;
+    // let rd: vec3<f32> = normalize(vec3(uv, -1));
+    // let ro: vec3<f32> = vec3(0,0,1);
 
-    let r = fieldX[id];
-    let g = fieldY[id];
-    let b = fieldZ[id];
-    var col = vec3(r, g, b);
+    let theta = -1.5708;
+    let phi = 3.141592 + 0.0001;// - (uMouse.pos.y - .5);
+    let parralax = 20.;
+    var ro: vec3<f32> = parralax * vec3(sin(phi)*cos(theta),cos(phi),sin(phi)*sin(theta));
+    let cw = normalize(-ro);
+    let cu = normalize(cross(cw, vec3(0, 0, 1)));
+    let cv = normalize(cross(cu, cw));
+    let ca = mat3x3(cu, cv, cw);
+    var rd =  ca*normalize(vec3(uv, parralax));
+    ro = ro.xzy; rd = rd.xzy;
 
-    if (r == g && r == b) {
-      if (r < 0.) {col = mix(vec3(0.), vec3(0., 0., 1.), abs(r));}
-      else {col = mix(vec3(0.), vec3(1., 0., 0.), r);}
+    let bgCol: vec3<f32> = vec3(0,0,0);
+    let fogSlice = smokeData.smokeHeight / smokeData.raymarchSteps;
+
+    let near: f32 = (smokeData.smokeHeight - ro.z) / rd.z;
+    let far: f32  = -ro.z / rd.z;
+
+    let m = getMousePos();
+    let lightPos: vec3<f32> = vec3(m, smokeData.lightHeight);
+
+    var transmittance: f32 = 1.;
+    var col: vec3<f32> = vec3(0.35,0.35,0.35) * 0.;
+
+    for (var i: f32 = 0.; i <= smokeData.raymarchSteps; i += 1.) {
+      let p: vec3<f32> = ro + mix(near, far, i / smokeData.raymarchSteps) * rd;
+
+      let dyeColor: vec3<f32> = getDye(p);
+      let height: f32 = getLevel(dyeColor) * smokeData.smokeHeight;
+      let smple: f32 = min(max(0., height - p.z), fogSlice);
+
+      if (smple > .0001) {
+        var shadow: f32 = 1.;
+
+        if (smokeData.enableShadows > 0.) {
+          shadow = getShadow(p, lightPos, fogSlice);
+        }
+
+        let dens: f32 = smple*smokeData.smokeDensity;
+
+        col += shadow * dens * transmittance * dyeColor;
+        transmittance *= 1. - dens;
+      }
     }
-    return vec4(col, 1) * multiplier;
+
+    return vec4(mix(bgCol, col, 1. - transmittance), 1);
   }
 );
 // clang-format on
@@ -1081,10 +1263,17 @@ static void render_program_destroy(void)
 {
   wgpu_destroy_buffer(&render_program.vertex_buffer);
   dynamic_buffer_destroy(&dynamic_buffers.rgb_buffer);
-  uniform_destroy(&uniforms.u_render_intensity);
-  uniform_destroy(&uniforms.u_render_dye);
   WGPU_RELEASE_RESOURCE(RenderPipeline, render_program.render_pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, render_program.render_bind_group)
+}
+
+static char* concat_strings(const char* s1, const char* s2, const char* delim)
+{
+  uint32_t str_len = strlen(s1) + strlen(delim) + strlen(s2) + 1;
+  char* result     = (char*)malloc(str_len * sizeof(char));
+  memset(result, 0, str_len * sizeof(char));
+  sprintf(result, "%s%s%s", s1, delim, s2);
+  return result;
 }
 
 static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
@@ -1108,13 +1297,18 @@ static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPU_VERTEX_BUFFER_LAYOUT(
     fluid_simulation, 16, WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
 
+  /* WGSL Shader*/
+  char* program_shader_wgsl
+    = concat_strings(render_program_shader_wgsl_vertex_main,
+                     render_program_shader_wgsl_fragment_main, "\n");
+
   /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
                   .label            = "vertex_shader_wgsl",
-                  .wgsl_code.source = render_program_shader_wgsl,
+                  .wgsl_code.source = program_shader_wgsl,
                   .entry            = "vertex_main",
                 },
                 .buffer_count = 1,
@@ -1127,12 +1321,14 @@ static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
                   .label            = "fragment_shader_wgsl",
-                  .wgsl_code.source = render_program_shader_wgsl,
+                  .wgsl_code.source = program_shader_wgsl,
                   .entry            = "fragment_main",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
               });
+
+  free(program_shader_wgsl);
 
   // Multisample state
   WGPUMultisampleState multisample_state
@@ -1159,7 +1355,7 @@ static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  WGPUBindGroupEntry bg_entries[6] = {
+  WGPUBindGroupEntry bg_entries[9] = {
     /* Binding 0 : fieldX */
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
@@ -1184,19 +1380,38 @@ static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
       .buffer  = uniforms.grid.buffer.buffer,
       .size    = uniforms.grid.buffer.size,
     },
-    /* Binding 4 : multiplier */
+    /* Binding 4 : uTime */
     [4] = (WGPUBindGroupEntry) {
       .binding = 4,
-      .buffer  = uniforms.u_render_intensity.buffer.buffer,
-      .size    = uniforms.u_render_intensity.buffer.size,
+      .buffer  = uniforms.time.buffer.buffer,
+      .size    = uniforms.time.buffer.size,
     },
-    /* Binding 4 : isRenderingDye */
+    /* Binding 5 : uMouse */
     [5] = (WGPUBindGroupEntry) {
       .binding = 5,
-      .buffer  = uniforms.u_render_dye.buffer.buffer,
-      .size    = uniforms.u_render_dye.buffer.size,
+      .buffer  = uniforms.mouse.buffer.buffer,
+      .size    = uniforms.mouse.buffer.size,
+    },
+    /* Binding 6 : uRenderMode */
+    [6] = (WGPUBindGroupEntry) {
+      .binding = 6,
+      .buffer  = uniforms.render_mode.buffer.buffer,
+      .size    = uniforms.render_mode.buffer.size,
+    },
+    /* Binding 7 : uRenderIntensity */
+    [7] = (WGPUBindGroupEntry) {
+      .binding = 7,
+      .buffer  = uniforms.render_intensity.buffer.buffer,
+      .size    = uniforms.render_intensity.buffer.size,
+    },
+    /* Binding 8 : uSmokeParameters */
+    [8] = (WGPUBindGroupEntry) {
+      .binding = 8,
+      .buffer  = uniforms.smoke_parameters.buffer.buffer,
+      .size    = uniforms.smoke_parameters.buffer.size,
     },
   };
+
   WGPUBindGroupDescriptor bg_desc = {
     .label = "render bind group",
     .layout
@@ -1214,17 +1429,6 @@ static void render_program_setup_rgb_buffer(wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, /* dims: */ 3,
                       /* w: */ settings.dye_w, /* h: */ settings.dye_h);
-}
-
-/* Uniforms */
-static void render_program_setup_render_uniforms(wgpu_context_t* wgpu_context)
-{
-  const float value = 1;
-
-  uniform_init(&uniforms.u_render_intensity, wgpu_context,
-               UNIFORM_RENDER_INTENSITY_MULTIPLIER, 1, &value);
-  uniform_init(&uniforms.u_render_dye, wgpu_context, UNIFORM_RENDER_DYE_BUFFER,
-               1, &value);
 }
 
 static void render_program_setup_render_pass(void)
@@ -1255,7 +1459,6 @@ static void render_program_init(wgpu_context_t* wgpu_context)
   render_program_prepare_vertex_buffer(wgpu_context);
   render_program_prepare_pipelines(wgpu_context);
   render_program_setup_rgb_buffer(wgpu_context);
-  render_program_setup_render_uniforms(wgpu_context);
   render_program_setup_bind_group(wgpu_context);
   render_program_setup_render_pass();
 }
@@ -1347,6 +1550,7 @@ static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     init_sizes(context->wgpu_context);
+    /* Init buffers, uniforms and programs */
     dynamic_buffers_init(context->wgpu_context);
     uniforms_buffers_init(context->wgpu_context);
     programs_init(context->wgpu_context);
@@ -1392,14 +1596,23 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
   mouse_infos.current[1]
     = 1.0f - context->mouse_position[1] / context->wgpu_context->surface.height;
 
-  /* Update mouse uniform */
+  /* Update custom uniform */
   glm_vec2_sub(mouse_infos.current, mouse_infos.last, mouse_infos.velocity);
   float mouse_values[4] = {
     mouse_infos.current[0], mouse_infos.current[1],   /* current */
     mouse_infos.velocity[0], mouse_infos.velocity[1], /* velocity */
   };
-  uniform_update(&uniforms.mouse, wgpu_context, mouse_values, 4);
+  uniform_update(&uniforms.mouse, wgpu_context, mouse_values,
+                 (uint32_t)ARRAY_SIZE(mouse_values));
   glm_vec2_copy(mouse_infos.current, mouse_infos.last);
+  float smoke_parameter_values[8] = {
+    settings.raymarch_steps,   settings.smoke_density, settings.enable_shadows,
+    settings.shadow_intensity, settings.smoke_height,  settings.light_height,
+    settings.light_intensity,  settings.light_falloff,
+  };
+  uniform_update(&uniforms.smoke_parameters, wgpu_context,
+                 smoke_parameter_values,
+                 (uint32_t)ARRAY_SIZE(smoke_parameter_values));
 
   /* Compute fluid */
   render_program.render_pass.color_attachments[0].view
@@ -1421,25 +1634,25 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
                          wgpu_context->cmd_enc);
 
   /* Copy the selected buffer to the render program */
-  if (settings.buffer_view == DYNAMIC_BUFFER_DYE) {
-    dynamic_buffer_copy_to(&dynamic_buffers.dye, &dynamic_buffers.rgb_buffer,
-                           wgpu_context->cmd_enc);
-  }
-  else if (settings.buffer_view == DYNAMIC_BUFFER_VELOCITY) {
+  if (settings.buffer_view == RENDER_MODE_DEBUG_VELOCITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.velocity,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == DYNAMIC_BUFFER_DIVERGENCE) {
+  else if (settings.buffer_view == RENDER_MODE_DEBUG_DIVERGENCE) {
     dynamic_buffer_copy_to(&dynamic_buffers.divergence,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == DYNAMIC_BUFFER_PRESSURE) {
+  else if (settings.buffer_view == RENDER_MODE_DEBUG_PRESSURE) {
     dynamic_buffer_copy_to(&dynamic_buffers.pressure,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == DYNAMIC_BUFFER_VORTICITY) {
+  else if (settings.buffer_view == RENDER_MODE_DEBUG_VORTICITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.vorticity,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+  }
+  else {
+    dynamic_buffer_copy_to(&dynamic_buffers.dye, &dynamic_buffers.rgb_buffer,
+                           wgpu_context->cmd_enc);
   }
 
   /* Draw fluid */
