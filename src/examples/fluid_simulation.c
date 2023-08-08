@@ -432,7 +432,7 @@ static void uniform_destroy(uniform_t* this)
 
 /* Update the GPU buffer if the value has changed */
 static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
-                           float* value, uint32_t value_count)
+                           float const* value, uint32_t value_count)
 {
   if (this->needs_update || this->always_update || value != NULL) {
     float const* buff_value
@@ -1578,13 +1578,31 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
+#if _DEBUG_RENDER_MODES_
+    static const char* render_modes[7] = {
+      "Classic",           "Smoke 2D",           "Smoke 3D + Shadows",
+      "Debug - Velocity",  "Debug - Divergence", "Debug - Pressure",
+      "Debug - Vorticity",
+    };
+    static const float render_intensity_multipliers[7]
+      = {1, 1, 1, 100, 10, 1e6, 1};
+    int32_t render_mode_int = (int32_t)settings.render_mode;
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Mouse Symmetry",
+                                &render_mode_int, render_modes,
+                                ARRAY_SIZE(render_modes))) {
+      uniform_update(&uniforms.render_intensity, context->wgpu_context,
+                     &render_intensity_multipliers[render_mode_int], 1);
+      settings.render_mode = (float)render_mode_int;
+    }
+#endif
     imgui_overlay_slider_int(context->imgui_overlay, "Pressure Iterations",
                              &settings.pressure_iterations, 0, 50);
     static const char* symmetry_types[5]
       = {"None", "Horizontal", "Vertical", "Both", "Center"};
     int32_t symmetry_value_int = (int32_t)settings.input_symmetry;
     if (imgui_overlay_combo_box(context->imgui_overlay, "Mouse Symmetry",
-                                &symmetry_value_int, symmetry_types, 5)) {
+                                &symmetry_value_int, symmetry_types,
+                                ARRAY_SIZE(symmetry_types))) {
       settings.input_symmetry = (float)symmetry_value_int;
       uniform_update(&uniforms.symmetry, context->wgpu_context,
                      &settings.input_symmetry, 1);
