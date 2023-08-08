@@ -1633,20 +1633,20 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
   dynamic_buffer_copy_to(&dynamic_buffers.pressure0, &dynamic_buffers.pressure,
                          wgpu_context->cmd_enc);
 
-  /* Copy the selected buffer to the render program */
-  if (settings.buffer_view == RENDER_MODE_DEBUG_VELOCITY) {
+  /* Configure render mode */
+  if ((int)settings.render_mode == RENDER_MODE_DEBUG_VELOCITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.velocity,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == RENDER_MODE_DEBUG_DIVERGENCE) {
+  else if ((int)settings.render_mode == RENDER_MODE_DEBUG_DIVERGENCE) {
     dynamic_buffer_copy_to(&dynamic_buffers.divergence,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == RENDER_MODE_DEBUG_PRESSURE) {
+  else if ((int)settings.render_mode == RENDER_MODE_DEBUG_PRESSURE) {
     dynamic_buffer_copy_to(&dynamic_buffers.pressure,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
-  else if (settings.buffer_view == RENDER_MODE_DEBUG_VORTICITY) {
+  else if ((int)settings.render_mode == RENDER_MODE_DEBUG_VORTICITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.vorticity,
                            &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
   }
