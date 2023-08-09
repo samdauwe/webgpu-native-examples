@@ -160,6 +160,7 @@ set(HEADERS
     src/webgpu/context.h
     src/webgpu/gltf_model.h
     src/webgpu/imgui_overlay.h
+    src/webgpu/pbr.h
     src/webgpu/shader.h
     src/webgpu/text_overlay.h
     src/webgpu/texture.h
@@ -184,6 +185,7 @@ set(SOURCES
     src/webgpu/context.c
     src/webgpu/gltf_model.c
     src/webgpu/imgui_overlay.c
+    src/webgpu/pbr.c
     src/webgpu/shader.c
     src/webgpu/text_overlay.c
     src/webgpu/texture.c
