@@ -179,11 +179,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(pipeline_layout != NULL);
 }
 
-static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
-{
-  return (byte_size + 255) & ~255;
-}
-
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Bind Group

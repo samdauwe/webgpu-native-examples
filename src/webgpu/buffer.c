@@ -112,3 +112,8 @@ void copy_padding_buffer(unsigned char* dst, unsigned char* src, int32_t width,
     d += kPadding * 4;
   }
 }
+
+uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
+{
+  return (byte_size + 255) & ~255;
+}

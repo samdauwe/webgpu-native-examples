@@ -446,11 +446,6 @@ static void update_lights(wgpu_example_context_t* context)
                           uniform_buffers.ubo_params.size);
 }
 
-static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
-{
-  return (byte_size + 255) & ~255;
-}
-
 /* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
