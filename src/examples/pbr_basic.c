@@ -20,6 +20,160 @@
 #define GRID_DIM 7u
 #define ALIGNMENT 256u // 256-byte alignment
 
+// Shaders
+// clang-format off
+static const char* pbr_vertex_shader_wgsl = CODE(
+  struct UBO {
+    projection : mat4x4<f32>,
+    model : mat4x4<f32>,
+    view : mat4x4<f32>,
+    camPos : vec3<f32>,
+  };
+
+  struct ObjectParams {
+    objPos : vec3<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> ubo : UBO;
+  @group(0) @binding(3) var<uniform> object : ObjectParams;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) outWorldPos : vec3<f32>,
+    @location(1) outNormal : vec3<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>,
+    @location(1) inNormal: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    let locPos : vec3<f32> = (ubo.model * vec4<f32>(inPos, 1.0)).xyz;
+    output.outWorldPos = locPos + object.objPos;
+    output.outNormal = normalize((ubo.model * vec4<f32>(inNormal, 1.0)).xyz);
+    output.position = ubo.projection * ubo.view * vec4<f32>(output.outWorldPos, 1.0);
+
+    return output;
+  }
+);
+
+static const char* pbr_fragment_shader_wgsl = CODE(
+  struct UBO {
+    projection : mat4x4<f32>,
+    model : mat4x4<f32>,
+    view : mat4x4<f32>,
+    camPos : vec3<f32>,
+  };
+
+  const LIGHTS_ARRAY_LENGTH = 4;
+
+  struct UBOShared {
+    lights : array<vec4<f32>, LIGHTS_ARRAY_LENGTH>,
+  };
+
+  struct MaterialParams {
+    roughness : f32,
+    metallic : f32,
+    r : f32,
+    g : f32,
+    b : f32,
+  };
+
+  @group(0) @binding(0) var<uniform> ubo : UBO;
+  @group(0) @binding(1) var<uniform> uboParams : UBOShared;
+  @group(0) @binding(2) var<uniform> material : MaterialParams;
+
+  const PI = 3.14159265359;
+
+  fn materialcolor() -> vec3f {
+    return vec3<f32>(material.r, material.g, material.b);
+  }
+
+  // Normal Distribution function ----------------------------------------------
+  fn D_GGX(dotNH : f32, roughness : f32) -> f32 {
+    let alpha : f32 = roughness * roughness;
+    let alpha2 : f32 = alpha * alpha;
+    let denom : f32 = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+    return (alpha2)/(PI * denom*denom);
+  }
+
+  // Geometric Shadowing function ----------------------------------------------
+  fn G_SchlicksmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
+    let r  : f32 = (roughness + 1.0);
+    let k  : f32 = (r*r) / 8.0;
+    let GL : f32 = dotNL / (dotNL * (1.0 - k) + k);
+    let GV : f32 = dotNV / (dotNV * (1.0 - k) + k);
+    return GL * GV;
+  }
+
+  // Fresnel function ----------------------------------------------------------
+  fn F_Schlick(cosTheta : f32, metallic : f32) -> vec3f {
+    let F0 : vec3<f32> = mix(vec3(0.04), materialcolor(), metallic);
+    let F : vec3<f32> = F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+    return F;
+  }
+
+  // Specular BRDF composition -------------------------------------------------
+  fn BRDF(L : vec3<f32>, V : vec3<f32>, N : vec3<f32>, metallic : f32,
+          roughness : f32) -> vec3f {
+    // Precalculate vectors and dot products
+    let H : vec3<f32> = normalize(V + L);
+    let dotNV : f32 = clamp(dot(N, V), 0.0, 1.0);
+    let dotNL : f32 = clamp(dot(N, L), 0.0, 1.0);
+    let dotLH : f32 = clamp(dot(L, H), 0.0, 1.0);
+    let dotNH : f32 = clamp(dot(N, H), 0.0, 1.0);
+
+    // Light color fixed
+    let lightColor : vec3<f32> = vec3(1.0);
+
+    var color : vec3<f32> = vec3(0.0);
+
+    if (dotNL > 0.0) {
+        let rroughness : f32 = max(0.05, roughness);
+        // D = Normal distribution (Distribution of the microfacets)
+        let D : f32 = D_GGX(dotNH, roughness);
+        // G = Geometric shadowing term (Microfacets shadowing)
+        let G : f32 = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+        // F = Fresnel factor (Reflectance depending on angle of incidence)
+        let F : vec3<f32> = F_Schlick(dotNV, metallic);
+        let spec = D * F * G / (4.0 * dotNL * dotNV);
+        color += spec * dotNL * lightColor;
+    }
+
+    return color;
+  }
+
+  // Main ----------------------------------------------------------------------
+  @fragment
+  fn main(
+    @location(0) inWorldPos: vec3<f32>,
+    @location(1) inNormal: vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let N : vec3<f32> = normalize(inNormal);
+    let V : vec3<f32> = normalize(ubo.camPos - inWorldPos);
+
+    let roughness : f32 = material.roughness;
+
+    // Specular contribution
+    var Lo : vec3<f32> = vec3(0.0);
+    for (var i : i32 = 0; i < LIGHTS_ARRAY_LENGTH; i++) {
+        let L : vec3<f32> = normalize(uboParams.lights[i].xyz - inWorldPos);
+        Lo += BRDF(L, V, N, material.metallic, roughness);
+    };
+
+    // Combine with ambient
+    var color : vec3<f32> = materialcolor() * 0.02;
+    color += Lo;
+
+    // Gamma correct
+    color = pow(color, vec3(0.4545));
+
+    return vec4<f32>(color, 1.0);
+  }
+);
+// clang-format on
+
 static struct {
   const char* name;
   // Parameter block used as uniforms block
@@ -331,8 +485,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/pbr_basic/pbr.vert.spv",
+              // Vertex shader WGSL
+              .label            = "PBR Basic vertex WGSL",
+              .wgsl_code.source = pbr_vertex_shader_wgsl,
+              .entry            = "main",
             },
             .buffer_count = 1,
             .buffers      = &sphere_vertex_buffer_layout,
@@ -342,8 +498,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/pbr_basic/pbr.frag.spv",
+              // Vertex shader WGSL
+              .label            = "PBR Basic fragment WGSL",
+              .wgsl_code.source = pbr_fragment_shader_wgsl,
+              .entry            = "main",
             },
             .target_count = 1,
             .targets      = &color_target_state,
