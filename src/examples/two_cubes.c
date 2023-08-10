@@ -1,6 +1,5 @@
 #include "common_shaders.h"
 #include "example_base.h"
-#include "examples.h"
 #include "meshes.h"
 
 #include <string.h>
@@ -76,7 +75,7 @@ static const char* example_title = "Two Cubes";
 static bool prepared             = false;
 
 // Prepare the cube geometry
-static void prepare_cube_mesh()
+static void prepare_cube_mesh(void)
 {
   cube_mesh_init(&cube_mesh);
 }
