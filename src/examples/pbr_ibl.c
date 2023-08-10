@@ -718,9 +718,9 @@ static void generate_irradiance_cube(wgpu_context_t* wgpu_context)
     wgpu_context, models.skybox, &textures.environment_cube);
 }
 
-static void generate_prefiltered_cube(wgpu_context_t* wgpu_context)
+static void generate_prefiltered_env_cube(wgpu_context_t* wgpu_context)
 {
-  textures.prefiltered_cube = pbr_generate_prefiltered_cube(
+  textures.prefiltered_cube = pbr_generate_prefiltered_env_cube(
     wgpu_context, models.skybox, &textures.environment_cube);
 }
 
@@ -858,7 +858,7 @@ static int example_initialize(wgpu_example_context_t* context)
     load_assets(context->wgpu_context);
     generate_brdf_lut(context->wgpu_context);
     generate_irradiance_cube(context->wgpu_context);
-    generate_prefiltered_cube(context->wgpu_context);
+    generate_prefiltered_env_cube(context->wgpu_context);
     prepare_uniform_buffers(context);
     setup_bind_group_layouts(context->wgpu_context);
     setup_pipeline_layouts(context->wgpu_context);

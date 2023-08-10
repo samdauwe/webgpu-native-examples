@@ -22,8 +22,8 @@ texture_t pbr_generate_irradiance_cube(wgpu_context_t* wgpu_context,
  * @see
  * https://placeholderart.wordpress.com/2015/07/28/implementation-notes-runtime-environment-map-filtering-for-image-based-lighting/
  */
-texture_t pbr_generate_prefiltered_cube(wgpu_context_t* wgpu_context,
-                                        struct gltf_model_t* skybox,
-                                        texture_t* skybox_texture);
+texture_t pbr_generate_prefiltered_env_cube(wgpu_context_t* wgpu_context,
+                                            struct gltf_model_t* skybox,
+                                            texture_t* skybox_texture);
 
 #endif
