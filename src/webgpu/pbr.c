@@ -7,6 +7,134 @@
 #include "buffer.h"
 #include "shader.h"
 
+// Shaders
+// clang-format off
+static const char* pbr_gen_brdf_lut_vertex_shader_wgsl = CODE(
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) outUV : vec2<f32>,
+  }
+
+  @vertex
+  fn main(
+    @builtin(vertex_index) vertexIndex : u32
+  ) -> Output {
+    var output: Output;
+    output.outUV = vec2<f32>(f32((vertexIndex << 1) & 2), f32(vertexIndex & 2));
+    output.position = vec4<f32>(output.outUV * 2.0 - 1.0, 0.0, 1.0);
+    return output;
+  }
+);
+
+static const char* pbr_gen_brdf_lut_fragment_shader_wgsl = CODE(
+  const NUM_SAMPLES = 1024u;
+  const PI = 3.14159265359;
+
+  // Based omn http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+  fn random(co : vec2<f32>) -> f32 {
+    let a : f32 = 12.9898;
+    let b : f32 = 78.233;
+    let c : f32 = 43758.5453;
+    let dt : f32 = dot(co.xy, vec2<f32>(a,b));
+    let sn : f32 = dt % 3.14;
+    return fract(sin(sn) * c);
+  }
+
+  fn hammersley2d(i : u32, N : u32) -> vec2f {
+    // Radical inverse based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+    var bits : u32 = (i << 16u) | (i >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    let rdi : f32 = f32(bits) * 2.3283064365386963e-10;
+    return vec2<f32>(f32(i) /f32(N), rdi);
+  }
+
+  // Based on http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_slides.pdf
+  fn importanceSample_GGX(Xi : vec2<f32>, roughness : f32, normal : vec3<f32>) -> vec3f {
+    // Maps a 2D point to a hemisphere with spread based on roughness
+    let alpha : f32 = roughness * roughness;
+    let phi : f32 = 2.0 * PI * Xi.x + random(normal.xz) * 0.1;
+    let cosTheta : f32 = sqrt((1.0 - Xi.y) / (1.0 + (alpha*alpha - 1.0) * Xi.y));
+    let sinTheta : f32 = sqrt(1.0 - cosTheta * cosTheta);
+    let H : vec3<f32> = vec3<f32>(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    // Tangent space
+    let up : vec3<f32> = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0), abs(normal.z) < 0.999);
+    let tangentX : vec3<f32> = normalize(cross(up, normal));
+    let tangentY : vec3<f32> = normalize(cross(normal, tangentX));
+
+    // Convert to world Space
+    return normalize(tangentX * H.x + tangentY * H.y + normal * H.z);
+  }
+
+  // Geometric Shadowing function
+  fn G_SchlicksmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
+    let k : f32 = (roughness * roughness) / 2.0;
+    let GL : f32 = dotNL / (dotNL * (1.0 - k) + k);
+    let GV : f32 = dotNV / (dotNV * (1.0 - k) + k);
+    return GL * GV;
+  }
+
+  fn BRDF(NoV : f32, roughness : f32) -> vec2f {
+    // Normal always points along z-axis for the 2D lookup
+    let N : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
+    let V : vec3<f32> = vec3<f32>(sqrt(1.0 - NoV * NoV), 0.0, NoV);
+
+    var LUT : vec2<f32> = vec2<f32>(0.0);
+    for(var i : u32 = 0u; i < NUM_SAMPLES; i++) {
+      let Xi : vec2<f32> = hammersley2d(i, NUM_SAMPLES);
+      let H : vec3<f32> = importanceSample_GGX(Xi, roughness, N);
+      let L : vec3<f32> = 2.0 * dot(V, H) * H - V;
+
+      let dotNL : f32 = max(dot(N, L), 0.0);
+      let dotNV : f32 = max(dot(N, V), 0.0);
+      let dotVH : f32 = max(dot(V, H), 0.0);
+      let dotNH : f32 = max(dot(H, N), 0.0);
+
+      if (dotNL > 0.0) {
+        let G : f32 = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+        let G_Vis : f32 = (G * dotVH) / (dotNH * dotNV);
+        let Fc : f32 = pow(1.0 - dotVH, 5.0);
+        LUT += vec2<f32>((1.0 - Fc) * G_Vis, Fc * G_Vis);
+      }
+    }
+    return LUT / f32(NUM_SAMPLES);
+  }
+
+  @fragment
+  fn main(
+    @location(0) inUV: vec2<f32>,
+  ) -> @location(0) vec4<f32> {
+    return vec4<f32>(BRDF(inUV.x, 1.0 - inUV.y), 0.0, 1.0);
+  }
+);
+
+static const char* pbr_filter_cube_vertex_shader_wgsl = CODE(
+  struct Consts {
+    mvp : mat4x4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> consts : Consts;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) outUVW : vec3<f32>
+  }
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    output.outUVW = inPos;
+    output.position = consts.mvp * vec4<f32>(inPos.xyz, 1.0);
+    return output;
+  }
+);
+// clang-format on
+
 texture_t pbr_generate_brdf_lut(wgpu_context_t* wgpu_context)
 {
 #define BRDF_LUT_DIM 512
@@ -102,9 +230,10 @@ texture_t pbr_generate_brdf_lut(wgpu_context_t* wgpu_context)
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
-                .label = "Gen BRDF LUT vertex shader",
-                .file  = "shaders/pbr/genbrdflut.vert.spv",
+                // Vertex shader WGSL
+                .label            = "Gen BRDF LUT vertex shader",
+                .wgsl_code.source = pbr_gen_brdf_lut_vertex_shader_wgsl,
+                .entry            = "main",
               },
               .buffer_count = 0,
               .buffers      = NULL,
@@ -114,9 +243,10 @@ texture_t pbr_generate_brdf_lut(wgpu_context_t* wgpu_context)
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .label = "Gen BRDF LUT fragment shader",
-                .file  = "shaders/pbr/genbrdflut.frag.spv",
+                // Fragment shader WGSL
+                .label            = "Gen BRDF LUT fragment shader",
+                .wgsl_code.source = pbr_gen_brdf_lut_fragment_shader_wgsl,
+                .entry            = "main",
               },
               .target_count = 1,
               .targets      = &color_target_state,
@@ -639,9 +769,10 @@ texture_t pbr_generate_cubemap(wgpu_context_t* wgpu_context,
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-
-                .label = "Cubemap vertex shader",
-                .file  = "shaders/pbr/filtercube.vert.spv",
+                // Vertex shader WGSL
+                .label            = "Cubemap vertex shader",
+                .wgsl_code.source = pbr_filter_cube_vertex_shader_wgsl,
+                .entry            = "main",
               },
              .buffer_count = 1,
              .buffers      = &skybox_vertex_buffer_layout,
