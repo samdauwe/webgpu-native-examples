@@ -19,7 +19,7 @@ static const char* pbr_gen_brdf_lut_vertex_shader_wgsl = CODE(
   fn main(
     @builtin(vertex_index) vertexIndex : u32
   ) -> Output {
-    var output: Output;
+    var output : Output;
     output.outUV = vec2<f32>(f32((vertexIndex << 1) & 2), f32(vertexIndex & 2));
     output.position = vec4<f32>(output.outUV * 2.0 - 1.0, 0.0, 1.0);
     return output;
@@ -105,7 +105,7 @@ static const char* pbr_gen_brdf_lut_fragment_shader_wgsl = CODE(
 
   @fragment
   fn main(
-    @location(0) inUV: vec2<f32>,
+    @location(0) inUV : vec2<f32>,
   ) -> @location(0) vec4<f32> {
     return vec4<f32>(BRDF(inUV.x, 1.0 - inUV.y), 0.0, 1.0);
   }
@@ -125,12 +125,149 @@ static const char* pbr_filter_cube_vertex_shader_wgsl = CODE(
 
   @vertex
   fn main(
-    @location(0) inPos: vec3<f32>
+    @location(0) inPos : vec3<f32>
   ) -> Output {
     var output: Output;
     output.outUVW = inPos;
     output.position = consts.mvp * vec4<f32>(inPos.xyz, 1.0);
     return output;
+  }
+);
+
+static const char* pbr_irradiance_cube_fragment_shader_wgsl = CODE(
+  struct Consts {
+    deltaPhi : f32,
+    deltaTheta : f32,
+  };
+
+  @group(0) @binding(1) var<uniform> consts : Consts;
+  @group(0) @binding(2) var textureEnv: texture_cube<f32>;
+  @group(0) @binding(3) var samplerEnv: sampler;
+
+  const PI = 3.1415926535897932384626433832795;
+
+  @fragment
+  fn main(
+    @location(0) inPos : vec3<f32>,
+  ) -> @location(0) vec4<f32> {
+    var N : vec3<f32> = normalize(inPos);
+    var up : vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
+    let right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    let TWO_PI : f32 = PI * 2.0;
+    let HALF_PI : f32 = PI * 0.5;
+
+    var color : vec3<f32> = vec3<f32>(0.0);
+    var sampleCount : u32 = 0u;
+    for(var phi : f32 = 0.0; phi < TWO_PI; phi += consts.deltaPhi) {
+      for(var theta : f32 = 0.0; theta < HALF_PI; theta += consts.deltaTheta) {
+        let tempVec : vec3<f32> = cos(phi) * right + sin(phi) * up;
+        let sampleVector : vec3<f32> = cos(theta) * N + sin(theta) * tempVec;
+        color += textureSample(textureEnv, samplerEnv, sampleVector).rgb * cos(theta) * sin(theta);
+        sampleCount++;
+      }
+    }
+
+    return vec4<f32>(PI * color / f32(sampleCount), 1.0);
+  }
+);
+
+static const char* pbr_prefilter_env_map_fragment_shader_wgsl = CODE(
+  struct Consts {
+    roughness : f32,
+    numSamples : u32,
+  };
+
+  @group(0) @binding(1) var<uniform> consts : Consts;
+  @group(0) @binding(2) var textureEnv: texture_cube<f32>;
+  @group(0) @binding(3) var samplerEnv: sampler;
+
+  const PI = 3.1415926536;
+
+  // Based omn http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+  fn random(co : vec2<f32>) -> f32 {
+    let a : f32 = 12.9898;
+    let b : f32 = 78.233;
+    let c : f32 = 43758.5453;
+    let dt : f32 = dot(co.xy, vec2<f32>(a,b));
+    let sn : f32 = dt % 3.14;
+    return fract(sin(sn) * c);
+  }
+
+  fn hammersley2d(i : u32, N : u32) -> vec2f {
+    // Radical inverse based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+    var bits : u32 = (i << 16u) | (i >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    let rdi : f32 = f32(bits) * 2.3283064365386963e-10;
+    return vec2<f32>(f32(i) /f32(N), rdi);
+  }
+
+  // Based on http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_slides.pdf
+  fn importanceSample_GGX(Xi : vec2<f32>, roughness : f32, normal : vec3<f32>) -> vec3f {
+    // Maps a 2D point to a hemisphere with spread based on roughness
+    let alpha : f32 = roughness * roughness;
+    let phi : f32 = 2.0 * PI * Xi.x + random(normal.xz) * 0.1;
+    let cosTheta : f32 = sqrt((1.0 - Xi.y) / (1.0 + (alpha*alpha - 1.0) * Xi.y));
+    let sinTheta : f32 = sqrt(1.0 - cosTheta * cosTheta);
+    let H : vec3<f32> = vec3<f32>(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    // Tangent space
+    let up : vec3<f32> = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0), abs(normal.z) < 0.999);
+    let tangentX : vec3<f32> = normalize(cross(up, normal));
+    let tangentY : vec3<f32> = normalize(cross(normal, tangentX));
+
+    // Convert to world Space
+    return normalize(tangentX * H.x + tangentY * H.y + normal * H.z);
+  }
+
+  // Normal Distribution function
+  fn D_GGX(dotNH : f32, roughness : f32) -> f32 {
+    let alpha : f32 = roughness * roughness;
+    let alpha2 : f32 = alpha * alpha;
+    let denom : f32 = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+    return (alpha2)/(PI * denom*denom);
+  }
+
+  fn prefilterEnvMap(R : vec3<f32>, roughness : f32) -> vec3f {
+    let N : vec3<f32> = R;
+    let V : vec3<f32> = R;
+    var color : vec3<f32> = vec3<f32>(0.0);
+    var totalWeight : f32 = 0.0;
+    let envMapDim : f32 = f32(textureDimensions(textureEnv).x);
+    for(var i : u32 = 0u; i < consts.numSamples; i++) {
+        let Xi : vec2<f32> = hammersley2d(i, consts.numSamples);
+        let H : vec3<f32> = importanceSample_GGX(Xi, roughness, N);
+        let L : vec3<f32> = 2.0 * dot(V, H) * H - V;
+        let dotNL : f32 = clamp(dot(N, L), 0.0, 1.0);
+        if (dotNL > 0.0) {
+          // Filtering based on https://placeholderart.wordpress.com/2015/07/28/implementation-notes-runtime-environment-map-filtering-for-image-based-lighting/
+          let dotNH : f32 = clamp(dot(N, H), 0.0, 1.0);
+          let dotVH : f32 = clamp(dot(V, H), 0.0, 1.0);
+          // Probability Distribution Function
+          let pdf : f32 = D_GGX(dotNH, roughness) * dotNH / (4.0 * dotVH) + 0.0001;
+          // Slid angle of current smple
+          let omegaS : f32 = 1.0 / (f32(consts.numSamples) * pdf);
+          // Solid angle of 1 pixel across all cube faces
+          let omegaP : f32 = 4.0 * PI / (6.0 * envMapDim * envMapDim);
+          // Biased (+1.0) mip level for better result
+          let mipLevel = select(max(0.5 * log2(omegaS / omegaP) + 1.0, 0.0f), 0.0, roughness == 0.0);
+          color += textureSampleLevel(textureEnv, samplerEnv, L, mipLevel).rgb * dotNL;
+          totalWeight += dotNL;
+        }
+    }
+    return (color / totalWeight);
+  }
+
+  @fragment
+  fn main(
+    @location(0) inPos : vec3<f32>,
+  ) -> @location(0) vec4<f32> {
+    let N : vec3<f32> = normalize(inPos);
+    return vec4<f32>(prefilterEnvMap(N, consts.roughness), 1.0);
   }
 );
 // clang-format on
@@ -779,15 +916,16 @@ texture_t pbr_generate_cubemap(wgpu_context_t* wgpu_context,
             });
 
     // Fragment state
-    const char* wgsl_file = (cubemap_type == PBR_CUBEMAP_TYPE_IRRADIANCE) ?
-                              "shaders/pbr/irradiancecube.frag.spv" :
-                              "shaders/pbr/prefilterenvmap.frag.spv";
+    const char* wgsl_code = (cubemap_type == PBR_CUBEMAP_TYPE_IRRADIANCE) ?
+                              pbr_irradiance_cube_fragment_shader_wgsl :
+                              pbr_prefilter_env_map_fragment_shader_wgsl;
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .label = "Cubemap fragment shader",
-                .file  = wgsl_file,
+                // Fragment shader WGSL
+                .label            = "Cubemap fragment shader",
+                .wgsl_code.source = wgsl_code,
+                .entry            = "main",
               },
               .target_count = 1,
               .targets      = &color_target_state,
