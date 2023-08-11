@@ -16,25 +16,99 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/gltfskinning/gltfskinning.cpp
  * -------------------------------------------------------------------------- */
 
+// Shaders
+// clang-format off
+static const char* skinned_model_vertex_shader_wgsl = CODE(
+  struct UBOScene {
+    projection : mat4x4<f32>,
+    view : mat4x4<f32>,
+    lightPos : vec4<f32>,
+  };
+
+  struct UBOPrimitive {
+    model : mat4x4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> uboScene : UBOScene;
+  @group(1) @binding(0) var<uniform> primitive : UBOPrimitive;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) outNormal : vec3<f32>,
+    @location(1) outColor : vec3<f32>,
+    @location(2) outUV : vec2<f32>,
+    @location(3) outViewVec : vec3<f32>,
+    @location(4) outLightVec : vec3<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>,
+    @location(1) inNormal: vec3<f32>,
+    @location(2) inUV: vec2<f32>,
+    @location(3) inColor: vec3<f32>,
+    @location(4) inJointIndices: vec4<f32>,
+    @location(5) inJointWeights: vec4<f32>
+  ) -> Output {
+    var output: Output;
+    output.position = uboScene.projection * uboScene.view * primitive.model * vec4<f32>(inPos, 1.0);
+    output.outNormal = mat3x3(
+        primitive.model[0].xyz,
+        primitive.model[1].xyz,
+        primitive.model[2].xyz,
+      ) * inNormal;
+    output.outColor = inColor;
+    output.outUV = inUV;
+    let pos : vec4<f32> = primitive.model * vec4<f32>(inPos, 1.0);
+    output.outLightVec = uboScene.lightPos.xyz - pos.xyz;
+    output.outViewVec = -pos.xyz;
+    return output;
+  }
+);
+
+static const char* skinned_model_fragment_shader_wgsl = CODE(
+  @group(2) @binding(0) var textureColorMap : texture_2d<f32>;
+  @group(2) @binding(1) var samplerColorMap : sampler;
+
+  @fragment
+  fn main(
+    @location(0) inNormal : vec3<f32>,
+    @location(1) inColor : vec3<f32>,
+    @location(2) inUV : vec2<f32>,
+    @location(3) inViewVec : vec3<f32>,
+    @location(4) inLightVec : vec3<f32>,
+  ) -> @location(0) vec4<f32> {
+    let textureColor : vec3<f32> = (textureSample(textureColorMap, samplerColorMap, inUV)).rgb;
+    let color : vec4<f32> = vec4(textureColor, 1.0) * vec4(inColor, 1.0);
+    let N : vec3<f32> = normalize(inNormal);
+    let L : vec3<f32> = normalize(inLightVec);
+    let V : vec3<f32> = normalize(inViewVec);
+    let R : vec3<f32> = reflect(-L, N);
+    let diffuse : vec3<f32> = max(dot(N, L), 0.5) * inColor;
+    let specular : vec3<f32> = pow(max(dot(R, V), 0.0), 16.0) * vec3<f32>(0.75);
+    return vec4<f32>(diffuse * color.rgb + specular, 1.0);
+  }
+);
+// clang-format on
+
 static struct gltf_model_t* gltf_model;
 
 static struct {
   wgpu_buffer_t ubo_scene;
   struct {
     mat4 projection;
-    mat4 model;
+    mat4 view;
     vec4 light_pos;
   } ubo_scene_values;
 } shader_data = {
   .ubo_scene_values.projection = GLM_MAT4_IDENTITY_INIT,
-  .ubo_scene_values.model      = GLM_MAT4_IDENTITY_INIT,
+  .ubo_scene_values.view       = GLM_MAT4_IDENTITY_INIT,
   .ubo_scene_values.light_pos  = {5.0f, 5.0f, 5.0f, 1.0f},
 };
 
 static struct {
   WGPUBindGroupLayout ubo_scene;
   WGPUBindGroupLayout ubo_primitive;
-  WGPUBindGroupLayout joint_matrices;
   WGPUBindGroupLayout textures;
 } bind_group_layouts;
 
@@ -43,7 +117,6 @@ static struct bind_group_t {
 } bind_groups;
 
 static WGPUPipelineLayout pipeline_layout;
-static WGPURenderPipeline solid_pipeline;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -61,7 +134,7 @@ static void setup_camera(wgpu_example_context_t* context)
   context->camera->type   = CameraType_LookAt;
   context->camera->flip_y = true;
   camera_set_position(context->camera, (vec3){0.0f, 0.75f, -2.0f});
-  camera_set_rotation(context->camera, (vec3){0.0f, 0.0f, 0.0f});
+  camera_set_rotation(context->camera, (vec3){90.0f, 180.0f, 90.0f});
   camera_set_perspective(context->camera, 60.0f,
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
 }
@@ -88,10 +161,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Uniform,
+          .type           = WGPUBufferBindingType_Uniform,
           .minBindingSize = sizeof(shader_data.ubo_scene_values),
         },
         .sampler = {0},
@@ -130,30 +203,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     bind_group_layouts.ubo_primitive
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
     ASSERT(bind_group_layouts.ubo_primitive != NULL);
-  }
-
-  /* Bind group layout to pass skin joint matrices to the shader */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Vertex shader) => JointMatrices
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Vertex,
-        .buffer = (WGPUBufferBindingLayout){
-          .type           = WGPUBufferBindingType_ReadOnlyStorage,
-          .minBindingSize = sizeof(mat4),
-        },
-        .sampler = {0},
-      },
-    };
-    WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "JointMatrices bind group layout",
-      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-      .entries    = bgl_entries,
-    };
-    bind_group_layouts.joint_matrices
-      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(bind_group_layouts.joint_matrices != NULL);
   }
 
   /* Bind group layout for passing material textures */
@@ -195,13 +244,11 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // The pipeline layout uses three sets:
     // Set 0 = Scene matrices (VS)
     // Set 1 = Primitive matrices (VS)
-    // Set 2 = Joint matrices (VS)
-    // Set 3 = Material texture (FS)
-    WGPUBindGroupLayout bind_group_layout_sets[4] = {
-      bind_group_layouts.ubo_scene,      // set 0
-      bind_group_layouts.ubo_primitive,  // set 1
-      bind_group_layouts.joint_matrices, // set 2
-      bind_group_layouts.textures,       // set 3
+    // Set 2 = Material texture (FS)
+    WGPUBindGroupLayout bind_group_layout_sets[3] = {
+      bind_group_layouts.ubo_scene,     /* set 0 */
+      bind_group_layouts.ubo_primitive, /* set 1 */
+      bind_group_layouts.textures,      /* set 2 */
     };
     // Pipeline layout
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
@@ -221,7 +268,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   camera_t* camera = context->camera;
   glm_mat4_copy(camera->matrices.perspective,
                 shader_data.ubo_scene_values.projection);
-  glm_mat4_copy(camera->matrices.view, shader_data.ubo_scene_values.model);
+  glm_mat4_copy(camera->matrices.view, shader_data.ubo_scene_values.view);
 
   // Map uniform buffer and update it
   wgpu_queue_write_buffer(context->wgpu_context, shader_data.ubo_scene.buffer,
@@ -231,11 +278,11 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Matrices vertex shader uniform buffer
+  // Scene uniform buffer
   shader_data.ubo_scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Matrices vertex shader uniform buffer",
+      .label = "Scene vertex shader uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(shader_data.ubo_scene_values),
     });
@@ -270,12 +317,6 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     wgpu_gltf_model_prepare_nodes_bind_group(gltf_model,
                                              bind_group_layouts.ubo_primitive);
-  }
-
-  // Bind group for glTF model skin joint matrices
-  {
-    wgpu_gltf_model_prepare_skins_bind_group(gltf_model,
-                                             bind_group_layouts.joint_matrices);
   }
 
   // Bind group for materials
@@ -341,22 +382,22 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
+  WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+    .cullMode  = WGPUCullMode_None,
   };
 
   // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
+  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
   // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
+  WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
@@ -379,49 +420,66 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_GLTF_VERTATTR_DESC(5, WGPU_GLTF_VertexComponent_Weight0));
 
   // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .file = "shaders/gltf_skinning/skinnedmodel.vert.spv",
+              // Vertex shader WGSL
+              .label            = "GLTF skinned model vertex WGSL",
+              .wgsl_code.source = skinned_model_vertex_shader_wgsl,
+              .entry            = "main",
             },
             .buffer_count = 1,
             .buffers = &gltf_scene_vertex_buffer_layout,
           });
 
   // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .file = "shaders/gltf_skinning/skinnedmodel.frag.spv",
+              // Fragment shader WGSL
+              .label            = "GLTF skinned model fragment WGSL",
+              .wgsl_code.source = skinned_model_fragment_shader_wgsl,
+              .entry            = "main",
             },
             .target_count = 1,
-            .targets = &color_target_state_desc,
+            .targets = &color_target_state,
           });
 
   // Multisample state
-  WGPUMultisampleState multisample_state_desc
+  WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
   // Render pipeline descriptor
-  solid_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "GLTF skinning render pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
-                          });
+  WGPURenderPipelineDescriptor render_pipeline_descriptor = {
+    .label        = "GLTF skinning render pipeline",
+    .layout       = pipeline_layout,
+    .primitive    = primitive_state,
+    .vertex       = vertex_state,
+    .fragment     = &fragment_state,
+    .depthStencil = &depth_stencil_state,
+    .multisample  = multisample_state,
+  };
+
+  // Instead of using a few fixed pipelines, we create one pipeline for each
+  // material using the properties of that material
+  wgpu_gltf_materials_t materials = wgpu_gltf_model_get_materials(gltf_model);
+  for (uint32_t i = 0; i < materials.material_count; ++i) {
+    wgpu_gltf_material_t* material = &materials.materials[i];
+    // For double sided materials, culling will be disabled
+    WGPUPrimitiveState* primitive_desc = &render_pipeline_descriptor.primitive;
+    primitive_desc->cullMode
+      = material->double_sided ? WGPUCullMode_None : WGPUCullMode_Back;
+    material->pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &render_pipeline_descriptor);
+    ASSERT(material->pipeline != NULL)
+  }
 
   // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -475,16 +533,13 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     bind_groups.ubo_scene, 0, 0);
 
-  // Bind pipeline
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, solid_pipeline);
-
   // Render GLTF model
   static wgpu_gltf_render_flags_enum_t render_flags
     = WGPU_GLTF_RenderFlags_BindImages;
   wgpu_gltf_model_draw(gltf_model, (wgpu_gltf_model_render_options_t){
                                      .render_flags        = render_flags,
                                      .bind_mesh_model_set = 1,
-                                     .bind_image_set      = 3,
+                                     .bind_image_set      = 2,
                                    });
 
   // End render pass
@@ -548,11 +603,9 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, shader_data.ubo_scene.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.ubo_scene)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.ubo_primitive)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.joint_matrices)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.textures)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.ubo_scene)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, solid_pipeline)
 }
 
 void example_gltf_skinning(int argc, char* argv[])

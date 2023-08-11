@@ -105,7 +105,7 @@ static examplecase_t g_example_cases[] = {
   {"gerstner_waves", example_gerstner_waves},
   {"gltf_loading", example_gltf_loading},
   {"gltf_scene_rendering", example_gltf_scene_rendering},
-  // {"gltf_skinning", example_gltf_skinning},
+  {"gltf_skinning", example_gltf_skinning},
   {"hdr", example_hdr},
   {"image_blur", example_image_blur},
   {"imgui_overlay", example_imgui_overlay},
