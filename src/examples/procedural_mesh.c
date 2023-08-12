@@ -1,7 +1,5 @@
 #include "example_base.h"
 
-#include <string.h>
-
 #include "../webgpu/imgui_overlay.h"
 
 #define PAR_SHAPES_IMPLEMENTATION
@@ -878,15 +876,6 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
       .bindGroupLayouts     = bind_group_layouts,
     });
   ASSERT(demo_state.pipeline_layout != NULL);
-}
-
-static char* concat_strings(const char* s1, const char* s2, const char* delim)
-{
-  uint32_t str_len = strlen(s1) + strlen(delim) + strlen(s2) + 1;
-  char* result     = (char*)malloc(str_len * sizeof(char));
-  memset(result, 0, str_len * sizeof(char));
-  sprintf(result, "%s%s%s", s1, delim, s2);
-  return result;
 }
 
 static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)

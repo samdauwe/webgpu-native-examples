@@ -1280,15 +1280,6 @@ static void render_program_destroy(void)
   WGPU_RELEASE_RESOURCE(BindGroup, render_program.render_bind_group)
 }
 
-static char* concat_strings(const char* s1, const char* s2, const char* delim)
-{
-  uint32_t str_len = strlen(s1) + strlen(delim) + strlen(s2) + 1;
-  char* result     = (char*)malloc(str_len * sizeof(char));
-  memset(result, 0, str_len * sizeof(char));
-  sprintf(result, "%s%s%s", s1, delim, s2);
-  return result;
-}
-
 static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */

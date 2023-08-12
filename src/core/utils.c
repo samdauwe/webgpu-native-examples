@@ -1,5 +1,7 @@
 #include "utils.h"
 
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,4 +36,13 @@ char** argv_copy(int argc, char** argv)
 int has_prefix(const char* str, const char* pre)
 {
   return strncmp(pre, str, strlen(pre)) == 0;
+}
+
+char* concat_strings(const char* s1, const char* s2, const char* delim)
+{
+  uint32_t str_len = strlen(s1) + strlen(delim) + strlen(s2) + 1;
+  char* result     = (char*)malloc(str_len * sizeof(char));
+  memset(result, 0, str_len * sizeof(char));
+  sprintf(result, "%s%s%s", s1, delim, s2);
+  return result;
 }
