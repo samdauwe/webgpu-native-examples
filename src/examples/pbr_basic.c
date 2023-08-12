@@ -167,7 +167,7 @@ static const char* pbr_fragment_shader_wgsl = CODE(
     color += Lo;
 
     // Gamma correct
-    color = pow(color, vec3(0.4545));
+    color = pow(color, vec3<f32>(0.4545));
 
     return vec4<f32>(color, 1.0);
   }
