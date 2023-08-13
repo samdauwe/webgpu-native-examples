@@ -21,9 +21,6 @@
  * http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
  * -------------------------------------------------------------------------- */
 
-#define SINGLE_ROW_OBJECT_COUNT 10u
-#define ALIGNMENT 256u // 256-byte alignment
-
 // Shaders
 // clang-format off
 static const char* pbr_ibl_vertex_shader_wgsl = CODE(
@@ -209,7 +206,7 @@ static const char* pbr_ibl_main_fragment_shader_wgsl = CODE(
       Lo += specularContribution(L, V, N, F0, metallic, roughness);
     }
 
-    let brdf : vec2<f32> = textureSample(textureBRDFLUT, samplerBRDFLUT, vec2<f32>(max(dot(N, V), 0.0))).rg;
+    let brdf : vec2<f32> = textureSample(textureBRDFLUT, samplerBRDFLUT, vec2<f32>(max(dot(N, V), 0.0), roughness)).rg;
     let reflection : vec3<f32> = prefilteredReflection(R, roughness).rgb;
     let irradiance : vec3<f32> = textureSample(textureIrradiance, samplerIrradiance, N).rgb;
 
@@ -303,6 +300,9 @@ static const char* skybox_fragment_shader_wgsl = CODE(
   }
 );
 // clang-format on
+
+#define SINGLE_ROW_OBJECT_COUNT 10u
+#define ALIGNMENT 256u // 256-byte alignment
 
 static bool display_skybox = true;
 
@@ -438,7 +438,7 @@ static struct {
   { .name = "Blue",     .params = { .roughness = 0.0f, .metallic = 0.0f, .specular = 0.0f, .color = { 0.000000f, 0.000000f, 1.000000f } } },
   // clang-format on
 };
-static int32_t current_material_index = 9;
+static int32_t current_material_index = 4;
 
 // Arrays used for GUI
 static const char* material_names[12] = {
@@ -912,7 +912,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              // Fragment shader WGSL
               .label            = "Skybox fragment shader",
               .wgsl_code.source = skybox_fragment_shader_wgsl,
               .entry            = "main",
