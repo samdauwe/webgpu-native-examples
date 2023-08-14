@@ -432,7 +432,133 @@ static const char* fish_reflection_fragment_shader_wgsl = CODE(
                     lightUniforms.specular * litR.z * lightFactorUniforms.specularFactor * normalSpec.a),
       1.0 - reflection.r).rgb,
       diffuseColor.a);
-    outColor = mix(outColor, vec4(fogs.fogColor.rgb, diffuseColor.a),
+    outColor = mix(outColor, vec4<f32>(fogs.fogColor.rgb, diffuseColor.a),
+      clamp(pow((v_position.z / v_position.w), fogs.fogPower) * fogs.fogMult - fogs.fogOffset,0.0,1.0));
+    return outColor;
+  }
+);
+
+static const char* inner_refraction_map_vertex_shader_wgsl = CODE(
+  struct LightWorldPositionUniform {
+    lightWorldPos : vec3<f32>,
+    viewProjection : mat4x4<f32>,
+    viewInverse : mat4x4<f32>,
+  }
+
+  struct WorldUniform {
+    world : mat4x4<f32>,
+    worldInverseTranspose : mat4x4<f32>,
+    worldViewProjection : mat4x4<f32>,
+  }
+
+  @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
+  @group(3) @binding(0) var<uniform> worldUniforms : WorldUniforms;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoord: vec2<f32>,
+    @location(3) tangent: vec3<f32>,
+    @location(4) binormal: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    output.v_texCoord = texCoord;
+    output.v_position = (worldUniforms.worldViewProjection * position);
+    output.v_normal = (worldUniforms.worldInverseTranspose * vec4<f32>(normal, 0)).xyz;
+    output.v_surfaceToLight = lightWorldPositionUniform.lightWorldPos - (worldUniforms.world * position).xyz;
+    output.v_surfaceToView = (lightWorldPositionUniform.viewInverse[3] - (worldUniforms.world * position)).xyz;
+    output.v_binormal = (worldUniforms.worldInverseTranspose * vec4<f32>(binormal, 0)).xyz;  // #normalMap
+    output.v_tangent = (worldUniforms.worldInverseTranspose * vec4<f32>(tangent, 0)).xyz;  // #normalMap
+    output.position = output.v_position;
+    return output;
+  }
+);
+
+static const char* inner_refraction_map_fragment_shader_wgsl = CODE(
+  struct LightUniforms {
+    lightColor : vec4<f32>,
+    specular : vec4<f32>,
+    ambient : vec4<f32>,
+  }
+
+  struct Fogs {
+    fogPower : f32,
+    fogMult : f32,
+    fogOffset : f32,
+    padding : f32,
+    fogColor : vec4<f32>,
+  }
+
+  struct InnerUniforms {
+    eta : f32,
+    tankColorFudge : f32,
+    refractionFudge : f32,
+    padding : f32,
+  }
+
+  @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
+  @group(0) @binding(1) var<uniform> fogs : Fogs;
+  @group(2) @binding(0) var<uniform> innerUniforms : InnerUniforms;
+  @group(2) @binding(1) var samplerTex2D: sampler;
+  @group(2) @binding(2) var samplerSkybox: sampler;
+  @group(2) @binding(3) var diffuseTexture: texture_2d<f32>;
+  @group(2) @binding(4) var normalMapTexture: texture_2d<f32>;
+  @group(2) @binding(5) var reflectionMapTexture: texture_2d<f32>; // #reflection
+  @group(2) @binding(6) var skyboxTexture: texture_cube<f32>; // #reflecton
+
+  fn lit(l : f32 , h : f32, m : f32) -> vec4f {
+    return vec4<f32>(1.0,
+                     max(l, 0.0),
+                     select(0.0, pow(0.0, max(0.0, h), m), l > 0.0),
+                     1.0);
+  }
+
+  @fragment
+  fn main(
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let diffuseColor : vec4<f32> = textureSample(diffuseTexture, samplerTex2D, v_texCoord) +
+        vec4<f32>(innerUniforms.tankColorFudge, innerUniforms.tankColorFudge, innerUniforms.tankColorFudge, 1);
+    let tangentToWorld : mat3x3<f32> = mat3x3<f32>(v_tangent,  // #normalMap
+                                                   v_binormal, // #normalMap
+                                                   v_normal);  // #normalMap
+    let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
+    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
+    let refraction : vec4<f32> = textureSample(reflectionMapTexture, samplerTex2D, v_texCoord); // #reflection
+    var tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
+    tangentNormal = normalize(tangentNormal + vec3<f32>(0,0,innerUniforms.refractionFudge));  // #normalMap
+    var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
+    normal = normalize(normal); // #normalMap
+    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
+
+    let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
+
+    let refractionVec : vec3<f32> = refract(surfaceToView, normal, innerUniforms.eta);
+
+    let skyColor : vec4<f32> = textureSample(skyboxTexture, samplerSkybox, refractionVec);
+
+    var outColor : vec4<f32> = vec4<f32>(
+      mix(skyColor * diffuseColor, diffuseColor, refraction.r).rgb,
+      diffuseColor.a);
+    outColor = mix(outColor, vec4<f32>(fogs.fogColor.rgb, diffuseColor.a),
       clamp(pow((v_position.z / v_position.w), fogs.fogPower) * fogs.fogMult - fogs.fogOffset,0.0,1.0));
     return outColor;
   }
