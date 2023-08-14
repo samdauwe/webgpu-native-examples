@@ -683,6 +683,128 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
     return outColor;
   }
 );
+
+static const char* reflection_map_vertex_shader_wgsl = CODE(
+  struct LightWorldPositionUniform {
+    lightWorldPos : vec3<f32>,
+    viewProjection : mat4x4<f32>,
+    viewInverse : mat4x4<f32>,
+  }
+
+  struct WorldUniforms {
+    world : mat4x4<f32>,
+    worldInverseTranspose : mat4x4<f32>,
+    worldViewProjection : mat4x4<f32>,
+  }
+
+  @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
+  @group(3) @binding(0) var<uniform> worldUniforms : WorldUniforms;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>,
+    @location(3) v_binormal : vec3<f32>,
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoord: vec2<f32>,
+    @location(3) tangent: vec3<f32>,
+    @location(4) binormal: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    output.v_texCoord = texCoord;
+    output.v_position = (worldUniforms.worldViewProjection * position);
+    output.v_normal = (worldUniforms.worldInverseTranspose * vec4<f32>(normal, 0)).xyz;
+    output.v_surfaceToLight = lightWorldPositionUniform.lightWorldPos - (worldUniforms.world * position).xyz;
+    output.v_surfaceToView = (lightWorldPositionUniform.viewInverse[3] - (worldUniforms.world * position)).xyz;
+    output.v_binormal = (worldUniforms.worldInverseTranspose * vec4<f32>(binormal, 0)).xyz;
+    output.v_tangent = (worldUniforms.worldInverseTranspose * vec4<f32>(tangent, 0)).xyz;
+    output.position = output.v_position;
+    return output;
+  }
+);
+
+static const char* reflection_map_fragment_shader_wgsl = CODE(
+  struct LightUniforms {
+    lightColor : vec4<f32>,
+    specular : vec4<f32>,
+    ambient : vec4<f32>,
+  }
+
+  struct Fogs {
+    fogPower : f32,
+    fogMult : f32,
+    fogOffset : f32,
+    padding : f32,
+    fogColor : vec4<f32>,
+  }
+
+  struct LightFactorUniforms {
+    shininess : f32,
+    specularFactor : f32,
+  }
+
+  @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
+  @group(0) @binding(1) var<uniform> fogs : Fogs;
+  @group(2) @binding(0) var<uniform> lightFactorUniforms : LightFactorUniforms;
+  @group(2) @binding(1) var samplerTex2D: sampler;
+  @group(2) @binding(2) var samplerSkybox: sampler;
+  @group(2) @binding(3) var diffuseTexture: texture_2d<f32>;
+  @group(2) @binding(4) var normalMapTexture: texture_2d<f32>;
+  @group(2) @binding(5) var reflectionMapTexture: texture_2d<f32>; // #reflection
+  @group(2) @binding(6) var skyboxTexture: texture_cube<f32>; // #reflecton
+
+  fn lit(l : f32 , h : f32, m : f32) -> vec4f {
+    return vec4<f32>(1.0,
+                     max(l, 0.0),
+                     select(0.0, pow(0.0, max(0.0, h), m), l > 0.0),
+                     1.0);
+  }
+
+  @fragment
+  fn main(
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>,
+    @location(3) v_binormal : vec3<f32>,
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let diffuseColor : vec4<f32> = textureSample(diffuseTexture, samplerTex2D, v_texCoord);
+    let tangentToWorld : mat3x3<f32> = mat3x3<f32>(v_tangent,
+                                                   v_binormal,
+                                                   v_normal);
+    let normalSpec : vec4<f32> = texture(normalMapTexture, v_texCoord);
+    let reflection : vec4<f32> = texture(reflectionMapTexture, v_texCoord);
+    var tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5);
+    var normal : vec3<f32> = (tangentToWorld * tangentNormal);
+    normal = normalize(normal);
+    let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
+    let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
+    let skyColor : vec4<f32> = textureSample(skyboxTexture, samplerSkybox, -reflect(surfaceToView, normal));
+    let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
+    let litR : vec4<f32> = lit(dot(normal, surfaceToLight),
+                               dot(normal, halfVector), lightFactorUniforms.shininess);
+    var outColor : vec4<f32> = vec4<f32>(mix(
+      skyColor,
+      lightUniforms.lightColor * (diffuseColor * litR.y + diffuseColor * lightUniforms.ambient +
+                    lightUniforms.specular * litR.z * lightFactorUniforms.specularFactor * normalSpec.a),
+      1.0 - reflection.r).rgb,
+      diffuseColor.a);
+    outColor = mix(outColor, vec4<f32>(fogs.fogColor.rgb, diffuseColor.a),
+      clamp(pow((v_position.z / v_position.w), fogs.fogPower) * fogs.fogMult - fogs.fogOffset,0.0,1.0));
+    return outColor;
+  }
+);
 // clang-format on
 
 /* -------------------------------------------------------------------------- *
@@ -2181,11 +2303,6 @@ static void context_set_buffer_data(void* context, WGPUBuffer buffer,
 static void context_update_buffer_data(void* context, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size);
-
-static size_t calc_constant_buffer_byte_size(size_t byte_size)
-{
-  return (byte_size + 255) & ~255;
-}
 
 static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
                                    int32_t total_components,
