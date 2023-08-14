@@ -32,17 +32,17 @@ static const char* diffuse_vertex_shader_wgsl = CODE(
     lightWorldPos : vec3<f32>,
     viewProjection : mat4x4<f32>,
     viewInverse : mat4x4<f32>,
-  };
+  }
 
   struct WorldUniform {
     world : mat4x4<f32>,
     worldInverseTranspose : mat4x4<f32>,
     worldViewProjection : mat4x4<f32>,
-  };
+  }
 
   struct WorldUniforms {
     worlds : array<WorldUniform, 20>,
-  };
+  }
 
   @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
   @group(3) @binding(0) var<uniform> worldUniforms : WorldUniforms;
@@ -72,27 +72,26 @@ static const char* diffuse_vertex_shader_wgsl = CODE(
     output.position = output.v_position;
     return output;
   }
-};
+);
 
-
-static const char* diffuse_vertex_shader_wgsl = CODE(
+static const char* diffuse_fragment_shader_wgsl = CODE(
   struct LightUniforms {
     lightColor : vec4<f32>,
     specular : vec4<f32>,
     ambient : vec4<f32>,
-  };
+  }
 
   struct LightFactorUniforms {
     shininess : f32,
     specularFactor : f32,
-  };
+  }
 
   struct Fogs {
     fogPower : f32,
     fogMult : f32,
     fogOffset : f32,
     fogColor : vec4<f32>,
-  };
+  }
 
   @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
   @group(0) @binding(1) var<uniform> fogs : Fogs;
@@ -131,6 +130,312 @@ static const char* diffuse_vertex_shader_wgsl = CODE(
     return outColor;
   }
 );
+
+static const char* fish_vertex_shader_wgsl = CODE(
+  struct LightWorldPositionUniform {
+    lightWorldPos : vec3<f32>,
+    viewProjection : mat4x4<f32>,
+    viewInverse : mat4x4<f32>,
+  }
+
+  struct FishVertexUniforms {
+    fishLength : f32,
+    fishWaveLength : f32,
+    fishBendAmount : f32,
+  }
+
+  struct FishPer {
+    worldPosition : vec3<f32>,
+    scale : f32,
+    nextPosition : vec3<f32>,
+    time : f32,
+  }
+
+  @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
+  @group(2) @binding(0) var<uniform> fishVertexUnifoms : FishVertexUniforms;
+  @group(3) @binding(0) var<uniform> fishPer : FishPer;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoord: vec2<f32>,
+    @location(3) tangent: vec3<f32>,
+    @location(4) binormal: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    let vz: vec3<f32> = normalize(fishPer.worldPosition - fishPer.nextPosition);
+    let vx: vec3<f32> = normalize(cross(vec3<f32>(0,1,0), vz));
+    let vy: vec3<f32> = cross(vz, vx);
+    let orientMat : mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(vx, 0),
+      vec4<f32>(vy, 0),
+      vec4<f32>(vz, 0),
+      vec4<f32>(fishPer.worldPosition, 1));
+    let scaleMat : mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(fishPer.scale, 0, 0, 0),
+      vec4<f32>(0, fishPer.scale, 0, 0),
+      vec4<f32>(0, 0, fishPer.scale, 0),
+      vec4<f32>(0, 0, 0, 1));
+    let world : mat4x4<f32> = orientMat * scaleMat;
+    let worldViewProjection : mat4x4<f32> = lightWorldPositionUniform.viewProjection * world;
+    let worldInverseTranspose : mat4x4<f32> = world;
+
+    output.v_texCoord = texCoord;
+    // NOTE:If you change this you need to change the laser code to match!
+    let mult : f32 = select(
+      (-position.z / fishVertexUnifoms.fishLength * 2.0),
+      (position.z / fishVertexUnifoms.fishLength),
+      position.z > 0.0
+    );
+    let s : f32 = sin(fishPer.time + mult * fishVertexUnifoms.fishWaveLength);
+    let offset : f32 = pow(mult, 2.0) * s * fishVertexUnifoms.fishBendAmount;
+    output.v_position = (worldViewProjection * (position + vec4<f32>(offset, 0, 0, 0)));
+    output.v_normal = (worldInverseTranspose * vec4<f32>(normal, 0)).xyz;
+    output.v_surfaceToLight = lightWorldPositionUniform.lightWorldPos - (world * position).xyz;
+    output.v_surfaceToView = (lightWorldPositionUniform.viewInverse[3] - (world * position)).xyz;
+    output.v_binormal = (worldInverseTranspose * vec4<f32>(binormal, 0)).xyz;  // #normalMap
+    output.v_tangent = (worldInverseTranspose * vec4<f32>(tangent, 0)).xyz;  // #normalMap
+    output.position = output.v_position;
+    return output;
+  }
+);
+
+static const char* fish_instanced_draws_vertex_shader_wgsl = CODE(
+  struct LightWorldPositionUniform {
+    lightWorldPos : vec3<f32>,
+    viewProjection : mat4x4<f32>,
+    viewInverse : mat4x4<f32>,
+  }
+
+  struct FishVertexUniforms {
+    fishLength : f32,
+    fishWaveLength : f32,
+    fishBendAmount : f32,
+  }
+
+  @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
+  @group(2) @binding(0) var<uniform> fishVertexUnifoms : FishVertexUniforms;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoord: vec2<f32>,
+    @location(3) tangent: vec3<f32>,
+    @location(4) binormal: vec3<f32>,
+    @location(5) worldPosition: vec3<f32>,
+    @location(6) scale: f32,
+    @location(7) nextPosition: vec3<f32>,
+    @location(8) time: f32,
+  ) -> Output {
+    var output: Output;
+    let vz: vec3<f32> = normalize(worldPosition - nextPosition);
+    let vx: vec3<f32> = normalize(cross(vec3<f32>(0,1,0), vz));
+    let vy: vec3<f32> = cross(vz, vx);
+    let orientMat : mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(vx, 0),
+      vec4<f32>(vy, 0),
+      vec4<f32>(vz, 0),
+      vec4<f32>(worldPosition, 1));
+    let scaleMat : mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(scale, 0, 0, 0),
+      vec4<f32>(0, scale, 0, 0),
+      vec4<f32>(0, 0, scale, 0),
+      vec4<f32>(0, 0, 0, 1));
+    let world : mat4x4<f32> = orientMat * scaleMat;
+    let worldViewProjection : mat4x4<f32> = lightWorldPositionUniform.viewProjection * world;
+    let worldInverseTranspose : mat4x4<f32> = world;
+
+    output.v_texCoord = texCoord;
+    // NOTE:If you change this you need to change the laser code to match!
+    let mult : f32 = select(
+      (-position.z / fishVertexUnifoms.fishLength * 2.0),
+      (position.z / fishVertexUnifoms.fishLength),
+      position.z > 0.0
+    );
+    let s : f32 = sin(time + mult * fishVertexUnifoms.fishWaveLength);
+    let offset : f32 = pow(mult, 2.0) * s * fishVertexUnifoms.fishBendAmount;
+    output.v_position = (worldViewProjection * (position + vec4<f32>(offset, 0, 0, 0)));
+    output.v_normal = (worldInverseTranspose * vec4<f32>(normal, 0)).xyz;
+    output.v_surfaceToLight = lightWorldPositionUniform.lightWorldPos - (world * position).xyz;
+    output.v_surfaceToView = (lightWorldPositionUniform.viewInverse[3] - (world * position)).xyz;
+    output.v_binormal = (worldInverseTranspose * vec4<f32>(binormal, 0)).xyz;  // #normalMap
+    output.v_tangent = (worldInverseTranspose * vec4<f32>(tangent, 0)).xyz;  // #normalMap
+    output.v_position.y = -output.v_position.y;
+    output.position = output.v_position;
+    return output;
+  }
+);
+
+static const char* fish_normal_map_fragment_shader_wgsl = CODE(
+  struct LightUniforms {
+    lightColor : vec4<f32>,
+    specular : vec4<f32>,
+    ambient : vec4<f32>,
+  }
+
+  struct LightFactorUniforms {
+    shininess : f32,
+    specularFactor : f32,
+  }
+
+  struct Fogs {
+    fogPower : f32,
+    fogMult : f32,
+    fogOffset : f32,
+    fogColor : vec4<f32>,
+  }
+
+  @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
+  @group(0) @binding(1) var<uniform> fogs : Fogs;
+  @group(2) @binding(1) var<uniform> lightFactorUniforms : LightFactorUniforms;
+  @group(2) @binding(2) var samplerTex2D: sampler;
+  @group(2) @binding(3) var diffuseTexture: texture_2d<f32>;
+  @group(2) @binding(4) var normalMapTexture: texture_2d<f32>; // #normalMap
+
+  fn lit(l : f32 , h : f32, m : f32) -> vec4f {
+    return vec4<f32>(1.0,
+                     max(l, 0.0),
+                     select(0.0, pow(0.0, max(0.0, h), m), l > 0.0),
+                     1.0);
+  }
+
+  @fragment
+  fn main(
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let diffuseColor : vec4<f32> = textureSample(diffuseTexture, samplerTex2D, v_texCoord);
+    let tangentToWorld : mat3x3<f32> = mat3x3<f32>(v_tangent,  // #normalMap
+                                                   v_binormal, // #normalMap
+                                                   v_normal);  // #normalMap
+    let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
+    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
+    let tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
+    tangentNormal = normalize(tangentNormal + vec3<f32>(0, 0, 2)); // #normalMap
+    var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
+    normal = normalize(normal); // #normalMap
+    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
+    let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
+    let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
+    let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
+    let litR : vec4<f32> = lit(dot(normal, surfaceToLight),
+                               dot(normal, halfVector), lightFactorUniforms.shininess);
+    var outColor : vec4<f32> = vec4<f32>(
+      (lightUniforms.lightColor * (diffuseColor * litR.y + diffuseColor * lightUniforms.ambient +
+                     lightUniforms.specular * litR.z * lightFactorUniforms.specularFactor * normalSpec.a)).rgb,
+            diffuseColor.a);
+    outColor = mix(outColor, vec4(fogs.fogColor.rgb, diffuseColor.a),
+      clamp(pow((v_position.z / v_position.w), fogs.fogPower) * fogs.fogMult - fogs.fogOffset,0.0,1.0));
+    return outColor;
+  }
+);
+
+static const char* fish_reflection_fragment_shader_wgsl = CODE(
+  struct LightUniforms {
+    lightColor : vec4<f32>,
+    specular : vec4<f32>,
+    ambient : vec4<f32>,
+  }
+
+  struct LightFactorUniforms {
+    shininess : f32,
+    specularFactor : f32,
+  }
+
+  struct Fogs {
+    fogPower : f32,
+    fogMult : f32,
+    fogOffset : f32,
+    fogColor : vec4<f32>,
+  }
+
+  @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
+  @group(0) @binding(1) var<uniform> fogs : Fogs;
+  @group(2) @binding(1) var<uniform> lightFactorUniforms : LightFactorUniforms;
+  @group(2) @binding(2) var samplerTex2D: sampler;
+  @group(2) @binding(3) var samplerSkybox: sampler;
+  @group(2) @binding(4) var diffuseTexture: texture_2d<f32>;
+  @group(2) @binding(5) var normalMapTexture: texture_2d<f32>;
+  @group(2) @binding(6) var reflectionMapTexture: texture_2d<f32>; // #reflection
+  @group(2) @binding(7) var skyboxTexture: texture_cube<f32>; // #reflecton
+
+  fn lit(l : f32 , h : f32, m : f32) -> vec4f {
+    return vec4<f32>(1.0,
+                     max(l, 0.0),
+                     select(0.0, pow(0.0, max(0.0, h), m), l > 0.0),
+                     1.0);
+  }
+
+  @fragment
+  fn main(
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_tangent : vec3<f32>, // #normalMap
+    @location(3) v_binormal : vec3<f32>, // #normalMap
+    @location(4) v_normal : vec3<f32>,
+    @location(5) v_surfaceToLight : vec3<f32>,
+    @location(6) v_surfaceToView : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let diffuseColor : vec4<f32> = textureSample(diffuseTexture, samplerTex2D, v_texCoord);
+    let tangentToWorld : mat3x3<f32> = mat3x3<f32>(v_tangent,  // #normalMap
+                                                   v_binormal, // #normalMap
+                                                   v_normal);  // #normalMap
+    let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
+    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
+    let reflection : vec4<f32> = textureSample(reflectionMapTexture, samplerTex2D, v_texCoord); // #reflection
+    let reflection : vec4<f32> = vec4<f32>(0,0,0,0); // #noReflection
+    let tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
+    var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
+    normal = normalize(normal); // #normalMap
+    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
+    let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
+    let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
+    let skyColor : vec4<f32> = textureSample(skyboxTexture, samplerSkybox, -reflect(surfaceToView, normal)); // #reflection
+    let skyColor : vec4<f32> = vec4(0.5,0.5,1,1);  // #noReflection
+
+    let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
+    let litR : vec4<f32> = lit(dot(normal, surfaceToLight),
+                               dot(normal, halfVector), lightFactorUniforms.shininess);
+
+    var outColor : vec4<f32> = vec4<f32>(mix(
+      skyColor,
+      lightUniforms.lightColor * (diffuseColor * litR.y + diffuseColor * lightUniforms.ambient +
+                    lightUniforms.specular * litR.z * lightFactorUniforms.specularFactor * normalSpec.a),
+      1.0 - reflection.r).rgb,
+      diffuseColor.a);
+    outColor = mix(outColor, vec4(fogs.fogColor.rgb, diffuseColor.a),
+      clamp(pow((v_position.z / v_position.w), fogs.fogPower) * fogs.fogMult - fogs.fogOffset,0.0,1.0));
+    return outColor;
+  }
 );
 // clang-format on
 
