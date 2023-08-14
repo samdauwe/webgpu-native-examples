@@ -23,6 +23,118 @@ static const char* slash = "/";
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Aquarium Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* diffuse_vertex_shader_wgsl = CODE(
+  struct LightWorldPositionUniform {
+    lightWorldPos : vec3<f32>,
+    viewProjection : mat4x4<f32>,
+    viewInverse : mat4x4<f32>,
+  };
+
+  struct WorldUniform {
+    world : mat4x4<f32>,
+    worldInverseTranspose : mat4x4<f32>,
+    worldViewProjection : mat4x4<f32>,
+  };
+
+  struct WorldUniforms {
+    worlds : array<WorldUniform, 20>,
+  };
+
+  @group(1) @binding(0) var<uniform> lightWorldPositionUniform : LightWorldPositionUniform;
+  @group(3) @binding(0) var<uniform> worldUniforms : WorldUniforms;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @builtin(instance_index) instanceIndex: u32,
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_normal : vec3<f32>,
+    @location(3) v_surfaceToLight : vec3<f32>,
+    @location(4) v_surfaceToView : vec3<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoord: vec2<f32>
+  ) -> Output {
+    var output: Output;
+    output.v_texCoord = texCoord;
+    output.v_position = (worldUniforms.worlds[instanceIndex].worldViewProjection * position);
+    output.v_normal = (worldUniforms.worlds[instanceIndex].worldInverseTranspose * vec4<f32>(normal, 0)).xyz;
+    output.v_surfaceToLight = lightWorldPositionUniform.lightWorldPos - (worldUniforms.worlds[instanceIndex].world * position).xyz;
+    output.v_surfaceToView = (lightWorldPositionUniform.viewInverse[3] - (worldUniforms.worlds[instanceIndex].world * position)).xyz;
+    output.position = output.v_position;
+    return output;
+  }
+};
+
+
+static const char* diffuse_vertex_shader_wgsl = CODE(
+  struct LightUniforms {
+    lightColor : vec4<f32>,
+    specular : vec4<f32>,
+    ambient : vec4<f32>,
+  };
+
+  struct LightFactorUniforms {
+    shininess : f32,
+    specularFactor : f32,
+  };
+
+  struct Fogs {
+    fogPower : f32,
+    fogMult : f32,
+    fogOffset : f32,
+    fogColor : vec4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> lightUniforms : LightUniforms;
+  @group(0) @binding(1) var<uniform> fogs : Fogs;
+  @group(2) @binding(0) var<uniform> lightFactorUniforms : LightFactorUniforms;
+  @group(2) @binding(1) var diffuseTexture: texture_2d<f32>;
+  @group(2) @binding(2) var diffuseTextureSampler: sampler;
+
+  fn lit(l : f32 , h : f32, m : f32) -> vec4f {
+    return vec4<f32>(1.0,
+                     max(l, 0.0),
+                     select(0.0, pow(0.0, max(0.0, h), m), l > 0.0),
+                     1.0);
+  }
+
+  @fragment
+  fn main(
+    @location(0) v_position : vec4<f32>,
+    @location(1) v_texCoord : vec2<f32>,
+    @location(2) v_normal : vec3<f32>,
+    @location(3) v_surfaceToLight : vec3<f32>,
+    @location(4) v_surfaceToView : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let diffuseColor : vec4<f32> = textureSample(diffuseTexture, diffuseTextureSampler, v_texCoord);
+    let normal : vec3<f32> = normalize(v_normal);
+    let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
+    let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
+    let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
+    let litR : vec4<f32> = lit(dot(normal, surfaceToLight),
+                               dot(normal, halfVector), lightFactorUniforms.shininess);
+    var outColor : vec4<f32> = vec4<f32>((
+      lightUniforms.lightColor * (diffuseColor * litR.y + diffuseColor * lightUniforms.ambient +
+                    lightUniforms.specular * litR.z * lightFactorUniforms.specularFactor)).rgb,
+            diffuseColor.a);
+    outColor = mix(outColor, vec4(fogs.fogColor.rgb, diffuseColor.a),
+      clamp(pow((v_position.z / v_position.w), 0) * 0 - 0,0.0,1.0));
+    return outColor;
+  }
+);
+);
+// clang-format on
+
+/* -------------------------------------------------------------------------- *
  * Aquarium Assert
  * -------------------------------------------------------------------------- */
 
