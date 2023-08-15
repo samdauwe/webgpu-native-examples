@@ -518,7 +518,18 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### March - December 2022
+### August 2023 - ...
+
+The list given below summarizes possible examples or functionality that will be added in the future.
+
+* [ ] Extend command-line options
+* [ ] [Aquarium](https://github.com/webatintel/aquarium)
+* [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
+* [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
+* [ ] [Physically-Based Rendering using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
+* [ ] Building for Web with Emscripten / WebAssembly
+
+### Done
 
 * [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
 * [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
@@ -526,19 +537,8 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
 * [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
 * [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
-
-### June 2023 - ...
-
-The list given below summarizes possible examples or functionality that will be added in the future.
-
-* [ ] Extend command-line options
-* [ ] [Cornell Box](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell)
-* [ ] [Aquarium](https://github.com/webatintel/aquarium)
-* [ ] [Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)
-* [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
-* [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
-* [ ] [Physically-Based Rendering using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
-* [ ] Building for Web with Emscripten / WebAssembly
+* [x] ~~[Cornell Box](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell)~~
+* [x] ~~[Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)~~
 
 ## License
 
