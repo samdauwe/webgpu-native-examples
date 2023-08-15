@@ -475,6 +475,10 @@ This example shows how to map a GPU buffer and use the function wgpuBufferGetMap
 
 This example shows how to efficiently draw several procedurally generated meshes. The [par_shapes](https://prideout.net/shapes) library is used to generate parametric surfaces and other simple shapes.
 
+#### [Tile Map](src/examples/tile_map.c)
+
+This example shows how to render tile maps using WebGPU. The map is rendered using two textures. One is the tileset, the other is a texture representing the map itself. Each pixel encodes the x/y coords of the tile from the tileset to draw. This example has been ported from [this JavaScript implementation](https://github.com/toji/webgpu-test/tree/main/webgpu-tilemap) to native code. More implementation details can be found in [this blog post](https://blog.tojicode.com/2012/07/sprite-tile-maps-on-gpu.html).
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.

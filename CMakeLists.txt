@@ -258,6 +258,7 @@ set(SOURCES
     src/examples/texture_mipmap_gen.c
     src/examples/textured_cube.c
     src/examples/textured_quad.c
+    src/examples/tile_map.c
     src/examples/triangle.c
     src/examples/two_cubes.c
     src/examples/vertex_buffer.c

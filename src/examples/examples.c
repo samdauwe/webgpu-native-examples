@@ -70,6 +70,7 @@ void example_texture_cubemap(int argc, char* argv[]);
 void example_texture_mipmap_gen(int argc, char* argv[]);
 void example_textured_cube(int argc, char* argv[]);
 void example_textured_quad(int argc, char* argv[]);
+void example_tile_map(int argc, char* argv[]);
 void example_triangle(int argc, char* argv[]);
 void example_two_cubes(int argc, char* argv[]);
 void example_vertex_buffer(int argc, char* argv[]);
@@ -141,6 +142,7 @@ static examplecase_t g_example_cases[] = {
   {"texture_mipmap_gen", example_texture_mipmap_gen},
   {"textured_cube", example_textured_cube},
   {"textured_quad", example_textured_quad},
+  {"tile_map", example_tile_map},
   {"triangle", example_triangle},
   {"two_cubes", example_two_cubes},
   {"vertex_buffer", example_vertex_buffer},
