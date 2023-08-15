@@ -477,7 +477,7 @@ This example shows how to efficiently draw several procedurally generated meshes
 
 #### [Tile Map](src/examples/tile_map.c)
 
-This example shows how to render tile maps using WebGPU. The map is rendered using two textures. One is the tileset, the other is a texture representing the map itself. Each pixel encodes the x/y coords of the tile from the tileset to draw. This example has been ported from [this JavaScript implementation](https://github.com/toji/webgpu-test/tree/main/webgpu-tilemap) to native code. More implementation details can be found in [this blog post](https://blog.tojicode.com/2012/07/sprite-tile-maps-on-gpu.html).
+This example shows how to render tile maps using WebGPU. The map is rendered using two textures. One is the tileset, the other is a texture representing the map itself. Each pixel encodes the x/y coords of the tile from the tileset to draw. The example code has been ported from [this JavaScript implementation](https://github.com/toji/webgpu-test/tree/main/webgpu-tilemap) to native code. More implementation details can be found in [this blog post](https://blog.tojicode.com/2012/07/sprite-tile-maps-on-gpu.html).
 
 ## Dependencies
 
