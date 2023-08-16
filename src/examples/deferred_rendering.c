@@ -206,10 +206,12 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
     }
     // Push indices for an additional ground plane
     static const uint16_t ground_plane_indices[2][3] = {
-      {POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 2,
-       POSITION_COUNT_RES_4 + 1},
-      {POSITION_COUNT_RES_4, POSITION_COUNT_RES_4 + 1,
-       POSITION_COUNT_RES_4 + 3},
+      {STANFORD_DRAGON_POSITION_COUNT_RES_4,
+       STANFORD_DRAGON_POSITION_COUNT_RES_4 + 2,
+       STANFORD_DRAGON_POSITION_COUNT_RES_4 + 1},
+      {STANFORD_DRAGON_POSITION_COUNT_RES_4,
+       STANFORD_DRAGON_POSITION_COUNT_RES_4 + 1,
+       STANFORD_DRAGON_POSITION_COUNT_RES_4 + 3},
     };
     const uint64_t offset = dragon_mesh->triangles.count * 3;
     for (uint64_t i = 0; i < ground_plane_index_count; ++i) {

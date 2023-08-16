@@ -445,8 +445,10 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
   }
   ply_close(ply);
 
-  ASSERT(stanford_dragon_mesh->positions.count == POSITION_COUNT_RES_4);
-  ASSERT(stanford_dragon_mesh->triangles.count == CELL_COUNT_RES_4);
+  ASSERT(stanford_dragon_mesh->positions.count
+         == STANFORD_DRAGON_POSITION_COUNT_RES_4);
+  ASSERT(stanford_dragon_mesh->triangles.count
+         == STANFORD_DRAGON_CELL_COUNT_RES_4);
 
 #if STANFORD_DRAGON_MESH_DEBUG_PRINT
   debug_print(stanford_dragon_mesh);
@@ -533,3 +535,7 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
     (*uv)[1] = ((*uv)[1] - extent_min[1]) / (extent_max[1] - extent_min[1]);
   }
 }
+
+/* -------------------------------------------------------------------------- *
+ * Utah teapot
+ * -------------------------------------------------------------------------- */

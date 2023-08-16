@@ -107,25 +107,25 @@ void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh);
 #pragma GCC diagnostic pop
 #endif
 
-#define POSITION_COUNT_RES_4 5205
-#define CELL_COUNT_RES_4 11102
+#define STANFORD_DRAGON_POSITION_COUNT_RES_4 5205
+#define STANFORD_DRAGON_CELL_COUNT_RES_4 11102
 #define STANFORD_DRAGON_MESH_SCALE 500
 
 typedef struct stanford_dragon_mesh_t {
   struct {
-    float data[POSITION_COUNT_RES_4][3];
+    float data[STANFORD_DRAGON_POSITION_COUNT_RES_4][3];
     uint64_t count; // number of vertices (should be 5205)
   } positions;
   struct {
-    uint16_t data[CELL_COUNT_RES_4][3];
+    uint16_t data[STANFORD_DRAGON_CELL_COUNT_RES_4][3];
     uint64_t count; // number of faces (should be 11102)
   } triangles;      // triangles
   struct {
-    float data[POSITION_COUNT_RES_4][3];
+    float data[STANFORD_DRAGON_POSITION_COUNT_RES_4][3];
     uint64_t count; // number of normals (should be 5205)
   } normals;
   struct {
-    float data[POSITION_COUNT_RES_4][2];
+    float data[STANFORD_DRAGON_POSITION_COUNT_RES_4][2];
     uint64_t count; // number of uvs (should be 5205)
   } uvs;
 } stanford_dragon_mesh_t;
@@ -162,3 +162,25 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
   projected_plane_enum projected_plane);
 
 #endif /* MESHES_H */
+
+/* -------------------------------------------------------------------------- *
+ * Utah teapot
+ * -------------------------------------------------------------------------- */
+
+#define UTAH_TEAPOT_POSITION_COUNT 792
+#define UTAH_TEAPOT_CELL_COUNT 991
+
+typedef struct utah_teapot_mesh_t {
+  struct {
+    float data[UTAH_TEAPOT_POSITION_COUNT][3];
+    uint64_t count; // number of vertices (should be 5205)
+  } positions;
+  struct {
+    uint16_t data[UTAH_TEAPOT_CELL_COUNT][3];
+    uint64_t count; // number of faces (should be 11102)
+  } triangles;      // triangles
+  struct {
+    float data[UTAH_TEAPOT_POSITION_COUNT][3];
+    uint64_t count; // number of normals (should be 5205)
+  } normals;
+} utah_teapot_mesh_t;
