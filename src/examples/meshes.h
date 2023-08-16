@@ -168,7 +168,7 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
  * -------------------------------------------------------------------------- */
 
 #define UTAH_TEAPOT_POSITION_COUNT 792
-#define UTAH_TEAPOT_CELL_COUNT 991
+#define UTAH_TEAPOT_CELL_COUNT 992
 
 typedef struct utah_teapot_mesh_t {
   struct {
@@ -184,3 +184,15 @@ typedef struct utah_teapot_mesh_t {
     uint64_t count; // number of normals (should be 5205)
   } normals;
 } utah_teapot_mesh_t;
+
+/**
+ * @brief Loads the 'Utah teapot' json file ().
+ * @see https://github.com/mikolalysenko/teapot
+ */
+int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh);
+
+/**
+ * @brief Computes surface normals.
+ * @param utah_teapot_mesh mesh object
+ */
+void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh);

@@ -1,8 +1,10 @@
 #include "meshes.h"
 
+#include <cJSON.h>
 #include <cglm/cglm.h>
 #include <string.h>
 
+#include "../core/file.h"
 #include "../core/macro.h"
 #include "../core/math.h"
 
@@ -422,10 +424,10 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
 
   p_ply ply = ply_open("meshes/dragon_vrip_res4.ply", NULL, 0, NULL);
   if (!ply) {
-    return 1;
+    return EXIT_FAILURE;
   }
   if (!ply_read_header(ply)) {
-    return 1;
+    return EXIT_FAILURE;
   }
 
   stanford_dragon_mesh->positions.count
@@ -441,7 +443,7 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
   memset(stanford_dragon_mesh->uvs.data, 0,
          sizeof(stanford_dragon_mesh->uvs.data)); // Initialize to zero
   if (!ply_read(ply)) {
-    return 1;
+    return EXIT_FAILURE;
   }
   ply_close(ply);
 
@@ -461,7 +463,7 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
   stanford_dragon_mesh_compute_projected_plane_uvs(stanford_dragon_mesh,
                                                    ProjectedPlane_XY);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 void stanford_dragon_mesh_compute_normals(
@@ -539,3 +541,133 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
 /* -------------------------------------------------------------------------- *
  * Utah teapot
  * -------------------------------------------------------------------------- */
+
+int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh)
+{
+  ASSERT(utah_teapot_mesh);
+
+  int res = EXIT_FAILURE;
+
+  file_read_result_t file_read_result = {0};
+  read_file("meshes/teapot.json", &file_read_result, true);
+  const char* const json_data = (const char* const)file_read_result.data;
+
+  const cJSON* position_array = NULL;
+  const cJSON* position_item  = NULL;
+  const cJSON* cell_array     = NULL;
+  const cJSON* cell_item      = NULL;
+  cJSON* model_json           = cJSON_Parse(json_data);
+  if (model_json == NULL) {
+    const char* error_ptr = cJSON_GetErrorPtr();
+    if (error_ptr != NULL) {
+      fprintf(stderr, "Error before: %s\n", error_ptr);
+    }
+    goto load_json_end;
+  }
+
+  if (!cJSON_IsObject(model_json)
+      || !cJSON_HasObjectItem(model_json, "positions")
+      || !cJSON_HasObjectItem(model_json, "cells")) {
+    fprintf(stderr,
+            "Invalid mesh file, does not contain 'positions' array or 'cells' "
+            "array\n");
+    goto load_json_end;
+  }
+
+  /* Parse positions */
+  {
+    position_array = cJSON_GetObjectItemCaseSensitive(model_json, "positions");
+    if (!cJSON_IsArray(position_array)) {
+      fprintf(stderr, "Positions object item is not an array\n");
+      goto load_json_end;
+    }
+
+    utah_teapot_mesh->positions.count = cJSON_GetArraySize(position_array);
+    ASSERT(utah_teapot_mesh->positions.count == UTAH_TEAPOT_POSITION_COUNT);
+
+    uint32_t c = 0;
+    cJSON_ArrayForEach(position_item, position_array)
+    {
+      if (!cJSON_GetArraySize(position_item) == 3) {
+        fprintf(stderr, "Position item is not an array of size 3\n");
+        goto load_json_end;
+      }
+      for (uint32_t i = 0; i < 3; ++i) {
+        utah_teapot_mesh->positions.data[c][i]
+          = cJSON_GetArrayItem(position_item, i)->valuedouble;
+      }
+      c++;
+    }
+  }
+
+  /* Parse cells */
+  {
+    cell_array = cJSON_GetObjectItemCaseSensitive(model_json, "cells");
+    if (!cJSON_IsArray(cell_array)) {
+      fprintf(stderr, "Cells object item is not an array\n");
+      goto load_json_end;
+    }
+
+    utah_teapot_mesh->triangles.count = cJSON_GetArraySize(cell_array);
+    ASSERT(utah_teapot_mesh->triangles.count == UTAH_TEAPOT_CELL_COUNT);
+
+    uint32_t c = 0;
+    cJSON_ArrayForEach(cell_item, cell_array)
+    {
+      if (!cJSON_GetArraySize(cell_item) == 3) {
+        fprintf(stderr, "Cell item is not an array of size 3\n");
+        goto load_json_end;
+      }
+      for (uint32_t i = 0; i < 3; ++i) {
+        utah_teapot_mesh->triangles.data[c][i]
+          = (uint16_t)cJSON_GetArrayItem(cell_item, i)->valueint;
+      }
+      c++;
+    }
+  }
+
+  res = EXIT_SUCCESS;
+
+load_json_end:
+  cJSON_Delete(model_json);
+  free(file_read_result.data);
+
+  return res;
+}
+
+void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
+{
+  float(*positions)[3]          = utah_teapot_mesh->positions.data;
+  float(*normals)[3]            = utah_teapot_mesh->normals.data;
+  const uint64_t triangle_count = utah_teapot_mesh->triangles.count;
+  uint16_t* triangle            = NULL;
+  vec3 *p0 = NULL, *p1 = NULL, *p2 = NULL;
+  vec3 v0, v1, norm;
+  uint16_t i0, i1, i2;
+  for (uint64_t i = 0; i < triangle_count; ++i) {
+    triangle = utah_teapot_mesh->triangles.data[i];
+    i0       = triangle[0];
+    i1       = triangle[1];
+    i2       = triangle[2];
+
+    p0 = &positions[i0];
+    p1 = &positions[i1];
+    p2 = &positions[i2];
+
+    glm_vec3_sub(*p1, *p0, v0);
+    glm_vec3_sub(*p2, *p0, v1);
+
+    glm_vec3_normalize(v0);
+    glm_vec3_normalize(v1);
+    glm_vec3_cross(v0, v1, norm);
+
+    // Accumulate the normals.
+    glm_vec3_add(normals[i0], norm, normals[i0]);
+    glm_vec3_add(normals[i1], norm, normals[i1]);
+    glm_vec3_add(normals[i2], norm, normals[i2]);
+  }
+  // Normalize accumulated normals.
+  for (uint16_t i = 0; i < utah_teapot_mesh->normals.count; ++i) {
+    glm_vec3_normalize(normals[i]);
+  }
+}
