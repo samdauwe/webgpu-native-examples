@@ -328,7 +328,7 @@ static bool prepared             = false;
 
 static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 {
-  depth_texture.format = WGPUTextureFormat_Depth24PlusStencil8;
+  depth_texture.format = WGPUTextureFormat_Depth32Float;
 
   WGPUExtent3D texture_extent = {
     .width              = wgpu_context->surface.width,
@@ -336,6 +336,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
+    .label         = "depthTexture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
@@ -350,6 +351,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "depthTextureView",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = depth_texture.format,
     .baseMipLevel    = 0,
@@ -466,33 +468,66 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
 }
 
 /**
- * @brief Rotate a 3D vector around the y-axis
- * @param a The vec3 point to rotate
- * @param b The origin of the rotation
- * @param rad The angle of rotation in radians
- * @param  out The receiving vec3
- * @see https://glmatrix.net/docs/vec3.js.html#line593
+ * @brief Creates a 4-by-4 matrix which translates by the given vector v.
+ * @param v - The vector by which to translate.
+ * @param dst - matrix to hold result.
+ * @returns The translation matrix.
  */
-
-static void glm_vec3_rotate_y(vec3 a, vec3 b, float rad, vec3* out)
+static mat4* glm_mat4_translation(vec3 v, mat4* dst)
 {
-  vec3 p, r;
+  glm_mat4_identity(*dst);
+  (*dst)[3][0] = v[0];
+  (*dst)[3][1] = v[1];
+  (*dst)[3][2] = v[2];
+  return dst;
+}
 
-  // Translate point to the origin
-  p[0] = a[0] - b[0];
-  p[1] = a[1] - b[1];
-  p[2] = a[2] - b[2];
+/**
+ * @brief Rotates the given 4-by-4 matrix around the y-axis by the given angle.
+ * @param m - The matrix.
+ * @param angleInRadians - The angle by which to rotate (in radians).
+ * @returns The rotated matrix m.
+ */
+static mat4* glm_mat4_rotate_y(mat4* m, float angle_in_radians)
+{
+  const float m00 = (*m)[0][0];
+  const float m01 = (*m)[0][1];
+  const float m02 = (*m)[0][2];
+  const float m03 = (*m)[0][3];
+  const float m20 = (*m)[2][0];
+  const float m21 = (*m)[2][1];
+  const float m22 = (*m)[2][2];
+  const float m23 = (*m)[2][3];
+  const float c   = cos(angle_in_radians);
+  const float s   = sin(angle_in_radians);
+  (*m)[0][0]      = c * m00 - s * m20;
+  (*m)[0][1]      = c * m01 - s * m21;
+  (*m)[0][2]      = c * m02 - s * m22;
+  (*m)[0][3]      = c * m03 - s * m23;
+  (*m)[2][0]      = c * m20 + s * m00;
+  (*m)[2][1]      = c * m21 + s * m01;
+  (*m)[2][2]      = c * m22 + s * m02;
+  (*m)[2][3]      = c * m23 + s * m03;
+  return m;
+}
 
-  // perform rotation
-
-  r[0] = p[2] * sin(rad) + p[0] * cos(rad);
-  r[1] = p[1];
-  r[2] = p[2] * cos(rad) - p[0] * sin(rad);
-
-  // translate to correct position
-  (*out)[0] = r[0] + b[0];
-  (*out)[1] = r[1] + b[1];
-  (*out)[2] = r[2] + b[2];
+/**
+ * @brief Transform vec3 by 4x4 matrix.
+ * @param v - the vector
+ * @param m - The matrix.
+ * @param dst - vec3 to store result.
+ * @returns the transformed vector dst
+ */
+static vec3* glm_vec3_transform_mat4(vec3 v, mat4 m, vec3* dst)
+{
+  const float x = v[0];
+  const float y = v[1];
+  const float z = v[2];
+  const float w = m[0][3] * x + m[1][3] * y + m[2][3] * z + m[3][3];
+  (*dst)[0]     = (m[0][0] * x + m[1][0] * y + m[2][0] * z + m[3][0]) / w;
+  (*dst)[1]     = (m[0][1] * x + m[1][1] * y + m[2][1] * z + m[3][1]) / w;
+  (*dst)[2]     = (m[0][2] * x + m[1][2] * y + m[2][2] * z + m[3][2]) / w;
+  return dst;
 }
 
 /* Rotates the camera around the origin based on time. */
@@ -504,10 +539,11 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
   glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
                   view_matrices.projection_matrix);
 
-  const float rad   = PI * (context->frame.timestamp_millis / 5000.0f);
+  const float rad = PI * (context->frame.timestamp_millis / 5000.0f);
+  mat4 rotation   = GLM_MAT4_ZERO_INIT;
+  glm_mat4_rotate_y(glm_mat4_translation(view_matrices.origin, &rotation), rad);
   vec3 eye_position = GLM_VEC3_ZERO_INIT;
-  glm_vec3_rotate_y(view_matrices.eye_position, view_matrices.origin, rad,
-                    &eye_position);
+  glm_vec3_transform_mat4(view_matrices.eye_position, rotation, &eye_position);
 
   mat4 view_matrix_tmp = GLM_MAT4_IDENTITY_INIT,
        view_matrix     = GLM_MAT4_IDENTITY_INIT;
@@ -625,13 +661,10 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     /* Depth-stencil attachment */
     opaque_render_pass.pass_desc.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view              = depth_texture.view,
-        .depthLoadOp       = WGPULoadOp_Clear,
-        .depthStoreOp      = WGPUStoreOp_Store,
-        .depthClearValue   = 1.0f,
-        .stencilLoadOp     = WGPULoadOp_Clear,
-        .stencilStoreOp    = WGPUStoreOp_Store,
-        .stencilClearValue = 0,
+        .view            = depth_texture.view,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
       };
 
     /* Pass descriptor */
@@ -679,7 +712,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
+      .writeMask = 0x0,
     };
 
     // Vertex buffer layout
@@ -741,17 +774,11 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
   {
     /* Color attachment */
     translucent_render_pass.pass_desc.color_attachments[0]
-      = (WGPURenderPassColorAttachment) {
-        .view       = NULL, /* view is acquired and set in render loop. */
-        .loadOp     = WGPULoadOp_Load,
-        .storeOp    = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor) {
-          .r = 0.0f,
-          .g = 0.0f,
-          .b = 0.0f,
-          .a = 0.0f,
-      },
-    };
+      = (WGPURenderPassColorAttachment){
+        .view    = NULL, /* view is acquired and set in render loop. */
+        .loadOp  = WGPULoadOp_Load,
+        .storeOp = WGPUStoreOp_Store,
+      };
 
     /* Pass descriptor */
     translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
@@ -811,6 +838,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     // Color target state
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     blend_state.color.srcFactor             = WGPUBlendFactor_One;
+    blend_state.color.dstFactor             = WGPUBlendFactor_OneMinusSrcAlpha;
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
@@ -826,8 +854,6 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
                         .wgsl_code.source = composite_shader_wgsl,
                         .entry            = "main_vs",
                       },
-                      .buffer_count = 0,
-                      .buffers      = NULL,
                     });
 
     // Fragment state
@@ -869,24 +895,18 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
   /* Render pass descriptor */
   {
     /* Color attachment */
-    composite_render_pass.pass_desc.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* view is acquired and set in render loop. */
-      .loadOp     = WGPULoadOp_Load,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 0.0f,
-      },
-    };
+    composite_render_pass.pass_desc.color_attachments[0]
+      = (WGPURenderPassColorAttachment){
+        .view    = NULL, /* view is acquired and set in render loop. */
+        .loadOp  = WGPULoadOp_Load,
+        .storeOp = WGPUStoreOp_Store,
+      };
 
     /* Pass descriptor */
     composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
       .label                = "compositePassDescriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
-      .depthStencilAttachment = NULL,
     };
   }
 
