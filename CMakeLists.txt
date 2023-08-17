@@ -194,6 +194,7 @@ set(SOURCES
 # examples
 set(SOURCES
     ${SOURCES}
+    src/examples/a_buffer.c
     src/examples/animometer.c
     # src/examples/aquarium.c
     src/examples/basisu.c

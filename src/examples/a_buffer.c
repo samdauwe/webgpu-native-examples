@@ -1,0 +1,1108 @@
+#include "example_base.h"
+#include "meshes.h"
+
+#include "../webgpu/imgui_overlay.h"
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - A-Buffer
+ *
+ * This example demonstrates order independent transparency using a per-pixel
+ * linked-list of translucent fragments.
+ *
+ * Ref:
+ * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/a-buffer
+ * teapot: https://github.com/mikolalysenko/teapot
+ * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* opaque_shader_wgsl = CODE(
+  struct Uniforms {
+    modelViewProjectionMatrix: mat4x4<f32>,
+  };
+
+  @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+
+  struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) @interpolate(flat) instance: u32
+  };
+
+  @vertex
+  fn main_vs(@location(0) position: vec4<f32>, @builtin(instance_index) instance: u32) -> VertexOutput {
+    var output: VertexOutput;
+
+    // distribute instances into a staggered 4x4 grid
+    const gridWidth = 125.0;
+    const cellSize = gridWidth / 4.0;
+    let row = instance / 2u;
+    let col = instance % 2u;
+
+    let xOffset = -gridWidth / 2.0 + cellSize / 2.0 + 2.0 * cellSize * f32(col) + f32(row % 2u != 0u) * cellSize;
+    let zOffset = -gridWidth / 2.0 + cellSize / 2.0 + 2.0 + f32(row) * cellSize;
+
+    let offsetPos = vec4(position.x + xOffset, position.y, position.z + zOffset, position.w);
+
+    output.position = uniforms.modelViewProjectionMatrix * offsetPos;
+    output.instance = instance;
+    return output;
+  }
+
+  @fragment
+  fn main_fs(@location(0) @interpolate(flat) instance: u32) -> @location(0) vec4<f32> {
+    const colors = array<vec3<f32>,6>(
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        vec3(0.0, 0.0, 1.0),
+        vec3(1.0, 0.0, 1.0),
+        vec3(1.0, 1.0, 0.0),
+        vec3(0.0, 1.0, 1.0),
+    );
+
+    return vec4(colors[instance % 6u], 1.0);
+  }
+);
+
+static const char* translucent_shader_wgsl = CODE(
+  struct Uniforms {
+    modelViewProjectionMatrix: mat4x4<f32>,
+    maxStorableFragments: u32,
+    targetWidth: u32,
+  };
+
+
+  struct Heads {
+    numFragments: atomic<u32>,
+    data: array<atomic<u32>>
+  };
+
+  struct LinkedListElement {
+    color: vec4<f32>,
+    depth: f32,
+    next: u32
+  };
+
+  struct LinkedList {
+    data: array<LinkedListElement>
+  };
+
+  @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+  @binding(1) @group(0) var<storage, read_write> heads: Heads;
+  @binding(2) @group(0) var<storage, read_write> linkedList: LinkedList;
+  @binding(3) @group(0) var opaqueDepthTexture: texture_depth_2d;
+
+  struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) @interpolate(flat) instance: u32
+  };
+
+  @vertex
+  fn main_vs(@location(0) position: vec4<f32>, @builtin(instance_index) instance: u32) -> VertexOutput {
+    var output: VertexOutput;
+
+    // distribute instances into a staggered 4x4 grid
+    const gridWidth = 125.0;
+    const cellSize = gridWidth / 4.0;
+    let row = instance / 2u;
+    let col = instance % 2u;
+
+    let xOffset = -gridWidth / 2.0 + cellSize / 2.0 + 2.0 * cellSize * f32(col) + f32(row % 2u == 0u) * cellSize;
+    let zOffset = -gridWidth / 2.0 + cellSize / 2.0 + 2.0 + f32(row) * cellSize;
+
+    let offsetPos = vec4(position.x + xOffset, position.y, position.z + zOffset, position.w);
+
+    output.position = uniforms.modelViewProjectionMatrix * offsetPos;
+    output.instance = instance;
+
+    return output;
+  }
+
+  @fragment
+  fn main_fs(@builtin(position) position: vec4<f32>, @location(0) @interpolate(flat) instance: u32) {
+    const colors = array<vec3<f32>,6>(
+      vec3(1.0, 0.0, 0.0),
+      vec3(0.0, 1.0, 0.0),
+      vec3(0.0, 0.0, 1.0),
+      vec3(1.0, 0.0, 1.0),
+      vec3(1.0, 1.0, 0.0),
+      vec3(0.0, 1.0, 1.0),
+    );
+
+    let fragCoords = vec2<i32>(position.xy);
+    let opaqueDepth = textureLoad(opaqueDepthTexture, fragCoords, 0);
+
+    // reject fragments behind opaque objects
+    if position.z >= opaqueDepth {
+      discard;
+    }
+
+    // The index in the heads buffer corresponding to the head data for the fragment at
+    // the current location.
+    let headsIndex = u32(fragCoords.y) * uniforms.targetWidth + u32(fragCoords.x);
+
+    // The index in the linkedList buffer at which to store the new fragment
+    let fragIndex = atomicAdd(&heads.numFragments, 1u);
+
+    // If we run out of space to store the fragments, we just lose them
+    if fragIndex < uniforms.maxStorableFragments {
+      let lastHead = atomicExchange(&heads.data[headsIndex], fragIndex);
+      linkedList.data[fragIndex].depth = position.z;
+      linkedList.data[fragIndex].next = lastHead;
+      linkedList.data[fragIndex].color = vec4(colors[(instance + 3u) % 6u], 0.3);
+    }
+  }
+);
+
+static const char* composite_shader_wgsl = CODE(
+  struct Uniforms {
+    modelViewProjectionMatrix: mat4x4<f32>,
+    maxStorableFragments: u32,
+    targetWidth: u32,
+  };
+
+  struct Heads {
+    numFragments: u32,
+    data: array<u32>
+  };
+
+  struct LinkedListElement {
+    color: vec4<f32>,
+    depth: f32,
+    next: u32
+  };
+
+  struct LinkedList {
+    data: array<LinkedListElement>
+  };
+
+  @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+  @binding(1) @group(0) var<storage, read_write> heads: Heads;
+  @binding(2) @group(0) var<storage, read_write> linkedList: LinkedList;
+
+  // Output a full screen quad
+  @vertex
+  fn main_vs(@builtin(vertex_index) vertIndex: u32) -> @builtin(position) vec4<f32> {
+    const position = array<vec2<f32>, 6>(
+      vec2(-1.0, -1.0),
+      vec2(1.0, -1.0),
+      vec2(1.0, 1.0),
+      vec2(-1.0, -1.0),
+      vec2(1.0, 1.0),
+      vec2(-1.0, 1.0),
+    );
+
+    return vec4(position[vertIndex], 0.0, 1.0);
+  }
+
+  @fragment
+  fn main_fs(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+    let fragCoords = vec2<i32>(position.xy);
+    let headsIndex = u32(fragCoords.y) * uniforms.targetWidth + u32(fragCoords.x);
+
+    // The maximum layers we can process for any pixel
+    const maxLayers = 24u;
+
+    var layers: array<LinkedListElement, maxLayers>;
+
+    var numLayers = 0u;
+    var elementIndex = heads.data[headsIndex];
+
+    // copy the list elements into an array up to the maximum amount of layers
+    while elementIndex != 0xFFFFFFFFu && numLayers < maxLayers {
+      layers[numLayers] = linkedList.data[elementIndex];
+      numLayers++;
+      elementIndex = linkedList.data[elementIndex].next;
+    }
+
+    if numLayers == 0u {
+      discard;
+    }
+
+    // sort the fragments by depth
+    for (var i = 1u; i < numLayers; i++) {
+      let toInsert = layers[i];
+      var j = i;
+
+      while j > 0u && toInsert.depth > layers[j - 1u].depth {
+        layers[j] = layers[j - 1u];
+        j--;
+      }
+
+      layers[j] = toInsert;
+    }
+
+    // pre-multiply alpha for the first layer
+    var color = vec4(layers[0].color.a * layers[0].color.rgb, layers[0].color.a);
+
+    // blend the remaining layers
+    for (var i = 1u; i < numLayers; i++) {
+      let mixed = mix(color.rgb, layers[i].color.rgb, layers[i].color.aaa);
+      color = vec4(mixed, color.a);
+    }
+
+    return color;
+  }
+);
+// clang-format on
+
+/* -------------------------------------------------------------------------- *
+ * A-Buffer example
+ * -------------------------------------------------------------------------- */
+
+static utah_teapot_mesh_t utah_teapot_mesh = {0};
+
+static struct {
+  wgpu_buffer_t vertex;
+  wgpu_buffer_t index;
+  wgpu_buffer_t heads;
+  wgpu_buffer_t heads_init;
+  wgpu_buffer_t linked_list;
+  wgpu_buffer_t uniform;
+} buffers = {0};
+
+static struct {
+  vec3 up_vector;
+  vec3 origin;
+  vec3 eye_position;
+  mat4 projection_matrix;
+  mat4 view_proj_matrix;
+} view_matrices = {
+  .up_vector    = {0.0f, 1.0f, 0.0f},
+  .origin       = GLM_VEC3_ZERO_INIT,
+  .eye_position = {0.0f, 5.0f, -100.0f},
+};
+
+static struct {
+  mat4 model_view_projection_matrix;
+  uint32_t max_storable_fragments;
+  uint32_t target_width;
+} ubo_data = {0};
+
+/* Depth texture */
+static struct {
+  WGPUTexture texture;
+  WGPUTextureView view;
+  WGPUTextureFormat format;
+} depth_texture = {0};
+
+/* Render pass to draw the opaque objects */
+static struct {
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } pass_desc;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroup bind_group;
+} opaque_render_pass = {0};
+
+/* Render pass to draw the translucent objects */
+static struct {
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } pass_desc;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroup bind_group;
+} translucent_render_pass = {0};
+
+/* Render pass to composite the opaque and translucent objects */
+static struct {
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } pass_desc;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroup bind_group;
+} composite_render_pass = {0};
+
+// Determines how much memory is allocated to store linked-list elements
+static const uint32_t average_layers_per_fragment = 4;
+
+// Other variables
+static const char* example_title = "A-Buffer";
+static bool prepared             = false;
+
+static void prepare_depth_texture(wgpu_context_t* wgpu_context)
+{
+  depth_texture.format = WGPUTextureFormat_Depth24PlusStencil8;
+
+  WGPUExtent3D texture_extent = {
+    .width              = wgpu_context->surface.width,
+    .height             = wgpu_context->surface.height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = depth_texture.format,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  depth_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(depth_texture.texture != NULL);
+
+  // Create the texture view
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = depth_texture.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+    .aspect          = WGPUTextureAspect_All,
+  };
+  depth_texture.view
+    = wgpuTextureCreateView(depth_texture.texture, &texture_view_dec);
+  ASSERT(depth_texture.view != NULL);
+}
+
+static uint32_t round_up(uint32_t n, uint32_t k)
+{
+  return ceil((float)n / (float)k) * k;
+}
+
+static void prepare_buffers(wgpu_context_t* wgpu_context,
+                            utah_teapot_mesh_t* utah_teapot_mesh)
+{
+  /* Create the model vertex buffer */
+  buffers.vertex = wgpu_create_buffer(
+    wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .label        = "vertexBuffer",
+      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+      .size         = 3 * utah_teapot_mesh->positions.count * sizeof(float),
+      .initial.data = utah_teapot_mesh->positions.data,
+    });
+
+  /* Create the model index buffer */
+  buffers.index = wgpu_create_buffer(
+    wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .label        = "indexBuffer",
+      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+      .size         = 3 * utah_teapot_mesh->triangles.count * sizeof(uint16_t),
+      .initial.data = utah_teapot_mesh->triangles.data,
+      .count        = 3 * utah_teapot_mesh->triangles.count,
+    });
+
+  const uint32_t canvas_width  = wgpu_context->surface.width;
+  const uint32_t canvas_height = wgpu_context->surface.height;
+
+  // `Heads` struct contains the start index of the linked-list of translucent
+  // fragments for a given pixel.
+  // * numFragments : u32
+  // * data : array<u32>
+  {
+    const uint32_t buffer_count = 1 + canvas_width * canvas_height;
+
+    buffers.heads = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .label = "headsBuffer",
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
+        .size  = buffer_count * sizeof(uint32_t),
+      });
+
+    WGPUBufferDescriptor buffer_desc = {
+      .label            = "headsInitBuffer",
+      .usage            = WGPUBufferUsage_CopySrc,
+      .size             = buffer_count * sizeof(uint32_t),
+      .mappedAtCreation = true,
+    };
+    buffers.heads_init = (wgpu_buffer_t){
+      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
+      .usage  = buffer_desc.usage,
+      .size   = buffer_desc.size,
+      .count  = buffer_count,
+    };
+    ASSERT(buffers.heads_init.buffer);
+    uint32_t* buffer = (uint32_t*)wgpuBufferGetMappedRange(
+      buffers.heads_init.buffer, 0, buffer_desc.size);
+    for (uint32_t i = 0; i < buffer_count; ++i) {
+      buffer[i] = 0xffffffff;
+    }
+    wgpuBufferUnmap(buffers.heads_init.buffer);
+  }
+
+  // Each element stores
+  // * color : vec4<f32>
+  // * depth : f32
+  // * index of next element in the list : u32
+  {
+    const uint32_t linked_list_element_size
+      = 5 * sizeof(float) + 1 * sizeof(uint32_t);
+    buffers.linked_list = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .label = "linkedListBuffer",
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
+        .size  = average_layers_per_fragment * linked_list_element_size
+                * canvas_width * canvas_height,
+      });
+  }
+
+  // Uniforms contains:
+  // * modelViewProjectionMatrix: mat4x4<f32>
+  // * maxStorableFragments: u32
+  // * targetWidth: u32
+  {
+    const uint32_t uniforms_size = round_up(sizeof(ubo_data), 16);
+
+    buffers.uniform
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "uniformBuffer",
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size = uniforms_size,
+                                         });
+  }
+}
+
+/**
+ * @brief Rotate a 3D vector around the y-axis
+ * @param a The vec3 point to rotate
+ * @param b The origin of the rotation
+ * @param rad The angle of rotation in radians
+ * @param  out The receiving vec3
+ * @see https://glmatrix.net/docs/vec3.js.html#line593
+ */
+
+static void glm_vec3_rotate_y(vec3 a, vec3 b, float rad, vec3* out)
+{
+  vec3 p, r;
+
+  // Translate point to the origin
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+
+  // perform rotation
+
+  r[0] = p[2] * sin(rad) + p[0] * cos(rad);
+  r[1] = p[1];
+  r[2] = p[2] * cos(rad) - p[0] * sin(rad);
+
+  // translate to correct position
+  (*out)[0] = r[0] + b[0];
+  (*out)[1] = r[1] + b[1];
+  (*out)[2] = r[2] + b[2];
+}
+
+/* Rotates the camera around the origin based on time. */
+static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
+{
+  const float aspect_ratio = (float)context->wgpu_context->surface.width
+                             / (float)context->wgpu_context->surface.height;
+
+  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
+                  view_matrices.projection_matrix);
+
+  const float rad   = PI * (context->frame.timestamp_millis / 5000.0f);
+  vec3 eye_position = GLM_VEC3_ZERO_INIT;
+  glm_vec3_rotate_y(view_matrices.eye_position, view_matrices.origin, rad,
+                    &eye_position);
+
+  mat4 view_matrix_tmp = GLM_MAT4_IDENTITY_INIT,
+       view_matrix     = GLM_MAT4_IDENTITY_INIT;
+  glm_lookat(eye_position,            // eye vector
+             view_matrices.origin,    // center vector
+             view_matrices.up_vector, // up vector
+             view_matrix_tmp          // result matrix
+  );
+  glm_mat4_inv(view_matrix_tmp, view_matrix);
+
+  glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
+                view_matrices.view_proj_matrix);
+  return &view_matrices.view_proj_matrix;
+}
+
+static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
+{
+  /* Render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Depth stencil state
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = depth_texture.format,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+    // Vertex buffer layout
+    WGPU_VERTEX_BUFFER_LAYOUT(
+      translucent, sizeof(float) * 3,
+      // Attribute location 0: Position
+      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
+
+    // Vertex state
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Opaque vertex shader WGSL",
+                        .wgsl_code.source = opaque_shader_wgsl,
+                        .entry            = "main_vs",
+                      },
+                      .buffer_count = 1,
+                      .buffers      = &translucent_vertex_buffer_layout,
+                    });
+
+    // Fragment state
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+      wgpu_context, &(wgpu_fragment_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Opaque fragment shader WGSL",
+                        .wgsl_code.source = opaque_shader_wgsl,
+                        .entry            = "main_fs",
+                      },
+                      .target_count = 1,
+                      .targets      = &color_target_state,
+                    });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Create rendering pipeline using the specified states
+    opaque_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label        = "opaquePipeline",
+                              .primitive    = primitive_state,
+                              .vertex       = vertex_state,
+                              .fragment     = &fragment_state,
+                              .depthStencil = &depth_stencil_state,
+                              .multisample  = multisample_state,
+                            });
+    ASSERT(opaque_render_pass.pipeline != NULL);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  }
+
+  /* Render pass descriptor */
+  {
+    /* Color attachment */
+    opaque_render_pass.pass_desc.color_attachments[0]
+      = (WGPURenderPassColorAttachment) {
+        .view       = NULL, /* view is acquired and set in render loop. */
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 1.0f,
+      },
+    };
+
+    /* Depth-stencil attachment */
+    opaque_render_pass.pass_desc.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view              = depth_texture.view,
+        .depthLoadOp       = WGPULoadOp_Clear,
+        .depthStoreOp      = WGPUStoreOp_Store,
+        .depthClearValue   = 1.0f,
+        .stencilLoadOp     = WGPULoadOp_Clear,
+        .stencilStoreOp    = WGPUStoreOp_Store,
+        .stencilClearValue = 0,
+      };
+
+    /* Pass descriptor */
+    opaque_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
+      .label                = "opaquePassDescriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments     = opaque_render_pass.pass_desc.color_attachments,
+      .depthStencilAttachment
+      = &opaque_render_pass.pass_desc.depth_stencil_attachment,
+    };
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {[0] = (WGPUBindGroupEntry){
+                                          .binding = 0,
+                                          .buffer  = buffers.uniform.buffer,
+                                          .size    = buffers.uniform.size,
+                                        }};
+    opaque_render_pass.bind_group    = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                                 .label  = "opaqueBindGroup",
+                                 .layout = wgpuRenderPipelineGetBindGroupLayout(
+                                opaque_render_pass.pipeline, 0),
+                                 .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                                 .entries    = bg_entries,
+                            });
+    ASSERT(opaque_render_pass.bind_group != NULL);
+  }
+}
+
+static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
+{
+  /* Render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Vertex buffer layout
+    WGPU_VERTEX_BUFFER_LAYOUT(
+      translucent, sizeof(float) * 3,
+      // Attribute location 0: Position
+      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
+
+    // Vertex state
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Translucent vertex shader WGSL",
+                        .wgsl_code.source = translucent_shader_wgsl,
+                        .entry            = "main_vs",
+                      },
+                      .buffer_count = 1,
+                      .buffers      = &translucent_vertex_buffer_layout,
+                    });
+
+    // Fragment state
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+      wgpu_context, &(wgpu_fragment_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Translucent fragment shader WGSL",
+                        .wgsl_code.source = translucent_shader_wgsl,
+                        .entry            = "main_fs",
+                      },
+                      .target_count = 1,
+                      .targets      = &color_target_state,
+                    });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Create rendering pipeline using the specified states
+    translucent_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label       = "translucentPipeline",
+                              .primitive   = primitive_state,
+                              .vertex      = vertex_state,
+                              .fragment    = &fragment_state,
+                              .multisample = multisample_state,
+                            });
+    ASSERT(translucent_render_pass.pipeline != NULL);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  }
+
+  /* Render pass descriptor */
+  {
+    /* Color attachment */
+    translucent_render_pass.pass_desc.color_attachments[0]
+      = (WGPURenderPassColorAttachment) {
+        .view       = NULL, /* view is acquired and set in render loop. */
+        .loadOp     = WGPULoadOp_Load,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 0.0f,
+      },
+    };
+
+    /* Pass descriptor */
+    translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
+      .label                = "translucentPassDescriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments = translucent_render_pass.pass_desc.color_attachments,
+      .depthStencilAttachment = NULL,
+    };
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[4] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = buffers.uniform.buffer,
+        .size    = buffers.uniform.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = buffers.heads.buffer,
+        .size    = buffers.heads.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = buffers.linked_list.buffer,
+        .size    = buffers.linked_list.size,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding     = 3,
+        .textureView = depth_texture.view,
+      },
+    };
+    translucent_render_pass.bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "translucentBindGroup",
+                              .layout = wgpuRenderPipelineGetBindGroupLayout(
+                                translucent_render_pass.pipeline, 0),
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(translucent_render_pass.bind_group != NULL);
+  }
+}
+
+static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
+{
+  /* Render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+    blend_state.color.srcFactor             = WGPUBlendFactor_One;
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Vertex state
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Composite vertex shader WGSL",
+                        .wgsl_code.source = composite_shader_wgsl,
+                        .entry            = "main_vs",
+                      },
+                      .buffer_count = 0,
+                      .buffers      = NULL,
+                    });
+
+    // Fragment state
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+      wgpu_context, &(wgpu_fragment_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Composite fragment shader WGSL",
+                        .wgsl_code.source = composite_shader_wgsl,
+                        .entry            = "main_fs",
+                      },
+                      .target_count = 1,
+                      .targets      = &color_target_state,
+                    });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Create rendering pipeline using the specified states
+    composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label       = "compositePipeline",
+                              .primitive   = primitive_state,
+                              .vertex      = vertex_state,
+                              .fragment    = &fragment_state,
+                              .multisample = multisample_state,
+                            });
+    ASSERT(composite_render_pass.pipeline != NULL);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  }
+
+  /* Render pass descriptor */
+  {
+    /* Color attachment */
+    composite_render_pass.pass_desc.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, /* view is acquired and set in render loop. */
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = (WGPUColor) {
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
+        .a = 0.0f,
+      },
+    };
+
+    /* Pass descriptor */
+    composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
+      .label                = "compositePassDescriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
+      .depthStencilAttachment = NULL,
+    };
+  }
+
+  /* Bind group */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = buffers.uniform.buffer,
+        .size    = buffers.uniform.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = buffers.heads.buffer,
+        .size    = buffers.heads.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = buffers.linked_list.buffer,
+        .size    = buffers.linked_list.size,
+      },
+    };
+    composite_render_pass.bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "compositeBindGroup",
+                              .layout = wgpuRenderPipelineGetBindGroupLayout(
+                                composite_render_pass.pipeline, 0),
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(composite_render_pass.bind_group != NULL);
+  }
+}
+
+static void update_uniform_buffer(wgpu_example_context_t* context)
+{
+  wgpu_context_t* wgpu_context = context->wgpu_context;
+
+  glm_mat4_copy(*get_camera_view_proj_matrix(context),
+                ubo_data.model_view_projection_matrix);
+  ubo_data.max_storable_fragments = average_layers_per_fragment
+                                    * wgpu_context->surface.width
+                                    * wgpu_context->surface.height;
+  ubo_data.target_width = wgpu_context->surface.width;
+
+  wgpuQueueWriteBuffer(wgpu_context->queue, buffers.uniform.buffer, 0,
+                       &ubo_data, sizeof(ubo_data));
+}
+
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    utah_teapot_mesh_init(&utah_teapot_mesh);
+    prepare_depth_texture(context->wgpu_context);
+    prepare_buffers(context->wgpu_context, &utah_teapot_mesh);
+    prepare_opaque_render_pass(context->wgpu_context);
+    prepare_translucent_render_pass(context->wgpu_context);
+    prepare_composite_render_pass(context->wgpu_context);
+    prepared = true;
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  /* Initialize the heads buffer */
+  wgpuCommandEncoderCopyBufferToBuffer(
+    wgpu_context->cmd_enc, buffers.heads_init.buffer, 0, buffers.heads.buffer,
+    0, buffers.heads_init.size);
+
+  /* Draw the opaque objects */
+  {
+    opaque_render_pass.pass_desc.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
+    WGPURenderPassEncoder opaque_pass_encoder
+      = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc, &opaque_render_pass.pass_desc.descriptor);
+    wgpuRenderPassEncoderSetPipeline(opaque_pass_encoder,
+                                     opaque_render_pass.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(opaque_pass_encoder, 0,
+                                      opaque_render_pass.bind_group, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      opaque_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      opaque_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16, 0,
+      WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(opaque_pass_encoder, buffers.index.count,
+                                     8, 0, 0, 0);
+    wgpuRenderPassEncoderEnd(opaque_pass_encoder);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, opaque_pass_encoder)
+  }
+
+  /* Draw the translucent objects */
+  {
+    translucent_render_pass.pass_desc.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
+    WGPURenderPassEncoder translucent_pass_encoder
+      = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc, &translucent_render_pass.pass_desc.descriptor);
+    wgpuRenderPassEncoderSetPipeline(translucent_pass_encoder,
+                                     translucent_render_pass.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(translucent_pass_encoder, 0,
+                                      translucent_render_pass.bind_group, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      translucent_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      translucent_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16, 0,
+      WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(translucent_pass_encoder,
+                                     buffers.index.count, 8, 0, 0, 0);
+    wgpuRenderPassEncoderEnd(translucent_pass_encoder);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, translucent_pass_encoder)
+  }
+
+  /* Composite the opaque and translucent objects */
+  {
+    composite_render_pass.pass_desc.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
+    WGPURenderPassEncoder composite_pass_encoder
+      = wgpuCommandEncoderBeginRenderPass(
+        wgpu_context->cmd_enc, &composite_render_pass.pass_desc.descriptor);
+    wgpuRenderPassEncoderSetPipeline(composite_pass_encoder,
+                                     composite_render_pass.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(composite_pass_encoder, 0,
+                                      composite_render_pass.bind_group, 0, 0);
+    wgpuRenderPassEncoderDraw(composite_pass_encoder, 6, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(composite_pass_encoder);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, composite_pass_encoder)
+  }
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  ASSERT(command_buffer != NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return EXIT_SUCCESS;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return EXIT_FAILURE;
+  }
+  if (!context->paused) {
+    update_uniform_buffer(context);
+  }
+  return example_draw(context);
+}
+
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+  wgpu_destroy_buffer(&buffers.vertex);
+  wgpu_destroy_buffer(&buffers.index);
+  wgpu_destroy_buffer(&buffers.heads);
+  wgpu_destroy_buffer(&buffers.heads_init);
+  wgpu_destroy_buffer(&buffers.linked_list);
+  wgpu_destroy_buffer(&buffers.uniform);
+  WGPU_RELEASE_RESOURCE(Texture, depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, depth_texture.view)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, opaque_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, opaque_render_pass.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, translucent_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, translucent_render_pass.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, composite_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, composite_render_pass.bind_group)
+}
+
+void example_a_buffer(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
+    },
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy
+  });
+  // clang-format on
+}

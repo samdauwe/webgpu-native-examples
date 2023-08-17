@@ -227,6 +227,10 @@ This example shows how to render an equirectangular panorama consisting of a sin
 
 This example shows how to how to load [Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures in a WebGPU application.
 
+#### [A-Buffer](src/examples/a_buffer.c)
+
+This example demonstrates order independent transparency using a per-pixel linked-list of translucent fragments.
+
 #### [Reversed Z](src/examples/reversed_z.c)
 
 This example shows the use of reversed z technique for better utilization of depth buffer precision. The left column uses regular method, while the right one uses reversed z technique. Both are using depth32float as their depth buffer format. A set of red and green planes are positioned very close to each other. Higher sets are placed further from camera (and are scaled for better visual purpose). To use  reversed z to render your scene, you will need depth store value to be 0.0, depth compare function to be greater, and remap depth range by multiplying an additional matrix to your projection matrix.
@@ -539,6 +543,7 @@ The list given below summarizes possible examples or functionality that will be 
 * [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
 * [x] ~~[Cornell Box](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell)~~
 * [x] ~~[Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)~~
+* [x] ~~[A-Buffer](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/a-buffer)~~
 
 ## License
 

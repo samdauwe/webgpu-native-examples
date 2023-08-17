@@ -5,6 +5,7 @@
 
 #include "../core/macro.h"
 
+void example_a_buffer(int argc, char* argv[]);
 void example_animometer(int argc, char* argv[]);
 void example_aquarium(int argc, char* argv[]);
 void example_basisu(int argc, char* argv[]);
@@ -78,6 +79,7 @@ void example_video_uploading(int argc, char* argv[]);
 void example_wireframe_vertex_pulling(int argc, char* argv[]);
 
 static examplecase_t g_example_cases[] = {
+  {"a_buffer", example_a_buffer},
   {"animometer", example_animometer},
   // {"aquarium", example_aquarium},
   {"basisu", example_basisu},
