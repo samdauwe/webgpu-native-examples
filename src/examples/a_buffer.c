@@ -270,9 +270,11 @@ static struct {
   mat4 projection_matrix;
   mat4 view_proj_matrix;
 } view_matrices = {
-  .up_vector    = {0.0f, 1.0f, 0.0f},
-  .origin       = GLM_VEC3_ZERO_INIT,
-  .eye_position = {0.0f, 5.0f, -100.0f},
+  .up_vector         = {0.0f, 1.0f, 0.0f},
+  .origin            = GLM_VEC3_ZERO_INIT,
+  .eye_position      = {0.0f, 5.0f, -100.0f},
+  .projection_matrix = GLM_MAT4_IDENTITY_INIT,
+  .view_proj_matrix  = GLM_MAT4_IDENTITY_INIT,
 };
 
 static struct {
@@ -539,20 +541,20 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
   glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
                   view_matrices.projection_matrix);
 
+  glm_vec3_copy((vec3){0.0f, 5.0f, -100.0f}, view_matrices.eye_position);
+
   const float rad = PI * (context->frame.timestamp_millis / 5000.0f);
   mat4 rotation   = GLM_MAT4_ZERO_INIT;
   glm_mat4_rotate_y(glm_mat4_translation(view_matrices.origin, &rotation), rad);
-  vec3 eye_position = GLM_VEC3_ZERO_INIT;
-  glm_vec3_transform_mat4(view_matrices.eye_position, rotation, &eye_position);
+  glm_vec3_transform_mat4(view_matrices.eye_position, rotation,
+                          &view_matrices.eye_position);
 
-  mat4 view_matrix_tmp = GLM_MAT4_IDENTITY_INIT,
-       view_matrix     = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(eye_position,            // eye vector
-             view_matrices.origin,    // center vector
-             view_matrices.up_vector, // up vector
-             view_matrix_tmp          // result matrix
+  mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
+  glm_lookat(view_matrices.eye_position, // eye vector
+             view_matrices.origin,       // center vector
+             view_matrices.up_vector,    // up vector
+             view_matrix                 // result matrix
   );
-  glm_mat4_inv(view_matrix_tmp, view_matrix);
 
   glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
                 view_matrices.view_proj_matrix);
