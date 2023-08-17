@@ -542,7 +542,7 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
  * Utah teapot
  * -------------------------------------------------------------------------- */
 
-int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh)
+int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh)
 {
   ASSERT(utah_teapot_mesh);
 
@@ -588,7 +588,7 @@ int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh)
     uint32_t c = 0;
     cJSON_ArrayForEach(position_item, position_array)
     {
-      if (!cJSON_GetArraySize(position_item) == 3) {
+      if (!(cJSON_GetArraySize(position_item) == 3)) {
         fprintf(stderr, "Position item is not an array of size 3\n");
         goto load_json_end;
       }
@@ -614,7 +614,7 @@ int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh)
     uint32_t c = 0;
     cJSON_ArrayForEach(cell_item, cell_array)
     {
-      if (!cJSON_GetArraySize(cell_item) == 3) {
+      if (!(cJSON_GetArraySize(cell_item) == 3)) {
         fprintf(stderr, "Cell item is not an array of size 3\n");
         goto load_json_end;
       }

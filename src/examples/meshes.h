@@ -189,7 +189,7 @@ typedef struct utah_teapot_mesh_t {
  * @brief Loads the 'Utah teapot' json file ().
  * @see https://github.com/mikolalysenko/teapot
  */
-int utah_teapot_mesh(utah_teapot_mesh_t* utah_teapot_mesh);
+int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh);
 
 /**
  * @brief Computes surface normals.
