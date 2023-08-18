@@ -25,6 +25,13 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* gears_vertex_shader_wgsl;
+static const char* gears_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
  * WebGPU Gear class definition
  * -------------------------------------------------------------------------- */
 
@@ -649,9 +656,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .label = "gears_vertex_shader",
-                  .file  = "shaders/gears/gears.vert.spv",
+                  // Vertex shader WGSL
+                  .label            = "Gears vertex shader",
+                  .wgsl_code.source = gears_vertex_shader_wgsl,
+                  .entry            = "main",
                 },
                 .buffer_count = 1,
                 .buffers      = &gear_vertex_buffer_layout,
@@ -661,9 +669,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .label = "gears_fragment_shader",
-                  .file  = "shaders/gears/gears.frag.spv",
+                  // Fragment shader WGSL
+                  .label            = "Gears fragment shader",
+                  .wgsl_code.source = gears_fragment_shader_wgsl,
+                  .entry            = "main",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
@@ -853,3 +862,71 @@ void example_gears(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* gears_vertex_shader_wgsl = CODE(
+  struct UBO {
+    projection : mat4x4<f32>,
+    model : mat4x4<f32>,
+    normal : mat4x4<f32>,
+    view : mat4x4<f32>,
+    lightpos : vec3<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> ubo : UBO;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) normal : vec3<f32>,
+    @location(1) color : vec3<f32>,
+    @location(2) eyePos : vec3<f32>,
+    @location(3) lightVec : vec3<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec4<f32>,
+    @location(1) inNormal: vec3<f32>,
+    @location(2) inColor: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    output.normal = normalize(mat3x3(
+        ubo.normal[0].xyz,
+        ubo.normal[1].xyz,
+        ubo.normal[2].xyz
+      ) * inNormal);
+    output.color = inColor;
+    let modelView : mat4x4<f32> = ubo.view * ubo.model;
+    let pos : vec4<f32> = modelView * inPos;
+    output.eyePos = (modelView * pos).xyz;
+    let lightPos : vec4<f32> = vec4<f32>(ubo.lightpos, 1.0) * modelView;
+    output.lightVec = normalize(lightPos.xyz - output.eyePos);
+    output.position = ubo.projection * pos;
+    return output;
+  }
+);
+
+static const char* gears_fragment_shader_wgsl = CODE(
+  @fragment
+  fn main(
+    @location(0) inNormal: vec3<f32>,
+    @location(1) inColor: vec3<f32>,
+    @location(2) inEyePos: vec3<f32>,
+    @location(3) inLightVec: vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    let Eye : vec3<f32> = normalize(-inEyePos);
+    let Reflected : vec3<f32> = normalize(reflect(-inLightVec, inNormal));
+
+    let IAmbient : vec4<f32> = vec4<f32>(0.2, 0.2, 0.2, 1.0);
+    let IDiffuse : vec4<f32> = vec4<f32>(0.5, 0.5, 0.5, 0.5) * max(dot(inNormal, inLightVec), 0.0);
+    let specular : f32 = 0.25;
+    let ISpecular : vec4<f32> = vec4<f32>(0.5, 0.5, 0.5, 1.0) * pow(max(dot(Reflected, Eye), 0.0), 0.8) * specular;
+
+    return vec4<f32>((IAmbient + IDiffuse) * vec4(inColor, 1.0) + ISpecular);
+  }
+);
+// clang-format on
