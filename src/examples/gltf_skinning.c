@@ -16,80 +16,16 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/gltfskinning/gltfskinning.cpp
  * -------------------------------------------------------------------------- */
 
-// Shaders
-// clang-format off
-static const char* skinned_model_vertex_shader_wgsl = CODE(
-  struct UBOScene {
-    projection : mat4x4<f32>,
-    view : mat4x4<f32>,
-    lightPos : vec4<f32>,
-  };
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-  struct UBOPrimitive {
-    model : mat4x4<f32>,
-  };
+static const char* skinned_model_vertex_shader_wgsl;
+static const char* skinned_model_fragment_shader_wgsl;
 
-  @group(0) @binding(0) var<uniform> uboScene : UBOScene;
-  @group(1) @binding(0) var<uniform> primitive : UBOPrimitive;
-
-  struct Output {
-    @builtin(position) position : vec4<f32>,
-    @location(0) outNormal : vec3<f32>,
-    @location(1) outColor : vec3<f32>,
-    @location(2) outUV : vec2<f32>,
-    @location(3) outViewVec : vec3<f32>,
-    @location(4) outLightVec : vec3<f32>,
-  };
-
-  @vertex
-  fn main(
-    @location(0) inPos: vec3<f32>,
-    @location(1) inNormal: vec3<f32>,
-    @location(2) inUV: vec2<f32>,
-    @location(3) inColor: vec3<f32>,
-    @location(4) inJointIndices: vec4<f32>,
-    @location(5) inJointWeights: vec4<f32>
-  ) -> Output {
-    var output: Output;
-    output.position = uboScene.projection * uboScene.view * primitive.model * vec4<f32>(inPos, 1.0);
-    output.outNormal = mat3x3(
-        primitive.model[0].xyz,
-        primitive.model[1].xyz,
-        primitive.model[2].xyz,
-      ) * inNormal;
-    output.outColor = inColor;
-    output.outUV = inUV;
-    let pos : vec4<f32> = primitive.model * vec4<f32>(inPos, 1.0);
-    output.outLightVec = uboScene.lightPos.xyz - pos.xyz;
-    output.outViewVec = -pos.xyz;
-    return output;
-  }
-);
-
-static const char* skinned_model_fragment_shader_wgsl = CODE(
-  @group(2) @binding(0) var textureColorMap : texture_2d<f32>;
-  @group(2) @binding(1) var samplerColorMap : sampler;
-
-  @fragment
-  fn main(
-    @location(0) inNormal : vec3<f32>,
-    @location(1) inColor : vec3<f32>,
-    @location(2) inUV : vec2<f32>,
-    @location(3) inViewVec : vec3<f32>,
-    @location(4) inLightVec : vec3<f32>,
-  ) -> @location(0) vec4<f32> {
-    let textureColor : vec3<f32> = (textureSample(textureColorMap, samplerColorMap, inUV)).rgb;
-    let color : vec4<f32> = vec4(textureColor, 1.0) * vec4(inColor, 1.0);
-    let N : vec3<f32> = normalize(inNormal);
-    let L : vec3<f32> = normalize(inLightVec);
-    let V : vec3<f32> = normalize(inViewVec);
-    let R : vec3<f32> = reflect(-L, N);
-    let diffuse : vec3<f32> = max(dot(N, L), 0.5) * inColor;
-    let specular : vec3<f32> = pow(max(dot(R, V), 0.0), 16.0) * vec3<f32>(0.75);
-    return vec4<f32>(diffuse * color.rgb + specular, 1.0);
-  }
-);
-// clang-format on
+/* -------------------------------------------------------------------------- *
+ * glTF Vertex Skinning example
+ * -------------------------------------------------------------------------- */
 
 static struct gltf_model_t* gltf_model;
 
@@ -624,3 +560,81 @@ void example_gltf_skinning(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+ 
+// clang-format off
+static const char* skinned_model_vertex_shader_wgsl = CODE(
+  struct UBOScene {
+    projection : mat4x4<f32>,
+    view : mat4x4<f32>,
+    lightPos : vec4<f32>,
+  };
+
+  struct UBOPrimitive {
+    model : mat4x4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> uboScene : UBOScene;
+  @group(1) @binding(0) var<uniform> primitive : UBOPrimitive;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) outNormal : vec3<f32>,
+    @location(1) outColor : vec3<f32>,
+    @location(2) outUV : vec2<f32>,
+    @location(3) outViewVec : vec3<f32>,
+    @location(4) outLightVec : vec3<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>,
+    @location(1) inNormal: vec3<f32>,
+    @location(2) inUV: vec2<f32>,
+    @location(3) inColor: vec3<f32>,
+    @location(4) inJointIndices: vec4<f32>,
+    @location(5) inJointWeights: vec4<f32>
+  ) -> Output {
+    var output: Output;
+    output.position = uboScene.projection * uboScene.view * primitive.model * vec4<f32>(inPos, 1.0);
+    output.outNormal = mat3x3(
+        primitive.model[0].xyz,
+        primitive.model[1].xyz,
+        primitive.model[2].xyz,
+      ) * inNormal;
+    output.outColor = inColor;
+    output.outUV = inUV;
+    let pos : vec4<f32> = primitive.model * vec4<f32>(inPos, 1.0);
+    output.outLightVec = uboScene.lightPos.xyz - pos.xyz;
+    output.outViewVec = -pos.xyz;
+    return output;
+  }
+);
+
+static const char* skinned_model_fragment_shader_wgsl = CODE(
+  @group(2) @binding(0) var textureColorMap : texture_2d<f32>;
+  @group(2) @binding(1) var samplerColorMap : sampler;
+
+  @fragment
+  fn main(
+    @location(0) inNormal : vec3<f32>,
+    @location(1) inColor : vec3<f32>,
+    @location(2) inUV : vec2<f32>,
+    @location(3) inViewVec : vec3<f32>,
+    @location(4) inLightVec : vec3<f32>,
+  ) -> @location(0) vec4<f32> {
+    let textureColor : vec3<f32> = (textureSample(textureColorMap, samplerColorMap, inUV)).rgb;
+    let color : vec4<f32> = vec4(textureColor, 1.0) * vec4(inColor, 1.0);
+    let N : vec3<f32> = normalize(inNormal);
+    let L : vec3<f32> = normalize(inLightVec);
+    let V : vec3<f32> = normalize(inViewVec);
+    let R : vec3<f32> = reflect(-L, N);
+    let diffuse : vec3<f32> = max(dot(N, L), 0.5) * inColor;
+    let specular : vec3<f32> = pow(max(dot(R, V), 0.0), 16.0) * vec3<f32>(0.75);
+    return vec4<f32>(diffuse * color.rgb + specular, 1.0);
+  }
+);
+// clang-format on

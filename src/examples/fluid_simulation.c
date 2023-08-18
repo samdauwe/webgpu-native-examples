@@ -1035,6 +1035,13 @@ static void init_sizes(wgpu_context_t* wgpu_context)
 }
 
 /* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* render_program_shader_wgsl_vertex_main;
+static const char* render_program_shader_wgsl_fragment_main;
+
+/* -------------------------------------------------------------------------- *
  * Render
  * -------------------------------------------------------------------------- */
 
@@ -1055,204 +1062,6 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } render_pass;
 } render_program = {0};
-
-// Shaders
-// clang-format off
-/**
- * @brief 3D Smoke Rendering inspired from @xjorma's shader:
- * @ref https://www.shadertoy.com/view/WlVyRV
- */
-static const char* render_program_shader_wgsl_vertex_main = CODE(
-  // -- STRUCT_GRID_SIZE -- //
-  struct GridSize {
-    w : f32,
-    h : f32,
-    dyeW: f32,
-    dyeH: f32,
-    dx : f32,
-    rdx : f32,
-    dyeRdx : f32
-  }
-  // -- STRUCT_GRID_SIZE -- //
-
-  // -- STRUCT_MOUSE -- //
-  struct Mouse {
-    pos: vec2<f32>,
-    vel: vec2<f32>,
-  }
-  // -- STRUCT_MOUSE -- //
-
-  struct VertexOut {
-    @builtin(position) position : vec4<f32>,
-    @location(1) uv : vec2<f32>,
-  };
-
-  struct SmokeData {
-    raymarchSteps: f32,
-    smokeDensity: f32,
-    enableShadows: f32,
-    shadowIntensity: f32,
-    smokeHeight: f32,
-    lightHeight: f32,
-    lightIntensity: f32,
-    lightFalloff: f32,
-  }
-
-  @group(0) @binding(0) var<storage, read> fieldX : array<f32>;
-  @group(0) @binding(1) var<storage, read> fieldY : array<f32>;
-  @group(0) @binding(2) var<storage, read> fieldZ : array<f32>;
-  @group(0) @binding(3) var<uniform> uGrid : GridSize;
-  @group(0) @binding(4) var<uniform> uTime : f32;
-  @group(0) @binding(5) var<uniform> uMouse : Mouse;
-  @group(0) @binding(6) var<uniform> isRenderingDye : f32;
-  @group(0) @binding(7) var<uniform> multiplier : f32;
-  @group(0) @binding(8) var<uniform> smokeData : SmokeData;
-
-  @vertex
-  fn vertex_main(@location(0) position: vec4<f32>) -> VertexOut
-  {
-    var output : VertexOut;
-    output.position = position;
-    output.uv = position.xy*.5+.5;
-    return output;
-  }
-);
-
-static const char* render_program_shader_wgsl_fragment_main = CODE(
-  fn hash12(p: vec2<f32>) -> f32
-  {
-    var p3: vec3<f32>  = fract(vec3(p.xyx) * .1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-  }
-
-  fn getDye(pos : vec3<f32>) -> vec3<f32>
-  {
-    var uv = pos.xy;
-    uv.x *= uGrid.h / uGrid.w;
-    uv = uv * 0.5 + 0.5;
-
-    if(max(uv.x, uv.y) > 1. || min(uv.x, uv.y) < 0.) {
-      return vec3(0);
-    }
-
-    uv = floor(uv*vec2(uGrid.dyeW, uGrid.dyeH));
-    let id = u32(uv.x + uv.y * uGrid.dyeW);
-
-    return vec3(fieldX[id], fieldY[id], fieldZ[id]);
-  }
-
-  fn getLevel(dye: vec3<f32>) -> f32
-  {
-    return max(dye.r, max(dye.g, dye.b));
-  }
-
-  fn getMousePos() -> vec2<f32> {
-    var pos = uMouse.pos;
-    pos = (pos - .5) * 2.;
-    pos.x *= uGrid.w / uGrid.h;
-    return pos;
-  }
-
-  fn getShadow(p: vec3<f32>, lightPos: vec3<f32>, fogSlice: f32) -> f32 {
-    let lightDir: vec3<f32> = normalize(lightPos - p);
-    let lightDist: f32 = pow(max(0., dot(lightPos - p, lightPos - p) - smokeData.lightIntensity + 1.), smokeData.lightFalloff);
-    var shadowDist: f32 = 0.;
-
-    for (var i: f32 = 1.; i <= smokeData.raymarchSteps; i += 1.) {
-      let sp: vec3<f32> = p + mix(0., lightDist*smokeData.smokeHeight, i / smokeData.raymarchSteps) * lightDir;
-      if (sp.z > smokeData.smokeHeight) {
-        break;
-      }
-
-      let height: f32 = getLevel(getDye(sp)) * smokeData.smokeHeight;
-      shadowDist += min(max(0., height - sp.z), fogSlice);
-    }
-
-    return exp(-shadowDist * smokeData.shadowIntensity) / lightDist;
-  }
-
-  @fragment
-  fn fragment_main(fragData : VertexOut) -> @location(0) vec4<f32>
-  {
-    var w = uGrid.dyeW;
-    var h = uGrid.dyeH;
-
-    if (isRenderingDye != 2.) {
-      if (isRenderingDye > 1.) {
-        w = uGrid.w;
-        h = uGrid.h;
-      }
-
-      let fuv = vec2<f32>((floor(fragData.uv*vec2(w, h))));
-      let id = u32(fuv.x + fuv.y * w);
-
-      let r = fieldX[id] + uTime * 0. + uMouse.pos.x * 0.;
-      let g = fieldY[id];
-      let b = fieldZ[id];
-      var col = vec3(r, g, b);
-
-      if (isRenderingDye > 1.) {
-        if (r < 0.) {col = mix(vec3(0.), vec3(0., 0., 1.), abs(r));}
-        else {col = mix(vec3(0.), vec3(1., 0., 0.), r);}
-      }
-
-      return vec4(col * multiplier, 1);
-    }
-
-    var uv: vec2<f32> = fragData.uv * 2. - 1.;
-    uv.x *= uGrid.dyeW / uGrid.dyeH;
-    // let rd: vec3<f32> = normalize(vec3(uv, -1));
-    // let ro: vec3<f32> = vec3(0,0,1);
-
-    let theta = -1.5708;
-    let phi = 3.141592 + 0.0001;// - (uMouse.pos.y - .5);
-    let parralax = 20.;
-    var ro: vec3<f32> = parralax * vec3(sin(phi)*cos(theta),cos(phi),sin(phi)*sin(theta));
-    let cw = normalize(-ro);
-    let cu = normalize(cross(cw, vec3(0, 0, 1)));
-    let cv = normalize(cross(cu, cw));
-    let ca = mat3x3(cu, cv, cw);
-    var rd =  ca*normalize(vec3(uv, parralax));
-    ro = ro.xzy; rd = rd.xzy;
-
-    let bgCol: vec3<f32> = vec3(0,0,0);
-    let fogSlice = smokeData.smokeHeight / smokeData.raymarchSteps;
-
-    let near: f32 = (smokeData.smokeHeight - ro.z) / rd.z;
-    let far: f32  = -ro.z / rd.z;
-
-    let m = getMousePos();
-    let lightPos: vec3<f32> = vec3(m, smokeData.lightHeight);
-
-    var transmittance: f32 = 1.;
-    var col: vec3<f32> = vec3(0.35,0.35,0.35) * 0.;
-
-    for (var i: f32 = 0.; i <= smokeData.raymarchSteps; i += 1.) {
-      let p: vec3<f32> = ro + mix(near, far, i / smokeData.raymarchSteps) * rd;
-
-      let dyeColor: vec3<f32> = getDye(p);
-      let height: f32 = getLevel(dyeColor) * smokeData.smokeHeight;
-      let smple: f32 = min(max(0., height - p.z), fogSlice);
-
-      if (smple > .0001) {
-        var shadow: f32 = 1.;
-
-        if (smokeData.enableShadows > 0.) {
-          shadow = getShadow(p, lightPos, fogSlice);
-        }
-
-        let dens: f32 = smple*smokeData.smokeDensity;
-
-        col += shadow * dens * transmittance * dyeColor;
-        transmittance *= 1. - dens;
-      }
-    }
-
-    return vec4(mix(bgCol, col, 1. - transmittance), 1);
-  }
-);
-// clang-format on
 
 static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
@@ -1774,3 +1583,204 @@ void example_fluid_simulation(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+ 
+// clang-format off
+/**
+ * @brief 3D Smoke Rendering inspired from @xjorma's shader:
+ * @ref https://www.shadertoy.com/view/WlVyRV
+ */
+static const char* render_program_shader_wgsl_vertex_main = CODE(
+  // -- STRUCT_GRID_SIZE -- //
+  struct GridSize {
+    w : f32,
+    h : f32,
+    dyeW: f32,
+    dyeH: f32,
+    dx : f32,
+    rdx : f32,
+    dyeRdx : f32
+  }
+  // -- STRUCT_GRID_SIZE -- //
+
+  // -- STRUCT_MOUSE -- //
+  struct Mouse {
+    pos: vec2<f32>,
+    vel: vec2<f32>,
+  }
+  // -- STRUCT_MOUSE -- //
+
+  struct VertexOut {
+    @builtin(position) position : vec4<f32>,
+    @location(1) uv : vec2<f32>,
+  };
+
+  struct SmokeData {
+    raymarchSteps: f32,
+    smokeDensity: f32,
+    enableShadows: f32,
+    shadowIntensity: f32,
+    smokeHeight: f32,
+    lightHeight: f32,
+    lightIntensity: f32,
+    lightFalloff: f32,
+  }
+
+  @group(0) @binding(0) var<storage, read> fieldX : array<f32>;
+  @group(0) @binding(1) var<storage, read> fieldY : array<f32>;
+  @group(0) @binding(2) var<storage, read> fieldZ : array<f32>;
+  @group(0) @binding(3) var<uniform> uGrid : GridSize;
+  @group(0) @binding(4) var<uniform> uTime : f32;
+  @group(0) @binding(5) var<uniform> uMouse : Mouse;
+  @group(0) @binding(6) var<uniform> isRenderingDye : f32;
+  @group(0) @binding(7) var<uniform> multiplier : f32;
+  @group(0) @binding(8) var<uniform> smokeData : SmokeData;
+
+  @vertex
+  fn vertex_main(@location(0) position: vec4<f32>) -> VertexOut
+  {
+    var output : VertexOut;
+    output.position = position;
+    output.uv = position.xy*.5+.5;
+    return output;
+  }
+);
+
+static const char* render_program_shader_wgsl_fragment_main = CODE(
+  fn hash12(p: vec2<f32>) -> f32
+  {
+    var p3: vec3<f32>  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  fn getDye(pos : vec3<f32>) -> vec3<f32>
+  {
+    var uv = pos.xy;
+    uv.x *= uGrid.h / uGrid.w;
+    uv = uv * 0.5 + 0.5;
+
+    if(max(uv.x, uv.y) > 1. || min(uv.x, uv.y) < 0.) {
+      return vec3(0);
+    }
+
+    uv = floor(uv*vec2(uGrid.dyeW, uGrid.dyeH));
+    let id = u32(uv.x + uv.y * uGrid.dyeW);
+
+    return vec3(fieldX[id], fieldY[id], fieldZ[id]);
+  }
+
+  fn getLevel(dye: vec3<f32>) -> f32
+  {
+    return max(dye.r, max(dye.g, dye.b));
+  }
+
+  fn getMousePos() -> vec2<f32> {
+    var pos = uMouse.pos;
+    pos = (pos - .5) * 2.;
+    pos.x *= uGrid.w / uGrid.h;
+    return pos;
+  }
+
+  fn getShadow(p: vec3<f32>, lightPos: vec3<f32>, fogSlice: f32) -> f32 {
+    let lightDir: vec3<f32> = normalize(lightPos - p);
+    let lightDist: f32 = pow(max(0., dot(lightPos - p, lightPos - p) - smokeData.lightIntensity + 1.), smokeData.lightFalloff);
+    var shadowDist: f32 = 0.;
+
+    for (var i: f32 = 1.; i <= smokeData.raymarchSteps; i += 1.) {
+      let sp: vec3<f32> = p + mix(0., lightDist*smokeData.smokeHeight, i / smokeData.raymarchSteps) * lightDir;
+      if (sp.z > smokeData.smokeHeight) {
+        break;
+      }
+
+      let height: f32 = getLevel(getDye(sp)) * smokeData.smokeHeight;
+      shadowDist += min(max(0., height - sp.z), fogSlice);
+    }
+
+    return exp(-shadowDist * smokeData.shadowIntensity) / lightDist;
+  }
+
+  @fragment
+  fn fragment_main(fragData : VertexOut) -> @location(0) vec4<f32>
+  {
+    var w = uGrid.dyeW;
+    var h = uGrid.dyeH;
+
+    if (isRenderingDye != 2.) {
+      if (isRenderingDye > 1.) {
+        w = uGrid.w;
+        h = uGrid.h;
+      }
+
+      let fuv = vec2<f32>((floor(fragData.uv*vec2(w, h))));
+      let id = u32(fuv.x + fuv.y * w);
+
+      let r = fieldX[id] + uTime * 0. + uMouse.pos.x * 0.;
+      let g = fieldY[id];
+      let b = fieldZ[id];
+      var col = vec3(r, g, b);
+
+      if (isRenderingDye > 1.) {
+        if (r < 0.) {col = mix(vec3(0.), vec3(0., 0., 1.), abs(r));}
+        else {col = mix(vec3(0.), vec3(1., 0., 0.), r);}
+      }
+
+      return vec4(col * multiplier, 1);
+    }
+
+    var uv: vec2<f32> = fragData.uv * 2. - 1.;
+    uv.x *= uGrid.dyeW / uGrid.dyeH;
+    // let rd: vec3<f32> = normalize(vec3(uv, -1));
+    // let ro: vec3<f32> = vec3(0,0,1);
+
+    let theta = -1.5708;
+    let phi = 3.141592 + 0.0001;// - (uMouse.pos.y - .5);
+    let parralax = 20.;
+    var ro: vec3<f32> = parralax * vec3(sin(phi)*cos(theta),cos(phi),sin(phi)*sin(theta));
+    let cw = normalize(-ro);
+    let cu = normalize(cross(cw, vec3(0, 0, 1)));
+    let cv = normalize(cross(cu, cw));
+    let ca = mat3x3(cu, cv, cw);
+    var rd =  ca*normalize(vec3(uv, parralax));
+    ro = ro.xzy; rd = rd.xzy;
+
+    let bgCol: vec3<f32> = vec3(0,0,0);
+    let fogSlice = smokeData.smokeHeight / smokeData.raymarchSteps;
+
+    let near: f32 = (smokeData.smokeHeight - ro.z) / rd.z;
+    let far: f32  = -ro.z / rd.z;
+
+    let m = getMousePos();
+    let lightPos: vec3<f32> = vec3(m, smokeData.lightHeight);
+
+    var transmittance: f32 = 1.;
+    var col: vec3<f32> = vec3(0.35,0.35,0.35) * 0.;
+
+    for (var i: f32 = 0.; i <= smokeData.raymarchSteps; i += 1.) {
+      let p: vec3<f32> = ro + mix(near, far, i / smokeData.raymarchSteps) * rd;
+
+      let dyeColor: vec3<f32> = getDye(p);
+      let height: f32 = getLevel(dyeColor) * smokeData.smokeHeight;
+      let smple: f32 = min(max(0., height - p.z), fogSlice);
+
+      if (smple > .0001) {
+        var shadow: f32 = 1.;
+
+        if (smokeData.enableShadows > 0.) {
+          shadow = getShadow(p, lightPos, fogSlice);
+        }
+
+        let dens: f32 = smple*smokeData.smokeDensity;
+
+        col += shadow * dens * transmittance * dyeColor;
+        transmittance *= 1. - dens;
+      }
+    }
+
+    return vec4(mix(bgCol, col, 1. - transmittance), 1);
+  }
+);
+// clang-format on

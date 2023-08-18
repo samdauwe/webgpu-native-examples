@@ -16,71 +16,16 @@
  * https://babylonjs.medium.com/how-to-simulate-out-of-bounds-viewports-when-using-webgpu-or-babylonnative-2280637c0660
  * -------------------------------------------------------------------------- */
 
-// Shaders
-// clang-format off
-static const char* vertex_shader_wgsl = CODE(
-    struct Viewport {
-      x : f32,
-      y : f32,
-      w : f32,
-      h : f32,
-    };
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-    @group(0) @binding(0)
-    var<uniform> viewport : Viewport;
+static const char* vertex_shader_wgsl;
+static const char* fragment_shader_wgsl;
 
-    struct VertexOutput{
-      @builtin(position) Position : vec4<f32>,
-      @location(0) fragUV : vec2<f32>,
-    }
-
-    @vertex
-    fn vertex_main(
-      @builtin(vertex_index) VertexIndex : u32
-    ) -> VertexOutput {
-
-      var pos = array<vec2<f32>, 6>(
-        vec2( 1.0,  1.0),  vec2( 1.0, -1.0), vec2(-1.0, -1.0),
-        vec2( 1.0,  1.0),  vec2(-1.0, -1.0), vec2(-1.0,  1.0)
-      );
-
-      const uv = array(
-        vec2( 1.0,  0.0),  vec2( 1.0,  1.0), vec2( 0.0,  1.0),
-        vec2( 1.0,  0.0),  vec2( 0.0,  1.0), vec2( 0.0,  0.0)
-      );
-
-      var position : vec4<f32> = vec4(pos[VertexIndex], 0.0, 1.0);
-      position.x = position.x * viewport.w
-                   + (viewport.x + viewport.w - 1.0 + viewport.x) * position.w;
-      position.y = position.y * viewport.h
-                   + (viewport.y + viewport.h - 1.0 + viewport.y) * position.w;
-
-      var output : VertexOutput;
-      output.Position = position;
-      output.fragUV =  uv[VertexIndex];
-
-      return output;
-    }
-  );
-
-static const char* fragment_shader_wgsl = CODE(
-  @group(0) @binding(1) var myTexture : texture_2d<f32>;
-  @group(0) @binding(2) var mySampler : sampler;
-
-  @fragment
-  fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
-    // PIXELATE
-    var dx:f32 = 8.0 / 640.0;
-    var dy:f32 = 8.0 / 640.0;
-    var uv:vec2<f32> = vec2(dx*(floor(fragUV.x/dx)), dy*(floor(fragUV.y/dy)));
-
-    var color:vec3<f32> = (textureSample(myTexture, mySampler, uv)).rgb;
-
-    return  vec4<f32>(color, 1.0);
-  }
-);
-
-// clang-format on
+/* -------------------------------------------------------------------------- *
+ * Out-of-bounds Viewport example
+ * -------------------------------------------------------------------------- */
 
 // Uniform buffer block object
 static wgpu_buffer_t uniform_buffer_vs = {0};
@@ -466,3 +411,71 @@ void example_out_of_bounds_viewport(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+ 
+// clang-format off
+static const char* vertex_shader_wgsl = CODE(
+  struct Viewport {
+    x : f32,
+    y : f32,
+    w : f32,
+    h : f32,
+  };
+
+  @group(0) @binding(0)
+  var<uniform> viewport : Viewport;
+
+  struct VertexOutput{
+    @builtin(position) Position : vec4<f32>,
+    @location(0) fragUV : vec2<f32>,
+  }
+
+  @vertex
+  fn vertex_main(
+    @builtin(vertex_index) VertexIndex : u32
+  ) -> VertexOutput {
+
+    var pos = array<vec2<f32>, 6>(
+      vec2( 1.0,  1.0),  vec2( 1.0, -1.0), vec2(-1.0, -1.0),
+      vec2( 1.0,  1.0),  vec2(-1.0, -1.0), vec2(-1.0,  1.0)
+    );
+
+    const uv = array(
+      vec2( 1.0,  0.0),  vec2( 1.0,  1.0), vec2( 0.0,  1.0),
+      vec2( 1.0,  0.0),  vec2( 0.0,  1.0), vec2( 0.0,  0.0)
+    );
+
+    var position : vec4<f32> = vec4(pos[VertexIndex], 0.0, 1.0);
+    position.x = position.x * viewport.w
+                  + (viewport.x + viewport.w - 1.0 + viewport.x) * position.w;
+    position.y = position.y * viewport.h
+                  + (viewport.y + viewport.h - 1.0 + viewport.y) * position.w;
+
+    var output : VertexOutput;
+    output.Position = position;
+    output.fragUV =  uv[VertexIndex];
+
+    return output;
+  }
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  @group(0) @binding(1) var myTexture : texture_2d<f32>;
+  @group(0) @binding(2) var mySampler : sampler;
+
+  @fragment
+  fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
+    // PIXELATE
+    var dx:f32 = 8.0 / 640.0;
+    var dy:f32 = 8.0 / 640.0;
+    var uv:vec2<f32> = vec2(dx*(floor(fragUV.x/dx)), dy*(floor(fragUV.y/dy)));
+
+    var color:vec3<f32> = (textureSample(myTexture, mySampler, uv)).rgb;
+
+    return  vec4<f32>(color, 1.0);
+  }
+);
+// clang-format on

@@ -12,45 +12,16 @@
  * https://github.com/cx20/webgpu-test/tree/master/examples/webgpu_wgsl/square
  * -------------------------------------------------------------------------- */
 
-// Shaders
-// clang-format off
-static const char* vertex_shader_wgsl = CODE(
-  struct VertexInput {
-    @location(0) position : vec3<f32>,
-    @location(1) color : vec4<f32>
-  }
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-  struct VertexOutput {
-    @builtin(position) Position : vec4<f32>,
-    @location(0) fragColor : vec4<f32>
-  }
+static const char* vertex_shader_wgsl;
+static const char* fragment_shader_wgsl;
 
-  @vertex
-  fn main(input : VertexInput) -> VertexOutput {
-    var output : VertexOutput;
-    output.fragColor = input.color;
-    output.Position = vec4<f32>(input.position, 1.0);
-    return output;
-  };
-);
-
-static const char* fragment_shader_wgsl = CODE(
-  struct FragmentInput {
-    @location(0) fragColor : vec4<f32>
-  }
-
-  struct FragmentOutput {
-    @location(0) outColor : vec4<f32>
-  }
-
-  @fragment
-  fn main(input : FragmentInput) -> FragmentOutput {
-    var output : FragmentOutput;
-    output.outColor = input.fragColor;
-    return output;
-  };
-);
-// clang-format on
+/* -------------------------------------------------------------------------- *
+ * Square example
+ * -------------------------------------------------------------------------- */
 
 // Vertex buffers
 static struct {
@@ -351,3 +322,46 @@ void example_square(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+ 
+// clang-format off
+static const char* vertex_shader_wgsl = CODE(
+  struct VertexInput {
+    @location(0) position : vec3<f32>,
+    @location(1) color : vec4<f32>
+  };
+
+  struct VertexOutput {
+    @builtin(position) Position : vec4<f32>,
+    @location(0) fragColor : vec4<f32>
+  };
+
+  @vertex
+  fn main(input : VertexInput) -> VertexOutput {
+    var output : VertexOutput;
+    output.fragColor = input.color;
+    output.Position = vec4<f32>(input.position, 1.0);
+    return output;
+  };
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  struct FragmentInput {
+    @location(0) fragColor : vec4<f32>
+  };
+
+  struct FragmentOutput {
+    @location(0) outColor : vec4<f32>
+  };
+
+  @fragment
+  fn main(input : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.outColor = input.fragColor;
+    return output;
+  };
+);
+// clang-format on

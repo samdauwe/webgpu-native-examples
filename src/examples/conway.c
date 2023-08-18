@@ -12,101 +12,17 @@
  * https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
  * -------------------------------------------------------------------------- */
 
-// Shaders
-// clang-format off
-static const char* compute_shader_wgsl = CODE(
-  struct UniformsDesc {
-    computeWidth : u32,
-    computeHeight : u32
-  }
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-  @group(0) @binding(0) var<uniform> uniforms : UniformsDesc;
-  @group(0) @binding(1) var srcTexture : texture_2d<f32>;
-  @group(0) @binding(2) var dstTexture : texture_storage_2d<rgba8unorm, write>;
+static const char* compute_shader_wgsl;
+static const char* graphics_vertex_shader_wgsl;
+static const char* graphics_fragment_shader_wgsl;
 
-  fn isOn(x: i32, y: i32) -> i32 {
-    let v = textureLoad(srcTexture, vec2<i32>(x, y), 0);
-    if (v.r < 0.5) {
-      return 0;
-    }
-    return 1;
-  }
-
-  @compute @workgroup_size(8, 8)
-  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-    // Guard against out-of-bounds work group sizes
-    if (global_id.x >= uniforms.computeWidth || global_id.y >= uniforms.computeHeight) {
-        return;
-    }
-
-    let x = i32(global_id.x);
-    let y = i32(global_id.y);
-    let current = isOn(x, y);
-    let neighbors =
-        isOn(x - 1, y - 1)
-      + isOn(x, y - 1)
-      + isOn(x + 1, y - 1)
-      + isOn(x - 1, y)
-      + isOn(x + 1, y)
-      + isOn(x - 1, y + 1)
-      + isOn(x, y + 1)
-      + isOn(x + 1, y + 1);
-
-    var s = 0.0;
-    if (current != 0 && (neighbors == 2 || neighbors == 3)) {
-      s = 1.0;
-  }
-   if (current == 0 && neighbors == 3) {
-      s = 1.0;
-    }
-    textureStore(dstTexture, vec2<i32>(x, y), vec4<f32>(s, s, s, 1.0));
-  }
-);
-
-static const char* graphics_vertex_shader_wgsl = CODE(
-  struct VSOut {
-    @builtin(position) pos: vec4<f32>,
-    @location(0) coord: vec2<f32>
-  }
-
-  @vertex
-  fn main(@builtin(vertex_index) idx : u32) -> VSOut {
-    var data = array<vec2<f32>, 6>(
-      vec2<f32>(-1.0, -1.0),
-      vec2<f32>(1.0, -1.0),
-      vec2<f32>(1.0, 1.0),
-
-      vec2<f32>(-1.0, -1.0),
-      vec2<f32>(-1.0, 1.0),
-      vec2<f32>(1.0, 1.0),
-    );
-
-    let pos = data[idx];
-
-    var out : VSOut;
-    out.pos = vec4<f32>(pos, 0.0, 1.0);
-    out.coord.x = (pos.x + 1.0) / 2.0;
-    out.coord.y = (1.0 - pos.y) / 2.0;
-
-    return out;
-  }
-);
-
-static const char* graphics_fragment_shader_wgsl = CODE(
-  struct VSOut {
-    @builtin(position) pos: vec4<f32>,
-    @location(0) coord: vec2<f32>
-  }
-
-  @group(0) @binding(0) var computeTexture : texture_2d<f32>;
-  @group(0) @binding(1) var dstSampler : sampler;
-
-  @fragment
-  fn main(inp: VSOut) -> @location(0) vec4<f32> {
-    return textureSample(computeTexture, dstSampler, inp.coord);
-  }
-);
-// clang-format on
+/* -------------------------------------------------------------------------- *
+ * A Conway Game Of Life example
+ * -------------------------------------------------------------------------- */
 
 static struct {
   struct wgpu_buffer_t buffer;
@@ -672,3 +588,102 @@ void example_conway(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* compute_shader_wgsl = CODE(
+  struct UniformsDesc {
+    computeWidth : u32,
+    computeHeight : u32
+  };
+
+  @group(0) @binding(0) var<uniform> uniforms : UniformsDesc;
+  @group(0) @binding(1) var srcTexture : texture_2d<f32>;
+  @group(0) @binding(2) var dstTexture : texture_storage_2d<rgba8unorm, write>;
+
+  fn isOn(x: i32, y: i32) -> i32 {
+    let v = textureLoad(srcTexture, vec2<i32>(x, y), 0);
+    if (v.r < 0.5) {
+      return 0;
+    }
+    return 1;
+  }
+
+  @compute @workgroup_size(8, 8)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    // Guard against out-of-bounds work group sizes
+    if (global_id.x >= uniforms.computeWidth || global_id.y >= uniforms.computeHeight) {
+        return;
+    }
+
+    let x = i32(global_id.x);
+    let y = i32(global_id.y);
+    let current = isOn(x, y);
+    let neighbors =
+        isOn(x - 1, y - 1)
+      + isOn(x, y - 1)
+      + isOn(x + 1, y - 1)
+      + isOn(x - 1, y)
+      + isOn(x + 1, y)
+      + isOn(x - 1, y + 1)
+      + isOn(x, y + 1)
+      + isOn(x + 1, y + 1);
+
+    var s = 0.0;
+    if (current != 0 && (neighbors == 2 || neighbors == 3)) {
+      s = 1.0;
+  }
+   if (current == 0 && neighbors == 3) {
+      s = 1.0;
+    }
+    textureStore(dstTexture, vec2<i32>(x, y), vec4<f32>(s, s, s, 1.0));
+  }
+);
+
+static const char* graphics_vertex_shader_wgsl = CODE(
+  struct VSOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  };
+
+  @vertex
+  fn main(@builtin(vertex_index) idx : u32) -> VSOut {
+    var data = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(1.0, -1.0),
+      vec2<f32>(1.0, 1.0),
+
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>(-1.0, 1.0),
+      vec2<f32>(1.0, 1.0),
+    );
+
+    let pos = data[idx];
+
+    var out : VSOut;
+    out.pos = vec4<f32>(pos, 0.0, 1.0);
+    out.coord.x = (pos.x + 1.0) / 2.0;
+    out.coord.y = (1.0 - pos.y) / 2.0;
+
+    return out;
+  }
+);
+
+static const char* graphics_fragment_shader_wgsl = CODE(
+  struct VSOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) coord: vec2<f32>
+  };
+
+  @group(0) @binding(0) var computeTexture : texture_2d<f32>;
+  @group(0) @binding(1) var dstSampler : sampler;
+
+  @fragment
+  fn main(inp: VSOut) -> @location(0) vec4<f32> {
+    return textureSample(computeTexture, dstSampler, inp.coord);
+  }
+);
+// clang-format on

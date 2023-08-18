@@ -18,76 +18,10 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
- * Tile map Shader
+ * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
-// clang-format off
-static const char* tile_map_shader_wgsl = CODE(
-  const pos = array<vec2f, 3>(
-    vec2f(-1, -1), vec2f(-1, 3), vec2f(3, -1));
-
-  @vertex
-  fn vertexMain(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-    let p = pos[i];
-    return vec4f(p, 0, 1);
-  }
-
-  struct TilemapUniforms {
-    viewOffset: vec2f,
-    tileSize: f32,
-    tileScale: f32,
-  }
-  @group(0) @binding(0) var<uniform> tileUniforms: TilemapUniforms;
-
-  @group(0) @binding(1) var tileTexture: texture_2d<f32>;
-  @group(0) @binding(2) var spriteTexture: texture_2d<f32>;
-  @group(0) @binding(3) var spriteSampler: sampler;
-
-  fn getTile(pixelCoord: vec2f) -> vec2u {
-    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
-    let texCoord = vec2u(pixelCoord / scaledTileSize) % textureDimensions(tileTexture);
-    return vec2u(textureLoad(tileTexture, texCoord, 0).xy * 256);
-  }
-
-  fn getSpriteCoord(tile: vec2u, pixelCoord: vec2f) -> vec2f {
-    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
-    let texelSize = vec2f(1) / vec2f(textureDimensions(spriteTexture));
-    let halfTexel = texelSize * 0.5;
-    let tileRange = tileUniforms.tileSize * texelSize;
-
-    // Get the UV within the tile
-    let spriteCoord = ((pixelCoord % scaledTileSize) / scaledTileSize) * tileRange;
-
-    // Clamp the coords to within half a texel of the edge of the sprite so that we
-    // never accidentally sample from a neighboring sprite.
-    let clampedSpriteCoord = clamp(spriteCoord, halfTexel, tileRange - halfTexel);
-
-    // Get the UV of the upper left corner of the sprite
-    let spriteOffset = vec2f(tile) * tileRange;
-
-    // Return the real UV of the sprite to sample.
-    return clampedSpriteCoord + spriteOffset;
-  }
-
-  @fragment
-  fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-    let pixelCoord = pos.xy + tileUniforms.viewOffset;
-
-    // Get the sprite index from the tilemap
-    let tile = getTile(pixelCoord);
-
-    // Get the UV within the sprite
-    let spriteCoord = getSpriteCoord(tile, pixelCoord);
-
-    // Sample the sprite and return the color
-    let spriteColor = textureSample(spriteTexture, spriteSampler, spriteCoord);
-    if ((tile.x == 256 && tile.y == 256) || spriteColor.a < 0.01) {
-      discard;
-    }
-    return spriteColor;
-  }
-);
-// clang-format on
+static const char* tile_map_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Tile set
@@ -624,3 +558,75 @@ void example_tile_map(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* tile_map_shader_wgsl = CODE(
+  const pos = array<vec2f, 3>(
+    vec2f(-1, -1), vec2f(-1, 3), vec2f(3, -1));
+
+  @vertex
+  fn vertexMain(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+    let p = pos[i];
+    return vec4f(p, 0, 1);
+  }
+
+  struct TilemapUniforms {
+    viewOffset: vec2f,
+    tileSize: f32,
+    tileScale: f32,
+  }
+  @group(0) @binding(0) var<uniform> tileUniforms: TilemapUniforms;
+
+  @group(0) @binding(1) var tileTexture: texture_2d<f32>;
+  @group(0) @binding(2) var spriteTexture: texture_2d<f32>;
+  @group(0) @binding(3) var spriteSampler: sampler;
+
+  fn getTile(pixelCoord: vec2f) -> vec2u {
+    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
+    let texCoord = vec2u(pixelCoord / scaledTileSize) % textureDimensions(tileTexture);
+    return vec2u(textureLoad(tileTexture, texCoord, 0).xy * 256);
+  }
+
+  fn getSpriteCoord(tile: vec2u, pixelCoord: vec2f) -> vec2f {
+    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
+    let texelSize = vec2f(1) / vec2f(textureDimensions(spriteTexture));
+    let halfTexel = texelSize * 0.5;
+    let tileRange = tileUniforms.tileSize * texelSize;
+
+    // Get the UV within the tile
+    let spriteCoord = ((pixelCoord % scaledTileSize) / scaledTileSize) * tileRange;
+
+    // Clamp the coords to within half a texel of the edge of the sprite so that we
+    // never accidentally sample from a neighboring sprite.
+    let clampedSpriteCoord = clamp(spriteCoord, halfTexel, tileRange - halfTexel);
+
+    // Get the UV of the upper left corner of the sprite
+    let spriteOffset = vec2f(tile) * tileRange;
+
+    // Return the real UV of the sprite to sample.
+    return clampedSpriteCoord + spriteOffset;
+  }
+
+  @fragment
+  fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+    let pixelCoord = pos.xy + tileUniforms.viewOffset;
+
+    // Get the sprite index from the tilemap
+    let tile = getTile(pixelCoord);
+
+    // Get the UV within the sprite
+    let spriteCoord = getSpriteCoord(tile, pixelCoord);
+
+    // Sample the sprite and return the color
+    let spriteColor = textureSample(spriteTexture, spriteSampler, spriteCoord);
+    if ((tile.x == 256 && tile.y == 256) || spriteColor.a < 0.01) {
+      discard;
+    }
+    return spriteColor;
+  }
+);
+// clang-format on

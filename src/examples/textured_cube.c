@@ -17,21 +17,15 @@
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/cube
  * -------------------------------------------------------------------------- */
 
-// Shaders
-// clang-format off
-static const char* sampled_texture_mix_color_fragment_shader_wgsl = CODE(
-  @group(0) @binding(1) var mySampler: sampler;
-  @group(0) @binding(2) var myTexture: texture_2d<f32>;
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-  @fragment
-  fn main(
-    @location(0) fragUV: vec2<f32>,
-    @location(1) fragPosition: vec4<f32>
-  ) -> @location(0) vec4<f32> {
-    return textureSample(myTexture, mySampler, fragUV) * fragPosition;
-  }
-);
-// clang-format on
+static const char* sampled_texture_mix_color_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Textured Cube example
+ * -------------------------------------------------------------------------- */
 
 // Cube mesh
 static cube_mesh_t cube_mesh = {0};
@@ -472,3 +466,22 @@ void example_textured_cube(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* sampled_texture_mix_color_fragment_shader_wgsl = CODE(
+  @group(0) @binding(1) var mySampler: sampler;
+  @group(0) @binding(2) var myTexture: texture_2d<f32>;
+
+  @fragment
+  fn main(
+    @location(0) fragUV: vec2<f32>,
+    @location(1) fragPosition: vec4<f32>
+  ) -> @location(0) vec4<f32> {
+    return textureSample(myTexture, mySampler, fragUV) * fragPosition;
+  }
+);
+// clang-format on

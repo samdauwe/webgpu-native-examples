@@ -14,37 +14,18 @@
  * https://github.com/juj/wasm_webgpu/blob/main/samples/vertex_buffer/vertex_buffer.c
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* vertex_shader_wgsl;
+static const char* fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Vertex Buffer example
+ * -------------------------------------------------------------------------- */
+
 #define RECURSION_LIMIT 7
-
-// Shaders
-// clang-format off
-static const char* vertex_shader_wgsl = CODE(
-  struct In {
-    @location(0) pos : vec2<f32>,
-    @location(1) color : f32
-  };
-
-  struct Out {
-    @builtin(position) pos : vec4<f32>,
-    @location(0) color : f32
-  };
-
-  @vertex
-  fn main(in: In) -> Out {
-    var out: Out;
-    out.pos = vec4<f32>(in.pos, 0.0, 1.0);
-    out.color = in.color;
-    return out;
-  }
-);
-
-static const char* fragment_shader_wgsl = CODE(
-  @fragment
-  fn main(@location(0) inColor : f32) -> @location(0) vec4<f32> {
-    return vec4<f32>(inColor, inColor, abs(inColor), 1.0);
-  }
-);
-// clang-format on
 
 static uint64_t num_vertices = 0;
 
@@ -389,3 +370,36 @@ void example_vertex_buffer(int argc, char* argv[])
    });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* vertex_shader_wgsl = CODE(
+  struct In {
+    @location(0) pos : vec2<f32>,
+    @location(1) color : f32
+  };
+
+  struct Out {
+    @builtin(position) pos : vec4<f32>,
+    @location(0) color : f32
+  };
+
+  @vertex
+  fn main(in: In) -> Out {
+    var out: Out;
+    out.pos = vec4<f32>(in.pos, 0.0, 1.0);
+    out.color = in.color;
+    return out;
+  }
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  @fragment
+  fn main(@location(0) inColor : f32) -> @location(0) vec4<f32> {
+    return vec4<f32>(inColor, inColor, abs(inColor), 1.0);
+  }
+);
+// clang-format on
