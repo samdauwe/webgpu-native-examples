@@ -1,5 +1,4 @@
 ﻿#include "example_base.h"
-#include "examples.h"
 #include "meshes.h"
 
 #include <string.h>
@@ -33,6 +32,19 @@
  * https://github.com/m-schuetz/webgpu_wireframe_thicklines
  * https://potree.org/permanent/wireframe_rendering/ (requires Chrome 96)
  * https://xeolabs.com/pdfs/OpenGLInsights.pdf
+ * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* render_points_wgsl;
+static const char* render_solid_mesh_wgsl;
+static const char* render_wireframe_thick_wgsl;
+static const char* render_wireframe_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Wireframe and Thick-Line Rendering example
  * -------------------------------------------------------------------------- */
 
 // Cube mesh
@@ -89,7 +101,7 @@ static const char* example_title
   = "Wireframe and Thick-Line Rendering in WebGPU";
 static bool prepared = false;
 
-static void prepare_cube_mesh()
+static void prepare_cube_mesh(void)
 {
   indexed_cube_mesh_init(&indexed_cube_mesh);
 }
@@ -343,9 +355,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_solid_mesh_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
-         .entry = "main_vertex",
+         .label             = "render_solid_mesh_shader",
+         .wgsl_code.source  = render_solid_mesh_wgsl,
+         .entry             = "main_vertex",
        },
        .buffer_count = 0,
        .buffers      = NULL,
@@ -356,9 +368,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Fragment shader WGSL
-         .label = "render_solid_mesh_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_solid_mesh.wgsl",
-         .entry = "main_fragment",
+         .label             = "render_solid_mesh_shader",
+         .wgsl_code.source  = render_solid_mesh_wgsl,
+         .entry             = "main_fragment",
        },
        .target_count = 1,
        .targets = &color_target_state,
@@ -392,9 +404,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_points_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
-         .entry = "main_vertex",
+         .label            = "render_points_shader",
+         .wgsl_code.source = render_points_wgsl,
+         .entry            = "main_vertex",
        },
        .buffer_count = 0,
        .buffers      = NULL,
@@ -405,9 +417,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_points_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_points.wgsl",
-         .entry = "main_fragment",
+         .label            = "render_points_shader",
+         .wgsl_code.source = render_points_wgsl,
+         .entry            = "main_fragment",
        },
        .target_count = 1,
        .targets      = &color_target_state,
@@ -441,9 +453,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_wireframe_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
-         .entry = "main_vertex",
+         .label            = "render_wireframe_shader",
+         .wgsl_code.source = render_wireframe_wgsl,
+         .entry            = "main_vertex",
        },
        .buffer_count = 0,
        .buffers      = NULL,
@@ -454,9 +466,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_wireframe_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_wireframe.wgsl",
-         .entry = "main_fragment",
+         .label            = "render_wireframe_shader",
+         .wgsl_code.source = render_wireframe_wgsl,
+         .entry            = "main_fragment",
        },
        .target_count = 1,
        .targets      = &color_target_state,
@@ -490,9 +502,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_wireframe_thick_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
-         .entry = "main_vertex",
+         .label            = "render_wireframe_thick_shader",
+         .wgsl_code.source = render_wireframe_thick_wgsl,
+         .entry            = "main_vertex",
        },
        .buffer_count = 0,
        .buffers      = NULL,
@@ -503,9 +515,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label = "render_wireframe_thick_shader",
-         .file  = "shaders/wireframe_vertex_pulling/render_wireframe_thick.wgsl",
-         .entry = "main_fragment",
+         .label            = "render_wireframe_thick_shader",
+         .wgsl_code.source = render_wireframe_thick_wgsl,
+         .entry            = "main_fragment",
        },
        .target_count = 1,
        .targets      = &color_target_state,
@@ -693,3 +705,383 @@ void example_wireframe_vertex_pulling(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* render_points_wgsl = CODE(
+  struct Uniforms {
+    world           : mat4x4<f32>,
+    view            : mat4x4<f32>,
+    proj            : mat4x4<f32>,
+    screen_width    : f32,
+    screen_height   : f32
+  }
+
+  struct U32s {
+      values : array<u32>
+  }
+
+  struct F32s {
+    values : array<f32>
+  }
+
+  @binding(0) @group(0) var<uniform> uniforms : Uniforms;
+  @binding(1) @group(0) var<storage, read> positions : F32s;
+  @binding(2) @group(0) var<storage, read> colors : U32s;
+  @binding(3) @group(0) var<storage, read> indices : U32s;
+
+  struct VertexInput {
+    @builtin(instance_index) instanceID : u32,
+    @builtin(vertex_index) vertexID : u32
+  }
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec4<f32>
+  }
+
+  @vertex
+  fn main_vertex(vertex : VertexInput) -> VertexOutput {
+    var position = vec4<f32>(
+        positions.values[3u * vertex.vertexID + 0u],
+        positions.values[3u * vertex.vertexID + 1u],
+        positions.values[3u * vertex.vertexID + 2u],
+        1.0
+    );
+
+    position = uniforms.proj * uniforms.view * uniforms.world * position;
+
+    var color_u32 = colors.values[vertex.vertexID];
+    var color = vec4<f32>(
+        f32((color_u32 >>  0u) & 0xFFu) / 255.0,
+        f32((color_u32 >>  8u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 16u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 24u) & 0xFFu) / 255.0,
+    );
+
+    var output : VertexOutput;
+    output.position = position;
+    output.color = color;
+
+    return output;
+  }
+
+  struct FragmentInput {
+    @location(0) color : vec4<f32>
+  }
+
+  struct FragmentOutput {
+    @location(0) color : vec4<f32>
+  }
+
+  @fragment
+  fn main_fragment(fragment : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.color = fragment.color;
+
+    return output;
+  }
+);
+
+static const char* render_solid_mesh_wgsl = CODE(
+  struct Uniforms {
+    world           : mat4x4<f32>,
+    view            : mat4x4<f32>,
+    proj            : mat4x4<f32>,
+    screen_width    : f32,
+    screen_height   : f32
+  }
+
+  struct U32s {
+    values : array<u32>
+  }
+
+  struct F32s {
+    values : array<f32>
+  }
+
+  @binding(0) @group(0) var<uniform> uniforms : Uniforms;
+  @binding(1) @group(0) var<storage, read> positions : F32s;
+  @binding(2) @group(0) var<storage, read> colors : U32s;
+  @binding(3) @group(0) var<storage, read> indices : U32s;
+
+  struct VertexInput {
+    @builtin(instance_index) instanceID : u32,
+    @builtin(vertex_index) vertexID : u32
+  }
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec4<f32>
+  }
+
+  @vertex
+  fn main_vertex(vertex : VertexInput) -> VertexOutput {
+    var position = vec4<f32>(
+        positions.values[3u * vertex.vertexID + 0u],
+        positions.values[3u * vertex.vertexID + 1u],
+        positions.values[3u * vertex.vertexID + 2u],
+        1.0
+    );
+
+    position = uniforms.proj * uniforms.view * uniforms.world * position;
+
+    var color_u32 = colors.values[vertex.vertexID];
+    var color = vec4<f32>(
+        f32((color_u32 >>  0u) & 0xFFu) / 255.0,
+        f32((color_u32 >>  8u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 16u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 24u) & 0xFFu) / 255.0,
+    );
+
+    var output : VertexOutput;
+    output.position = position;
+    output.color = color;
+
+    return output;
+  }
+
+  struct FragmentInput {
+    @location(0) color : vec4<f32>
+  }
+
+  struct FragmentOutput {
+    @location(0) color : vec4<f32>
+  }
+
+  @fragment
+  fn main_fragment(fragment : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.color = fragment.color;
+
+    return output;
+  }
+);
+
+static const char* render_wireframe_thick_wgsl = CODE(
+  struct Uniforms {
+    world           : mat4x4<f32>,
+    view            : mat4x4<f32>,
+    proj            : mat4x4<f32>,
+    screen_width    : f32,
+    screen_height   : f32
+  }
+
+  struct U32s {
+    values : array<u32>
+  }
+
+  struct F32s {
+    values : array<f32>
+  }
+
+  @binding(0) @group(0) var<uniform> uniforms : Uniforms;
+  @binding(1) @group(0) var<storage, read> positions : F32s;
+  @binding(2) @group(0) var<storage, read> colors : U32s;
+  @binding(3) @group(0) var<storage, read> indices : U32s;
+
+  struct VertexInput {
+    @builtin(instance_index) instanceID : u32,
+    @builtin(vertex_index) vertexID : u32
+  }
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec4<f32>
+  }
+
+  @vertex
+  fn main_vertex(vertex : VertexInput) -> VertexOutput {
+    var lineWidth = 5.0;
+
+    var localToElement = array<u32, 6>(0u, 1u, 1u, 2u, 2u, 0u);
+
+    var triangleIndex = vertex.vertexID / 18u;        // 18 vertices per triangle
+    var localVertexIndex = vertex.vertexID % 18u;     // 18 vertices
+    var localLineIndex = localVertexIndex / 6u;       // 3 lines, 6 vertices per line, 2 triangles per line
+
+    var startElementIndex = indices.values[3u * triangleIndex + localLineIndex + 0u];
+    var endElementIndex = indices.values[3u * triangleIndex + (localLineIndex + 1u) % 3u];
+
+    var start = vec4<f32>(
+      positions.values[3u * startElementIndex + 0u],
+      positions.values[3u * startElementIndex + 1u],
+      positions.values[3u * startElementIndex + 2u],
+      1.0
+    );
+
+    var end = vec4<f32>(
+      positions.values[3u * endElementIndex + 0u],
+      positions.values[3u * endElementIndex + 1u],
+      positions.values[3u * endElementIndex + 2u],
+      1.0
+    );
+
+    var localIndex = vertex.vertexID % 6u;
+
+    var position = start;
+    var currElementIndex = startElementIndex;
+    if (localIndex == 0u || localIndex == 3u|| localIndex == 5u){
+      position = start;
+      currElementIndex = startElementIndex;
+    } else{
+      position = end;
+      currElementIndex = endElementIndex;
+    }
+
+    var worldPos = uniforms.world * position;
+    var viewPos = uniforms.view * worldPos;
+    var projPos = uniforms.proj * viewPos;
+
+    var dirScreen : vec2<f32>;
+    {
+      var projStart = uniforms.proj * uniforms.view * uniforms.world * start;
+      var projEnd = uniforms.proj * uniforms.view * uniforms.world * end;
+
+      var screenStart = projStart.xy / projStart.w;
+      var screenEnd = projEnd.xy / projEnd.w;
+
+      dirScreen = normalize(screenEnd - screenStart);
+    }
+
+    { // apply pixel offsets to the 6 vertices of the quad
+      var pxOffset = vec2<f32>(1.0, 0.0);
+
+      // move vertices of quad sidewards
+      if (localIndex == 0u || localIndex == 1u || localIndex == 3u){
+        pxOffset = vec2<f32>(dirScreen.y, -dirScreen.x);
+      } else{
+        pxOffset = vec2<f32>(-dirScreen.y, dirScreen.x);
+      }
+
+      // move vertices of quad outwards
+      if (localIndex == 0u || localIndex == 3u || localIndex == 5u){
+         pxOffset = pxOffset - dirScreen;
+      } else{
+        pxOffset = pxOffset + dirScreen;
+      }
+
+      var screenDimensions = vec2<f32>(uniforms.screen_width, uniforms.screen_height);
+      var adjusted = projPos.xy / projPos.w + lineWidth * pxOffset / screenDimensions;
+      projPos = vec4<f32>(adjusted * projPos.w, projPos.zw);
+    }
+
+    var color_u32 = colors.values[currElementIndex];
+    var color = vec4<f32>(
+      f32((color_u32 >>  0u) & 0xFFu) / 255.0,
+      f32((color_u32 >>  8u) & 0xFFu) / 255.0,
+      f32((color_u32 >> 16u) & 0xFFu) / 255.0,
+      f32((color_u32 >> 24u) & 0xFFu) / 255.0,
+    );
+    // var color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+
+    var output : VertexOutput;
+    output.position = projPos;
+    output.color = color;
+
+    return output;
+  }
+
+  struct FragmentInput {
+    @location(0) color : vec4<f32>
+  }
+
+  struct FragmentOutput {
+    @location(0) color : vec4<f32>
+  }
+
+  @fragment
+  fn main_fragment(fragment : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.color = fragment.color;
+
+    return output;
+  }
+);
+
+static const char* render_wireframe_wgsl = CODE(
+  struct Uniforms {
+    world           : mat4x4<f32>,
+    view            : mat4x4<f32>,
+    proj            : mat4x4<f32>,
+    screen_width    : f32,
+    screen_height   : f32
+  }
+
+  struct U32s {
+    values : array<u32>
+  }
+
+  struct F32s {
+    values : array<f32>
+  }
+
+  @binding(0) @group(0) var<uniform> uniforms : Uniforms;
+  @binding(1) @group(0) var<storage, read> positions : F32s;
+  @binding(2) @group(0) var<storage, read> colors : U32s;
+  @binding(3) @group(0) var<storage, read> indices : U32s;
+
+  struct VertexInput {
+    @builtin(instance_index) instanceID : u32,
+    @builtin(vertex_index) vertexID : u32
+  }
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec4<f32>
+  }
+
+  @vertex
+  fn main_vertex(vertex : VertexInput) -> VertexOutput {
+    var localToElement = array<u32, 6>(0u, 1u, 1u, 2u, 2u, 0u);
+
+    var triangleIndex = vertex.vertexID / 6u;
+    var localVertexIndex = vertex.vertexID % 6u;
+
+    var elementIndexIndex = 3u * triangleIndex + localToElement[localVertexIndex];
+    var elementIndex = indices.values[elementIndexIndex];
+
+    var position = vec4<f32>(
+        positions.values[3u * elementIndex + 0u],
+        positions.values[3u * elementIndex + 1u],
+        positions.values[3u * elementIndex + 2u],
+        1.0
+    );
+
+    position = uniforms.proj * uniforms.view * uniforms.world * position;
+
+    var color_u32 = colors.values[elementIndex];
+    var color = vec4<f32>(
+        f32((color_u32 >>  0u) & 0xFFu) / 255.0,
+        f32((color_u32 >>  8u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 16u) & 0xFFu) / 255.0,
+        f32((color_u32 >> 24u) & 0xFFu) / 255.0,
+    );
+
+    var output : VertexOutput;
+    output.position = position;
+    output.color = color;
+
+    return output;
+  }
+
+  struct FragmentInput {
+    @location(0) color : vec4<f32>
+  }
+
+  struct FragmentOutput {
+    @location(0) color : vec4<f32>
+  }
+
+  @fragment
+  fn main_fragment(fragment : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.color = fragment.color;
+
+    return output;
+  }
+);
+// clang-format on
