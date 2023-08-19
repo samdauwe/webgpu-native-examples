@@ -13,6 +13,17 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/triangle/triangle.cpp
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* triangle_vertex_shader_wgsl;
+static const char* triangle_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Basic Indexed Triangle example
+ * -------------------------------------------------------------------------- */
+
 // Vertex layout used in this example
 typedef struct {
   vec3 position;
@@ -272,8 +283,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
     wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-      // Vertex shader SPIR-V
-      .file = "shaders/triangle/triangle.vert.spv",
+      // Vertex shader WGSL
+      .label             = "triangle_vertex_shader_wgsl",
+      .wgsl_code.source  = triangle_vertex_shader_wgsl,
+      .entry             = "main",
     },
     .buffer_count = 1,
     .buffers = &triangle_vertex_buffer_layout,
@@ -283,8 +296,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-      // Fragment shader SPIR-V
-      .file = "shaders/triangle/triangle.frag.spv",
+      // Fragment shader WGSL
+      .label             = "triangle_fragment_shader_wgsl",
+      .wgsl_code.source  = triangle_fragment_shader_wgsl,
+      .entry             = "main",
     },
     .target_count = 1,
     .targets = &color_target_state_desc,
@@ -459,3 +474,55 @@ void example_triangle(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* triangle_vertex_shader_wgsl = CODE(
+  struct UBO {
+    projectionMatrix : mat4x4<f32>,
+    modelMatrix      : mat4x4<f32>,
+    viewMatrix       : mat4x4<f32>,
+  }
+
+  @group(0) @binding(0) var<uniform> ubo : UBO;
+
+  struct VertexInput {
+    @location(0) position : vec3<f32>,
+    @location(1) color : vec3<f32>,
+  };
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec3<f32>,
+  }
+
+  @vertex
+  fn main(vertex : VertexInput) -> VertexOutput {
+    var output : VertexOutput;
+    output.position = ubo.projectionMatrix * ubo.viewMatrix * ubo.modelMatrix
+                      * vec4<f32>(vertex.position.xyz, 1.0);
+    output.color = vertex.color;
+    return output;
+  }
+);
+
+static const char* triangle_fragment_shader_wgsl = CODE(
+  struct FragmentInput {
+    @location(0) color : vec3<f32>,
+  }
+
+  struct FragmentOutput {
+    @location(0) color : vec4<f32>,
+  }
+
+  @fragment
+  fn main(fragment : FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    output.color = vec4<f32>(fragment.color, 1.0);
+    return output;
+  }
+);
+// clang-format on
