@@ -36,6 +36,8 @@ void wgpu_destroy_texture(texture_t* texture);
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Mipmap Generator
+ * @ref:
+ * https://github.com/toji/webgpu-gltf-case-study/blob/main/samples/js/webgpu-mipmap-generator.js
  * -------------------------------------------------------------------------- */
 
 /* Mip map generator */
