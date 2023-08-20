@@ -76,10 +76,10 @@ typedef struct iPipeline_t {
   WGPUBindGroup uniform_bind_groups[UNIFORM_BIND_GROUP_COUNT];
   /** The GPU texture array */
   WGPUTexture gpu_textures[GPU_TEXTURE_COUNT];
-  WGPUTexture gpu_texture_views[GPU_TEXTURE_COUNT];
+  WGPUTextureView gpu_texture_views[GPU_TEXTURE_COUNT];
   /** The depth texture array */
   WGPUTexture depth_textures[DEPTH_TEXTURE_COUNT];
-  WGPUTexture depth_texture_views[DEPTH_TEXTURE_COUNT];
+  WGPUTextureView depth_texture_views[DEPTH_TEXTURE_COUNT];
 } iPipeline_t;
 
 typedef struct range_t {
@@ -279,6 +279,47 @@ static WGPUBindGroup create_bind_group(WGPUDevice device,
                                            });
 }
 
+/**
+ * @brief This function creates a GPU texture used in the depth stencil
+ * attachment in the render pass descriptor.
+ * @param init The `iweb_gpu_init_t` interface
+ * @param depthFormat GPU texture format
+ */
+static WGPUTexture create_depth_texture(iweb_gpu_init_t* init,
+                                        WGPUTextureFormat depth_format)
+{
+  return wgpuDeviceCreateTexture(init->device, &(WGPUTextureDescriptor) {
+     .usage         = WGPUTextureUsage_RenderAttachment,
+     .dimension     = WGPUTextureDimension_2D,
+     .format        = depth_format,
+     .mipLevelCount = 1,
+     .sampleCount   = init->msaa_count,
+     .size          = (WGPUExtent3D)  {
+      .width               = init->size.width,
+      .height              = init->size.height,
+      .depthOrArrayLayers  = 1,
+     },
+   });
+}
+
+/**
+ * @brief This function creates a GPU texture view used in the depth stencil
+ * attachment in the render pass descriptor.
+ * @param init The `iweb_gpu_init_t` interface
+ * @param depthFormat GPU texture format
+ */
+static WGPUTextureView create_depth_texture_view(WGPUTexture depth_texture,
+                                                 WGPUTextureFormat depth_format)
+{
+  return wgpuTextureCreateView(depth_texture,
+                               &(WGPUTextureViewDescriptor){
+                                 .dimension       = WGPUTextureViewDimension_2D,
+                                 .format          = depth_format,
+                                 .mipLevelCount   = 1,
+                                 .arrayLayerCount = 1,
+                               });
+}
+
 /* -------------------------------------------------------------------------- *
  * Blinn-Phong Lighting example
  * -------------------------------------------------------------------------- */
@@ -344,6 +385,12 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
     wgpuRenderPipelineGetBindGroupLayout(wireframe_render_pipeline, 1),
     wireframe_frag_ubos, 2);
 
+  /* create depth view */
+  WGPUTextureFormat depth_texture_format = WGPUTextureFormat_Depth24Plus;
+  WGPUTexture depth_texture = create_depth_texture(init, depth_texture_format);
+  WGPUTextureView depth_texture_view
+    = create_depth_texture_view(depth_texture, depth_texture_format);
+
   return (iPipeline_t){
     .vertex_buffers
     = {position_buffer, normal_buffer, index_buffer, index_buffer_2},
@@ -351,5 +398,7 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                         material_uniform_buffer, light_uniform_buffer_2},
     .uniform_bind_groups
     = {vert_bind_group, frag_bind_group, vert_bind_group_2, frag_bind_group_2},
+    .depth_textures      = {depth_texture},
+    .depth_texture_views = {depth_texture_view},
   };
 }
