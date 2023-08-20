@@ -108,7 +108,8 @@ typedef struct ivertex_data_t {
  * @param msaa_count the MSAA count
  * @param iweb_gpu_init_t object
  */
-iweb_gpu_init_t init_web_gpu(wgpu_context_t* wgpu_context, uint32_t msaa_count)
+static iweb_gpu_init_t init_web_gpu(wgpu_context_t* wgpu_context,
+                                    uint32_t msaa_count)
 {
   return (iweb_gpu_init_t) {
     .device = wgpu_context->device,
@@ -127,7 +128,7 @@ iweb_gpu_init_t init_web_gpu(wgpu_context_t* wgpu_context, uint32_t msaa_count)
   };
 }
 
-WGPUBufferUsageFlags
+static WGPUBufferUsageFlags
 get_buffer_usage_flags_from_buffer_type(bufer_type_enum buffer_type)
 {
   WGPUBufferUsageFlags common_flags
@@ -170,8 +171,8 @@ get_buffer_usage_flags_from_buffer_type(bufer_type_enum buffer_type)
  * @param bufferSize Buffer size.
  * @param buffer_type Of the `buffer_type` enum.
  */
-WGPUBuffer create_buffer(WGPUDevice device, size_t buffer_size,
-                         bufer_type_enum buffer_type)
+static WGPUBuffer create_buffer(WGPUDevice device, size_t buffer_size,
+                                bufer_type_enum buffer_type)
 {
   return wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
@@ -190,13 +191,16 @@ WGPUBuffer create_buffer(WGPUDevice device, size_t buffer_size,
  * @param device GPU device
  * @param data Input data that should be one of four data types: `Float32Array`,
  * `Float64Array`, `Uint16Array`, and `Uint32Array`
- * @param bufferType Type of enum `BufferType`. It is used to specify the type
- * of the returned buffer. The default is vertex buffer
+ * @param data_byte_length the data size in bytes
+ * @param array_data_type the data type which should be f four data types:
+ * `Float32Array`, `Float64Array`, `Uint16Array`, and `Uint32Array`
+ * @param bufferType Type of enum `bufer_type_enum`. It is used to specify the
+ * type of the returned buffer. The default is vertex buffer
  */
-WGPUBuffer create_buffer_with_data(WGPUDevice device, const void* data,
-                                   size_t data_byte_length,
-                                   array_data_type_enum array_data_type,
-                                   bufer_type_enum buffer_type)
+static WGPUBuffer create_buffer_with_data(WGPUDevice device, const void* data,
+                                          size_t data_byte_length,
+                                          array_data_type_enum array_data_type,
+                                          bufer_type_enum buffer_type)
 {
   WGPUBufferUsageFlags flag
     = get_buffer_usage_flags_from_buffer_type(buffer_type);
@@ -237,6 +241,44 @@ WGPUBuffer create_buffer_with_data(WGPUDevice device, const void* data,
   return buffer;
 }
 
+/**
+ * @brief This function is used to create a GPU bind group that defines a set of
+ * resources to be bound together in a group and how the resources are used in
+ * shader stages. It accepts GPU device, GPU bind group layout, uniform buffer
+ * array, and the other GPU binding resource array as its input arguments. If
+ * both the buffer and other resource arrays have none zero elements, you need
+ * to place the buffer array ahead of the other resource array. Make sure that
+ * the order of buffers and other resources is consistent with the `@group
+ * @binding` attributes defined in the shader code.
+ * @param device GPU device
+ * @param layout GPU bind group layout that defines the interface between a set
+ * of resources bound in a GPU bind group and their accessibility in shader
+ * stages.
+ * @param buffers The uniform buffer array
+ * @param buffers_len The number of buffers.
+ */
+static WGPUBindGroup create_bind_group(WGPUDevice device,
+                                       WGPUBindGroupLayout layout,
+                                       WGPUBuffer* buffers,
+                                       uint32_t buffers_len)
+{
+#define MAX_BIND_GROUP_COUNT 32
+
+  WGPUBindGroupEntry entries[MAX_BIND_GROUP_COUNT] = {0};
+  uint32_t i                                       = 0;
+  for (i = 0; i < buffers_len && i < MAX_BIND_GROUP_COUNT; ++i) {
+    entries[i] = (WGPUBindGroupEntry){
+      .binding = i,
+      .buffer  = buffers[i],
+    };
+  }
+  return wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
+                                             .layout     = layout,
+                                             .entryCount = i,
+                                             .entries    = entries,
+                                           });
+}
+
 /* -------------------------------------------------------------------------- *
  * Blinn-Phong Lighting example
  * -------------------------------------------------------------------------- */
@@ -244,6 +286,12 @@ WGPUBuffer create_buffer_with_data(WGPUDevice device, const void* data,
 static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
+  /* pipeline for shape */
+  WGPURenderPipeline shape_render_pipeline = NULL;
+
+  /* render pipeline for wireframe */
+  WGPURenderPipeline wireframe_render_pipeline = NULL;
+
   /* create vertex and index buffers */
   WGPUBuffer position_buffer = create_buffer_with_data(
     init->device, data->positions.ptr, data->positions.size,
@@ -263,19 +311,45 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
     = create_buffer(init->device, 192, BufferType_Uniform);
 
   /* light uniform buffers for shape and wireframe */
-  WGPUBuffer shape_uniform_buffer
+  WGPUBuffer light_uniform_buffer
     = create_buffer(init->device, 64, BufferType_Uniform);
-  WGPUBuffer wireframe_uniform_buffer
+  WGPUBuffer light_uniform_buffer_2
     = create_buffer(init->device, 64, BufferType_Uniform);
 
   /* uniform buffer for material */
   WGPUBuffer material_uniform_buffer
     = create_buffer(init->device, 16, BufferType_Uniform);
 
+  /* uniform bind group for vertex shader */
+  WGPUBindGroup vert_bind_group = create_bind_group(
+    init->device,
+    wgpuRenderPipelineGetBindGroupLayout(shape_render_pipeline, 0),
+    &view_uniform_buffer, 1);
+  WGPUBindGroup vert_bind_group_2 = create_bind_group(
+    init->device,
+    wgpuRenderPipelineGetBindGroupLayout(wireframe_render_pipeline, 0),
+    &view_uniform_buffer, 1);
+
+  /* uniform bind group for fragment shader */
+  WGPUBuffer shape_frag_ubos[2]
+    = {light_uniform_buffer, material_uniform_buffer};
+  WGPUBindGroup frag_bind_group = create_bind_group(
+    init->device,
+    wgpuRenderPipelineGetBindGroupLayout(shape_render_pipeline, 1),
+    shape_frag_ubos, 2);
+  WGPUBuffer wireframe_frag_ubos[2]
+    = {light_uniform_buffer_2, material_uniform_buffer};
+  WGPUBindGroup frag_bind_group_2 = create_bind_group(
+    init->device,
+    wgpuRenderPipelineGetBindGroupLayout(wireframe_render_pipeline, 1),
+    wireframe_frag_ubos, 2);
+
   return (iPipeline_t){
     .vertex_buffers
     = {position_buffer, normal_buffer, index_buffer, index_buffer_2},
-    .uniform_buffers = {view_uniform_buffer, shape_uniform_buffer,
-                        wireframe_uniform_buffer, material_uniform_buffer},
+    .uniform_buffers = {view_uniform_buffer, light_uniform_buffer,
+                        material_uniform_buffer, light_uniform_buffer_2},
+    .uniform_bind_groups
+    = {vert_bind_group, frag_bind_group, vert_bind_group_2, frag_bind_group_2},
   };
 }
