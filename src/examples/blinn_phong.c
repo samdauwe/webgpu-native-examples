@@ -280,18 +280,17 @@ static WGPUBindGroup create_bind_group(WGPUDevice device,
 }
 
 /**
- * @brief This function creates a GPU texture used in the depth stencil
- * attachment in the render pass descriptor.
+ * @brief This function creates a GPU texture.
  * @param init The `iweb_gpu_init_t` interface
- * @param depthFormat GPU texture format
+ * @param format The GPU texture format
  */
-static WGPUTexture create_depth_texture(iweb_gpu_init_t* init,
-                                        WGPUTextureFormat depth_format)
+static WGPUTexture create_texture(iweb_gpu_init_t* init,
+                                  WGPUTextureFormat format)
 {
   return wgpuDeviceCreateTexture(init->device, &(WGPUTextureDescriptor) {
      .usage         = WGPUTextureUsage_RenderAttachment,
      .dimension     = WGPUTextureDimension_2D,
-     .format        = depth_format,
+     .format        = format,
      .mipLevelCount = 1,
      .sampleCount   = init->msaa_count,
      .size          = (WGPUExtent3D)  {
@@ -303,18 +302,17 @@ static WGPUTexture create_depth_texture(iweb_gpu_init_t* init,
 }
 
 /**
- * @brief This function creates a GPU texture view used in the depth stencil
- * attachment in the render pass descriptor.
- * @param init The `iweb_gpu_init_t` interface
- * @param depthFormat GPU texture format
+ * @brief This function creates a GPU texture view.
+ * @param texture The texture to create the view from
+ * @param format The GPU texture format
  */
-static WGPUTextureView create_depth_texture_view(WGPUTexture depth_texture,
-                                                 WGPUTextureFormat depth_format)
+static WGPUTextureView create_texture_view(WGPUTexture texture,
+                                           WGPUTextureFormat format)
 {
-  return wgpuTextureCreateView(depth_texture,
+  return wgpuTextureCreateView(texture,
                                &(WGPUTextureViewDescriptor){
                                  .dimension       = WGPUTextureViewDimension_2D,
-                                 .format          = depth_format,
+                                 .format          = format,
                                  .mipLevelCount   = 1,
                                  .arrayLayerCount = 1,
                                });
@@ -387,9 +385,15 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
 
   /* create depth view */
   WGPUTextureFormat depth_texture_format = WGPUTextureFormat_Depth24Plus;
-  WGPUTexture depth_texture = create_depth_texture(init, depth_texture_format);
+  WGPUTexture depth_texture = create_texture(init, depth_texture_format);
   WGPUTextureView depth_texture_view
-    = create_depth_texture_view(depth_texture, depth_texture_format);
+    = create_texture_view(depth_texture, depth_texture_format);
+
+  /* create texture view for MSAA */
+  WGPUTextureFormat texture_format = init->format;
+  WGPUTexture msaa_texture         = create_texture(init, texture_format);
+  WGPUTextureView msaa_texture_view
+    = create_texture_view(msaa_texture, texture_format);
 
   return (iPipeline_t){
     .vertex_buffers
@@ -398,6 +402,8 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                         material_uniform_buffer, light_uniform_buffer_2},
     .uniform_bind_groups
     = {vert_bind_group, frag_bind_group, vert_bind_group_2, frag_bind_group_2},
+    .gpu_textures        = {msaa_texture},
+    .gpu_texture_views   = {msaa_texture_view},
     .depth_textures      = {depth_texture},
     .depth_texture_views = {depth_texture_view},
   };
