@@ -328,6 +328,26 @@ static const char* blinn_phong_lighting_fragment_shader_wgsl;
  * Blinn-Phong Lighting example
  * -------------------------------------------------------------------------- */
 
+static struct {
+  mat4 view_project_mat;
+  mat4 model_mat;
+  mat4 normal_mat;
+} view_uniforms = {0};
+
+static struct {
+  vec4 light_position;
+  vec4 eye_position;
+  vec4 color;
+  vec4 specular_color;
+} light_uniforms = {0};
+
+static struct {
+  float ambient;
+  float diffuse;
+  float specular;
+  float shininess;
+} material_uniforms = {0};
+
 static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
@@ -353,17 +373,17 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
 
   /* uniform buffer for model-matrix, vp-matrix, and normal-matrix */
   WGPUBuffer view_uniform_buffer
-    = create_buffer(init->device, 192, BufferType_Uniform);
+    = create_buffer(init->device, sizeof(view_uniforms), BufferType_Uniform);
 
   /* light uniform buffers for shape and wireframe */
   WGPUBuffer light_uniform_buffer
-    = create_buffer(init->device, 64, BufferType_Uniform);
+    = create_buffer(init->device, sizeof(light_uniforms), BufferType_Uniform);
   WGPUBuffer light_uniform_buffer_2
-    = create_buffer(init->device, 64, BufferType_Uniform);
+    = create_buffer(init->device, sizeof(light_uniforms), BufferType_Uniform);
 
   /* uniform buffer for material */
-  WGPUBuffer material_uniform_buffer
-    = create_buffer(init->device, 16, BufferType_Uniform);
+  WGPUBuffer material_uniform_buffer = create_buffer(
+    init->device, sizeof(material_uniforms), BufferType_Uniform);
 
   /* uniform bind group for vertex shader */
   WGPUBindGroup vert_bind_group = create_bind_group(
