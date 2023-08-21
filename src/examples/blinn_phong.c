@@ -265,16 +265,17 @@ static WGPUBindGroup create_bind_group(WGPUDevice device,
 #define MAX_BIND_GROUP_COUNT 32
 
   WGPUBindGroupEntry entries[MAX_BIND_GROUP_COUNT] = {0};
-  uint32_t i                                       = 0;
-  for (i = 0; i < buffers_len && i < MAX_BIND_GROUP_COUNT; ++i) {
+  uint32_t entry_count                             = 0;
+  for (uint32_t i = 0; i < buffers_len && i < MAX_BIND_GROUP_COUNT; ++i) {
     entries[i] = (WGPUBindGroupEntry){
       .binding = i,
       .buffer  = buffers[i],
     };
+    ++entry_count;
   }
   return wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
                                              .layout     = layout,
-                                             .entryCount = i,
+                                             .entryCount = entry_count,
                                              .entries    = entries,
                                            });
 }
@@ -433,6 +434,35 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
     .depth_textures      = {depth_texture},
     .depth_texture_views = {depth_texture_view},
   };
+}
+
+static void set_light_eye_positions(WGPUQueue queue, iPipeline_t* p,
+                                    vec4 light_position, vec4 eye_position)
+{
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
+                       sizeof(vec4));
+}
+
+static void update_view_projection(WGPUQueue queue, iPipeline_t* p,
+                                   mat4 vp_matrix, vec4 light_position,
+                                   vec4 eye_position)
+{
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[0], 0, vp_matrix,
+                       sizeof(mat4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
+                       sizeof(vec4));
 }
 
 /* -------------------------------------------------------------------------- *
