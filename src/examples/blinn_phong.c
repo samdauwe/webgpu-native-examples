@@ -437,33 +437,30 @@ static struct {
 static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
-  /* pipeline vertex buffer layout */
-  WGPUVertexBufferLayout vertex_buffer_layout = {
-    .arrayStride    = sizeof(float) * 3 * 2,
-    .attributeCount = 2,
-    .attributes     = (WGPUVertexAttribute[2]){
-      {
-        .format         = WGPUVertexFormat_Float32x3,
-        .offset         = 0,
-        .shaderLocation = 0,
-      },
-      {
-        .format         = WGPUVertexFormat_Float32x3,
-        .offset         = sizeof(float) * 3,
-        .shaderLocation = 1,
-      },
-    },
-    .stepMode = WGPUVertexStepMode_Vertex,
-  };
-
   /* The pipeline input */
-  irender_pipeline_input pipeline_input = {
+  irender_pipeline_input render_pipeline_input = {
     .init             = init,
     .primitive_type   = WGPUPrimitiveTopology_TriangleList,
     .cull_mode        = WGPUCullMode_None,
     .is_depth_stencil = true,
     .buffer_count     = 1,
-    .buffers          = &vertex_buffer_layout,
+    .buffers          = &(WGPUVertexBufferLayout) {
+      .arrayStride    = sizeof(float) * 3 * 2,
+      .attributeCount = 2,
+      .attributes     = (WGPUVertexAttribute[2]){
+        {
+          .format         = WGPUVertexFormat_Float32x3,
+          .offset         = 0,
+          .shaderLocation = 0,
+        },
+        {
+          .format         = WGPUVertexFormat_Float32x3,
+          .offset         = sizeof(float) * 3,
+          .shaderLocation = 1,
+        },
+      },
+      .stepMode = WGPUVertexStepMode_Vertex,
+    },
     .vs_shader        = blinn_phong_lighting_vertex_shader_wgsl,
     .fs_shader        = blinn_phong_lighting_fragment_shader_wgsl,
     .vs_entry         = "vs_main",
@@ -471,10 +468,12 @@ static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
   };
 
   /* pipeline for shape */
-  WGPURenderPipeline shape_render_pipeline = NULL;
+  WGPURenderPipeline shape_render_pipeline
+    = create_render_pipeline(&render_pipeline_input);
 
   /* render pipeline for wireframe */
-  WGPURenderPipeline wireframe_render_pipeline = NULL;
+  WGPURenderPipeline wireframe_render_pipeline
+    = create_render_pipeline(&render_pipeline_input);
 
   /* create vertex and index buffers */
   WGPUBuffer position_buffer = create_buffer_with_data(
