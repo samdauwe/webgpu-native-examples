@@ -440,6 +440,25 @@ static struct {
 static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
+  /* pipeline vertex buffer layout */
+  WGPUVertexBufferLayout vertex_buffer_layout = {
+    .arrayStride    = sizeof(float) * 3 * 2,
+    .attributeCount = 2,
+    .attributes     = (WGPUVertexAttribute[2]){
+      {
+        .format         = WGPUVertexFormat_Float32x3,
+        .offset         = 0,
+        .shaderLocation = 0,
+      },
+      {
+        .format         = WGPUVertexFormat_Float32x3,
+        .offset         = sizeof(float) * 3,
+        .shaderLocation = 1,
+      },
+    },
+    .stepMode = WGPUVertexStepMode_Vertex,
+  };
+
   /* pipeline for shape */
   WGPURenderPipeline shape_render_pipeline = NULL;
 
