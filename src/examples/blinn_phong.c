@@ -90,9 +90,6 @@ typedef struct irender_pipeline_input {
   iweb_gpu_init_t* init;
   /** The GPU primative topology with default */
   WGPUPrimitiveTopology primitive_type;
-  /** The GPU index format (undefined for `'list'` primitives or `'uint32'` for
-   * `'strip'` primitives) */
-  WGPUIndexFormat index_format;
   /** The GPU cull mode - defines which polygon orientation will be culled */
   WGPUCullMode cull_mode;
   /** The boolean variable - indicates whether the render pipeline should
@@ -457,6 +454,20 @@ static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
       },
     },
     .stepMode = WGPUVertexStepMode_Vertex,
+  };
+
+  /* The pipeline input */
+  irender_pipeline_input pipeline_input = {
+    .init             = init,
+    .primitive_type   = WGPUPrimitiveTopology_TriangleList,
+    .cull_mode        = WGPUCullMode_None,
+    .is_depth_stencil = true,
+    .buffer_count     = 1,
+    .buffers          = &vertex_buffer_layout,
+    .vs_shader        = blinn_phong_lighting_vertex_shader_wgsl,
+    .fs_shader        = blinn_phong_lighting_fragment_shader_wgsl,
+    .vs_entry         = "vs_main",
+    .fs_entry         = "fs_main",
   };
 
   /* pipeline for shape */
