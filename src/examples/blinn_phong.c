@@ -48,6 +48,8 @@ typedef enum array_data_type_enum {
 typedef struct iweb_gpu_init_t {
   /** The GPU device */
   WGPUDevice device;
+  /** The WGPU context */
+  wgpu_context_t* wgpu_context;
   /** The GPU texture format */
   WGPUTextureFormat format;
   /** The canvas size */
@@ -65,7 +67,7 @@ typedef struct iweb_gpu_init_t {
 #define GPU_TEXTURE_COUNT 1
 #define DEPTH_TEXTURE_COUNT 1
 
-typedef struct iPipeline_t {
+typedef struct ipipeline_t {
   /** The render pipelines */
   WGPURenderPipeline pipelines[PIPELINE_COUNT];
   /** The vertex buffer array */
@@ -80,7 +82,35 @@ typedef struct iPipeline_t {
   /** The depth texture array */
   WGPUTexture depth_textures[DEPTH_TEXTURE_COUNT];
   WGPUTextureView depth_texture_views[DEPTH_TEXTURE_COUNT];
-} iPipeline_t;
+} ipipeline_t;
+
+/** Interface as input of the `createRenderPipelineDescriptor` function. */
+typedef struct irender_pipeline_input {
+  /** The iweb_gpu_init_t interface */
+  iweb_gpu_init_t* init;
+  /** The GPU primative topology with default */
+  WGPUPrimitiveTopology primitive_type;
+  /** The GPU index format (undefined for `'list'` primitives or `'uint32'` for
+   * `'strip'` primitives) */
+  WGPUIndexFormat index_format;
+  /** The GPU cull mode - defines which polygon orientation will be culled */
+  WGPUCullMode cull_mode;
+  /** The boolean variable - indicates whether the render pipeline should
+   * include a depth stencial state or not */
+  bool is_depth_stencil;
+  /** The `buffers` attribute of the vertex state in a render pipeline
+   * descriptor */
+  size_t buffer_count;
+  WGPUVertexBufferLayout const* buffers;
+  /** The WGSL vertex shader */
+  const char* vs_shader;
+  /** The WGSL fragment shader */
+  const char* fs_shader;
+  /** The entry point for the vertex shader. Default `'vs_main'`  */
+  const char* vs_entry;
+  /** The entry point for the fragment shader. Default `'fs_main'`  */
+  const char* fs_entry;
+} irender_pipeline_input;
 
 typedef struct range_t {
   const void* ptr;
@@ -162,6 +192,64 @@ get_buffer_usage_flags_from_buffer_type(bufer_type_enum buffer_type)
     flag = WGPUBufferUsage_MapWrite | common_flags;
   }
   return flag;
+}
+
+static WGPURenderPipeline create_render_pipeline(irender_pipeline_input* input)
+{
+  /* Vertex state */
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+    input->init->wgpu_context, &(wgpu_vertex_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      .wgsl_code.source = input->vs_shader,
+                      .entry            = input->vs_entry,
+                    },
+                    .buffer_count = input->buffer_count,
+                    .buffers      = input->buffers,
+                  });
+
+  /* Fragment state */
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    input->init->wgpu_context, &(wgpu_fragment_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      .wgsl_code.source = input->fs_shader,
+                      .entry            = input->fs_entry,
+                    },
+                    .target_count = 1,
+                    .targets = &(WGPUColorTargetState){
+                      .format = input->init->format,
+                    }
+                  });
+
+  /* Pipeline descriptor */
+  WGPURenderPipelineDescriptor descriptor = {
+    .primitive = {
+      .topology  = input->primitive_type,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode = input->cull_mode,
+    },
+    .multisample = {
+      .count                  = input->init->msaa_count,
+      .mask                   = 0xFFFFFFFF,
+      .alphaToCoverageEnabled = false,
+    },
+  };
+  if (input->is_depth_stencil) {
+    descriptor.depthStencil = &(WGPUDepthStencilState){
+      .format            = WGPUTextureFormat_Depth24Plus,
+      .depthWriteEnabled = true,
+      .depthCompare      = WGPUCompareFunction_Less,
+    };
+  };
+
+  /* Create pipeline */
+  WGPURenderPipeline pipeline
+    = wgpuDeviceCreateRenderPipeline(input->init->device, &descriptor);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+
+  return pipeline;
 }
 
 /**
@@ -349,7 +437,7 @@ static struct {
   float shininess;
 } material_uniforms = {0};
 
-static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
+static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
   /* pipeline for shape */
@@ -422,7 +510,7 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
   WGPUTextureView msaa_texture_view
     = create_texture_view(msaa_texture, texture_format);
 
-  return (iPipeline_t){
+  return (ipipeline_t){
     .vertex_buffers
     = {position_buffer, normal_buffer, index_buffer, index_buffer_2},
     .uniform_buffers = {view_uniform_buffer, light_uniform_buffer,
@@ -436,7 +524,7 @@ static iPipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
   };
 }
 
-static void set_light_eye_positions(WGPUQueue queue, iPipeline_t* p,
+static void set_light_eye_positions(WGPUQueue queue, ipipeline_t* p,
                                     vec4 light_position, vec4 eye_position)
 {
   wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
@@ -449,7 +537,7 @@ static void set_light_eye_positions(WGPUQueue queue, iPipeline_t* p,
                        sizeof(vec4));
 }
 
-static void update_view_projection(WGPUQueue queue, iPipeline_t* p,
+static void update_view_projection(WGPUQueue queue, ipipeline_t* p,
                                    mat4 vp_matrix, vec4 light_position,
                                    vec4 eye_position)
 {
