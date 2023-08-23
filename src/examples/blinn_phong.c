@@ -129,6 +129,8 @@ typedef struct ivertex_data_t {
   range_t uvs;
   range_t indices;
   range_t indices2;
+  uint32_t indices_count;
+  uint32_t indices2_count;
 } ivertex_data_t;
 
 /* -------------------------------------------------------------------------- *
@@ -600,6 +602,26 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
   }
+}
+
+/* draw shape */
+static void draw_shape(WGPURenderPassEncoder render_Pass, ipipeline_t* p,
+                       ivertex_data_t* data)
+{
+  wgpuRenderPassEncoderSetPipeline(render_Pass, p->pipelines[0]);
+  wgpuRenderPassEncoderSetVertexBuffer(render_Pass, 0, p->vertex_buffers[0], 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(render_Pass, 1, p->vertex_buffers[1], 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(render_Pass, 0, p->uniform_bind_groups[0],
+                                    0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_Pass, 1, p->uniform_bind_groups[1],
+                                    0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(render_Pass, p->vertex_buffers[2],
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(render_Pass, data->indices_count, 1, 0, 0,
+                                   0);
 }
 
 static WGPUCommandBuffer draw(iweb_gpu_init_t* init, ipipeline_t* p,
