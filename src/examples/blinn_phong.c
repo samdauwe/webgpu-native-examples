@@ -15,6 +15,96 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Vertex data
+ * -------------------------------------------------------------------------- */
+
+typedef struct cube_vertex_data_t {
+  float positions[72];
+  float colors[72];
+  float normals[72];
+  float uvs[48];
+  uint32_t indices[36];  // triangle indices
+  uint32_t indices2[24]; // wireframe indices
+} cube_vertex_data_t;
+
+static cube_vertex_data_t get_cube_data(float side, float u_length,
+                                        float v_length)
+{
+  float s2 = side / 2;
+  float u  = u_length;
+  float v  = v_length;
+
+  return (cube_vertex_data_t) {
+    .positions = {
+       s2,  s2,  s2, // index 0
+       s2,  s2, -s2, // index 1
+       s2, -s2,  s2, // index 2
+       s2, -s2, -s2, // index 3
+      -s2,  s2, -s2, // index 4
+      -s2,  s2,  s2, // index 5
+      -s2, -s2, -s2, // index 6
+      -s2, -s2,  s2, // index 7
+      -s2,  s2, -s2, // index 8
+       s2,  s2, -s2, // index 9
+      -s2,  s2,  s2, // index 10
+       s2,  s2,  s2, // index 11
+      -s2, -s2,  s2, // index 12
+       s2, -s2,  s2, // index 13
+      -s2, -s2, -s2, // index 14
+       s2, -s2, -s2, // index 15
+      -s2,  s2,  s2, // index 16
+       s2,  s2,  s2, // index 17
+      -s2, -s2,  s2, // index 18
+       s2, -s2,  s2, // index 19
+       s2,  s2, -s2, // index 20
+      -s2,  s2, -s2, // index 21
+       s2, -s2, -s2, // index 22
+      -s2, -s2, -s2, // index 23
+    },
+    .colors = {
+      1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, //
+      0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, //
+      0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, //
+      0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, //
+      0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, //
+      1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0  //
+    },
+    .normals = {
+       1,  0,  0,  1,  0,  0,  1,  0,  0,  1,  0,  0, //
+      -1,  0,  0, -1,  0,  0, -1,  0,  0, -1,  0,  0, //
+       0,  1,  0,  0,  1,  0,  0,  1,  0,  0,  1,  0, //
+       0, -1,  0,  0, -1,  0,  0, -1,  0,  0, -1,  0, //
+       0,  0,  1,  0,  0,  1,  0,  0,  1,  0,  0,  1, //
+       0,  0, -1,  0,  0, -1,  0,  0, -1,  0,  0, -1, //
+    },
+    .uvs = {
+      0, v, u, v, 0, 0, u, 0, 0, v, u, v, 0, 0, u, 0, //
+      0, v, u, v, 0, 0, u, 0, 0, v, u, v, 0, 0, u, 0, //
+      0, v, u, v, 0, 0, u, 0, 0, v, u, v, 0, 0, u, 0, //
+    },
+    .indices = {
+      0,   2,  1, //
+      2,   3,  1, //
+      4,   6,  5, //
+      6,   7,  5, //
+      8,  10,  9, //
+      10, 11,  9, //
+      12, 14, 13, //
+      14, 15, 13, //
+      16, 18, 17, //
+      18, 19, 17, //
+      20, 22, 21, //
+      22, 23, 21, //
+    },
+    .indices2 = {
+       8,  9,  9, 11, 11, 10, 10,  8, // top
+      14, 15, 15, 13, 13, 12, 12, 14, // bottom
+      11, 13,  9, 15,  8, 14, 10, 12, // side
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- *
  * webgpu-simplified - Enums
  * -------------------------------------------------------------------------- */
 
@@ -421,7 +511,7 @@ static const char* blinn_phong_lighting_vertex_shader_wgsl;
 static const char* blinn_phong_lighting_fragment_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
- * Blinn-Phong Lighting example
+ * Blinn-Phong Lighting common
  * -------------------------------------------------------------------------- */
 
 static struct {
@@ -449,8 +539,7 @@ typedef enum plot_type_enum {
   PLOT_TYPE_SHAPE_ONLY      = 1,
 } plot_type_enum;
 
-static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
-                                            ivertex_data_t* data)
+static ipipeline_t create_pipeline(iweb_gpu_init_t* init, ivertex_data_t* data)
 {
   /* The pipeline input */
   irender_pipeline_input render_pipeline_input = {
@@ -678,6 +767,24 @@ static void update_view_projection(WGPUQueue queue, ipipeline_t* p,
                        sizeof(vec4));
   wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
                        sizeof(vec4));
+}
+
+/* -------------------------------------------------------------------------- *
+ * Blinn-Phong Lighting example
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  iweb_gpu_init_t init;
+  ivertex_data_t data;
+  cube_vertex_data_t cube_data;
+  ipipeline_t pipeline;
+} state;
+
+static void prepare_example(wgpu_example_context_t* context)
+{
+  state.init      = init_web_gpu(context->wgpu_context, 4);
+  state.cube_data = get_cube_data(2.0f, 1.0f, 1.0f);
+  state.pipeline  = create_pipeline(&state.init, &state.data);
 }
 
 /* -------------------------------------------------------------------------- *
