@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Blinn-Phong Lighting example
  *
@@ -82,6 +84,12 @@ typedef struct ipipeline_t {
   /** The depth texture array */
   WGPUTexture depth_textures[DEPTH_TEXTURE_COUNT];
   WGPUTextureView depth_texture_views[DEPTH_TEXTURE_COUNT];
+  /** The render pass */
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
 } ipipeline_t;
 
 /** Interface as input of the `createRenderPipelineDescriptor` function. */
@@ -434,6 +442,11 @@ static struct {
   float shininess;
 } material_uniforms = {0};
 
+typedef enum plot_type_enum {
+  PLOT_TYPE_WIRE_FRAME_ONLY = 0,
+  PLOT_TYPE_SHAPE_ONLY      = 1,
+} plot_type_enum;
+
 static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
                                             ivertex_data_t* data)
 {
@@ -580,6 +593,35 @@ static void update_view_projection(WGPUQueue queue, ipipeline_t* p,
                        sizeof(vec4));
   wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
                        sizeof(vec4));
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
+}
+
+static WGPUCommandBuffer draw(iweb_gpu_init_t* init, ipipeline_t* p,
+                              plot_type_enum plot_type, ivertex_data_t* data)
+{
+  wgpu_context_t* wgpu_context = init->wgpu_context;
+
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPURenderPassEncoder render_Pass = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &p->render_pass.descriptor);
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  ASSERT(command_buffer != NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
 }
 
 /* -------------------------------------------------------------------------- *
