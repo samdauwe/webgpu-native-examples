@@ -568,35 +568,6 @@ static ipipeline_t prepare_render_pipelines(iweb_gpu_init_t* init,
   };
 }
 
-static void set_light_eye_positions(WGPUQueue queue, ipipeline_t* p,
-                                    vec4 light_position, vec4 eye_position)
-{
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
-                       sizeof(vec4));
-}
-
-static void update_view_projection(WGPUQueue queue, ipipeline_t* p,
-                                   mat4 vp_matrix, vec4 light_position,
-                                   vec4 eye_position)
-{
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[0], 0, vp_matrix,
-                       sizeof(mat4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
-                       sizeof(vec4));
-  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
-                       sizeof(vec4));
-}
-
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
@@ -624,6 +595,26 @@ static void draw_shape(WGPURenderPassEncoder render_Pass, ipipeline_t* p,
                                    0);
 }
 
+/* draw wireframe */
+static void draw_wireframe(WGPURenderPassEncoder render_Pass, ipipeline_t* p,
+                           ivertex_data_t* data)
+{
+  wgpuRenderPassEncoderSetPipeline(render_Pass, p->pipelines[1]);
+  wgpuRenderPassEncoderSetVertexBuffer(render_Pass, 0, p->vertex_buffers[0], 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(render_Pass, 1, p->vertex_buffers[1], 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(render_Pass, 0, p->uniform_bind_groups[2],
+                                    0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_Pass, 1, p->uniform_bind_groups[3],
+                                    0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(render_Pass, p->vertex_buffers[3],
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(render_Pass, data->indices2_count, 1, 0, 0,
+                                   0);
+}
+
 static WGPUCommandBuffer draw(iweb_gpu_init_t* init, ipipeline_t* p,
                               plot_type_enum plot_type, ivertex_data_t* data)
 {
@@ -633,6 +624,20 @@ static WGPUCommandBuffer draw(iweb_gpu_init_t* init, ipipeline_t* p,
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
   WGPURenderPassEncoder render_Pass = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &p->render_pass.descriptor);
+
+  if (plot_type == PLOT_TYPE_WIRE_FRAME_ONLY) {
+    draw_wireframe(render_Pass, p, data);
+  }
+  else if (PLOT_TYPE_SHAPE_ONLY) {
+    draw_shape(render_Pass, p, data);
+  }
+  else {
+    draw_shape(render_Pass, p, data);
+    draw_wireframe(render_Pass, p, data);
+  }
+
+  wgpuRenderPassEncoderEnd(render_Pass);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_Pass)
 
   // Draw ui overlay
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
@@ -644,6 +649,35 @@ static WGPUCommandBuffer draw(iweb_gpu_init_t* init, ipipeline_t* p,
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
+}
+
+static void set_light_eye_positions(WGPUQueue queue, ipipeline_t* p,
+                                    vec4 light_position, vec4 eye_position)
+{
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
+                       sizeof(vec4));
+}
+
+static void update_view_projection(WGPUQueue queue, ipipeline_t* p,
+                                   mat4 vp_matrix, vec4 light_position,
+                                   vec4 eye_position)
+{
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[0], 0, vp_matrix,
+                       sizeof(mat4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[1], 16, eye_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 0, light_position,
+                       sizeof(vec4));
+  wgpuQueueWriteBuffer(queue, p->uniform_buffers[3], 16, eye_position,
+                       sizeof(vec4));
 }
 
 /* -------------------------------------------------------------------------- *
