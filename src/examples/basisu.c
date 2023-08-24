@@ -21,6 +21,17 @@
  * https://www.khronos.org/ktx/
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* basisu_vertex_shader_wgsl;
+static const char* basisu_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Basis Universal Texture Loading example
+ * -------------------------------------------------------------------------- */
+
 // Vertex layout used in this example
 typedef struct vertex_t {
   vec3 pos;
@@ -314,9 +325,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  /* Vertex shader SPIR-V */
-                  .label = "Vertex shader SPIR-V",
-                  .file  = "shaders/basisu/texture.vert.spv",
+                  // Vertex shader WGSL
+                  .label            = "basisu_vertex_shader_wgsl",
+                  .wgsl_code.source = basisu_vertex_shader_wgsl,
+                  .entry            = "main"
                 },
                 .buffer_count = 1,
                 .buffers      = &quad_vertex_buffer_layout,
@@ -326,9 +338,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  /* Fragment shader SPIR-V */
-                  .label = "Fragment shader SPIR-V",
-                  .file  = "shaders/basisu/texture.frag.spv",
+                  // Fragment shader WGSL
+                  .label            = "basisu_fragment_shader_wgsl",
+                  .wgsl_code.source = basisu_fragment_shader_wgsl,
+                  .entry            = "main"
                 },
                 .target_count = 1,
                 .targets      = &color_target_state_desc,
@@ -510,3 +523,46 @@ void example_basisu(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* basisu_vertex_shader_wgsl = CODE(
+  struct UBO {
+    projection : mat4x4<f32>,
+    model : mat4x4<f32>,
+  };
+  @binding(0) @group(0) var<uniform> ubo : UBO;
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) uv : vec2<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) position : vec3<f32>,
+    @location(1) uv : vec2<f32>
+  ) -> VertexOutput {
+    var output : VertexOutput;
+    output.uv = uv;
+    output.position = ubo.projection * ubo.model * vec4(position.xyz, 1.0);
+    return output;
+  }
+);
+
+// clang-format off
+static const char* basisu_fragment_shader_wgsl = CODE(
+  @group(0) @binding(1) var textureColor: texture_2d<f32>;
+  @group(0) @binding(2) var samplerColor: sampler;
+
+  @fragment
+  fn main(
+    @location(0) uv: vec2<f32>,
+  ) -> @location(0) vec4<f32> {
+    return textureSample(textureColor, samplerColor, uv);
+  }
+);
+// clang-format on
