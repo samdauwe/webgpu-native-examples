@@ -720,7 +720,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   }
 }
 
-// Update uniform buffers for rendering the 3D scene
+/* Update uniform buffers for rendering the 3D scene */
 static void update_uniform_buffers_scene(wgpu_example_context_t* context)
 {
   camera_t* camera = context->camera;
@@ -743,14 +743,14 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
                           &ubo_scene, ubo.scene.size);
 }
 
-// Update radial blur uniform buffer
+/* Update radial blur uniform buffer */
 void update_uniform_buffer_radial_blur(wgpu_example_context_t* context)
 {
   wgpu_queue_write_buffer(context->wgpu_context, ubo.blur_params.buffer, 0,
                           &ubo_blur_params, ubo.blur_params.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   // Phong and color pass vertex shader uniform buffer
