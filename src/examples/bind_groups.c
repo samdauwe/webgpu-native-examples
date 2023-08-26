@@ -17,6 +17,17 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/descriptorsets/descriptorsets.cpp
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* bind_groups_vertex_shader_wgsl;
+static const char* bind_groups_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Bind Groups example
+ * -------------------------------------------------------------------------- */
+
 static bool animate = true;
 
 struct view_matrices_t {
@@ -288,9 +299,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
-              .label = "Cube vertex shader",
-              .file  = "shaders/bind_groups/cube.vert.spv",
+              // Vertex shader WGSL
+              .label            = "Cube vertex shader",
+              .wgsl_code.source = bind_groups_vertex_shader_wgsl,
+              .entry            = "main",
             },
             .buffer_count = 1,
             .buffers      = &cube_vertex_buffer_layout,
@@ -300,9 +312,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
-              .label = "Cube fragment shader",
-              .file  = "shaders/bind_groups/cube.frag.spv",
+              // Fragment shader WGSL
+              .label            = "Cube fragment shader",
+              .wgsl_code.source = bind_groups_fragment_shader_wgsl,
+              .entry            = "main",
             },
             .target_count = 1,
             .targets      = &color_target_state_desc,
@@ -530,3 +543,55 @@ void example_bind_groups(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* bind_groups_vertex_shader_wgsl = CODE(
+  struct UBOMatrices {
+    projection : mat4x4<f32>,
+    view : mat4x4<f32>,
+    model : mat4x4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> uboMatrices : UBOMatrices;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) normal : vec3<f32>,
+    @location(1) color : vec3<f32>,
+    @location(2) uv : vec2<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>,
+    @location(1) inNormal: vec3<f32>,
+    @location(2) inUV: vec2<f32>,
+    @location(3) inColor: vec3<f32>
+  ) -> Output {
+    var output: Output;
+    output.normal = inNormal;
+    output.color = inColor;
+    output.uv = inUV;
+    output.position = uboMatrices.projection * uboMatrices.view * uboMatrices.model * vec4<f32>(inPos.xyz, 1.0);
+    return output;
+  }
+);
+
+static const char* bind_groups_fragment_shader_wgsl = CODE(
+  @group(0) @binding(1) var textureColorMap: texture_2d<f32>;
+  @group(0) @binding(2) var samplerColorMap: sampler;
+
+  @fragment
+  fn main(
+    @location(0) inNormal : vec3<f32>,
+    @location(1) inColor : vec3<f32>,
+    @location(2) inUV : vec2<f32>
+   ) -> @location(0) vec4<f32> {
+    return textureSample(textureColorMap, samplerColorMap, inUV) * vec4<f32>(inColor, 1.0);
+  }
+);
+// clang-format on
