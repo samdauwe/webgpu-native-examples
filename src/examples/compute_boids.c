@@ -20,6 +20,18 @@
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/boids
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* sprite_vertex_shader_wgsl;
+static const char* sprite_fragment_shader_wgsl;
+static const char* update_sprites_compute_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Compute Boids example
+ * -------------------------------------------------------------------------- */
+
 // Number of boid particles to simulate
 static const uint32_t NUM_PARTICLES = 1500;
 
@@ -327,9 +339,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   wgpu_shader_t boids_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
-                    .label = "Update sprites compute shader",
-                    .file  = "shaders/compute_boids/updateSprites.wgsl",
-                    .entry = "main",
+                    .label            = "Update sprites compute shader",
+                    .wgsl_code.source = update_sprites_compute_shader_wgsl,
+                    .entry            = "main",
                   });
 
   // Vertex state
@@ -337,9 +349,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .label = "Sprite vertex shader",
-              .file  = "shaders/compute_boids/sprite.wgsl",
-              .entry = "vert_main",
+              .label            = "Sprite vertex shader",
+              .wgsl_code.source = sprite_vertex_shader_wgsl,
+              .entry            = "vert_main",
             },
             .buffer_count = 2,
             .buffers      = vert_buf,
@@ -350,9 +362,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .label = "Sprite fragment shader",
-              .file  = "shaders/compute_boids/sprite.wgsl",
-              .entry = "frag_main",
+              .label            = "Sprite fragment shader",
+              .wgsl_code.source = sprite_fragment_shader_wgsl,
+              .entry            = "frag_main",
             },
             .target_count = 1,
             .targets = &color_target_state,
@@ -533,3 +545,131 @@ void example_compute_boids(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* sprite_vertex_shader_wgsl = CODE(
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(4) color : vec4<f32>,
+  }
+
+  @vertex
+  fn vert_main(
+    @location(0) a_particlePos : vec2<f32>,
+    @location(1) a_particleVel : vec2<f32>,
+    @location(2) a_pos : vec2<f32>
+  ) -> VertexOutput {
+    let angle = -atan2(a_particleVel.x, a_particleVel.y);
+    let pos = vec2(
+      (a_pos.x * cos(angle)) - (a_pos.y * sin(angle)),
+      (a_pos.x * sin(angle)) + (a_pos.y * cos(angle))
+    );
+
+    var output : VertexOutput;
+    output.position = vec4(pos + a_particlePos, 0.0, 1.0);
+    output.color = vec4(
+      1.0 - sin(angle + 1.0) - a_particleVel.y,
+      pos.x * 100.0 - a_particleVel.y + 0.1,
+      a_particleVel.x + cos(angle + 0.5),
+      1.0);
+    return output;
+  }
+);
+
+static const char* sprite_fragment_shader_wgsl = CODE(
+  @fragment
+  fn frag_main(@location(4) color : vec4<f32>) -> @location(0) vec4<f32> {
+    return color;
+  }
+);
+
+static const char* update_sprites_compute_shader_wgsl = CODE(
+  struct Particle {
+    pos : vec2<f32>,
+    vel : vec2<f32>,
+  }
+  struct SimParams {
+    deltaT : f32,
+    rule1Distance : f32,
+    rule2Distance : f32,
+    rule3Distance : f32,
+    rule1Scale : f32,
+    rule2Scale : f32,
+    rule3Scale : f32,
+  }
+  struct Particles {
+    particles : array<Particle>,
+  }
+  @binding(0) @group(0) var<uniform> params : SimParams;
+  @binding(1) @group(0) var<storage, read> particlesA : Particles;
+  @binding(2) @group(0) var<storage, read_write> particlesB : Particles;
+
+  // https://github.com/austinEng/Project6-Vulkan-Flocking/blob/master/data/shaders/computeparticles/particle.comp
+  @compute @workgroup_size(64)
+  fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
+    var index = GlobalInvocationID.x;
+
+    var vPos = particlesA.particles[index].pos;
+    var vVel = particlesA.particles[index].vel;
+    var cMass = vec2(0.0);
+    var cVel = vec2(0.0);
+    var colVel = vec2(0.0);
+    var cMassCount = 0u;
+    var cVelCount = 0u;
+    var pos : vec2<f32>;
+    var vel : vec2<f32>;
+
+    for (var i = 0u; i < arrayLength(&particlesA.particles); i++) {
+      if (i == index) {
+        continue;
+      }
+
+      pos = particlesA.particles[i].pos.xy;
+      vel = particlesA.particles[i].vel.xy;
+      if (distance(pos, vPos) < params.rule1Distance) {
+        cMass += pos;
+        cMassCount++;
+      }
+      if (distance(pos, vPos) < params.rule2Distance) {
+        colVel -= pos - vPos;
+      }
+      if (distance(pos, vPos) < params.rule3Distance) {
+        cVel += vel;
+        cVelCount++;
+      }
+    }
+    if (cMassCount > 0) {
+      cMass = (cMass / vec2(f32(cMassCount))) - vPos;
+    }
+    if (cVelCount > 0) {
+      cVel /= f32(cVelCount);
+    }
+    vVel += (cMass * params.rule1Scale) + (colVel * params.rule2Scale) + (cVel * params.rule3Scale);
+
+    // clamp velocity for a more pleasing simulation
+    vVel = normalize(vVel) * clamp(length(vVel), 0.0, 0.1);
+    // kinematic update
+    vPos = vPos + (vVel * params.deltaT);
+    // Wrap around boundary
+    if (vPos.x < -1.0) {
+      vPos.x = 1.0;
+    }
+    if (vPos.x > 1.0) {
+      vPos.x = -1.0;
+    }
+    if (vPos.y < -1.0) {
+      vPos.y = 1.0;
+    }
+    if (vPos.y > 1.0) {
+      vPos.y = -1.0;
+    }
+    // Write back
+    particlesB.particles[index].pos = vPos;
+    particlesB.particles[index].vel = vVel;
+  }
+);
+// clang-format on
