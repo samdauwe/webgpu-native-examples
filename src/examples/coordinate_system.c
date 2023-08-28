@@ -20,6 +20,17 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/negativeviewportheight/negativeviewportheight.cpp
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* quad_vertex_shader_wgsl;
+static const char* quad_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Coordinate System example
+ * -------------------------------------------------------------------------- */
+
 // Settings
 static struct {
   int32_t winding_order;
@@ -309,9 +320,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .label = "Quad vertex shader",
-                      .file  = "shaders/coordinate_system/quad.vert.spv",
+                      // Vertex shader WGSL
+                      .label            = "Quad vertex shader",
+                      .wgsl_code.source = quad_vertex_shader_wgsl,
+                      .entry            = "main",
                     },
                     .buffer_count = 1,
                     .buffers      = &quad_vertex_buffer_layout,
@@ -321,9 +333,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .label = "Quad fragment shader",
-                      .file  = "shaders/coordinate_system/quad.frag.spv",
+                      // Fragment shader WGSL
+                      .label            = "Quad fragment shader",
+                      .wgsl_code.source = quad_fragment_shader_wgsl,
+                      .entry            = "main",
                     },
                     .target_count = 1,
                     .targets      = &color_target_state,
@@ -511,3 +524,39 @@ void example_coordinate_system(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* quad_vertex_shader_wgsl = CODE(
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) uv : vec2<f32>
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos: vec3<f32>,
+    @location(1) inUV: vec2<f32>
+  ) -> Output {
+    var output: Output;
+    output.uv = inUV;
+    output.position = vec4<f32>(inPos.xyz, 1.0);
+    return output;
+  }
+);
+
+static const char* quad_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var textureColor: texture_2d<f32>;
+  @group(0) @binding(1) var samplerColor: sampler;
+
+  @fragment
+  fn main(
+    @location(0) inUV : vec2<f32>
+  ) -> @location(0) vec4<f32> {
+    return textureSample(textureColor, samplerColor, inUV);
+  }
+);
+// clang-format on
