@@ -19,6 +19,17 @@
  * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/msaa-line
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* vertex_shader_wgsl;
+static const char* fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * MSAA Line example
+ * -------------------------------------------------------------------------- */
+
 #define NUMBER_OF_LINES 50u
 static const uint32_t sample_count = 4u;
 
@@ -198,9 +209,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .label = "Vertex shader",
-                      .file  = "shaders/msaa_line/shader.vert.spv",
+                      // Vertex shader WGSL
+                      .label            = "Vertex shader",
+                      .wgsl_code.source = vertex_shader_wgsl,
+                      .entry            = "main",
                     },
                     .buffer_count = 1,
                     .buffers      = &msaa_line_vertex_buffer_layout,
@@ -210,9 +222,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .label = "Fragment shader",
-                      .file  = "shaders/msaa_line/shader.frag.spv",
+                      // Fragment shader WGSL
+                      .label            = "Fragment shader",
+                      .wgsl_code.source = fragment_shader_wgsl,
+                      .entry            = "main",
                     },
                     .target_count = 1,
                     .targets      = &color_target_state,
@@ -339,12 +352,12 @@ void example_msaa_line(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-     .title = example_title,
-     .vsync = true,
+      .title = example_title,
+      .vsync = true,
     },
     .example_window_config = (window_config_t){
-     .width  = 800,
-     .height = 600,
+      .width  = 800,
+      .height = 600,
     },
     .example_initialize_func = &example_initialize,
     .example_render_func     = &example_render,
@@ -352,3 +365,34 @@ void example_msaa_line(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* vertex_shader_wgsl = CODE(
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) f_Color : vec4<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) a_Pos : vec2<f32>,
+    @location(1) a_Color : vec4<f32>
+  ) -> Output {
+    var output : Output;
+    output.position = vec4(a_Pos, 0.0, 1.0);
+    output.f_Color = a_Color;
+    return output;
+  }
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  @fragment
+  fn main(@location(0) v_Color : vec4<f32>) -> @location(0) vec4<f32> {
+    return v_Color;
+  }
+);
+// clang-format on
