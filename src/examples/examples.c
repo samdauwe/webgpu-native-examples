@@ -10,6 +10,7 @@ void example_animometer(int argc, char* argv[]);
 void example_aquarium(int argc, char* argv[]);
 void example_basisu(int argc, char* argv[]);
 void example_bind_groups(int argc, char* argv[]);
+void example_blinn_phong_lighting(int argc, char* argv[]);
 void example_bloom(int argc, char* argv[]);
 void example_clear_screen(int argc, char* argv[]);
 void example_compute_boids(int argc, char* argv[]);
@@ -84,6 +85,7 @@ static examplecase_t g_example_cases[] = {
   // {"aquarium", example_aquarium},
   {"basisu", example_basisu},
   {"bind_groups", example_bind_groups},
+  {"blinn_phong_lighting", example_blinn_phong_lighting},
   {"bloom", example_bloom},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},

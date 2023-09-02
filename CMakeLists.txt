@@ -199,6 +199,7 @@ set(SOURCES
     # src/examples/aquarium.c
     src/examples/basisu.c
     src/examples/bind_groups.c
+    src/examples/blinn_phong_lighting.c
     src/examples/bloom.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
