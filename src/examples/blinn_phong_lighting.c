@@ -184,6 +184,42 @@ load_json_end:
 }
 
 /* -------------------------------------------------------------------------- *
+ * Vertex data - Sphere Geometry
+ * -------------------------------------------------------------------------- */
+
+typedef struct range_t {
+  const void* ptr;
+  size_t size;
+  size_t count;
+} range_t;
+
+typedef struct sphere_geometry_t {
+  float radius;
+  uint32_t width_segments;
+  uint32_t height_segments;
+  float phi_start;
+  float phi_length;
+  float theta_start;
+  float theta_length;
+  // vertex positions, texture coordinates, normals, tangents, and vertex
+  // indices
+  range_t vertices;
+  range_t uvs;
+  range_t normals;
+  range_t tangents;
+  range_t indices;
+} sphere_geometry_t;
+
+static sphere_geometry_t sphere_geometry = {0};
+
+void prepare_sphere_geometry(sphere_geometry_t* this, float radius,
+                             uint32_t width_segments, uint32_t height_segments,
+                             float phi_start, float phi_length,
+                             float theta_start, float theta_length)
+{
+}
+
+/* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 static const char* blinn_phong_lighting_vertex_shader_wgsl;
