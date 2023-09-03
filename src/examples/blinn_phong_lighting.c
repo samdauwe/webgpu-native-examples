@@ -188,9 +188,9 @@ load_json_end:
  * -------------------------------------------------------------------------- */
 
 typedef struct range_t {
-  const void* ptr;
+  void* ptr;
   size_t size;
-  size_t count;
+  size_t length;
 } range_t;
 
 typedef struct sphere_geometry_t {
@@ -212,11 +212,125 @@ typedef struct sphere_geometry_t {
 
 static sphere_geometry_t sphere_geometry = {0};
 
-void prepare_sphere_geometry(sphere_geometry_t* this, float radius,
-                             uint32_t width_segments, uint32_t height_segments,
-                             float phi_start, float phi_length,
-                             float theta_start, float theta_length)
+static void sphere_geometry_init_defaults(sphere_geometry_t* this)
 {
+  memset(this, 0, sizeof(*this));
+}
+
+void sphere_geometry_init(sphere_geometry_t* this, float radius,
+                          uint32_t width_segments, uint32_t height_segments,
+                          float phi_start, float phi_length, float theta_start,
+                          float theta_length)
+{
+  this->radius          = radius;
+  this->width_segments  = width_segments;
+  this->height_segments = height_segments;
+  this->phi_start       = phi_start;
+  this->phi_length      = phi_length;
+  this->theta_start     = theta_start;
+  this->theta_length    = theta_length;
+
+  // Generate vertex positions, texture coordinates, normals, tangents, and
+  // vertex indices
+  const uint32_t vertex_count = (width_segments + 1) * (height_segments + 1);
+
+  float* vertices   = (float*)malloc(vertex_count * 3 * sizeof(float));
+  float* uvs        = (float*)malloc(vertex_count * 2 * sizeof(float));
+  float* normals    = (float*)malloc(vertex_count * 3 * sizeof(float));
+  float* tangents   = (float*)malloc(vertex_count * 3 * sizeof(float));
+  uint32_t* indices = (uint32_t*)malloc(vertex_count * 6 * sizeof(uint32_t));
+
+  size_t vertices_length = 0, uvs_length = 0, normals_length = 0,
+         tangents_length = 0, indices_length = 0;
+
+  for (uint32_t iy = 0; iy <= height_segments; iy++) {
+    const float v     = iy / (float)height_segments;
+    const float theta = theta_start + v * theta_length;
+
+    for (uint32_t ix = 0; ix <= width_segments; ix++) {
+      const float u   = ix / (float)width_segments;
+      const float phi = phi_start + u * phi_length;
+
+      // Calculate vertex position
+      const float x = -radius * cos(phi) * sin(theta);
+      const float y = radius * cos(theta);
+      const float z = radius * sin(phi) * sin(theta);
+
+      vertices[vertices_length++] = x;
+      vertices[vertices_length++] = y;
+      vertices[vertices_length++] = z;
+
+      // Calculate texture coordinates
+      uvs[uvs_length++] = u;
+      uvs[uvs_length++] = v; // Invert v-axis to match the typical convention
+
+      // Calculate normal vector
+      normals[normals_length++] = x;
+      normals[normals_length++] = y;
+      normals[normals_length++] = z;
+
+      // Calculate tangent vector (same for all vertices)
+      // Assuming the tangent vector points along the positive X-axis
+      tangents[tangents_length++] = radius * sin(phi);
+      tangents[tangents_length++] = 0.0f;
+      tangents[tangents_length++] = radius * cos(phi);
+
+      if (iy < height_segments && ix < width_segments) {
+        const uint32_t current_index = ix + iy * (width_segments + 1);
+        const uint32_t next_index_x  = current_index + 1;
+        const uint32_t next_index_y  = current_index + width_segments + 1;
+        const uint32_t next_index_xy = next_index_y + 1;
+
+        // Generate indices for two triangles of each face
+        indices[indices_length++] = current_index;
+        indices[indices_length++] = next_index_y;
+        indices[indices_length++] = next_index_x;
+
+        indices[indices_length++] = next_index_y;
+        indices[indices_length++] = next_index_xy;
+        indices[indices_length++] = next_index_x;
+      }
+    }
+  }
+
+  // Initialize sphere geometry
+  this->vertices.ptr    = vertices;
+  this->vertices.size   = vertices_length * sizeof(float);
+  this->vertices.length = vertices_length;
+
+  this->uvs.ptr    = uvs;
+  this->uvs.size   = uvs_length * sizeof(float);
+  this->uvs.length = uvs_length;
+
+  this->normals.ptr    = normals;
+  this->normals.size   = normals_length * sizeof(float);
+  this->normals.length = normals_length;
+
+  this->tangents.ptr    = tangents;
+  this->tangents.size   = tangents_length * sizeof(float);
+  this->tangents.length = tangents_length;
+
+  this->indices.ptr    = indices;
+  this->indices.size   = indices_length * sizeof(uint32_t);
+  this->indices.length = indices_length;
+}
+
+static void sphere_geometry_destroy(sphere_geometry_t* this)
+{
+  range_t* sphere_data[5] = {
+    &this->vertices, &this->uvs,     &this->normals,
+    &this->tangents, &this->indices,
+  };
+
+  for (uint32_t i = 0; i < 5; ++i) {
+    range_t* r = sphere_data[i];
+    if ((r->ptr != NULL) && (r->length > 0)) {
+      free(r->ptr);
+      r->ptr    = NULL;
+      r->length = 0;
+    }
+    r->size = 0;
+  }
 }
 
 /* -------------------------------------------------------------------------- *
