@@ -189,7 +189,7 @@ load_json_end:
 
 typedef struct range_t {
   void* ptr;
-  size_t size;
+  size_t byte_length;
   size_t length;
 } range_t;
 
@@ -222,6 +222,8 @@ void sphere_geometry_init(sphere_geometry_t* this, float radius,
                           float phi_start, float phi_length, float theta_start,
                           float theta_length)
 {
+  sphere_geometry_init_defaults(this);
+
   this->radius          = radius;
   this->width_segments  = width_segments;
   this->height_segments = height_segments;
@@ -294,25 +296,25 @@ void sphere_geometry_init(sphere_geometry_t* this, float radius,
   }
 
   // Initialize sphere geometry
-  this->vertices.ptr    = vertices;
-  this->vertices.size   = vertices_length * sizeof(float);
-  this->vertices.length = vertices_length;
+  this->vertices.ptr         = vertices;
+  this->vertices.byte_length = vertices_length * sizeof(float);
+  this->vertices.length      = vertices_length;
 
-  this->uvs.ptr    = uvs;
-  this->uvs.size   = uvs_length * sizeof(float);
-  this->uvs.length = uvs_length;
+  this->uvs.ptr         = uvs;
+  this->uvs.byte_length = uvs_length * sizeof(float);
+  this->uvs.length      = uvs_length;
 
-  this->normals.ptr    = normals;
-  this->normals.size   = normals_length * sizeof(float);
-  this->normals.length = normals_length;
+  this->normals.ptr         = normals;
+  this->normals.byte_length = normals_length * sizeof(float);
+  this->normals.length      = normals_length;
 
-  this->tangents.ptr    = tangents;
-  this->tangents.size   = tangents_length * sizeof(float);
-  this->tangents.length = tangents_length;
+  this->tangents.ptr         = tangents;
+  this->tangents.byte_length = tangents_length * sizeof(float);
+  this->tangents.length      = tangents_length;
 
-  this->indices.ptr    = indices;
-  this->indices.size   = indices_length * sizeof(uint32_t);
-  this->indices.length = indices_length;
+  this->indices.ptr         = indices;
+  this->indices.byte_length = indices_length * sizeof(uint32_t);
+  this->indices.length      = indices_length;
 }
 
 static void sphere_geometry_destroy(sphere_geometry_t* this)
@@ -329,15 +331,22 @@ static void sphere_geometry_destroy(sphere_geometry_t* this)
       r->ptr    = NULL;
       r->length = 0;
     }
-    r->size = 0;
+    r->byte_length = 0;
   }
+}
+
+void prepare_sphere_geometry(void)
+{
+  sphere_geometry_init(&sphere_geometry, 0.1f, 16, 8, 0.0f, PI2, 0.0f, PI);
 }
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
-static const char* blinn_phong_lighting_vertex_shader_wgsl;
-static const char* blinn_phong_lighting_fragment_shader_wgsl;
+static const char* blinn_phong_lighting_torus_knot_vertex_shader_wgsl;
+static const char* blinn_phong_lighting_torus_knot_fragment_shader_wgsl;
+static const char* blinn_phong_lighting_sphere_vertex_shader_wgsl;
+static const char* blinn_phong_lighting_sphere_fragment_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Blinn-Phong Lighting example
@@ -345,12 +354,19 @@ static const char* blinn_phong_lighting_fragment_shader_wgsl;
 
 /* Buffers */
 static struct {
-  wgpu_buffer_t vertex;
-  wgpu_buffer_t index;
-  wgpu_buffer_t uv;
-  wgpu_buffer_t normal;
-  wgpu_buffer_t vs_uniform;
-  wgpu_buffer_t fs_uniform;
+  struct {
+    wgpu_buffer_t vertex;
+    wgpu_buffer_t index;
+    wgpu_buffer_t uv;
+    wgpu_buffer_t normal;
+    wgpu_buffer_t vs_uniform;
+    wgpu_buffer_t fs_uniform;
+  } torus_knot;
+  struct {
+    wgpu_buffer_t vertex;
+    wgpu_buffer_t index;
+    wgpu_buffer_t vs_uniform;
+  } sphere;
 } buffers = {0};
 
 /* Texture and sampler */
@@ -360,8 +376,15 @@ static struct {
 } textures = {0};
 
 /* Uniform bind group and render pipeline (and layout) */
-static WGPUBindGroup uniform_bind_group = NULL;
-static WGPURenderPipeline pipeline      = NULL;
+static struct {
+  WGPUBindGroup torus_knot;
+  WGPUBindGroup sphere;
+} bind_groups = {0};
+
+static struct {
+  WGPURenderPipeline torus_knot;
+  WGPURenderPipeline sphere;
+} pipelines = {0};
 
 /* Render pass descriptor for frame buffer writes */
 static struct {
@@ -375,7 +398,16 @@ static struct {
   mat4 projection_matrix;
   mat4 view_matrix;
   mat4 model_matrix;
-} view_matrices = {
+} torus_knot_view_matrices = {
+  .projection_matrix = GLM_MAT4_IDENTITY_INIT,
+  .view_matrix       = GLM_MAT4_IDENTITY_INIT,
+  .model_matrix      = GLM_MAT4_IDENTITY_INIT,
+};
+static struct {
+  mat4 projection_matrix;
+  mat4 view_matrix;
+  mat4 model_matrix;
+} sphere_view_matrices = {
   .projection_matrix = GLM_MAT4_IDENTITY_INIT,
   .view_matrix       = GLM_MAT4_IDENTITY_INIT,
   .model_matrix      = GLM_MAT4_IDENTITY_INIT,
@@ -386,7 +418,7 @@ static struct {
   vec4 eye_position;
   vec4 light_position;
 } light_positions = {
-  .eye_position   = {0.0f, 1.0f, 6.0f, 1.0f},
+  .eye_position   = {0.0f, 1.0f, 8.0f, 1.0f},
   .light_position = {0.0f, 0.0f, 1.0f, 1.0f},
 };
 
@@ -397,18 +429,26 @@ static bool prepared             = false;
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 {
   /* View matrix */
-  glm_lookat(light_positions.eye_position, // eye vector
-             (vec3){0.0f, 0.0f, 0.0f},     // center vector
-             (vec3){0.0f, 1.0f, 0.0f},     // up vector
-             view_matrices.view_matrix     // result matrix
+  glm_lookat(light_positions.eye_position,        // eye vector
+             (vec3){0.0f, 0.0f, 0.0f},            // center vector
+             (vec3){0.0f, 1.0f, 0.0f},            // up vector
+             torus_knot_view_matrices.view_matrix // result matrix
   );
+  glm_mat4_copy(torus_knot_view_matrices.view_matrix,
+                sphere_view_matrices.view_matrix);
 
   /* View projection matrix */
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
   const float fovy = 40.0f * PI / 180.0f;
   glm_perspective(fovy, aspect_ratio, 1.f, 25.0f,
-                  view_matrices.projection_matrix);
+                  torus_knot_view_matrices.projection_matrix);
+  glm_mat4_copy(torus_knot_view_matrices.projection_matrix,
+                sphere_view_matrices.projection_matrix);
+
+  /* Translate model matrix for the sphere geometry */
+  glm_translate(sphere_view_matrices.model_matrix,
+                light_positions.light_position);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
@@ -418,54 +458,68 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   float dt        = now - time_old;
   time_old        = now;
 
-  // Update view matrix update
+  /* Update view matrix update */
   {
-    glm_rotate_x(view_matrices.model_matrix, dt * 0.0002f,
-                 view_matrices.model_matrix);
-    glm_rotate_y(view_matrices.model_matrix, dt * 0.0002f,
-                 view_matrices.model_matrix);
-    glm_rotate_z(view_matrices.model_matrix, dt * 0.0002f,
-                 view_matrices.model_matrix);
+    glm_rotate_x(torus_knot_view_matrices.model_matrix, dt * 0.0002f,
+                 torus_knot_view_matrices.model_matrix);
+    glm_rotate_y(torus_knot_view_matrices.model_matrix, dt * 0.0002f,
+                 torus_knot_view_matrices.model_matrix);
+    glm_rotate_z(torus_knot_view_matrices.model_matrix, dt * 0.0002f,
+                 torus_knot_view_matrices.model_matrix);
 
     // Map uniform buffer and update it
-    wgpu_queue_write_buffer(context->wgpu_context, buffers.vs_uniform.buffer,
-                            64 + 64, &view_matrices.model_matrix[0],
-                            sizeof(mat4));
+    wgpu_queue_write_buffer(
+      context->wgpu_context, buffers.torus_knot.vs_uniform.buffer, 64 + 64,
+      &torus_knot_view_matrices.model_matrix[0], sizeof(mat4));
   }
 
-  // Update light position
+  /* Update light position */
   {
-    light_positions.light_position[0] = (sin(now * 0.001f) - 0.5f) * 4.0f;
+    light_positions.light_position[0] = sin(now * 0.001f) * 4.0f;
 
-    // Map uniform buffer and update it
-    wgpu_queue_write_buffer(context->wgpu_context, buffers.fs_uniform.buffer,
-                            16, &light_positions.light_position[0],
-                            sizeof(vec4));
+    /* Update the shere view matrix based on the light position */
+    {
+      glm_mat4_identity(sphere_view_matrices.model_matrix);
+      glm_translate(sphere_view_matrices.model_matrix,
+                    light_positions.light_position);
+
+      /* Map uniform buffer and update it */
+      wgpu_queue_write_buffer(context->wgpu_context,
+                              buffers.sphere.vs_uniform.buffer, 64 + 64,
+                              sphere_view_matrices.model_matrix, sizeof(mat4));
+    }
+
+    /* Map uniform buffer and update it */
+    wgpu_queue_write_buffer(context->wgpu_context,
+                            buffers.torus_knot.fs_uniform.buffer, 16,
+                            &light_positions.light_position[0], sizeof(vec4));
   }
 }
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
 {
+  //******************************* Torus Knot *******************************//
+
   /* Vertex buffer */
-  buffers.vertex = wgpu_create_buffer(
+  buffers.torus_knot.vertex = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertex buffer",
+                    .label = "Torus knot vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.vertices),
                     .initial.data = torus_knot_mesh.vertices,
                   });
 
   /* Index buffer */
-  buffers.index = wgpu_create_buffer(
+  buffers.torus_knot.index = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Index buffer",
+                    .label = "Torus knot index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(torus_knot_mesh.indices),
                     .initial.data = torus_knot_mesh.indices,
                   });
 
   /* UV buffer */
-  buffers.uv = wgpu_create_buffer(
+  buffers.torus_knot.uv = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "UV buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -474,7 +528,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                   });
 
   /* Normal buffer */
-  buffers.normal = wgpu_create_buffer(
+  buffers.torus_knot.normal = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Normal buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -483,21 +537,51 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                   });
 
   /* Vertex shader uniform buffer */
-  buffers.vs_uniform = wgpu_create_buffer(
+  buffers.torus_knot.vs_uniform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertex shader uniform buffer",
+                    .label = "Torus knot vertex shader uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(view_matrices),
-                    .initial.data = &view_matrices,
+                    .size  = sizeof(torus_knot_view_matrices),
+                    .initial.data = &torus_knot_view_matrices,
                   });
 
   /* Fragment shader uniform buffer */
-  buffers.fs_uniform = wgpu_create_buffer(
+  buffers.torus_knot.fs_uniform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Fragment shader uniform buffer",
+                    .label = "Torus knot fragment shader uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(light_positions),
                     .initial.data = &light_positions,
+                  });
+
+  //**************************** Sphere Geometry *****************************//
+
+  /* Vertex buffer */
+  buffers.sphere.vertex = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Sphere vertex buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sphere_geometry.vertices.byte_length,
+                    .initial.data = sphere_geometry.vertices.ptr,
+                  });
+
+  /* Index buffer */
+  buffers.sphere.index = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Sphere index buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sphere_geometry.indices.byte_length,
+                    .initial.data = sphere_geometry.indices.ptr,
+                    .count        = sphere_geometry.indices.length,
+                  });
+
+  /* Vertex shader uniform buffer */
+  buffers.sphere.vs_uniform = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Sphere vertex shader uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(sphere_view_matrices),
+                    .initial.data = &sphere_view_matrices,
                   });
 }
 
@@ -568,14 +652,14 @@ static void setup_render_pass(void)
   };
 }
 
-static void setup_bind_group(wgpu_context_t* wgpu_context)
+static void setup_torus_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = buffers.vs_uniform.buffer,
+      .buffer  = buffers.torus_knot.vs_uniform.buffer,
       .offset  = 0,
-      .size    = buffers.vs_uniform.size,
+      .size    = buffers.torus_knot.vs_uniform.size,
     },
     [1] = (WGPUBindGroupEntry) {
       .binding = 1,
@@ -587,23 +671,44 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
     [3] = (WGPUBindGroupEntry) {
       .binding = 3,
-      .buffer  = buffers.fs_uniform.buffer,
+      .buffer  = buffers.torus_knot.fs_uniform.buffer,
       .offset  = 0,
-      .size    = buffers.fs_uniform.size,
+      .size    = buffers.torus_knot.fs_uniform.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "uniform_buffer_bind_group",
-    .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
+    .label      = "Torus knot uniform buffer bind group",
+    .layout     = wgpuRenderPipelineGetBindGroupLayout(pipelines.torus_knot, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  uniform_bind_group
+  bind_groups.torus_knot
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(uniform_bind_group != NULL);
+  ASSERT(bind_groups.torus_knot != NULL);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void setup_sphere_bind_group(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupEntry bg_entries[1] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding = 0,
+      .buffer  = buffers.sphere.vs_uniform.buffer,
+      .offset  = 0,
+      .size    = buffers.sphere.vs_uniform.size,
+    },
+  };
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = "Sphere uniform buffer bind group",
+    .layout     = wgpuRenderPipelineGetBindGroupLayout(pipelines.sphere, 0),
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
+  };
+  bind_groups.sphere
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(bind_groups.sphere != NULL);
+}
+
+static void prepare_torus_knot_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
   WGPUPrimitiveState primitive_state = {
@@ -621,8 +726,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   };
 
   // Depth stencil state
-  // Enable depth testing so that the fragment closest to the camera
-  // is rendered in front.
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24Plus,
@@ -680,8 +785,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader WGSL
-                      .label            = "blinn_phong_lighting_vertex_shader_wgsl",
-                      .wgsl_code.source = blinn_phong_lighting_vertex_shader_wgsl,
+                      .label            = "blinn_phong_lighting_torus_knot_vertex_shader_wgsl",
+                      .wgsl_code.source = blinn_phong_lighting_torus_knot_vertex_shader_wgsl,
                       .entry            = "main",
                     },
                     .buffer_count = (uint32_t)ARRAY_SIZE(textured_torus_knot_vertex_buffer_layouts),
@@ -693,8 +798,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader WGSL
-                      .label            = "blinn_phong_lighting_fragment_shader_wgsl",
-                      .wgsl_code.source = blinn_phong_lighting_fragment_shader_wgsl,
+                      .label            = "blinn_phong_lighting_torus_knot_fragment_shader_wgsl",
+                      .wgsl_code.source = blinn_phong_lighting_torus_knot_fragment_shader_wgsl,
                       .entry = "main",
                     },
                     .target_count = 1,
@@ -709,16 +814,112 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "blinn_phong_lighting_render_pipeline",
-                            .primitive = primitive_state,
-                            .vertex    = vertex_state,
-                            .fragment  = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
+  pipelines.torus_knot = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label        = "blinn_phong_lighting_torus_knot_render_pipeline",
+      .primitive    = primitive_state,
+      .vertex       = vertex_state,
+      .fragment     = &fragment_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    });
+  ASSERT(pipelines.torus_knot != NULL);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
+  WGPUDepthStencilState depth_stencil_state
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24Plus,
+      .depth_write_enabled = true,
+    });
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+  // Vertex buffer layout
+  WGPUVertexBufferLayout textured_torus_knot_vertex_buffer_layouts[1] = {0};
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 0 : position attribute
+      .shaderLocation = 0,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+    };
+    textured_torus_knot_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
+      .arrayStride    = 3 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+
+  // Vertex state
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+    wgpu_context, &(wgpu_vertex_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Vertex shader WGSL
+                      .label            = "blinn_phong_lighting_sphere_vertex_shader_wgsl",
+                      .wgsl_code.source = blinn_phong_lighting_sphere_vertex_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .buffer_count = (uint32_t)ARRAY_SIZE(textured_torus_knot_vertex_buffer_layouts),
+                    .buffers = textured_torus_knot_vertex_buffer_layouts,
+                  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Fragment shader WGSL
+                      .label            = "blinn_phong_lighting_sphere_fragment_shader_wgsl",
+                      .wgsl_code.source = blinn_phong_lighting_sphere_fragment_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .target_count = 1,
+                    .targets      = &color_target_state,
+                  });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Create rendering pipeline using the specified states
+  pipelines.sphere = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label        = "blinn_phong_lighting_sphere_render_pipeline",
+      .primitive    = primitive_state,
+      .vertex       = vertex_state,
+      .fragment     = &fragment_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    });
+  ASSERT(pipelines.sphere != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -729,11 +930,14 @@ static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     prepare_torus_knot_mesh();
+    prepare_sphere_geometry();
     prepare_uniform_data(context->wgpu_context);
     prepare_buffers(context->wgpu_context);
     prepare_textures(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_bind_group(context->wgpu_context);
+    prepare_torus_knot_pipeline(context->wgpu_context);
+    prepare_sphere_pipeline(context->wgpu_context);
+    setup_torus_bind_group(context->wgpu_context);
+    setup_sphere_bind_group(context->wgpu_context);
     setup_render_pass();
     prepared = true;
     return EXIT_SUCCESS;
@@ -760,21 +964,42 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Record render pass
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    wgpu_context->rpass_enc, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                       buffers.uv.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    wgpu_context->rpass_enc, 2, buffers.normal.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, buffers.index.buffer, WGPUIndexFormat_Uint32, 0,
-    WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    uniform_bind_group, 0, 0);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   TORUS_KNOT_INDEX_COUNT, 1, 0, 0, 0);
+  // Record torus knot render pass
+  {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     pipelines.torus_knot);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         buffers.torus_knot.vertex.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                         buffers.torus_knot.uv.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                         buffers.torus_knot.normal.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      wgpu_context->rpass_enc, buffers.torus_knot.index.buffer,
+      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.torus_knot, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     TORUS_KNOT_INDEX_COUNT, 1, 0, 0, 0);
+  }
+
+  // Record sphere render pass
+  {
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.sphere);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         buffers.sphere.vertex.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      wgpu_context->rpass_enc, buffers.sphere.index.buffer,
+      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.sphere, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     buffers.sphere.index.count, 1, 0, 0, 0);
+  }
 
   // End render pass
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
@@ -826,16 +1051,21 @@ static int example_render(wgpu_example_context_t* context)
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
-  wgpu_destroy_buffer(&buffers.vertex);
-  wgpu_destroy_buffer(&buffers.index);
-  wgpu_destroy_buffer(&buffers.uv);
-  wgpu_destroy_buffer(&buffers.normal);
-  wgpu_destroy_buffer(&buffers.vs_uniform);
-  wgpu_destroy_buffer(&buffers.fs_uniform);
+  sphere_geometry_destroy(&sphere_geometry);
+  wgpu_destroy_buffer(&buffers.torus_knot.vertex);
+  wgpu_destroy_buffer(&buffers.torus_knot.index);
+  wgpu_destroy_buffer(&buffers.torus_knot.uv);
+  wgpu_destroy_buffer(&buffers.torus_knot.normal);
+  wgpu_destroy_buffer(&buffers.torus_knot.vs_uniform);
+  wgpu_destroy_buffer(&buffers.torus_knot.fs_uniform);
+  wgpu_destroy_buffer(&buffers.sphere.vertex);
+  wgpu_destroy_buffer(&buffers.sphere.index);
   wgpu_destroy_texture(&textures.torus_knot_face);
   wgpu_destroy_texture(&textures.depth);
-  WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.torus_knot)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.sphere)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.torus_knot)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.sphere)
 }
 
 void example_blinn_phong_lighting(int argc, char* argv[])
@@ -845,6 +1075,7 @@ void example_blinn_phong_lighting(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
      .title   = example_title,
      .overlay = true,
+     .vsync   = true,
     },
     .example_initialize_func = &example_initialize,
     .example_render_func     = &example_render,
@@ -858,7 +1089,7 @@ void example_blinn_phong_lighting(int argc, char* argv[])
  * -------------------------------------------------------------------------- */
 
 // clang-format off
-static const char* blinn_phong_lighting_vertex_shader_wgsl = CODE(
+static const char* blinn_phong_lighting_torus_knot_vertex_shader_wgsl = CODE(
   struct Uniform {
     pMatrix : mat4x4<f32>,
     vMatrix : mat4x4<f32>,
@@ -889,7 +1120,7 @@ static const char* blinn_phong_lighting_vertex_shader_wgsl = CODE(
   }
 );
 
-static const char* blinn_phong_lighting_fragment_shader_wgsl = CODE(
+static const char* blinn_phong_lighting_torus_knot_fragment_shader_wgsl = CODE(
   @binding(1) @group(0) var textureSampler : sampler;
   @binding(2) @group(0) var textureData : texture_2d<f32>;
 
@@ -975,6 +1206,34 @@ static const char* blinn_phong_lighting_fragment_shader_wgsl = CODE(
 
     // return vec4<f32>(finalColor, 1.0);
     return vec4<f32>(lin2rgb(radiance), 1.0);
+  }
+);
+
+static const char* blinn_phong_lighting_sphere_vertex_shader_wgsl = CODE(
+  struct Uniform {
+    pMatrix : mat4x4<f32>,
+    vMatrix : mat4x4<f32>,
+    mMatrix : mat4x4<f32>,
+  };
+  @binding(0) @group(0) var<uniform> uniforms : Uniform;
+
+  struct Output {
+    @builtin(position) Position : vec4<f32>
+  };
+
+  @vertex
+  fn main(@location(0) pos: vec4<f32>) -> Output {
+    var output: Output;
+    output.Position = uniforms.pMatrix * uniforms.vMatrix * uniforms.mMatrix * pos;
+    return output;
+  }
+);
+
+static const char* blinn_phong_lighting_sphere_fragment_shader_wgsl = CODE(
+  @fragment
+  fn main() -> @location(0) vec4<f32> {
+    let finalColor:vec3<f32> =  vec3<f32>(0.9,0.9,0.9);
+    return vec4<f32>(finalColor, 1.0);
   }
 );
 // clang-format on
