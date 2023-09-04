@@ -454,7 +454,7 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Time
+  /* Time */
   const float now = context->frame.timestamp_millis;
   float dt        = now - time_old;
   time_old        = now;
