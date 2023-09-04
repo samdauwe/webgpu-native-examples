@@ -3,6 +3,7 @@
 #include <cJSON.h>
 #include <string.h>
 
+#include "../core/log.h"
 #include "../webgpu/imgui_overlay.h"
 
 /* -------------------------------------------------------------------------- *
@@ -59,25 +60,25 @@ int prepare_torus_knot_mesh(void)
   if (model_json == NULL) {
     const char* error_ptr = cJSON_GetErrorPtr();
     if (error_ptr != NULL) {
-      fprintf(stderr, "Error before: %s\n", error_ptr);
+      log_error("Error before: %s", error_ptr);
     }
     goto load_json_end;
   }
 
   if (!cJSON_IsObject(model_json)
       || !cJSON_HasObjectItem(model_json, "meshes")) {
-    fprintf(stderr, "Invalid mesh file, does not contain 'meshes' array\n");
+    log_error("Invalid mesh file, does not contain 'meshes' array");
     goto load_json_end;
   }
 
   /* Get first mesh */
   meshes_array = cJSON_GetObjectItemCaseSensitive(model_json, "meshes");
   if (!cJSON_IsArray(meshes_array)) {
-    fprintf(stderr, "'meshes' object item is not an array\n");
+    log_error("'meshes' object item is not an array");
     goto load_json_end;
   }
   if (!(cJSON_GetArraySize(meshes_array) > 0)) {
-    fprintf(stderr, "'meshes' array does not contain any mesh object\n");
+    log_error("'meshes' array does not contain any mesh object");
     goto load_json_end;
   }
   meshes_item = cJSON_GetArrayItem(meshes_array, 0);
@@ -87,9 +88,9 @@ int prepare_torus_knot_mesh(void)
       || !cJSON_HasObjectItem(meshes_item, "faces")
       || !cJSON_HasObjectItem(meshes_item, "texturecoords")
       || !cJSON_HasObjectItem(meshes_item, "normals")) {
-    fprintf(stderr,
-            "Invalid mesh object, does not contain 'vertices', 'faces', "
-            "'texturecoords', 'normals' array\n");
+    log_error(
+      "Invalid mesh object, does not contain 'vertices', 'faces', "
+      "'texturecoords', 'normals' array");
     goto load_json_end;
   }
 
@@ -97,7 +98,7 @@ int prepare_torus_knot_mesh(void)
   {
     vertex_array = cJSON_GetObjectItemCaseSensitive(meshes_item, "vertices");
     if (!cJSON_IsArray(vertex_array)) {
-      fprintf(stderr, "vertices object item is not an array\n");
+      log_error("vertices object item is not an array");
       goto load_json_end;
     }
 
@@ -114,7 +115,7 @@ int prepare_torus_knot_mesh(void)
   {
     faces_array = cJSON_GetObjectItemCaseSensitive(meshes_item, "faces");
     if (!cJSON_IsArray(faces_array)) {
-      fprintf(stderr, "'faces' object item is not an array\n");
+      log_error("'faces' object item is not an array");
       goto load_json_end;
     }
 
@@ -124,7 +125,7 @@ int prepare_torus_knot_mesh(void)
     cJSON_ArrayForEach(face_item, faces_array)
     {
       if (!(cJSON_GetArraySize(face_item) == 3)) {
-        fprintf(stderr, "'face' item is not an array of size 3\n");
+        log_error("'face' item is not an array of size 3");
         goto load_json_end;
       }
       for (uint32_t i = 0; i < 3; ++i) {
@@ -139,12 +140,12 @@ int prepare_torus_knot_mesh(void)
     texturecoord_array
       = cJSON_GetObjectItemCaseSensitive(meshes_item, "texturecoords");
     if (!(cJSON_GetArraySize(texturecoord_array) > 0)) {
-      fprintf(stderr, "'texturecoords' array does not contain any object\n");
+      log_error("'texturecoords' array does not contain any object");
       goto load_json_end;
     }
     texturecoords_item = cJSON_GetArrayItem(texturecoord_array, 0);
     if (!cJSON_IsArray(texturecoords_item)) {
-      fprintf(stderr, "'texturecoords' object item is not an array\n");
+      log_error("'texturecoords' object item is not an array");
       goto load_json_end;
     }
 
@@ -161,7 +162,7 @@ int prepare_torus_knot_mesh(void)
   {
     normal_array = cJSON_GetObjectItemCaseSensitive(meshes_item, "normals");
     if (!cJSON_IsArray(normal_array)) {
-      fprintf(stderr, "'normals' object item is not an array\n");
+      log_error("'normals' object item is not an array");
       goto load_json_end;
     }
 
