@@ -22,6 +22,276 @@
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
+ * Vertex data - Torus Knot Mesh / Plane Mesh
+ * -------------------------------------------------------------------------- */
+
+typedef enum mesh_type_t {
+  MESH_TYPE_TORUS_KNOT = 0,
+  MESH_TYPE_PLANE      = 1,
+  MESH_TYPE_COUNT      = 2,
+} mesh_type_t;
+
+#define TORUS_KNOT_VERTEX_COUNT 7893
+#define TORUS_KNOT_FACES_COUNT 3000
+#define TORUS_KNOT_INDEX_COUNT (TORUS_KNOT_FACES_COUNT * 3)
+#define TORUS_KNOT_UV_COUNT 5262
+#define TORUS_KNOT_NORMAL_COUNT 7893
+#define TORUS_KNOT_TANGENTS_COUNT 7893
+#define TORUS_KNOT_BITANGENTS_COUNT 7893
+
+#define PLANE_VERTEX_COUNT 75
+#define PLANE_FACES_COUNT 32
+#define PLANE_INDEX_COUNT (TORUS_KNOT_FACES_COUNT * 3)
+#define PLANE_UV_COUNT 50
+#define PLANE_NORMAL_COUNT 75
+#define PLANE_TANGENTS_COUNT 75
+#define PLANE_BITANGENTS_COUNT 75
+
+static struct torus_knot_mesh {
+  float vertices[TORUS_KNOT_VERTEX_COUNT];
+  uint32_t indices[TORUS_KNOT_INDEX_COUNT];
+  float uvs[TORUS_KNOT_UV_COUNT];
+  float normals[TORUS_KNOT_NORMAL_COUNT];
+  float tangents[TORUS_KNOT_TANGENTS_COUNT];
+  float bitangents[TORUS_KNOT_BITANGENTS_COUNT];
+} torus_knot_mesh = {0};
+
+static struct plane_mesh {
+  float vertices[PLANE_VERTEX_COUNT];
+  uint32_t indices[PLANE_INDEX_COUNT];
+  float uvs[PLANE_UV_COUNT];
+  float normals[PLANE_NORMAL_COUNT];
+  float tangents[PLANE_TANGENTS_COUNT];
+  float bitangents[PLANE_BITANGENTS_COUNT];
+} plane_mesh = {0};
+
+int32_t prepare_meshes(mesh_type_t mesh_type)
+{
+  int32_t res = EXIT_FAILURE;
+
+  file_read_result_t file_read_result = {0};
+  read_file("meshes/model.json", &file_read_result, true);
+  const char* const json_data = (const char* const)file_read_result.data;
+
+  cJSON* model_json = cJSON_Parse(json_data);
+  if (model_json == NULL) {
+    const char* error_ptr = cJSON_GetErrorPtr();
+    if (error_ptr != NULL) {
+      log_error("Error before: %s", error_ptr);
+    }
+    goto load_json_end;
+  }
+
+  if (!cJSON_IsObject(model_json)
+      || !cJSON_HasObjectItem(model_json, "meshes")) {
+    log_error("Invalid mesh file, does not contain 'meshes' array");
+    goto load_json_end;
+  }
+
+  /* Get meshes */
+  for (int32_t mesh_id = 0; mesh_id < (int32_t)MESH_TYPE_COUNT; ++mesh_id) {
+    const cJSON* meshes_array
+      = cJSON_GetObjectItemCaseSensitive(model_json, "meshes");
+    if (!cJSON_IsArray(meshes_array)) {
+      log_error("'meshes' object item is not an array");
+      goto load_json_end;
+    }
+    if (!(cJSON_GetArraySize(meshes_array) > mesh_id)) {
+      log_error(
+        "'meshes' array does not contain any mesh object for mesh type %d",
+        mesh_id);
+      goto load_json_end;
+    }
+    const cJSON* meshes_item = cJSON_GetArrayItem(meshes_array, mesh_id);
+
+    if (!cJSON_IsObject(meshes_item)
+        || !cJSON_HasObjectItem(meshes_item, "vertices")
+        || !cJSON_HasObjectItem(meshes_item, "faces")
+        || !cJSON_HasObjectItem(meshes_item, "texturecoords")
+        || !cJSON_HasObjectItem(meshes_item, "normals")
+        || !cJSON_HasObjectItem(meshes_item, "tangents")
+        || !cJSON_HasObjectItem(meshes_item, "bitangents")) {
+      log_error(
+        "Invalid mesh object, does not contain 'vertices', 'faces', "
+        "'texturecoords', 'normals', 'tangents', 'bitangents' array");
+      goto load_json_end;
+    }
+
+    /* Parse vertices */
+    {
+      const cJSON* vertex_array = NULL;
+      const cJSON* vertex_item  = NULL;
+
+      vertex_array = cJSON_GetObjectItemCaseSensitive(meshes_item, "vertices");
+      if (!cJSON_IsArray(vertex_array)) {
+        log_error("vertices object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_VERTEX_COUNT :
+                           PLANE_VERTEX_COUNT;
+      ASSERT(cJSON_GetArraySize(vertex_array) == expectedSize);
+
+      float* mesh_vertices = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                               torus_knot_mesh.vertices :
+                               plane_mesh.vertices;
+      uint32_t c           = 0;
+      cJSON_ArrayForEach(vertex_item, vertex_array)
+      {
+        mesh_vertices[c++] = (float)vertex_item->valuedouble;
+      }
+    }
+
+    /* Parse indices */
+    {
+      const cJSON* faces_array
+        = cJSON_GetObjectItemCaseSensitive(meshes_item, "faces");
+      if (!cJSON_IsArray(faces_array)) {
+        log_error("'faces' object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_FACES_COUNT :
+                           PLANE_FACES_COUNT;
+      ASSERT(cJSON_GetArraySize(faces_array) == expectedSize);
+
+      uint32_t* mesh_indices = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                                 torus_knot_mesh.indices :
+                                 plane_mesh.indices;
+      const cJSON* face_item = NULL;
+      uint32_t c             = 0;
+      cJSON_ArrayForEach(face_item, faces_array)
+      {
+        if (!(cJSON_GetArraySize(face_item) == 3)) {
+          log_error("'face' item is not an array of size 3");
+          goto load_json_end;
+        }
+        for (uint32_t i = 0; i < 3; ++i) {
+          mesh_indices[c++]
+            = (uint32_t)cJSON_GetArrayItem(face_item, i)->valueint;
+        }
+      }
+    }
+
+    /* Parse uvs */
+    {
+      const cJSON* texturecoord_array
+        = cJSON_GetObjectItemCaseSensitive(meshes_item, "texturecoords");
+      if (!(cJSON_GetArraySize(texturecoord_array) > 0)) {
+        log_error("'texturecoords' array does not contain any object");
+        goto load_json_end;
+      }
+      const cJSON* texturecoords_item
+        = cJSON_GetArrayItem(texturecoord_array, 0);
+      if (!cJSON_IsArray(texturecoords_item)) {
+        log_error("'texturecoords' object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_UV_COUNT :
+                           PLANE_UV_COUNT;
+      ASSERT(cJSON_GetArraySize(texturecoords_item) == expectedSize);
+
+      float* mesh_uvs                = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                                         torus_knot_mesh.uvs :
+                                         plane_mesh.uvs;
+      const cJSON* texturecoord_item = NULL;
+      uint32_t c                     = 0;
+      cJSON_ArrayForEach(texturecoord_item, texturecoords_item)
+      {
+        mesh_uvs[c++] = (float)texturecoord_item->valuedouble;
+      }
+    }
+
+    /* Parse normals */
+    {
+      const cJSON* normal_array
+        = cJSON_GetObjectItemCaseSensitive(meshes_item, "normals");
+      if (!cJSON_IsArray(normal_array)) {
+        log_error("'normals' object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_NORMAL_COUNT :
+                           PLANE_NORMAL_COUNT;
+      ASSERT(cJSON_GetArraySize(normal_array) == expectedSize);
+
+      float* mesh_normals      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                                   torus_knot_mesh.normals :
+                                   plane_mesh.normals;
+      const cJSON* normal_item = NULL;
+      uint32_t c               = 0;
+      cJSON_ArrayForEach(normal_item, normal_array)
+      {
+        mesh_normals[c++] = (float)normal_item->valuedouble;
+      }
+    }
+
+    /* Parse tangents */
+    {
+      const cJSON* tangent_array
+        = cJSON_GetObjectItemCaseSensitive(meshes_item, "tangents");
+      if (!cJSON_IsArray(tangent_array)) {
+        log_error("'tangents' object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_TANGENTS_COUNT :
+                           PLANE_TANGENTS_COUNT;
+      ASSERT(cJSON_GetArraySize(tangent_array) == expectedSize);
+
+      float* mesh_tangents      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                                    torus_knot_mesh.tangents :
+                                    plane_mesh.tangents;
+      const cJSON* tangent_item = NULL;
+      uint32_t c                = 0;
+      cJSON_ArrayForEach(tangent_item, tangent_array)
+      {
+        mesh_tangents[c++] = (float)tangent_array->valuedouble;
+      }
+    }
+
+    /* Parse bitangents */
+    {
+      const cJSON* bitangent_array
+        = cJSON_GetObjectItemCaseSensitive(meshes_item, "bitangents");
+      if (!cJSON_IsArray(bitangent_array)) {
+        log_error("'bitangents' object item is not an array");
+        goto load_json_end;
+      }
+
+      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                           TORUS_KNOT_BITANGENTS_COUNT :
+                           PLANE_BITANGENTS_COUNT;
+      ASSERT(cJSON_GetArraySize(bitangent_array) == expectedSize);
+
+      float* mesh_bitangents      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+                                      torus_knot_mesh.bitangents :
+                                      plane_mesh.bitangents;
+      const cJSON* bitangent_item = NULL;
+      uint32_t c                  = 0;
+      cJSON_ArrayForEach(bitangent_item, bitangent_array)
+      {
+        mesh_bitangents[c++] = (float)bitangent_array->valuedouble;
+      }
+    }
+  }
+
+  res = EXIT_SUCCESS;
+
+load_json_end:
+  cJSON_Delete(model_json);
+  free(file_read_result.data);
+
+  return res;
+}
+
+/* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 static const char* normal_map_shadow_vertex_shader_wgsl;
@@ -161,15 +431,15 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
     // sample nearest 9 texels to smooth result
     let size = f32(textureDimensions(shadowMap).x);
     for (var y : i32 = -1 ; y <= 1 ; y = y + 1) {
-        for (var x : i32 = -1 ; x <= 1 ; x = x + 1) {
-            let offset = vec2<f32>(f32(x) / size, f32(y) / size);
-            shadow = shadow + textureSampleCompare(
-                shadowMap,
-                shadowSampler,
-                shadowPos.xy + offset,
-                shadowPos.z - 0.005  // apply a small bias to avoid acne
-            );
-        }
+      for (var x : i32 = -1 ; x <= 1 ; x = x + 1) {
+        let offset = vec2<f32>(f32(x) / size, f32(y) / size);
+        shadow = shadow + textureSampleCompare(
+            shadowMap,
+            shadowSampler,
+            shadowPos.xy + offset,
+            shadowPos.z - 0.005  // apply a small bias to avoid acne
+        );
+      }
     }
     shadow = shadow / 9.0;
 
@@ -183,8 +453,8 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
     let ambient: vec3<f32> = vec3<f32>(test.x + 0.2, 0.4, 0.5);
 
     let finalColor: vec3<f32> =  textureColor * ( shadow * diffuse + ambient) + (texturSpecular * specular * shadow);
-    //let finalColor:vec3<f32> =  colorNormal * 0.5 + 0.5;  //let color = N * 0.5 + 0.5;
-    //let finalColor:vec3<f32> =  texturSpecular ;  //let color = N * 0.5 + 0.5;
+    // let finalColor:vec3<f32> =  colorNormal * 0.5 + 0.5;  //let color = N * 0.5 + 0.5;
+    // let finalColor:vec3<f32> =  texturSpecular ;  //let color = N * 0.5 + 0.5;
 
     return vec4<f32>(finalColor, 1.0);
 );
