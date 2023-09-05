@@ -299,6 +299,61 @@ static const char* normal_map_vertex_shader_wgsl;
 static const char* normal_map_fragment_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
+ * Normal Mapping example
+ * -------------------------------------------------------------------------- */
+
+/* Texture and sampler */
+static struct {
+  texture_t diffuse;
+  texture_t normal;
+  texture_t specular;
+} textures                 = {0};
+static WGPUSampler sampler = NULL;
+
+// Other variables
+static const char* example_title = "Normal Mapping example";
+static bool prepared             = false;
+
+static void prepare_textures(wgpu_context_t* wgpu_context)
+{
+  /* Diffuse texture*/
+  {
+    const char* file = "textures/brics_diffuse.jpg";
+    textures.diffuse = wgpu_create_texture_from_file(wgpu_context, file, NULL);
+  }
+
+  /* Normal texture*/
+  {
+    const char* file = "textures/brics_normal.jpg";
+    textures.normal  = wgpu_create_texture_from_file(wgpu_context, file, NULL);
+  }
+
+  /* Specular texture*/
+  {
+    const char* file  = "textures/brics_specular.jpg";
+    textures.specular = wgpu_create_texture_from_file(wgpu_context, file, NULL);
+  }
+
+  /* Sampler */
+  {
+    sampler = wgpuDeviceCreateSampler(
+      wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .label         = "Texture sampler",
+                              .addressModeU  = WGPUAddressMode_Repeat,
+                              .addressModeV  = WGPUAddressMode_Repeat,
+                              .addressModeW  = WGPUAddressMode_Repeat,
+                              .minFilter     = WGPUFilterMode_Linear,
+                              .magFilter     = WGPUFilterMode_Linear,
+                              .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
+                              .lodMinClamp   = 0.0f,
+                              .lodMaxClamp   = 1.0f,
+                              .maxAnisotropy = 1,
+                            });
+    ASSERT(sampler);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
