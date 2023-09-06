@@ -304,26 +304,36 @@ static const char* normal_map_fragment_shader_wgsl;
 
 /* Buffers */
 static struct {
+  wgpu_buffer_t normal_map_vs_uniform_buffer;
+  wgpu_buffer_t normal_map_fs_uniform_buffer_0;
+  wgpu_buffer_t normal_map_fs_uniform_buffer_1;
   wgpu_buffer_t uniform_buffer_shadow;
 } buffers = {0};
 
-/* Texture and sampler */
+/* Textures and samplers */
 static struct {
   texture_t diffuse;
   texture_t normal;
   texture_t specular;
   texture_t shadow_depth;
-} textures                 = {0};
-static WGPUSampler sampler = NULL;
+  texture_t depth;
+} textures = {0};
+
+static struct {
+  WGPUSampler normal_map;
+  WGPUSampler shadow_depth;
+} samplers = {0};
 
 /* Uniform bind groups and render pipelines (and layout) */
 static struct {
   WGPUBindGroup shadow;
+  WGPUBindGroup normal_map;
+  WGPUBindGroup shadow_Depth;
 } bind_groups = {0};
 
 static struct {
   WGPURenderPipeline shadow;
-  WGPURenderPipeline meshes;
+  WGPURenderPipeline normal_map;
 } pipelines = {0};
 
 // Other variables
@@ -350,11 +360,11 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     textures.specular = wgpu_create_texture_from_file(wgpu_context, file, NULL);
   }
 
-  /* Sampler */
+  /* Samplers */
   {
-    sampler = wgpuDeviceCreateSampler(
+    samplers.normal_map = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "Texture sampler",
+                              .label         = "Normal map texture sampler",
                               .addressModeU  = WGPUAddressMode_Repeat,
                               .addressModeV  = WGPUAddressMode_Repeat,
                               .addressModeW  = WGPUAddressMode_Repeat,
@@ -365,10 +375,26 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
                               .lodMaxClamp   = 1.0f,
                               .maxAnisotropy = 1,
                             });
-    ASSERT(sampler);
+    ASSERT(samplers.normal_map);
+
+    samplers.shadow_depth = wgpuDeviceCreateSampler(
+      wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .label         = "Shadow depth texture sampler",
+                              .addressModeU  = WGPUAddressMode_ClampToEdge,
+                              .addressModeV  = WGPUAddressMode_ClampToEdge,
+                              .addressModeW  = WGPUAddressMode_ClampToEdge,
+                              .minFilter     = WGPUFilterMode_Nearest,
+                              .magFilter     = WGPUFilterMode_Linear,
+                              .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
+                              .compare       = WGPUCompareFunction_Less,
+                              .lodMinClamp   = 0.0f,
+                              .lodMaxClamp   = 1.0f,
+                              .maxAnisotropy = 1,
+                            });
+    ASSERT(samplers.shadow_depth != NULL);
   }
 
-  /* Depth texture */
+  /* Shadow depth texture */
   {
     textures.shadow_depth.texture =  wgpuDeviceCreateTexture(wgpu_context->device,
       &(WGPUTextureDescriptor) {
@@ -394,6 +420,33 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
                                        .arrayLayerCount = 1,
                                      });
   }
+
+  /* Depth texture */
+  {
+    textures.depth.texture =  wgpuDeviceCreateTexture(wgpu_context->device,
+      &(WGPUTextureDescriptor) {
+        .label         = "Depth texture",
+        .usage         = WGPUTextureUsage_RenderAttachment,
+        .dimension     = WGPUTextureDimension_2D,
+        .format        = WGPUTextureFormat_Depth24Plus,
+        .mipLevelCount = 1,
+        .sampleCount   = 1,
+        .size          = (WGPUExtent3D)  {
+          .width               = wgpu_context->surface.width,
+          .height              = wgpu_context->surface.height,
+          .depthOrArrayLayers  = 1,
+        },
+      });
+
+    textures.depth.view = wgpuTextureCreateView(
+      textures.depth.texture, &(WGPUTextureViewDescriptor){
+                                .label         = "Depth texture view",
+                                .dimension     = WGPUTextureViewDimension_2D,
+                                .format        = WGPUTextureFormat_Depth24Plus,
+                                .mipLevelCount = 1,
+                                .arrayLayerCount = 1,
+                              });
+  }
 }
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
@@ -417,6 +470,84 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.shadow
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
     ASSERT(bind_groups.shadow != NULL);
+  }
+
+  /* Normal map */
+  {
+    WGPUBindGroupEntry bg_entries[7] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = buffers.normal_map_vs_uniform_buffer.buffer,
+        .offset  = 0,
+        .size    = buffers.normal_map_vs_uniform_buffer.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .sampler = samplers.normal_map,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding     = 2,
+        .textureView = textures.diffuse.view,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding = 3,
+        .buffer  = buffers.normal_map_fs_uniform_buffer_0.buffer,
+        .offset  = 0,
+        .size    = buffers.normal_map_fs_uniform_buffer_0.size,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        .binding = 4,
+        .buffer  = buffers.uniform_buffer_shadow.buffer,
+        .offset  = 0,
+        .size    = buffers.uniform_buffer_shadow.size,
+      },
+      [5] = (WGPUBindGroupEntry) {
+        .binding     = 5,
+        .textureView = textures.normal.view,
+      },
+      [6] = (WGPUBindGroupEntry) {
+        .binding     = 6,
+        .textureView = textures.specular.view,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label  = "Bind group for normal map pass",
+      .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.normal_map, 0),
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    bind_groups.normal_map
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(bind_groups.normal_map != NULL);
+  }
+
+  /* Shadow depth */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = textures.shadow_depth.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .sampler = samplers.shadow_depth,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = buffers.normal_map_fs_uniform_buffer_1.buffer,
+        .offset  = 0,
+        .size    = buffers.normal_map_fs_uniform_buffer_1.size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label  = "Bind group for shadow depth pass",
+      .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.normal_map, 1),
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    bind_groups.shadow_Depth
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(bind_groups.shadow_Depth != NULL);
   }
 }
 
@@ -515,6 +646,156 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+}
+
+static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleList,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
+
+  // Color target state
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+    .format    = wgpu_context->swap_chain.format,
+    .blend     = &blend_state,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  // Depth stencil state
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
+  WGPUDepthStencilState depth_stencil_state
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24Plus,
+      .depth_write_enabled = true,
+    });
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+  // Vertex buffer layout
+  WGPUVertexBufferLayout normal_map_vertex_buffer_layouts[5] = {0};
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 0 : position attribute
+      .shaderLocation = 0,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x4,
+    };
+    normal_map_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
+      .arrayStride    = 4 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 1 : uv attribute
+      .shaderLocation = 1,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+    };
+    normal_map_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
+      .arrayStride    = 2 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 2 : normal attribute
+      .shaderLocation = 2,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+    };
+    normal_map_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
+      .arrayStride    = 3 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 3 : tangent attribute
+      .shaderLocation = 3,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+    };
+    normal_map_vertex_buffer_layouts[3] = (WGPUVertexBufferLayout){
+      .arrayStride    = 3 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+  {
+    WGPUVertexAttribute attribute = {
+      // Shader location 4 : bitangent attribute
+      .shaderLocation = 4,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x3,
+    };
+    normal_map_vertex_buffer_layouts[4] = (WGPUVertexBufferLayout){
+      .arrayStride    = 3 * sizeof(float),
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = 1,
+      .attributes     = &attribute,
+    };
+  }
+
+  // Vertex state
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+    wgpu_context, &(wgpu_vertex_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Vertex shader WGSL
+                      .label            = "normal_map_vertex_shader_wgsl",
+                      .wgsl_code.source = normal_map_vertex_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .buffer_count = (uint32_t)ARRAY_SIZE(normal_map_vertex_buffer_layouts),
+                    .buffers      = normal_map_vertex_buffer_layouts,
+                  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Fragment shader WGSL
+                      .label            = "normal_map_fragment_shader_wgsl",
+                      .wgsl_code.source = normal_map_fragment_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .target_count = 1,
+                    .targets      = &color_target_state,
+                  });
+
+  // Multisample state
+  WGPUMultisampleState multisample_state
+    = wgpu_create_multisample_state_descriptor(
+      &(create_multisample_state_desc_t){
+        .sample_count = 1,
+      });
+
+  // Create rendering pipeline using the specified states
+  pipelines.normal_map = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label        = "normal_map_render_pipeline",
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
+                          });
+  ASSERT(pipelines.normal_map != NULL);
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 /* -------------------------------------------------------------------------- *
