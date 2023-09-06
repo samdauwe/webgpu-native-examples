@@ -862,7 +862,7 @@ static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
-  WGPUVertexBufferLayout textured_torus_knot_vertex_buffer_layouts[1] = {0};
+  WGPUVertexBufferLayout shere_vertex_buffer_layouts[1] = {0};
   {
     WGPUVertexAttribute attribute = {
       // Shader location 0 : position attribute
@@ -870,7 +870,7 @@ static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
     };
-    textured_torus_knot_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
+    shere_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
       .arrayStride    = 3 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -887,8 +887,8 @@ static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
                       .wgsl_code.source = blinn_phong_lighting_sphere_vertex_shader_wgsl,
                       .entry            = "main",
                     },
-                    .buffer_count = (uint32_t)ARRAY_SIZE(textured_torus_knot_vertex_buffer_layouts),
-                    .buffers = textured_torus_knot_vertex_buffer_layouts,
+                    .buffer_count = (uint32_t)ARRAY_SIZE(shere_vertex_buffer_layouts),
+                    .buffers      = shere_vertex_buffer_layouts,
                   });
 
   // Fragment state
