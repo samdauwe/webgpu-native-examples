@@ -352,6 +352,29 @@ static struct {
   WGPURenderPipeline normal_map;
 } pipelines = {0};
 
+/* Uniform data */
+static struct {
+  mat4 projection_matrix;
+  mat4 view_matrix;
+  mat4 model_matrix;
+} view_matrices = {0};
+
+static struct {
+  vec4 eye_position;
+  vec4 light_position;
+} light_positions = {0};
+
+static struct {
+  mat4 projection_matrix;
+  mat4 view_matrix;
+  mat4 model_matrix;
+} shadow_view_matrices = {0};
+
+static struct {
+  vec3 value;
+  uint8_t padding[4];
+} shadow_color = {0};
+
 // Other variables
 static const char* example_title = "Normal Mapping example";
 static bool prepared             = false;
@@ -468,6 +491,44 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.bitangents),
                     .initial.data = torus_knot_mesh.bitangents,
+                  });
+
+  //***************************** Uniform Buffer *****************************//
+
+  /* Normal map vertex shader uniform buffer */
+  buffers.normal_map_vs_uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Normal map vertex shader uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(view_matrices),
+                    .initial.data = &view_matrices,
+                  });
+
+  /* Normal map fragment shader uniform buffer 0 */
+  buffers.normal_map_fs_uniform_buffer_0 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Normal map fragment shader uniform buffer 0",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(light_positions),
+                    .initial.data = &light_positions,
+                  });
+
+  /* Normal map fragment shader uniform buffer 1 */
+  buffers.normal_map_fs_uniform_buffer_1 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Normal map fragment shader uniform buffer 1",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(shadow_color),
+                    .initial.data = &shadow_color,
+                  });
+
+  /* Shadow uniform buffer */
+  buffers.uniform_buffer_shadow = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Shadow uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(shadow_view_matrices),
+                    .initial.data = &shadow_view_matrices,
                   });
 }
 
