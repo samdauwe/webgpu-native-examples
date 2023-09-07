@@ -292,6 +292,112 @@ load_json_end:
 }
 
 /* -------------------------------------------------------------------------- *
+ * Camera
+ * -------------------------------------------------------------------------- */
+
+typedef struct _camera_t {
+  wgpu_context_t* wgpu_context;
+  float speed_camera;
+  float fovy;
+  vec3 eye;
+  vec3 front;
+  vec3 up_world;
+  vec3 right;
+  vec3 up;
+  vec3 look;
+  mat4 projection_matrix;
+  mat4 view_matrix;
+  mat4 world_matrix;
+  float yaw;
+  float pitch;
+  float delta_time;
+} _camera_t;
+
+static void _camera_init_defaults(_camera_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->speed_camera = 0.01f;
+  this->fovy         = 40.0f * PI / 180.0f;
+  glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, this->up_world);
+  glm_mat4_identity(this->world_matrix);
+
+  this->yaw        = 90.0f * PI / 180.0f;
+  this->pitch      = 0.0f;
+  this->delta_time = 1.0f;
+}
+
+void _camera_init(_camera_t* this, wgpu_context_t* wgpu_context, vec3 eye,
+                  vec3 front)
+{
+  _camera_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+
+  glm_vec3_copy(eye, this->eye);
+  glm_vec3_copy(front, this->front);
+  glm_vec3_cross(this->front, this->up_world, this->right);
+  glm_vec3_cross(this->right, this->front, this->up);
+  glm_vec3_add(this->eye, this->front, this->look);
+}
+
+void _camera_update(_camera_t* this)
+{
+  /* View projection matrix */
+  const float aspect_ratio = (float)this->wgpu_context->surface.width
+                             / (float)this->wgpu_context->surface.height;
+  glm_perspective(this->fovy, aspect_ratio, 0.1f, 500.0f,
+                  this->projection_matrix);
+
+  /* View matrix */
+  glm_lookat(this->eye,        // eye vector
+             this->look,       // center vector
+             this->up,         // up vector
+             this->view_matrix // result matrix
+  );
+}
+
+void _camera_update_camera_vectors(_camera_t* this)
+{
+  glm_vec3_add(this->eye, this->front, this->look);
+  glm_vec3_cross(this->front, this->up_world, this->right);
+  glm_vec3_cross(this->right, this->front, this->up);
+
+  vec3 fz = GLM_VEC3_ZERO_INIT, rx = GLM_VEC3_ZERO_INIT,
+       uy = GLM_VEC3_ZERO_INIT;
+  glm_vec3_normalize_to(this->front, fz);
+  glm_vec3_normalize_to(this->right, rx);
+  glm_vec3_normalize_to(this->up, uy);
+
+  glm_mat4_copy(
+    (mat4){
+      {rx[0], rx[1], rx[2], this->eye[0]}, //
+      {uy[0], uy[1], uy[2], this->eye[1]}, //
+      {fz[0], fz[1], fz[2], this->eye[2]}, //
+      {0.0f, 0, 0.0f, 1.0f},               //
+    },
+    this->world_matrix);
+}
+
+void _camera_set_position(_camera_t* this, vec3 position)
+{
+  glm_vec3_copy(position, this->eye);
+  _camera_update(this);
+}
+
+void _camera_set_look(_camera_t* this, vec3 position)
+{
+  glm_vec3_copy(position, this->front);
+  _camera_update_camera_vectors(this);
+  _camera_update(this);
+}
+
+void _camera_set_delta_time(_camera_t* this, float delta_time)
+{
+  this->delta_time = delta_time;
+}
+
+/* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 static const char* shadow_vertex_shader_wgsl;
@@ -357,18 +463,29 @@ static struct {
   mat4 projection_matrix;
   mat4 view_matrix;
   mat4 model_matrix;
-} view_matrices = {0};
+} view_matrices = {
+  .projection_matrix = GLM_MAT4_IDENTITY_INIT,
+  .view_matrix       = GLM_MAT4_IDENTITY_INIT,
+  .model_matrix      = GLM_MAT4_IDENTITY_INIT,
+};
 
 static struct {
   vec4 eye_position;
   vec4 light_position;
-} light_positions = {0};
+} light_positions = {
+  .eye_position   = {3.0f, 10.0f, 2.0f, 1.0f},
+  .light_position = {5.0f, 5.0f, 5.0f, 1.0f},
+};
 
 static struct {
   mat4 projection_matrix;
   mat4 view_matrix;
   mat4 model_matrix;
-} shadow_view_matrices = {0};
+} shadow_view_matrices = {
+  .projection_matrix = GLM_MAT4_IDENTITY_INIT,
+  .view_matrix       = GLM_MAT4_IDENTITY_INIT,
+  .model_matrix      = GLM_MAT4_IDENTITY_INIT,
+};
 
 static struct {
   vec3 value;
@@ -378,6 +495,23 @@ static struct {
 // Other variables
 static const char* example_title = "Normal Mapping example";
 static bool prepared             = false;
+
+static void prepare_uniform_data(wgpu_context_t* wgpu_context)
+{
+  /* View matrix */
+  glm_lookat(light_positions.eye_position, // eye vector
+             (vec3){0.0f, 0.0f, 0.0f},     // center vector
+             (vec3){0.0f, 1.0f, 0.0f},     // up vector
+             view_matrices.view_matrix     // result matrix
+  );
+
+  /* View projection matrix */
+  const float aspect_ratio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  const float fovy = 40.0f * PI / 180.0f;
+  glm_perspective(fovy, aspect_ratio, 1.f, 25.0f,
+                  view_matrices.projection_matrix);
+}
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
 {
