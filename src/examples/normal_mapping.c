@@ -312,6 +312,14 @@ static struct {
     wgpu_buffer_t tangent;
     wgpu_buffer_t bitangent;
   } torus_knot;
+  struct {
+    wgpu_buffer_t vertex;
+    wgpu_buffer_t index;
+    wgpu_buffer_t uv;
+    wgpu_buffer_t normal;
+    wgpu_buffer_t tangent;
+    wgpu_buffer_t bitangent;
+  } plane;
   wgpu_buffer_t normal_map_vs_uniform_buffer;
   wgpu_buffer_t normal_map_fs_uniform_buffer_0;
   wgpu_buffer_t normal_map_fs_uniform_buffer_1;
@@ -373,7 +381,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* UV buffer */
   buffers.torus_knot.uv = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "UV buffer",
+                    .label = "Torus knot UV buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.uvs),
                     .initial.data = torus_knot_mesh.uvs,
@@ -382,7 +390,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Normal buffer */
   buffers.torus_knot.normal = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Normal buffer",
+                    .label = "Torus knot normal buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.normals),
                     .initial.data = torus_knot_mesh.normals,
@@ -391,7 +399,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Tangent buffer */
   buffers.torus_knot.tangent = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Tangents buffer",
+                    .label = "Torus knot tangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.tangents),
                     .initial.data = torus_knot_mesh.tangents,
@@ -400,7 +408,63 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Bitangent buffer */
   buffers.torus_knot.bitangent = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Bitangents buffer",
+                    .label = "Torus knot bitangents buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(torus_knot_mesh.bitangents),
+                    .initial.data = torus_knot_mesh.bitangents,
+                  });
+
+  //********************************* Plane **********************************//
+
+  /* Vertex buffer */
+  buffers.plane.vertex = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane vertex buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(torus_knot_mesh.vertices),
+                    .initial.data = torus_knot_mesh.vertices,
+                  });
+
+  /* Index buffer */
+  buffers.plane.index = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane index buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = sizeof(torus_knot_mesh.indices),
+                    .initial.data = torus_knot_mesh.indices,
+                  });
+
+  /* UV buffer */
+  buffers.plane.uv = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane UV buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(torus_knot_mesh.uvs),
+                    .initial.data = torus_knot_mesh.uvs,
+                  });
+
+  /* Normal buffer */
+  buffers.plane.normal = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane normal buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(torus_knot_mesh.normals),
+                    .initial.data = torus_knot_mesh.normals,
+                  });
+
+  /* Tangent buffer */
+  buffers.plane.tangent = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane tangents buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(torus_knot_mesh.tangents),
+                    .initial.data = torus_knot_mesh.tangents,
+                  });
+
+  /* Bitangent buffer */
+  buffers.plane.bitangent = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Plane bitangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.bitangents),
                     .initial.data = torus_knot_mesh.bitangents,
