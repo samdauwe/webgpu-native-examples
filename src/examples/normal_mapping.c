@@ -461,7 +461,6 @@ static struct {
 /* Render pass descriptor for frame buffer writes */
 static struct {
   struct {
-    WGPURenderPassColorAttachment color_attachments[1];
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
     WGPURenderPassDescriptor descriptor;
   } shadow;
@@ -786,6 +785,63 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
                                 .mipLevelCount = 1,
                                 .arrayLayerCount = 1,
                               });
+  }
+}
+
+static void setup_render_passes(void)
+{
+  /* Normal map render pass */
+  {
+    /* Color attachment */
+    render_pass.normal_map.color_attachments[0] = (WGPURenderPassColorAttachment) {
+      .view       = NULL, /* Assigned later */
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = (WGPUColor) {
+        .r = 0.3f,
+        .g = 0.4f,
+        .b = 0.5f,
+        .a = 1.0f,
+      },
+    };
+
+    /* Depth-stecil attachment */
+    render_pass.normal_map.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view            = textures.depth.view,
+        .depthClearValue = 1.0f,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+      };
+
+    // Render pass descriptor
+    render_pass.normal_map.descriptor = (WGPURenderPassDescriptor){
+      .label                = "Normal map render pass  descriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments     = render_pass.normal_map.color_attachments,
+      .depthStencilAttachment
+      = &render_pass.normal_map.depth_stencil_attachment,
+    };
+  }
+
+  /* Shadow render pass */
+  {
+    /* Depth-stecil attachment */
+    render_pass.normal_map.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view            = textures.shadow_depth.view,
+        .depthClearValue = 1.0f,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+      };
+
+    // Render pass descriptor
+    render_pass.normal_map.descriptor = (WGPURenderPassDescriptor){
+      .label                = "Normal map render pass  descriptor",
+      .colorAttachmentCount = 0,
+      .depthStencilAttachment
+      = &render_pass.normal_map.depth_stencil_attachment,
+    };
   }
 }
 
