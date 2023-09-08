@@ -503,9 +503,13 @@ static struct {
 static struct {
   vec3 value;
   uint8_t padding[4];
-} shadow_color = {0};
+} shadow_eye = {0};
 
-// Other variables
+/* Camera animation */
+static float time_old   = 0;
+static _camera_t camera = {0};
+
+/* Other variables */
 static const char* example_title = "Normal Mapping example";
 static bool prepared             = false;
 
@@ -528,6 +532,29 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
+  /* Time */
+  const float now = context->frame.timestamp_millis;
+  float dt        = now - time_old;
+  time_old        = now;
+
+  _camera_set_delta_time(&camera, dt);
+
+  /* Rotate model matrix */
+  glm_rotate_y(view_matrices.model_matrix, dt * 0.0002f,
+               view_matrices.model_matrix);
+  glm_mat4_copy(camera.projection_matrix, view_matrices.projection_matrix);
+  glm_mat4_copy(camera.view_matrix, view_matrices.view_matrix);
+
+  /* Map uniform buffers and update them */
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.normal_map_vs_uniform_buffer.buffer, 0,
+                          &view_matrices, sizeof(view_matrices));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.uniform_buffer_shadow.buffer, 64 + 64,
+                          view_matrices.model_matrix, sizeof(mat4));
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.normal_map_fs_uniform_buffer_0.buffer, 0,
+                          camera.eye, sizeof(vec3));
 }
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
@@ -669,8 +696,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Normal map fragment shader uniform buffer 1",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(shadow_color),
-                    .initial.data = &shadow_color,
+                    .size  = sizeof(shadow_eye),
+                    .initial.data = &shadow_eye,
                   });
 
   /* Shadow uniform buffer */
