@@ -450,13 +450,27 @@ static struct {
 static struct {
   WGPUBindGroup shadow;
   WGPUBindGroup normal_map;
-  WGPUBindGroup shadow_Depth;
+  WGPUBindGroup shadow_depth;
 } bind_groups = {0};
 
 static struct {
   WGPURenderPipeline shadow;
   WGPURenderPipeline normal_map;
 } pipelines = {0};
+
+/* Render pass descriptor for frame buffer writes */
+static struct {
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } shadow;
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } normal_map;
+} render_pass = {0};
 
 /* Uniform data */
 static struct {
@@ -871,9 +885,9 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
-    bind_groups.shadow_Depth
+    bind_groups.shadow_depth
       = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.shadow_Depth != NULL);
+    ASSERT(bind_groups.shadow_depth != NULL);
   }
 }
 
@@ -1122,6 +1136,95 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  }
+}
+
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
+  /* Normap map render pass */
+  {
+    render_pass.normal_map.color_attachments[0].view
+      = wgpu_context->swap_chain.frame_buffer;
+
+    // Begin render pass
+    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      wgpu_context->cmd_enc, &render_pass.normal_map.descriptor);
+
+    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
+                                     pipelines.normal_map);
+
+    /* Torus knot mesh */
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         buffers.torus_knot.vertex.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                         buffers.torus_knot.uv.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                         buffers.torus_knot.normal.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
+                                         buffers.torus_knot.tangent.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
+                                         buffers.torus_knot.bitangent.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      wgpu_context->rpass_enc, buffers.torus_knot.index.buffer,
+      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.normal_map, 0, 0);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
+                                      bind_groups.shadow_depth, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     TORUS_KNOT_INDEX_COUNT, 1, 0, 0, 0);
+
+    /* Plane mesh */
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
+                                         buffers.plane.vertex.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
+                                         buffers.plane.uv.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
+                                         buffers.plane.normal.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
+                                         buffers.plane.tangent.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
+                                         buffers.plane.bitangent.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+      wgpu_context->rpass_enc, buffers.plane.index.buffer,
+      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      bind_groups.normal_map, 0, 0);
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
+                                      bind_groups.shadow_depth, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     PLANE_INDEX_COUNT, 1, 0, 0, 0);
+
+    // End render pass
+    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  }
+
+  // Draw ui overlay
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+         // Get command buffer
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
 }
 
 /* -------------------------------------------------------------------------- *
