@@ -65,7 +65,7 @@ static struct plane_mesh {
   float bitangents[PLANE_BITANGENTS_COUNT];
 } plane_mesh = {0};
 
-int32_t prepare_meshes(mesh_type_t mesh_type)
+int32_t prepare_meshes(void)
 {
   int32_t res = EXIT_FAILURE;
 
@@ -128,12 +128,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_VERTEX_COUNT :
                            PLANE_VERTEX_COUNT;
       ASSERT(cJSON_GetArraySize(vertex_array) == expectedSize);
 
-      float* mesh_vertices = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      float* mesh_vertices = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                torus_knot_mesh.vertices :
                                plane_mesh.vertices;
       uint32_t c           = 0;
@@ -152,12 +152,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_FACES_COUNT :
                            PLANE_FACES_COUNT;
       ASSERT(cJSON_GetArraySize(faces_array) == expectedSize);
 
-      uint32_t* mesh_indices = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      uint32_t* mesh_indices = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                  torus_knot_mesh.indices :
                                  plane_mesh.indices;
       const cJSON* face_item = NULL;
@@ -190,12 +190,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_UV_COUNT :
                            PLANE_UV_COUNT;
       ASSERT(cJSON_GetArraySize(texturecoords_item) == expectedSize);
 
-      float* mesh_uvs                = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      float* mesh_uvs                = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                          torus_knot_mesh.uvs :
                                          plane_mesh.uvs;
       const cJSON* texturecoord_item = NULL;
@@ -215,12 +215,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_NORMAL_COUNT :
                            PLANE_NORMAL_COUNT;
       ASSERT(cJSON_GetArraySize(normal_array) == expectedSize);
 
-      float* mesh_normals      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      float* mesh_normals      = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                    torus_knot_mesh.normals :
                                    plane_mesh.normals;
       const cJSON* normal_item = NULL;
@@ -240,12 +240,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_TANGENTS_COUNT :
                            PLANE_TANGENTS_COUNT;
       ASSERT(cJSON_GetArraySize(tangent_array) == expectedSize);
 
-      float* mesh_tangents      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      float* mesh_tangents      = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                     torus_knot_mesh.tangents :
                                     plane_mesh.tangents;
       const cJSON* tangent_item = NULL;
@@ -265,12 +265,12 @@ int32_t prepare_meshes(mesh_type_t mesh_type)
         goto load_json_end;
       }
 
-      int expectedSize = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      int expectedSize = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                            TORUS_KNOT_BITANGENTS_COUNT :
                            PLANE_BITANGENTS_COUNT;
       ASSERT(cJSON_GetArraySize(bitangent_array) == expectedSize);
 
-      float* mesh_bitangents      = (mesh_type == MESH_TYPE_TORUS_KNOT) ?
+      float* mesh_bitangents      = (mesh_id == MESH_TYPE_TORUS_KNOT) ?
                                       torus_knot_mesh.bitangents :
                                       plane_mesh.bitangents;
       const cJSON* bitangent_item = NULL;
@@ -524,6 +524,10 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
   const float fovy = 40.0f * PI / 180.0f;
   glm_perspective(fovy, aspect_ratio, 1.f, 25.0f,
                   view_matrices.projection_matrix);
+}
+
+static void update_uniform_buffers(wgpu_example_context_t* context)
+{
 }
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
@@ -1194,6 +1198,24 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
+static int example_initialize(wgpu_example_context_t* context)
+{
+  if (context) {
+    prepare_meshes();
+    prepare_uniform_data(context->wgpu_context);
+    prepare_buffers(context->wgpu_context);
+    prepare_textures(context->wgpu_context);
+    prepare_shadow_pipeline(context->wgpu_context);
+    prepare_normal_map_pipeline(context->wgpu_context);
+    setup_bind_groups(context->wgpu_context);
+    setup_render_passes();
+    prepared = true;
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
+}
+
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
@@ -1340,6 +1362,93 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
 
   return command_buffer;
+}
+
+static int example_draw(wgpu_example_context_t* context)
+{
+  // Prepare frame
+  prepare_frame(context);
+
+  // Command buffer to be submitted to the queue
+  wgpu_context_t* wgpu_context                   = context->wgpu_context;
+  wgpu_context->submit_info.command_buffer_count = 1;
+  wgpu_context->submit_info.command_buffers[0]
+    = build_command_buffer(context->wgpu_context);
+
+  // Submit to queue
+  submit_command_buffers(context);
+
+  // Submit frame
+  submit_frame(context);
+
+  return EXIT_SUCCESS;
+}
+
+static int example_render(wgpu_example_context_t* context)
+{
+  if (!prepared) {
+    return 1;
+  }
+  if (!context->paused) {
+    update_uniform_buffers(context);
+  }
+  return example_draw(context);
+}
+
+// Clean up used resources
+static void example_destroy(wgpu_example_context_t* context)
+{
+  UNUSED_VAR(context);
+  wgpu_destroy_buffer(&buffers.torus_knot.vertex);
+  wgpu_destroy_buffer(&buffers.torus_knot.index);
+  wgpu_destroy_buffer(&buffers.torus_knot.uv);
+  wgpu_destroy_buffer(&buffers.torus_knot.normal);
+  wgpu_destroy_buffer(&buffers.torus_knot.tangent);
+  wgpu_destroy_buffer(&buffers.torus_knot.bitangent);
+
+  wgpu_destroy_buffer(&buffers.plane.vertex);
+  wgpu_destroy_buffer(&buffers.plane.index);
+  wgpu_destroy_buffer(&buffers.plane.uv);
+  wgpu_destroy_buffer(&buffers.plane.normal);
+  wgpu_destroy_buffer(&buffers.plane.tangent);
+  wgpu_destroy_buffer(&buffers.plane.bitangent);
+
+  wgpu_destroy_buffer(&buffers.normal_map_vs_uniform_buffer);
+  wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer_0);
+  wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer_1);
+  wgpu_destroy_buffer(&buffers.uniform_buffer_shadow);
+
+  wgpu_destroy_texture(&textures.diffuse);
+  wgpu_destroy_texture(&textures.normal);
+  wgpu_destroy_texture(&textures.specular);
+  wgpu_destroy_texture(&textures.shadow_depth);
+  wgpu_destroy_texture(&textures.depth);
+
+  WGPU_RELEASE_RESOURCE(Sampler, samplers.normal_map)
+  WGPU_RELEASE_RESOURCE(Sampler, samplers.shadow_depth)
+
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.shadow)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.normal_map)
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.shadow_depth)
+
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.shadow)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.normal_map)
+}
+
+void example_normal_mapping(int argc, char* argv[])
+{
+  // clang-format off
+  example_run(argc, argv, &(refexport_t){
+    .example_settings = (wgpu_example_settings_t){
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
+    },
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
+  });
+  // clang-format on
 }
 
 /* -------------------------------------------------------------------------- *
