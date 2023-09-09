@@ -506,7 +506,6 @@ static struct {
 
 static struct {
   vec3 value;
-  uint8_t padding[4];
 } shadow_eye = {
   .value = {1.0f, 1.0f, 1.0f},
 };
@@ -575,12 +574,18 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   wgpu_queue_write_buffer(context->wgpu_context,
                           buffers.normal_map_vs_uniform_buffer.buffer, 0,
                           &view_matrices, sizeof(view_matrices));
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          buffers.uniform_buffer_shadow.buffer, 64 + 64,
-                          shadow_view_matrices.model_matrix, sizeof(mat4));
+
   wgpu_queue_write_buffer(context->wgpu_context,
                           buffers.normal_map_fs_uniform_buffer_0.buffer, 0,
                           camera.eye, sizeof(vec3));
+
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.uniform_buffer_shadow.buffer, 0,
+                          &shadow_view_matrices, sizeof(shadow_view_matrices));
+
+  wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.normal_map_fs_uniform_buffer_1.buffer, 0,
+                          (vec3){1.0f, 1.0f, 1.0f}, sizeof(vec3));
 }
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
@@ -1028,10 +1033,10 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       // Shader location 0 : position attribute
       .shaderLocation = 0,
       .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
+      .format         = WGPUVertexFormat_Float32x4,
     };
     shadow_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      .arrayStride    = 3 * sizeof(float),
+      .arrayStride    = 4 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &attribute,
@@ -1255,8 +1260,8 @@ static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
     prepare_meshes();
-    prepare_uniform_data(context->wgpu_context);
     initialize_camera(context->wgpu_context);
+    prepare_uniform_data(context->wgpu_context);
     prepare_buffers(context->wgpu_context);
     prepare_textures(context->wgpu_context);
     prepare_shadow_pipeline(context->wgpu_context);
@@ -1300,12 +1305,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
                                          buffers.torus_knot.normal.buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                         buffers.torus_knot.tangent.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                         buffers.torus_knot.bitangent.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(
       wgpu_context->rpass_enc, buffers.torus_knot.index.buffer,
       WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
@@ -1322,12 +1321,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpu_context->rpass_enc, 1, buffers.plane.uv.buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
                                          buffers.plane.normal.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                         buffers.plane.tangent.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 4,
-                                         buffers.plane.bitangent.buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(
       wgpu_context->rpass_enc, buffers.plane.index.buffer,

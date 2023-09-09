@@ -487,6 +487,10 @@ This example shows how to render tile maps using WebGPU. The map is rendered usi
 
 This example demonstrates how to render a torus knot mesh with blinn-phong lighting model.
 
+#### [Normal Mapping](src/examples/normal_mapping.c)
+
+This example demonstrates how to achieve normal mapping in WebGPU. A normal map uses RGB information that corresponds directly with the X, Y and Z axis in 3D space. This RGB information tells the 3D application the exact direction of the surface normals are oriented in for each and every polygon.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
