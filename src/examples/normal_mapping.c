@@ -313,6 +313,8 @@ typedef struct _camera_t {
   float delta_time;
 } _camera_t;
 
+void _camera_update(_camera_t* this);
+
 static void _camera_init_defaults(_camera_t* this)
 {
   memset(this, 0, sizeof(*this));
@@ -339,6 +341,8 @@ void _camera_init(_camera_t* this, wgpu_context_t* wgpu_context, vec3 eye,
   glm_vec3_cross(this->front, this->up_world, this->right);
   glm_vec3_cross(this->right, this->front, this->up);
   glm_vec3_add(this->eye, this->front, this->look);
+
+  _camera_update(this);
 }
 
 void _camera_update(_camera_t* this)
@@ -503,7 +507,9 @@ static struct {
 static struct {
   vec3 value;
   uint8_t padding[4];
-} shadow_eye = {0};
+} shadow_eye = {
+  .value = {1.0f, 1.0f, 1.0f},
+};
 
 /* Camera animation */
 static float time_old   = 0;
@@ -512,6 +518,14 @@ static _camera_t camera = {0};
 /* Other variables */
 static const char* example_title = "Normal Mapping example";
 static bool prepared             = false;
+
+static void initialize_camera(wgpu_context_t* wgpu_context)
+{
+  _camera_init(&camera, wgpu_context, (vec3){0.0, 0.0, 10.0} /* eye */,
+               (vec3){0.0f, 0.0f, -1.0f} /* front */);
+  _camera_set_position(&camera, (vec3){0.0f, 5.0f, 10.0f});
+  _camera_set_look(&camera, (vec3){0.0, -0.5, -1.0});
+}
 
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 {
@@ -528,6 +542,17 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
   const float fovy = 40.0f * PI / 180.0f;
   glm_perspective(fovy, aspect_ratio, 1.f, 25.0f,
                   view_matrices.projection_matrix);
+
+  /* Shadow view matrix */
+  glm_lookat(light_positions.light_position,  // eye vector
+             (vec3){0.0f, 0.0f, 0.0f},        // center vector
+             (vec3){0.0f, 1.0f, 0.0f},        // up vector
+             shadow_view_matrices.view_matrix // result matrix
+  );
+
+  /* Shadow view projection matrix */
+  glm_ortho(-6.0f, 6.0f, -6.0f, 6.0f, 1.0f, 35.0f,
+            shadow_view_matrices.projection_matrix);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
@@ -544,6 +569,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                view_matrices.model_matrix);
   glm_mat4_copy(camera.projection_matrix, view_matrices.projection_matrix);
   glm_mat4_copy(camera.view_matrix, view_matrices.view_matrix);
+  glm_mat4_copy(view_matrices.model_matrix, shadow_view_matrices.model_matrix);
 
   /* Map uniform buffers and update them */
   wgpu_queue_write_buffer(context->wgpu_context,
@@ -551,7 +577,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &view_matrices, sizeof(view_matrices));
   wgpu_queue_write_buffer(context->wgpu_context,
                           buffers.uniform_buffer_shadow.buffer, 64 + 64,
-                          view_matrices.model_matrix, sizeof(mat4));
+                          shadow_view_matrices.model_matrix, sizeof(mat4));
   wgpu_queue_write_buffer(context->wgpu_context,
                           buffers.normal_map_fs_uniform_buffer_0.buffer, 0,
                           camera.eye, sizeof(vec3));
@@ -836,7 +862,7 @@ static void setup_render_passes(void)
       },
     };
 
-    /* Depth-stecil attachment */
+    /* Depth-stencil attachment */
     render_pass.normal_map.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view            = textures.depth.view,
@@ -857,8 +883,8 @@ static void setup_render_passes(void)
 
   /* Shadow render pass */
   {
-    /* Depth-stecil attachment */
-    render_pass.normal_map.depth_stencil_attachment
+    /* Depth-stencil attachment */
+    render_pass.shadow.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view            = textures.shadow_depth.view,
         .depthClearValue = 1.0f,
@@ -867,8 +893,8 @@ static void setup_render_passes(void)
       };
 
     // Render pass descriptor
-    render_pass.normal_map.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Normal map render pass  descriptor",
+    render_pass.shadow.descriptor = (WGPURenderPassDescriptor){
+      .label                = "Shadow render pass  descriptor",
       .colorAttachmentCount = 0,
       .depthStencilAttachment
       = &render_pass.normal_map.depth_stencil_attachment,
@@ -1109,10 +1135,10 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
       // Shader location 0 : position attribute
       .shaderLocation = 0,
       .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x4,
+      .format         = WGPUVertexFormat_Float32x3,
     };
     normal_map_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      .arrayStride    = 4 * sizeof(float),
+      .arrayStride    = 3 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &attribute,
@@ -1230,6 +1256,7 @@ static int example_initialize(wgpu_example_context_t* context)
   if (context) {
     prepare_meshes();
     prepare_uniform_data(context->wgpu_context);
+    initialize_camera(context->wgpu_context);
     prepare_buffers(context->wgpu_context);
     prepare_textures(context->wgpu_context);
     prepare_shadow_pipeline(context->wgpu_context);
@@ -1252,6 +1279,9 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
   /* Shadow render pass */
   {
     // Begin render pass
@@ -1637,5 +1667,6 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
     // let finalColor:vec3<f32> =  texturSpecular ;  //let color = N * 0.5 + 0.5;
 
     return vec4<f32>(finalColor, 1.0);
+  }
 );
 // clang-format on
