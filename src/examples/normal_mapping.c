@@ -622,8 +622,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(torus_knot_mesh.vertices),
-                    .initial.data = torus_knot_mesh.vertices,
+                    .size  = sizeof(plane_mesh.vertices),
+                    .initial.data = plane_mesh.vertices,
                   });
 
   /* Index buffer */
@@ -631,8 +631,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
-                    .size  = sizeof(torus_knot_mesh.indices),
-                    .initial.data = torus_knot_mesh.indices,
+                    .size  = sizeof(plane_mesh.indices),
+                    .initial.data = plane_mesh.indices,
                   });
 
   /* UV buffer */
@@ -640,8 +640,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane UV buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(torus_knot_mesh.uvs),
-                    .initial.data = torus_knot_mesh.uvs,
+                    .size  = sizeof(plane_mesh.uvs),
+                    .initial.data = plane_mesh.uvs,
                   });
 
   /* Normal buffer */
@@ -649,8 +649,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane normal buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(torus_knot_mesh.normals),
-                    .initial.data = torus_knot_mesh.normals,
+                    .size  = sizeof(plane_mesh.normals),
+                    .initial.data = plane_mesh.normals,
                   });
 
   /* Tangent buffer */
@@ -658,8 +658,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane tangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(torus_knot_mesh.tangents),
-                    .initial.data = torus_knot_mesh.tangents,
+                    .size  = sizeof(plane_mesh.tangents),
+                    .initial.data = plane_mesh.tangents,
                   });
 
   /* Bitangent buffer */
@@ -667,8 +667,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane bitangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(torus_knot_mesh.bitangents),
-                    .initial.data = torus_knot_mesh.bitangents,
+                    .size  = sizeof(plane_mesh.bitangents),
+                    .initial.data = plane_mesh.bitangents,
                   });
 
   //***************************** Uniform Buffer *****************************//
@@ -996,7 +996,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   // Vertex buffer layout
-  WGPUVertexBufferLayout textured_torus_knot_vertex_buffer_layouts[3] = {0};
+  WGPUVertexBufferLayout shadow_vertex_buffer_layouts[3] = {0};
   {
     WGPUVertexAttribute attribute = {
       // Shader location 0 : position attribute
@@ -1004,7 +1004,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
     };
-    textured_torus_knot_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
+    shadow_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
       .arrayStride    = 3 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -1018,7 +1018,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x2,
     };
-    textured_torus_knot_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
+    shadow_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
       .arrayStride    = 2 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -1032,7 +1032,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
     };
-    textured_torus_knot_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
+    shadow_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
       .arrayStride    = 3 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -1049,8 +1049,8 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
                       .wgsl_code.source = shadow_vertex_shader_wgsl,
                       .entry            = "main",
                     },
-                    .buffer_count = (uint32_t)ARRAY_SIZE(textured_torus_knot_vertex_buffer_layouts),
-                    .buffers = textured_torus_knot_vertex_buffer_layouts,
+                    .buffer_count = (uint32_t)ARRAY_SIZE(shadow_vertex_buffer_layouts),
+                    .buffers      = shadow_vertex_buffer_layouts,
                   });
 
   // Multisample state
@@ -1414,7 +1414,7 @@ static int example_draw(wgpu_example_context_t* context)
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   if (!context->paused) {
     update_uniform_buffers(context);
