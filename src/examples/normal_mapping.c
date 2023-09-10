@@ -865,6 +865,26 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
 static void setup_render_passes(void)
 {
+  /* Shadow render pass */
+  {
+    /* Depth-stencil attachment */
+    render_pass.shadow.depth_stencil_attachment
+      = (WGPURenderPassDepthStencilAttachment){
+        .view            = textures.shadow_depth.view,
+        .depthClearValue = 1.0f,
+        .depthLoadOp     = WGPULoadOp_Clear,
+        .depthStoreOp    = WGPUStoreOp_Store,
+      };
+
+    // Render pass descriptor
+    render_pass.shadow.descriptor = (WGPURenderPassDescriptor){
+      .label                = "Shadow render pass descriptor",
+      .colorAttachmentCount = 0,
+      .depthStencilAttachment
+      = &render_pass.normal_map.depth_stencil_attachment,
+    };
+  }
+
   /* Normal map render pass */
   {
     /* Color attachment */
@@ -894,26 +914,6 @@ static void setup_render_passes(void)
       .label                = "Normal map render pass  descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = render_pass.normal_map.color_attachments,
-      .depthStencilAttachment
-      = &render_pass.normal_map.depth_stencil_attachment,
-    };
-  }
-
-  /* Shadow render pass */
-  {
-    /* Depth-stencil attachment */
-    render_pass.shadow.depth_stencil_attachment
-      = (WGPURenderPassDepthStencilAttachment){
-        .view            = textures.shadow_depth.view,
-        .depthClearValue = 1.0f,
-        .depthLoadOp     = WGPULoadOp_Clear,
-        .depthStoreOp    = WGPUStoreOp_Store,
-      };
-
-    // Render pass descriptor
-    render_pass.shadow.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Shadow render pass  descriptor",
-      .colorAttachmentCount = 0,
       .depthStencilAttachment
       = &render_pass.normal_map.depth_stencil_attachment,
     };
