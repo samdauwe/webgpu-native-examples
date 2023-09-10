@@ -536,6 +536,39 @@ static void initialize_camera(wgpu_context_t* wgpu_context)
                (vec3){0.0f, 0.0f, -1.0f} /* front */);
 }
 
+/**
+ * @brief Generates a orthogonal projection matrix with the given bounds.
+ * @ref https://glmatrix.net/docs/mat4.js.html
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {number} left Left bound of the frustum
+ * @param {number} right Right bound of the frustum
+ * @param {number} bottom Bottom bound of the frustum
+ * @param {number} top Top bound of the frustum
+ * @param {number} near Near bound of the frustum
+ * @param {number} far Far bound of the frustum
+ * @returns {mat4} out
+ */
+static void glm_mat4_ortho(float left, float right, float bottom, float top,
+                           float nearZ, float farZ, mat4 dest)
+{
+  float lr, bt, nf;
+
+  lr = 1.0f / (left - right);
+  bt = 1.0f / (bottom - top);
+  nf = 1.0f / (nearZ - farZ);
+
+  glm_mat4_zero(dest);
+
+  dest[0][0] = -2.0f * lr;
+  dest[1][1] = -2.0f * bt;
+  dest[2][2] = 2.0f * nf;
+  dest[3][0] = (left + right) * lr;
+  dest[3][1] = (top + bottom) * bt;
+  dest[3][2] = (farZ + nearZ) * nf;
+  dest[3][3] = 1.0f;
+}
+
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 {
   /* View matrix */
@@ -565,8 +598,8 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
   );
 
   /* Shadow view projection matrix */
-  glm_ortho(-6.0f, 6.0f, -6.0f, 6.0f, 1.0f, 35.0f,
-            shadow_view_matrices.projection_matrix);
+  glm_mat4_ortho(-6.0f, 6.0f, -6.0f, 6.0f, 1.0f, 35.0f,
+                 shadow_view_matrices.projection_matrix);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
