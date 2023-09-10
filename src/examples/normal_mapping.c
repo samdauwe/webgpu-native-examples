@@ -452,6 +452,17 @@ static struct {
 
 /* Uniform bind groups and render pipelines (and layout) */
 static struct {
+  WGPUBindGroupLayout shadow;
+  WGPUBindGroupLayout normal_map;
+  WGPUBindGroupLayout shadow_depth;
+} bind_group_layouts;
+
+static struct {
+  WGPUPipelineLayout shadow;
+  WGPUPipelineLayout normal_map;
+} pipeline_layouts;
+
+static struct {
   WGPUBindGroup shadow;
   WGPUBindGroup normal_map;
   WGPUBindGroup shadow_depth;
@@ -506,6 +517,7 @@ static struct {
 
 static struct {
   vec3 value;
+  uint8_t padding[4];
 } shadow_eye = {
   .value = {1.0f, 1.0f, 1.0f},
 };
@@ -522,8 +534,6 @@ static void initialize_camera(wgpu_context_t* wgpu_context)
 {
   _camera_init(&camera, wgpu_context, (vec3){0.0, 0.0, 10.0} /* eye */,
                (vec3){0.0f, 0.0f, -1.0f} /* front */);
-  _camera_set_position(&camera, (vec3){0.0f, 5.0f, 10.0f});
-  _camera_set_look(&camera, (vec3){0.0, -0.5, -1.0});
 }
 
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
@@ -541,6 +551,11 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
   const float fovy = 40.0f * PI / 180.0f;
   glm_perspective(fovy, aspect_ratio, 1.f, 25.0f,
                   view_matrices.projection_matrix);
+
+  /* Set camera position */
+  _camera_set_position(&camera, (vec3){0.0f, 5.0f, 10.0f});
+  _camera_set_look(&camera, (vec3){0.0, -0.5, -1.0});
+  glm_vec3_copy(camera.eye, light_positions.eye_position);
 
   /* Shadow view matrix */
   glm_lookat(light_positions.light_position,  // eye vector
@@ -576,16 +591,12 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &view_matrices, sizeof(view_matrices));
 
   wgpu_queue_write_buffer(context->wgpu_context,
+                          buffers.uniform_buffer_shadow.buffer, 64 + 64,
+                          shadow_view_matrices.model_matrix, sizeof(mat4));
+
+  wgpu_queue_write_buffer(context->wgpu_context,
                           buffers.normal_map_fs_uniform_buffer_0.buffer, 0,
                           camera.eye, sizeof(vec3));
-
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          buffers.uniform_buffer_shadow.buffer, 0,
-                          &shadow_view_matrices, sizeof(shadow_view_matrices));
-
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          buffers.normal_map_fs_uniform_buffer_1.buffer, 0,
-                          (vec3){1.0f, 1.0f, 1.0f}, sizeof(vec3));
 }
 
 static void prepare_buffers(wgpu_context_t* wgpu_context)
@@ -608,6 +619,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(torus_knot_mesh.indices),
                     .initial.data = torus_knot_mesh.indices,
+                    .count        = TORUS_KNOT_INDEX_COUNT,
                   });
 
   /* UV buffer */
@@ -664,6 +676,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(plane_mesh.indices),
                     .initial.data = plane_mesh.indices,
+                    .count        = PLANE_INDEX_COUNT,
                   });
 
   /* UV buffer */
@@ -907,9 +920,192 @@ static void setup_render_passes(void)
   }
 }
 
+static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
+{
+  /* Bind group layout for shadow pass */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Uniform
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.uniform_buffer_shadow.size,
+        },
+        .sampler = {0},
+        },
+      };
+    bind_group_layouts.shadow = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Bind group layout for shadow pass",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(bind_group_layouts.shadow != NULL);
+  }
+
+  /* Bind group layout for normal map pass */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[7] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.normal_map_vs_uniform_buffer.size,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+        .texture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+      [3] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 3,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.normal_map_fs_uniform_buffer_0.size,
+        },
+        .sampler = {0},
+      },
+      [4] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 4,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.uniform_buffer_shadow.size,
+        },
+        .sampler = {0},
+      },
+      [5] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 5,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+      [6] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 6,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+    };
+    bind_group_layouts.normal_map = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = "Bind group layout for normal map pass",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(bind_group_layouts.normal_map != NULL);
+  }
+
+  /* Bind group layout for shadow depth pass */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Depth,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type = WGPUSamplerBindingType_Comparison,
+        },
+        .texture = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.normal_map_fs_uniform_buffer_1.size,
+        },
+        .sampler = {0},
+      },
+    };
+    bind_group_layouts.shadow_depth = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Bind group for shadow depth pass",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(bind_group_layouts.shadow_depth != NULL);
+  }
+}
+
+static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
+{
+  /* Pipeline layout for shadow pass */
+  {
+    WGPUBindGroupLayout bind_group_layout_list[1] = {
+      bind_group_layouts.shadow, /* group 0 */
+    };
+    pipeline_layouts.shadow = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = "Pipeline layout for shadow pass",
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_list),
+        .bindGroupLayouts     = bind_group_layout_list,
+      });
+    ASSERT(pipeline_layouts.shadow != NULL);
+  }
+
+  /* Pipeline layout for normal map pass */
+  {
+    WGPUBindGroupLayout bind_group_layout_list[2] = {
+      bind_group_layouts.normal_map,   /* group 0 */
+      bind_group_layouts.shadow_depth, /* group 1 */
+    };
+    pipeline_layouts.normal_map = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = "Pipeline layout for normal map pass",
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_list),
+        .bindGroupLayouts     = bind_group_layout_list,
+      });
+    ASSERT(pipeline_layouts.normal_map != NULL);
+  }
+}
+
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  /* Shadow bind group */
+  /* Bind group for shadow pass */
   {
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
@@ -921,7 +1117,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     WGPUBindGroupDescriptor bg_desc = {
       .label      = "Bind group for shadow pass",
-      .layout     = wgpuRenderPipelineGetBindGroupLayout(pipelines.shadow, 0),
+      .layout     = bind_group_layouts.shadow,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
@@ -930,7 +1126,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.shadow != NULL);
   }
 
-  /* Normal map */
+  /* Bind group for normal map pass */
   {
     WGPUBindGroupEntry bg_entries[7] = {
       [0] = (WGPUBindGroupEntry) {
@@ -969,8 +1165,8 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label  = "Bind group for normal map pass",
-      .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.normal_map, 0),
+      .label      = "Bind group for normal map pass",
+      .layout     = bind_group_layouts.normal_map,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
@@ -979,7 +1175,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.normal_map != NULL);
   }
 
-  /* Shadow depth */
+  /* Bind group for shadow depth pass */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -998,8 +1194,8 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label  = "Bind group for shadow depth pass",
-      .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.normal_map, 1),
+      .label      = "Bind group for shadow depth pass",
+      .layout     = bind_group_layouts.shadow_depth,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
@@ -1033,10 +1229,10 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
       // Shader location 0 : position attribute
       .shaderLocation = 0,
       .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x4,
+      .format         = WGPUVertexFormat_Float32x3,
     };
     shadow_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      .arrayStride    = 4 * sizeof(float),
+      .arrayStride    = 3 * sizeof(float),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &attribute,
@@ -1095,6 +1291,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
   pipelines.shadow = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "shadow_render_pipeline",
+                            .layout       = pipeline_layouts.shadow,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .depthStencil = &depth_stencil_state,
@@ -1243,6 +1440,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   pipelines.normal_map = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "normal_map_render_pipeline",
+                            .layout       = pipeline_layouts.normal_map,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
@@ -1264,9 +1462,11 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_uniform_data(context->wgpu_context);
     prepare_buffers(context->wgpu_context);
     prepare_textures(context->wgpu_context);
+    setup_bind_group_layouts(context->wgpu_context);
+    setup_pipeline_layouts(context->wgpu_context);
+    setup_bind_groups(context->wgpu_context);
     prepare_shadow_pipeline(context->wgpu_context);
     prepare_normal_map_pipeline(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
     setup_render_passes();
     prepared = true;
     return EXIT_SUCCESS;
@@ -1476,6 +1676,13 @@ static void example_destroy(wgpu_example_context_t* context)
 
   WGPU_RELEASE_RESOURCE(Sampler, samplers.normal_map)
   WGPU_RELEASE_RESOURCE(Sampler, samplers.shadow_depth)
+
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.shadow)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.normal_map)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.shadow_depth)
+
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.shadow)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layouts.normal_map)
 
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.shadow)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.normal_map)
