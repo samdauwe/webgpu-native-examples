@@ -252,7 +252,7 @@ int32_t prepare_meshes(void)
       uint32_t c                = 0;
       cJSON_ArrayForEach(tangent_item, tangent_array)
       {
-        mesh_tangents[c++] = (float)tangent_array->valuedouble;
+        mesh_tangents[c++] = (float)tangent_item->valuedouble;
       }
     }
 
@@ -277,7 +277,7 @@ int32_t prepare_meshes(void)
       uint32_t c                  = 0;
       cJSON_ArrayForEach(bitangent_item, bitangent_array)
       {
-        mesh_bitangents[c++] = (float)bitangent_array->valuedouble;
+        mesh_bitangents[c++] = (float)bitangent_item->valuedouble;
       }
     }
   }
