@@ -572,10 +572,10 @@ static void glm_mat4_ortho(float left, float right, float bottom, float top,
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 {
   /* View matrix */
-  glm_lookat(light_positions.eye_position, // eye vector
-             (vec3){0.0f, 0.0f, 0.0f},     // center vector
-             (vec3){0.0f, 1.0f, 0.0f},     // up vector
-             view_matrices.view_matrix     // result matrix
+  glm_lookat(light_positions.eye_position, /* eye vector    */
+             (vec3){0.0f, 0.0f, 0.0f},     /* center vector */
+             (vec3){0.0f, 1.0f, 0.0f},     /* up vector     */
+             view_matrices.view_matrix     /* result matrix */
   );
 
   /* View projection matrix */
@@ -591,10 +591,10 @@ static void prepare_uniform_data(wgpu_context_t* wgpu_context)
   glm_vec3_copy(camera.eye, light_positions.eye_position);
 
   /* Shadow view matrix */
-  glm_lookat(light_positions.light_position,  // eye vector
-             (vec3){0.0f, 0.0f, 0.0f},        // center vector
-             (vec3){0.0f, 1.0f, 0.0f},        // up vector
-             shadow_view_matrices.view_matrix // result matrix
+  glm_lookat(light_positions.light_position,  /* eye vector    */
+             (vec3){0.0f, 0.0f, 0.0f},        /* center vector */
+             (vec3){0.0f, 1.0f, 0.0f},        /* up vector     */
+             shadow_view_matrices.view_matrix /* result matrix */
   );
 
   /* Shadow view projection matrix */
