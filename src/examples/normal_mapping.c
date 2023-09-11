@@ -914,7 +914,7 @@ static void setup_render_passes(void)
       .label                = "Shadow render pass descriptor",
       .colorAttachmentCount = 0,
       .depthStencilAttachment
-      = &render_pass.normal_map.depth_stencil_attachment,
+      = &render_pass.shadow.depth_stencil_attachment,
     };
   }
 
