@@ -1869,23 +1869,6 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
 
     colorNormal = normalize(tbnMatrix * colorNormal);
 
-    var shadow : f32 = 0.0;
-    // apply Percentage-closer filtering (PCF)
-    // sample nearest 9 texels to smooth result
-    let size = f32(textureDimensions(shadowMap).x);
-    for (var y : i32 = -1 ; y <= 1 ; y = y + 1) {
-      for (var x : i32 = -1 ; x <= 1 ; x = x + 1) {
-        let offset = vec2<f32>(f32(x) / size, f32(y) / size);
-        shadow = shadow + textureSampleCompare(
-            shadowMap,
-            shadowSampler,
-            shadowPos.xy + offset,
-            shadowPos.z - 0.005  // apply a small bias to avoid acne
-        );
-      }
-    }
-    shadow = shadow / 9.0;
-
     let N: vec3<f32> = normalize(colorNormal.xyz);
     let L: vec3<f32> = normalize((uniforms.lightPosition).xyz - fragPosition.xyz);
     let V: vec3<f32> = normalize((uniforms.eyePosition).xyz - fragPosition.xyz);
@@ -1893,9 +1876,8 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
 
     let diffuse: f32 = 0.8 * max(dot(N, L), 0.0);
     let specular = pow(max(dot(N, H),0.0),100.0);
-    let ambient: vec3<f32> = vec3<f32>(test.x + 0.2, 0.4, 0.5);
 
-    let finalColor: vec3<f32> =  textureColor * ( shadow * diffuse + ambient) + (texturSpecular * specular * shadow);
+    let finalColor: vec3<f32> =  textureColor * diffuse + (texturSpecular * specular );
     // let finalColor:vec3<f32> =  colorNormal * 0.5 + 0.5;  //let color = N * 0.5 + 0.5;
     // let finalColor:vec3<f32> =  texturSpecular ;  //let color = N * 0.5 + 0.5;
 
