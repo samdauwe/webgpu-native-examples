@@ -431,7 +431,7 @@ static struct {
   } plane;
   wgpu_buffer_t normal_map_vs_uniform_buffer;
   wgpu_buffer_t normal_map_fs_uniform_buffer;
-  wgpu_buffer_t uniform_buffer_shadow;
+  wgpu_buffer_t uniform_buffer_light;
 } buffers = {0};
 
 /* Textures and samplers */
@@ -603,7 +603,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &view_matrices, sizeof(view_matrices));
 
   wgpu_queue_write_buffer(context->wgpu_context,
-                          buffers.uniform_buffer_shadow.buffer, 64 + 64,
+                          buffers.uniform_buffer_light.buffer, 64 + 64,
                           shadow_view_matrices.model_matrix, sizeof(mat4));
 
   wgpu_queue_write_buffer(context->wgpu_context,
@@ -747,10 +747,10 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .initial.data = &light_positions,
                   });
 
-  /* Shadow uniform buffer */
-  buffers.uniform_buffer_shadow = wgpu_create_buffer(
+  /* Light uniform buffer */
+  buffers.uniform_buffer_light = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Shadow uniform buffer",
+                    .label = "Light uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(shadow_view_matrices),
                     .initial.data = &shadow_view_matrices,
@@ -903,7 +903,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = buffers.uniform_buffer_shadow.size,
+        .minBindingSize   = buffers.uniform_buffer_light.size,
       },
       .sampler = {0},
     },
@@ -977,9 +977,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
     [4] = (WGPUBindGroupEntry) {
       .binding = 4,
-      .buffer  = buffers.uniform_buffer_shadow.buffer,
+      .buffer  = buffers.uniform_buffer_light.buffer,
       .offset  = 0,
-      .size    = buffers.uniform_buffer_shadow.size,
+      .size    = buffers.uniform_buffer_light.size,
     },
     [5] = (WGPUBindGroupEntry) {
       .binding     = 5,
@@ -1310,7 +1310,7 @@ static void example_destroy(wgpu_example_context_t* context)
 
   wgpu_destroy_buffer(&buffers.normal_map_vs_uniform_buffer);
   wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer);
-  wgpu_destroy_buffer(&buffers.uniform_buffer_shadow);
+  wgpu_destroy_buffer(&buffers.uniform_buffer_light);
 
   wgpu_destroy_texture(&textures.diffuse);
   wgpu_destroy_texture(&textures.normal);
