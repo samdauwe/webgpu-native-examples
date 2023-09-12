@@ -430,7 +430,7 @@ static struct {
     wgpu_buffer_t bitangent;
   } plane;
   wgpu_buffer_t normal_map_vs_uniform_buffer;
-  wgpu_buffer_t normal_map_fs_uniform_buffer_0;
+  wgpu_buffer_t normal_map_fs_uniform_buffer;
   wgpu_buffer_t uniform_buffer_shadow;
 } buffers = {0};
 
@@ -607,7 +607,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           shadow_view_matrices.model_matrix, sizeof(mat4));
 
   wgpu_queue_write_buffer(context->wgpu_context,
-                          buffers.normal_map_fs_uniform_buffer_0.buffer, 0,
+                          buffers.normal_map_fs_uniform_buffer.buffer, 0,
                           camera.eye, sizeof(vec3));
 }
 
@@ -738,8 +738,8 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .initial.data = &view_matrices,
                   });
 
-  /* Normal map fragment shader uniform buffer 0 */
-  buffers.normal_map_fs_uniform_buffer_0 = wgpu_create_buffer(
+  /* Normal map fragment shader uniform buffer */
+  buffers.normal_map_fs_uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Normal map fragment shader uniform buffer 0",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
@@ -893,7 +893,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = buffers.normal_map_fs_uniform_buffer_0.size,
+        .minBindingSize   = buffers.normal_map_fs_uniform_buffer.size,
       },
       .sampler = {0},
     },
@@ -971,9 +971,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
     [3] = (WGPUBindGroupEntry) {
       .binding = 3,
-      .buffer  = buffers.normal_map_fs_uniform_buffer_0.buffer,
+      .buffer  = buffers.normal_map_fs_uniform_buffer.buffer,
       .offset  = 0,
-      .size    = buffers.normal_map_fs_uniform_buffer_0.size,
+      .size    = buffers.normal_map_fs_uniform_buffer.size,
     },
     [4] = (WGPUBindGroupEntry) {
       .binding = 4,
@@ -1309,7 +1309,7 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_destroy_buffer(&buffers.plane.bitangent);
 
   wgpu_destroy_buffer(&buffers.normal_map_vs_uniform_buffer);
-  wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer_0);
+  wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer);
   wgpu_destroy_buffer(&buffers.uniform_buffer_shadow);
 
   wgpu_destroy_texture(&textures.diffuse);
