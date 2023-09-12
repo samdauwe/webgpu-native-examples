@@ -354,10 +354,10 @@ void _camera_update(_camera_t* this)
                   this->projection_matrix);
 
   /* View matrix */
-  glm_lookat(this->eye,        // eye vector
-             this->look,       // center vector
-             this->up,         // up vector
-             this->view_matrix // result matrix
+  glm_lookat(this->eye,        /* eye vector    */
+             this->look,       /* center vector */
+             this->up,         /* up vector     */
+             this->view_matrix /* result matrix */
   );
 }
 
