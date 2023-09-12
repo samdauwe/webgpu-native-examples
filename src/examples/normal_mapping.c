@@ -431,7 +431,6 @@ static struct {
   } plane;
   wgpu_buffer_t normal_map_vs_uniform_buffer;
   wgpu_buffer_t normal_map_fs_uniform_buffer_0;
-  wgpu_buffer_t normal_map_fs_uniform_buffer_1;
   wgpu_buffer_t uniform_buffer_shadow;
 } buffers = {0};
 
@@ -500,13 +499,6 @@ static struct {
   .projection_matrix = GLM_MAT4_IDENTITY_INIT,
   .view_matrix       = GLM_MAT4_IDENTITY_INIT,
   .model_matrix      = GLM_MAT4_IDENTITY_INIT,
-};
-
-static struct {
-  vec3 value;
-  uint8_t padding[4];
-} shadow_eye = {
-  .value = {1.0f, 1.0f, 1.0f},
 };
 
 /* Camera animation */
@@ -753,15 +745,6 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(light_positions),
                     .initial.data = &light_positions,
-                  });
-
-  /* Normal map fragment shader uniform buffer 1 */
-  buffers.normal_map_fs_uniform_buffer_1 = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Normal map fragment shader uniform buffer 1",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(shadow_eye),
-                    .initial.data = &shadow_eye,
                   });
 
   /* Shadow uniform buffer */
@@ -1327,7 +1310,6 @@ static void example_destroy(wgpu_example_context_t* context)
 
   wgpu_destroy_buffer(&buffers.normal_map_vs_uniform_buffer);
   wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer_0);
-  wgpu_destroy_buffer(&buffers.normal_map_fs_uniform_buffer_1);
   wgpu_destroy_buffer(&buffers.uniform_buffer_shadow);
 
   wgpu_destroy_texture(&textures.diffuse);
