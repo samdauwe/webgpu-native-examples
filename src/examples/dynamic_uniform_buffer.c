@@ -16,6 +16,17 @@
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* vertex_shader_wgsl;
+static const char* fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Dynamic Uniform Buffers example
+ * -------------------------------------------------------------------------- */
+
 #define OBJECT_INSTANCES 125u
 #define ALIGNMENT 256u // 256-byte alignment
 
@@ -245,9 +256,10 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .label = "Vertex shader",
-                  .file  = "shaders/dynamic_uniform_buffer/base.vert.spv",
+                  // Vertex shader WGSL
+                  .label            = "Vertex shader",
+                  .wgsl_code.source = vertex_shader_wgsl,
+                  .entry            = "main",
                 },
                 .buffer_count = 1,
                 .buffers      = &dyn_ubo_vertex_buffer_layout,
@@ -257,9 +269,10 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .label = "Fragment shader",
-                  .file  = "shaders/dynamic_uniform_buffer/base.frag.spv",
+                  // Fragment shader WGSL
+                  .label            = "Fragment shader",
+                  .wgsl_code.source = fragment_shader_wgsl,
+                  .entry            = "main",
                 },
                 .target_count = 1,
                 .targets      = &color_target_state,
@@ -592,3 +605,50 @@ void example_dynamic_uniform_buffer(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* vertex_shader_wgsl = CODE(
+  struct UboView {
+    projection : mat4x4<f32>,
+    view : mat4x4<f32>,
+  };
+
+  struct UboInstance {
+    model : mat4x4<f32>,
+  };
+
+  @group(0) @binding(0) var<uniform> uboView : UboView;
+  @group(0) @binding(1) var<uniform> uboInstance : UboInstance;
+
+  struct Output {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec3<f32>,
+  };
+
+  @vertex
+  fn main(
+    @location(0) inPos : vec3<f32>,
+    @location(1) inColor : vec3<f32>
+  ) -> Output {
+    var output : Output;
+    output.color = inColor;
+    let modelView : mat4x4<f32> = uboView.view * uboInstance.model;
+    let worldPos : vec3<f32> = (modelView * vec4<f32>(inPos, 1.0)).xyz;
+    output.position = uboView.projection * modelView * vec4(inPos.xyz, 1.0);
+    return output;
+  }
+);
+
+static const char* fragment_shader_wgsl = CODE(
+  @fragment
+  fn main(
+    @location(0) inColor : vec3<f32>
+  ) -> @location(0) vec4<f32> {
+    return vec4(inColor, 1.0);
+  }
+);
+// clang-format on
