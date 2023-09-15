@@ -356,7 +356,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Vertex shader WGSL
-         .label             = "render_solid_mesh_shader",
+         .label             = "render_solid_mesh_wgsl",
          .wgsl_code.source  = render_solid_mesh_wgsl,
          .entry             = "main_vertex",
        },
@@ -369,7 +369,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Fragment shader WGSL
-         .label             = "render_solid_mesh_shader",
+         .label             = "render_solid_mesh_wgsl",
          .wgsl_code.source  = render_solid_mesh_wgsl,
          .entry             = "main_fragment",
        },
