@@ -77,8 +77,8 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
     WGPUFeatureName_BGRA8UnormStorage,
   };
   WGPUDeviceDescriptor deviceDescriptor = {
-    .requiredFeaturesCount = (uint32_t)ARRAY_SIZE(required_features),
-    .requiredFeatures      = required_features,
+    .requiredFeatureCount = (uint32_t)ARRAY_SIZE(required_features),
+    .requiredFeatures     = required_features,
   };
   wgpu_context->device
     = wgpuAdapterCreateDevice(wgpu_context->adapter, &deviceDescriptor);
@@ -96,7 +96,7 @@ void wgpu_create_device_and_queue(wgpu_context_t* wgpu_context)
     WGPUFeatureName_IndirectFirstInstance,
     WGPUFeatureName_BGRA8UnormStorage,
     WGPUFeatureName_DepthClipControl,
-    WGPUFeatureName_DawnShaderFloat16,
+    WGPUFeatureName_ShaderF16,
     WGPUFeatureName_DawnInternalUsages,
     WGPUFeatureName_DawnMultiPlanarFormats,
   };

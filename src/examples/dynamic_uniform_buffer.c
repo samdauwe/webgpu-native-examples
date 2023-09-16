@@ -356,7 +356,7 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
         .label              = "dynamic_uniform_buffer_render_bundle_encoder",
-        .colorFormatsCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormatCount  = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
         .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
         .sampleCount        = 1,

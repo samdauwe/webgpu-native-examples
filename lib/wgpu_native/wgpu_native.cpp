@@ -31,10 +31,10 @@ static const char* AdapterTypeName(wgpu::AdapterType);
 static struct {
   struct {
     DawnProcTable procTable;
-    std::unique_ptr<dawn_native::Instance> instance = nullptr;
+    std::unique_ptr<dawn::native::Instance> instance = nullptr;
   } dawn_native;
   struct {
-    dawn_native::Adapter handle;
+    dawn::native::Adapter handle;
     wgpu::BackendType backendType;
     struct {
       const char* name;
@@ -52,13 +52,13 @@ static void Initialize()
   }
 
   // Set up the native procs for the global proctable
-  gpuContext.dawn_native.procTable = dawn_native::GetProcs();
+  gpuContext.dawn_native.procTable = dawn::native::GetProcs();
   dawnProcSetProcs(&gpuContext.dawn_native.procTable);
-  gpuContext.dawn_native.instance = std::make_unique<dawn_native::Instance>();
+  gpuContext.dawn_native.instance = std::make_unique<dawn::native::Instance>();
   gpuContext.dawn_native.instance->DiscoverDefaultAdapters();
   gpuContext.dawn_native.instance->EnableBackendValidation(true);
   gpuContext.dawn_native.instance->SetBackendValidationLevel(
-    dawn_native::BackendValidationLevel::Full);
+    dawn::native::BackendValidationLevel::Full);
 
   // Dawn backend type.
   // Default to D3D12, Metal, Vulkan, OpenGL in that order as D3D12 and Metal
@@ -118,10 +118,10 @@ static WGPUAdapter RequestAdapter(WGPURequestAdapterOptions* options)
     };
   }
 
-  std::vector<dawn_native::Adapter> adapters
+  std::vector<dawn::native::Adapter> adapters
     = gpuContext.dawn_native.instance->EnumerateAdapters();
   for (auto reqType : typePriority) {
-    for (const dawn_native::Adapter& adapter : adapters) {
+    for (const dawn::native::Adapter& adapter : adapters) {
       wgpu::AdapterProperties ap;
       adapter.GetProperties(&ap);
       if (ap.adapterType == reqType
