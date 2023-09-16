@@ -12,6 +12,7 @@
  *
  * Ref:
  * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cameras
+ * https://github.com/pr0g/c-polymorphism
  * -------------------------------------------------------------------------- *
 
 /* -------------------------------------------------------------------------- *
@@ -19,6 +20,33 @@
 * -------------------------------------------------------------------------- */
 
 static const char* cube_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Math functions
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Calculates the square root of the sum of squares of its arguments.
+ * @param a argument 1
+ * @param b argument 2
+ * @param c argument 3
+ * @return the square root of the sum of squares of its arguments
+ */
+static float math_hypot3(float a, float b, float c)
+{
+  return sqrt(a * a + b * b + c * c);
+}
+
+/**
+ * @brief Calculates the length of a vec3.
+ *
+ * @param {ReadonlyVec3} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+static float glm_vec3_length(vec3 v)
+{
+  return math_hypot3(v[0], v[1], v[2]);
+}
 
 /* -------------------------------------------------------------------------- *
  * The input event handling
@@ -159,7 +187,8 @@ typedef struct wasd_camera_t {
 } wasd_camera_t;
 
 static void wasd_camera_recalculate_angles(wasd_camera_t* this, vec3 dir);
-static mat4* update(camera_base_t* this, float delta_time, input_t* input);
+static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
+                                input_t* input);
 
 static void wasd_camera_init_defaults(wasd_camera_t* this)
 {
@@ -179,19 +208,32 @@ static void wasd_camera_init_virtual_method_table(wasd_camera_t* this)
 {
   camera_base_vtbl_t* vtbl = &this->super._vtbl;
 
-  vtbl->update = update;
+  vtbl->update = wasd_camera_update;
 }
 
 /* Construtor */
 static void wasd_camera_init(wasd_camera_t* this,
                              /* The initial position of the camera */
-                             vec3* position,
+                             vec3* iposition,
                              /* The initial target of the camera */
-                             vec3* target)
+                             vec3* itarget)
 {
   wasd_camera_init_defaults(this);
 
   camera_base_init(&this->super);
+  wasd_camera_init_virtual_method_table(this);
+
+  if ((iposition != NULL) || (itarget != NULL)) {
+    vec3 position, target, forward;
+    glm_vec3_copy((iposition == NULL) ? (vec3){0.0f, 0.0f, -5.0f} : *iposition,
+                  position);
+    glm_vec3_copy((itarget == NULL) ? (vec3){0.0f, 0.0f, 0.0f} : *itarget,
+                  target);
+    glm_vec3_sub(target, position, forward);
+    glm_vec3_normalize(forward);
+    wasd_camera_recalculate_angles(this, forward);
+    camera_base_set_position(&this->super, position);
+  }
 }
 
 /* Returns velocity vector */
@@ -229,4 +271,109 @@ static void wasd_camera_recalculate_angles(wasd_camera_t* this, vec3 dir)
 {
   this->yaw   = atan2(dir[0], dir[2]);
   this->pitch = -asin(dir[1]);
+}
+
+/* -------------------------------------------------------------------------- *
+ * ArcballCamera implements a basic orbiting camera around the world origin
+ * -------------------------------------------------------------------------- */
+
+typedef struct arcball_camera_t {
+  /* The camera bass class */
+  camera_base_t super;
+  /* The camera distance from the target */
+  float distance;
+  /* The current angular velocity  */
+  float angular_velocity;
+  /* The current rotation axis */
+  vec3 _axis;
+  /* Speed multiplier for camera rotation */
+  float rotation_speed;
+  /* Speed multiplier for camera zoom */
+  float zoom_speed;
+  /* Movement velocity drag coeffient [0 .. 1] */
+  /* 0: Instantly stops spinning               */
+  /* 1: Spins forever                          */
+  float friction_coefficient;
+} arcball_camera_t;
+
+static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
+                                   input_t* input);
+static void arcball_camera_recalcuate_right(arcball_camera_t* this);
+static void arcball_camera_recalcuate_up(arcball_camera_t* this);
+
+static void arcball_camera_init_defaults(arcball_camera_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  this->distance         = 0.0f;
+  this->angular_velocity = 0.0f;
+
+  glm_vec3_zero(this->_axis);
+
+  this->rotation_speed       = 1.0f;
+  this->zoom_speed           = 0.1f;
+  this->friction_coefficient = 0.0001f;
+}
+
+static void arcball_camera_init_virtual_method_table(arcball_camera_t* this)
+{
+  camera_base_vtbl_t* vtbl = &this->super._vtbl;
+
+  vtbl->update = arcball_camera_update;
+}
+
+/* Construtor */
+static void arcball_camera_init(arcball_camera_t* this,
+                                /* The initial position of the camera */
+                                vec3* iposition)
+{
+  arcball_camera_init_virtual_method_table(this);
+
+  camera_base_init(&this->super);
+  arcball_camera_init_virtual_method_table(this);
+
+  if (iposition != NULL) {
+    camera_base_set_position(&this->super, *iposition);
+    this->distance = glm_vec3_length(*camera_base_get_position(&this->super));
+    glm_vec3_normalize_to(*camera_base_get_position(&this->super),
+                          *camera_base_get_back(&this->super));
+    arcball_camera_recalcuate_right(this);
+    arcball_camera_recalcuate_up(this);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Cameras example.
+ * -------------------------------------------------------------------------- */
+
+// GUI
+typedef enum camera_type_t {
+  CameraType_Arcball,
+  Renderer_WASD,
+} camera_type_t;
+
+static struct {
+  vec3 initial_camera_position;
+  camera_type_t camera_type;
+} example_parms = {
+  .initial_camera_position = {3.0f, 2.0f, 5.0f},
+  .camera_type             = CameraType_Arcball,
+};
+
+/* The camera types */
+static struct {
+  arcball_camera_t arcball;
+  wasd_camera_t wasd;
+} cameras = {0};
+
+static const char* camera_type_names[2] = {"arcball", "WASD"};
+
+// Other variables
+static const char* example_title = "Cameras";
+static bool prepared             = false;
+
+static void initialize_cameras(void)
+{
+  arcball_camera_init(&cameras.arcball, &example_parms.initial_camera_position);
+  wasd_camera_init(&cameras.wasd, &example_parms.initial_camera_position, NULL);
 }
