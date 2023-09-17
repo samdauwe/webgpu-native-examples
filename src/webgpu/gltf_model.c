@@ -228,7 +228,7 @@ static void gltf_material_init(gltf_material_t* material,
   material->extension.specular_glossiness_texture = NULL;
   material->extension.diffuse_texture             = NULL;
   glm_vec4_one(material->extension.diffuse_factor);
-  glm_vec4_zero(material->extension.specular_factor);
+  glm_vec3_zero(material->extension.specular_factor);
   material->pbr_workflows.metallic_roughness  = true;
   material->pbr_workflows.specular_glossiness = false;
   material->bind_group                        = NULL;
@@ -1004,7 +1004,7 @@ static void gltf_model_load_node(gltf_model_t* model, cgltf_node* parent,
                 glm_vec4_one(vert.color);
                 vec3 tmp_vec3 = GLM_VEC3_ZERO_INIT;
                 memcpy(&tmp_vec3, &buffer_colors[v * 3], sizeof(vec3));
-                glm_vec4_copy3(tmp_vec3, vert.color);
+                glm_vec3_copy(tmp_vec3, vert.color);
               } break;
               case 4:
                 memcpy(&vert.color, &buffer_colors[v * 4], sizeof(vec4));

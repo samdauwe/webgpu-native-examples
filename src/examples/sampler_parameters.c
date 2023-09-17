@@ -98,7 +98,7 @@ typedef enum preset_enum_t {
 } preset_enum_t;
 
 static WGPUSamplerDescriptor presets[4] = {
-  [Preset_Checkerboard] = (WGPUSamplerDescriptor) {
+  [Preset_Checkerboard] = {
     .addressModeU  = WGPUAddressMode_Repeat,
     .addressModeV  = WGPUAddressMode_Repeat,
   },

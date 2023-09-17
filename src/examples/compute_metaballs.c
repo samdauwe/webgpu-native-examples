@@ -138,21 +138,21 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 static const quality_option_t QUALITIES[3] = {
-  [QualitySettings_Low] = (quality_option_t) {
+  [QualitySettings_Low] = {
     .bloom_toggle       = false,
     .shadow_res         = 512,
     .point_lights_count = 32,
     .output_scale       = 1.0f,
     .update_metaballs   = false,
   },
-  [QualitySettings_Medium] = (quality_option_t) {
+  [QualitySettings_Medium] = {
     .bloom_toggle       = true,
     .shadow_res         = 512,
     .point_lights_count = 32,
     .output_scale       = 1.0f,
     .update_metaballs   = true,
    },
-  [QualitySettings_High] = (quality_option_t) {
+  [QualitySettings_High] = {
     .bloom_toggle       = true,
     .shadow_res         = 512,
     .point_lights_count = 128,
