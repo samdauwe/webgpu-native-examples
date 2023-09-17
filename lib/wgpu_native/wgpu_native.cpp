@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include <cstdio>
 #include <memory>
 
 //****************************** Implementation *******************************/
