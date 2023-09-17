@@ -12,6 +12,7 @@ void example_basisu(int argc, char* argv[]);
 void example_bind_groups(int argc, char* argv[]);
 void example_blinn_phong_lighting(int argc, char* argv[]);
 void example_bloom(int argc, char* argv[]);
+void example_cameras(int argc, char* argv[]);
 void example_clear_screen(int argc, char* argv[]);
 void example_compute_boids(int argc, char* argv[]);
 void example_compute_metaballs(int argc, char* argv[]);
@@ -88,6 +89,7 @@ static examplecase_t g_example_cases[] = {
   {"bind_groups", example_bind_groups},
   {"blinn_phong_lighting", example_blinn_phong_lighting},
   {"bloom", example_bloom},
+  {"cameras", example_cameras},
   {"clear_screen", example_clear_screen},
   {"compute_boids", example_compute_boids},
   {"compute_metaballs", example_compute_metaballs},

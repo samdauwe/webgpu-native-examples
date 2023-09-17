@@ -201,6 +201,7 @@ set(SOURCES
     src/examples/bind_groups.c
     src/examples/blinn_phong_lighting.c
     src/examples/bloom.c
+    src/examples/cameras.c
     src/examples/clear_screen.c
     src/examples/compute_boids.c
     src/examples/compute_metaballs.c

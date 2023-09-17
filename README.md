@@ -191,6 +191,10 @@ Basic and verbose example for getting a colored triangle rendered to the screen 
 
 This example shows some of the alignment requirements involved when updating and binding multiple slices of a uniform buffer.
 
+#### [Cameras](src/examples/cameras.c)
+
+This example provides example camera implementations
+
 #### [Bind groups](src/examples/bind_groups.c)
 
 Bind groups are used to pass data to shader binding points. This example sets up bind groups & layouts, creates a single render pipeline based on the bind group layout and renders multiple objects with different bind groups.
