@@ -1,6 +1,7 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
+#include <stdbool.h>
 #include <dawn/webgpu.h>
 
 #define WGPU_RELEASE_RESOURCE(Type, Name)                                      \

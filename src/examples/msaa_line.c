@@ -128,7 +128,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 static void setup_render_bundle(wgpu_context_t* wgpu_context)
 {
   WGPURenderBundleEncoderDescriptor rbe_desc = {
-    .colorFormatsCount = 1,
+    .colorFormatCount = 1,
     .colorFormats      = &wgpu_context->swap_chain.format,
     .sampleCount       = sample_count,
   };
