@@ -111,6 +111,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   // Render pass descriptor
   render_pass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
@@ -333,7 +334,7 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
         .label              = "Two cubes render bundle encoder",
-        .colorFormatCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormatCount   = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
         .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
         .sampleCount        = 1,
