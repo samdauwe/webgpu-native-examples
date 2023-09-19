@@ -150,6 +150,12 @@ static void camera_base_set_matrix(camera_base_t* this, mat4 mat)
   this->_vtbl.set_matrix(this, mat);
 }
 
+static mat4* camera_base_update(struct camera_base_t* this, float delta_time,
+                                input_handler_t* input_handler)
+{
+  return this->_vtbl.update(this, delta_time, input_handler);
+}
+
 /* Returns the camera view matrix */
 static mat4* camera_base_view(camera_base_t* this)
 {
@@ -322,7 +328,12 @@ static void wasd_camera_set_matrix(camera_base_t* this, mat4 mat)
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
                                 input_handler_t* input)
 {
-  return NULL;
+  glm_mat4_identity(this->_view);
+  glm_translate(this->_view, (vec3){0.0f, 0.0f, -4.0f});
+  glm_rotate(this->_view, 1.0f,
+             (vec3){sin(delta_time), cos(-delta_time), 0.0f});
+
+  return &this->_view;
 }
 
 /* Recalculates the yaw and pitch values from a directional vector */
@@ -390,7 +401,7 @@ static void arcball_camera_init(arcball_camera_t* this,
                                 /* The initial position of the camera */
                                 vec3* iposition)
 {
-  arcball_camera_init_virtual_method_table(this);
+  arcball_camera_init_defaults(this);
 
   camera_base_init(&this->super);
   arcball_camera_init_virtual_method_table(this);
@@ -423,7 +434,11 @@ static void arcball_camera_set_matrix(camera_base_t* this, mat4 mat)
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
                                    input_handler_t* input)
 {
-  return NULL;
+  glm_mat4_identity(this->_view);
+  glm_translate(this->_view, (vec3){0.0f, 0.0f, -4.0f});
+  glm_rotate(this->_view, 1.0f, (vec3){sin(delta_time), cos(delta_time), 0.0f});
+
+  return &this->_view;
 }
 
 /* Assigns `this.right` with the cross product of `this.up` and `this.back` */
@@ -462,6 +477,8 @@ static struct {
   mat4 projection;
   mat4 view;
 } view_matrices = {0};
+
+static float last_frame_ms = 0.0f;
 
 // The pipeline layout
 static WGPUPipelineLayout pipeline_layout = NULL;
@@ -617,8 +634,11 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Setup the view matrices for the camera
+  /* Setup the view matrices for the camera */
   prepare_view_matrices(context->wgpu_context);
+
+  /* Set the current time */
+  last_frame_ms = context->frame.timestamp_millis;
 
   /* Uniform buffer */
   uniform_buffer_vs = wgpu_create_buffer(
@@ -630,30 +650,29 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   ASSERT(uniform_buffer_vs.buffer != NULL);
 }
 
-static void update_transformation_matrix(wgpu_example_context_t* context)
+static mat4* get_model_view_projection_matrix(float delta_time)
 {
-  const float now = context->frame.timestamp_millis / 1000.0f;
-
-  // View matrix
-  glm_mat4_identity(view_matrices.view);
-  glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
-  glm_rotate(view_matrices.view, 1.0f, (vec3){sin(now), cos(now), 0.0f});
-
-  // Model view projection matrix
-  glm_mat4_identity(cube.view_mtx.model_view_projection);
+  camera_base_t* camera = cameras[example_parms.camera_type];
+  glm_mat4_copy(*camera_base_update(camera, delta_time, &input_handler),
+                view_matrices.view);
   glm_mat4_mul(view_matrices.projection, view_matrices.view,
                cube.view_mtx.model_view_projection);
+  return &cube.view_mtx.model_view_projection;
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_model_view_projection_matrix(wgpu_example_context_t* context)
 {
-  // Update the model-view-projection matrix
-  update_transformation_matrix(context);
+  /* Get the model-view-projection matrix */
+  const float now        = context->frame.timestamp_millis;
+  const float delta_time = (now - last_frame_ms) / 1000.0f;
+  last_frame_ms          = now;
 
-  // Map uniform buffer and update it
+  // mat4* model_view_projection = get_model_view_projection_matrix(delta_time);
+  mat4* model_view_projection = get_model_view_projection_matrix(now / 1000.0);
+
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &cube.view_mtx.model_view_projection,
-                          uniform_buffer_vs.size);
+                          model_view_projection, uniform_buffer_vs.size);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -962,7 +981,7 @@ static int example_render(wgpu_example_context_t* context)
   update_mouse_state(&input_handler, context);
 
   if (!context->paused) {
-    update_uniform_buffers(context);
+    update_model_view_projection_matrix(context);
   }
   return example_draw(context);
 }
