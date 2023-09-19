@@ -13,7 +13,7 @@
  * Ref:
  * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cameras
  * https://github.com/pr0g/c-polymorphism
- * -------------------------------------------------------------------------- *
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
@@ -52,9 +52,48 @@ static float glm_vec3_length(vec3 v)
  * The input event handling
  * -------------------------------------------------------------------------- */
 
-typedef struct input_t {
-  void* padding;
-} input_t;
+typedef struct input_handler_t {
+  struct {
+    vec2 prev_mouse_position;
+    vec2 current_mouse_position;
+    vec2 mouse_drag_distance;
+    bool mouse_down;
+  } mouse_state;
+} input_handler_t;
+
+static void input_handler_init_defaults(input_handler_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void input_handler_init(input_handler_t* this)
+{
+  input_handler_init_defaults(this);
+}
+
+static void update_mouse_state(input_handler_t* this,
+                               wgpu_example_context_t* context)
+{
+  context->mouse_position[1]
+    = context->wgpu_context->surface.height - context->mouse_position[1];
+  if (!this->mouse_state.mouse_down && context->mouse_buttons.left) {
+    glm_vec2_copy(context->mouse_position,
+                  this->mouse_state.prev_mouse_position);
+    this->mouse_state.mouse_down = true;
+  }
+  else if (this->mouse_state.mouse_down && context->mouse_buttons.left) {
+    glm_vec2_sub(context->mouse_position, this->mouse_state.prev_mouse_position,
+                 this->mouse_state.mouse_drag_distance);
+    glm_vec2_add(this->mouse_state.current_mouse_position,
+                 this->mouse_state.mouse_drag_distance,
+                 this->mouse_state.current_mouse_position);
+    glm_vec2_copy(context->mouse_position,
+                  this->mouse_state.prev_mouse_position);
+  }
+  else if (this->mouse_state.mouse_down && !context->mouse_buttons.left) {
+    this->mouse_state.mouse_down = false;
+  }
+}
 
 /* -------------------------------------------------------------------------- *
  * The common functionality between camera implementations
@@ -63,7 +102,7 @@ typedef struct input_t {
 struct camera_base_t;
 
 typedef struct camera_base_vtbl_t {
-  mat4* (*update)(struct camera_base_t*, float, input_t*);
+  mat4* (*update)(struct camera_base_t*, float, input_handler_t*);
 } camera_base_vtbl_t;
 
 typedef struct camera_base_t {
@@ -188,7 +227,7 @@ typedef struct wasd_camera_t {
 
 static void wasd_camera_recalculate_angles(wasd_camera_t* this, vec3 dir);
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
-                                input_t* input);
+                                input_handler_t* input);
 
 static void wasd_camera_init_defaults(wasd_camera_t* this)
 {
@@ -262,7 +301,7 @@ static void wasd_camera_set_matrix(wasd_camera_t* this, mat4 mat)
 }
 
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
-                                input_t* input)
+                                input_handler_t* input)
 {
   return NULL;
 }
@@ -298,7 +337,7 @@ typedef struct arcball_camera_t {
 } arcball_camera_t;
 
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
-                                   input_t* input);
+                                   input_handler_t* input);
 static void arcball_camera_recalcuate_right(arcball_camera_t* this);
 static void arcball_camera_recalcuate_up(arcball_camera_t* this);
 
@@ -344,7 +383,7 @@ static void arcball_camera_init(arcball_camera_t* this,
 }
 
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
-                                   input_t* input)
+                                   input_handler_t* input)
 {
   return NULL;
 }
@@ -406,7 +445,7 @@ static struct {
   WGPUSampler sampler;
 } textures = {0};
 
-// GUI
+/* Camera parameters */
 typedef enum camera_type_t {
   CameraType_Arcball,
   Renderer_WASD,
@@ -421,12 +460,17 @@ static struct {
 };
 
 /* The camera types */
+static camera_type_t old_camera_type = CameraType_Arcball;
 static struct {
   arcball_camera_t arcball;
   wasd_camera_t wasd;
 } cameras = {0};
 
+/* GUI */
 static const char* camera_type_names[2] = {"arcball", "WASD"};
+
+/* Input handling */
+static input_handler_t input_handler = {0};
 
 // Other variables
 static const char* example_title = "Cameras";
@@ -774,6 +818,7 @@ static void setup_render_pass(void)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    input_handler_init(&input_handler);
     initialize_cameras();
     prepare_cube_mesh();
     prepare_vertex_buffer(context->wgpu_context);
@@ -864,6 +909,9 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return EXIT_FAILURE;
   }
+
+  update_mouse_state(&input_handler, context);
+
   if (!context->paused) {
     update_uniform_buffers(context);
   }
