@@ -74,21 +74,22 @@ static void input_handler_init(input_handler_t* this)
 static void update_mouse_state(input_handler_t* this,
                                wgpu_example_context_t* context)
 {
-  context->mouse_position[1]
-    = context->wgpu_context->surface.height - context->mouse_position[1];
+  vec2 mouse_position = {
+    context->mouse_position[0],
+    context->wgpu_context->surface.height - context->mouse_position[1],
+  };
+
   if (!this->mouse_state.mouse_down && context->mouse_buttons.left) {
-    glm_vec2_copy(context->mouse_position,
-                  this->mouse_state.prev_mouse_position);
+    glm_vec2_copy(mouse_position, this->mouse_state.prev_mouse_position);
     this->mouse_state.mouse_down = true;
   }
   else if (this->mouse_state.mouse_down && context->mouse_buttons.left) {
-    glm_vec2_sub(context->mouse_position, this->mouse_state.prev_mouse_position,
+    glm_vec2_sub(mouse_position, this->mouse_state.prev_mouse_position,
                  this->mouse_state.mouse_drag_distance);
     glm_vec2_add(this->mouse_state.current_mouse_position,
                  this->mouse_state.mouse_drag_distance,
                  this->mouse_state.current_mouse_position);
-    glm_vec2_copy(context->mouse_position,
-                  this->mouse_state.prev_mouse_position);
+    glm_vec2_copy(mouse_position, this->mouse_state.prev_mouse_position);
   }
   else if (this->mouse_state.mouse_down && !context->mouse_buttons.left) {
     this->mouse_state.mouse_down = false;
@@ -102,6 +103,8 @@ static void update_mouse_state(input_handler_t* this,
 struct camera_base_t;
 
 typedef struct camera_base_vtbl_t {
+  mat4* (*get_matrix)(struct camera_base_t*);
+  void (*set_matrix)(struct camera_base_t*, mat4);
   mat4* (*update)(struct camera_base_t*, float, input_handler_t*);
 } camera_base_vtbl_t;
 
@@ -125,16 +128,26 @@ static void camera_base_init(camera_base_t* this)
   camera_base_init_defaults(this);
 }
 
+static mat4* camera_base__get_matrix(camera_base_t* this)
+{
+  return &this->_matrix;
+}
+
+static void camera_base__set_matrix(camera_base_t* this, mat4 mat)
+{
+  glm_mat4_copy(mat, this->_matrix);
+}
+
 /* Returns the camera matrix */
 static mat4* camera_base_get_matrix(camera_base_t* this)
 {
-  return &this->_matrix;
+  return this->_vtbl.get_matrix(this);
 }
 
 /* Assigns `mat` to the camera matrix */
 static void camera_base_set_matrix(camera_base_t* this, mat4 mat)
 {
-  glm_mat4_copy(mat, this->_matrix);
+  this->_vtbl.set_matrix(this, mat);
 }
 
 /* Returns the camera view matrix */
@@ -226,6 +239,8 @@ typedef struct wasd_camera_t {
 } wasd_camera_t;
 
 static void wasd_camera_recalculate_angles(wasd_camera_t* this, vec3 dir);
+static mat4* wasd_camera_get_matrix(camera_base_t* this);
+static void wasd_camera_set_matrix(camera_base_t* this, mat4 mat);
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
                                 input_handler_t* input);
 
@@ -247,7 +262,9 @@ static void wasd_camera_init_virtual_method_table(wasd_camera_t* this)
 {
   camera_base_vtbl_t* vtbl = &this->super._vtbl;
 
-  vtbl->update = wasd_camera_update;
+  vtbl->get_matrix = wasd_camera_get_matrix;
+  vtbl->set_matrix = wasd_camera_set_matrix;
+  vtbl->update     = wasd_camera_update;
 }
 
 /* Construtor */
@@ -282,22 +299,24 @@ static vec3* wasd_camera_get_velocity(wasd_camera_t* this)
 }
 
 /* Assigns `vec` to the velocity vector */
-static vec3* wasd_camera_set_velocity(wasd_camera_t* this, vec3 vec)
+static void wasd_camera_set_velocity(wasd_camera_t* this, vec3 vec)
 {
   glm_vec3_copy(vec, this->_velocity);
 }
 
 /* Returns the camera matrix */
-static mat4* wasd_camera_get_matrix(wasd_camera_t* this)
+static mat4* wasd_camera_get_matrix(camera_base_t* this)
 {
-  return camera_base_get_matrix(&this->super);
+  wasd_camera_t* _this = (wasd_camera_t*)this;
+  return camera_base__get_matrix(&_this->super);
 }
 
 /* Assigns `mat` to the camera matrix, and recalcuates the camera angles */
-static void wasd_camera_set_matrix(wasd_camera_t* this, mat4 mat)
+static void wasd_camera_set_matrix(camera_base_t* this, mat4 mat)
 {
-  camera_base_set_matrix(&this->super, mat);
-  wasd_camera_recalculate_angles(this, *camera_base_get_back(&this->super));
+  wasd_camera_t* _this = (wasd_camera_t*)this;
+  camera_base__set_matrix(&_this->super, mat);
+  wasd_camera_recalculate_angles(_this, *camera_base_get_back(&_this->super));
 }
 
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
@@ -338,6 +357,8 @@ typedef struct arcball_camera_t {
 
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
                                    input_handler_t* input);
+static mat4* arcball_camera_get_matrix(camera_base_t* this);
+static void arcball_camera_set_matrix(camera_base_t* this, mat4 mat);
 static void arcball_camera_recalcuate_right(arcball_camera_t* this);
 static void arcball_camera_recalcuate_up(arcball_camera_t* this);
 
@@ -359,7 +380,9 @@ static void arcball_camera_init_virtual_method_table(arcball_camera_t* this)
 {
   camera_base_vtbl_t* vtbl = &this->super._vtbl;
 
-  vtbl->update = arcball_camera_update;
+  vtbl->get_matrix = arcball_camera_get_matrix;
+  vtbl->set_matrix = arcball_camera_set_matrix;
+  vtbl->update     = arcball_camera_update;
 }
 
 /* Construtor */
@@ -380,6 +403,21 @@ static void arcball_camera_init(arcball_camera_t* this,
     arcball_camera_recalcuate_right(this);
     arcball_camera_recalcuate_up(this);
   }
+}
+
+/* Returns the camera matrix */
+static mat4* arcball_camera_get_matrix(camera_base_t* this)
+{
+  arcball_camera_t* _this = (arcball_camera_t*)this;
+  return camera_base__get_matrix(&_this->super);
+}
+
+/* Assigns `mat` to the camera matrix, and recalcuates the distance */
+static void arcball_camera_set_matrix(camera_base_t* this, mat4 mat)
+{
+  arcball_camera_t* _this = (arcball_camera_t*)this;
+  camera_base__set_matrix(&_this->super, mat);
+  _this->distance = glm_vec3_length(*camera_base_get_position(&_this->super));
 }
 
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
@@ -460,11 +498,12 @@ static struct {
 };
 
 /* The camera types */
-static camera_type_t old_camera_type = CameraType_Arcball;
-static struct {
-  arcball_camera_t arcball;
-  wasd_camera_t wasd;
-} cameras = {0};
+static arcball_camera_t arcball_camera = {0};
+static wasd_camera_t wasd_camera       = {0};
+static camera_base_t* cameras[2]       = {
+  [0] = (camera_base_t*)&arcball_camera,
+  [1] = (camera_base_t*)&wasd_camera,
+};
 
 /* GUI */
 static const char* camera_type_names[2] = {"arcball", "WASD"};
@@ -478,8 +517,8 @@ static bool prepared             = false;
 
 static void initialize_cameras(void)
 {
-  arcball_camera_init(&cameras.arcball, &example_parms.initial_camera_position);
-  wasd_camera_init(&cameras.wasd, &example_parms.initial_camera_position, NULL);
+  arcball_camera_init(&arcball_camera, &example_parms.initial_camera_position);
+  wasd_camera_init(&wasd_camera, &example_parms.initial_camera_position, NULL);
 }
 
 /* Prepare the cube geometry */
@@ -838,7 +877,17 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+    imgui_overlay_text("Camera type");
+    int32_t camera_type = example_parms.camera_type;
+    if (imgui_overlay_combo_box(context->imgui_overlay, "cameratype",
+                                &camera_type, camera_type_names, 2)) {
+      /* Copy the camera matrix from old to new */
+      const int32_t new_camera_type = camera_type;
+      camera_base_set_matrix(
+        cameras[new_camera_type],
+        *camera_base_get_matrix(cameras[example_parms.camera_type]));
+      example_parms.camera_type = new_camera_type;
+    }
   }
 }
 
