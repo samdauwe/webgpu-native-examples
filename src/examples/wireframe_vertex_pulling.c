@@ -75,7 +75,7 @@ typedef struct cube_t {
 static cube_t cube = {0};
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -94,7 +94,7 @@ typedef enum render_mode_enum {
 static render_mode_enum current_render_mode = RenderMode_Solid_Mesh;
 
 // Render pipeline
-static WGPURenderPipeline render_pipelines[4];
+static WGPURenderPipeline render_pipelines[4] = {0};
 
 // Other variables
 static const char* example_title
