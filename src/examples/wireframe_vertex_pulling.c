@@ -142,7 +142,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: uniform buffer
+      /*  Binding 0: uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -153,7 +153,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: positions
+      /* Binding 1: positions */
       .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -164,7 +164,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: colors
+      /* Binding 2: colors */
       .binding    = 2,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -175,7 +175,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
-      // Binding 3: indices
+      /* Binding 3: indices */
       .binding    = 3,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -205,7 +205,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
@@ -279,28 +279,28 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0: uniform buffer
+      /* Binding 0: uniform buffer */
       .binding = 0,
       .buffer  = cube.uniform_buffer_vs.buffer,
       .offset  = 0,
       .size    = cube.uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-       // Binding 1: positions
+       /* Binding 1: positions */
       .binding = 1,
       .buffer  = cube.positions.buffer,
       .offset  = 0,
       .size    = cube.positions.size,
     },
     [2] = (WGPUBindGroupEntry) {
-      //  Binding 2: colors
+      /*  Binding 2: colors */
       .binding = 2,
       .buffer  = cube.colors.buffer,
       .offset  = 0,
       .size    = cube.colors.size,
     },
     [3] = (WGPUBindGroupEntry) {
-      //  Binding 3: indices
+      /*  Binding 3: indices */
       .binding = 3,
       .buffer  = cube.indices.buffer,
       .offset  = 0,
