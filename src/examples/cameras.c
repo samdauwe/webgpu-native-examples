@@ -540,6 +540,11 @@ static void arcball_camera_recalcuate_right(arcball_camera_t* this)
 /* Assigns `this.up` with the cross product of `this.back` and `this.right` */
 static void arcball_camera_recalcuate_up(arcball_camera_t* this)
 {
+  vec3 cross = GLM_VEC3_ZERO_INIT;
+  glm_vec3_cross(*camera_base_get_back(&this->super),
+                 *camera_base_get_right(&this->super), cross);
+  glm_vec3_normalize(cross);
+  camera_base_set_up(&this->super, cross);
 }
 
 /* --------------------------------------------------------------------------
