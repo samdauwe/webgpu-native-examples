@@ -48,6 +48,10 @@ static float glm_vec3_length(vec3 v)
   return math_hypot3(v[0], v[1], v[2]);
 }
 
+static void rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
+{
+}
+
 /* -------------------------------------------------------------------------- *
  * The input event handling
  * -------------------------------------------------------------------------- */
@@ -58,6 +62,7 @@ typedef struct input_handler_t {
     vec2 current_mouse_position;
     vec2 mouse_drag_distance;
     bool mouse_down;
+    float zoom;
   } mouse_state;
 } input_handler_t;
 
@@ -384,7 +389,7 @@ static void arcball_camera_init_defaults(arcball_camera_t* this)
 
   this->rotation_speed       = 1.0f;
   this->zoom_speed           = 0.1f;
-  this->friction_coefficient = 0.0001f;
+  this->friction_coefficient = 0.999f;
 }
 
 static void arcball_camera_init_virtual_method_table(arcball_camera_t* this)
@@ -416,6 +421,18 @@ static void arcball_camera_init(arcball_camera_t* this,
   }
 }
 
+/* Returns the rotation axis */
+static vec3* arcball_camera_get_axis(arcball_camera_t* this)
+{
+  return &this->_axis;
+}
+
+/* Assigns `vec` to the rotation axis */
+static void arcball_camera_set_axis(arcball_camera_t* this, vec3 vec)
+{
+  glm_vec3_copy(vec, this->_axis);
+}
+
 /* Returns the camera matrix */
 static mat4* arcball_camera_get_matrix(camera_base_t* this)
 {
@@ -434,9 +451,78 @@ static void arcball_camera_set_matrix(camera_base_t* this, mat4 mat)
 static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
                                    input_handler_t* input)
 {
-  glm_mat4_identity(this->_view);
-  glm_translate(this->_view, (vec3){0.0f, 0.0f, -4.0f});
-  glm_rotate(this->_view, 1.0f, (vec3){sin(delta_time), cos(delta_time), 0.0f});
+  arcball_camera_t* _this = (arcball_camera_t*)this;
+
+  const float epsilon = 0.0000001f;
+
+  if (input->mouse_state.mouse_down) {
+    /* Currently being dragged. */
+    _this->angular_velocity = 0.0f;
+  }
+  else {
+    /* Dampen any existing angular velocity */
+    _this->angular_velocity
+      *= pow(1.0f - _this->friction_coefficient, delta_time);
+  }
+
+  /* Calculate the movement vector */
+  vec3 right_scaled = GLM_VEC3_ZERO_INIT, up_scaled = GLM_VEC3_ZERO_INIT;
+  glm_vec3_copy(*camera_base_get_right(this), right_scaled);
+  glm_vec3_scale(right_scaled, input->mouse_state.current_mouse_position[0],
+                 right_scaled);
+  glm_vec3_copy(*camera_base_get_up(this), up_scaled);
+  glm_vec3_scale(up_scaled, input->mouse_state.current_mouse_position[1],
+                 up_scaled);
+
+  vec3 movement = GLM_VEC3_ZERO_INIT;
+  glm_vec3_add(movement, right_scaled, movement);
+  glm_vec3_add(movement, up_scaled, movement);
+
+  /* Cross the movement vector with the view direction to calculate the rotation
+   * axis x magnitude */
+  vec3 cross_product = GLM_VEC3_ZERO_INIT;
+  glm_vec3_cross(movement, *camera_base_get_back(this), cross_product);
+
+  /* Calculate the magnitude of the drag */
+  const float magnitude = glm_vec3_length(cross_product);
+
+  if (magnitude > epsilon) {
+    /* Normalize the crossProduct to get the rotation axis */
+    vec3 tmp = GLM_VEC3_ZERO_INIT;
+    glm_vec3_scale(cross_product, 1.0f / magnitude, tmp);
+    arcball_camera_set_axis(_this, tmp);
+
+    /* Remember the current angular velocity. This is used when the touch is
+     * released for a fling. */
+    _this->angular_velocity = magnitude * _this->rotation_speed;
+  }
+
+  /* The rotation around this.axis to apply to the camera matrix this update */
+  const float rotation_angle = _this->angular_velocity * delta_time;
+  if (rotation_angle > epsilon) {
+    // Rotate the matrix around axis
+    // Note: The rotation is not done as a matrix-matrix multiply as the
+    // repeated multiplications will quickly introduce substantial error into
+    // the matrix.
+    vec3 rotated_vec = GLM_VEC3_ZERO_INIT;
+    rotate(*camera_base_get_back(this), *arcball_camera_get_axis(_this),
+           rotation_angle, &rotated_vec);
+    glm_vec3_normalize(rotated_vec);
+    camera_base_set_back(this, rotated_vec);
+    arcball_camera_recalcuate_right(_this);
+    arcball_camera_recalcuate_up(_this);
+  }
+
+  /* Recalculate `this.position` from `this.back` considering zoom */
+  if (input->mouse_state.zoom != 0.0f) {
+    _this->distance *= 1 + input->mouse_state.zoom * _this->zoom_speed;
+  }
+  vec3 position = GLM_VEC3_ZERO_INIT;
+  glm_vec3_scale(*camera_base_get_back(this), _this->distance, position);
+  camera_base_set_position(this, position);
+
+  /* Invert the camera matrix to build the view matrix */
+  glm_mat4_inv(*arcball_camera_get_matrix(this), this->_view);
 
   return &this->_view;
 }
