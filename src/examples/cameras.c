@@ -530,6 +530,11 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
 /* Assigns `this.right` with the cross product of `this.up` and `this.back` */
 static void arcball_camera_recalcuate_right(arcball_camera_t* this)
 {
+  vec3 cross = GLM_VEC3_ZERO_INIT;
+  glm_vec3_cross(*camera_base_get_up(&this->super),
+                 *camera_base_get_back(&this->super), cross);
+  glm_vec3_normalize(cross);
+  camera_base_set_right(&this->super, cross);
 }
 
 /* Assigns `this.up` with the cross product of `this.back` and `this.right` */
