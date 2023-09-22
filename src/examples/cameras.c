@@ -57,6 +57,14 @@ static float clamp(float x, float min, float max)
 }
 
 /**
+ * @brief Returns `x` float-modulo `div`.
+ */
+static float mod(float x, float div)
+{
+  return x - floorf(fabs(x) / div) * div * glm_signf(x);
+}
+
+/**
  * @brief Returns `vec` rotated `angle` radians around `axis`.
  */
 static void rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
