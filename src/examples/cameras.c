@@ -48,6 +48,17 @@ static float glm_vec3_length(vec3 v)
   return math_hypot3(v[0], v[1], v[2]);
 }
 
+/**
+ * @brief Returns `x` clamped between [`min` .. `max`].
+ */
+static float clamp(float x, float min, float max)
+{
+  return MIN(MAX(x, min), max);
+}
+
+/**
+ * @brief Returns `vec` rotated `angle` radians around `axis`.
+ */
 static void rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
 {
 }
