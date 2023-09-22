@@ -71,6 +71,18 @@ static void rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
 {
 }
 
+/**
+ * @brief Returns the linear interpolation between 'a' and 'b' using 's'.
+ */
+static vec3* lerp(vec3 a, vec3 b, float s, vec3* dst)
+{
+  vec3 sub_scaled = GLM_VEC3_ZERO_INIT;
+  glm_vec3_sub(b, a, sub_scaled);
+  glm_vec3_scale(sub_scaled, s, sub_scaled);
+  glm_vec3_add(a, sub_scaled, *dst);
+  return dst;
+}
+
 /* -------------------------------------------------------------------------- *
  * The input event handling
  * -------------------------------------------------------------------------- */
