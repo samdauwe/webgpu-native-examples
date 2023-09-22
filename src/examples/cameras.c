@@ -49,6 +49,67 @@ static float glm_vec3_length(vec3 v)
 }
 
 /**
+ * @brief Transform vec4 by upper 3x3 matrix inside 4x4 matrix.
+ * @param v - The direction.
+ * @param m - The matrix.
+ * @param dst - Vec3 to store result.
+ * @returns The transformed vector.
+ */
+static vec3* glm_vec3_transform_mat4_upper3x3(vec3 v, mat4 m, vec3* dst)
+{
+  const float v0 = v[0];
+  const float v1 = v[1];
+  const float v2 = v[2];
+  (*dst)[0]      = v0 * m[0][0] + v1 * m[1][0] + v2 * m[2][0];
+  (*dst)[1]      = v0 * m[0][1] + v1 * m[1][1] + v2 * m[2][1];
+  (*dst)[2]      = v0 * m[0][2] + v1 * m[1][2] + v2 * m[2][2];
+  return dst;
+}
+
+/**
+ * @brief Creates a 4-by-4 matrix which rotates around the given axis by the
+ * given angle.
+ * @param axis - The axis about which to rotate.
+ * @param angle_in_radians - The angle by which to rotate (in radians).
+ * @param dst - matrix to hold result.
+ * @returns A matrix which rotates angle radians around the axis.
+ */
+static mat4* glm_mat4_axis_rotation(vec3 axis, float angle_in_radians,
+                                    mat4* dst)
+{
+  float x       = axis[0];
+  float y       = axis[1];
+  float z       = axis[2];
+  const float n = sqrt(x * x + y * y + z * z);
+  x /= n;
+  y /= n;
+  z /= n;
+  const float xx               = x * x;
+  const float yy               = y * y;
+  const float zz               = z * z;
+  const float c                = cos(angle_in_radians);
+  const float s                = sin(angle_in_radians);
+  const float one_minus_cosine = 1.0f - c;
+  (*dst)[0][0]                 = xx + (1.0f - xx) * c;
+  (*dst)[0][1]                 = x * y * one_minus_cosine + z * s;
+  (*dst)[0][2]                 = x * z * one_minus_cosine - y * s;
+  (*dst)[0][3]                 = 0.0f;
+  (*dst)[1][0]                 = x * y * one_minus_cosine - z * s;
+  (*dst)[1][1]                 = yy + (1.0f - yy) * c;
+  (*dst)[1][2]                 = y * z * one_minus_cosine + x * s;
+  (*dst)[1][3]                 = 0.0f;
+  (*dst)[2][0]                 = x * z * one_minus_cosine + y * s;
+  (*dst)[2][1]                 = y * z * one_minus_cosine - x * s;
+  (*dst)[2][2]                 = zz + (1.0f - zz) * c;
+  (*dst)[2][3]                 = 0.0f;
+  (*dst)[3][0]                 = 0.0f;
+  (*dst)[3][1]                 = 0.0f;
+  (*dst)[3][2]                 = 0.0f;
+  (*dst)[3][3]                 = 1.0f;
+  return dst;
+}
+
+/**
  * @brief Returns `x` clamped between [`min` .. `max`].
  */
 static float clamp(float x, float min, float max)
@@ -67,8 +128,11 @@ static float mod(float x, float div)
 /**
  * @brief Returns `vec` rotated `angle` radians around `axis`.
  */
-static void rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
+static vec3* rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
 {
+  mat4 rotation = GLM_MAT4_ZERO_INIT;
+  return glm_vec3_transform_mat4_upper3x3(
+    vec, *glm_mat4_axis_rotation(axis, angle, &rotation), dst);
 }
 
 /**
