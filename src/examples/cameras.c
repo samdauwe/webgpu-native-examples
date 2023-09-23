@@ -152,13 +152,23 @@ static vec3* lerp(vec3 a, vec3 b, float s, vec3* dst)
  * -------------------------------------------------------------------------- */
 
 typedef struct input_handler_t {
+  /* Digital input (e.g keyboard state) */
   struct {
-    vec2 prev_mouse_position;
-    vec2 current_mouse_position;
-    vec2 mouse_drag_distance;
-    bool mouse_down;
+    bool forward;
+    bool backward;
+    bool left;
+    bool right;
+    bool up;
+    bool down;
+  } digital;
+  /* Analog input (e.g mouse, touchscreen) */
+  struct {
+    vec2 prev_position;
+    vec2 current_position;
+    vec2 drag_distance;
+    bool touching;
     float zoom;
-  } mouse_state;
+  } analog;
 } input_handler_t;
 
 static void input_handler_init_defaults(input_handler_t* this)
@@ -179,20 +189,19 @@ static void update_mouse_state(input_handler_t* this,
     context->wgpu_context->surface.height - context->mouse_position[1],
   };
 
-  if (!this->mouse_state.mouse_down && context->mouse_buttons.left) {
-    glm_vec2_copy(mouse_position, this->mouse_state.prev_mouse_position);
-    this->mouse_state.mouse_down = true;
+  if (!this->analog.touching && context->mouse_buttons.left) {
+    glm_vec2_copy(mouse_position, this->analog.prev_position);
+    this->analog.touching = true;
   }
-  else if (this->mouse_state.mouse_down && context->mouse_buttons.left) {
-    glm_vec2_sub(mouse_position, this->mouse_state.prev_mouse_position,
-                 this->mouse_state.mouse_drag_distance);
-    glm_vec2_add(this->mouse_state.current_mouse_position,
-                 this->mouse_state.mouse_drag_distance,
-                 this->mouse_state.current_mouse_position);
-    glm_vec2_copy(mouse_position, this->mouse_state.prev_mouse_position);
+  else if (this->analog.touching && context->mouse_buttons.left) {
+    glm_vec2_sub(mouse_position, this->analog.prev_position,
+                 this->analog.drag_distance);
+    glm_vec2_add(this->analog.current_position, this->analog.drag_distance,
+                 this->analog.current_position);
+    glm_vec2_copy(mouse_position, this->analog.prev_position);
   }
-  else if (this->mouse_state.mouse_down && !context->mouse_buttons.left) {
-    this->mouse_state.mouse_down = false;
+  else if (this->analog.touching && !context->mouse_buttons.left) {
+    this->analog.touching = false;
   }
 }
 
@@ -550,7 +559,7 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
 
   const float epsilon = 0.0000001f;
 
-  if (input->mouse_state.mouse_down) {
+  if (input->analog.touching) {
     /* Currently being dragged. */
     _this->angular_velocity = 0.0f;
   }
@@ -563,11 +572,9 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
   /* Calculate the movement vector */
   vec3 right_scaled = GLM_VEC3_ZERO_INIT, up_scaled = GLM_VEC3_ZERO_INIT;
   glm_vec3_copy(*camera_base_get_right(this), right_scaled);
-  glm_vec3_scale(right_scaled, input->mouse_state.current_mouse_position[0],
-                 right_scaled);
+  glm_vec3_scale(right_scaled, input->analog.current_position[0], right_scaled);
   glm_vec3_copy(*camera_base_get_up(this), up_scaled);
-  glm_vec3_scale(up_scaled, input->mouse_state.current_mouse_position[1],
-                 up_scaled);
+  glm_vec3_scale(up_scaled, input->analog.current_position[1], up_scaled);
 
   vec3 movement = GLM_VEC3_ZERO_INIT;
   glm_vec3_add(movement, right_scaled, movement);
@@ -609,8 +616,8 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
   }
 
   /* Recalculate `this.position` from `this.back` considering zoom */
-  if (input->mouse_state.zoom != 0.0f) {
-    _this->distance *= 1 + input->mouse_state.zoom * _this->zoom_speed;
+  if (input->analog.zoom != 0.0f) {
+    _this->distance *= 1 + input->analog.zoom * _this->zoom_speed;
   }
   vec3 position = GLM_VEC3_ZERO_INIT;
   glm_vec3_scale(*camera_base_get_back(this), _this->distance, position);
