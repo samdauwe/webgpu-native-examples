@@ -49,6 +49,38 @@ static float glm_vec3_length(vec3 v)
 }
 
 /**
+ * @brief Adds two vectors, scaling the 2nd; assumes a and b have the same
+ * dimension.
+ * @param a - Operand vector.
+ * @param b - Operand vector.
+ * @param scale - Amount to scale b
+ * @param dst - vector to hold result.
+ * @returns A vector that is the sum of a + b * scale.
+ */
+static vec3* glm_vec3_add_scaled(vec3 a, vec3 b, float scale, vec3* dst)
+{
+  (*dst)[0] = a[0] + b[0] * scale;
+  (*dst)[1] = a[1] + b[1] * scale;
+  (*dst)[2] = a[2] + b[2] * scale;
+  return dst;
+}
+
+/**
+ * @brief Multiplies a vector by a scalar.
+ * @param v - The vector.
+ * @param k - The scalar.
+ * @param dst - vector to hold result.
+ * @returns The scaled vector.
+ */
+static vec3* glm_vec3_mul_scalar(vec3 v, float k, vec3* dst)
+{
+  (*dst)[0] = v[0] * k;
+  (*dst)[1] = v[1] * k;
+  (*dst)[2] = v[2] * k;
+  return dst;
+}
+
+/**
  * @brief Transform vec4 by upper 3x3 matrix inside 4x4 matrix.
  * @param v - The direction.
  * @param m - The matrix.
@@ -107,6 +139,76 @@ static mat4* glm_mat4_axis_rotation(vec3 axis, float angle_in_radians,
   (*dst)[3][2]                 = 0.0f;
   (*dst)[3][3]                 = 1.0f;
   return dst;
+}
+
+/**
+ * @brief Rotates the given 4-by-4 matrix around the x-axis by the given angle.
+ * @param m - The matrix.
+ * @param angle_in_radians - The angle by which to rotate (in radians).
+ * @param dst - matrix to hold result.
+ * @returns The rotated matrix.
+ */
+static mat4* glm_mat4_rotate_x(mat4 m, float angle_in_radians, mat4* dst)
+{
+  const float m10 = m[1][0];
+  const float m11 = m[1][1];
+  const float m12 = m[1][2];
+  const float m13 = m[1][3];
+  const float m20 = m[2][0];
+  const float m21 = m[2][1];
+  const float m22 = m[2][2];
+  const float m23 = m[2][3];
+  const float c   = cos(angle_in_radians);
+  const float s   = sin(angle_in_radians);
+  (*dst)[1][0]    = c * m10 + s * m20;
+  (*dst)[1][1]    = c * m11 + s * m21;
+  (*dst)[1][2]    = c * m12 + s * m22;
+  (*dst)[1][3]    = c * m13 + s * m23;
+  (*dst)[2][0]    = c * m20 - s * m10;
+  (*dst)[2][1]    = c * m21 - s * m11;
+  (*dst)[2][2]    = c * m22 - s * m12;
+  (*dst)[2][3]    = c * m23 - s * m13;
+  /* if (&m != dst)*/
+  {
+    (*dst)[0][0] = m[0][0];
+    (*dst)[0][1] = m[0][1];
+    (*dst)[0][2] = m[0][2];
+    (*dst)[0][3] = m[0][3];
+    (*dst)[3][0] = m[3][0];
+    (*dst)[3][1] = m[3][1];
+    (*dst)[3][2] = m[3][2];
+    (*dst)[3][3] = m[3][3];
+  }
+  return dst;
+}
+
+/**
+ * @brief Creates a 4-by-4 matrix which rotates around the y-axis by the given
+ * angle.
+ * @param angle_in_radians - The angle by which to rotate (in radians).
+ * @param dst - matrix to hold result.
+ * @returns The rotation matrix.
+ */
+static mat4* glm_mat4_rotation_y(float angle_in_radians, mat4* dst)
+{
+  glm_mat4_zero(*dst);
+  const float c = cos(angle_in_radians);
+  const float s = sin(angle_in_radians);
+  (*dst)[0][0]  = c;
+  (*dst)[0][2]  = -s;
+  (*dst)[1][1]  = 1.0f;
+  (*dst)[2][0]  = s;
+  (*dst)[2][2]  = c;
+  (*dst)[3][3]  = 1.0f;
+  return dst;
+}
+
+/**
+ * @brief Determines the sign of 2 boolean values.
+ */
+static int32_t sign(bool positive, bool negative)
+{
+  return (positive ? 1 : 0) - (negative ? 1 : 0);
 }
 
 /**
@@ -437,10 +539,56 @@ static void wasd_camera_set_matrix(camera_base_t* this, mat4 mat)
 static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
                                 input_handler_t* input)
 {
-  glm_mat4_identity(this->_view);
-  glm_translate(this->_view, (vec3){0.0f, 0.0f, -4.0f});
-  glm_rotate(this->_view, 1.0f,
-             (vec3){sin(delta_time), cos(-delta_time), 0.0f});
+  wasd_camera_t* _this = (wasd_camera_t*)this;
+
+  /* Apply the delta rotation to the pitch and yaw angles */
+  _this->yaw
+    -= input->analog.current_position[0] * delta_time * _this->rotation_speed;
+  _this->pitch
+    -= input->analog.current_position[1] * delta_time * _this->rotation_speed;
+
+  /* Wrap yaw between [0° .. 360°], just to prevent large accumulation. */
+  _this->yaw = mod(_this->yaw, PI2);
+  /* Clamp pitch between [-90° .. +90°] to prevent somersaults. */
+  _this->pitch = clamp(_this->pitch, -PI_2, PI_2);
+
+  /* Save the current position, as we're about to rebuild the camera matrix. */
+  vec3 position = GLM_VEC3_ZERO_INIT;
+  glm_vec3_copy(*camera_base_get_position(this), position);
+
+  /* Reconstruct the camera's rotation, and store into the camera matrix. */
+  mat4 matrix_rot_y = GLM_MAT4_ZERO_INIT;
+  glm_mat4_rotation_y(_this->yaw, &matrix_rot_y);
+  glm_mat4_rotate_x(matrix_rot_y, _this->pitch, &this->_matrix);
+
+  // Calculate the new target velocity
+  const int32_t delta_right = sign(input->digital.right, input->digital.left);
+  const int32_t delta_up    = sign(input->digital.up, input->digital.down);
+  vec3 target_velocity      = GLM_VEC3_ZERO_INIT;
+  const int32_t delta_back
+    = sign(input->digital.backward, input->digital.forward);
+  glm_vec3_add_scaled(target_velocity, *camera_base_get_right(this),
+                      delta_right, &target_velocity);
+  glm_vec3_add_scaled(target_velocity, *camera_base_get_up(this), delta_up,
+                      &target_velocity);
+  glm_vec3_add_scaled(target_velocity, *camera_base_get_back(this), delta_back,
+                      &target_velocity);
+  glm_vec3_normalize(target_velocity);
+  glm_vec3_mul_scalar(target_velocity, _this->movement_speed, &target_velocity);
+
+  /* Mix new target velocity */
+  vec3 velocity = GLM_VEC3_ZERO_INIT;
+  lerp(target_velocity, *wasd_camera_get_velocity(_this),
+       pow(1.0f - _this->friction_coefficient, delta_time), &velocity);
+  wasd_camera_set_velocity(_this, velocity);
+
+  /* Integrate velocity to calculate new position */
+  glm_vec3_add_scaled(position, *wasd_camera_get_velocity(_this), delta_time,
+                      &position);
+  camera_base_set_position(this, position);
+
+  /* Invert the camera matrix to build the view matrix */
+  glm_mat4_inv(*wasd_camera_get_matrix(this), this->_view);
 
   return &this->_view;
 }
@@ -865,8 +1013,7 @@ static void update_model_view_projection_matrix(wgpu_example_context_t* context)
   const float delta_time = (now - last_frame_ms) / 1000.0f;
   last_frame_ms          = now;
 
-  // mat4* model_view_projection = get_model_view_projection_matrix(delta_time);
-  mat4* model_view_projection = get_model_view_projection_matrix(now / 1000.0);
+  mat4* model_view_projection = get_model_view_projection_matrix(delta_time);
 
   /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
