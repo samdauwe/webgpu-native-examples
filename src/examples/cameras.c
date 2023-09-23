@@ -291,6 +291,7 @@ static void update_mouse_state(input_handler_t* this,
     context->wgpu_context->surface.height - context->mouse_position[1],
   };
 
+  /* Mouse move */
   if (!this->analog.touching && context->mouse_buttons.left) {
     glm_vec2_copy(mouse_position, this->analog.prev_position);
     this->analog.touching = true;
@@ -305,6 +306,17 @@ static void update_mouse_state(input_handler_t* this,
   else if (this->analog.touching && !context->mouse_buttons.left) {
     this->analog.touching = false;
   }
+
+  /* Mouse wheel */
+  if (!context->mouse_buttons.left && !context->mouse_buttons.middle
+      && !context->mouse_buttons.right) {
+    this->analog.zoom += glm_signf(context->wheel_delta_y);
+  }
+}
+
+static void reset_mouse_state(input_handler_t* this)
+{
+  memset(&this->digital, 0, sizeof(this->digital));
 }
 
 /* -------------------------------------------------------------------------- *
@@ -588,9 +600,11 @@ static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
   camera_base_set_position(this, position);
 
   /* Invert the camera matrix to build the view matrix */
-  glm_mat4_inv(*wasd_camera_get_matrix(this), this->_view);
+  mat4 view = GLM_MAT4_ZERO_INIT;
+  glm_mat4_inv(*wasd_camera_get_matrix(this), view);
+  camera_base_set_view(this, view);
 
-  return &this->_view;
+  return camera_base_view(this);
 }
 
 /* Recalculates the yaw and pitch values from a directional vector */
@@ -772,9 +786,12 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
   camera_base_set_position(this, position);
 
   /* Invert the camera matrix to build the view matrix */
-  glm_mat4_inv(*arcball_camera_get_matrix(this), this->_view);
+  mat4 view = GLM_MAT4_ZERO_INIT;
+  glm_mat4_inv(*arcball_camera_get_matrix(this), view);
 
-  return &this->_view;
+  camera_base_set_view(this, view);
+
+  return camera_base_view(this);
 }
 
 /* Assigns `this.right` with the cross product of `this.up` and `this.back` */
@@ -1328,7 +1345,36 @@ static int example_render(wgpu_example_context_t* context)
   if (!context->paused) {
     update_model_view_projection_matrix(context);
   }
+
+  reset_mouse_state(&input_handler);
+
   return example_draw(context);
+}
+
+static void example_on_key_pressed(keycode_t key)
+{
+  switch (key) {
+    case KEY_W:
+      input_handler.digital.forward = 1;
+      break;
+    case KEY_S:
+      input_handler.digital.backward = 1;
+      break;
+    case KEY_A:
+      input_handler.digital.left = 1;
+      break;
+    case KEY_D:
+      input_handler.digital.right = 1;
+      break;
+    case KEY_SPACE:
+      input_handler.digital.up = 1;
+      break;
+    case KEY_C:
+      input_handler.digital.down = 1;
+      break;
+    default:
+      break;
+  }
 }
 
 // Clean up used resources
@@ -1355,9 +1401,10 @@ void example_cameras(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+    .example_initialize_func     = &example_initialize,
+    .example_render_func         = &example_render,
+    .example_destroy_func        = &example_destroy,
+    .example_on_key_pressed_func = &example_on_key_pressed,
   });
   // clang-format on
 }
