@@ -306,12 +306,6 @@ static void update_mouse_state(input_handler_t* this,
   else if (this->analog.touching && !context->mouse_buttons.left) {
     this->analog.touching = false;
   }
-
-  /* Mouse wheel */
-  if (!context->mouse_buttons.left && !context->mouse_buttons.middle
-      && !context->mouse_buttons.right) {
-    this->analog.zoom += glm_signf(context->wheel_delta_y);
-  }
 }
 
 static void reset_mouse_state(input_handler_t* this)
