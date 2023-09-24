@@ -242,11 +242,9 @@ static vec3* rotate(vec3 vec, vec3 axis, float angle, vec3* dst)
  */
 static vec3* lerp(vec3 a, vec3 b, float s, vec3* dst)
 {
-  vec3 sub_scaled = GLM_VEC3_ZERO_INIT;
-  glm_vec3_sub(b, a, sub_scaled);
-  glm_vec3_scale(sub_scaled, s, sub_scaled);
-  glm_vec3_add(a, sub_scaled, *dst);
-  return dst;
+  vec3 sub = GLM_VEC3_ZERO_INIT;
+  glm_vec3_sub(b, a, sub);
+  return glm_vec3_add_scaled(a, sub, s, dst);
 }
 
 /* -------------------------------------------------------------------------- *
