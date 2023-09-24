@@ -478,7 +478,7 @@ static void wasd_camera_init_defaults(wasd_camera_t* this)
 
   this->movement_speed       = 10.0f;
   this->rotation_speed       = 1.0f;
-  this->friction_coefficient = 0.01f;
+  this->friction_coefficient = 0.99f;
 }
 
 static void wasd_camera_init_virtual_method_table(wasd_camera_t* this)
@@ -726,15 +726,11 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
   }
 
   /* Calculate the movement vector */
-  vec3 right_scaled = GLM_VEC3_ZERO_INIT, up_scaled = GLM_VEC3_ZERO_INIT;
-  glm_vec3_copy(*camera_base_get_right(this), right_scaled);
-  glm_vec3_scale(right_scaled, input->analog.current_position[0], right_scaled);
-  glm_vec3_copy(*camera_base_get_up(this), up_scaled);
-  glm_vec3_scale(up_scaled, input->analog.current_position[1], up_scaled);
-
   vec3 movement = GLM_VEC3_ZERO_INIT;
-  glm_vec3_add(movement, right_scaled, movement);
-  glm_vec3_add(movement, up_scaled, movement);
+  glm_vec3_add_scaled(movement, *camera_base_get_right(this),
+                      input->analog.current_position[0], &movement);
+  glm_vec3_add_scaled(movement, *camera_base_get_up(this),
+                      -input->analog.current_position[1], &movement);
 
   /* Cross the movement vector with the view direction to calculate the rotation
    * axis x magnitude */
