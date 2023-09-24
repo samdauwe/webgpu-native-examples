@@ -374,7 +374,7 @@ static mat4* camera_base_update(struct camera_base_t* this, float delta_time,
 }
 
 /* Returns the camera view matrix */
-static mat4* camera_base_view(camera_base_t* this)
+static mat4* camera_base_get_view(camera_base_t* this)
 {
   return &this->_view;
 }
@@ -598,7 +598,7 @@ static mat4* wasd_camera_update(camera_base_t* this, float delta_time,
   glm_mat4_inv(*wasd_camera_get_matrix(this), view);
   camera_base_set_view(this, view);
 
-  return camera_base_view(this);
+  return camera_base_get_view(this);
 }
 
 /* Recalculates the yaw and pitch values from a directional vector */
@@ -785,7 +785,7 @@ static mat4* arcball_camera_update(camera_base_t* this, float delta_time,
 
   camera_base_set_view(this, view);
 
-  return camera_base_view(this);
+  return camera_base_get_view(this);
 }
 
 /* Assigns `this.right` with the cross product of `this.up` and `this.back` */
