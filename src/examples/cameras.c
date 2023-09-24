@@ -983,7 +983,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
                   view_matrices.projection);
 }
 
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void prepare_uniform_buffer(wgpu_example_context_t* context)
 {
   /* Setup the view matrices for the camera */
   prepare_view_matrices(context->wgpu_context);
@@ -1077,7 +1077,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
@@ -1106,7 +1106,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   ASSERT(cube.uniform_buffer_bind_group != NULL);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void prepare_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
   WGPUPrimitiveState primitive_state = {
@@ -1196,7 +1196,7 @@ static void setup_render_pass(void)
 {
   // Color attachment
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
+      .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -1232,9 +1232,9 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_vertex_buffer(context->wgpu_context);
     setup_pipeline_layout(context->wgpu_context);
     prepare_texture(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
+    prepare_uniform_buffer(context);
+    setup_bind_group(context->wgpu_context);
+    prepare_pipeline(context->wgpu_context);
     setup_render_pass();
     prepared = true;
     return EXIT_SUCCESS;
@@ -1268,7 +1268,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass
+  // Begin render pass
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
