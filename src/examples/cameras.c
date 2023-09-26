@@ -454,8 +454,8 @@ typedef struct wasd_camera_t {
   /* Speed multiplier for camera rotation */
   float rotation_speed;
   /* Movement velocity drag coeffient [0 .. 1] */
-  /* 0: Instantly stops moving                 */
-  /* 1: Continues forever                      */
+  /* 0: Continues forever                      */
+  /* 1: Instantly stops moving                 */
   float friction_coefficient;
 } wasd_camera_t;
 
@@ -624,8 +624,8 @@ typedef struct arcball_camera_t {
   /* Speed multiplier for camera zoom */
   float zoom_speed;
   /* Movement velocity drag coeffient [0 .. 1] */
-  /* 0: Instantly stops spinning               */
-  /* 1: Spins forever                          */
+  /* 0: Spins forever                          */
+  /* 1: Instantly stops spinning               */
   float friction_coefficient;
 } arcball_camera_t;
 
