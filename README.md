@@ -367,7 +367,7 @@ This example shows how to do deferred rendering with webgpu. Render geometry inf
 
 #### [Animometer](src/examples/animometer.c)
 
-A WebGPU of port of the Animometer MotionMark benchmark.
+A WebGPU port of the Animometer MotionMark benchmark.
 
 #### [Compute boids](src/examples/compute_boids.c)
 

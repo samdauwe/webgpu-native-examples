@@ -7,7 +7,7 @@
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Animometer
  *
- * A WebGPU of port of the Animometer MotionMark benchmark.
+ * A WebGPU port of the Animometer MotionMark benchmark.
  *
  * Ref:
  * https://github.com/austinEng/webgpu-samples/blob/main/src/pages/samples/animometer.ts
