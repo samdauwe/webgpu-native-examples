@@ -39,9 +39,8 @@ static float math_hypot3(float a, float b, float c)
 
 /**
  * @brief Calculates the length of a vec3.
- *
- * @param {ReadonlyVec3} a vector to calculate length of
- * @returns {Number} length of a
+ * @param v A vector to calculate length of.
+ * @returns The length of the vec3.
  */
 static float glm_vec3_length(vec3 v)
 {
