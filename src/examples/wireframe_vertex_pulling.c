@@ -191,6 +191,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   cube.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Cube bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -200,6 +201,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // that are based on this bind group layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label                = "Cube pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &cube.bind_group_layout,
                           });
