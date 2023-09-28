@@ -356,7 +356,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
         .sample_count = 1,
       });
 
-  // Render pipeline: Solid mesh
+  /* Render pipeline: Solid mesh */
   {
     // Vertex state
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
@@ -403,7 +403,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Render pipeline: Points
+  /* Render pipeline: Points */
   {
     primitive_state.topology = WGPUPrimitiveTopology_PointList;
 
@@ -452,7 +452,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Render pipeline: Wireframe
+  /* Render pipeline: Wireframe */
   {
     primitive_state.topology = WGPUPrimitiveTopology_LineList;
 
@@ -501,7 +501,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Render pipeline: Wireframe Thick
+  /* Render pipeline: Wireframe Thick */
   {
     primitive_state.topology = WGPUPrimitiveTopology_TriangleList;
 
