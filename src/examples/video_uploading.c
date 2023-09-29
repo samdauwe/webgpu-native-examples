@@ -1,5 +1,4 @@
 #include "example_base.h"
-#include "examples.h"
 
 #include <string.h>
 
@@ -399,7 +398,7 @@ void example_video_uploading(int argc, char* argv[])
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
- 
+
 // clang-format off
 static const char* vertex_shader_wgsl = CODE(
   struct VertexInput {
