@@ -165,12 +165,12 @@ static void prepare_uniform_bind_group(wgpu_context_t* wgpu_context)
   // Uniform bind group
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : video texture sampler
+      /* Binding 0 : video texture sampler */
       .binding = 0,
       .sampler = video_texture.sampler,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1 : video texture view
+      /* Binding 1 : video texture view */
       .binding     = 1,
       .textureView = video_texture.view,
     },
