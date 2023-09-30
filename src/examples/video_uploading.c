@@ -268,7 +268,7 @@ static int prepare_video(const char* fname)
 
   start_video_decode();
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int update_capture_texture(wgpu_context_t* wgpu_context)
@@ -290,7 +290,7 @@ static int update_capture_texture(wgpu_context_t* wgpu_context)
                          4u);
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_initialize(wgpu_example_context_t* context)
@@ -303,10 +303,10 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_uniform_bind_group(context->wgpu_context);
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
