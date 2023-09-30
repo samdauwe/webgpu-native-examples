@@ -245,7 +245,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "video_uploading_render_pipeline",
+                            .label       = "Video uploading render pipeline",
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
                             .fragment    = &fragment_state,
