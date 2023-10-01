@@ -2305,38 +2305,38 @@ typedef enum {
   OPERATION_MINUS,
 } behavior_op_t;
 
-typedef struct {
-  int32_t frame;
-  behavior_op_t op;
-  int32_t count;
+typedef struct behavior_t {
+  int32_t _frame;
+  behavior_op_t _op;
+  int32_t _count;
 } behavior_t;
 
 static void behavior_create(behavior_t* this, int32_t frame, char op,
                             int32_t count)
 {
-  this->frame = frame;
-  this->op    = (op == '+') ? OPERATION_PLUS : OPERATION_MINUS;
-  this->count = count;
+  this->_frame = frame;
+  this->_op    = (op == '+') ? OPERATION_PLUS : OPERATION_MINUS;
+  this->_count = count;
 }
 
 static int32_t behavior_get_frame(behavior_t* this)
 {
-  return this->frame;
+  return this->_frame;
 }
 
 static behavior_op_t behavior_get_op(behavior_t* this)
 {
-  return this->op;
+  return this->_op;
 }
 
 static int32_t behavior_get_count(behavior_t* this)
 {
-  return this->count;
+  return this->_count;
 }
 
 static void behavior_set_frame(behavior_t* this, int32_t frame)
 {
-  this->frame = frame;
+  this->_frame = frame;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -4368,10 +4368,20 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
 {
   fish_model_init_defaults(this);
 
+  /* Create model and set function pointers */
   model_create(&this->_model, type, name, blend);
   fish_model_init_virtual_method_table(this);
 
   this->_aquarium = aquarium;
+}
+
+static void* update_fish_per_uniforms(fish_model_t* this, float x, float y,
+                                      float z, float next_x, float next_y,
+                                      float next_z, float scale, float time,
+                                      int index)
+{
+  this->_vtbl.update_fish_per_uniforms(this, x, y, z, next_x, next_y, next_z,
+                                       scale, time, index);
 }
 
 static void fish_model_prepare_for_draw(model_t* this)
@@ -6622,8 +6632,15 @@ typedef struct {
   vec3 padding;
 } seaweed_t;
 
-typedef struct {
-  model_t model;
+struct seaweed_model_t;
+
+typedef struct seaweed_model_vtbl_t {
+  void (*update_seaweed_model_time)(struct seaweed_model_t* self, float time);
+} seaweed_model_vtbl_t;
+
+typedef struct seaweed_model_t {
+  seaweed_model_vtbl_t _vtbl;
+  model_t _model;
   struct {
     texture_t* diffuse;
     texture_t* normal;
@@ -6666,24 +6683,16 @@ typedef struct {
   wgpu_context_t* wgpu_context;
   context_t* context;
   int32_t instance;
-  /* Function pointers */
-  void (*destroy)(void* self);
-  void (*prepare_for_draw)(void* self);
-  void (*update_per_instance_uniforms)(void* self,
-                                       const world_uniforms_t* world_uniforms);
-  void (*draw)(void* self);
-  void (*set_program)(void* self, program_t* prgm);
-  void (*init)(void* self);
-  void (*update_seaweed_model_time)(void* self, float time);
 } seaweed_model_t;
 
-static void seaweed_model_destroy(void* self);
-static void seaweed_model_prepare_for_draw(void* self);
+static void seaweed_model_destroy(model_t* this);
+static void seaweed_model_prepare_for_draw(model_t* this);
 static void seaweed_model_update_per_instance_uniforms(
-  void* self, const world_uniforms_t* world_uniforms);
-static void seaweed_model_draw(void* self);
-static void seaweed_model_initialize(void* self);
-static void seaweed_model_update_seaweed_model_time(void* self, float time);
+  model_t* this, const world_uniforms_t* world_uniforms);
+static void seaweed_model_draw(model_t* this);
+static void seaweed_model_initialize(model_t* this);
+static void seaweed_model_update_seaweed_model_time(seaweed_model_t* this,
+                                                    float time);
 
 static void seaweed_model_init_defaults(seaweed_model_t* this)
 {
@@ -6695,30 +6704,19 @@ static void seaweed_model_init_defaults(seaweed_model_t* this)
   this->instance = 0;
 }
 
+static void seaweed_model_init_virtual_method_table(seaweed_model_t* this)
+{
+}
+
 static void seaweed_model_create(seaweed_model_t* this, context_t* context,
                                  aquarium_t* aquarium, model_group_t type,
                                  model_name_t name, bool blend)
 {
   seaweed_model_init_defaults(this);
 
-  /* Set seaweed model function pointers */
-  this->destroy          = seaweed_model_destroy;
-  this->prepare_for_draw = seaweed_model_prepare_for_draw;
-  this->update_per_instance_uniforms
-    = seaweed_model_update_per_instance_uniforms;
-  this->draw                      = seaweed_model_draw;
-  this->set_program               = model_set_program;
-  this->init                      = seaweed_model_initialize;
-  this->update_seaweed_model_time = seaweed_model_update_seaweed_model_time;
-
   /* Create model and set function pointers */
-  model_create(&this->model, type, name, blend);
-  this->model.destroy          = seaweed_model_destroy;
-  this->model.prepare_for_draw = seaweed_model_prepare_for_draw;
-  this->model.update_per_instance_uniforms
-    = seaweed_model_update_per_instance_uniforms;
-  this->model.draw = seaweed_model_draw;
-  this->model.init = seaweed_model_initialize;
+  model_create(&this->_model, type, name, blend);
+  seaweed_model_init_virtual_method_table(this);
 
   this->aquarium     = aquarium;
   this->context      = context;
@@ -6995,10 +6993,10 @@ static void seaweed_model_update_per_instance_uniforms(
   this->instance++;
 }
 
-static void seaweed_model_update_seaweed_model_time(void* self, float time)
+static void seaweed_model_update_seaweed_model_time(seaweed_model_t* this,
+                                                    float time)
 {
-  UNUSED_VAR(self);
-  UNUSED_VAR(time);
+  this->_vtbl.update_seaweed_model_time(this, time);
 }
 
 /* -------------------------------------------------------------------------- *
