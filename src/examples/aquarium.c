@@ -4233,51 +4233,61 @@ static void aquarium_render(aquarium_t* this)
 
 typedef float world_matrix_t[16];
 
-typedef struct {
-  model_group_t type;
-  model_name_t name;
-  program_t* program;
-  bool blend;
+struct model_t;
+
+typedef struct model_vtbl_t {
+  void (*destroy)(struct model_t* this);
+  void (*prepare_for_draw)(struct model_t* this);
+  void (*update_per_instance_uniforms)(struct model_t* this,
+                                       const world_uniforms_t* world_uniforms);
+  void (*draw)(struct model_t* this);
+  void (*set_program)(struct model_t* this, program_t* prgm);
+  void (*init)(struct model_t* this);
+} model_vtbl_t;
+
+typedef struct model_t {
+  model_group_t _type;
+  model_name_t _name;
+  program_t* _program;
+  bool _blend;
 
   world_matrix_t world_matrices[MAX_WORLD_MATRIX_COUNT];
   uint16_t world_matrix_count;
   texture_t* texture_map[TEXTURETYPE_MAX];
   buffer_dawn_t* buffer_map[BUFFERTYPE_MAX];
   /* Function pointers */
-  void (*destroy)(void* this);
-  void (*prepare_for_draw)(void* this);
-  void (*update_per_instance_uniforms)(void* this,
-                                       const world_uniforms_t* world_uniforms);
-  void (*draw)(void* this);
-  void (*set_program)(void* this, program_t* prgm);
-  void (*init)(void* this);
+  model_vtbl_t _vtbl;
 } model_t;
+
+/* Function prototypes */
+static void model_set_program(model_t* this, program_t* prgm);
 
 static void model_init_defaults(model_t* this)
 {
   memset(this, 0, sizeof(*this));
 }
 
-static void model_set_program(void* this, program_t* prgm)
+static void model_init_virtual_method_table(model_t* this)
 {
-  model_t* model = (model_t*)this;
-  model->program = prgm;
+  this->_vtbl.set_program = model_set_program;
 }
 
 static void model_create(model_t* this, model_group_t type, model_name_t name,
                          bool blend)
 {
-  this->type  = type;
-  this->name  = name;
-  this->blend = blend;
+  model_init_defaults(this);
+  model_init_virtual_method_table(this);
 
-  this->set_program = model_set_program;
+  this->_type    = type;
+  this->_name    = name;
+  this->_program = NULL;
+  this->_blend   = blend;
 }
 
 static void model_destroy(model_t* this)
 {
-  if (this->destroy != NULL) {
-    this->destroy(this);
+  if (this->_vtbl.destroy != NULL) {
+    this->_vtbl.destroy(this);
   }
 
   for (uint32_t i = 0; i < BUFFERTYPE_MAX; ++i) {
@@ -4287,6 +4297,33 @@ static void model_destroy(model_t* this)
       buf = NULL;
     }
   }
+}
+
+static void model_prepare_for_draw(model_t* this)
+{
+  this->_vtbl.prepare_for_draw(this);
+}
+
+static void
+model_update_per_instance_uniforms(model_t* this,
+                                   const world_uniforms_t* world_uniforms)
+{
+  this->_vtbl.update_per_instance_uniforms(this, world_uniforms);
+}
+
+static void model_draw(model_t* this)
+{
+  this->_vtbl.draw(this);
+}
+
+static void model_set_program(model_t* this, program_t* prgm)
+{
+  this->program = prgm;
+}
+
+static void model_init(model_t* this)
+{
+  this->_vtbl.init(this);
 }
 
 /* -------------------------------------------------------------------------- *
