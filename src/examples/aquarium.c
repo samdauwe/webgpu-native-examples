@@ -4318,7 +4318,7 @@ static void model_draw(model_t* this)
 
 static void model_set_program(model_t* this, program_t* prgm)
 {
-  this->program = prgm;
+  this->_program = prgm;
 }
 
 static void model_init(model_t* this)
@@ -4332,30 +4332,34 @@ static void model_init(model_t* this)
  *  - Implement common functions of fish models.
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  model_t model;
-  int32_t pre_instance;
-  int32_t cur_instance;
-  int32_t fish_per_offset;
-  aquarium_t* aquarium;
-  /* Function pointers */
-  void (*init)(void* this);
-  void (*destroy)(void* this);
-  void (*prepare_for_draw)(void* this);
-  void (*update_per_instance_uniforms)(void* this,
-                                       const world_uniforms_t* world_uniforms);
-  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
-                                   float next_x, float next_y, float next_z,
-                                   float scale, float time, int index);
-  void (*draw)(void* this);
-  void (*set_program)(void* this, program_t* prgm);
+struct fish_model_t;
+
+typedef struct fish_model_vtbl_t {
+  void (*update_fish_per_uniforms)(struct fish_model_t* this, float x, float y,
+                                   float z, float next_x, float next_y,
+                                   float next_z, float scale, float time,
+                                   int index);
+} fish_model_vtbl_t;
+
+typedef struct fish_model_t {
+  fish_model_vtbl_t _vtbl;
+  model_t _model;
+  int32_t _pre_instance;
+  int32_t _cur_instance;
+  int32_t _fish_per_offset;
+  aquarium_t* _aquarium;
 } fish_model_t;
 
-static void fish_model_prepare_for_draw(void* self);
+static void fish_model_prepare_for_draw(model_t* this);
 
 static void fish_model_init_defaults(fish_model_t* this)
 {
   memset(this, 0, sizeof(*this));
+}
+
+static void fish_model_init_virtual_method_table(fish_model_t* this)
+{
+  this->_model._vtbl.prepare_for_draw = fish_model_prepare_for_draw;
 }
 
 static void fish_model_create(fish_model_t* this, model_group_t type,
@@ -4364,29 +4368,28 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
 {
   fish_model_init_defaults(this);
 
-  /* Set function pointers */
-  this->prepare_for_draw = fish_model_prepare_for_draw;
+  model_create(&this->_model, type, name, blend);
+  fish_model_init_virtual_method_table(this);
 
-  this->aquarium = aquarium;
-
-  model_create(&this->model, type, name, blend);
+  this->_aquarium = aquarium;
 }
 
-static void fish_model_prepare_for_draw(void* self)
+static void fish_model_prepare_for_draw(model_t* this)
 {
-  fish_model_t* this    = (fish_model_t*)self;
-  this->fish_per_offset = 0;
-  for (uint32_t i = 0; i < this->model.name - MODELNAME_MODELSMALLFISHA; ++i) {
+  fish_model_t* _this     = (fish_model_t*)this;
+  _this->_fish_per_offset = 0;
+  for (uint32_t i = 0; i < _this->_model._name - MODELNAME_MODELSMALLFISHA;
+       ++i) {
     const fish_t* fish_info = &fish_table[i];
-    this->fish_per_offset
-      += this->aquarium
+    _this->_fish_per_offset
+      += _this->_aquarium
            ->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
   }
 
   const fish_t* fish_info
-    = &fish_table[this->model.name - MODELNAME_MODELSMALLFISHA];
-  this->cur_instance
-    = this->aquarium
+    = &fish_table[_this->_model._name - MODELNAME_MODELSMALLFISHA];
+  _this->_cur_instance
+    = _this->_aquarium
         ->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
 }
 
