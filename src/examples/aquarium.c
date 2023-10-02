@@ -6686,11 +6686,11 @@ typedef struct seaweed_model_t {
 } seaweed_model_t;
 
 static void seaweed_model_destroy(model_t* this);
+static void seaweed_model_init(model_t* this);
 static void seaweed_model_prepare_for_draw(model_t* this);
+static void seaweed_model_draw(model_t* this);
 static void seaweed_model_update_per_instance_uniforms(
   model_t* this, const world_uniforms_t* world_uniforms);
-static void seaweed_model_draw(model_t* this);
-static void seaweed_model_initialize(model_t* this);
 static void seaweed_model_update_seaweed_model_time(seaweed_model_t* this,
                                                     float time);
 
@@ -6706,6 +6706,17 @@ static void seaweed_model_init_defaults(seaweed_model_t* this)
 
 static void seaweed_model_init_virtual_method_table(seaweed_model_t* this)
 {
+  /* Override model functions */
+  this->_model._vtbl.destroy          = seaweed_model_destroy;
+  this->_model._vtbl.init             = seaweed_model_init;
+  this->_model._vtbl.prepare_for_draw = seaweed_model_prepare_for_draw;
+  this->_model._vtbl.draw             = seaweed_model_draw;
+  this->_model._vtbl.update_per_instance_uniforms
+    = seaweed_model_update_per_instance_uniforms;
+
+  /* Override seaweed model functions */
+  this->_vtbl.update_seaweed_model_time
+    = seaweed_model_update_seaweed_model_time;
 }
 
 static void seaweed_model_create(seaweed_model_t* this, context_t* context,
@@ -6924,19 +6935,19 @@ static void seaweed_model_initialize(void* self)
                           sizeof(this->light_factor_uniforms));
 }
 
-static void seaweed_model_destroy(void* self)
+static void seaweed_model_destroy(model_t* this)
 {
-  seaweed_model_t* this = (seaweed_model_t*)self;
+  seaweed_model_t* _this = (seaweed_model_t*)this;
 
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.time)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, _this->pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, _this->pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->uniform_buffers.time)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->uniform_buffers.view)
 }
 
 static void seaweed_model_prepare_for_draw(void* self)
