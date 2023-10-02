@@ -6663,26 +6663,26 @@ typedef struct seaweed_model_t {
   struct {
     world_uniforms_t world_uniforms[20];
   } world_uniform_per;
-  WGPUVertexState vertex_state;
-  WGPURenderPipeline pipeline;
+  WGPUVertexState _vertex_state;
+  WGPURenderPipeline _pipeline;
   struct {
     WGPUBindGroupLayout model;
     WGPUBindGroupLayout per;
-  } bind_group_layouts;
-  WGPUPipelineLayout pipeline_layout;
+  } _bind_group_layouts;
+  WGPUPipelineLayout _pipeline_layout;
   struct {
     WGPUBindGroup model;
     WGPUBindGroup per;
-  } bind_groups;
+  } _bind_groups;
   struct {
     WGPUBuffer light_factor;
     WGPUBuffer time;
     WGPUBuffer view;
-  } uniform_buffers;
-  aquarium_t* aquarium;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
-  int32_t instance;
+  } _uniform_buffers;
+  aquarium_t* _aquarium;
+  wgpu_context_t* _wgpu_context;
+  context_t* _context;
+  int32_t _instance;
 } seaweed_model_t;
 
 static void seaweed_model_destroy(model_t* this);
@@ -6734,24 +6734,24 @@ static void seaweed_model_create(seaweed_model_t* this, context_t* context,
   this->wgpu_context = context->wgpu_context;
 }
 
-static void seaweed_model_initialize(void* self)
+static void seaweed_model_init(model_t* this)
 {
-  seaweed_model_t* this        = (seaweed_model_t*)self;
-  wgpu_context_t* wgpu_context = this->wgpu_context;
+  seaweed_model_t* _this        = (seaweed_model_t*)this;
+  wgpu_context_t* wgpu_context = _this->wgpu_context;
 
-  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+  WGPUShaderModule vs_module = program_get_vs_module(_this->model.program);
 
-  texture_t** texture_map   = this->model.texture_map;
-  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
-  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
-  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
-  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+  texture_t** texture_map   = _this->_model.texture_map;
+  _this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  _this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  _this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  _this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
 
-  buffer_dawn_t** buffer_map = this->model.buffer_map;
-  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
-  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
-  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
-  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+  buffer_dawn_t** buffer_map = _this->_model.buffer_map;
+  _this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
+  _this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
+  _this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
+  _this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUVertexAttribute vertex_attributes[3] = {
     [0] = (WGPUVertexAttribute) {
