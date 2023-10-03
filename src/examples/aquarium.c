@@ -3154,7 +3154,10 @@ static WGPUBuffer context_create_buffer_from_data(context_t* this,
 static program_t* context_create_program(context_t* this, const char* vs_id,
                                          const char* fs_id)
 {
-  return NULL;
+  program_t* program = (program_t*)malloc(sizeof(program_t));
+  program_create(program, this, vs_id, fs_id);
+
+  return program;
 }
 
 static WGPUImageCopyBuffer
@@ -3672,7 +3675,7 @@ static void context_pre_frame(context_t* this)
     = wgpuSwapChainGetCurrentTextureView(wgpu_context->swap_chain.instance);
 
   WGPURenderPassColorAttachment color_attachment = {0};
-  if (this->msaa_sample_count) {
+  if (this->msaa_sample_count > 1) {
     // If MSAA is enabled, we render to a multisampled texture and then resolve
     // to the backbuffer
     color_attachment.view = this->texture_views.scene_render_target.view;
@@ -7033,56 +7036,6 @@ static void seaweed_model_update_seaweed_model_time(seaweed_model_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
- * Factory functions.
- * -------------------------------------------------------------------------- */
-
-static model_t* context_create_model(context_t* context, aquarium_t* aquarium,
-                                     model_group_t type, model_name_t name,
-                                     bool blend)
-{
-  model_t* model = NULL;
-  switch (type) {
-    case MODELGROUP_FISH: {
-      fish_model_t* _model = malloc(sizeof(fish_model_t));
-      fish_model_create(_model, context, aquarium, type, name, blend);
-      model = (model_t*)_model;
-    } break;
-    case MODELGROUP_FISHINSTANCEDDRAW: {
-      fish_model_instanced_draw_t* _model
-        = malloc(sizeof(fish_model_instanced_draw_t));
-      fish_model_instanced_draw_create(_model, context, aquarium, type, name,
-                                       blend);
-      model = (model_t*)_model;
-    } break;
-    case MODELGROUP_GENERIC: {
-      generic_model_t* _model = malloc(sizeof(generic_model_t));
-      generic_model_create(_model, context, aquarium, type, name, blend);
-      model = (model_t*)_model;
-    } break;
-    case MODELGROUP_INNER: {
-      inner_model_t* _model = malloc(sizeof(inner_model_t));
-      inner_model_create(_model, context, aquarium, type, name, blend);
-      model = (model_t*)_model;
-    } break;
-    case MODELGROUP_SEAWEED: {
-      seaweed_model_t* _model = malloc(sizeof(seaweed_model_t));
-      seaweed_model_create(_model, context, aquarium, type, name, blend);
-      model = (model_t*)_model;
-    } break;
-    case MODELGROUP_OUTSIDE: {
-      outside_model_t* _model = malloc(sizeof(outside_model_t));
-      outside_model_create(_model, context, aquarium, type, name, blend);
-      model = (model_t*)_model;
-    } break;
-    default: {
-      log_error("Can not create model type");
-    } break;
-  }
-
-  return model;
-}
-
-/* -------------------------------------------------------------------------- *
  * Helper functions.
  * -------------------------------------------------------------------------- */
 
@@ -7182,7 +7135,46 @@ static model_t* context_create_model(context_t* this, aquarium_t* aquarium,
                                      model_group_t type, model_name_t name,
                                      bool blend)
 {
-  return NULL;
+  model_t* model = NULL;
+  switch (type) {
+    case MODELGROUP_FISH: {
+      fish_model_t* _model = malloc(sizeof(fish_model_t));
+      fish_model_create(_model, this, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_FISHINSTANCEDDRAW: {
+      fish_model_instanced_draw_t* _model
+        = malloc(sizeof(fish_model_instanced_draw_t));
+      fish_model_instanced_draw_create(_model, this, aquarium, type, name,
+                                       blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_GENERIC: {
+      generic_model_t* _model = malloc(sizeof(generic_model_t));
+      generic_model_create(_model, this, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_INNER: {
+      inner_model_t* _model = malloc(sizeof(inner_model_t));
+      inner_model_create(_model, this, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_SEAWEED: {
+      seaweed_model_t* _model = malloc(sizeof(seaweed_model_t));
+      seaweed_model_create(_model, this, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_OUTSIDE: {
+      outside_model_t* _model = malloc(sizeof(outside_model_t));
+      outside_model_create(_model, this, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    default: {
+      log_error("Can not create model type");
+    } break;
+  }
+
+  return model;
 }
 
 /* Load vertex and index buffers, textures and program for each model. */
@@ -7517,13 +7509,13 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return example_draw(context);
 }
