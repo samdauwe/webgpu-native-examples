@@ -3045,6 +3045,7 @@ static void context_realloc_resource(context_t* this,
                                      uint32_t pre_total_instance,
                                      uint32_t cur_total_instance,
                                      bool enable_dynamic_buffer_offset);
+static void context_destroy_fish_resource(context_t* this);
 
 /* Forward declarations aquarium */
 static int32_t aquarium_get_cur_fish_count(aquarium_t* this);
@@ -3704,37 +3705,6 @@ static void context_pre_frame(context_t* this)
     this->command_encoder, &this->render_pass_descriptor);
 }
 
-static void context_destroy_fish_resource(context_t* this)
-{
-  WGPU_RELEASE_RESOURCE(Buffer, this->fish_pers_buffer);
-
-  if (this->fish_pers != NULL) {
-    free(this->fish_pers);
-    this->fish_pers = NULL;
-  }
-  if (aquarium_settings.enable_dynamic_buffer_offset) {
-    if (this->bind_group_fish_pers != NULL) {
-      if (this->bind_group_fish_pers[0] != NULL) {
-        WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[0]);
-      }
-    }
-  }
-  else {
-    if (this->bind_group_fish_pers != NULL) {
-      for (uint32_t i = 0; i < this->pre_total_instance; ++i) {
-        if (this->bind_group_fish_pers[i] != NULL) {
-          WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[i]);
-        }
-      }
-    }
-  }
-
-  free(this->bind_group_fish_pers);
-  this->bind_group_fish_pers = NULL;
-
-  buffer_manager_destroy_buffer_pool(this->buffer_manager);
-}
-
 static void context_realloc_resource(context_t* this,
                                      uint32_t pre_total_instance,
                                      uint32_t cur_total_instance,
@@ -3817,6 +3787,15 @@ static WGPUCommandEncoder context_create_command_encoder(context_t* this)
   return wgpuDeviceCreateCommandEncoder(this->device, NULL);
 }
 
+static void context_update_all_fish_data(context_t* this)
+{
+  size_t size = calc_constant_buffer_byte_size(sizeof(fish_per_t)
+                                               * this->cur_total_instance);
+  context_update_buffer_data(this, this->fish_pers_buffer, size,
+                             this->fish_pers,
+                             sizeof(fish_per_t) * this->cur_total_instance);
+}
+
 static void context_update_buffer_data(void* context, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size)
@@ -3835,13 +3814,35 @@ static void context_update_buffer_data(void* context, WGPUBuffer buffer,
                    0, data, data_size);
 }
 
-static void context_update_all_fish_data(context_t* this)
+static void context_destroy_fish_resource(context_t* this)
 {
-  size_t size = calc_constant_buffer_byte_size(sizeof(fish_per_t)
-                                               * this->cur_total_instance);
-  context_update_buffer_data(this, this->fish_pers_buffer, size,
-                             this->fish_pers,
-                             sizeof(fish_per_t) * this->cur_total_instance);
+  WGPU_RELEASE_RESOURCE(Buffer, this->fish_pers_buffer);
+
+  if (this->fish_pers != NULL) {
+    free(this->fish_pers);
+    this->fish_pers = NULL;
+  }
+  if (aquarium_settings.enable_dynamic_buffer_offset) {
+    if (this->bind_group_fish_pers != NULL) {
+      if (this->bind_group_fish_pers[0] != NULL) {
+        WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[0]);
+      }
+    }
+  }
+  else {
+    if (this->bind_group_fish_pers != NULL) {
+      for (uint32_t i = 0; i < this->pre_total_instance; ++i) {
+        if (this->bind_group_fish_pers[i] != NULL) {
+          WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[i]);
+        }
+      }
+    }
+  }
+
+  free(this->bind_group_fish_pers);
+  this->bind_group_fish_pers = NULL;
+
+  buffer_manager_destroy_buffer_pool(this->buffer_manager);
 }
 
 static void context_begin_render_pass(context_t* this)
@@ -4251,8 +4252,6 @@ static void aquarium_render(aquarium_t* this)
 #define MAX_WORLD_MATRIX_COUNT (16u)
 
 typedef float world_matrix_t[16];
-
-struct model_t;
 
 typedef struct model_vtbl_t {
   void (*destroy)(struct model_t* this);
@@ -7031,6 +7030,56 @@ static void seaweed_model_update_seaweed_model_time(seaweed_model_t* this,
                                                     float time)
 {
   this->_vtbl.update_seaweed_model_time(this, time);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Factory functions.
+ * -------------------------------------------------------------------------- */
+
+static model_t* context_create_model(context_t* context, aquarium_t* aquarium,
+                                     model_group_t type, model_name_t name,
+                                     bool blend)
+{
+  model_t* model = NULL;
+  switch (type) {
+    case MODELGROUP_FISH: {
+      fish_model_t* _model = malloc(sizeof(fish_model_t));
+      fish_model_create(_model, context, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_FISHINSTANCEDDRAW: {
+      fish_model_instanced_draw_t* _model
+        = malloc(sizeof(fish_model_instanced_draw_t));
+      fish_model_instanced_draw_create(_model, context, aquarium, type, name,
+                                       blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_GENERIC: {
+      generic_model_t* _model = malloc(sizeof(generic_model_t));
+      generic_model_create(_model, context, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_INNER: {
+      inner_model_t* _model = malloc(sizeof(inner_model_t));
+      inner_model_create(_model, context, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_SEAWEED: {
+      seaweed_model_t* _model = malloc(sizeof(seaweed_model_t));
+      seaweed_model_create(_model, context, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    case MODELGROUP_OUTSIDE: {
+      outside_model_t* _model = malloc(sizeof(outside_model_t));
+      outside_model_create(_model, context, aquarium, type, name, blend);
+      model = (model_t*)_model;
+    } break;
+    default: {
+      log_error("Can not create model type");
+    } break;
+  }
+
+  return model;
 }
 
 /* -------------------------------------------------------------------------- *
