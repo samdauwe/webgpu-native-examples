@@ -338,12 +338,10 @@ static const char* fish_normal_map_fragment_shader_wgsl = CODE(
                                                    v_binormal, // #normalMap
                                                    v_normal);  // #normalMap
     let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
-    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
     let tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
     tangentNormal = normalize(tangentNormal + vec3<f32>(0, 0, 2)); // #normalMap
     var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
     normal = normalize(normal); // #normalMap
-    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
     let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
     let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
     let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
@@ -410,17 +408,13 @@ static const char* fish_reflection_fragment_shader_wgsl = CODE(
                                                    v_binormal, // #normalMap
                                                    v_normal);  // #normalMap
     let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
-    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
     let reflection : vec4<f32> = textureSample(reflectionMapTexture, samplerTex2D, v_texCoord); // #reflection
-    let reflection : vec4<f32> = vec4<f32>(0,0,0,0); // #noReflection
     let tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
     var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
     normal = normalize(normal); // #normalMap
-    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
     let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
     let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
     let skyColor : vec4<f32> = textureSample(skyboxTexture, samplerSkybox, -reflect(surfaceToView, normal)); // #reflection
-    let skyColor : vec4<f32> = vec4(0.5,0.5,1,1);  // #noReflection
 
     let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
     let litR : vec4<f32> = lit(dot(normal, surfaceToLight),
@@ -541,13 +535,11 @@ static const char* inner_refraction_map_fragment_shader_wgsl = CODE(
                                                    v_binormal, // #normalMap
                                                    v_normal);  // #normalMap
     let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
-    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
     let refraction : vec4<f32> = textureSample(reflectionMapTexture, samplerTex2D, v_texCoord); // #reflection
     var tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
     tangentNormal = normalize(tangentNormal + vec3<f32>(0,0,innerUniforms.refractionFudge));  // #normalMap
     var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
     normal = normalize(normal); // #normalMap
-    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
 
     let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
 
@@ -664,11 +656,9 @@ static const char* normal_map_fragment_shader_wgsl = CODE(
                                                    v_binormal, // #normalMap
                                                    v_normal);  // #normalMap
     let normalSpec : vec4<f32> = textureSample(normalMapTexture, samplerTex2D, v_texCoord); // #normalMap
-    let normalSpec : vec4<f32> = vec4<f32>(0,0,0,0); // #noNormalMap
     let tangentNormal : vec3<f32> = normalSpec.xyz - vec3<f32>(0.5, 0.5, 0.5); // #normalMap
     var normal : vec3<f32> = (tangentToWorld * tangentNormal); // #normalMap
     normal = normalize(normal); // #normalMap
-    let normal : vec3<f32> = normalize(v_normal); // #noNormalMap
     let surfaceToLight : vec3<f32> = normalize(v_surfaceToLight);
     let surfaceToView : vec3<f32> = normalize(v_surfaceToView);
     let halfVector : vec3<f32> = normalize(surfaceToLight + surfaceToView);
