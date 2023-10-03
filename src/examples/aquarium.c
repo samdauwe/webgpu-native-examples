@@ -3706,6 +3706,33 @@ static void context_pre_frame(context_t* this)
 
 static void context_destroy_fish_resource(context_t* this)
 {
+  WGPU_RELEASE_RESOURCE(Buffer, this->fish_pers_buffer);
+
+  if (this->fish_pers != NULL) {
+    free(this->fish_pers);
+    this->fish_pers = NULL;
+  }
+  if (aquarium_settings.enable_dynamic_buffer_offset) {
+    if (this->bind_group_fish_pers != NULL) {
+      if (this->bind_group_fish_pers[0] != NULL) {
+        WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[0]);
+      }
+    }
+  }
+  else {
+    if (this->bind_group_fish_pers != NULL) {
+      for (uint32_t i = 0; i < this->pre_total_instance; ++i) {
+        if (this->bind_group_fish_pers[i] != NULL) {
+          WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_fish_pers[i]);
+        }
+      }
+    }
+  }
+
+  free(this->bind_group_fish_pers);
+  this->bind_group_fish_pers = NULL;
+
+  buffer_manager_destroy_buffer_pool(this->buffer_manager);
 }
 
 static void context_realloc_resource(context_t* this,
