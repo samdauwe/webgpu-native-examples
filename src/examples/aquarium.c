@@ -2415,16 +2415,16 @@ typedef struct {
 } buffer_dawn_t;
 
 /* Forward declarations */
-static WGPUBuffer context_create_buffer(void* context,
+static WGPUBuffer context_create_buffer(context_t* context,
                                         WGPUBufferDescriptor const* descriptor);
-static void context_set_buffer_data(void* context, WGPUBuffer buffer,
+static void context_set_buffer_data(context_t* context, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size);
-static void context_update_buffer_data(void* context, WGPUBuffer buffer,
-                                       size_t buffer_size, void* data,
-                                       size_t data_size);
+static void context_update_buffer_data(struct context_t* context,
+                                       WGPUBuffer buffer, size_t buffer_size,
+                                       void* data, size_t data_size);
 
-static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
+static void buffer_dawn_create_f32(buffer_dawn_t* this, context_t* context,
                                    int32_t total_components,
                                    int32_t num_components, float* buffer,
                                    bool is_index)
@@ -2449,7 +2449,7 @@ static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
                           buffer_size);
 }
 
-static void buffer_dawn_create_uint16(buffer_dawn_t* this, void* context,
+static void buffer_dawn_create_uint16(buffer_dawn_t* this, context_t* context,
                                       int32_t total_components,
                                       int32_t num_components, uint16_t* buffer,
                                       uint64_t buffer_count, bool is_index)
@@ -3146,7 +3146,7 @@ static WGPUBuffer context_create_buffer_from_data(context_t* this,
   };
   WGPUBuffer buffer = context_create_buffer(wgpu_context, &buffer_desc);
 
-  context_set_buffer_data(wgpu_context, buffer, max_size, data, size);
+  context_set_buffer_data(this, buffer, max_size, data, size);
   ASSERT(buffer != NULL);
   return buffer;
 }
@@ -3416,17 +3416,16 @@ static texture_t context_create_depth_stencil_view(context_t* this)
   return texture;
 }
 
-static WGPUBuffer context_create_buffer(void* this,
+static WGPUBuffer context_create_buffer(context_t* this,
                                         WGPUBufferDescriptor const* descriptor)
 {
-  return wgpuDeviceCreateBuffer(((context_t*)this)->device, descriptor);
+  return wgpuDeviceCreateBuffer(this->device, descriptor);
 }
 
-static void context_set_buffer_data(void* context, WGPUBuffer buffer,
+static void context_set_buffer_data(context_t* this, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size)
 {
-  context_t* this              = (context_t*)context;
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
   WGPUBufferDescriptor buffer_desc = {
@@ -3445,7 +3444,7 @@ static void context_set_buffer_data(void* context, WGPUBuffer buffer,
     = context_copy_buffer_to_buffer(this, staging, 0, buffer, 0, buffer_size);
   ASSERT(command != NULL);
   WGPU_RELEASE_RESOURCE(Buffer, staging);
-  sc_array_add(&((context_t*)this)->command_buffers, command);
+  sc_array_add(&this->command_buffers, command);
 }
 
 static WGPUBindGroup
