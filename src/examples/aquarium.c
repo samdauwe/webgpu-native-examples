@@ -3503,6 +3503,33 @@ static void context_init_general_resources(context_t* this,
     sizeof(aquarium->fog_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->uniform_buffers.light,
+        .offset  = 0,
+        .size    = sizeof(aquarium->light_uniforms),
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->uniform_buffers.fog,
+        .offset  = 0,
+        .size    = sizeof(aquarium->fog_uniforms),
+      },
+    };
+    this->bind_groups.general
+      = context_make_bind_group(this, this->bind_group_layouts.general,
+                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+  }
+
+  context_set_buffer_data(this, this->uniform_buffers.light,
+                          sizeof(light_uniforms_t), &aquarium->light_uniforms,
+                          sizeof(light_uniforms_t));
+  context_set_buffer_data(this, this->uniform_buffers.fog,
+                          sizeof(fog_uniforms_t), &aquarium->fog_uniforms,
+                          sizeof(fog_uniforms_t));
+
   /* Initialize world uniform buffers */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
