@@ -3246,6 +3246,7 @@ static WGPUBindGroupLayout context_make_bind_group_layout(
 {
   WGPUBindGroupLayout bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     this->device, &(WGPUBindGroupLayoutDescriptor){
+                    .label      = "Bind group layout",
                     .entryCount = bind_group_layout_entry_count,
                     .entries    = bind_group_layout_entries,
                   });
@@ -3259,6 +3260,7 @@ static WGPUPipelineLayout context_make_basic_pipeline_layout(
 {
   WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
     this->device, &(WGPUPipelineLayoutDescriptor){
+                    .label                = "Basic pipeline layout",
                     .bindGroupLayoutCount = bind_group_layout_count,
                     .bindGroupLayouts     = bind_group_layouts,
                   });
@@ -3335,6 +3337,7 @@ static WGPURenderPipeline context_create_render_pipeline(
   };
 
   WGPURenderPipelineDescriptor pipeline_descriptor = {
+    .label        = "Render pipeline",
     .layout       = pipeline_layout,
     .vertex       = *vertex_state,
     .primitive    = primitive_state,
