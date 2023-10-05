@@ -241,7 +241,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-static void setup_render_pass()
+static void setup_render_pass(void)
 {
   // Color attachment
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
