@@ -24,9 +24,9 @@ static const char* fragment_shader_wgsl;
  * Vertex Buffer example
  * -------------------------------------------------------------------------- */
 
-#define RECURSION_LIMIT 7
+#define RECURSION_LIMIT 7u
 
-static uint64_t num_vertices = 0;
+static uint64_t num_vertices = 0ull;
 
 // Buffer containing the vertices
 static WGPUBuffer vertices_buffer = {0};
