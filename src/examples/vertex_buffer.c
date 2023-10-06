@@ -65,20 +65,18 @@ float max(float a, float b, float c)
 
 float2 avg(const float2* v0, const float2* v1)
 {
-  float2 ret = {
+  return (float2){
     (v0->x + v1->x) * 0.5f, /* x */
     (v0->y + v1->y) * 0.5f, /* y */
   };
-  return ret;
 }
 
 float2 avg8(const float2* v0, const float2* v1)
 {
-  float2 ret = {
+  return (float2){
     v0->x * 0.8f + v1->x * 0.2f, /* x */
     v0->y * 0.8f + v1->y * 0.2f, /* y */
   };
-  return ret;
 }
 
 static void wgpu_buffer_write_mapped_range(WGPUBuffer buffer, size_t offset,
