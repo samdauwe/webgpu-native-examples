@@ -201,6 +201,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   uniform_buffer.buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
+      .label = "Cube uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = uniform_buffer.size_with_offset,
     });
