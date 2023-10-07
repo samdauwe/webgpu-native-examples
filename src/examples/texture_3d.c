@@ -214,7 +214,7 @@ static struct {
 };
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout; // solid
+static WGPUPipelineLayout pipeline_layout = NULL; // solid
 
 // Pipeline
 static struct {
