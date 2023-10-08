@@ -216,14 +216,31 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   {
     const uint32_t linked_list_element_size
       = 5 * sizeof(float) + 1 * sizeof(uint32_t);
-    buffers.linked_list = wgpu_create_buffer(
-      wgpu_context,
-      &(wgpu_buffer_desc_t){
-        .label = "linkedListBuffer",
-        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
-        .size  = average_layers_per_fragment * linked_list_element_size
-                * canvas_width * canvas_height,
-      });
+
+    // We want to keep the linked-list buffer size under the
+    // maxStorageBufferBindingSize.
+    // Split the frame into enough slices to meet that constraint.
+    const uint32_t bytes_per_line
+      = canvas_width * average_layers_per_fragment * linked_list_element_size;
+    uint64_t max_buffer_size          = 0;
+    WGPUSupportedLimits device_limits = {0};
+    if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
+      max_buffer_size = device_limits.limits.maxStorageBufferBindingSize;
+    }
+    const uint32_t max_lines_supported
+      = (uint32_t)floorf(max_buffer_size / (float)bytes_per_line);
+    const uint32_t num_slices
+      = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
+    const uint32_t slice_height
+      = (uint32_t)ceilf(canvas_height / (float)num_slices);
+    const uint32_t linked_list_buffer_size = slice_height * bytes_per_line;
+    buffers.linked_list
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "linkedListBuffer",
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Storage,
+                                           .size = linked_list_buffer_size,
+                                         });
   }
 
   // Uniforms contains:
