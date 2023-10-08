@@ -1052,6 +1052,10 @@ static const char* composite_shader_wgsl = CODE(
     targetWidth: u32,
   };
 
+  struct SliceInfo {
+    sliceStartY: i32
+  };
+
   struct Heads {
     numFragments: u32,
     data: array<u32>
@@ -1070,6 +1074,7 @@ static const char* composite_shader_wgsl = CODE(
   @binding(0) @group(0) var<uniform> uniforms: Uniforms;
   @binding(1) @group(0) var<storage, read_write> heads: Heads;
   @binding(2) @group(0) var<storage, read_write> linkedList: LinkedList;
+  @binding(3) @group(0) var<uniform> sliceInfo: SliceInfo;
 
   // Output a full screen quad
   @vertex
@@ -1089,7 +1094,7 @@ static const char* composite_shader_wgsl = CODE(
   @fragment
   fn main_fs(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let fragCoords = vec2<i32>(position.xy);
-    let headsIndex = u32(fragCoords.y) * uniforms.targetWidth + u32(fragCoords.x);
+    let headsIndex = u32(fragCoords.y - sliceInfo.sliceStartY) * uniforms.targetWidth + u32(fragCoords.x);
 
     // The maximum layers we can process for any pixel
     const maxLayers = 24u;
