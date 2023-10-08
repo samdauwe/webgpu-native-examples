@@ -962,6 +962,9 @@ static const char* translucent_shader_wgsl = CODE(
     targetWidth: u32,
   };
 
+  struct SliceInfo {
+    sliceStartY: i32
+  };
 
   struct Heads {
     numFragments: atomic<u32>,
@@ -982,6 +985,7 @@ static const char* translucent_shader_wgsl = CODE(
   @binding(1) @group(0) var<storage, read_write> heads: Heads;
   @binding(2) @group(0) var<storage, read_write> linkedList: LinkedList;
   @binding(3) @group(0) var opaqueDepthTexture: texture_depth_2d;
+  @binding(4) @group(0) var<uniform> sliceInfo: SliceInfo;
 
   struct VertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -1030,7 +1034,7 @@ static const char* translucent_shader_wgsl = CODE(
 
     // The index in the heads buffer corresponding to the head data for the fragment at
     // the current location.
-    let headsIndex = u32(fragCoords.y) * uniforms.targetWidth + u32(fragCoords.x);
+    let headsIndex = u32(fragCoords.y - sliceInfo.sliceStartY) * uniforms.targetWidth + u32(fragCoords.x);
 
     // The index in the linkedList buffer at which to store the new fragment
     let fragIndex = atomicAdd(&heads.numFragments, 1u);
