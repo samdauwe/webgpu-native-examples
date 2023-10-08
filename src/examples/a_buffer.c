@@ -28,12 +28,15 @@ static const char* composite_shader_wgsl;
 
 static utah_teapot_mesh_t utah_teapot_mesh = {0};
 
+static WGPUSupportedLimits device_limits = {0};
+
 static struct {
   wgpu_buffer_t vertex;
   wgpu_buffer_t index;
   wgpu_buffer_t heads;
   wgpu_buffer_t heads_init;
   wgpu_buffer_t linked_list;
+  wgpu_buffer_t slice_info;
   wgpu_buffer_t uniform;
 } buffers = {0};
 
@@ -101,6 +104,13 @@ static const uint32_t average_layers_per_fragment = 4;
 // Other variables
 static const char* example_title = "A-Buffer";
 static bool prepared             = false;
+
+static void init_device_limits(wgpu_context_t* wgpu_context)
+{
+  if (!wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
+    log_error("Could not query WebGPU qdqpter limits");
+  }
+}
 
 static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 {
@@ -213,6 +223,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // * color : vec4<f32>
   // * depth : f32
   // * index of next element in the list : u32
+  uint32_t num_slices = 0, slice_height = 0;
   {
     const uint32_t linked_list_element_size
       = 5 * sizeof(float) + 1 * sizeof(uint32_t);
@@ -222,15 +233,9 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
     // Split the frame into enough slices to meet that constraint.
     const uint32_t bytes_per_line
       = canvas_width * average_layers_per_fragment * linked_list_element_size;
-    uint64_t max_buffer_size          = 0;
-    WGPUSupportedLimits device_limits = {0};
-    if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
-      max_buffer_size = device_limits.limits.maxStorageBufferBindingSize;
-    }
-    const uint32_t max_lines_supported
-      = (uint32_t)floorf(max_buffer_size / (float)bytes_per_line);
-    const uint32_t num_slices
-      = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
+    const uint32_t max_lines_supported = (uint32_t)floorf(
+      device_limits.limits.maxStorageBufferBindingSize / (float)bytes_per_line);
+    num_slices = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
     const uint32_t slice_height
       = (uint32_t)ceilf(canvas_height / (float)num_slices);
     const uint32_t linked_list_buffer_size = slice_height * bytes_per_line;
@@ -241,6 +246,32 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
                                                     | WGPUBufferUsage_Storage,
                                            .size = linked_list_buffer_size,
                                          });
+  }
+
+  // To slice up the frame we need to pass the starting fragment y position of
+  // the slice. We do this using a uniform buffer with a dynamic offset.
+  {
+    WGPUBufferDescriptor buffer_desc = {
+      .label = "sliceInfoBuffer",
+      .usage = WGPUBufferUsage_Uniform,
+      .size = num_slices * device_limits.limits.minUniformBufferOffsetAlignment,
+      .mappedAtCreation = true,
+    };
+    buffers.slice_info = (wgpu_buffer_t){
+      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
+      .usage  = buffer_desc.usage,
+      .size   = buffer_desc.size,
+    };
+    ASSERT(buffers.slice_info.buffer);
+    uint32_t* mapping = (uint32_t*)wgpuBufferGetMappedRange(
+      buffers.slice_info.buffer, 0, buffer_desc.size);
+    // This assumes minUniformBufferOffsetAlignment is a multiple of 4
+    const uint32_t stride
+      = device_limits.limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
+    for (uint32_t i = 0; i < num_slices; ++i) {
+      mapping[i * stride] = i * slice_height;
+    }
+    wgpuBufferUnmap(buffers.slice_info.buffer);
   }
 
   // Uniforms contains:
@@ -584,7 +615,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
 
   /* Bind group */
   {
-    WGPUBindGroupEntry bg_entries[4] = {
+    WGPUBindGroupEntry bg_entries[5] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = buffers.uniform.buffer,
@@ -603,6 +634,11 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
       [3] = (WGPUBindGroupEntry) {
         .binding     = 3,
         .textureView = depth_texture.view,
+      },
+      [4] = (WGPUBindGroupEntry) {
+        .binding = 4,
+        .buffer  = buffers.slice_info.buffer,
+        .size    = device_limits.limits.minUniformBufferOffsetAlignment,
       },
     };
     translucent_render_pass.bind_group = wgpuDeviceCreateBindGroup(
@@ -705,7 +741,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
 
   /* Bind group */
   {
-    WGPUBindGroupEntry bg_entries[3] = {
+    WGPUBindGroupEntry bg_entries[4] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = buffers.uniform.buffer,
@@ -720,6 +756,11 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .binding = 2,
         .buffer  = buffers.linked_list.buffer,
         .size    = buffers.linked_list.size,
+      },
+      [3] = (WGPUBindGroupEntry) {
+        .binding = 3,
+        .buffer  = buffers.slice_info.buffer,
+        .size    = device_limits.limits.minUniformBufferOffsetAlignment,
       },
     };
     composite_render_pass.bind_group = wgpuDeviceCreateBindGroup(
@@ -752,6 +793,7 @@ static void update_uniform_buffer(wgpu_example_context_t* context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    init_device_limits(context->wgpu_context);
     utah_teapot_mesh_init(&utah_teapot_mesh);
     prepare_depth_texture(context->wgpu_context);
     prepare_buffers(context->wgpu_context, &utah_teapot_mesh);
@@ -893,6 +935,7 @@ static void example_destroy(wgpu_example_context_t* context)
   wgpu_destroy_buffer(&buffers.heads);
   wgpu_destroy_buffer(&buffers.heads_init);
   wgpu_destroy_buffer(&buffers.linked_list);
+  wgpu_destroy_buffer(&buffers.slice_info);
   wgpu_destroy_buffer(&buffers.uniform);
   WGPU_RELEASE_RESOURCE(Texture, depth_texture.texture)
   WGPU_RELEASE_RESOURCE(TextureView, depth_texture.view)
