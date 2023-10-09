@@ -98,8 +98,12 @@ static struct {
   WGPUBindGroup bind_group;
 } composite_render_pass = {0};
 
-// Determines how much memory is allocated to store linked-list elements
+/* Determines how much memory is allocated to store linked-list elements */
 static const uint32_t average_layers_per_fragment = 4;
+
+/* Slices info */
+uint32_t num_slices   = 0;
+uint32_t slice_height = 0;
 
 // Other variables
 static const char* example_title = "A-Buffer";
@@ -223,7 +227,6 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // * color : vec4<f32>
   // * depth : f32
   // * index of next element in the list : u32
-  uint32_t num_slices = 0, slice_height = 0;
   {
     const uint32_t linked_list_element_size
       = 5 * sizeof(float) + 1 * sizeof(uint32_t);
@@ -816,18 +819,16 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
+  const uint32_t canvas_width  = wgpu_context->surface.width;
+  const uint32_t canvas_height = wgpu_context->surface.height;
+
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Initialize the heads buffer */
-  wgpuCommandEncoderCopyBufferToBuffer(
-    wgpu_context->cmd_enc, buffers.heads_init.buffer, 0, buffers.heads.buffer,
-    0, buffers.heads_init.size);
+  WGPUTextureView texture_view = wgpu_context->swap_chain.frame_buffer;
 
   /* Draw the opaque objects */
   {
-    opaque_render_pass.pass_desc.color_attachments[0].view
-      = wgpu_context->swap_chain.frame_buffer;
+    opaque_render_pass.pass_desc.color_attachments[0].view = texture_view;
     WGPURenderPassEncoder opaque_pass_encoder
       = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc, &opaque_render_pass.pass_desc.descriptor);
@@ -846,42 +847,72 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, opaque_pass_encoder)
   }
 
-  /* Draw the translucent objects */
-  {
-    translucent_render_pass.pass_desc.color_attachments[0].view
-      = wgpu_context->swap_chain.frame_buffer;
-    WGPURenderPassEncoder translucent_pass_encoder
-      = wgpuCommandEncoderBeginRenderPass(
-        wgpu_context->cmd_enc, &translucent_render_pass.pass_desc.descriptor);
-    wgpuRenderPassEncoderSetPipeline(translucent_pass_encoder,
-                                     translucent_render_pass.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(translucent_pass_encoder, 0,
-                                      translucent_render_pass.bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      translucent_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(
-      translucent_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16, 0,
-      WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(translucent_pass_encoder,
-                                     buffers.index.count, 8, 0, 0, 0);
-    wgpuRenderPassEncoderEnd(translucent_pass_encoder);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, translucent_pass_encoder)
-  }
+  for (uint32_t slice = 0; slice < num_slices; ++slice) {
+    /* Initialize the heads buffer */
+    wgpuCommandEncoderCopyBufferToBuffer(
+      wgpu_context->cmd_enc, buffers.heads_init.buffer, 0, buffers.heads.buffer,
+      0, buffers.heads_init.size);
 
-  /* Composite the opaque and translucent objects */
-  {
-    composite_render_pass.pass_desc.color_attachments[0].view
-      = wgpu_context->swap_chain.frame_buffer;
-    WGPURenderPassEncoder composite_pass_encoder
-      = wgpuCommandEncoderBeginRenderPass(
-        wgpu_context->cmd_enc, &composite_render_pass.pass_desc.descriptor);
-    wgpuRenderPassEncoderSetPipeline(composite_pass_encoder,
-                                     composite_render_pass.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(composite_pass_encoder, 0,
-                                      composite_render_pass.bind_group, 0, 0);
-    wgpuRenderPassEncoderDraw(composite_pass_encoder, 6, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(composite_pass_encoder);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, composite_pass_encoder)
+    const uint32_t scissor_x     = 0;
+    const uint32_t scissor_y     = slice * slice_height;
+    const uint32_t scissor_width = canvas_width;
+    const uint32_t scissor_height
+      = MIN((slice + 1) * slice_height, canvas_height) - slice * slice_height;
+
+    /* Draw the translucent objects */
+    {
+      translucent_render_pass.pass_desc.color_attachments[0].view
+        = texture_view;
+      WGPURenderPassEncoder translucent_pass_encoder
+        = wgpuCommandEncoderBeginRenderPass(
+          wgpu_context->cmd_enc, &translucent_render_pass.pass_desc.descriptor);
+
+      /* Set the scissor to only process a horizontal slice of the frame */
+      wgpuRenderPassEncoderSetScissorRect(translucent_pass_encoder, scissor_x,
+                                          scissor_y, scissor_width,
+                                          scissor_height);
+
+      wgpuRenderPassEncoderSetPipeline(translucent_pass_encoder,
+                                       translucent_render_pass.pipeline);
+      const uint32_t dynamic_offsets[1]
+        = {slice * device_limits.limits.minUniformBufferOffsetAlignment};
+      wgpuRenderPassEncoderSetBindGroup(translucent_pass_encoder, 0,
+                                        translucent_render_pass.bind_group, 1,
+                                        dynamic_offsets);
+      wgpuRenderPassEncoderSetVertexBuffer(
+        translucent_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderSetIndexBuffer(
+        translucent_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16,
+        0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDrawIndexed(translucent_pass_encoder,
+                                       buffers.index.count, 8, 0, 0, 0);
+      wgpuRenderPassEncoderEnd(translucent_pass_encoder);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, translucent_pass_encoder)
+    }
+
+    /* Composite the opaque and translucent objects */
+    {
+      composite_render_pass.pass_desc.color_attachments[0].view = texture_view;
+      WGPURenderPassEncoder composite_pass_encoder
+        = wgpuCommandEncoderBeginRenderPass(
+          wgpu_context->cmd_enc, &composite_render_pass.pass_desc.descriptor);
+
+      /* Set the scissor to only process a horizontal slice of the frame */
+      wgpuRenderPassEncoderSetScissorRect(composite_pass_encoder, scissor_x,
+                                          scissor_y, scissor_width,
+                                          scissor_height);
+
+      wgpuRenderPassEncoderSetPipeline(composite_pass_encoder,
+                                       composite_render_pass.pipeline);
+      const uint32_t dynamic_offsets[1]
+        = {slice * device_limits.limits.minUniformBufferOffsetAlignment};
+      wgpuRenderPassEncoderSetBindGroup(composite_pass_encoder, 0,
+                                        composite_render_pass.bind_group, 1,
+                                        dynamic_offsets);
+      wgpuRenderPassEncoderDraw(composite_pass_encoder, 6, 1, 0, 0);
+      wgpuRenderPassEncoderEnd(composite_pass_encoder);
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, composite_pass_encoder)
+    }
   }
 
   // Draw ui overlay
