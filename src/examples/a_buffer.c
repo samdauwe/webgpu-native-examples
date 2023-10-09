@@ -95,6 +95,7 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } pass_desc;
   WGPURenderPipeline pipeline;
+  WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
 } composite_render_pass = {0};
 
@@ -742,6 +743,59 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     };
   }
 
+  /* Bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[4] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.uniform.size,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Storage,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.heads.size,
+        },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Storage,
+          .hasDynamicOffset = false,
+          .minBindingSize   = buffers.linked_list.size,
+        },
+        .sampler = {0},
+      },
+      [3] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 3,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Storage,
+          .hasDynamicOffset = true,
+          .minBindingSize   = device_limits.limits.minUniformBufferOffsetAlignment,
+        },
+        .sampler = {0},
+      }
+    };
+    composite_render_pass.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "compositeBindGroupLayout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(composite_render_pass.bind_group_layout != NULL);
+  }
+
   /* Bind group */
   {
     WGPUBindGroupEntry bg_entries[4] = {
@@ -769,8 +823,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     composite_render_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
                               .label  = "compositeBindGroup",
-                              .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                composite_render_pass.pipeline, 0),
+                              .layout = composite_render_pass.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
@@ -974,6 +1027,8 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, translucent_render_pass.pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, translucent_render_pass.bind_group)
   WGPU_RELEASE_RESOURCE(RenderPipeline, composite_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        composite_render_pass.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, composite_render_pass.bind_group)
 }
 
