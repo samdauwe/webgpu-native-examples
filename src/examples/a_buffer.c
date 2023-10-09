@@ -95,6 +95,7 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } pass_desc;
   WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
 } composite_render_pass = {0};
@@ -712,7 +713,8 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "compositePipeline",
+                              .label  = "compositePipeline",
+                              .layout = composite_render_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
                               .fragment    = &fragment_state,
@@ -794,6 +796,18 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
                               .entries    = bgl_entries,
                             });
     ASSERT(composite_render_pass.bind_group_layout != NULL);
+  }
+
+  /* Pipeline layout */
+  {
+    composite_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = "compositePipelineLayout",
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &composite_render_pass.bind_group_layout,
+      });
+    ASSERT(composite_render_pass.pipeline_layout != NULL);
   }
 
   /* Bind group */
@@ -1027,6 +1041,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, translucent_render_pass.pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, translucent_render_pass.bind_group)
   WGPU_RELEASE_RESOURCE(RenderPipeline, composite_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, composite_render_pass.pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
                         composite_render_pass.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, composite_render_pass.bind_group)
