@@ -375,10 +375,10 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
                           &view_matrices.eye_position);
 
   mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(view_matrices.eye_position, // eye vector
-             view_matrices.origin,       // center vector
-             view_matrices.up_vector,    // up vector
-             view_matrix                 // result matrix
+  glm_lookat(view_matrices.eye_position, /* eye vector    */
+             view_matrices.origin,       /* center vector */
+             view_matrices.up_vector,    /* up vector     */
+             view_matrix                 /* result matrix */
   );
 
   glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
@@ -784,9 +784,8 @@ static void update_uniform_buffer(wgpu_example_context_t* context)
 
   glm_mat4_copy(*get_camera_view_proj_matrix(context),
                 ubo_data.model_view_projection_matrix);
-  ubo_data.max_storable_fragments = average_layers_per_fragment
-                                    * wgpu_context->surface.width
-                                    * wgpu_context->surface.height;
+  ubo_data.max_storable_fragments
+    = average_layers_per_fragment * wgpu_context->surface.width * slice_height;
   ubo_data.target_width = wgpu_context->surface.width;
 
   wgpuQueueWriteBuffer(wgpu_context->queue, buffers.uniform.buffer, 0,
