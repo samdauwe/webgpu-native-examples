@@ -348,38 +348,38 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // implementation doesn't infer this from the shader (yet).
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
-    [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform
-      .binding    = 0,
-      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-      .buffer = (WGPUBufferBindingLayout) {
-        .type             = WGPUBufferBindingType_Uniform,
-        .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Uniform
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type             = WGPUBufferBindingType_Uniform,
+          .hasDynamicOffset = false,
+          .minBindingSize   = sizeof(mat4) + sizeof(mat4) + sizeof(vec4),
+        },
+        .sampler = {0},
       },
-      .sampler = {0},
-    },
-    [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Texture view
-      .binding    = 1,
-      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-      .texture = (WGPUTextureBindingLayout) {
-        .sampleType    = WGPUTextureSampleType_Depth,
-        .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled  = false,
+      [1] = (WGPUBindGroupLayoutEntry) {
+        // Binding 1: Texture view
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Depth,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
       },
-      .storageTexture = {0},
-    },
-    [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Sampler
-      .binding    = 2,
-      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-      .sampler = (WGPUSamplerBindingLayout){
-        .type = WGPUSamplerBindingType_Comparison,
-      },
-      .texture = {0},
-    }
-  };
+      [2] = (WGPUBindGroupLayoutEntry) {
+        // Binding 2: Sampler
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type = WGPUSamplerBindingType_Comparison,
+        },
+        .texture = {0},
+      }
+    };
     bind_groups_layouts.render = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
