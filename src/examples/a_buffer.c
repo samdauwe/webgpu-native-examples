@@ -417,7 +417,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
 
     // Vertex buffer layout
     WGPU_VERTEX_BUFFER_LAYOUT(
-      translucent, sizeof(float) * 3,
+      translucent, 3 * sizeof(float),
       // Attribute location 0: Position
       WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
 
@@ -508,18 +508,20 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
 
   /* Bind group */
   {
-    WGPUBindGroupEntry bg_entries[1] = {[0] = (WGPUBindGroupEntry){
-                                          .binding = 0,
-                                          .buffer  = buffers.uniform.buffer,
-                                          .size    = buffers.uniform.size,
-                                        }};
-    opaque_render_pass.bind_group    = wgpuDeviceCreateBindGroup(
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer  = buffers.uniform.buffer,
+        .size    = buffers.uniform.size,
+      },
+    };
+    opaque_render_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                                 .label  = "opaqueBindGroup",
-                                 .layout = wgpuRenderPipelineGetBindGroupLayout(
+                              .label  = "opaqueBindGroup",
+                              .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 opaque_render_pass.pipeline, 0),
-                                 .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                                 .entries    = bg_entries,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
                             });
     ASSERT(opaque_render_pass.bind_group != NULL);
   }
