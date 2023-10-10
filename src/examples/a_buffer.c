@@ -191,12 +191,65 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   const uint32_t canvas_width  = wgpu_context->surface.width;
   const uint32_t canvas_height = wgpu_context->surface.height;
 
+  // Each element stores
+  // * color : vec4<f32>
+  // * depth : f32
+  // * index of next element in the list : u32
+  {
+    const uint32_t linked_list_element_size
+      = 5 * sizeof(float) + 1 * sizeof(uint32_t);
+
+    // We want to keep the linked-list buffer size under the
+    // maxStorageBufferBindingSize.
+    // Split the frame into enough slices to meet that constraint.
+    const uint32_t bytes_per_line
+      = canvas_width * average_layers_per_fragment * linked_list_element_size;
+    const uint32_t max_lines_supported = (uint32_t)floorf(
+      device_limits.limits.maxStorageBufferBindingSize / (float)bytes_per_line);
+    num_slices   = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
+    slice_height = (uint32_t)ceilf(canvas_height / (float)num_slices);
+    const uint32_t linked_list_buffer_size = slice_height * bytes_per_line;
+    buffers.linked_list
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "linkedListBuffer",
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Storage,
+                                           .size = linked_list_buffer_size,
+                                         });
+  }
+
+  // To slice up the frame we need to pass the starting fragment y position of
+  // the slice. We do this using a uniform buffer with a dynamic offset.
+  {
+    WGPUBufferDescriptor buffer_desc = {
+      .label = "sliceInfoBuffer",
+      .usage = WGPUBufferUsage_Uniform,
+      .size = num_slices * device_limits.limits.minUniformBufferOffsetAlignment,
+      .mappedAtCreation = true,
+    };
+    buffers.slice_info = (wgpu_buffer_t){
+      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
+      .usage  = buffer_desc.usage,
+      .size   = buffer_desc.size,
+    };
+    ASSERT(buffers.slice_info.buffer);
+    int32_t* mapping = (int32_t*)wgpuBufferGetMappedRange(
+      buffers.slice_info.buffer, 0, buffer_desc.size);
+    // This assumes minUniformBufferOffsetAlignment is a multiple of 4
+    const int32_t stride
+      = device_limits.limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
+    for (int32_t i = 0; i < (int32_t)num_slices; ++i) {
+      mapping[i * stride] = i * slice_height;
+    }
+    wgpuBufferUnmap(buffers.slice_info.buffer);
+  }
+
   // `Heads` struct contains the start index of the linked-list of translucent
   // fragments for a given pixel.
   // * numFragments : u32
   // * data : array<u32>
   {
-    const uint32_t buffer_count = 1 + canvas_width * canvas_height;
+    const uint32_t buffer_count = 1 + canvas_width * slice_height;
 
     buffers.heads = wgpu_create_buffer(
       wgpu_context,
@@ -225,60 +278,6 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
       buffer[i] = 0xffffffff;
     }
     wgpuBufferUnmap(buffers.heads_init.buffer);
-  }
-
-  // Each element stores
-  // * color : vec4<f32>
-  // * depth : f32
-  // * index of next element in the list : u32
-  {
-    const uint32_t linked_list_element_size
-      = 5 * sizeof(float) + 1 * sizeof(uint32_t);
-
-    // We want to keep the linked-list buffer size under the
-    // maxStorageBufferBindingSize.
-    // Split the frame into enough slices to meet that constraint.
-    const uint32_t bytes_per_line
-      = canvas_width * average_layers_per_fragment * linked_list_element_size;
-    const uint32_t max_lines_supported = (uint32_t)floorf(
-      device_limits.limits.maxStorageBufferBindingSize / (float)bytes_per_line);
-    num_slices = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
-    const uint32_t slice_height
-      = (uint32_t)ceilf(canvas_height / (float)num_slices);
-    const uint32_t linked_list_buffer_size = slice_height * bytes_per_line;
-    buffers.linked_list
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "linkedListBuffer",
-                                           .usage = WGPUBufferUsage_CopyDst
-                                                    | WGPUBufferUsage_Storage,
-                                           .size = linked_list_buffer_size,
-                                         });
-  }
-
-  // To slice up the frame we need to pass the starting fragment y position of
-  // the slice. We do this using a uniform buffer with a dynamic offset.
-  {
-    WGPUBufferDescriptor buffer_desc = {
-      .label = "sliceInfoBuffer",
-      .usage = WGPUBufferUsage_Uniform,
-      .size = num_slices * device_limits.limits.minUniformBufferOffsetAlignment,
-      .mappedAtCreation = true,
-    };
-    buffers.slice_info = (wgpu_buffer_t){
-      .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
-      .usage  = buffer_desc.usage,
-      .size   = buffer_desc.size,
-    };
-    ASSERT(buffers.slice_info.buffer);
-    uint32_t* mapping = (uint32_t*)wgpuBufferGetMappedRange(
-      buffers.slice_info.buffer, 0, buffer_desc.size);
-    // This assumes minUniformBufferOffsetAlignment is a multiple of 4
-    const uint32_t stride
-      = device_limits.limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
-    for (uint32_t i = 0; i < num_slices; ++i) {
-      mapping[i * stride] = i * slice_height;
-    }
-    wgpuBufferUnmap(buffers.slice_info.buffer);
   }
 
   // Uniforms contains:
@@ -579,7 +578,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
-          .hasDynamicOffset = false,
+          .hasDynamicOffset = true,
           .minBindingSize   = device_limits.limits.minUniformBufferOffsetAlignment,
         },
         .sampler = {0},
@@ -777,7 +776,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
-          .type             = WGPUBufferBindingType_Storage,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
           .minBindingSize   = device_limits.limits.minUniformBufferOffsetAlignment,
         },
