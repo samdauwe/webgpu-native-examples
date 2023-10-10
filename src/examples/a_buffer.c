@@ -85,6 +85,7 @@ static struct {
     WGPURenderPassDescriptor descriptor;
   } pass_desc;
   WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
 } translucent_render_pass = {0};
@@ -530,97 +531,6 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
 {
-  /* Render pipeline */
-  {
-    // Primitive state
-    WGPUPrimitiveState primitive_state = {
-      .topology  = WGPUPrimitiveTopology_TriangleList,
-      .frontFace = WGPUFrontFace_CCW,
-      .cullMode  = WGPUCullMode_Back,
-    };
-
-    // Color target state
-    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
-      .blend     = &blend_state,
-      .writeMask = 0x0,
-    };
-
-    // Vertex buffer layout
-    WGPU_VERTEX_BUFFER_LAYOUT(
-      translucent, sizeof(float) * 3,
-      // Attribute location 0: Position
-      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
-
-    // Vertex state
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
-                        .label            = "Translucent vertex shader WGSL",
-                        .wgsl_code.source = translucent_shader_wgsl,
-                        .entry            = "main_vs",
-                      },
-                      .buffer_count = 1,
-                      .buffers      = &translucent_vertex_buffer_layout,
-                    });
-
-    // Fragment state
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
-                        .label            = "Translucent fragment shader WGSL",
-                        .wgsl_code.source = translucent_shader_wgsl,
-                        .entry            = "main_fs",
-                      },
-                      .target_count = 1,
-                      .targets      = &color_target_state,
-                    });
-
-    // Multisample state
-    WGPUMultisampleState multisample_state
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
-
-    // Create rendering pipeline using the specified states
-    translucent_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "translucentPipeline",
-                              .primitive   = primitive_state,
-                              .vertex      = vertex_state,
-                              .fragment    = &fragment_state,
-                              .multisample = multisample_state,
-                            });
-    ASSERT(translucent_render_pass.pipeline != NULL);
-
-    // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-  }
-
-  /* Render pass descriptor */
-  {
-    /* Color attachment */
-    translucent_render_pass.pass_desc.color_attachments[0]
-      = (WGPURenderPassColorAttachment){
-        .view    = NULL, /* view is acquired and set in render loop. */
-        .loadOp  = WGPULoadOp_Load,
-        .storeOp = WGPUStoreOp_Store,
-      };
-
-    /* Pass descriptor */
-    translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "translucentPassDescriptor",
-      .colorAttachmentCount = 1,
-      .colorAttachments = translucent_render_pass.pass_desc.color_attachments,
-      .depthStencilAttachment = NULL,
-    };
-  }
-
   /* Bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
@@ -684,6 +594,18 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     ASSERT(translucent_render_pass.bind_group_layout != NULL);
   }
 
+  /* Pipeline layout */
+  {
+    translucent_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = "translucentPipelineLayout",
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &translucent_render_pass.bind_group_layout,
+      });
+    ASSERT(translucent_render_pass.pipeline_layout != NULL);
+  }
+
   /* Bind group */
   {
     WGPUBindGroupEntry bg_entries[5] = {
@@ -722,10 +644,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
       });
     ASSERT(translucent_render_pass.bind_group != NULL);
   }
-}
 
-static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
-{
   /* Render pipeline */
   {
     // Primitive state
@@ -737,23 +656,29 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
 
     // Color target state
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-    blend_state.color.srcFactor             = WGPUBlendFactor_One;
-    blend_state.color.dstFactor             = WGPUBlendFactor_OneMinusSrcAlpha;
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
       .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
+      .writeMask = 0x0,
     };
+
+    // Vertex buffer layout
+    WGPU_VERTEX_BUFFER_LAYOUT(
+      translucent, sizeof(float) * 3,
+      // Attribute location 0: Position
+      WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
 
     // Vertex state
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Vertex shader WGSL
-                        .label            = "Composite vertex shader WGSL",
-                        .wgsl_code.source = composite_shader_wgsl,
+                        .label            = "Translucent vertex shader WGSL",
+                        .wgsl_code.source = translucent_shader_wgsl,
                         .entry            = "main_vs",
                       },
+                      .buffer_count = 1,
+                      .buffers      = &translucent_vertex_buffer_layout,
                     });
 
     // Fragment state
@@ -761,8 +686,8 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Vertex shader WGSL
-                        .label            = "Composite fragment shader WGSL",
-                        .wgsl_code.source = composite_shader_wgsl,
+                        .label            = "Translucent fragment shader WGSL",
+                        .wgsl_code.source = translucent_shader_wgsl,
                         .entry            = "main_fs",
                       },
                       .target_count = 1,
@@ -777,16 +702,16 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         });
 
     // Create rendering pipeline using the specified states
-    composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+    translucent_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label  = "compositePipeline",
-                              .layout = composite_render_pass.pipeline_layout,
+                              .label  = "translucentPipeline",
+                              .layout = translucent_render_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
                               .fragment    = &fragment_state,
                               .multisample = multisample_state,
                             });
-    ASSERT(composite_render_pass.pipeline != NULL);
+    ASSERT(translucent_render_pass.pipeline != NULL);
 
     // Partial cleanup
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -796,7 +721,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
   /* Render pass descriptor */
   {
     /* Color attachment */
-    composite_render_pass.pass_desc.color_attachments[0]
+    translucent_render_pass.pass_desc.color_attachments[0]
       = (WGPURenderPassColorAttachment){
         .view    = NULL, /* view is acquired and set in render loop. */
         .loadOp  = WGPULoadOp_Load,
@@ -804,13 +729,17 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
       };
 
     /* Pass descriptor */
-    composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "compositePassDescriptor",
+    translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
+      .label                = "translucentPassDescriptor",
       .colorAttachmentCount = 1,
-      .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
+      .colorAttachments = translucent_render_pass.pass_desc.color_attachments,
+      .depthStencilAttachment = NULL,
     };
   }
+}
 
+static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
+{
   /* Bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
@@ -908,6 +837,91 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
                               .entries    = bg_entries,
                             });
     ASSERT(composite_render_pass.bind_group != NULL);
+  }
+
+  /* Render pipeline */
+  {
+    // Primitive state
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    };
+
+    // Color target state
+    WGPUBlendState blend_state              = wgpu_create_blend_state(true);
+    blend_state.color.srcFactor             = WGPUBlendFactor_One;
+    blend_state.color.dstFactor             = WGPUBlendFactor_OneMinusSrcAlpha;
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = wgpu_context->swap_chain.format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    // Vertex state
+    WGPUVertexState vertex_state = wgpu_create_vertex_state(
+      wgpu_context, &(wgpu_vertex_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Composite vertex shader WGSL",
+                        .wgsl_code.source = composite_shader_wgsl,
+                        .entry            = "main_vs",
+                      },
+                    });
+
+    // Fragment state
+    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+      wgpu_context, &(wgpu_fragment_state_t){
+                      .shader_desc = (wgpu_shader_desc_t){
+                        // Vertex shader WGSL
+                        .label            = "Composite fragment shader WGSL",
+                        .wgsl_code.source = composite_shader_wgsl,
+                        .entry            = "main_fs",
+                      },
+                      .target_count = 1,
+                      .targets      = &color_target_state,
+                    });
+
+    // Multisample state
+    WGPUMultisampleState multisample_state
+      = wgpu_create_multisample_state_descriptor(
+        &(create_multisample_state_desc_t){
+          .sample_count = 1,
+        });
+
+    // Create rendering pipeline using the specified states
+    composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                              .label  = "compositePipeline",
+                              .layout = composite_render_pass.pipeline_layout,
+                              .primitive   = primitive_state,
+                              .vertex      = vertex_state,
+                              .fragment    = &fragment_state,
+                              .multisample = multisample_state,
+                            });
+    ASSERT(composite_render_pass.pipeline != NULL);
+
+    // Partial cleanup
+    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  }
+
+  /* Render pass descriptor */
+  {
+    /* Color attachment */
+    composite_render_pass.pass_desc.color_attachments[0]
+      = (WGPURenderPassColorAttachment){
+        .view    = NULL, /* view is acquired and set in render loop. */
+        .loadOp  = WGPULoadOp_Load,
+        .storeOp = WGPUStoreOp_Store,
+      };
+
+    /* Pass descriptor */
+    composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
+      .label                = "compositePassDescriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
+    };
   }
 }
 
@@ -1105,6 +1119,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, opaque_render_pass.pipeline)
   WGPU_RELEASE_RESOURCE(BindGroup, opaque_render_pass.bind_group)
   WGPU_RELEASE_RESOURCE(RenderPipeline, translucent_render_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, translucent_render_pass.pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout,
                         translucent_render_pass.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, translucent_render_pass.bind_group)
