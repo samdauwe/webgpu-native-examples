@@ -462,7 +462,7 @@ static int tile_map_renderer_draw(tile_map_renderer_t* this)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static void tile_map_renderer_update_tile_map_layers(tile_map_renderer_t* this,
