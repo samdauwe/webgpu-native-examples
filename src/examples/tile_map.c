@@ -91,6 +91,7 @@ static void tile_map_layer_create(tile_map_layer_t* this,
   /* Create uniform buffer */
   this->uniform.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Tile map uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(tile_data_t),
                   });
