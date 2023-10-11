@@ -352,6 +352,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
 
     // Render pass descriptor
     this->render_pass.descriptor = (WGPURenderPassDescriptor){
+      .label                  = "Render pass descriptor",
       .colorAttachmentCount   = 1,
       .colorAttachments       = this->render_pass.color_attachments,
       .depthStencilAttachment = NULL,
