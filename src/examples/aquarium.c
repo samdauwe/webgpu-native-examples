@@ -6315,7 +6315,7 @@ inner_model_update_per_instance_uniforms(void* self,
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  model_t model;
+  model_t _model;
   struct {
     texture_t* diffuse;
     texture_t* normal;
@@ -6335,40 +6335,32 @@ typedef struct {
     float specular_factor;
   } light_factor_uniforms;
   world_uniforms_t world_uniform_per[20];
-  WGPUVertexState vertex_state;
-  WGPURenderPipeline pipeline;
+  WGPUVertexState _vertex_state;
+  WGPURenderPipeline _pipeline;
   struct {
     WGPUBindGroupLayout model;
     WGPUBindGroupLayout per;
-  } bind_group_layouts;
-  WGPUPipelineLayout pipeline_layout;
+  } _bind_group_layouts;
+  WGPUPipelineLayout _pipeline_layout;
   struct {
     WGPUBindGroup model;
     WGPUBindGroup per;
-  } bind_groups;
+  } _bind_groups;
   struct {
     WGPUBuffer light_factor;
     WGPUBuffer view;
-  } uniform_buffers;
-  aquarium_t* aquarium;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
-  /* Function pointers */
-  void (*destroy)(void* self);
-  void (*prepare_for_draw)(void* self);
-  void (*update_per_instance_uniforms)(void* self,
-                                       const world_uniforms_t* world_uniforms);
-  void (*draw)(void* self);
-  void (*set_program)(void* self, program_t* prgm);
-  void (*init)(void* self);
+  } _uniform_buffers;
+  aquarium_t* _aquarium;
+  wgpu_context_t* _wgpu_context;
+  context_t* _context;
 } outside_model_t;
 
-static void outside_model_destroy(void* self);
-static void outside_model_prepare_for_draw(void* self);
+static void outside_model_destroy(model_t* self);
+static void outside_model_init(model_t* self);
+static void outside_model_prepare_for_draw(model_t* self);
+static void outside_model_draw(model_t* self);
 static void outside_model_update_per_instance_uniforms(
-  void* self, const world_uniforms_t* world_uniforms);
-static void outside_model_draw(void* self);
-static void outside_model_initialize(void* self);
+  model_t* self, const world_uniforms_t* world_uniforms);
 
 static void outside_model_init_defaults(outside_model_t* this)
 {
