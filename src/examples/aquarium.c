@@ -2404,6 +2404,8 @@ static void program_compile_program(program_t* this)
  * index buffer binding.
  * -------------------------------------------------------------------------- */
 
+struct context_t;
+
 typedef struct {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
@@ -2415,14 +2417,14 @@ typedef struct {
 } buffer_dawn_t;
 
 /* Forward declarations */
-static WGPUBuffer context_create_buffer(context_t* context,
+static WGPUBuffer context_create_buffer(struct context_t* context,
                                         WGPUBufferDescriptor const* descriptor);
 static void context_set_buffer_data(context_t* context, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size);
-static void context_update_buffer_data(struct context_t* context,
-                                       WGPUBuffer buffer, size_t buffer_size,
-                                       void* data, size_t data_size);
+static void context_update_buffer_data(context_t* this, WGPUBuffer buffer,
+                                       size_t buffer_size, void* data,
+                                       size_t data_size);
 
 static void buffer_dawn_create_f32(buffer_dawn_t* this, context_t* context,
                                    int32_t total_components,
@@ -2449,7 +2451,8 @@ static void buffer_dawn_create_f32(buffer_dawn_t* this, context_t* context,
                           buffer_size);
 }
 
-static void buffer_dawn_create_uint16(buffer_dawn_t* this, context_t* context,
+static void buffer_dawn_create_uint16(buffer_dawn_t* this,
+                                      struct context_t* context,
                                       int32_t total_components,
                                       int32_t num_components, uint16_t* buffer,
                                       uint64_t buffer_count, bool is_index)
@@ -2590,7 +2593,7 @@ static bool ring_buffer_reset(ring_buffer_t* this, size_t size)
     .size             = this->size,
     .mappedAtCreation = true,
   };
-  this->buf = context_create_buffer(this->wgpu_context, &buffer_desc);
+  this->buf = context_create_buffer(this->context, &buffer_desc);
   ASSERT(this->buf);
   this->pixels = wgpuBufferGetMappedRange(this->buf, 0, this->size);
 
@@ -2964,7 +2967,7 @@ resource_helper_get_program_path(const resource_helper_t* this)
 
 sc_array_def(WGPUCommandBuffer, command_buffer);
 
-typedef struct {
+typedef struct context_t {
   wgpu_context_t* wgpu_context;
   WGPUDevice device;
   uint32_t client_width;
@@ -3828,12 +3831,11 @@ static void context_update_all_fish_data(context_t* this)
                              sizeof(fish_per_t) * this->cur_total_instance);
 }
 
-static void context_update_buffer_data(void* context, WGPUBuffer buffer,
+static void context_update_buffer_data(context_t* this, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size)
 {
-  context_t* this = (context_t*)context;
-  size_t offset   = 0;
+  size_t offset = 0;
   ring_buffer_t* ring_buffer
     = buffer_manager_allocate(this->buffer_manager, buffer_size, &offset);
 
@@ -6415,8 +6417,7 @@ static void outside_model_destroy(model_t* this)
 
 static void outside_model_init(model_t* this)
 {
-  outside_model_t* _this       = (outside_model_t*)this;
-  wgpu_context_t* wgpu_context = _this->_wgpu_context;
+  outside_model_t* _this = (outside_model_t*)this;
 
   _this->_program            = _this->_model._program;
   WGPUShaderModule vs_module = program_get_vs_module(_this->_program);
@@ -6614,7 +6615,7 @@ static void outside_model_init(model_t* this)
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
-  context_set_buffer_data(wgpu_context, _this->_uniform_buffers.light_factor,
+  context_set_buffer_data(_this->_context, _this->_uniform_buffers.light_factor,
                           sizeof(light_uniforms_t),
                           &_this->light_factor_uniforms,
                           sizeof(light_uniforms_t));
@@ -6625,50 +6626,50 @@ static void outside_model_prepare_for_draw(model_t* this)
   UNUSED_VAR(this);
 }
 
-static void outside_model_draw(void* self)
+static void outside_model_draw(model_t* this)
 {
-  outside_model_t* this             = (outside_model_t*)self;
-  WGPURenderPassEncoder render_pass = this->context->render_pass;
-  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  outside_model_t* _this            = (outside_model_t*)this;
+  WGPURenderPassEncoder render_pass = _this->_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, _this->_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                    this->context->bind_groups.general, 0, 0);
+                                    _this->_context->bind_groups.general, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
-                                    this->context->bind_groups.world, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
+                                    _this->_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, _this->_bind_groups.model,
+                                    0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, _this->_bind_groups.per, 0,
                                     0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
-                                    0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 0, this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 0, _this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 1, _this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 2, this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 2, _this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
   /* diffuseShader doesn't have to input tangent buffer or binormal buffer. */
-  if (this->buffers.tangent->valid && this->buffers.bi_normal->valid) {
+  if (_this->buffers.tangent->valid && _this->buffers.bi_normal->valid) {
     wgpuRenderPassEncoderSetVertexBuffer(
-      render_pass, 3, this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
+      render_pass, 3, _this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(
-      render_pass, 4, this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
+      render_pass, 4, _this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
   }
   wgpuRenderPassEncoderSetIndexBuffer(
-    render_pass, this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
+    render_pass, _this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(
-    render_pass, this->buffers.indices->total_components, 1, 0, 0, 0);
+    render_pass, _this->buffers.indices->total_components, 1, 0, 0, 0);
 }
 
 static void outside_model_update_per_instance_uniforms(
-  void* self, const world_uniforms_t* world_uniforms)
+  model_t* this, const world_uniforms_t* world_uniforms)
 {
-  outside_model_t* this = (outside_model_t*)self;
+  outside_model_t* _this = (outside_model_t*)this;
 
-  memcpy(&this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
+  memcpy(&_this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
 
   context_update_buffer_data(
-    this->wgpu_context, this->uniform_buffers.view,
+    _this->_context, _this->_uniform_buffers.view,
     calc_constant_buffer_byte_size(sizeof(world_uniforms_t) * 20),
-    &this->world_uniform_per, sizeof(world_uniforms_t));
+    &_this->world_uniform_per, sizeof(world_uniforms_t));
 }
 
 /* -------------------------------------------------------------------------- *
