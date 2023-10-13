@@ -5962,69 +5962,66 @@ static void inner_model_init_defaults(inner_model_t* this)
   this->inner_uniforms.refraction_fudge = 3.0f;
 }
 
+static void inner_model_init_virtual_method_table(inner_model_t* this)
+{
+  /* Override model functions */
+  this->_model._vtbl.destroy          = inner_model_destroy;
+  this->_model._vtbl.init             = inner_model_init;
+  this->_model._vtbl.prepare_for_draw = inner_model_prepare_for_draw;
+  this->_model._vtbl.draw             = inner_model_draw;
+  this->_model._vtbl.update_per_instance_uniforms
+    = inner_model_update_per_instance_uniforms;
+}
+
 static void inner_model_create(inner_model_t* this, context_t* context,
                                aquarium_t* aquarium, model_group_t type,
                                model_name_t name, bool blend)
 {
   inner_model_init_defaults(this);
 
-  /* Set inner model function pointers */
-  this->init                         = inner_model_initialize;
-  this->destroy                      = inner_model_destroy;
-  this->prepare_for_draw             = inner_model_prepare_for_draw;
-  this->update_per_instance_uniforms = inner_model_update_per_instance_uniforms;
-  this->draw                         = inner_model_draw;
-  this->set_program                  = model_set_program;
-
-  this->aquarium     = aquarium;
-  this->context      = context;
-  this->wgpu_context = context->wgpu_context;
-
   /* Create model and set function pointers */
-  model_create(&this->model, type, name, blend);
-  this->model.init             = inner_model_initialize;
-  this->model.destroy          = inner_model_destroy;
-  this->model.prepare_for_draw = inner_model_prepare_for_draw;
-  this->model.update_per_instance_uniforms
-    = inner_model_update_per_instance_uniforms;
-  this->model.draw        = inner_model_draw;
-  this->model.set_program = model_set_program;
+  model_create(&this->_model, type, name, blend);
+  inner_model_init_virtual_method_table(this);
+
+  this->_wgpu_context = context->wgpu_context;
+  this->_context      = context;
+  this->_aquarium     = aquarium;
 }
 
-static void inner_model_destroy(void* self)
+static void inner_model_destroy(model_t* this)
 {
-  inner_model_t* this = (inner_model_t*)self;
+  inner_model_t* _this = (inner_model_t*)this;
 
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.inner)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.view)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, _this->_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, _this->_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.inner)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.view)
 }
 
-static void inner_model_initialize(void* self)
+static void inner_model_init(model_t* this)
 {
-  inner_model_t* this          = (inner_model_t*)self;
-  wgpu_context_t* wgpu_context = this->wgpu_context;
+  inner_model_t* _this = (inner_model_t*)this;
 
-  WGPUShaderModule vs_module = program_get_vs_module(this->model.program);
+  _this->_program            = _this->_model._program;
+  WGPUShaderModule vs_module = program_get_vs_module(_this->_program);
 
-  texture_t** texture_map   = this->model.texture_map;
-  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
-  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
-  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
-  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+  texture_t** texture_map    = _this->_model.texture_map;
+  _this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  _this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  _this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  _this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
 
-  buffer_dawn_t** buffer_map = this->model.buffer_map;
-  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
-  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
-  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
-  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
-  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
-  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+  buffer_dawn_t** buffer_map = _this->_model.buffer_map;
+  _this->buffers.position    = buffer_map[BUFFERTYPE_POSITION];
+  _this->buffers.normal      = buffer_map[BUFFERTYPE_NORMAL];
+  _this->buffers.tex_coord   = buffer_map[BUFFERTYPE_TEX_COORD];
+  _this->buffers.tangent     = buffer_map[BUFFERTYPE_TANGENT];
+  _this->buffers.bi_normal   = buffer_map[BUFFERTYPE_BI_NORMAL];
+  _this->buffers.indices     = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
@@ -6056,41 +6053,42 @@ static void inner_model_initialize(void* self)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.position),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride = buffer_dawn_get_data_size(this->buffers.normal),
+      .arrayStride = buffer_dawn_get_data_size(_this->buffers.normal),
       .stepMode = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tex_coord),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tangent),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[4],
     },
   };
 
-  this->vertex_state.module      = vs_module;
-  this->vertex_state.entryPoint  = "main";
-  this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
-  this->vertex_state.buffers     = vertex_buffer_layouts;
+  _this->_vertex_state.module     = vs_module;
+  _this->_vertex_state.entryPoint = "main";
+  _this->_vertex_state.bufferCount
+    = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
+  _this->_vertex_state.buffers = vertex_buffer_layouts;
 
   {
     WGPUBindGroupLayoutEntry bgl_entries[7] = {
@@ -6161,8 +6159,8 @@ static void inner_model_initialize(void* self)
         .storageTexture = {0},
       },
     };
-    this->bind_group_layouts.model = context_make_bind_group_layout(
-      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+    _this->_bind_group_layouts.model = context_make_bind_group_layout(
+      _this->_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   {
@@ -6178,31 +6176,30 @@ static void inner_model_initialize(void* self)
         .sampler = {0},
       },
     };
-    this->bind_group_layouts.per = context_make_bind_group_layout(
-      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+    _this->_bind_group_layouts.per = context_make_bind_group_layout(
+      _this->_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, /* Group 0 */
-    this->context->bind_group_layouts.world,   /* Group 1 */
-    this->bind_group_layouts.model,            /* Group 2 */
-    this->bind_group_layouts.per,              /* Group 3 */
+    _this->_context->bind_group_layouts.general, /* Group 0 */
+    _this->_context->bind_group_layouts.world,   /* Group 1 */
+    _this->_bind_group_layouts.model,            /* Group 2 */
+    _this->_bind_group_layouts.per,              /* Group 3 */
   };
-  this->pipeline_layout = context_make_basic_pipeline_layout(
-    this->context, bind_group_layouts,
+  _this->_pipeline_layout = context_make_basic_pipeline_layout(
+    _this->_context, bind_group_layouts,
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
-  this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, this->model.program->fs_module.module,
-    &this->vertex_state, this->model.blend);
+  _this->_pipeline = context_create_render_pipeline(
+    _this->_context, _this->_pipeline_layout, _this->_model._program,
+    &_this->_vertex_state, _this->_model._blend);
 
-  this->uniform_buffers.inner = context_create_buffer_from_data(
-    this->context, &this->inner_uniforms, sizeof(this->inner_uniforms),
-    sizeof(this->inner_uniforms),
+  _this->_uniform_buffers.inner = context_create_buffer_from_data(
+    _this->_context, &_this->inner_uniforms, sizeof(_this->inner_uniforms),
+    sizeof(_this->inner_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
-
-  this->uniform_buffers.view = context_create_buffer_from_data(
-    this->context, &this->world_uniform_per, sizeof(world_uniforms_t),
+  _this->_uniform_buffers.view = context_create_buffer_from_data(
+    _this->_context, &_this->world_uniform_per, sizeof(world_uniforms_t),
     calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
@@ -6210,57 +6207,57 @@ static void inner_model_initialize(void* self)
     WGPUBindGroupEntry bg_entries[7] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = this->uniform_buffers.inner,
+        .buffer  = _this->_uniform_buffers.inner,
         .offset  = 0,
-        .size    = sizeof(this->inner_uniforms)
+        .size    = sizeof(_this->inner_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .sampler = this->textures.reflection->sampler,
+        .sampler = _this->textures.reflection->sampler,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .sampler = this->textures.skybox->sampler,
+        .sampler = _this->textures.skybox->sampler,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding     = 3,
-        .textureView = this->textures.diffuse->view,
+        .textureView = _this->textures.diffuse->view,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding     = 4,
-        .textureView = this->textures.normal->view,
+        .textureView = _this->textures.normal->view,
       },
       [5] = (WGPUBindGroupEntry) {
         .binding     = 5,
-        .textureView = this->textures.reflection->view,
+        .textureView = _this->textures.reflection->view,
       },
       [6] = (WGPUBindGroupEntry) {
         .binding     = 6,
-        .textureView = this->textures.skybox->view,
+        .textureView = _this->textures.skybox->view,
       },
     };
-    this->bind_groups.model
-      = context_make_bind_group(this->context, this->bind_group_layouts.model,
-                                bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
+    _this->_bind_groups.model = context_make_bind_group(
+      _this->_context, _this->_bind_group_layouts.model, bg_entries,
+      (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
   {
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = this->uniform_buffers.view,
+        .buffer  = _this->_uniform_buffers.view,
         .offset  = 0,
         .size    = calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
       },
     };
-    this->bind_groups.per
-      = context_make_bind_group(this->context, this->bind_group_layouts.per,
+    _this->_bind_groups.per
+      = context_make_bind_group(_this->_context, _this->_bind_group_layouts.per,
                                 bg_entries, (uint32_t)ARRAY_SIZE(bg_entries));
   }
 
-  context_set_buffer_data(wgpu_context, this->uniform_buffers.inner,
-                          sizeof(this->inner_uniforms), &this->inner_uniforms,
-                          sizeof(this->inner_uniforms));
+  context_set_buffer_data(_this->_context, _this->_uniform_buffers.inner,
+                          sizeof(_this->inner_uniforms), &_this->inner_uniforms,
+                          sizeof(_this->inner_uniforms));
 }
 
 static void inner_model_draw(void* self)
