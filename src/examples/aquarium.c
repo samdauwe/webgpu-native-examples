@@ -5903,7 +5903,7 @@ static void generic_model_update_per_instance_uniforms(
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  model_t model;
+  model_t _model;
   struct {
     float eta;
     float tank_color_fudge;
@@ -5925,40 +5925,33 @@ typedef struct {
     buffer_dawn_t* bi_normal;
     buffer_dawn_t* indices;
   } buffers;
-  WGPUVertexState vertex_state;
-  WGPURenderPipeline pipeline;
+  WGPUVertexState _vertex_state;
+  WGPURenderPipeline _pipeline;
   struct {
     WGPUBindGroupLayout model;
     WGPUBindGroupLayout per;
-  } bind_group_layouts;
-  WGPUPipelineLayout pipeline_layout;
+  } _bind_group_layouts;
+  WGPUPipelineLayout _pipeline_layout;
   struct {
     WGPUBindGroup model;
     WGPUBindGroup per;
-  } bind_groups;
+  } _bind_groups;
   struct {
     WGPUBuffer inner;
     WGPUBuffer view;
-  } uniform_buffers;
-  aquarium_t* aquarium;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
-  /* Function pointers */
-  void (*init)(void* self);
-  void (*destroy)(void* self);
-  void (*prepare_for_draw)(void* self);
-  void (*update_per_instance_uniforms)(void* self,
-                                       const world_uniforms_t* world_uniforms);
-  void (*draw)(void* self);
-  void (*set_program)(void* self, program_t* prgm);
+  } _uniform_buffers;
+  wgpu_context_t* _wgpu_context;
+  context_t* _context;
+  program_t* _program;
+  aquarium_t* _aquarium;
 } inner_model_t;
 
-static void inner_model_initialize(void* self);
-static void inner_model_destroy(void* self);
-static void inner_model_prepare_for_draw(void* self);
+static void inner_model_destroy(model_t* this);
+static void inner_model_init(model_t* this);
+static void inner_model_prepare_for_draw(model_t* this);
+static void inner_model_draw(model_t* this);
 static void inner_model_update_per_instance_uniforms(
-  void* self, const world_uniforms_t* world_uniforms);
-static void inner_model_draw(void* self);
+  model_t* this, const world_uniforms_t* world_uniforms);
 
 static void inner_model_init_defaults(inner_model_t* this)
 {
