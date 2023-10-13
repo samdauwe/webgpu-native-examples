@@ -6260,48 +6260,53 @@ static void inner_model_init(model_t* this)
                           sizeof(_this->inner_uniforms));
 }
 
-static void inner_model_draw(void* self)
+static void inner_model_prepare_for_draw(model_t* this)
 {
-  inner_model_t* this               = (inner_model_t*)self;
-  WGPURenderPassEncoder render_pass = this->context->render_pass;
-  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  UNUSED_VAR(this);
+}
+
+static void inner_model_draw(model_t* this)
+{
+  inner_model_t* _this              = (inner_model_t*)this;
+  WGPURenderPassEncoder render_pass = _this->_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, _this->_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                    this->context->bind_groups.general, 0, 0);
+                                    _this->_context->bind_groups.general, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
-                                    this->context->bind_groups.world, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
+                                    _this->_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, _this->_bind_groups.model,
+                                    0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, _this->_bind_groups.per, 0,
                                     0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 3, this->bind_groups.per, 0,
-                                    0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 0, this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 0, _this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 1, _this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 2, this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 2, _this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 3, this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 3, _this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 4, this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 4, _this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    render_pass, this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
+    render_pass, _this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(
-    render_pass, this->buffers.indices->total_components, 1, 0, 0, 0);
+    render_pass, _this->buffers.indices->total_components, 1, 0, 0, 0);
 }
 
 static void
-inner_model_update_per_instance_uniforms(void* self,
+inner_model_update_per_instance_uniforms(model_t* this,
                                          const world_uniforms_t* world_uniforms)
 {
-  inner_model_t* this = (inner_model_t*)self;
+  inner_model_t* _this = (inner_model_t*)this;
 
-  memcpy(&this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
+  memcpy(&_this->world_uniform_per, world_uniforms, sizeof(world_uniforms_t));
 
   context_update_buffer_data(
-    this->wgpu_context, this->uniform_buffers.view,
+    _this->_context, _this->_uniform_buffers.view,
     calc_constant_buffer_byte_size(sizeof(world_uniforms_t)),
-    &this->world_uniform_per, sizeof(world_uniforms_t));
+    &_this->world_uniform_per, sizeof(world_uniforms_t));
 }
 
 /* -------------------------------------------------------------------------- *
