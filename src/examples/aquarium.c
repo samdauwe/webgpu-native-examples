@@ -4524,56 +4524,77 @@ static void fish_model_draw_init_defaults(fish_model_draw_t* this)
   this->light_factor_uniforms.specular_factor = 0.3f;
 }
 
+static void fish_model_draw_init_virtual_method_table(fish_model_draw_t* this)
+{
+  /* Override model functions */
+  this->_fish_model._model._vtbl.destroy = fish_model_draw_destroy;
+  this->_fish_model._model._vtbl.init    = fish_model_draw_init;
+  this->_fish_model._model._vtbl.draw    = fish_model_draw_draw;
+  this->_fish_model._model._vtbl.update_per_instance_uniforms
+    = fish_model_draw_update_per_instance_uniforms;
+
+  /* Override fish model functions */
+  this->_fish_model._vtbl.update_fish_per_uniforms
+    = fish_model_draw_update_fish_per_uniforms;
+}
+
 static void fish_model_draw_create(fish_model_draw_t* this, context_t* context,
                                    aquarium_t* aquarium, model_group_t type,
                                    model_name_t name, bool blend)
 {
   fish_model_draw_init_defaults(this);
 
-  /* Set function pointers */
-  this->init    = fish_model_draw_initialize;
-  this->destroy = fish_model_draw_destroy;
-  this->update_per_instance_uniforms
-    = fish_model_draw_update_per_instance_uniforms;
-  this->update_fish_per_uniforms = fish_model_draw_update_fish_per_uniforms;
-  this->draw                     = fish_model_draw_draw;
+  /* Create model and set function pointers */
+  fish_model_create(&this->_fish_model, type, name, blend, aquarium);
+  fish_model_draw_init_virtual_method_table(this);
 
-  fish_model_create(&this->fish_model, type, name, blend, aquarium);
-
-  this->context      = context;
-  this->wgpu_context = context->wgpu_context;
+  this->_wgpu_context = context->wgpu_context;
+  this->_context      = context;
+  this->_aquarium     = aquarium;
 
   const fish_t* fish_info = &fish_table[name - MODELNAME_MODELSMALLFISHA];
   this->fish_vertex_uniforms.fish_length      = fish_info->fish_length;
   this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
   this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
 
-  this->fish_model.cur_instance
+  this->_fish_model._cur_instance
     = aquarium->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
-  this->fish_model.pre_instance = this->fish_model.cur_instance;
+  this->_fish_model._pre_instance = this->_fish_model._cur_instance;
 }
 
-static void fish_model_draw_initialize(void* self)
+static void fish_model_draw_destroy(model_t* this)
 {
-  fish_model_draw_t* this      = (fish_model_draw_t*)self;
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-  model_t* model               = &this->fish_model.model;
+  fish_model_draw_t* _this = (fish_model_draw_t*)this;
 
-  WGPUShaderModule vs_module = program_get_vs_module(model->program);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, _this->_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layout_model)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, _this->_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_group_model)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_fish_vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.light_factor)
+}
 
-  texture_t** texture_map   = model->texture_map;
-  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
-  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
-  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
-  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+static void fish_model_draw_initialize(model_t* this)
+{
+  fish_model_draw_t* _this = (fish_model_draw_t*)this;
+  model_t* model           = &_this->_fish_model._model;
+
+  _this->_program            = model->_program;
+  WGPUShaderModule vs_module = program_get_vs_module(_this->_program);
+
+  texture_t** texture_map    = model->texture_map;
+  _this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  _this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  _this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  _this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
 
   buffer_dawn_t** buffer_map = model->buffer_map;
-  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
-  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
-  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
-  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
-  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
-  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+  _this->buffers.position    = buffer_map[BUFFERTYPE_POSITION];
+  _this->buffers.normal      = buffer_map[BUFFERTYPE_NORMAL];
+  _this->buffers.tex_coord   = buffer_map[BUFFERTYPE_TEX_COORD];
+  _this->buffers.tangent     = buffer_map[BUFFERTYPE_TANGENT];
+  _this->buffers.bi_normal   = buffer_map[BUFFERTYPE_BI_NORMAL];
+  _this->buffers.indices     = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUVertexAttribute vertex_attributes[5] = {
     [0] = (WGPUVertexAttribute) {
@@ -4605,41 +4626,42 @@ static void fish_model_draw_initialize(void* self)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[5] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.position),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tex_coord),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tangent),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.bi_normal),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.bi_normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[4],
     },
   };
 
-  this->vertex_state.module      = vs_module;
-  this->vertex_state.entryPoint  = "main";
-  this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
-  this->vertex_state.buffers     = vertex_buffer_layouts;
+  _this->_vertex_state.module     = vs_module;
+  _this->_vertex_state.entryPoint = "main";
+  _this->_vertex_state.bufferCount
+    = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
+  _this->_vertex_state.buffers = vertex_buffer_layouts;
 
   {
     WGPUBindGroupLayoutEntry bgl_entries[8] = {
@@ -4721,7 +4743,7 @@ static void fish_model_draw_initialize(void* self)
       },
     };
     uint32_t bgl_entry_count = 0;
-    if (this->textures.skybox && this->textures.reflection) {
+    if (_this->textures.skybox && _this->textures.reflection) {
       bgl_entry_count = 8;
     }
     else {
@@ -4738,31 +4760,31 @@ static void fish_model_draw_initialize(void* self)
       };
     }
 
-    this->bind_group_layout_model = context_make_bind_group_layout(
-      this->context, bgl_entries, bgl_entry_count);
+    _this->_bind_group_layout_model = context_make_bind_group_layout(
+      _this->_context, bgl_entries, bgl_entry_count);
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general,  /* Group 0 */
-    this->context->bind_group_layouts.world,    /* Group 1 */
-    this->bind_group_layout_model,              /* Group 2 */
-    this->context->bind_group_layouts.fish_per, /* Group 3 */
+    _this->_context->bind_group_layouts.general,  /* Group 0 */
+    _this->_context->bind_group_layouts.world,    /* Group 1 */
+    _this->_bind_group_layout_model,              /* Group 2 */
+    _this->_context->bind_group_layouts.fish_per, /* Group 3 */
   };
-  this->pipeline_layout = context_make_basic_pipeline_layout(
-    this->context, bind_group_layouts,
+  _this->_pipeline_layout = context_make_basic_pipeline_layout(
+    _this->_context, bind_group_layouts,
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
-  this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, model->program->fs_module.module,
-    &this->vertex_state, model->blend);
+  _this->_pipeline = context_create_render_pipeline(
+    _this->_context, _this->_pipeline_layout, model->_program,
+    &_this->_vertex_state, model->_blend);
 
-  this->fish_vertex_buffer = context_create_buffer_from_data(
-    this->context, &this->fish_vertex_uniforms,
-    sizeof(this->fish_vertex_uniforms), sizeof(this->fish_vertex_uniforms),
+  _this->_fish_vertex_buffer = context_create_buffer_from_data(
+    _this->_context, &_this->fish_vertex_uniforms,
+    sizeof(_this->fish_vertex_uniforms), sizeof(_this->fish_vertex_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
-  this->uniform_buffers.light_factor = context_create_buffer_from_data(
-    this->context, &this->light_factor_uniforms,
-    sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
+  _this->_uniform_buffers.light_factor = context_create_buffer_from_data(
+    _this->_context, &_this->light_factor_uniforms,
+    sizeof(_this->light_factor_uniforms), sizeof(_this->light_factor_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
   // Fish models includes small, medium and big. Some of them contains
@@ -4771,83 +4793,73 @@ static void fish_model_draw_initialize(void* self)
     WGPUBindGroupEntry bg_entries[8] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = this->fish_vertex_buffer,
+        .buffer  = _this->_fish_vertex_buffer,
         .offset  = 0,
-        .size    = sizeof(this->fish_vertex_uniforms)
+        .size    = sizeof(_this->fish_vertex_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = this->uniform_buffers.light_factor,
+        .buffer  = _this->_uniform_buffers.light_factor,
         .offset  = 0,
-        .size    = sizeof(this->light_factor_uniforms)
+        .size    = sizeof(_this->light_factor_uniforms)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .sampler = this->textures.reflection->sampler,
+        .sampler = _this->textures.reflection->sampler,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .sampler = this->textures.skybox->sampler,
+        .sampler = _this->textures.skybox->sampler,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding     = 4,
-        .textureView = this->textures.diffuse->view,
+        .textureView = _this->textures.diffuse->view,
       },
       [5] = (WGPUBindGroupEntry) {
         .binding     = 5,
-        .textureView = this->textures.normal->view,
+        .textureView = _this->textures.normal->view,
       },
       [6] = (WGPUBindGroupEntry) {
         .binding     = 6,
-        .textureView = this->textures.reflection->view,
+        .textureView = _this->textures.reflection->view,
       },
       [7] = (WGPUBindGroupEntry) {
         .binding     = 7,
-        .textureView = this->textures.skybox->view,
+        .textureView = _this->textures.skybox->view,
       },
     };
     uint32_t bg_entry_count = 0;
-    if (this->textures.skybox && this->textures.reflection) {
+    if (_this->textures.skybox && _this->textures.reflection) {
       bg_entry_count = 8;
     }
     else {
       bg_entry_count = 5;
       bg_entries[2]  = (WGPUBindGroupEntry){
          .binding = 2,
-         .sampler = this->textures.diffuse->sampler,
+         .sampler = _this->textures.diffuse->sampler,
       };
       bg_entries[3] = (WGPUBindGroupEntry){
         .binding     = 3,
-        .textureView = this->textures.diffuse->view,
+        .textureView = _this->textures.diffuse->view,
       };
       bg_entries[4] = (WGPUBindGroupEntry){
         .binding     = 4,
-        .textureView = this->textures.normal->view,
+        .textureView = _this->textures.normal->view,
       };
     }
-    this->bind_group_model = context_make_bind_group(
-      this->context, this->bind_group_layout_model, bg_entries, bg_entry_count);
+    _this->_bind_group_model = context_make_bind_group(
+      _this->_context, _this->_bind_group_layout_model, bg_entries,
+      bg_entry_count);
   }
 
-  context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
-                          sizeof(this->light_factor_uniforms),
-                          &this->light_factor_uniforms,
-                          sizeof(this->light_factor_uniforms));
-  context_set_buffer_data(
-    wgpu_context, this->fish_vertex_buffer, sizeof(this->fish_vertex_uniforms),
-    &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
-}
-
-static void fish_model_draw_destroy(void* self)
-{
-  fish_model_draw_t* this = (fish_model_draw_t*)self;
-
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout_model)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group_model)
-  WGPU_RELEASE_RESOURCE(Buffer, this->fish_vertex_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
+  context_set_buffer_data(_this->_context, _this->_uniform_buffers.light_factor,
+                          sizeof(_this->light_factor_uniforms),
+                          &_this->light_factor_uniforms,
+                          sizeof(_this->light_factor_uniforms));
+  context_set_buffer_data(_this->_context, _this->_fish_vertex_buffer,
+                          sizeof(_this->fish_vertex_uniforms),
+                          &_this->fish_vertex_uniforms,
+                          sizeof(_this->fish_vertex_uniforms));
 }
 
 static void fish_model_draw_draw(void* self)
