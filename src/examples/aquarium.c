@@ -4862,73 +4862,73 @@ static void fish_model_draw_initialize(model_t* this)
                           sizeof(_this->fish_vertex_uniforms));
 }
 
-static void fish_model_draw_draw(void* self)
+static void fish_model_draw_draw(model_t* this)
 {
-  fish_model_draw_t* this = (fish_model_draw_t*)self;
+  fish_model_draw_t* _this = (fish_model_draw_t*)this;
 
-  if (this->fish_model.cur_instance == 0) {
+  if (_this->_fish_model._cur_instance == 0) {
     return;
   }
 
-  WGPURenderPassEncoder render_pass = this->context->render_pass;
-  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  WGPURenderPassEncoder render_pass = _this->_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, _this->_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                    this->context->bind_groups.general, 0, 0);
+                                    _this->_context->bind_groups.general, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
-                                    this->context->bind_groups.world, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_group_model, 0,
+                                    _this->_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, _this->_bind_group_model, 0,
                                     0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 0, this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 0, _this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 1, _this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 2, this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 2, _this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 3, this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 3, _this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 4, this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 4, _this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    render_pass, this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
+    render_pass, _this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
 
-  if (this->enable_dynamic_buffer_offset) {
-    for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
-      const uint32_t offset = 256u * (i + this->fish_model.fish_per_offset);
+  if (_this->enable_dynamic_buffer_offset) {
+    for (int32_t i = 0; i < _this->_fish_model._cur_instance; ++i) {
+      const uint32_t offset = 256u * (i + _this->_fish_model._fish_per_offset);
       wgpuRenderPassEncoderSetBindGroup(
-        render_pass, 3, this->context->bind_group_fish_pers[0], 1, &offset);
+        render_pass, 3, _this->_context->bind_group_fish_pers[0], 1, &offset);
       wgpuRenderPassEncoderDrawIndexed(
-        render_pass, this->buffers.indices->total_components, 1, 0, 0, 0);
+        render_pass, _this->buffers.indices->total_components, 1, 0, 0, 0);
     }
   }
   else {
-    for (int32_t i = 0; i < this->fish_model.cur_instance; ++i) {
-      const uint32_t offset = i + this->fish_model.fish_per_offset;
+    for (int32_t i = 0; i < _this->_fish_model._cur_instance; ++i) {
+      const uint32_t offset = i + _this->_fish_model._fish_per_offset;
       wgpuRenderPassEncoderSetBindGroup(
-        render_pass, 3, this->context->bind_group_fish_pers[offset], 0, NULL);
+        render_pass, 3, _this->_context->bind_group_fish_pers[offset], 0, NULL);
       wgpuRenderPassEncoderDrawIndexed(
-        render_pass, this->buffers.indices->total_components, 1, 0, 0, 0);
+        render_pass, _this->buffers.indices->total_components, 1, 0, 0, 0);
     }
   }
 }
 
 static void fish_model_draw_update_per_instance_uniforms(
-  void* this, const world_uniforms_t* world_uniforms)
+  model_t* this, const world_uniforms_t* world_uniforms)
 {
   UNUSED_VAR(this);
   UNUSED_VAR(world_uniforms);
 }
 
-static void fish_model_draw_update_fish_per_uniforms(void* self, float x,
-                                                     float y, float z,
+static void fish_model_draw_update_fish_per_uniforms(fish_model_t* this,
+                                                     float x, float y, float z,
                                                      float next_x, float next_y,
                                                      float next_z, float scale,
                                                      float time, int index)
 {
-  fish_model_draw_t* this = (fish_model_draw_t*)self;
+  fish_model_draw_t* _this = (fish_model_draw_t*)this;
 
-  index += this->fish_model.fish_per_offset;
-  fish_per_t* fish_pers        = &this->context->fish_pers[index];
+  index += _this->_fish_model._fish_per_offset;
+  fish_per_t* fish_pers        = &_this->_context->fish_pers[index];
   fish_pers->world_position[0] = x;
   fish_pers->world_position[1] = y;
   fish_pers->world_position[2] = z;
