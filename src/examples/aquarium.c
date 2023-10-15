@@ -5002,6 +5002,7 @@ typedef struct {
 static void fish_model_instanced_draw_destroy(model_t* self);
 static void fish_model_instanced_draw_init(model_t* self);
 static void fish_model_instanced_draw_draw(model_t* self);
+static void fish_model_instanced_draw_prepare_for_draw(model_t* this);
 static void fish_model_instanced_draw_update_per_instance_uniforms(
   model_t* this, const world_uniforms_t* world_uniforms);
 static void fish_model_instanced_draw_update_fish_per_uniforms(
@@ -5026,6 +5027,8 @@ static void fish_model_instanced_draw_init_virtual_method_table(
   this->_fish_model._model._vtbl.destroy = fish_model_instanced_draw_destroy;
   this->_fish_model._model._vtbl.init    = fish_model_instanced_draw_init;
   this->_fish_model._model._vtbl.draw    = fish_model_instanced_draw_draw;
+  this->_fish_model._model._vtbl.prepare_for_draw
+    = fish_model_instanced_draw_prepare_for_draw;
   this->_fish_model._model._vtbl.update_per_instance_uniforms
     = fish_model_instanced_draw_update_per_instance_uniforms;
 
@@ -5079,39 +5082,40 @@ static void fish_model_instanced_draw_destroy(model_t* this)
   free(_this->fish_pers);
 }
 
-static void fish_model_instanced_draw_initialize(void* self)
+static void fish_model_instanced_draw_initialize(model_t* this)
 {
-  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
+  fish_model_instanced_draw_t* _this = (fish_model_instanced_draw_t*)this;
 
-  if (this->instance == 0) {
+  if (_this->_instance == 0) {
     return;
   }
 
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-  model_t* model               = &this->fish_model.model;
+  model_t* model = &_this->_fish_model._model;
 
-  WGPUShaderModule vs_module = program_get_vs_module(model->program);
+  _this->_program            = model->_program;
+  WGPUShaderModule vs_module = program_get_vs_module(_this->_program);
 
-  texture_t** texture_map   = model->texture_map;
-  this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
-  this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
-  this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
-  this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
+  texture_t** texture_map    = model->texture_map;
+  _this->textures.diffuse    = texture_map[TEXTURETYPE_DIFFUSE];
+  _this->textures.normal     = texture_map[TEXTURETYPE_NORMAL_MAP];
+  _this->textures.reflection = texture_map[TEXTURETYPE_REFLECTION_MAP];
+  _this->textures.skybox     = texture_map[TEXTURETYPE_SKYBOX];
 
   buffer_dawn_t** buffer_map = model->buffer_map;
-  this->buffers.position     = buffer_map[BUFFERTYPE_POSITION];
-  this->buffers.normal       = buffer_map[BUFFERTYPE_NORMAL];
-  this->buffers.tex_coord    = buffer_map[BUFFERTYPE_TEX_COORD];
-  this->buffers.tangent      = buffer_map[BUFFERTYPE_TANGENT];
-  this->buffers.bi_normal    = buffer_map[BUFFERTYPE_BI_NORMAL];
-  this->buffers.indices      = buffer_map[BUFFERTYPE_INDICES];
+  _this->buffers.position    = buffer_map[BUFFERTYPE_POSITION];
+  _this->buffers.normal      = buffer_map[BUFFERTYPE_NORMAL];
+  _this->buffers.tex_coord   = buffer_map[BUFFERTYPE_TEX_COORD];
+  _this->buffers.tangent     = buffer_map[BUFFERTYPE_TANGENT];
+  _this->buffers.bi_normal   = buffer_map[BUFFERTYPE_BI_NORMAL];
+  _this->buffers.indices     = buffer_map[BUFFERTYPE_INDICES];
 
   WGPUBufferDescriptor buffer_desc = {
     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-    .size  = sizeof(fish_model_instanced_draw_fish_per) * this->instance,
+    .size  = sizeof(fish_model_instanced_draw_fish_per) * _this->_instance,
     .mappedAtCreation = false,
   };
-  this->fish_pers_buffer = context_create_buffer(wgpu_context, &buffer_desc);
+  _this->_fish_pers_buffer
+    = context_create_buffer(_this->_context, &buffer_desc);
 
   WGPUVertexAttribute vertex_attributes[9] = {
     [0] = (WGPUVertexAttribute) {
@@ -5163,31 +5167,31 @@ static void fish_model_instanced_draw_initialize(void* self)
 
   WGPUVertexBufferLayout vertex_buffer_layouts[6] = {
     [0] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.position),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.position),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[0],
     },
     [1] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.normal),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[1],
     },
     [2] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tex_coord),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tex_coord),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[2],
     },
     [3] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.tangent),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.tangent),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[3],
     },
     [4] = (WGPUVertexBufferLayout) {
-      .arrayStride    = buffer_dawn_get_data_size(this->buffers.bi_normal),
+      .arrayStride    = buffer_dawn_get_data_size(_this->buffers.bi_normal),
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
       .attributes     = &vertex_attributes[4],
@@ -5200,10 +5204,11 @@ static void fish_model_instanced_draw_initialize(void* self)
     },
   };
 
-  this->vertex_state.module      = vs_module;
-  this->vertex_state.entryPoint  = "main";
-  this->vertex_state.bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
-  this->vertex_state.buffers     = vertex_buffer_layouts;
+  _this->_vertex_state.module     = vs_module;
+  _this->_vertex_state.entryPoint = "main";
+  _this->_vertex_state.bufferCount
+    = (uint32_t)ARRAY_SIZE(vertex_buffer_layouts);
+  _this->_vertex_state.buffers = vertex_buffer_layouts;
 
   {
     WGPUBindGroupLayoutEntry bgl_entries[8] = {
@@ -5285,7 +5290,7 @@ static void fish_model_instanced_draw_initialize(void* self)
       },
     };
     uint32_t bgl_entry_count = 0;
-    if (this->textures.skybox && this->textures.reflection) {
+    if (_this->textures.skybox && _this->textures.reflection) {
       bgl_entry_count = 8;
     }
     else {
@@ -5302,48 +5307,48 @@ static void fish_model_instanced_draw_initialize(void* self)
       };
     }
 
-    this->bind_group_layouts.model = context_make_bind_group_layout(
-      this->context, bgl_entries, bgl_entry_count);
+    _this->_bind_group_layouts.model = context_make_bind_group_layout(
+      _this->_context, bgl_entries, bgl_entry_count);
   }
 
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = 0,
+          .minBindingSize   = 0,
         },
         .sampler = {0},
       },
     };
-    this->bind_group_layouts.per = context_make_bind_group_layout(
-      this->context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
+    _this->_bind_group_layouts.per = context_make_bind_group_layout(
+      _this->_context, bgl_entries, (uint32_t)ARRAY_SIZE(bgl_entries));
   }
 
   WGPUBindGroupLayout bind_group_layouts[4] = {
-    this->context->bind_group_layouts.general, /* Group 0 */
-    this->context->bind_group_layouts.world,   /* Group 1 */
-    this->bind_group_layouts.model,            /* Group 2 */
-    this->bind_group_layouts.per,              /* Group 3 */
+    _this->_context->bind_group_layouts.general, /* Group 0 */
+    _this->_context->bind_group_layouts.world,   /* Group 1 */
+    _this->_bind_group_layouts.model,            /* Group 2 */
+    _this->_bind_group_layouts.per,              /* Group 3 */
   };
-  this->pipeline_layout = context_make_basic_pipeline_layout(
-    this->context, bind_group_layouts,
+  _this->_pipeline_layout = context_make_basic_pipeline_layout(
+    _this->_context, bind_group_layouts,
     (uint32_t)ARRAY_SIZE(bind_group_layouts));
 
-  this->pipeline = context_create_render_pipeline(
-    this->context, this->pipeline_layout, model->program->fs_module.module,
-    &this->vertex_state, this->fish_model.model.blend);
+  _this->_pipeline = context_create_render_pipeline(
+    _this->_context, _this->_pipeline_layout, model->_program,
+    &_this->_vertex_state, _this->_fish_model._model._blend);
 
-  this->fish_vertex_buffer = context_create_buffer_from_data(
-    this->context, &this->fish_vertex_uniforms,
-    sizeof(this->fish_vertex_uniforms), sizeof(this->fish_vertex_uniforms),
+  _this->_fish_vertex_buffer = context_create_buffer_from_data(
+    _this->_context, &_this->fish_vertex_uniforms,
+    sizeof(_this->fish_vertex_uniforms), sizeof(_this->fish_vertex_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
-  this->uniform_buffers.light_factor = context_create_buffer_from_data(
-    this->context, &this->light_factor_uniforms,
-    sizeof(this->light_factor_uniforms), sizeof(this->light_factor_uniforms),
+  _this->_uniform_buffers.light_factor = context_create_buffer_from_data(
+    _this->_context, &_this->light_factor_uniforms,
+    sizeof(_this->light_factor_uniforms), sizeof(_this->light_factor_uniforms),
     WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform);
 
   /**
@@ -5354,135 +5359,135 @@ static void fish_model_instanced_draw_initialize(void* self)
     WGPUBindGroupEntry bg_entries[8] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = this->fish_vertex_buffer,
+        .buffer  = _this->_fish_vertex_buffer,
         .offset  = 0,
-        .size    = sizeof(this->fish_vertex_uniforms)
+        .size    = sizeof(_this->fish_vertex_uniforms)
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = this->uniform_buffers.light_factor,
+        .buffer  = _this->_uniform_buffers.light_factor,
         .offset  = 0,
-        .size    = sizeof(this->light_factor_uniforms)
+        .size    = sizeof(_this->light_factor_uniforms)
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .sampler = this->textures.reflection->sampler,
+        .sampler = _this->textures.reflection->sampler,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .sampler = this->textures.skybox->sampler,
+        .sampler = _this->textures.skybox->sampler,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding     = 4,
-        .textureView = this->textures.diffuse->view,
+        .textureView = _this->textures.diffuse->view,
       },
       [5] = (WGPUBindGroupEntry) {
         .binding     = 5,
-        .textureView = this->textures.normal->view,
+        .textureView = _this->textures.normal->view,
       },
       [6] = (WGPUBindGroupEntry) {
         .binding     = 6,
-        .textureView = this->textures.reflection->view,
+        .textureView = _this->textures.reflection->view,
       },
       [7] = (WGPUBindGroupEntry) {
         .binding     = 7,
-        .textureView = this->textures.skybox->view,
+        .textureView = _this->textures.skybox->view,
       },
     };
     uint32_t bg_entry_count = 0;
-    if (this->textures.skybox && this->textures.reflection) {
+    if (_this->textures.skybox && _this->textures.reflection) {
       bg_entry_count = 8;
     }
     else {
       bg_entry_count = 5;
       bg_entries[2]  = (WGPUBindGroupEntry){
          .binding = 2,
-         .sampler = this->textures.diffuse->sampler,
+         .sampler = _this->textures.diffuse->sampler,
       };
       bg_entries[3] = (WGPUBindGroupEntry){
         .binding     = 3,
-        .textureView = this->textures.diffuse->view,
+        .textureView = _this->textures.diffuse->view,
       };
       bg_entries[4] = (WGPUBindGroupEntry){
         .binding     = 4,
-        .textureView = this->textures.normal->view,
+        .textureView = _this->textures.normal->view,
       };
     }
-    this->bind_groups.model
-      = context_make_bind_group(this->context, this->bind_group_layouts.model,
-                                bg_entries, bg_entry_count);
+    _this->_bind_groups.model = context_make_bind_group(
+      _this->_context, _this->_bind_group_layouts.model, bg_entries,
+      bg_entry_count);
   }
 
-  context_set_buffer_data(wgpu_context, this->uniform_buffers.light_factor,
-                          sizeof(this->light_factor_uniforms),
-                          &this->light_factor_uniforms,
-                          sizeof(this->light_factor_uniforms));
-  context_set_buffer_data(
-    wgpu_context, this->fish_vertex_buffer, sizeof(this->fish_vertex_uniforms),
-    &this->fish_vertex_uniforms, sizeof(this->fish_vertex_uniforms));
+  context_set_buffer_data(_this->_context, _this->_uniform_buffers.light_factor,
+                          sizeof(_this->light_factor_uniforms),
+                          &_this->light_factor_uniforms,
+                          sizeof(_this->light_factor_uniforms));
+  context_set_buffer_data(_this->_context, _this->_fish_vertex_buffer,
+                          sizeof(_this->fish_vertex_uniforms),
+                          &_this->fish_vertex_uniforms,
+                          sizeof(_this->fish_vertex_uniforms));
 }
 
-static void fish_model_instanced_draw_prepare_for_draw(void* this)
+static void fish_model_instanced_draw_prepare_for_draw(model_t* this)
 {
   UNUSED_VAR(this);
 }
 
-static void fish_model_instanced_draw_draw(void* self)
+static void fish_model_instanced_draw_draw(model_t* this)
 {
-  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
+  fish_model_instanced_draw_t* _this = (fish_model_instanced_draw_t*)this;
 
-  if (this->instance == 0) {
+  if (_this->_instance == 0) {
     return;
   }
 
   context_set_buffer_data(
-    this->context, this->fish_pers_buffer,
-    sizeof(fish_model_instanced_draw_fish_per) * this->instance,
-    this->fish_pers,
-    sizeof(fish_model_instanced_draw_fish_per) * this->instance);
+    _this->_context, _this->_fish_pers_buffer,
+    sizeof(fish_model_instanced_draw_fish_per) * _this->_instance,
+    _this->fish_pers,
+    sizeof(fish_model_instanced_draw_fish_per) * _this->_instance);
 
-  WGPURenderPassEncoder render_pass = this->context->render_pass;
-  wgpuRenderPassEncoderSetPipeline(render_pass, this->pipeline);
+  WGPURenderPassEncoder render_pass = _this->_context->render_pass;
+  wgpuRenderPassEncoderSetPipeline(render_pass, _this->_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
-                                    this->context->bind_groups.general, 0, 0);
+                                    _this->_context->bind_groups.general, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
-                                    this->context->bind_groups.world, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, this->bind_groups.model, 0,
-                                    0);
+                                    _this->_context->bind_groups.world, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 2, _this->_bind_groups.model,
+                                    0, 0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 0, this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 0, _this->buffers.position->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 1, this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 1, _this->buffers.normal->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 2, this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 2, _this->buffers.tex_coord->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 3, this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
+    render_pass, 3, _this->buffers.tangent->buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(
-    render_pass, 4, this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(render_pass, 5, this->fish_pers_buffer,
+    render_pass, 4, _this->buffers.bi_normal->buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(render_pass, 5, _this->_fish_pers_buffer,
                                        0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    render_pass, this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
+    render_pass, _this->buffers.indices->buffer, WGPUIndexFormat_Uint16, 0,
     WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDrawIndexed(render_pass,
-                                   this->buffers.indices->total_components,
-                                   this->instance, 0, 0, 0);
-  this->instance = 0;
+                                   _this->buffers.indices->total_components,
+                                   _this->_instance, 0, 0, 0);
 }
 
 static void fish_model_instanced_draw_update_per_instance_uniforms(
-  void* this, const world_uniforms_t* world_uniforms)
+  model_t* this, const world_uniforms_t* world_uniforms)
 {
   UNUSED_VAR(this);
   UNUSED_VAR(world_uniforms);
 }
 
 static void fish_model_instanced_draw_update_fish_per_uniforms(
-  void* self, float x, float y, float z, float next_x, float next_y,
+  fish_model_t* self, float x, float y, float z, float next_x, float next_y,
   float next_z, float scale, float time, int index)
 {
-  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
-  fish_model_instanced_draw_fish_per* fish_pers = &this->fish_pers[index];
+  fish_model_instanced_draw_t* _this = (fish_model_instanced_draw_t*)self;
+  fish_model_instanced_draw_fish_per* fish_pers = &_this->fish_pers[index];
 
   fish_pers->world_position[0] = x;
   fish_pers->world_position[1] = y;
