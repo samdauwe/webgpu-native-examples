@@ -5016,7 +5016,22 @@ fish_model_instanced_draw_init_defaults(fish_model_instanced_draw_t* this)
   this->light_factor_uniforms.shininess       = 5.0f;
   this->light_factor_uniforms.specular_factor = 0.3f;
 
-  this->instance = 0;
+  this->_instance = 0;
+}
+
+static void fish_model_instanced_draw_init_virtual_method_table(
+  fish_model_instanced_draw_t* this)
+{
+  /* Override model functions */
+  this->_fish_model._model._vtbl.destroy = fish_model_instanced_draw_destroy;
+  this->_fish_model._model._vtbl.init    = fish_model_instanced_draw_init;
+  this->_fish_model._model._vtbl.draw    = fish_model_instanced_draw_draw;
+  this->_fish_model._model._vtbl.update_per_instance_uniforms
+    = fish_model_instanced_draw_update_per_instance_uniforms;
+
+  /* Override fish model functions */
+  this->_fish_model._vtbl.update_fish_per_uniforms
+    = fish_model_instanced_draw_update_fish_per_uniforms;
 }
 
 static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
@@ -5027,20 +5042,13 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
 {
   fish_model_instanced_draw_init_defaults(this);
 
-  /* Set function pointers */
-  this->init    = fish_model_instanced_draw_initialize;
-  this->destroy = fish_model_instanced_draw_destroy;
-  this->update_per_instance_uniforms
-    = fish_model_instanced_draw_update_per_instance_uniforms;
-  this->update_fish_per_uniforms
-    = fish_model_instanced_draw_update_fish_per_uniforms;
-  this->prepare_for_draw = fish_model_instanced_draw_prepare_for_draw;
-  this->draw             = fish_model_instanced_draw_draw;
+  /* Create model and set function pointers */
+  fish_model_create(&this->_fish_model, type, name, blend, aquarium);
+  fish_model_instanced_draw_init_virtual_method_table(this);
 
-  fish_model_create(&this->fish_model, type, name, blend, aquarium);
-
-  this->context      = context;
-  this->wgpu_context = context->wgpu_context;
+  this->_wgpu_context = context->wgpu_context;
+  this->_context      = context;
+  this->_aquarium     = aquarium;
 
   const fish_t* fish_info
     = &fish_table[name - MODELNAME_MODELSMALLFISHAINSTANCEDDRAWS];
@@ -5048,26 +5056,27 @@ static void fish_model_instanced_draw_create(fish_model_instanced_draw_t* this,
   this->fish_vertex_uniforms.fish_bend_amount = fish_info->fish_bend_amount;
   this->fish_vertex_uniforms.fish_wave_length = fish_info->fish_wave_length;
 
-  this->instance
+  this->_instance
     = aquarium->fish_count[fish_info->model_name - MODELNAME_MODELSMALLFISHA];
   this->fish_pers
-    = malloc(this->instance + sizeof(fish_model_instanced_draw_fish_per));
+    = malloc(this->_instance + sizeof(fish_model_instanced_draw_fish_per));
   memset(this->fish_pers, 0, sizeof(*this->fish_pers));
 }
 
-static void fish_model_instanced_draw_destroy(void* self)
+static void fish_model_instanced_draw_destroy(model_t* this)
 {
-  fish_model_instanced_draw_t* this = (fish_model_instanced_draw_t*)self;
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
-  WGPU_RELEASE_RESOURCE(Buffer, this->fish_vertex_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
-  WGPU_RELEASE_RESOURCE(Buffer, this->fish_pers_buffer)
-  free(this->fish_pers);
+  fish_model_instanced_draw_t* _this = (fish_model_instanced_draw_t*)this;
+
+  WGPU_RELEASE_RESOURCE(RenderPipeline, _this->_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, _this->_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_fish_vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_fish_pers_buffer)
+  free(_this->fish_pers);
 }
 
 static void fish_model_instanced_draw_initialize(void* self)
