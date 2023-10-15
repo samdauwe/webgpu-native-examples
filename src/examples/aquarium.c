@@ -4951,7 +4951,7 @@ typedef struct {
 } fish_model_instanced_draw_fish_per;
 
 typedef struct {
-  fish_model_t fish_model;
+  fish_model_t _fish_model;
   struct {
     float fish_length;
     float fish_wave_length;
@@ -4976,46 +4976,37 @@ typedef struct {
     buffer_dawn_t* bi_normal;
     buffer_dawn_t* indices;
   } buffers;
-  WGPUVertexState vertex_state;
-  WGPURenderPipeline pipeline;
+  WGPUVertexState _vertex_state;
+  WGPURenderPipeline _pipeline;
   struct {
     WGPUBindGroupLayout model;
     WGPUBindGroupLayout per;
-  } bind_group_layouts;
-  WGPUPipelineLayout pipeline_layout;
+  } _bind_group_layouts;
+  WGPUPipelineLayout _pipeline_layout;
   struct {
     WGPUBindGroup model;
     WGPUBindGroup per;
-  } bind_groups;
-  WGPUBuffer fish_vertex_buffer;
+  } _bind_groups;
+  WGPUBuffer _fish_vertex_buffer;
   struct {
     WGPUBuffer light_factor;
-  } uniform_buffers;
-  WGPUBuffer fish_pers_buffer;
-  int32_t instance;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
-  /* Function pointers */
-  void (*init)(void* this);
-  void (*destroy)(void* this);
-  void (*update_per_instance_uniforms)(void* this,
-                                       const world_uniforms_t* world_uniforms);
-  void (*update_fish_per_uniforms)(void* this, float x, float y, float z,
-                                   float next_x, float next_y, float next_z,
-                                   float scale, float time, int index);
-  void (*prepare_for_draw)(void* this);
-  void (*draw)(void* this);
+  } _uniform_buffers;
+  WGPUBuffer _fish_pers_buffer;
+  int32_t _instance;
+  wgpu_context_t* _wgpu_context;
+  context_t* _context;
+  program_t* _program;
+  aquarium_t* _aquarium;
 } fish_model_instanced_draw_t;
 
-static void fish_model_instanced_draw_initialize(void* self);
-static void fish_model_instanced_draw_destroy(void* self);
+static void fish_model_instanced_draw_destroy(model_t* self);
+static void fish_model_instanced_draw_init(model_t* self);
+static void fish_model_instanced_draw_draw(model_t* self);
 static void fish_model_instanced_draw_update_per_instance_uniforms(
-  void* this, const world_uniforms_t* world_uniforms);
+  model_t* this, const world_uniforms_t* world_uniforms);
 static void fish_model_instanced_draw_update_fish_per_uniforms(
-  void* this, float x, float y, float z, float next_x, float next_y,
+  fish_model_t* this, float x, float y, float z, float next_x, float next_y,
   float next_z, float scale, float time, int index);
-static void fish_model_instanced_draw_prepare_for_draw(void* self);
-static void fish_model_instanced_draw_draw(void* self);
 
 static void
 fish_model_instanced_draw_init_defaults(fish_model_instanced_draw_t* this)
