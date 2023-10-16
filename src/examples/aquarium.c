@@ -7164,8 +7164,8 @@ static model_t* context_create_model(context_t* this, aquarium_t* aquarium,
   model_t* model = NULL;
   switch (type) {
     case MODELGROUP_FISH: {
-      fish_model_t* _model = malloc(sizeof(fish_model_t));
-      fish_model_create(_model, this, aquarium, type, name, blend);
+      fish_model_draw_t* _model = malloc(sizeof(fish_model_draw_t));
+      fish_model_draw_create(_model, this, aquarium, type, name, blend);
       model = (model_t*)_model;
     } break;
     case MODELGROUP_FISHINSTANCEDDRAW: {
