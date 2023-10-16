@@ -5504,7 +5504,7 @@ static void fish_model_instanced_draw_update_fish_per_uniforms(
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  model_t model;
+  model_t _model;
   struct {
     texture_t* diffuse;
     texture_t* normal;
@@ -5526,41 +5526,33 @@ typedef struct {
   struct {
     world_uniforms_t world_uniforms[20];
   } world_uniform_per;
-  WGPUVertexState vertex_state;
-  WGPURenderPipeline pipeline;
+  WGPUVertexState _vertex_state;
+  WGPURenderPipeline _pipeline;
   struct {
     WGPUBindGroupLayout model;
     WGPUBindGroupLayout per;
-  } bind_group_layouts;
-  WGPUPipelineLayout pipeline_layout;
+  } _bind_group_layouts;
+  WGPUPipelineLayout _pipeline_layout;
   struct {
     WGPUBindGroup model;
     WGPUBindGroup per;
-  } bind_groups;
+  } _bind_groups;
   struct {
     WGPUBuffer light_factor;
     WGPUBuffer world;
-  } uniform_buffers;
-  aquarium_t* aquarium;
-  wgpu_context_t* wgpu_context;
-  context_t* context;
-  int32_t instance;
-  /* Function pointers */
-  void (*init)(void* self);
-  void (*destroy)(void* self);
-  void (*prepare_for_draw)(void* self);
-  void (*update_per_instance_uniforms)(void* self,
-                                       const world_uniforms_t* world_uniforms);
-  void (*draw)(void* self);
-  void (*set_program)(void* self, program_t* prgm);
+  } _uniform_buffers;
+  wgpu_context_t* _wgpu_context;
+  context_t* _context;
+  program_t* _program;
+  aquarium_t* _aquarium;
 } generic_model_t;
 
-static void generic_model_initialize(void* self);
-static void generic_model_destroy(void* self);
-static void generic_model_prepare_for_draw(void* self);
+static void generic_model_destroy(model_t* this);
+static void generic_model_init(model_t* this);
+static void generic_model_prepare_for_draw(model_t* this);
+static void generic_model_draw(model_t* this);
 static void generic_model_update_per_instance_uniforms(
-  void* self, const world_uniforms_t* world_uniforms);
-static void generic_model_draw(void* self);
+  model_t* this, const world_uniforms_t* world_uniforms);
 
 static void generic_model_init_defaults(generic_model_t* this)
 {
