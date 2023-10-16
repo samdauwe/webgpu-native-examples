@@ -5562,48 +5562,44 @@ static void generic_model_init_defaults(generic_model_t* this)
   this->light_factor_uniforms.specular_factor = 1.0f;
 }
 
+static void generic_model_init_virtual_method_table(generic_model_t* this)
+{
+  /* Override model functions */
+  this->_model._vtbl.destroy          = generic_model_destroy;
+  this->_model._vtbl.init             = generic_model_init;
+  this->_model._vtbl.prepare_for_draw = generic_model_prepare_for_draw;
+  this->_model._vtbl.draw             = generic_model_draw;
+  this->_model._vtbl.update_per_instance_uniforms
+    = generic_model_update_per_instance_uniforms;
+}
+
 static void generic_model_create(generic_model_t* this, context_t* context,
                                  aquarium_t* aquarium, model_group_t type,
                                  model_name_t name, bool blend)
 {
   generic_model_init_defaults(this);
 
-  /* Set function pointers */
-  this->init             = generic_model_initialize;
-  this->destroy          = generic_model_destroy;
-  this->prepare_for_draw = generic_model_prepare_for_draw;
-  this->update_per_instance_uniforms
-    = generic_model_update_per_instance_uniforms;
-  this->draw        = generic_model_draw;
-  this->set_program = model_set_program;
-
-  this->aquarium     = aquarium;
-  this->context      = context;
-  this->wgpu_context = context->wgpu_context;
-
   /* Create model and set function pointers */
-  model_create(&this->model, type, name, blend);
-  this->model.init             = generic_model_initialize;
-  this->model.destroy          = generic_model_destroy;
-  this->model.prepare_for_draw = generic_model_prepare_for_draw;
-  this->model.update_per_instance_uniforms
-    = generic_model_update_per_instance_uniforms;
-  this->model.draw        = generic_model_draw;
-  this->model.set_program = model_set_program;
+  model_create(&this->_model, type, name, blend);
+  generic_model_init_virtual_method_table(this);
+
+  this->_wgpu_context = context->wgpu_context;
+  this->_context      = context;
+  this->_aquarium     = aquarium;
 }
 
-static void generic_model_destroy(void* self)
+static void generic_model_destroy(model_t* this)
 {
-  generic_model_t* this = (generic_model_t*)self;
+  generic_model_t* _this = (generic_model_t*)this;
 
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.model)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.per)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.model)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.per)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.light_factor)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffers.world)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, _this->_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.model)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, _this->_bind_group_layouts.per)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, _this->_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.model)
+  WGPU_RELEASE_RESOURCE(BindGroup, _this->_bind_groups.per)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.light_factor)
+  WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.world)
 }
 
 static void generic_model_initialize(void* self)
