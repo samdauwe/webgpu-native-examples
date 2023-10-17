@@ -2404,8 +2404,6 @@ static void program_compile_program(program_t* this)
  * index buffer binding.
  * -------------------------------------------------------------------------- */
 
-struct context_t;
-
 typedef struct {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
@@ -2417,16 +2415,16 @@ typedef struct {
 } buffer_dawn_t;
 
 /* Forward declarations */
-static WGPUBuffer context_create_buffer(struct context_t* context,
+static WGPUBuffer context_create_buffer(void* context,
                                         WGPUBufferDescriptor const* descriptor);
-static void context_set_buffer_data(context_t* context, WGPUBuffer buffer,
+static void context_set_buffer_data(void* context, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size);
-static void context_update_buffer_data(context_t* this, WGPUBuffer buffer,
+static void context_update_buffer_data(void* this, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size);
 
-static void buffer_dawn_create_f32(buffer_dawn_t* this, context_t* context,
+static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
                                    int32_t total_components,
                                    int32_t num_components, float* buffer,
                                    bool is_index)
@@ -2451,8 +2449,7 @@ static void buffer_dawn_create_f32(buffer_dawn_t* this, context_t* context,
                           buffer_size);
 }
 
-static void buffer_dawn_create_uint16(buffer_dawn_t* this,
-                                      struct context_t* context,
+static void buffer_dawn_create_uint16(buffer_dawn_t* this, void* context,
                                       int32_t total_components,
                                       int32_t num_components, uint16_t* buffer,
                                       uint64_t buffer_count, bool is_index)
@@ -2535,7 +2532,7 @@ typedef struct {
   size_t size;
 
   void* buffer_manager;
-  wgpu_context_t* wgpu_context;
+  void* context;
   WGPUBuffer buf;
   void* mapped_data;
   void* pixels;
@@ -2608,7 +2605,7 @@ static void ring_buffer_create(ring_buffer_t* this,
   this->size = size;
 
   this->buffer_manager = buffer_manager;
-  this->wgpu_context   = buffer_manager->wgpu_context;
+  this->context        = buffer_manager->context;
   this->mapped_data    = NULL;
   this->pixels         = NULL;
 
@@ -3422,17 +3419,21 @@ static texture_t context_create_depth_stencil_view(context_t* this)
   return texture;
 }
 
-static WGPUBuffer context_create_buffer(context_t* this,
+static WGPUBuffer context_create_buffer(void* this,
                                         WGPUBufferDescriptor const* descriptor)
 {
-  return wgpuDeviceCreateBuffer(this->device, descriptor);
+  context_t* _this = (context_t*)this;
+
+  return wgpuDeviceCreateBuffer(_this->device, descriptor);
 }
 
-static void context_set_buffer_data(context_t* this, WGPUBuffer buffer,
+static void context_set_buffer_data(void* this, WGPUBuffer buffer,
                                     uint32_t buffer_size, const void* data,
                                     uint32_t data_size)
 {
-  wgpu_context_t* wgpu_context = this->wgpu_context;
+  context_t* _this = (context_t*)this;
+
+  wgpu_context_t* wgpu_context = _this->wgpu_context;
 
   WGPUBufferDescriptor buffer_desc = {
     .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc,
@@ -3450,7 +3451,7 @@ static void context_set_buffer_data(context_t* this, WGPUBuffer buffer,
     = context_copy_buffer_to_buffer(this, staging, 0, buffer, 0, buffer_size);
   ASSERT(command != NULL);
   WGPU_RELEASE_RESOURCE(Buffer, staging);
-  sc_array_add(&this->command_buffers, command);
+  sc_array_add(&_this->command_buffers, command);
 }
 
 static WGPUBindGroup
@@ -3831,20 +3832,22 @@ static void context_update_all_fish_data(context_t* this)
                              sizeof(fish_per_t) * this->cur_total_instance);
 }
 
-static void context_update_buffer_data(context_t* this, WGPUBuffer buffer,
+static void context_update_buffer_data(void* this, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size)
 {
+  context_t* _this = (context_t*)this;
+
   size_t offset = 0;
   ring_buffer_t* ring_buffer
-    = buffer_manager_allocate(this->buffer_manager, buffer_size, &offset);
+    = buffer_manager_allocate(_this->buffer_manager, buffer_size, &offset);
 
   if (ring_buffer == NULL) {
     log_error("Memory upper limit.");
     return;
   }
 
-  ring_buffer_push(ring_buffer, this->buffer_manager->encoder, buffer, offset,
+  ring_buffer_push(ring_buffer, _this->buffer_manager->encoder, buffer, offset,
                    0, data, data_size);
 }
 
@@ -4246,18 +4249,18 @@ static void aquarium_render(aquarium_t* this)
   if (aquarium_settings.simulate_fish_come_and_go) {
     if (!sc_queue_empty(&this->fish_behavior)) {
       behavior_t* behave = sc_queue_peek_first(&this->fish_behavior);
-      int32_t frame      = behave->frame;
+      int32_t frame      = behave->_frame;
       if (frame == 0) {
         sc_queue_del_first(&this->fish_behavior);
-        if (behave->op == OPERATION_PLUS) {
-          this->cur_fish_count += behave->count;
+        if (behave->_op == OPERATION_PLUS) {
+          this->cur_fish_count += behave->_count;
         }
         else {
-          this->cur_fish_count -= behave->count;
+          this->cur_fish_count -= behave->_count;
         }
       }
       else {
-        behave->frame = --frame;
+        behave->_frame = --frame;
       }
     }
   }
@@ -4429,10 +4432,11 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
   this->_aquarium = aquarium;
 }
 
-static void* update_fish_per_uniforms(fish_model_t* this, float x, float y,
-                                      float z, float next_x, float next_y,
-                                      float next_z, float scale, float time,
-                                      int index)
+static void* fish_model_update_fish_per_uniforms(fish_model_t* this, float x,
+                                                 float y, float z, float next_x,
+                                                 float next_y, float next_z,
+                                                 float scale, float time,
+                                                 int index)
 {
   this->_vtbl.update_fish_per_uniforms(this, x, y, z, next_x, next_y, next_z,
                                        scale, time, index);
@@ -4574,7 +4578,7 @@ static void fish_model_draw_destroy(model_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.light_factor)
 }
 
-static void fish_model_draw_initialize(model_t* this)
+static void fish_model_draw_init(model_t* this)
 {
   fish_model_draw_t* _this = (fish_model_draw_t*)this;
   model_t* model           = &_this->_fish_model._model;
@@ -5082,7 +5086,7 @@ static void fish_model_instanced_draw_destroy(model_t* this)
   free(_this->fish_pers);
 }
 
-static void fish_model_instanced_draw_initialize(model_t* this)
+static void fish_model_instanced_draw_init(model_t* this)
 {
   fish_model_instanced_draw_t* _this = (fish_model_instanced_draw_t*)this;
 
@@ -5603,7 +5607,7 @@ static void generic_model_destroy(model_t* this)
   WGPU_RELEASE_RESOURCE(Buffer, _this->_uniform_buffers.world)
 }
 
-static void generic_model_initialize(void* self)
+static void generic_model_init(model_t* self)
 {
   generic_model_t* _this = (generic_model_t*)self;
 
@@ -7397,8 +7401,8 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
       aquarium_program_map_insert(this, concat_id, program);
     }
 
-    model->set_program(model, program);
-    model->init(model);
+    model_set_program(model, program);
+    model_init(model);
   }
 
 load_model_end:
@@ -7423,7 +7427,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
   for (uint32_t i = MODELNAME_MODELRUINCOLUMN; i <= MODELNAME_MODELSEAWEEDB;
        ++i) {
     model_t* model = this->aquarium_models[i];
-    model->prepare_for_draw(model);
+    model_prepare_for_draw(model);
 
     for (uint32_t w = 0; w < model->world_matrix_count; ++i) {
       world_matrix_t* world_matrix = &model->world_matrices[i];
@@ -7435,16 +7439,16 @@ static void aquarium_update_and_draw(aquarium_t* this)
       matrix_transpose4(world_uniforms->world_inverse_transpose,
                         g->world_inverse);
 
-      model->update_per_instance_uniforms(model, world_uniforms);
+      model_update_per_instance_uniforms(model, world_uniforms);
       if (!draw_per_model) {
-        model->draw(model);
+        model_draw(model);
       }
     }
   }
 
   for (int i = fish_begin; i <= fish_end; ++i) {
     fish_model_t* model = (fish_model_t*)this->aquarium_models[i];
-    model->prepare_for_draw(model);
+    model_prepare_for_draw((model_t*)model);
 
     const fish_t* fish_info = &fish_table[i - fish_begin];
     int numFish             = this->fish_count[i - fish_begin];
@@ -7479,7 +7483,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
       float y_clock        = fishSpeedClock * fish_yclock;
       float z_clock        = fishSpeedClock * fish_zclock;
 
-      model->update_fish_per_uniforms(
+      fish_model_update_fish_per_uniforms(
         model, sin(x_clock) * x_radius, sin(y_clock) * y_radius + fish_height,
         cos(z_clock) * z_radius, sin(x_clock - 0.04f) * x_radius,
         sin(y_clock - 0.01f) * y_radius + fish_height,
@@ -7490,8 +7494,8 @@ static void aquarium_update_and_draw(aquarium_t* this)
         ii);
 
       if (!draw_per_model) {
-        model->update_per_instance_uniforms(model, world_uniforms);
-        model->draw(model);
+        model_update_per_instance_uniforms((model_t*)model, world_uniforms);
+        model_draw((model_t*)model);
       }
     }
   }
@@ -7505,7 +7509,7 @@ static void aquarium_update_and_draw(aquarium_t* this)
       }
 
       model_t* model = (model_t*)this->aquarium_models[i];
-      model->draw(model);
+      model_draw(model);
     }
   }
 }
