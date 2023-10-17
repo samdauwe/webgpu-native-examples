@@ -3032,6 +3032,11 @@ typedef struct {
   uint32_t texture_count;
   WGPUShaderModule vertex_shaders[VERTEX_SHADER_MAX];
   WGPUShaderModule fragment_shaders[FRAGMENT_SHADER_MAX];
+  struct {
+    char key[STRMAX];
+    program_t value;
+  } program_map[FRAGMENT_SHADER_MAX];
+  uint32_t program_count;
   void* aquarium_models[MODELNAME_MODELMAX];
   int32_t cur_fish_count;
   int32_t pre_fish_count;
@@ -3994,8 +3999,9 @@ static texture_t* aquarium_texture_map_lookup_texture(aquarium_t* this,
 static void aquarium_texture_map_insert(aquarium_t* this, const char* key,
                                         texture_t* texture)
 {
-  int32_t key_index     = aquarium_texture_map_lookup_index(this, key);
-  uint32_t insert_index = (key_index == -1) ? this->texture_count : key_index;
+  int32_t key_index = aquarium_texture_map_lookup_index(this, key);
+  uint32_t insert_index
+    = (key_index == -1) ? this->texture_count : (uint32_t)key_index;
   uint32_t texture_count_inc = (key_index == -1) ? 1 : 0;
 
   snprintf(this->texture_map[insert_index].key,
@@ -4007,18 +4013,35 @@ static void aquarium_texture_map_insert(aquarium_t* this, const char* key,
 static int32_t aquarium_program_map_lookup_index(aquarium_t* this,
                                                  const char* key)
 {
-  return -1;
+  int32_t index = -1;
+  for (uint32_t i = 0; i < this->program_count; ++i) {
+    if (strcmp(this->program_map[i].key, key) == 0) {
+      index = i;
+      break;
+    }
+  }
+  return index;
 }
 
 static program_t* aquarium_program_map_lookup_program(aquarium_t* this,
                                                       const char* key)
 {
-  return NULL;
+  int32_t key_index = aquarium_program_map_lookup_index(this, key);
+  return (key_index != -1) ? &this->program_map[key_index].value : NULL;
 }
 
 static void aquarium_program_map_insert(aquarium_t* this, const char* key,
                                         program_t* program)
 {
+  int32_t key_index = aquarium_program_map_lookup_index(this, key);
+  uint32_t insert_index
+    = (key_index == -1) ? this->program_count : (uint32_t)key_index;
+  uint32_t program_count_inc = (key_index == -1) ? 1 : 0;
+
+  snprintf(this->program_map[insert_index].key,
+           sizeof(this->program_map[insert_index].key), "%s", key);
+  memcpy(&this->program_map[insert_index].value, program, sizeof(program_t));
+  this->program_count += program_count_inc;
 }
 
 static bool aquarium_init(aquarium_t* this)
@@ -4432,11 +4455,11 @@ static void fish_model_create(fish_model_t* this, model_group_t type,
   this->_aquarium = aquarium;
 }
 
-static void* fish_model_update_fish_per_uniforms(fish_model_t* this, float x,
-                                                 float y, float z, float next_x,
-                                                 float next_y, float next_z,
-                                                 float scale, float time,
-                                                 int index)
+static void fish_model_update_fish_per_uniforms(fish_model_t* this, float x,
+                                                float y, float z, float next_x,
+                                                float next_y, float next_z,
+                                                float scale, float time,
+                                                int index)
 {
   this->_vtbl.update_fish_per_uniforms(this, x, y, z, next_x, next_y, next_z,
                                        scale, time, index);
