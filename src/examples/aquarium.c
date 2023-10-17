@@ -2889,7 +2889,7 @@ typedef struct {
   char sky_box_paths[6][STRMAX];
   char program_path[STRMAX];
   char prop_placement_path[STRMAX];
-  char model_path[STRMAX];
+  char model_path[STRMAX / 2];
 } resource_helper_t;
 
 static void resource_helper_init_defaults(resource_helper_t* this)
@@ -3889,6 +3889,7 @@ static void context_destroy_fish_resource(context_t* this)
 
 static void context_begin_render_pass(context_t* this)
 {
+  UNUSED_VAR(this);
 }
 
 static void context_destory_fish_resource(context_t* this)
