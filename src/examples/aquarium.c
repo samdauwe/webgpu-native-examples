@@ -2668,9 +2668,14 @@ static void buffer_manager_init_defaults(buffer_manager_t* this)
   this->count            = 0;
 }
 
-static void buffer_manager_create(buffer_manager_t* this)
+static void buffer_manager_create(buffer_manager_t* this,
+                                  wgpu_context_t* wgpu_context, bool sync)
 {
   buffer_manager_init_defaults(this);
+
+  this->wgpu_context = wgpu_context;
+  this->sync         = sync;
+
   this->encoder
     = wgpuDeviceCreateCommandEncoder(this->wgpu_context->device, NULL);
 }
