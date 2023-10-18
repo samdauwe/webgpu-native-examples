@@ -2587,6 +2587,7 @@ static bool ring_buffer_reset(ring_buffer_t* this, size_t size)
   this->tail = 0;
 
   WGPUBufferDescriptor buffer_desc = {
+    .label            = "Ring buffer",
     .usage            = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopyDst,
     .size             = this->size,
     .mappedAtCreation = true,
