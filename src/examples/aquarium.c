@@ -2424,6 +2424,7 @@ static void context_update_buffer_data(void* this, WGPUBuffer buffer,
                                        size_t buffer_size, void* data,
                                        size_t data_size);
 
+/* Copy size must be a multiple of 4 bytes on dawn mac backend. */
 static void buffer_dawn_create_f32(buffer_dawn_t* this, void* context,
                                    int32_t total_components,
                                    int32_t num_components, float* buffer,
