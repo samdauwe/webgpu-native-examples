@@ -2776,6 +2776,8 @@ static void buffer_manager_flush(buffer_manager_t* this)
   }
 
   WGPUCommandBuffer copy = wgpuCommandEncoderFinish(this->encoder, NULL);
+  ASSERT(copy != NULL);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, this->encoder)
   wgpuQueueSubmit(this->wgpu_context->queue, 1, &copy);
 
   /* Async function */
