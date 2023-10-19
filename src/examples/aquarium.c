@@ -2679,6 +2679,9 @@ static void buffer_manager_create(buffer_manager_t* this,
 
   this->encoder
     = wgpuDeviceCreateCommandEncoder(this->wgpu_context->device, NULL);
+
+  sc_queue_init(&this->mapped_buffer_list);
+  sc_array_init(&this->enqueued_buffer_list);
 }
 
 static void buffer_manager_destroy_buffer_pool(buffer_manager_t* this)
@@ -2697,6 +2700,9 @@ static void buffer_manager_destroy(buffer_manager_t* this)
 {
   buffer_manager_destroy_buffer_pool(this);
   WGPU_RELEASE_RESOURCE(CommandEncoder, this->encoder)
+
+  sc_queue_term(&this->mapped_buffer_list);
+  sc_array_term(&this->enqueued_buffer_list);
 }
 
 static size_t buffer_manager_get_size(buffer_manager_t* this)
