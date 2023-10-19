@@ -2826,7 +2826,8 @@ static ring_buffer_t* buffer_manager_allocate(buffer_manager_t* this,
     ring_buffer_create(ring_buffer, this, size);
     sc_array_add(&this->enqueued_buffer_list, ring_buffer);
   }
-  else { /* Buffer mapping async */
+  else {
+    /* Buffer mapping async */
     while (!sc_queue_empty(&this->mapped_buffer_list)) {
       ring_buffer = sc_queue_peek_first(&this->mapped_buffer_list);
       if (ring_buffer_get_available_size(ring_buffer) < size) {
