@@ -3246,16 +3246,16 @@ context_copy_buffer_to_buffer(context_t* this, WGPUBuffer src_buffer,
 
 static wgpu_shader_t context_create_shader_module(void* context,
                                                   WGPUShaderStage shader_stage,
-                                                  const char* shader_path)
+                                                  const char* shader_code_wgsl)
 {
   UNUSED_VAR(shader_stage);
 
-  wgpu_shader_t shader = wgpu_shader_create(((context_t*)context)->wgpu_context,
-                                            &(wgpu_shader_desc_t){
-                                              /* Shader WGSL */
-                                              .file  = shader_path,
-                                              .entry = "main",
-                                            });
+  wgpu_shader_t shader = wgpu_shader_create(
+    ((context_t*)context)->wgpu_context, &(wgpu_shader_desc_t){
+                                           /* Shader WGSL */
+                                           .wgsl_code.source = shader_code_wgsl,
+                                           .entry            = "main",
+                                         });
   ASSERT(shader.module);
 
   return shader;
