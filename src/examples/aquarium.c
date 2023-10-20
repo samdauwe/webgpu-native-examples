@@ -2362,7 +2362,7 @@ static void program_create(program_t* this, void* context,
   program_init_defaults(this);
   this->context = context;
 
-  this->vertex_shader_code = vertex_shader_code;
+  this->vertex_shader_code   = vertex_shader_code;
   this->fragment_shader_code = fragment_shader_code;
 }
 
@@ -7432,9 +7432,11 @@ static int32_t aquarium_load_model(aquarium_t* this, const g_scene_info_t* info)
           && info->type != MODELGROUP_INNER
           && info->type != MODELGROUP_OUTSIDE) {
         program_set_options(program, true, this->g.alpha);
+        program_compile_program(program);
       }
       else {
         program_set_options(program, false, this->g.alpha);
+        program_compile_program(program);
       }
       aquarium_program_map_insert(this, concat_id, program);
     }
