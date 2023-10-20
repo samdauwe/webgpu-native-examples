@@ -2335,8 +2335,8 @@ static void behavior_set_frame(behavior_t* this, int32_t frame)
 
 typedef struct {
   void* context;
-  char vertex_shader_path[STRMAX];
-  char fragment_shader_path[STRMAX];
+  const char* vertex_shader_code;
+  const char* fragment_shader_code;
   wgpu_shader_t vs_module;
   wgpu_shader_t fs_module;
   struct {
@@ -2356,16 +2356,14 @@ static void program_init_defaults(program_t* this)
 }
 
 static void program_create(program_t* this, void* context,
-                           const char* vertex_shader_path,
-                           const char* fragment_shader_path)
+                           const char* vertex_shader_code,
+                           const char* fragment_shader_code)
 {
   program_init_defaults(this);
   this->context = context;
 
-  snprintf(this->vertex_shader_path, strlen(vertex_shader_path) + 1, "%s",
-           vertex_shader_path);
-  snprintf(this->fragment_shader_path, strlen(fragment_shader_path) + 1, "%s",
-           fragment_shader_path);
+  this->vertex_shader_code = vertex_shader_code;
+  this->fragment_shader_code = fragment_shader_code;
 }
 
 static void program_destroy(program_t* this)
@@ -2394,9 +2392,9 @@ static void program_set_options(program_t* this, bool enable_alpha_blending,
 static void program_compile_program(program_t* this)
 {
   this->vs_module = context_create_shader_module(
-    this->context, WGPUShaderStage_Vertex, this->vertex_shader_path);
+    this->context, WGPUShaderStage_Vertex, this->vertex_shader_code);
   this->fs_module = context_create_shader_module(
-    this->context, WGPUShaderStage_Fragment, this->fragment_shader_path);
+    this->context, WGPUShaderStage_Fragment, this->fragment_shader_code);
 }
 
 /* -------------------------------------------------------------------------- *
