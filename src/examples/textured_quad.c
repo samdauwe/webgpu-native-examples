@@ -14,20 +14,20 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/texture/texture.cpp
  * -------------------------------------------------------------------------- */
 
-// Vertex layout for this example
+/* Vertex layout for this example */
 typedef struct {
   vec3 pos;
   vec2 uv;
   vec3 normal;
 } vertex_t;
 
-// Vertex buffer
+/* Vertex buffer */
 static wgpu_buffer_t vertices = {0};
 
-// Index buffer
+/* Index buffer */
 static wgpu_buffer_t indices = {0};
 
-// Uniform buffer block object
+/* Uniform buffer block object */
 static wgpu_buffer_t uniform_buffer_vs = {0};
 
 static struct {
@@ -37,30 +37,30 @@ static struct {
   float lodBias;
 } ubo_vs = {0};
 
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout; // solid
+/* The pipeline layout */
+static WGPUPipelineLayout pipeline_layout; /* solid */
 
-// Pipeline
-static WGPURenderPipeline pipeline; // solid
+/* Pipeline */
+static WGPURenderPipeline pipeline; /* solid */
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass;
 
-// Bind groups stores the resources bound to the binding points in a shader
+/* Bind groups stores the resources bound to the binding points in a shader */
 static WGPUBindGroup bind_group;
 static WGPUBindGroupLayout bind_group_layout;
 
-// Contains all WebGPU objects that are required to store and use a texture
+/* Contains all WebGPU objects that are required to store and use a texture */
 static texture_t texture;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Textured Quad";
 static bool prepared             = false;
 
-// Setup a default look-at camera
+/* Setup a default look-at camera */
 static void setup_camera(wgpu_example_context_t* context)
 {
   context->camera       = camera_create();
@@ -71,18 +71,18 @@ static void setup_camera(wgpu_example_context_t* context)
                          context->window_size.aspect_ratio, 0.1f, 256.0f);
 }
 
-// Upload texture image data to the GPU
+/* Upload texture image data to the GPU */
 static void load_texture(wgpu_context_t* wgpu_context)
 {
   // We use the Khronos texture format
-  // (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
+  // (https:/*www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
   texture = wgpu_create_texture_from_file(
     wgpu_context, "textures/metalplate01_rgba.ktx", NULL);
 }
 
 static void generate_quad(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices for a single uv-mapped quad made from two triangles
+  /* Setup vertices for a single uv-mapped quad made from two triangles */
   static const vertex_t vertices_data[4] = {
     [0] = {
       .pos    = {1.0f, 1.0f, 0.0f},
@@ -113,10 +113,10 @@ static void generate_quad(wgpu_context_t* wgpu_context)
                     .initial.data = vertices_data,
                   });
 
-  // Setup indices
+  /* Setup indices */
   static const uint16_t index_buffer[6] = {
-    0, 1, 2, // Triangle 1
-    2, 3, 0  // Triangle 2
+    0, 1, 2, /* Triangle 1 */
+    2, 3, 0  /* Triangle 2 */
   };
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
@@ -129,20 +129,20 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Pass matrices to the shaders
+  /* Pass matrices to the shaders */
   glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
   glm_vec4_copy(context->camera->view_pos, ubo_vs.view_pos);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                           &ubo_vs, sizeof(ubo_vs));
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer block
+  /* Vertex shader uniform buffer block */
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -150,16 +150,16 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_vs),
     });
 
-  // Update uniform buffer block data
+  /* Update uniform buffer block data */
   update_uniform_buffers(context);
 }
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform buffer (Vertex shader)
+      /* Binding 0: Uniform buffer (Vertex shader) */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -170,7 +170,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Texture view (Fragment shader)
+      /* Binding 1: Texture view (Fragment shader) */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -181,7 +181,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Sampler (Fragment shader)
+      /* Binding 2: Sampler (Fragment shader) */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout) {
@@ -209,22 +209,22 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Vertex shader uniform buffer
+      /* Binding 0 : Vertex shader uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
       .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1 : Fragment shader texture view
+      /* Binding 1 : Fragment shader texture view */
       .binding     = 1,
       .textureView = texture.view,
     },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2: Fragment shader image sampler
+      /* Binding 2: Fragment shader image sampler */
       .binding = 2,
       .sampler = texture.sampler,
     },
@@ -241,9 +241,9 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
+      .view       = NULL, /* Assigned later */
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -254,10 +254,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachments,
@@ -265,17 +265,17 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 }
 
-// Create the graphics pipeline
+/* Create the graphics pipeline */
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -283,30 +283,30 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     quad, sizeof(vertex_t),
     /* Attribute descriptions */
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, offsetof(vertex_t, pos)),
-    // Attribute location 1: Texture coordinates
+    /* Attribute location 1: Texture coordinates */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, offsetof(vertex_t, uv)),
-    // Attribute location 2: Vertex normal
+    /* Attribute location 2: Vertex normal */
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x3,
                        offsetof(vertex_t, normal)))
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
+                  /* Vertex shader SPIR-V */
                   .label = "texture_vertex_shader",
                   .file  = "shaders/textured_quad/texture.vert.spv",
                 },
@@ -314,11 +314,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .buffers      = &quad_vertex_buffer_layout,
               });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
+                  /* Fragment shader SPIR-V */
                   .label = "texture_fragment_shader",
                   .file  = "shaders/textured_quad/texture.frag.spv",
                 },
@@ -326,14 +326,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 .targets      = &color_target_state,
               });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "textured_quad_render_pipeline",
@@ -346,7 +346,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
@@ -380,58 +380,58 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
   }
 }
 
-// Build separate command buffer for the framebuffer image
+/* Build separate command buffer for the framebuffer image */
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame  */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-  // Set the bind group
+  /* Set the bind group */
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
 
-  // Set viewport
+  /* Set viewport */
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
     (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-  // Set scissor rectangle
+  /* Set scissor rectangle */
   wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind triangle vertex buffer (contains position and colors)
+  /* Bind triangle vertex buffer (contains position and colors) */
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
-  // Bind triangle index buffer
+  /* Bind triangle index buffer */
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
                                       WGPUIndexFormat_Uint16, 0,
                                       WGPU_WHOLE_SIZE);
 
-  // Draw indexed quad
+  /* Draw indexed quad */
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
                                    0, 0);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
@@ -441,19 +441,19 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
 
-  // Submit to queue
+  /* Submit to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return 0;
