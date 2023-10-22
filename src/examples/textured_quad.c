@@ -38,23 +38,23 @@ static struct {
 } ubo_vs = {0};
 
 /* The pipeline layout */
-static WGPUPipelineLayout pipeline_layout; /* solid */
+static WGPUPipelineLayout pipeline_layout = NULL; /* solid */
 
 /* Pipeline */
-static WGPURenderPipeline pipeline; /* solid */
+static WGPURenderPipeline pipeline = NULL; /* solid */
 
 /* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 /* Bind groups stores the resources bound to the binding points in a shader */
-static WGPUBindGroup bind_group;
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroup bind_group              = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 /* Contains all WebGPU objects that are required to store and use a texture */
-static texture_t texture;
+static texture_t texture = {0};
 
 /* Other variables */
 static const char* example_title = "Textured Quad";
