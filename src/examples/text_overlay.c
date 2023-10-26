@@ -28,7 +28,7 @@ static struct {
   .visible       = true,
 };
 
-static wgpu_buffer_t uniform_buffer_vs;
+static wgpu_buffer_t uniform_buffer_vs = {0};
 
 static struct ubo_vs_t {
   mat4 projection;
@@ -44,12 +44,12 @@ static struct ubo_vs_t {
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
-static WGPURenderPipeline pipeline;
-static WGPUPipelineLayout pipeline_layout;
-static WGPUBindGroup bind_group;
-static WGPUBindGroupLayout bind_group_layout;
+static WGPURenderPipeline pipeline           = NULL;
+static WGPUPipelineLayout pipeline_layout    = NULL;
+static WGPUBindGroup bind_group              = NULL;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // Other variables
 static const char* example_title = "Text Overlay";
