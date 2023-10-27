@@ -16,7 +16,7 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/textoverlay
  * -------------------------------------------------------------------------- */
 
-static struct gltf_model_t* model;
+static struct gltf_model_t* model = NULL;
 
 static struct {
   text_overlay_t* handle;
