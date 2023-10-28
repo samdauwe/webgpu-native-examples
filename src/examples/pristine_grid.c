@@ -26,8 +26,8 @@ static const char* grid_shader_wgsl;
  * Pristine Grid example
  * -------------------------------------------------------------------------- */
 
-static const uint32_t msaa_sample_count = 4u;
-static bool use_msaa                    = false;
+static const bool use_msaa              = false;
+static const uint32_t msaa_sample_count = use_msaa ? 4u : 1u;
 
 // Vertex layout used in this example
 typedef struct {
@@ -99,12 +99,13 @@ static struct {
   struct {
     WGPUTexture texture;
     WGPUTextureView view;
-  } msaa_color;
+  } msaa_color, depth;
 } textures = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
@@ -317,12 +318,111 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   }
 }
 
-static void allocate_render_targets(wgpu_context_t* wgpu_context)
+static void allocate_render_targets(wgpu_context_t* wgpu_context,
+                                    WGPUExtent2D size)
 {
+  WGPU_RELEASE_RESOURCE(Texture, textures.msaa_color.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.msaa_color.view)
+
+  /* Multi-sampled color render target */
+  if (msaa_sample_count > 1) {
+    /* Create the multi-sampled texture */
+    WGPUTextureDescriptor multisampled_frame_desc = {
+      .label         = "Multi-sampled texture",
+      .size          = (WGPUExtent3D){
+         .width              = size.width,
+         .height             = size.height,
+         .depthOrArrayLayers = 1,
+      },
+      .mipLevelCount = 1,
+      .sampleCount   = msaa_sample_count,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = wgpu_context->swap_chain.format,
+      .usage         = WGPUTextureUsage_RenderAttachment,
+    };
+    textures.msaa_color.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
+    ASSERT(textures.msaa_color.texture != NULL);
+
+    /* Create the multi-sampled texture view */
+    textures.msaa_color.view = wgpuTextureCreateView(
+      textures.msaa_color.texture, &(WGPUTextureViewDescriptor){
+                                     .label  = "Multi-sampled texture view",
+                                     .format = wgpu_context->swap_chain.format,
+                                     .dimension = WGPUTextureViewDimension_2D,
+                                     .baseMipLevel    = 0,
+                                     .mipLevelCount   = 1,
+                                     .baseArrayLayer  = 0,
+                                     .arrayLayerCount = 1,
+                                   });
+    ASSERT(textures.msaa_color.view != NULL);
+  }
+
+  WGPU_RELEASE_RESOURCE(Texture, textures.depth.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.depth.view)
+
+  /* Multi-sampled color render target */
+  {
+    /* Create the multi-sampled texture */
+    WGPUTextureDescriptor multisampled_frame_desc = {
+      .label         = "Depth texture",
+      .size          = (WGPUExtent3D){
+         .width              = size.width,
+         .height             = size.height,
+         .depthOrArrayLayers = 1,
+      },
+      .mipLevelCount = 1,
+      .sampleCount   = msaa_sample_count,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = depth_format,
+      .usage         = WGPUTextureUsage_RenderAttachment,
+    };
+    textures.depth.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
+    ASSERT(textures.depth.texture != NULL);
+
+    /* Create the multi-sampled texture view */
+    textures.depth.view = wgpuTextureCreateView(
+      textures.depth.texture, &(WGPUTextureViewDescriptor){
+                                .label        = "Multi-sampled texture view",
+                                .format       = wgpu_context->swap_chain.format,
+                                .dimension    = WGPUTextureViewDimension_2D,
+                                .baseMipLevel = 0,
+                                .mipLevelCount   = 1,
+                                .baseArrayLayer  = 0,
+                                .arrayLayerCount = 1,
+                              });
+    ASSERT(textures.depth.view != NULL);
+  }
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void setup_render_pass(void)
 {
+  /* Color attachment */
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment){
+    /* Appropriate target will be populated in onFrame */
+    .view          = msaa_sample_count > 1 ? textures.msaa_color.view : NULL,
+    .resolveTarget = NULL,
+    .clearValue    = clear_color,
+    .loadOp        = WGPULoadOp_Clear,
+    .storeOp = msaa_sample_count > 1 ? WGPUStoreOp_Discard : WGPUStoreOp_Store,
+  };
+
+  /* Depth-stencil attachment */
+  render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
+    .view            = textures.depth.view,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Discard,
+    .depthClearValue = 1.0f,
+  };
+
+  /* Render pass descriptor */
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = &render_pass.depth_stencil_attachment,
+  };
 }
 
 static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
@@ -388,7 +488,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
-        .sample_count = use_msaa ? msaa_sample_count : 1u,
+        .sample_count = msaa_sample_count,
       });
 
   // Create rendering pipeline using the specified states
@@ -411,13 +511,19 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    prepare_vertex_and_index_buffers(context->wgpu_context);
-    prepare_uniform_buffer(context->wgpu_context);
-    setup_bind_group_layouts(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_render_pipeline(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
+    wgpu_context_t* wgpu_context = context->wgpu_context;
+    prepare_vertex_and_index_buffers(wgpu_context);
+    prepare_uniform_buffer(wgpu_context);
+    setup_bind_group_layouts(wgpu_context);
+    setup_pipeline_layout(wgpu_context);
+    prepare_render_pipeline(wgpu_context);
+    setup_bind_groups(wgpu_context);
+    allocate_render_targets(wgpu_context,
+                            (WGPUExtent2D){
+                              .width  = wgpu_context->surface.width,
+                              .height = wgpu_context->surface.height,
+                            });
+    setup_render_pass();
     prepared = true;
     return EXIT_SUCCESS;
   }
@@ -425,18 +531,28 @@ static int example_initialize(wgpu_example_context_t* context)
   return EXIT_FAILURE;
 }
 
+static WGPURenderPassDescriptor const*
+get_default_render_pass_descriptor(wgpu_context_t* wgpu_context)
+{
+  const WGPUTextureView color_texture = wgpu_context->swap_chain.frame_buffer;
+  if (msaa_sample_count > 1) {
+    render_pass.color_attachments[0].resolveTarget = color_texture;
+  }
+  else {
+    render_pass.color_attachments[0].view = color_texture;
+  }
+  return &render_pass.descriptor;
+}
+
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
-
   // Create command encoder
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   // Create render pass encoder for encoding drawing commands
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+    wgpu_context->cmd_enc, get_default_render_pass_descriptor(wgpu_context));
 
   if (pipeline) {
     // Bind the rendering pipeline
@@ -524,6 +640,10 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+  WGPU_RELEASE_RESOURCE(Texture, textures.msaa_color.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.msaa_color.view)
+  WGPU_RELEASE_RESOURCE(Texture, textures.depth.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, textures.depth.view)
 }
 
 void example_pristine_grid(int argc, char* argv[])
