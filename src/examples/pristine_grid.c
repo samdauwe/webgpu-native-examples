@@ -36,11 +36,18 @@ typedef struct {
 } vertex_t;
 
 static struct {
+  mat4 projection_matrix;
+  mat4 view_matrix;
+  vec3 camera_position;
+  float time;
+} camera_uniforms = {0};
+
+static struct {
   vec4 line_color;
   vec4 base_color;
   vec2 line_width;
   vec4 padding;
-} uniform_array;
+} uniform_array = {0};
 
 static struct {
   WGPUColor clear_color;
@@ -74,9 +81,10 @@ static struct {
 static WGPUColor clear_color          = {0};
 static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24Plus;
 
-static wgpu_buffer_t vertex_buffer  = {0};
-static wgpu_buffer_t index_buffer   = {0};
-static wgpu_buffer_t uniform_buffer = {0};
+static wgpu_buffer_t vertex_buffer        = {0};
+static wgpu_buffer_t index_buffer         = {0};
+static wgpu_buffer_t frame_uniform_buffer = {0};
+static wgpu_buffer_t uniform_buffer       = {0};
 
 static WGPUBindGroupLayout frame_bind_group_layout = NULL;
 static WGPUBindGroupLayout bind_group_layout       = NULL;
@@ -86,6 +94,13 @@ static WGPUBindGroup bind_group       = NULL;
 
 static WGPUPipelineLayout pipeline_layout = NULL;
 static WGPURenderPipeline pipeline        = NULL;
+
+static struct {
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } msaa_color;
+} textures = {0};
 
 // Render pass descriptor for frame buffer writes
 static struct {
@@ -164,15 +179,29 @@ static void update_uniforms(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  /* Create uniform buffer */
-  uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .label = "Uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(uniform_array),
-    });
-  ASSERT(uniform_buffer.buffer != NULL);
+  /* Frame uniform buffer */
+  {
+    frame_uniform_buffer.buffer = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+        .label = "Frame uniform buffer",
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+        .size  = sizeof(camera_uniforms),
+      });
+    ASSERT(frame_uniform_buffer.buffer != NULL);
+  }
+
+  /* Uniform buffer */
+  {
+    uniform_buffer.buffer = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+        .label = "Uniform buffer",
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+        .size  = sizeof(uniform_array),
+      });
+    ASSERT(uniform_buffer.buffer != NULL);
+  }
 
   /* Update uniform buffer */
   update_uniforms(wgpu_context);
@@ -180,6 +209,30 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
+  /* Frame bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 0 : Camera/Frame uniforms */
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(camera_uniforms),
+        },
+        .sampler = {0},
+      },
+    };
+
+    frame_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Frame bind group layout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(frame_bind_group_layout != NULL);
+  }
+
   /* Pristine Grid bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
@@ -223,6 +276,26 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
+  /* Frame bind group */
+  {
+    frame_bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor) {
+        .label      = "Frame bind group",
+        .layout     = frame_bind_group_layout,
+        .entryCount = 1,
+        .entries    = &(WGPUBindGroupEntry) {
+          /* Binding 0 : Camera uniforms */
+          .binding = 0,
+          .buffer  = frame_uniform_buffer.buffer,
+          .offset  = 0,
+          .size    = frame_uniform_buffer.size,
+        },
+      }
+      );
+    ASSERT(frame_bind_group != NULL);
+  }
+
   /* Pristine Grid bind group */
   {
     bind_group = wgpuDeviceCreateBindGroup(
@@ -242,6 +315,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       );
     ASSERT(bind_group != NULL);
   }
+}
+
+static void allocate_render_targets(wgpu_context_t* wgpu_context)
+{
 }
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
@@ -439,6 +516,7 @@ static void example_destroy(wgpu_example_context_t* context)
   camera_release(context->camera);
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, frame_uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, frame_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
