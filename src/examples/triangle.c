@@ -56,27 +56,27 @@ static struct {
 } ubo_vs = {0};
 
 // The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
+static WGPUPipelineLayout pipeline_layout = NULL;
 
 // Pipeline
-static WGPURenderPipeline pipeline;
+static WGPURenderPipeline pipeline = NULL;
 
 // Render pass descriptor for frame buffer writes
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 // The bind group layout describes the shader binding layout (without actually
 // referencing descriptor)
 // Like the pipeline layout it's pretty much a blueprint and can be used with
 // different descriptor sets as long as their layout matches
-static WGPUBindGroupLayout bind_group_layout;
+static WGPUBindGroupLayout bind_group_layout = NULL;
 
 // The bind group stores the resources bound to the binding points in a shader
 // It connects the binding points of the different shaders with the buffers and
 // images used for those bindings
-static WGPUBindGroup bind_group;
+static WGPUBindGroup bind_group = NULL;
 
 // Other variables
 static const char* example_title = "Basic Indexed Triangle";
