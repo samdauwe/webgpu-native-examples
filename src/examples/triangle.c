@@ -353,10 +353,10 @@ static int example_initialize(wgpu_example_context_t* context)
     // Setup render pass
     setup_render_pass(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 // Build separate command buffer for the framebuffer image
@@ -432,13 +432,13 @@ static int example_draw(wgpu_context_t* wgpu_context)
   // Present the current buffer to the swap chain
   wgpu_swap_chain_present(wgpu_context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return example_draw(context->wgpu_context);
 }
