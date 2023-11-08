@@ -757,6 +757,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   ubo.scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Phong and color pass vertex shader uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_scene),
     });
