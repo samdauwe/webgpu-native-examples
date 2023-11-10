@@ -294,7 +294,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static float float_random(float min, float max)
 {
-  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0] */
+  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0]   */
   return min + scale * (max - min);             /* [min, max] */
 }
 
