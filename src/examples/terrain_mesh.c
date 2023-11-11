@@ -460,8 +460,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this bind group layout
   WGPUBindGroupLayout bindGroupLayouts[2] = {
-    bind_group_layouts.frame_constants, // set 0
-    bind_group_layouts.instance_buffer, // set 1
+    bind_group_layouts.frame_constants, /* set 0 */
+    bind_group_layouts.instance_buffer, /* set 1 */
   };
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
