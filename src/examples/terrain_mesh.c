@@ -450,6 +450,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     };
     bind_group_layouts.instance_buffer = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Instance buffer bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
