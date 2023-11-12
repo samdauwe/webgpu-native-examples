@@ -17,7 +17,7 @@
  * https://github.com/SaschaWillems/Vulkan/blob/master/examples/gltfscenerendering/gltfscenerendering.cpp
  * -------------------------------------------------------------------------- */
 
-static struct gltf_model_t* gltf_model;
+static struct gltf_model_t* gltf_model = NULL;
 
 static struct {
   mat4 projection;
@@ -51,9 +51,9 @@ static struct {
   WGPUBindGroup ubo_scene;
 } bind_groups = {0};
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
-static WGPUPipelineLayout pipeline_layout;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
+static WGPUPipelineLayout pipeline_layout                        = NULL;
 
 // Other variables
 static const char* example_title = "glTF Scene Rendering";
