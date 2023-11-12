@@ -56,7 +56,8 @@ static void Initialize()
   gpuContext.dawn_native.procTable = dawn::native::GetProcs();
   dawnProcSetProcs(&gpuContext.dawn_native.procTable);
   gpuContext.dawn_native.instance = std::make_unique<dawn::native::Instance>();
-  gpuContext.dawn_native.instance->DiscoverDefaultAdapters();
+  // Discovers adapters
+  (void)gpuContext.dawn_native.instance->EnumerateAdapters();
   gpuContext.dawn_native.instance->EnableBackendValidation(true);
   gpuContext.dawn_native.instance->SetBackendValidationLevel(
     dawn::native::BackendValidationLevel::Full);
