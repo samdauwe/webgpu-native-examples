@@ -77,10 +77,10 @@ static void prepare_vertex_buffers(wgpu_context_t* wgpu_context)
                   });
 
   static const float colors[16] = {
-    1.0f, 0.0f, 0.0f, 1.0f, // v0
-    0.0f, 1.0f, 0.0f, 1.0f, // v1
-    0.0f, 0.0f, 1.0f, 1.0f, // v2
-    1.0f, 1.0f, 0.0f, 1.0f  // v3
+    1.0f, 0.0f, 0.0f, 1.0f, /* v0 */
+    0.0f, 1.0f, 0.0f, 1.0f, /* v1 */
+    0.0f, 0.0f, 1.0f, 1.0f, /* v2 */
+    1.0f, 1.0f, 0.0f, 1.0f  /* v3 */
   };
   square.colors = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
@@ -326,7 +326,7 @@ void example_square(int argc, char* argv[])
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
- 
+
 // clang-format off
 static const char* vertex_shader_wgsl = CODE(
   struct VertexInput {
