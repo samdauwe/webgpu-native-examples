@@ -491,6 +491,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       }
     };
     WGPUBindGroupDescriptor bg_desc = {
+      .label      = "Frame constants bind group",
       .layout     = bind_group_layouts.frame_constants,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
