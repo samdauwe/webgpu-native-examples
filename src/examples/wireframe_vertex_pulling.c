@@ -486,7 +486,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     render_pipelines[(uint32_t)RenderMode_Wireframe]
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
                                        &(WGPURenderPipelineDescriptor){
-                                         .label  = "wireframe_render_pipeline",
+                                         .label  = "Wireframe render pipeline",
                                          .layout = pipeline_layout,
                                          .primitive    = primitive_state,
                                          .vertex       = vertex_state,
