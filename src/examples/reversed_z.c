@@ -94,15 +94,15 @@ static struct {
   texture_t default_depth;
 } textures = {0};
 
-static WGPURenderPassDescriptor depth_pre_pass_descriptor = {0};
-static WGPURenderPassDepthStencilAttachment dppd_rp_ds_att_descriptor;
+static WGPURenderPassDescriptor depth_pre_pass_descriptor             = {0};
+static WGPURenderPassDepthStencilAttachment dppd_rp_ds_att_descriptor = {0};
 
-static WGPURenderPassColorAttachment dpd_rp_color_att_descriptors[2][1];
-static WGPURenderPassDepthStencilAttachment dpd_rp_ds_att_descriptors[2];
-static WGPURenderPassDescriptor draw_pass_descriptors[2] = {0};
+static WGPURenderPassColorAttachment dpd_rp_color_att_descriptors[2][1]  = {0};
+static WGPURenderPassDepthStencilAttachment dpd_rp_ds_att_descriptors[2] = {0};
+static WGPURenderPassDescriptor draw_pass_descriptors[2]                 = {0};
 
-static WGPURenderPassColorAttachment tqd_rp_color_att_descriptors[2][1];
-static WGPURenderPassDescriptor texture_quad_pass_descriptors[2] = {0};
+static WGPURenderPassColorAttachment tqd_rp_color_att_descriptors[2][1] = {0};
+static WGPURenderPassDescriptor texture_quad_pass_descriptors[2]        = {0};
 
 static struct {
   WGPUBindGroupLayout depth_texture;
