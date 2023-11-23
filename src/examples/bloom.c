@@ -148,12 +148,12 @@ static void load_assets(wgpu_context_t* wgpu_context)
     });
   // Cube map
   static const char* cubemap[6] = {
-    "textures/cubemaps/cubemap_space_px.png", /* Right */
-    "textures/cubemaps/cubemap_space_nx.png", /* Left */
-    "textures/cubemaps/cubemap_space_py.png", /* Top */
+    "textures/cubemaps/cubemap_space_px.png", /* Right  */
+    "textures/cubemaps/cubemap_space_nx.png", /* Left   */
+    "textures/cubemaps/cubemap_space_py.png", /* Top    */
     "textures/cubemaps/cubemap_space_ny.png", /* Bottom */
-    "textures/cubemaps/cubemap_space_pz.png", /* Back */
-    "textures/cubemaps/cubemap_space_nz.png", /* Front */
+    "textures/cubemaps/cubemap_space_pz.png", /* Back   */
+    "textures/cubemaps/cubemap_space_nz.png", /* Front  */
   };
   cubemap_texture = wgpu_create_texture_cubemap_from_files(
     wgpu_context, cubemap,
