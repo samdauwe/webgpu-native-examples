@@ -279,8 +279,8 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 void update_text_overlay(wgpu_example_context_t* context)
 {
   // Window height
-  float width  = (float)context->wgpu_context->surface.width;
-  float height = (float)context->wgpu_context->surface.height;
+  const float width  = (float)context->wgpu_context->surface.width;
+  const float height = (float)context->wgpu_context->surface.height;
 
   text_overlay_begin_text_update(text_overlay.handle);
 
