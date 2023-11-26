@@ -120,8 +120,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(wgpu_example_context_t* context)
 {
-  const float now = context->frame.timestamp_millis / 1000.0f;
-
+  const float now     = context->frame.timestamp_millis / 1000.0f;
   const float sin_now = sin(now), cos_now = cos(now);
 
   cube_t* cube = NULL;
