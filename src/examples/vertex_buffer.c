@@ -187,9 +187,9 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
     vertex_buffer, sizeof(vertex_t),
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2, offsetof(vertex_t, pos)),
-    // Attribute location 1: Color
+    /* Attribute location 1: Color */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32, offsetof(vertex_t, color)))
 
   // Vertex state
