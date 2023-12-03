@@ -31,12 +31,18 @@ static const uint8_t light_data_stride = 8;
 static vec3 light_extent_min           = {-50.f, -30.f, -50.f};
 static vec3 light_extent_max           = {50.f, 30.f, 50.f};
 
+/* Scene matrices */
 static struct {
+  vec4 eye_position;
   vec3 up_vector;
   vec3 origin;
   mat4 projection_matrix;
   mat4 view_proj_matrix;
-} view_matrices = {0};
+} view_matrices = {
+  .eye_position = {0.0f, 50.0f, -100.0f, 0.0f},
+  .up_vector    = {0.0f, 1.0f, 0.0f},
+  .origin       = GLM_VEC3_ZERO_INIT,
+};
 
 static stanford_dragon_mesh_t stanford_dragon_mesh = {0};
 
@@ -1087,23 +1093,12 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
   // Scene matrices
-  vec3 eye_position = {0.0f, 50.0f, -100.0f};
   glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, view_matrices.up_vector);
   glm_vec3_copy((vec3){0.0f, 0.0f, 0.0f}, view_matrices.origin);
 
   glm_mat4_identity(view_matrices.projection_matrix);
   glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
                   view_matrices.projection_matrix);
-
-  mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(eye_position,            //
-             view_matrices.origin,    //
-             view_matrices.up_vector, //
-             view_matrix);
-
-  mat4 view_proj_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
-                view_proj_matrix);
 
   // Move the model so it's centered.
   mat4 model_matrix = GLM_MAT4_IDENTITY_INIT;
@@ -1122,44 +1117,105 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 }
 
 /**
- * @brief Rotate a 3D vector around the y-axis
- * @param a The vec3 point to rotate
- * @param b The origin of the rotation
- * @param rad The angle of rotation in radians
- * @param  out The receiving vec3
- * @see https://glmatrix.net/docs/vec3.js.html#line593
+ * @brief Rotates the given 4-by-4 matrix around the y-axis by the given angle.
+ * @param m - The matrix.
+ * @param angle_in_radians - The angle by which to rotate (in radians).
+ * @param dst - matrix to hold result.
+ * @returns The rotated matrix.
  */
-static void glm_vec3_rotate_y(vec3 a, vec3 b, float rad, vec3* out)
+static mat4* glm_mat4_rotate_y(mat4 m, float angle_in_radians, mat4* dst)
 {
-  vec3 p, r;
+  const float m00 = m[0][0];
+  const float m01 = m[0][1];
+  const float m02 = m[0][2];
+  const float m03 = m[0][3];
+  const float m20 = m[2][0];
+  const float m21 = m[2][1];
+  const float m22 = m[2][2];
+  const float m23 = m[2][3];
+  const float c   = cos(angle_in_radians);
+  const float s   = sin(angle_in_radians);
+  (*dst)[0][0]    = c * m00 - s * m20;
+  (*dst)[0][1]    = c * m01 - s * m21;
+  (*dst)[0][2]    = c * m02 - s * m22;
+  (*dst)[0][3]    = c * m03 - s * m23;
+  (*dst)[2][0]    = c * m20 + s * m00;
+  (*dst)[2][1]    = c * m21 + s * m01;
+  (*dst)[2][2]    = c * m22 + s * m02;
+  (*dst)[2][3]    = c * m23 + s * m03;
+  if (m != *dst) {
+    (*dst)[1][0] = m[1][0];
+    (*dst)[1][1] = m[1][1];
+    (*dst)[1][2] = m[1][2];
+    (*dst)[1][3] = m[1][3];
+    (*dst)[3][0] = m[3][0];
+    (*dst)[3][1] = m[3][1];
+    (*dst)[3][2] = m[3][2];
+    (*dst)[3][3] = m[3][3];
+  }
+  return dst;
+}
 
-  // Translate point to the origin
-  p[0] = a[0] - b[0];
-  p[1] = a[1] - b[1];
-  p[2] = a[2] - b[2];
+/**
+ * @brief Creates a 4-by-4 matrix which translates by the given vector v.
+ * @param v - The vector by which to translate.
+ * @param dst - matrix to hold result. If not passed a new one is created.
+ * @returns The translation matrix.
+ */
+static mat4* glm_mat4_translation(vec3 v, mat4* dst)
+{
+  (*dst)[0][0] = 1.0f;
+  (*dst)[0][1] = 0.0f;
+  (*dst)[0][2] = 0.0f;
+  (*dst)[0][3] = 0.0f;
+  (*dst)[1][0] = 0.0f;
+  (*dst)[1][1] = 1.0f;
+  (*dst)[1][2] = 0.0f;
+  (*dst)[1][3] = 0.0f;
+  (*dst)[2][0] = 0.0f;
+  (*dst)[2][1] = 0.0f;
+  (*dst)[2][2] = 1.0f;
+  (*dst)[2][3] = 0.0f;
+  (*dst)[3][0] = v[0];
+  (*dst)[3][1] = v[1];
+  (*dst)[3][2] = v[2];
+  (*dst)[3][3] = 1.0f;
+  return dst;
+}
 
-  // perform rotation
-
-  r[0] = p[2] * sin(rad) + p[0] * cos(rad);
-  r[1] = p[1];
-  r[2] = p[2] * cos(rad) - p[0] * sin(rad);
-
-  // translate to correct position
-  (*out)[0] = r[0] + b[0];
-  (*out)[1] = r[1] + b[1];
-  (*out)[2] = r[2] + b[2];
+/**
+ * @brief Transform vec4 by 4x4 matrix.
+ * @param v - the vector
+ * @param m - The matrix.
+ * @param dst - vec4 to store result.
+ * @returns the transformed vector
+ */
+static vec4* glm_vec4_transform_mat4(vec4 v, mat4 m, vec4* dst)
+{
+  const float x = v[0];
+  const float y = v[1];
+  const float z = v[2];
+  const float w = v[3];
+  (*dst)[0]     = m[0][0] * x + m[1][0] * y + m[2][0] * z + m[3][0] * w;
+  (*dst)[1]     = m[0][1] * x + m[1][1] * y + m[2][1] * z + m[3][1] * w;
+  (*dst)[2]     = m[0][2] * x + m[1][2] * y + m[2][2] * z + m[3][2] * w;
+  (*dst)[3]     = m[0][3] * x + m[1][3] * y + m[2][3] * z + m[3][3] * w;
+  return dst;
 }
 
 // Rotates the camera around the origin based on time.
 static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
 {
-  vec3 eye_position = {0.0f, 50.0f, -100.0f};
-
-  const float rad = PI * (context->frame.timestamp_millis / 5000.0f);
-  glm_vec3_rotate_y(eye_position, view_matrices.origin, rad, &eye_position);
+  const float rad  = PI * (context->frame.timestamp_millis / 5000.0f);
+  mat4 translation = GLM_MAT4_IDENTITY_INIT, rotation = GLM_MAT4_IDENTITY_INIT;
+  glm_mat4_translation(view_matrices.origin, &translation);
+  glm_mat4_rotate_y(translation, rad, &rotation);
+  vec4 rotated_eye_position = GLM_VEC4_ZERO_INIT;
+  glm_vec4_transform_mat4(view_matrices.eye_position, rotation,
+                          &rotated_eye_position);
 
   mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(eye_position,            //
+  glm_lookat(rotated_eye_position,    //
              view_matrices.origin,    //
              view_matrices.up_vector, //
              view_matrix);
