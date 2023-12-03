@@ -23,6 +23,21 @@
  * https://github.com/austinEng/webgpu-samples/tree/main/src/sample/deferredRendering
  * -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* fragment_deferred_rendering_wgsl;
+static const char* fragment_gbuffers_debug_view_wgsl;
+static const char* fragment_write_gbuffers_wgsl;
+static const char* light_update_wgsl;
+static const char* vertex_texture_quad_wgsl;
+static const char* vertex_write_gbuffers_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Deferred Rendering example
+ * -------------------------------------------------------------------------- */
+
 // Constants
 #define MAX_NUM_LIGHTS 1024u
 
@@ -575,9 +590,9 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .label = "Vertex Write GBuffers WGSL",
-              .file  = "shaders/deferred_rendering/vertexWriteGBuffers.wgsl",
-              .entry = "main",
+              .label            = "Vertex Write GBuffers WGSL",
+              .wgsl_code.source = vertex_write_gbuffers_wgsl,
+              .entry            = "main",
             },
             .buffer_count = 1,
             .buffers      = &write_gbuffers_vertex_buffer_layout,
@@ -588,9 +603,9 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .label = "Fargment Write GBuffers WGSL",
-              .file  = "shaders/deferred_rendering/fragmentWriteGBuffers.wgsl",
-              .entry = "main",
+              .label            = "Fragment Write GBuffers WGSL",
+              .wgsl_code.source = fragment_write_gbuffers_wgsl,
+              .entry            = "main",
              },
             .target_count = (uint32_t)ARRAY_SIZE(color_target_states),
             .targets = color_target_states,
@@ -654,8 +669,8 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Vertex shader WGSL
-          .file  = "shaders/deferred_rendering/vertexTextureQuad.wgsl",
-          .entry = "main",
+          .wgsl_code.source = vertex_texture_quad_wgsl,
+          .entry            = "main",
         },
         .buffer_count = 0,
         .buffers = NULL,
@@ -666,8 +681,8 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .file  = "shaders/deferred_rendering/fragmentGBuffersDebugView.wgsl",
-          .entry = "main",
+          .wgsl_code.source = fragment_gbuffers_debug_view_wgsl,
+          .entry            = "main",
         },
         .constant_count = (uint32_t)ARRAY_SIZE(constant_entries),
         .constants      = constant_entries,
@@ -720,8 +735,8 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Vertex shader WGSL
-          .file  = "shaders/deferred_rendering/vertexTextureQuad.wgsl",
-          .entry = "main",
+          .wgsl_code.source = vertex_texture_quad_wgsl,
+          .entry            = "main",
         },
         .buffer_count = 0,
         .buffers = NULL,
@@ -732,8 +747,8 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .file  = "shaders/deferred_rendering/fragmentDeferredRendering.wgsl",
-          .entry = "main",
+          .wgsl_code.source = fragment_deferred_rendering_wgsl,
+          .entry            = "main",
         },
         .target_count = 1,
         .targets      = &color_target_state,
@@ -948,13 +963,13 @@ static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
 static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
 {
   /* Compute shader */
-  wgpu_shader_t light_update_comp_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader WGSL
-                    .label = "Light update WGSL",
-                    .file  = "shaders/deferred_rendering/lightUpdate.wgsl",
-                    .entry = "main",
-                  });
+  wgpu_shader_t light_update_comp_shader
+    = wgpu_shader_create(wgpu_context, &(wgpu_shader_desc_t){
+                                         // Compute shader WGSL
+                                         .label = "Light update WGSL",
+                                         .wgsl_code.source = light_update_wgsl,
+                                         .entry            = "main",
+                                       });
 
   /* Create pipeline */
   light_update_compute_pipeline = wgpuDeviceCreateComputePipeline(
@@ -1450,3 +1465,247 @@ void example_deferred_rendering(int argc, char* argv[])
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* fragment_deferred_rendering_wgsl = CODE(
+  @group(0) @binding(0) var gBufferNormal: texture_2d<f32>;
+  @group(0) @binding(1) var gBufferAlbedo: texture_2d<f32>;
+  @group(0) @binding(2) var gBufferDepth: texture_depth_2d;
+
+  struct LightData {
+    position : vec4<f32>,
+    color : vec3<f32>,
+    radius : f32,
+  }
+  struct LightsBuffer {
+    lights: array<LightData>,
+  }
+  @group(1) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
+
+  struct Config {
+    numLights : u32,
+  }
+  struct Camera {
+    viewProjectionMatrix : mat4x4<f32>,
+    invViewProjectionMatrix : mat4x4<f32>,
+  }
+  @group(1) @binding(1) var<uniform> config: Config;
+  @group(1) @binding(2) var<uniform> camera: Camera;
+
+  fn world_from_screen_coord(coord : vec2<f32>, depth_sample: f32) -> vec3<f32> {
+    // reconstruct world-space position from the screen coordinate.
+    let posClip = vec4(coord.x * 2.0 - 1.0, (1.0 - coord.y) * 2.0 - 1.0, depth_sample, 1.0);
+    let posWorldW = camera.invViewProjectionMatrix * posClip;
+    let posWorld = posWorldW.xyz / posWorldW.www;
+    return posWorld;
+  }
+
+  @fragment
+  fn main(
+    @builtin(position) coord : vec4<f32>
+  ) -> @location(0) vec4<f32> {
+    var result : vec3<f32>;
+
+    let depth = textureLoad(
+      gBufferDepth,
+      vec2<i32>(floor(coord.xy)),
+      0
+    );
+
+    // Don't light the sky.
+    if (depth >= 1.0) {
+      discard;
+    }
+
+    let bufferSize = textureDimensions(gBufferDepth);
+    let coordUV = coord.xy / vec2<f32>(bufferSize);
+    let position = world_from_screen_coord(coordUV, depth);
+
+    let normal = textureLoad(
+      gBufferNormal,
+      vec2<i32>(floor(coord.xy)),
+      0
+    ).xyz;
+
+    let albedo = textureLoad(
+      gBufferAlbedo,
+      vec2<i32>(floor(coord.xy)),
+      0
+    ).rgb;
+
+    for (var i = 0u; i < config.numLights; i++) {
+      let L = lightsBuffer.lights[i].position.xyz - position;
+      let distance = length(L);
+      if (distance > lightsBuffer.lights[i].radius) {
+        continue;
+      }
+      let lambert = max(dot(normal, normalize(L)), 0.0);
+      result += vec3<f32>(
+        lambert * pow(1.0 - distance / lightsBuffer.lights[i].radius, 2.0) * lightsBuffer.lights[i].color * albedo
+      );
+    }
+
+    // some manual ambient
+    result += vec3(0.2);
+
+    return vec4(result, 1.0);
+  }
+);
+
+static const char* fragment_gbuffers_debug_view_wgsl = CODE(
+  @group(0) @binding(0) var gBufferNormal: texture_2d<f32>;
+  @group(0) @binding(1) var gBufferAlbedo: texture_2d<f32>;
+  @group(0) @binding(2) var gBufferDepth: texture_depth_2d;
+
+  override canvasSizeWidth: f32;
+  override canvasSizeHeight: f32;
+
+  @fragment
+  fn main(
+    @builtin(position) coord : vec4<f32>
+  ) -> @location(0) vec4<f32> {
+    var result : vec4<f32>;
+    let c = coord.xy / vec2<f32>(canvasSizeWidth, canvasSizeHeight);
+    if (c.x < 0.33333) {
+      let rawDepth = textureLoad(
+        gBufferDepth,
+        vec2<i32>(floor(coord.xy)),
+        0
+      );
+      // remap depth into something a bit more visible
+      let depth = (1.0 - rawDepth) * 50.0;
+      result = vec4(depth);
+    } else if (c.x < 0.66667) {
+      result = textureLoad(
+        gBufferNormal,
+        vec2<i32>(floor(coord.xy)),
+        0
+      );
+      result.x = (result.x + 1.0) * 0.5;
+      result.y = (result.y + 1.0) * 0.5;
+      result.z = (result.z + 1.0) * 0.5;
+    } else {
+      result = textureLoad(
+        gBufferAlbedo,
+        vec2<i32>(floor(coord.xy)),
+        0
+      );
+    }
+    return result;
+  }
+);
+
+static const char* fragment_write_gbuffers_wgsl = CODE(
+  struct GBufferOutput {
+    @location(0) normal : vec4<f32>,
+
+    // Textures: diffuse color, specular color, smoothness, emissive etc. could go here
+    @location(1) albedo : vec4<f32>,
+  }
+
+  @fragment
+  fn main(
+    @location(0) fragNormal: vec3<f32>,
+    @location(1) fragUV : vec2<f32>
+  ) -> GBufferOutput {
+    // faking some kind of checkerboard texture
+    let uv = floor(30.0 * fragUV);
+    let c = 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
+
+    var output : GBufferOutput;
+    output.normal = vec4(fragNormal, 1.0);
+    output.albedo = vec4(c, c, c, 1.0);
+
+    return output;
+  }
+);
+
+static const char* light_update_wgsl = CODE(
+  struct LightData {
+    position : vec4<f32>,
+    color : vec3<f32>,
+    radius : f32,
+  }
+  struct LightsBuffer {
+    lights: array<LightData>,
+  }
+  @group(0) @binding(0) var<storage, read_write> lightsBuffer: LightsBuffer;
+
+  struct Config {
+    numLights : u32,
+  }
+  @group(0) @binding(1) var<uniform> config: Config;
+
+  struct LightExtent {
+    min : vec4<f32>,
+    max : vec4<f32>,
+  }
+  @group(0) @binding(2) var<uniform> lightExtent: LightExtent;
+
+  @compute @workgroup_size(64, 1, 1)
+  fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
+    var index = GlobalInvocationID.x;
+    if (index >= config.numLights) {
+      return;
+    }
+
+    lightsBuffer.lights[index].position.y = lightsBuffer.lights[index].position.y - 0.5 - 0.003 * (f32(index) - 64.0 * floor(f32(index) / 64.0));
+
+    if (lightsBuffer.lights[index].position.y < lightExtent.min.y) {
+      lightsBuffer.lights[index].position.y = lightExtent.max.y;
+    }
+  }
+);
+
+static const char* vertex_texture_quad_wgsl = CODE(
+  @vertex
+  fn main(
+    @builtin(vertex_index) VertexIndex : u32
+  ) -> @builtin(position) vec4<f32> {
+    const pos = array(
+      vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0),
+      vec2(-1.0, 1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
+    );
+
+    return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+  }
+);
+
+static const char* vertex_write_gbuffers_wgsl = CODE(
+  struct Uniforms {
+    modelMatrix : mat4x4<f32>,
+    normalModelMatrix : mat4x4<f32>,
+  }
+  struct Camera {
+    viewProjectionMatrix : mat4x4<f32>,
+    invViewProjectionMatrix : mat4x4<f32>,
+  }
+  @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+  @group(0) @binding(1) var<uniform> camera : Camera;
+
+  struct VertexOutput {
+    @builtin(position) Position : vec4<f32>,
+    @location(0) fragNormal: vec3<f32>,    // normal in world space
+    @location(1) fragUV: vec2<f32>,
+  }
+
+  @vertex
+  fn main(
+    @location(0) position : vec3<f32>,
+    @location(1) normal : vec3<f32>,
+    @location(2) uv : vec2<f32>
+  ) -> VertexOutput {
+    var output : VertexOutput;
+    let worldPosition = (uniforms.modelMatrix * vec4(position, 1.0)).xyz;
+    output.Position = camera.viewProjectionMatrix * vec4(worldPosition, 1.0);
+    output.fragNormal = normalize((uniforms.normalModelMatrix * vec4(normal, 1.0)).xyz);
+    output.fragUV = uv;
+    return output;
+  }
+);
+
+// clang-format on
