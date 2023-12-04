@@ -18,7 +18,7 @@
  *
  * Related reading:
  * https://developer.nvidia.com/content/depth-precision-visualized
- * https://thxforthefish.com/posts/reverse_z/
+ * https://web.archive.org/web/20220724174000/https://thxforthefish.com/posts/reverse_z/
  *
  * Ref:
  * https://github.com/austinEng/webgpu-samples/blob/main/src/sample/reversedZ/main.ts
