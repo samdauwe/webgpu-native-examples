@@ -37,6 +37,17 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
                      plane_mesh_init_options_t* options);
 
 /* -------------------------------------------------------------------------- *
+ * Box mesh
+ * -------------------------------------------------------------------------- */
+
+typedef struct box_mesh_t {
+  uint64_t vertex_count;
+  uint64_t index_count;
+  float* vertex_array;
+  uint32_t* index_array;
+} box_mesh_t;
+
+/* -------------------------------------------------------------------------- *
  * Cube mesh
  * -------------------------------------------------------------------------- */
 
