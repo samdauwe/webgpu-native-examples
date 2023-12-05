@@ -41,9 +41,9 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
  * -------------------------------------------------------------------------- */
 
 typedef struct cube_mesh_t {
-  uint64_t vertex_size;
+  uint64_t vertex_size; /* Byte size of one cube vertex. */
   uint64_t position_offset;
-  uint64_t color_offset;
+  uint64_t color_offset; /* Byte offset of cube vertex color attribute. */
   uint64_t uv_offset;
   uint64_t vertex_count;
   float vertex_array[360];
