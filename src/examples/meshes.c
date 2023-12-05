@@ -208,6 +208,8 @@ void sphere_mesh_layout_init(sphere_mesh_layout_t* sphere_layout)
   sphere_layout->uv_offset        = 6 * 4;
 }
 
+// Borrowed and simplified from:
+// https://github.com/mrdoob/three.js/blob/master/src/geometries/SphereGeometry.js
 void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
                       uint32_t width_segments, uint32_t height_segments,
                       float randomness)
