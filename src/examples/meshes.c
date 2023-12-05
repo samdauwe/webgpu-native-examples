@@ -87,6 +87,94 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Box mesh
+ * -------------------------------------------------------------------------- */
+
+void box_mesh_create_with_tangents(box_mesh_t* box_mesh, float width,
+                                   float height, float depth)
+{
+  //    __________
+  //   /         /|      y
+  //  /   +y    / |      ^
+  // /_________/  |      |
+  // |         |+x|      +---> x
+  // |   +z    |  |     /
+  // |         | /     z
+  // |_________|/
+  //
+  const uint8_t p_x = 0; /* +x */
+  const uint8_t n_x = 1; /* -x */
+  const uint8_t p_y = 2; /* +y */
+  const uint8_t n_y = 3; /* -y */
+  const uint8_t p_z = 4; /* +z */
+  const uint8_t n_z = 5; /* -z */
+
+  struct {
+    uint8_t tangent;
+    uint8_t bitangent;
+    uint8_t normal;
+  } faces[BOX_MESH_FACES_COUNT] = {
+    [0] = { .tangent = n_z, .bitangent = p_y, .normal = p_x, },
+    [1] = { .tangent = p_z, .bitangent = p_y, .normal = n_x, },
+    [2] = { .tangent = p_x, .bitangent = n_z, .normal = p_y, },
+    [3] = { .tangent = p_x, .bitangent = p_z, .normal = n_y, },
+    [4] = { .tangent = p_x, .bitangent = p_y, .normal = p_z, },
+    [5] = { .tangent = n_x, .bitangent = p_y, .normal = n_z, },
+  };
+
+  uint32_t vertices_per_side = BOX_MESH_VERTICES_PER_SIDE;
+  box_mesh->vertex_count     = BOX_MESH_VERTICES_COUNT;
+  box_mesh->index_count      = BOX_MESH_INDICES_COUNT;
+  box_mesh->vertex_stride    = BOX_MESH_VERTEX_STRIDE;
+
+  const float half_vecs[BOX_MESH_FACES_COUNT][3] = {
+    {+width / 2.0f, 0.0f, 0.0f},  /* +x */
+    {-width / 2.0f, 0.0f, 0.0f},  /* -x */
+    {0.0f, +height / 2.0f, 0.0f}, /* +y */
+    {0.0f, -height / 2.0f, 0.0f}, /* -y */
+    {0.0f, 0.0f, +depth / 2.0f},  /* +z */
+    {0.0f, 0.0f, -depth / 2.0f},  /* -z */
+  };
+
+  uint32_t vertex_offset = 0;
+  uint32_t index_offset  = 0;
+  for (uint8_t face_index = 0; face_index < ARRAY_SIZE(faces); ++face_index) {
+    const float* tangent   = half_vecs[faces[face_index].tangent];
+    const float* bitangent = half_vecs[faces[face_index].bitangent];
+    const float* normal    = half_vecs[faces[face_index].normal];
+
+    for (uint8_t u = 0; u < 2; ++u) {
+      for (uint8_t v = 0; v < 2; ++v) {
+        for (uint8_t i = 0; i < 3; ++i) {
+          box_mesh->vertex_array[vertex_offset++]
+            = normal[i] + (u == 0 ? -1 : 1) * tangent[i]
+              + (v == 0 ? -1 : 1) * bitangent[i];
+        }
+        for (uint8_t i = 0; i < 3; i++) {
+          box_mesh->vertex_array[vertex_offset++] = normal[i];
+        }
+        box_mesh->vertex_array[vertex_offset++] = u;
+        box_mesh->vertex_array[vertex_offset++] = v;
+        for (uint8_t i = 0; i < 3; ++i) {
+          box_mesh->vertex_array[vertex_offset++] = tangent[i];
+        }
+        for (uint8_t i = 0; i < 3; i++) {
+          box_mesh->vertex_array[vertex_offset++] = bitangent[i];
+        }
+      }
+    }
+
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 0;
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 2;
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 1;
+
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 2;
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 3;
+    box_mesh->index_array[index_offset++] = face_index * vertices_per_side + 1;
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Cube mesh
  * -------------------------------------------------------------------------- */
 

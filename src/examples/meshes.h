@@ -40,12 +40,41 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
  * Box mesh
  * -------------------------------------------------------------------------- */
 
+#define BOX_MESH_FACES_COUNT 6
+#define BOX_MESH_VERTICES_PER_SIDE 4
+#define BOX_MESH_INDICES_PER_SIZE 6
+#define BOX_MESH_F32S_PER_VERTEX                                               \
+  14 // position : vec3f, tangent : vec3f, bitangent : vec3f, normal : vec3f, uv
+     // :vec2f
+#define BOX_MESH_VERTEX_STRIDE (BOX_MESH_F32S_PER_VERTEX * 4)
+#define BOX_MESH_VERTICES_COUNT                                                \
+  (BOX_MESH_FACES_COUNT * BOX_MESH_VERTICES_PER_SIDE * BOX_MESH_F32S_PER_VERTEX)
+#define BOX_MESH_INDICES_COUNT                                                 \
+  (BOX_MESH_FACES_COUNT * BOX_MESH_INDICES_PER_SIZE)
+
 typedef struct box_mesh_t {
   uint64_t vertex_count;
   uint64_t index_count;
-  float* vertex_array;
-  uint32_t* index_array;
+  float vertex_array[BOX_MESH_VERTICES_COUNT];
+  uint32_t index_array[BOX_MESH_INDICES_COUNT];
+  uint32_t vertex_stride;
 } box_mesh_t;
+
+/**
+ * @brief Constructs a box mesh with the given dimensions.
+ * The vertex buffer will have the following vertex fields (in the given order):
+ *   position  : float32x3
+ *   normal    : float32x3
+ *   uv        : float32x2
+ *   tangent   : float32x3
+ *   bitangent : float32x3
+ * @param width the width of the box
+ * @param height the height of the box
+ * @param depth the depth of the box
+ * @returns the box mesh with tangent and bitangents.
+ */
+void box_mesh_create_with_tangents(box_mesh_t* box_mesh, float width,
+                                   float height, float depth);
 
 /* -------------------------------------------------------------------------- *
  * Cube mesh
