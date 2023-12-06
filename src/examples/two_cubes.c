@@ -236,8 +236,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     // Backface culling since the cube is solid piece of geometry.
-    // Faces pointing away from the camera will be occluded by faces
-    // pointing toward the camera.
+    // Faces pointing away from the camera will be occluded by faces pointing
+    // toward the camera.
     .cullMode = WGPUCullMode_Back,
   };
 
