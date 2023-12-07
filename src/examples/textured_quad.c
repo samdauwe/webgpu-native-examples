@@ -379,7 +379,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_slider_float(context->imgui_overlay, "LOD bias",
+    if (imgui_overlay_slider_float(context->imgui_overlay, "LOD Bias",
                                    &ubo_vs.lodBias, 0.0f,
                                    (float)texture.mip_level_count, "%.1f")) {
       update_uniform_buffers(context);
