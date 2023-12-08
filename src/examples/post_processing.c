@@ -512,7 +512,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
 
   uint32_t i = 0, ii = 0;
 
-  // RIGHT
+  /* RIGHT */
   {
     build_plane(box->positions.data, // vertices
                 box->normals.data,   // normal
@@ -533,7 +533,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
     );
   }
 
-  // LEFT
+  /* LEFT */
   {
     build_plane(box->positions.data,                // vertices
                 box->normals.data,                  // normal
@@ -554,7 +554,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
     );
   }
 
-  // TOP
+  /* TOP */
   {
     build_plane(box->positions.data,                // vertices
                 box->normals.data,                  // normal
@@ -575,7 +575,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
     );
   }
 
-  // BOTTOM
+  /* BOTTOM */
   {
     build_plane(box->positions.data,                // vertices
                 box->normals.data,                  // normal
@@ -596,7 +596,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
     );
   }
 
-  // BACK
+  /* BACK */
   {
     build_plane(box->positions.data,                // vertices
                 box->normals.data,                  // normal
@@ -617,7 +617,7 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
     );
   }
 
-  // FRONT
+  /* FRONT */
   {
     build_plane(box->positions.data,                // vertices
                 box->normals.data,                  // normal
