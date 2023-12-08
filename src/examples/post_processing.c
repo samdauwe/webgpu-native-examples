@@ -1585,6 +1585,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
     // Render pass descriptor
     render_passes.scene_render.descriptor = (WGPURenderPassDescriptor){
+      .label                = "Render pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = render_passes.scene_render.color_attachments,
       .depthStencilAttachment
