@@ -1585,7 +1585,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
     // Render pass descriptor
     render_passes.scene_render.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Render pass descriptor",
+      .label                = "Instanced scene render pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = render_passes.scene_render.color_attachments,
       .depthStencilAttachment
@@ -1610,6 +1610,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
     // Render pass descriptor
     render_passes.post_fx.descriptor = (WGPURenderPassDescriptor){
+      .label                  = "Postfx fullscreen quad render pass descriptor",
       .colorAttachmentCount   = 1,
       .colorAttachments       = render_passes.post_fx.color_attachments,
       .depthStencilAttachment = NULL,
