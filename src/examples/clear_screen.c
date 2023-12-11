@@ -62,12 +62,11 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
 {
-  WGPUColor c;
-  c.r = (1 - t) * a->r + t * b->r;
-  c.g = (1 - t) * a->g + t * b->g;
-  c.b = (1 - t) * a->b + t * b->b;
-
-  return c;
+  return (WGPUColor){
+    .r = (1 - t) * a->r + t * b->r,
+    .g = (1 - t) * a->g + t * b->g,
+    .b = (1 - t) * a->b + t * b->b,
+  };
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
