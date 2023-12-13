@@ -451,7 +451,8 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   wgpu_shader_t particle_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader SPIR-V
-                    .file = "shaders/compute_particles/particle.comp.spv",
+                    .label = "Particle compute shader",
+                    .file  = "shaders/compute_particles/particle.comp.spv",
                   });
 
   /* Create pipeline */
