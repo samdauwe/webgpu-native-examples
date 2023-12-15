@@ -106,8 +106,8 @@ static struct {
 static const uint32_t average_layers_per_fragment = 4;
 
 /* Slices info */
-uint32_t num_slices   = 0;
-uint32_t slice_height = 0;
+uint32_t num_slices   = 0u;
+uint32_t slice_height = 0u;
 
 // Other variables
 static const char* example_title = "A-Buffer";
