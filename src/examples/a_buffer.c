@@ -181,7 +181,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   buffers.index = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "indexBuffer",
+      .label        = "Utah teapot mesh - index buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
       .size         = 3 * utah_teapot_mesh->triangles.count * sizeof(uint16_t),
       .initial.data = utah_teapot_mesh->triangles.data,
