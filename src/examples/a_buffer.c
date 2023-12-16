@@ -171,7 +171,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   buffers.vertex = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "vertexBuffer",
+      .label        = "Utah teapot mesh - vertex buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
       .size         = 3 * utah_teapot_mesh->positions.count * sizeof(float),
       .initial.data = utah_teapot_mesh->positions.data,
