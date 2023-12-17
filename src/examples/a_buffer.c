@@ -289,7 +289,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
 
     buffers.uniform
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "uniformBuffer",
+                                           .label = "Uniform buffer",
                                            .usage = WGPUBufferUsage_CopyDst
                                                     | WGPUBufferUsage_Uniform,
                                            .size = uniforms_size,
