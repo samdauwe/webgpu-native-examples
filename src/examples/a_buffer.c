@@ -254,7 +254,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
     buffers.heads = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
-        .label = "headsBuffer",
+        .label = "Heads struct storage buffer",
         .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
         .size  = buffer_count * sizeof(uint32_t),
       });
