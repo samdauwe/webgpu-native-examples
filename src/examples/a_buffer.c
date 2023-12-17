@@ -260,7 +260,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
       });
 
     WGPUBufferDescriptor buffer_desc = {
-      .label            = "headsInitBuffer",
+      .label            = "Heads init storage buffer",
       .usage            = WGPUBufferUsage_CopySrc,
       .size             = buffer_count * sizeof(uint32_t),
       .mappedAtCreation = true,
