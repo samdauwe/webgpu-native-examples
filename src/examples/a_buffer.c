@@ -222,7 +222,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // the slice. We do this using a uniform buffer with a dynamic offset.
   {
     WGPUBufferDescriptor buffer_desc = {
-      .label = "Slice info buffer",
+      .label = "Slice info - uniform buffer",
       .usage = WGPUBufferUsage_Uniform,
       .size = num_slices * device_limits.limits.minUniformBufferOffsetAlignment,
       .mappedAtCreation = true,
