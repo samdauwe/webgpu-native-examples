@@ -518,7 +518,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     };
     opaque_render_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "opaqueBindGroup",
+                              .label  = "Opaque bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 opaque_render_pass.pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
