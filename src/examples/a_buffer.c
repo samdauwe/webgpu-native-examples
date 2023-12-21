@@ -598,7 +598,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     translucent_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "translucentPipelineLayout",
+        .label                = "Translucent pipeline layout",
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &translucent_render_pass.bind_group_layout,
       });
