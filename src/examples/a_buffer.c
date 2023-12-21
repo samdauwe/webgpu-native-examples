@@ -636,7 +636,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     translucent_render_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = "translucentBindGroup",
+        .label      = "Translucent bind group",
         .layout     = translucent_render_pass.bind_group_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
