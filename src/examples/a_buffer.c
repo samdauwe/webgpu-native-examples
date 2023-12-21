@@ -703,7 +703,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     translucent_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label  = "translucentPipeline",
+                              .label  = "Translucent pipeline",
                               .layout = translucent_render_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
