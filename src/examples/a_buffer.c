@@ -797,7 +797,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     composite_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "compositePipelineLayout",
+        .label                = "Composite pipeline layout",
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &composite_render_pass.bind_group_layout,
       });
