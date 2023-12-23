@@ -917,7 +917,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
 
     /* Pass descriptor */
     composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "compositePassDescriptor",
+      .label                = "Composite pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
     };
