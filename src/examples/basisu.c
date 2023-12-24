@@ -399,7 +399,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
   }
 }
 
-// Build separate command buffer for the framebuffer image
+/* Build separate command buffer for the framebuffer image */
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Set target frame buffer
