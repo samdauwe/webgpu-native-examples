@@ -28,6 +28,49 @@ static const char* grid_shader_wgsl;
  * -------------------------------------------------------------------------- */
 
 /**
+ * @brief Generates a perspective projection matrix with the given bounds.
+ * The near/far clip planes correspond to a normalized device coordinate Z range
+ * of [-1, 1], which matches WebGL/OpenGL's clip volume. Passing
+ * null/undefined/no value for far will generate infinite projection matrix.
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {number} fovy Vertical field of view in radians
+ * @param {number} aspect Aspect ratio. typically viewport width/height
+ * @param {number} near Near bound of the frustum
+ * @param {number} far Far bound of the frustum, can be null or Infinity
+ * @returns {mat4} out
+ */
+mat4* glm_mat4_perspective_zo(mat4* out, float fovy, float aspect, float near,
+                              const float* far)
+{
+  const float f = 1.0f / tan(fovy / 2.0f);
+  (*out)[0][0]  = f / aspect;
+  (*out)[0][1]  = 0.0f;
+  (*out)[0][2]  = 0.0f;
+  (*out)[0][3]  = 0.0f;
+  (*out)[1][0]  = 0.0f;
+  (*out)[1][1]  = f;
+  (*out)[1][2]  = 0.0f;
+  (*out)[1][3]  = 0.0f;
+  (*out)[2][0]  = 0.0f;
+  (*out)[2][1]  = 0.0f;
+  (*out)[2][3]  = -1.0f;
+  (*out)[3][0]  = 0.0f;
+  (*out)[3][1]  = 0.0f;
+  (*out)[3][3]  = 0.0f;
+  if (far != NULL && *far != INFINITY) {
+    const float nf = 1.0f / (near - *far);
+    (*out)[2][2]   = *far * nf;
+    (*out)[3][2]   = *far * near * nf;
+  }
+  else {
+    (*out)[2][2] = -1.0f;
+    (*out)[3][2] = -near;
+  }
+  return out;
+}
+
+/**
  * @brief Rotates the given 4-by-4 matrix around the x-axis by the given angle.
  * @param m - The matrix.
  * @param angleInRadians - The angle by which to rotate (in radians).
@@ -151,13 +194,13 @@ static void orbit_camera_init_defaults(orbit_camera_t* this)
 }
 
 /* Construtor */
-static void arcball_camera_init(orbit_camera_t* this)
+static void orbit_camera_init(orbit_camera_t* this)
 {
   orbit_camera_init_defaults(this);
 }
 
-static void arcball_camera_orbit(orbit_camera_t* this, float x_delta,
-                                 float y_delta)
+static void orbit_camera_orbit(orbit_camera_t* this, float x_delta,
+                               float y_delta)
 {
   if (x_delta || y_delta) {
     this->orbit[1] += x_delta;
@@ -192,23 +235,23 @@ static void arcball_camera_orbit(orbit_camera_t* this, float x_delta,
   }
 }
 
-static vec3* arcball_camera_get_target(orbit_camera_t* this)
+static vec3* orbit_camera_get_target(orbit_camera_t* this)
 {
   return &this->target;
 }
 
-static void arcball_camera_set_target(orbit_camera_t* this, vec3 value)
+static void orbit_camera_set_target(orbit_camera_t* this, vec3 value)
 {
   glm_vec3_copy(value, this->target);
   this->dirty = true;
 }
 
-static float arcball_camera_get_distance(orbit_camera_t* this)
+static float orbit_camera_get_distance(orbit_camera_t* this)
 {
   return this->distance[2];
 }
 
-static void arcball_camera_set_distance(orbit_camera_t* this, float value)
+static void orbit_camera_set_distance(orbit_camera_t* this, float value)
 {
   this->distance[2] = value;
   if (this->constrain_distance) {
@@ -218,7 +261,7 @@ static void arcball_camera_set_distance(orbit_camera_t* this, float value)
   this->dirty = true;
 }
 
-static void arcball_camera_update_matrices(orbit_camera_t* this)
+static void orbit_camera_update_matrices(orbit_camera_t* this)
 {
   if (this->dirty) {
     glm_mat4_identity(this->camera_mat);
@@ -233,17 +276,17 @@ static void arcball_camera_update_matrices(orbit_camera_t* this)
   }
 }
 
-static vec3* arcball_camera_get_position(orbit_camera_t* this)
+static vec3* orbit_camera_get_position(orbit_camera_t* this)
 {
-  arcball_camera_update_matrices(this);
+  orbit_camera_update_matrices(this);
   glm_vec3_zero(this->position);
   glm_vec3_transform_mat4(this->position, this->camera_mat, &this->position);
   return &this->position;
 }
 
-static mat4* arcball_camera_get_view_matrix(orbit_camera_t* this)
+static mat4* orbit_camera_get_view_matrix(orbit_camera_t* this)
 {
-  arcball_camera_update_matrices(this);
+  orbit_camera_update_matrices(this);
   return &this->view_mat;
 }
 
@@ -281,19 +324,19 @@ static struct {
   float line_width_x;
   float line_width_y;
 } grid_options = {
-  .clear_color = (WGPUColor) {
+  .clear_color = {
     .r = 0.0f,
     .g = 0.0f,
     .b = 0.2f,
     .a = 1.0f,
   },
-  .line_color = (WGPUColor) {
+  .line_color = {
     .r = 1.0f,
     .g = 1.0f,
     .b = 1.0f,
     .a = 1.0f,
   },
-  .base_color = (WGPUColor) {
+  .base_color = {
     .r = 0.0f,
     .g = 0.0f,
     .b = 0.0f,
@@ -333,6 +376,19 @@ static struct {
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
+
+// The orbit camera
+static struct {
+  float fov;
+  float z_near;
+  float z_far;
+} camera_parms = {
+  .fov    = PI_2,
+  .z_near = 0.01f,
+  .z_far  = 128.0f,
+};
+
+static orbit_camera_t camera;
 
 // Other variables
 static const char* example_title = "Pristine Grid";
@@ -403,8 +459,33 @@ static void update_uniforms(wgpu_context_t* wgpu_context)
                           &uniform_array, sizeof(uniform_array));
 }
 
-static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
+static void update_projection(wgpu_context_t* wgpu_context)
 {
+  const float aspect_ratio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  glm_mat4_perspective_zo(&camera_uniforms.projection_matrix, camera_parms.fov,
+                          aspect_ratio, camera_parms.z_near,
+                          &camera_parms.z_far);
+}
+
+static void update_frame_uniforms(wgpu_example_context_t* context)
+{
+  /* Update frame uniforms data */
+  glm_mat4_copy(*orbit_camera_get_view_matrix(&camera),
+                camera_uniforms.view_matrix);
+  glm_vec3_copy(*orbit_camera_get_position(&camera),
+                camera_uniforms.camera_position);
+  camera_uniforms.time = context->frame.timestamp_millis / 1000.0f;
+
+  /* Update uniform buffer */
+  wgpu_queue_write_buffer(context->wgpu_context, frame_uniform_buffer.buffer, 0,
+                          &camera_uniforms, sizeof(camera_uniforms));
+}
+
+static void prepare_uniform_buffers(wgpu_example_context_t* context)
+{
+  wgpu_context_t* wgpu_context = context->wgpu_context;
+
   /* Frame uniform buffer */
   {
     frame_uniform_buffer.buffer = wgpuDeviceCreateBuffer(
@@ -416,6 +497,10 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
       });
     ASSERT(frame_uniform_buffer.buffer != NULL);
   }
+
+  /* Update uniform buffer */
+  update_projection(wgpu_context);
+  update_frame_uniforms(context);
 
   /* Uniform buffer */
   {
@@ -546,8 +631,8 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 static void allocate_render_targets(wgpu_context_t* wgpu_context,
                                     WGPUExtent2D size)
 {
-  WGPU_RELEASE_RESOURCE(Texture, textures.msaa_color.texture)
   WGPU_RELEASE_RESOURCE(TextureView, textures.msaa_color.view)
+  WGPU_RELEASE_RESOURCE(Texture, textures.msaa_color.texture)
 
   /* Multi-sampled color render target */
   if (msaa_sample_count > 1) {
@@ -583,8 +668,8 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
     ASSERT(textures.msaa_color.view != NULL);
   }
 
-  WGPU_RELEASE_RESOURCE(Texture, textures.depth.texture)
   WGPU_RELEASE_RESOURCE(TextureView, textures.depth.view)
+  WGPU_RELEASE_RESOURCE(Texture, textures.depth.texture)
 
   /* Multi-sampled color render target */
   {
@@ -735,10 +820,17 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
 
 static int example_initialize(wgpu_example_context_t* context)
 {
+  UNUSED_FUNCTION(orbit_camera_orbit);
+  UNUSED_FUNCTION(orbit_camera_get_target);
+  UNUSED_FUNCTION(orbit_camera_set_target);
+  UNUSED_FUNCTION(orbit_camera_get_distance);
+  UNUSED_FUNCTION(orbit_camera_set_distance);
+
   if (context) {
     wgpu_context_t* wgpu_context = context->wgpu_context;
+    orbit_camera_init(&camera);
     prepare_vertex_and_index_buffers(wgpu_context);
-    prepare_uniform_buffer(wgpu_context);
+    prepare_uniform_buffers(context);
     setup_bind_group_layouts(wgpu_context);
     setup_pipeline_layout(wgpu_context);
     prepare_render_pipeline(wgpu_context);
@@ -848,13 +940,19 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return EXIT_FAILURE;
   }
+
+  if (!context->paused) {
+    update_frame_uniforms(context);
+  }
+
   return example_draw(context->wgpu_context);
 }
 
 /* Clean up used resources */
 static void example_destroy(wgpu_example_context_t* context)
 {
-  camera_release(context->camera);
+  UNUSED_VAR(context);
+
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, index_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, frame_uniform_buffer.buffer)
@@ -877,10 +975,11 @@ void example_pristine_grid(int argc, char* argv[])
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
       .title = example_title,
+      .vsync = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
@@ -921,6 +1020,8 @@ static const char* grid_shader_wgsl = CODE(
   struct Camera {
     projection: mat4x4f,
     view: mat4x4f,
+    position: vec3f,
+    time: f32,
   }
   @group(0) @binding(0) var<uniform> camera: Camera;
 
