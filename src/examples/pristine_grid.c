@@ -23,6 +23,27 @@
 static const char* grid_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
+ * Orbit camera
+ * -------------------------------------------------------------------------- */
+
+typedef struct orbit_camera_t {
+  vec2 orbit;
+  vec2 min_orbit;
+  vec2 max_orbit;
+  bool constrain_orbit[2];
+  float max_distance;
+  float min_distance;
+  float distance_step;
+  bool constrain_distance;
+  vec3 distance;
+  vec3 target;
+  mat4 view_mat;
+  mat4 camera_mat;
+  vec3 position;
+  bool dirty;
+} arcball_camera_t;
+
+/* -------------------------------------------------------------------------- *
  * Pristine Grid example
  * -------------------------------------------------------------------------- */
 
@@ -65,7 +86,7 @@ static struct {
   .line_color = (WGPUColor) {
     .r = 1.0f,
     .g = 1.0f,
-    .b = 1.2f,
+    .b = 1.0f,
     .a = 1.0f,
   },
   .base_color = (WGPUColor) {
