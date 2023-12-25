@@ -23,6 +23,90 @@
 static const char* grid_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
+ * Math functions
+ * @ref https://github.com/toji/gl-matrix
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Rotates the given 4-by-4 matrix around the x-axis by the given angle.
+ * @param m - The matrix.
+ * @param angleInRadians - The angle by which to rotate (in radians).
+ * @returns The rotated matrix m.
+ */
+static mat4* glm_mat4_rotate_x(mat4* m, float angle_in_radians)
+{
+  const float s   = sin(angle_in_radians);
+  const float c   = cos(angle_in_radians);
+  const float m10 = (*m)[1][0];
+  const float m11 = (*m)[1][1];
+  const float m12 = (*m)[1][2];
+  const float m13 = (*m)[1][3];
+  const float m20 = (*m)[2][0];
+  const float m21 = (*m)[2][1];
+  const float m22 = (*m)[2][2];
+  const float m23 = (*m)[2][3];
+  /* Perform axis-specific matrix multiplication */
+  (*m)[1][0] = m10 * c + m20 * s;
+  (*m)[1][1] = m11 * c + m21 * s;
+  (*m)[1][2] = m12 * c + m22 * s;
+  (*m)[1][3] = m13 * c + m23 * s;
+  (*m)[2][0] = m20 * c - m10 * s;
+  (*m)[2][1] = m21 * c - m11 * s;
+  (*m)[2][2] = m22 * c - m12 * s;
+  (*m)[2][3] = m23 * c - m13 * s;
+  return m;
+}
+
+/**
+ * @brief Rotates the given 4-by-4 matrix around the y-axis by the given angle.
+ * @param m - The matrix.
+ * @param angleInRadians - The angle by which to rotate (in radians).
+ * @returns The rotated matrix m.
+ */
+static mat4* glm_mat4_rotate_y(mat4* m, float angle_in_radians)
+{
+  const float s   = sin(angle_in_radians);
+  const float c   = cos(angle_in_radians);
+  const float m00 = (*m)[0][0];
+  const float m01 = (*m)[0][1];
+  const float m02 = (*m)[0][2];
+  const float m03 = (*m)[0][3];
+  const float m20 = (*m)[2][0];
+  const float m21 = (*m)[2][1];
+  const float m22 = (*m)[2][2];
+  const float m23 = (*m)[2][3];
+  /* Perform axis-specific matrix multiplication */
+  (*m)[0][0] = m00 * c - m20 * s;
+  (*m)[0][1] = m01 * c - m21 * s;
+  (*m)[0][2] = m02 * c - m22 * s;
+  (*m)[0][3] = m03 * c - m23 * s;
+  (*m)[2][0] = m00 * s + m20 * c;
+  (*m)[2][1] = m01 * s + m21 * c;
+  (*m)[2][2] = m02 * s + m22 * c;
+  (*m)[2][3] = m03 * s + m23 * c;
+  return m;
+}
+
+/**
+ * @brief Transform vec3 by 4x4 matrix.
+ * @param v - the vector
+ * @param m - The matrix.
+ * @param dst - vec3 to store result.
+ * @returns the transformed vector dst
+ */
+static vec3* glm_vec3_transform_mat4(vec3 v, mat4 m, vec3* dst)
+{
+  const float x = v[0];
+  const float y = v[1];
+  const float z = v[2];
+  const float w = m[0][3] * x + m[1][3] * y + m[2][3] * z + m[3][3];
+  (*dst)[0]     = (m[0][0] * x + m[1][0] * y + m[2][0] * z + m[3][0]) / w;
+  (*dst)[1]     = (m[0][1] * x + m[1][1] * y + m[2][1] * z + m[3][1]) / w;
+  (*dst)[2]     = (m[0][2] * x + m[1][2] * y + m[2][2] * z + m[3][2]) / w;
+  return dst;
+}
+
+/* -------------------------------------------------------------------------- *
  * Orbit camera
  * -------------------------------------------------------------------------- */
 
@@ -41,7 +125,127 @@ typedef struct orbit_camera_t {
   mat4 camera_mat;
   vec3 position;
   bool dirty;
-} arcball_camera_t;
+} orbit_camera_t;
+
+static void orbit_camera_init_defaults(orbit_camera_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  glm_vec2_zero(this->orbit);
+  glm_vec2_copy((vec2){-PI_2, -PI}, this->min_orbit);
+  glm_vec2_copy((vec2){PI_2, PI}, this->max_orbit);
+  this->constrain_orbit[0] = true;
+  this->constrain_orbit[1] = false;
+
+  this->max_distance       = 10.0f;
+  this->min_distance       = 1.0f;
+  this->distance_step      = 0.005f;
+  this->constrain_distance = true;
+
+  glm_vec3_copy((vec3){0.0f, 0.0f, 1.0f}, this->distance);
+  glm_vec3_zero(this->target);
+  glm_mat4_identity(this->view_mat);
+  glm_mat4_identity(this->camera_mat);
+  glm_vec3_zero(this->position);
+  this->dirty = false;
+}
+
+/* Construtor */
+static void arcball_camera_init(orbit_camera_t* this)
+{
+  orbit_camera_init_defaults(this);
+}
+
+static void arcball_camera_orbit(orbit_camera_t* this, float x_delta,
+                                 float y_delta)
+{
+  if (x_delta || y_delta) {
+    this->orbit[1] += x_delta;
+    if (this->constrain_orbit[1]) {
+      this->orbit[1]
+        = MIN(MAX(this->orbit[1], this->min_orbit[1]), this->max_orbit[1]);
+    }
+    else {
+      while (this->orbit[1] < -PI) {
+        this->orbit[1] += PI2;
+      }
+      while (this->orbit[1] >= PI) {
+        this->orbit[1] -= PI2;
+      }
+    }
+
+    this->orbit[0] += y_delta;
+    if (this->constrain_orbit[0]) {
+      this->orbit[0]
+        = MIN(MAX(this->orbit[0], this->min_orbit[0]), this->max_orbit[0]);
+    }
+    else {
+      while (this->orbit[0] < -PI) {
+        this->orbit[0] += PI2;
+      }
+      while (this->orbit[0] >= PI) {
+        this->orbit[0] -= PI2;
+      }
+    }
+
+    this->dirty = true;
+  }
+}
+
+static vec3* arcball_camera_get_target(orbit_camera_t* this)
+{
+  return &this->target;
+}
+
+static void arcball_camera_set_target(orbit_camera_t* this, vec3 value)
+{
+  glm_vec3_copy(value, this->target);
+  this->dirty = true;
+}
+
+static float arcball_camera_get_distance(orbit_camera_t* this)
+{
+  return this->distance[2];
+}
+
+static void arcball_camera_set_distance(orbit_camera_t* this, float value)
+{
+  this->distance[2] = value;
+  if (this->constrain_distance) {
+    this->distance[2]
+      = MIN(MAX(this->distance[2], this->min_distance), this->max_distance);
+  }
+  this->dirty = true;
+}
+
+static void arcball_camera_update_matrices(orbit_camera_t* this)
+{
+  if (this->dirty) {
+    glm_mat4_identity(this->camera_mat);
+
+    glm_translate(this->camera_mat, this->target);
+    glm_mat4_rotate_y(&this->camera_mat, -this->orbit[1]);
+    glm_mat4_rotate_x(&this->camera_mat, -this->orbit[0]);
+    glm_translate(this->camera_mat, this->distance);
+    glm_mat4_inv(this->camera_mat, this->view_mat);
+
+    this->dirty = false;
+  }
+}
+
+static vec3* arcball_camera_get_position(orbit_camera_t* this)
+{
+  arcball_camera_update_matrices(this);
+  glm_vec3_zero(this->position);
+  glm_vec3_transform_mat4(this->position, this->camera_mat, &this->position);
+  return &this->position;
+}
+
+static mat4* arcball_camera_get_view_matrix(orbit_camera_t* this)
+{
+  arcball_camera_update_matrices(this);
+  return &this->view_mat;
+}
 
 /* -------------------------------------------------------------------------- *
  * Pristine Grid example
