@@ -811,3 +811,13 @@ void imgui_overlay_text(const char* format_str, ...)
   igTextV(format_str, args);
   va_end(args);
 }
+
+bool imgui_overlay_color_edit4(imgui_overlay_t* imgui_overlay,
+                               const char* caption, float color[4])
+{
+  bool res = igColorEdit4(caption, color, ImGuiColorEditFlags_Float);
+  if (res) {
+    imgui_overlay->updated = true;
+  };
+  return res;
+}

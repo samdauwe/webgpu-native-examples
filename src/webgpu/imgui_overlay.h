@@ -22,7 +22,7 @@ void imgui_overlay_new_frame(imgui_overlay_t* imgui_overlay,
 void imgui_overlay_render(imgui_overlay_t* imgui_overlay);
 void imgui_overlay_draw_frame(imgui_overlay_t* imgui_overlay,
                               WGPUTextureView view);
-bool imgui_overlay_want_capture_mouse();
+bool imgui_overlay_want_capture_mouse(void);
 
 bool imgui_overlay_header(const char* caption);
 bool imgui_overlay_checkBox(imgui_overlay_t* imgui_overlay, const char* caption,
@@ -41,5 +41,7 @@ bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
                              const char** items, uint32_t item_count);
 bool imgui_overlay_button(imgui_overlay_t* imgui_overlay, const char* caption);
 void imgui_overlay_text(const char* format_str, ...);
+bool imgui_overlay_color_edit4(imgui_overlay_t* imgui_overlay,
+                               const char* caption, float color[4]);
 
 #endif
