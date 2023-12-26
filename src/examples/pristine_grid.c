@@ -694,10 +694,10 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
     /* Create the multi-sampled texture view */
     textures.depth.view = wgpuTextureCreateView(
       textures.depth.texture, &(WGPUTextureViewDescriptor){
-                                .label        = "Multi-sampled texture view",
-                                .format       = depth_format,
-                                .dimension    = WGPUTextureViewDimension_2D,
-                                .baseMipLevel = 0,
+                                .label           = "Multi-sampled texture view",
+                                .format          = depth_format,
+                                .dimension       = WGPUTextureViewDimension_2D,
+                                .baseMipLevel    = 0,
                                 .mipLevelCount   = 1,
                                 .baseArrayLayer  = 0,
                                 .arrayLayerCount = 1,
@@ -903,12 +903,12 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
     // Bind index buffer
     wgpuRenderPassEncoderSetIndexBuffer(
-      wgpu_context->rpass_enc, index_buffer.buffer, WGPUIndexFormat_Uint32, 0,
+      wgpu_context->rpass_enc, index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
       WGPU_WHOLE_SIZE);
 
     // Draw quad
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, index_buffer.count, 1, 0,
-                              0);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     index_buffer.count, 1, 0, 0, 0);
   }
 
   // End render pass
