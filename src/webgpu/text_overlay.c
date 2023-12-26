@@ -360,6 +360,7 @@ static void text_overlay_setup_render_pass(text_overlay_t* text_overlay)
   text_overlay->render_pass.color_attachment[0]
     = (WGPURenderPassColorAttachment) {
       .view       = NULL,
+      .depthSlice = ~0,
       // Don't clear the framebuffer (like the renderpass from the example does)
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,

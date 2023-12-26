@@ -341,6 +341,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     // Color attachment
     this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // Assigned later
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {

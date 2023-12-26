@@ -413,6 +413,7 @@ texture_t pbr_generate_brdf_lut(wgpu_context_t* wgpu_context)
   } render_pass = {
     .color_attachment[0]= (WGPURenderPassColorAttachment) {
         .view       = lut_brdf.view,
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -963,6 +964,7 @@ texture_t pbr_generate_cubemap(wgpu_context_t* wgpu_context,
   } render_pass = {
     .color_attachment[0]= (WGPURenderPassColorAttachment) {
         .view       = NULL, /* Assigned later */
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {

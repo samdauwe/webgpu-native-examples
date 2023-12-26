@@ -291,6 +291,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Color attachment
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -564,7 +565,7 @@ void example_gltf_skinning(int argc, char* argv[])
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
- 
+
 // clang-format off
 static const char* skinned_model_vertex_shader_wgsl = CODE(
   struct UBOScene {

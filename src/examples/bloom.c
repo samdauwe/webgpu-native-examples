@@ -245,6 +245,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
   frame_buf->render_pass_desc.color_attachment[0]
     = (WGPURenderPassColorAttachment) {
       .view       = frame_buf->color.texture_view,
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -582,6 +583,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   // Color attachment
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {

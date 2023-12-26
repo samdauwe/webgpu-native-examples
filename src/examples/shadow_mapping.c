@@ -434,6 +434,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
     // Color attachment
     color_render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // view is acquired and set in render loop.
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {

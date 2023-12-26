@@ -1163,15 +1163,16 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     // Color attachment
     this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = frame_buffer->view,
-     .loadOp     = WGPULoadOp_Clear,
-     .storeOp    = WGPUStoreOp_Store,
-     .clearValue = (WGPUColor) {
-       .r = 0.1f,
-       .g = 0.2f,
-       .b = 0.3f,
-       .a = 1.0f,
-       },
-     };
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = (WGPUColor) {
+        .r = 0.1f,
+        .g = 0.2f,
+        .b = 0.3f,
+        .a = 1.0f,
+      },
+    };
 
     // Depth-stencil attachment
     this->render_pass.depth_stencil_attachment
@@ -1854,6 +1855,7 @@ static void result_renderer_create(result_renderer_t* this,
     // Color attachment
     this->render_pass.color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
         .view       = NULL, /* Assigned later */
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {

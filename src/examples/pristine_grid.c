@@ -347,7 +347,7 @@ static struct {
 };
 
 static WGPUColor clear_color          = {0};
-static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24Plus;
+static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24PlusStencil8;
 
 static wgpu_buffer_t vertex_buffer        = {0};
 static wgpu_buffer_t index_buffer         = {0};
@@ -488,13 +488,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 
   /* Frame uniform buffer */
   {
-    frame_uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-      wgpu_context->device,
-      &(WGPUBufferDescriptor){
-        .label = "Frame uniform buffer",
-        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-        .size  = sizeof(camera_uniforms),
-      });
+    frame_uniform_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Frame uniform buffer",
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size = sizeof(camera_uniforms),
+                                         });
     ASSERT(frame_uniform_buffer.buffer != NULL);
   }
 
@@ -504,13 +504,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 
   /* Uniform buffer */
   {
-    uniform_buffer.buffer = wgpuDeviceCreateBuffer(
-      wgpu_context->device,
-      &(WGPUBufferDescriptor){
-        .label = "Uniform buffer",
-        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-        .size  = sizeof(uniform_array),
-      });
+    uniform_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Uniform buffer",
+                                           .usage = WGPUBufferUsage_CopyDst
+                                                    | WGPUBufferUsage_Uniform,
+                                           .size = sizeof(uniform_array),
+                                         });
     ASSERT(uniform_buffer.buffer != NULL);
   }
 
@@ -695,7 +695,7 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
     textures.depth.view = wgpuTextureCreateView(
       textures.depth.texture, &(WGPUTextureViewDescriptor){
                                 .label        = "Multi-sampled texture view",
-                                .format       = wgpu_context->swap_chain.format,
+                                .format       = depth_format,
                                 .dimension    = WGPUTextureViewDimension_2D,
                                 .baseMipLevel = 0,
                                 .mipLevelCount   = 1,
@@ -712,6 +712,7 @@ static void setup_render_pass(void)
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment){
     /* Appropriate target will be populated in onFrame */
     .view          = msaa_sample_count > 1 ? textures.msaa_color.view : NULL,
+    .depthSlice    = ~0,
     .resolveTarget = NULL,
     .clearValue    = clear_color,
     .loadOp        = WGPULoadOp_Clear,
@@ -720,10 +721,13 @@ static void setup_render_pass(void)
 
   /* Depth-stencil attachment */
   render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
-    .view            = textures.depth.view,
-    .depthLoadOp     = WGPULoadOp_Clear,
-    .depthStoreOp    = WGPUStoreOp_Discard,
-    .depthClearValue = 1.0f,
+    .view              = textures.depth.view,
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Discard,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
   };
 
   /* Render pass descriptor */
@@ -867,9 +871,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
+  get_default_render_pass_descriptor(wgpu_context);
+
   // Create render pass encoder for encoding drawing commands
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, get_default_render_pass_descriptor(wgpu_context));
+    wgpu_context->cmd_enc, &render_pass.descriptor);
 
   if (pipeline) {
     // Bind the rendering pipeline

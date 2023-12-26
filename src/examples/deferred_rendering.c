@@ -785,6 +785,7 @@ static void setup_render_passes(void)
     write_gbuffer_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[0],
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -798,6 +799,7 @@ static void setup_render_passes(void)
     write_gbuffer_pass.color_attachments[1] =
       (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[1],
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -833,6 +835,7 @@ static void setup_render_passes(void)
     texture_quad_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = NULL, // view is acquired and set in render loop.
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {

@@ -1249,6 +1249,7 @@ static void render_program_setup_render_pass(void)
   /* Color attachment */
   render_program.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -1587,7 +1588,7 @@ void example_fluid_simulation(int argc, char* argv[])
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
- 
+
 // clang-format off
 /**
  * @brief 3D Smoke Rendering inspired from @xjorma's shader:

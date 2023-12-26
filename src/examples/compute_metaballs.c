@@ -895,6 +895,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
     (WGPURenderPassColorAttachment) {
       .view          = NULL,
       .resolveTarget = NULL,
+      .depthSlice    = ~0,
       .loadOp        = WGPULoadOp_Clear,
       .storeOp       = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -4550,6 +4551,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
   this->framebuffer.color_attachments[0] =
     (WGPURenderPassColorAttachment) {
       .view       = this->copy_texture.view,
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -4960,6 +4962,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   this->framebuffer.color_attachments[0] =
     (WGPURenderPassColorAttachment) {
       .view       = this->bloom_texture.view,
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -5469,6 +5472,7 @@ static void deferred_pass_create(deferred_pass_t* this,
     this->framebuffer.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = this->g_buffer_texture_normal.view,
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -5483,6 +5487,7 @@ static void deferred_pass_create(deferred_pass_t* this,
     this->framebuffer.color_attachments[1] =
       (WGPURenderPassColorAttachment) {
         .view       = this->g_buffer_texture_diffuse.view,
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {

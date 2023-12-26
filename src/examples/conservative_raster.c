@@ -447,6 +447,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       .colorAttachmentCount   = 1,
       .colorAttachments       = &(WGPURenderPassColorAttachment) {
         .view       = low_res_target_texture.view,
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {
@@ -481,6 +482,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       .colorAttachmentCount   = 1,
       .colorAttachments       = &(WGPURenderPassColorAttachment) {
         .view       = view,
+        .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = (WGPUColor) {

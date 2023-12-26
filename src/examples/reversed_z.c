@@ -621,6 +621,7 @@ static void prepare_draw_pass_descriptors()
     // Color attachment
     dpd_rp_color_att_descriptors[0][0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, // view is acquired and set in render loop.
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -648,9 +649,10 @@ static void prepare_draw_pass_descriptors()
   // drawPassLoadDescriptor
   {
     dpd_rp_color_att_descriptors[1][0] = (WGPURenderPassColorAttachment){
-      .view    = NULL, // view is acquired and set in render loop.
-      .loadOp  = WGPULoadOp_Load,
-      .storeOp = WGPUStoreOp_Store,
+      .view       = NULL, // view is acquired and set in render loop.
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
     };
 
     dpd_rp_ds_att_descriptors[1] = (WGPURenderPassDepthStencilAttachment){
@@ -675,6 +677,7 @@ static void prepare_texture_quad_pass_descriptors()
     tqd_rp_color_att_descriptors[0][0]
      = (WGPURenderPassColorAttachment) {
       .view       = NULL, // view is acquired and set in render loop.
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -694,9 +697,10 @@ static void prepare_texture_quad_pass_descriptors()
   // textureQuadPassLoadDescriptor
   {
     tqd_rp_color_att_descriptors[1][0] = (WGPURenderPassColorAttachment){
-      .view    = NULL, // attachment is acquired and set in render loop.
-      .loadOp  = WGPULoadOp_Load,
-      .storeOp = WGPUStoreOp_Store,
+      .view       = NULL, // attachment is acquired and set in render loop.
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
     };
 
     texture_quad_pass_descriptors[1] = (WGPURenderPassDescriptor){

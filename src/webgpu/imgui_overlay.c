@@ -238,6 +238,7 @@ static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
   // Color attachment
   imgui_overlay->rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL,
+      .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
