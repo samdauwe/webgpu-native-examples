@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "../webgpu/imgui_overlay.h"
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Pristine Grid
  *
@@ -318,29 +320,29 @@ static struct {
 } uniform_array = {0};
 
 static struct {
-  WGPUColor clear_color;
-  WGPUColor line_color;
-  WGPUColor base_color;
+  vec4 clear_color;
+  vec4 line_color;
+  vec4 base_color;
   float line_width_x;
   float line_width_y;
 } grid_options = {
   .clear_color = {
-    .r = 0.0f,
-    .g = 0.0f,
-    .b = 0.2f,
-    .a = 1.0f,
+    /* .r = */ 0.0f,
+    /* .g = */ 0.0f,
+    /* .b = */ 0.2f,
+    /* .a = */ 1.0f,
   },
   .line_color = {
-    .r = 1.0f,
-    .g = 1.0f,
-    .b = 1.0f,
-    .a = 1.0f,
+    /* .r = */ 1.0f,
+    /* .g = */ 1.0f,
+    /* .b = */ 1.0f,
+    /* .a = */ 1.0f,
   },
   .base_color = {
-    .r = 0.0f,
-    .g = 0.0f,
-    .b = 0.0f,
-    .a = 1.0f,
+    /* .r = */ 0.0f,
+    /* .g = */ 0.0f,
+    /* .b = */ 0.0f,
+    /* .a = */ 1.0f,
   },
   .line_width_x = 0.05f,
   .line_width_y = 0.05f,
@@ -865,6 +867,34 @@ get_default_render_pass_descriptor(wgpu_context_t* wgpu_context)
   return &render_pass.descriptor;
 }
 
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+{
+  if (imgui_overlay_header("Settings")) {
+    if (imgui_overlay_color_edit4(context->imgui_overlay, "clearColor",
+                                  grid_options.clear_color)) {
+      update_uniforms(context->wgpu_context);
+    }
+    if (imgui_overlay_color_edit4(context->imgui_overlay, "lineColor",
+                                  grid_options.line_color)) {
+      update_uniforms(context->wgpu_context);
+    }
+    if (imgui_overlay_color_edit4(context->imgui_overlay, "baseColor",
+                                  grid_options.base_color)) {
+      update_uniforms(context->wgpu_context);
+    }
+    if (imgui_overlay_slider_float(context->imgui_overlay, "lineWidthX",
+                                   &grid_options.line_width_x, 0.0f, 1.0f,
+                                   "%.001f")) {
+      update_uniforms(context->wgpu_context);
+    }
+    if (imgui_overlay_slider_float(context->imgui_overlay, "lineWidthY",
+                                   &grid_options.line_width_y, 0.0f, 1.0f,
+                                   "%.001f")) {
+      update_uniforms(context->wgpu_context);
+    }
+  }
+}
+
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   // Create command encoder
@@ -914,6 +944,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   // End render pass
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  /* Draw ui overlay */
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   // Get command buffer
   WGPUCommandBuffer command_buffer
@@ -980,8 +1013,9 @@ void example_pristine_grid(int argc, char* argv[])
   // clang-format off
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
+      .title   = example_title,
+      .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func = &example_initialize,
     .example_render_func     = &example_render,
