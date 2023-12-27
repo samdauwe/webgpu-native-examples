@@ -893,7 +893,6 @@ static void example_on_resize(wgpu_example_context_t* context)
 
 static int example_initialize(wgpu_example_context_t* context)
 {
-  UNUSED_FUNCTION(orbit_camera_orbit);
   UNUSED_FUNCTION(orbit_camera_get_target);
   UNUSED_FUNCTION(orbit_camera_set_target);
   UNUSED_FUNCTION(orbit_camera_get_distance);
