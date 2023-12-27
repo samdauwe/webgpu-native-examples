@@ -298,6 +298,7 @@ static mat4* orbit_camera_get_view_matrix(orbit_camera_t* this)
 
 static const bool use_msaa              = false;
 static const uint32_t msaa_sample_count = use_msaa ? 4u : 1u;
+static WGPUTextureFormat depth_format   = WGPUTextureFormat_Depth24PlusStencil8;
 
 // Vertex layout used in this example
 typedef struct {
@@ -347,9 +348,6 @@ static struct {
   .line_width_x = 0.05f,
   .line_width_y = 0.05f,
 };
-
-static WGPUColor clear_color          = {0};
-static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24PlusStencil8;
 
 static wgpu_buffer_t vertex_buffer        = {0};
 static wgpu_buffer_t index_buffer         = {0};
@@ -447,8 +445,15 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 
 static void update_uniforms(wgpu_context_t* wgpu_context)
 {
+  /* Update color attachment clear color */
+  render_pass.color_attachments[0].clearValue = (WGPUColor){
+    .r = grid_options.clear_color[0],
+    .g = grid_options.clear_color[1],
+    .b = grid_options.clear_color[2],
+    .a = grid_options.clear_color[3],
+  };
+
   /* Update uniforms data */
-  memcpy(&clear_color, &grid_options.clear_color, sizeof(WGPUColor));
   memcpy(&uniform_array.line_color, &grid_options.line_color,
          sizeof(WGPUColor));
   memcpy(&uniform_array.base_color, &grid_options.base_color,
@@ -465,6 +470,8 @@ static void update_projection(wgpu_context_t* wgpu_context)
 {
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  // Using mat4.perspectiveZO instead of mat4.perpective because WebGPU's
+  // normalized device coordinates Z range is [0, 1], instead of WebGL's [-1, 1]
   glm_mat4_perspective_zo(&camera_uniforms.projection_matrix, camera_parms.fov,
                           aspect_ratio, camera_parms.z_near,
                           &camera_parms.z_far);
@@ -477,7 +484,7 @@ static void update_frame_uniforms(wgpu_example_context_t* context)
                 camera_uniforms.view_matrix);
   glm_vec3_copy(*orbit_camera_get_position(&camera),
                 camera_uniforms.camera_position);
-  camera_uniforms.time = context->frame.timestamp_millis / 1000.0f;
+  camera_uniforms.time = context->frame.timestamp_millis;
 
   /* Update uniform buffer */
   wgpu_queue_write_buffer(context->wgpu_context, frame_uniform_buffer.buffer, 0,
@@ -527,7 +534,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         /* Binding 0 : Camera/Frame uniforms */
-        .binding    = 0,
+        .binding    = 0, // Camera/Frame uniforms
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type           = WGPUBufferBindingType_Uniform,
@@ -599,7 +606,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         .entryCount = 1,
         .entries    = &(WGPUBindGroupEntry) {
           /* Binding 0 : Camera uniforms */
-          .binding = 0,
+          .binding = 0, // Camera uniforms
           .buffer  = frame_uniform_buffer.buffer,
           .offset  = 0,
           .size    = frame_uniform_buffer.size,
@@ -716,7 +723,12 @@ static void setup_render_pass(void)
     .view          = msaa_sample_count > 1 ? textures.msaa_color.view : NULL,
     .depthSlice    = ~0,
     .resolveTarget = NULL,
-    .clearValue    = clear_color,
+    .clearValue    = {
+      .r = grid_options.clear_color[0],
+      .g = grid_options.clear_color[1],
+      .b = grid_options.clear_color[2],
+      .a = grid_options.clear_color[3],
+    },
     .loadOp        = WGPULoadOp_Clear,
     .storeOp = msaa_sample_count > 1 ? WGPUStoreOp_Discard : WGPUStoreOp_Store,
   };
@@ -784,7 +796,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
       .entry             = "vertexMain",
     },
     .buffer_count = 1,
-    .buffers = &triangle_vertex_buffer_layout,
+    .buffers      = &triangle_vertex_buffer_layout,
   });
 
   // Fragment state
@@ -797,7 +809,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
       .entry             = "fragmentMain",
     },
     .target_count = 1,
-    .targets = &color_target_state,
+    .targets      = &color_target_state,
   });
 
   // Multisample state
@@ -824,6 +836,25 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
+static void example_on_resize(wgpu_example_context_t* context)
+{
+  wgpu_context_t* wgpu_context = context->wgpu_context;
+
+  if (wgpu_context->surface.width == 0 || wgpu_context->surface.height == 0) {
+    return;
+  }
+
+  update_projection(context->wgpu_context);
+
+  if (wgpu_context->device) {
+    allocate_render_targets(wgpu_context,
+                            (WGPUExtent2D){
+                              .width  = wgpu_context->surface.width,
+                              .height = wgpu_context->surface.height,
+                            });
+  }
+}
+
 static int example_initialize(wgpu_example_context_t* context)
 {
   UNUSED_FUNCTION(orbit_camera_orbit);
@@ -831,6 +862,7 @@ static int example_initialize(wgpu_example_context_t* context)
   UNUSED_FUNCTION(orbit_camera_set_target);
   UNUSED_FUNCTION(orbit_camera_get_distance);
   UNUSED_FUNCTION(orbit_camera_set_distance);
+  UNUSED_FUNCTION(example_on_resize);
 
   if (context) {
     wgpu_context_t* wgpu_context = context->wgpu_context;
@@ -901,11 +933,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  get_default_render_pass_descriptor(wgpu_context);
-
   // Create render pass encoder for encoding drawing commands
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+    wgpu_context->cmd_enc, get_default_render_pass_descriptor(wgpu_context));
 
   if (pipeline) {
     // Bind the rendering pipeline
@@ -924,8 +954,9 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     // Set the bind groups
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       frame_bind_group, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1, bind_group, 0,
-                                      0);
+    wgpuRenderPassEncoderSetBindGroup(
+      wgpu_context->rpass_enc, 1, bind_group, 0,
+      0); // Assumes the camera bind group is already set.
 
     // Bind vertex buffer (contains positions & uvs)
     wgpuRenderPassEncoderSetVertexBuffer(
@@ -981,6 +1012,7 @@ static int example_render(wgpu_example_context_t* context)
   }
 
   if (!context->paused) {
+    // Update the frame uniforms
     update_frame_uniforms(context);
   }
 
