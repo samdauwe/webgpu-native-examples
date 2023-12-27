@@ -495,6 +495,10 @@ This example demonstrates how to render a torus knot mesh with blinn-phong light
 
 This example demonstrates how to achieve normal mapping in WebGPU. A normal map uses RGB information that corresponds directly with the X, Y and Z axis in 3D space. This RGB information tells the 3D application the exact direction of the surface normals are oriented in for each and every polygon.
 
+#### [Pristine Grid](src/examples/pristine_grid.c)
+
+A simple WebGPU implementation of the "Pristine Grid" technique described in [this wonderful little blog post](https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8). The example code has been ported from [this JavaScript implementation](https://github.com/toji/pristine-grid-webgpu) to native code.
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
@@ -534,7 +538,7 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### August 2023 - ...
+### January 2024 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
