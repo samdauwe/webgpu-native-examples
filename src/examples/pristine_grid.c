@@ -170,6 +170,11 @@ typedef struct orbit_camera_t {
   mat4 camera_mat;
   vec3 position;
   bool dirty;
+  struct {
+    bool moving;
+    vec2 move_delta;
+    vec2 prev_position;
+  } mouse;
 } orbit_camera_t;
 
 static void orbit_camera_init_defaults(orbit_camera_t* this)
@@ -477,8 +482,39 @@ static void update_projection(wgpu_context_t* wgpu_context)
                           &camera_parms.z_far);
 }
 
+static void update_mouse_state(wgpu_example_context_t* context)
+{
+  if (!camera.mouse.moving && context->mouse_buttons.left) {
+    /* pointerdown -> downCallback */
+    glm_vec2_copy(context->mouse_position, camera.mouse.prev_position);
+    camera.mouse.moving = true;
+  }
+  else if (camera.mouse.moving && context->mouse_buttons.left) {
+    /* pointermove -> moveCallback */
+    glm_vec2_sub(context->mouse_position, camera.mouse.prev_position,
+                 camera.mouse.move_delta);
+    glm_vec2_copy(context->mouse_position, camera.mouse.prev_position);
+    camera.dirty = camera.dirty
+                   || ((fabs(camera.mouse.move_delta[0]) > 1.0f)
+                       || (fabs(camera.mouse.move_delta[1]) > 1.0f));
+  }
+  else if (camera.mouse.moving && !context->mouse_buttons.left) {
+    /* pointerup -> upCallback */
+    camera.mouse.moving = false;
+  }
+}
+
 static void update_frame_uniforms(wgpu_example_context_t* context)
 {
+  /* Update mouse state */
+  update_mouse_state(context);
+
+  /* Handle mouse movement */
+  if (camera.dirty) {
+    orbit_camera_orbit(&camera, camera.mouse.move_delta[0] * 0.025f,
+                       camera.mouse.move_delta[1] * 0.025f);
+  }
+
   /* Update frame uniforms data */
   glm_mat4_copy(*orbit_camera_get_view_matrix(&camera),
                 camera_uniforms.view_matrix);
