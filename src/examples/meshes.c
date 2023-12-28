@@ -122,7 +122,7 @@ void box_mesh_create_with_tangents(box_mesh_t* box_mesh, float width,
     [5] = { .tangent = n_x, .bitangent = p_y, .normal = n_z, },
   };
 
-  uint32_t vertices_per_side = BOX_MESH_VERTICES_PER_SIDE;
+  uint16_t vertices_per_side = BOX_MESH_VERTICES_PER_SIDE;
   box_mesh->vertex_count     = BOX_MESH_VERTICES_COUNT;
   box_mesh->index_count      = BOX_MESH_INDICES_COUNT;
   box_mesh->vertex_stride    = BOX_MESH_VERTEX_STRIDE;

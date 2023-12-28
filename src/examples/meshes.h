@@ -56,7 +56,7 @@ typedef struct box_mesh_t {
   uint64_t vertex_count;
   uint64_t index_count;
   float vertex_array[BOX_MESH_VERTICES_COUNT];
-  uint32_t index_array[BOX_MESH_INDICES_COUNT];
+  uint16_t index_array[BOX_MESH_INDICES_COUNT];
   uint32_t vertex_stride;
 } box_mesh_t;
 
