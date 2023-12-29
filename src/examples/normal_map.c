@@ -202,6 +202,30 @@ static const char* bump_modes_str[BUMP_MODE_COUNT] = {
 static const char* example_title = "Normal Mapping";
 static bool prepared             = false;
 
+static void create_box_mesh_renderable(wgpu_context_t* wgpu_context)
+{
+  box_mesh_create_with_tangents(&box.mesh, 1.0f, 1.0f, 1.0f);
+
+  // Create vertex buffers
+  box.renderable.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Box mesh vertices buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = box.mesh.vertex_count * sizeof(float),
+                    .initial.data = box.mesh.vertex_array,
+                  });
+
+  // Create index buffer
+  box.renderable.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Box mesh indices buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                    .size  = box.mesh.index_count * sizeof(uint32_t),
+                    .initial.data = box.mesh.index_array,
+                  });
+  box.renderable.index_count = box.mesh.index_count;
+}
+
 static mat4* get_projection_matrix(wgpu_context_t* wgpu_context)
 {
   const float aspect_ratio
@@ -642,6 +666,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
+    create_box_mesh_renderable(context->wgpu_context);
     prepare_uniforms_buffers(context->wgpu_context);
     prepare_textures(context->wgpu_context);
     create_sampler(context->wgpu_context);
