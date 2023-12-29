@@ -325,16 +325,54 @@ static void prepare_uniforms_buffers(wgpu_context_t* wgpu_context)
     });
 }
 
-/* Fetch the image and upload it into a GPUTexture. */
 static void prepare_textures(wgpu_context_t* wgpu_context)
 {
-  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(texture_mappings); ++i) {
-    *(texture_mappings[i].texture) = wgpu_create_texture_from_file(
-      wgpu_context, texture_mappings[i].file,
-      &(struct wgpu_texture_load_options_t){
-        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
-                 | WGPUTextureUsage_RenderAttachment,
-      });
+  /* Create the depth texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = wgpu_context->surface.width,
+      .height             = wgpu_context->surface.height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "Depth texture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_Depth24PlusStencil8,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    textures.depth.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(textures.depth.texture != NULL);
+
+    // Create the texture view
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Depth texture view",
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = WGPUTextureFormat_Depth32Float,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    textures.depth.view
+      = wgpuTextureCreateView(textures.depth.texture, &texture_view_dec);
+    ASSERT(textures.depth.view != NULL);
+  }
+
+  /* Fetch the images and upload them into a GPUTextures. */
+  {
+    for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(texture_mappings); ++i) {
+      *(texture_mappings[i].texture) = wgpu_create_texture_from_file(
+        wgpu_context, texture_mappings[i].file,
+        &(struct wgpu_texture_load_options_t){
+          .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+                   | WGPUTextureUsage_RenderAttachment,
+        });
+    }
   }
 }
 
