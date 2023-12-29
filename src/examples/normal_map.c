@@ -216,7 +216,7 @@ static void create_box_mesh_renderable(wgpu_context_t* wgpu_context)
                   });
 
   // Create index buffer
-  box.renderable.vertex_buffer = wgpu_create_buffer(
+  box.renderable.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Box mesh indices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
@@ -232,7 +232,7 @@ static mat4* get_projection_matrix(wgpu_context_t* wgpu_context)
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
   glm_mat4_identity(view_matrices.projection);
-  glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 10.0f,
+  glm_perspective(PI2 / 5.0f, aspect_ratio, 0.1f, 10.0f,
                   view_matrices.projection);
 
   return &view_matrices.projection;
@@ -352,7 +352,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Depth texture view",
       .dimension       = WGPUTextureViewDimension_2D,
-      .format          = WGPUTextureFormat_Depth32Float,
+      .format          = texture_desc.format,
       .baseMipLevel    = 0,
       .mipLevelCount   = 1,
       .baseArrayLayer  = 0,
@@ -386,7 +386,7 @@ static void create_sampler(wgpu_context_t* wgpu_context)
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
                             .minFilter     = WGPUFilterMode_Linear,
-                            .magFilter     = WGPUFilterMode_Nearest,
+                            .magFilter     = WGPUFilterMode_Linear,
                             .mipmapFilter  = WGPUMipmapFilterMode_Linear,
                             .lodMinClamp   = 0.0f,
                             .lodMaxClamp   = 1.0f,
@@ -414,7 +414,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
-          .type             = WGPUBufferBindingType_Storage,
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
           .minBindingSize   = uniforms_bufers.map_info.size,
         },
@@ -509,7 +509,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         },
       };
       for (uint8_t j = 1; j <= 3; ++j) {
-        bg_entries[i] = (WGPUBindGroupEntry){
+        bg_entries[j] = (WGPUBindGroupEntry){
           .binding     = j,
           .textureView = texture_views[i][j - 1],
         };
@@ -545,10 +545,13 @@ static void setup_render_pass(void)
 
   /* Depth-stencil attachment */
   render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
-    .depthClearValue = 1.0f,
-    .view            = textures.depth.view,
-    .depthLoadOp     = WGPULoadOp_Clear,
-    .depthStoreOp    = WGPUStoreOp_Store,
+    .view              = textures.depth.view,
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
   };
 
   /* Render pass descriptor */
@@ -741,7 +744,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     frame_bg_descriptor.bind_group, 0, 0);
   wgpuRenderPassEncoderSetBindGroup(
-    wgpu_context->rpass_enc, 0,
+    wgpu_context->rpass_enc, 1,
     surface_bg_descriptor.bind_groups[current_surface_bind_group], 0, 0);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        box.renderable.vertex_buffer.buffer, 0,
