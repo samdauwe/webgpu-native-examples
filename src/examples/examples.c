@@ -47,6 +47,7 @@ void example_minimal(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
 void example_multi_sampling(int argc, char* argv[]);
 void example_n_body_simulation(int argc, char* argv[]);
+void example_normal_map(int argc, char* argv[]);
 void example_normal_mapping(int argc, char* argv[]);
 void example_occlusion_query(int argc, char* argv[]);
 void example_offscreen_rendering(int argc, char* argv[]);
@@ -124,6 +125,7 @@ static examplecase_t g_example_cases[] = {
   {"msaa_line", example_msaa_line},
   {"multi_sampling", example_multi_sampling},
   {"n_body_simulation", example_n_body_simulation},
+  {"normal_map", example_normal_map},
   {"normal_mapping", example_normal_mapping},
   {"occlusion_query", example_occlusion_query},
   {"offscreen_rendering", example_offscreen_rendering},

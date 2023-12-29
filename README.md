@@ -421,11 +421,15 @@ Demonstrates the basics of fullscreen shader effects. The scene is rendered into
 
 Advanced fullscreen effect example adding a bloom effect to a scene. Glowing scene parts are rendered to a low res offscreen framebuffer that is applied atop the scene using a two pass separated gaussian blur.
 
+#### [Normal Mapping](src/examples/normal_map.c)
+
+This example demonstrates multiple different methods that employ fragment shaders to achieve additional perceptual depth on the surface of a cube mesh. Demonstrated methods include normal mapping, parallax mapping, and steep parallax mapping.
+
 #### [Parallax mapping](src/examples/parallax_mapping.c)
 
 Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).
 
-#### [Post-processing](src/examples/parallax_mapping.c)
+#### [Post-processing](src/examples/post_processing.c)
 
 This example shows how to use a post-processing effect to blend between two scenes. This example has been ported from [this JavaScript implementation](https://github.com/gnikoloff/webgpu-dojo/tree/master/src/examples/postprocessing-01) to native code.
 
