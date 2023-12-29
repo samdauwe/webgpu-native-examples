@@ -161,7 +161,7 @@ static struct {
 } render_pass = {0};
 
 // GUI control
-static uint32_t current_surface_bind_group = 0;
+static int32_t current_surface_bind_group = 0;
 
 static struct {
   bump_mode_t bump_mode;
@@ -173,7 +173,7 @@ static struct {
   float light_pos_z;
   float light_intensity;
   float depth_scale;
-  float depth_layers;
+  int32_t depth_layers;
   texture_atlas_t texture;
 } settings = {
   .bump_mode       = BUMP_MODE_NORMAL_MAP,
@@ -187,6 +187,12 @@ static struct {
   .depth_scale     = 0.05f,
   .depth_layers    = 16,
   .texture         = TEXTURE_ATLAS_SPIRAL,
+};
+
+static const char* texture_atlas_str[TEXTURE_ATLAS_COUNT] = {
+  "Spiral",    /* */
+  "Toybox",    /* */
+  "BrickWall", /* */
 };
 
 static const char* bump_modes_str[BUMP_MODE_COUNT] = {
@@ -722,10 +728,47 @@ static int example_initialize(wgpu_example_context_t* context)
   return EXIT_FAILURE;
 }
 
+static void reset_light(void)
+{
+  settings.light_pos_x     = 1.7f;
+  settings.light_pos_y     = 0.7f;
+  settings.light_pos_z     = -1.9f;
+  settings.light_intensity = 5.0f;
+}
+
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+    int32_t current_bump_mode = (int32_t)settings.bump_mode;
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Bump Mode",
+                                &current_bump_mode, bump_modes_str,
+                                (uint32_t)ARRAY_SIZE(bump_modes_str))) {
+      settings.bump_mode = (bump_mode_t)current_bump_mode;
+    }
+    imgui_overlay_combo_box(context->imgui_overlay, "Texture",
+                            &current_surface_bind_group, texture_atlas_str,
+                            (uint32_t)ARRAY_SIZE(texture_atlas_str));
+    if (imgui_overlay_header("Light")) {
+      if (imgui_overlay_button(context->imgui_overlay, "Reset Light")) {
+        reset_light();
+      }
+      imgui_overlay_slider_float(context->imgui_overlay, "lightPosX",
+                                 &settings.light_pos_x, -5.0f, 5.0f, "%.1f");
+      imgui_overlay_slider_float(context->imgui_overlay, "lightPosY",
+                                 &settings.light_pos_y, -5.0f, 5.0f, "%.1f");
+      imgui_overlay_slider_float(context->imgui_overlay, "lightPosZ",
+                                 &settings.light_pos_z, -5.0f, 5.0f, "%.1f");
+      imgui_overlay_slider_float(context->imgui_overlay, "lightIntensity",
+                                 &settings.light_intensity, 0.0f, 10.0f,
+                                 "%.1f");
+    }
+    if (imgui_overlay_header("Depth")) {
+      imgui_overlay_slider_float(context->imgui_overlay, "depthScale",
+                                 &settings.depth_scale, 0.0f, 0.1f, "%.01f");
+      imgui_overlay_slider_int(context->imgui_overlay, "depthLayers",
+                               &settings.depth_layers, 1, 32);
+    }
   }
 }
 
