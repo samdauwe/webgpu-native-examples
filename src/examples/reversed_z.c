@@ -594,7 +594,7 @@ static void prepare_depth_textures(wgpu_context_t* wgpu_context)
   }
 }
 
-static void prepare_depth_pre_pass_descriptor()
+static void prepare_depth_pre_pass_descriptor(void)
 {
   dppd_rp_ds_att_descriptor = (WGPURenderPassDepthStencilAttachment){
     .view            = textures.depth.view,
@@ -614,7 +614,7 @@ static void prepare_depth_pre_pass_descriptor()
 // the scene twice using different depth buffer mode on splitted viewport
 // of the same canvas
 // see the difference of the loadValue of the colorAttachments
-static void prepare_draw_pass_descriptors()
+static void prepare_draw_pass_descriptors(void)
 {
   // drawPassDescriptor
   {
@@ -670,7 +670,7 @@ static void prepare_draw_pass_descriptors()
   }
 }
 
-static void prepare_texture_quad_pass_descriptors()
+static void prepare_texture_quad_pass_descriptors(void)
 {
   // textureQuadPassDescriptor
   {
