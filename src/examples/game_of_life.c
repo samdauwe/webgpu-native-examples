@@ -23,6 +23,172 @@ static const char* fragment_shader_wgsl;
 static const char* vertex_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
+ * Conway's Game of Life example
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  uint32_t width;
+  uint32_t height;
+  uint32_t timestep;
+  uint32_t workgroup_size;
+} game_options = {
+  .width          = 128,
+  .height         = 128,
+  .timestep       = 4,
+  .workgroup_size = 8,
+};
+
+static struct {
+  wgpu_buffer_t vertex_buffer;
+} square = {0};
+
+// Resources for the compute part of the example
+static struct {
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUComputePipeline pipelines;
+} compute;
+
+// Resources for the graphics part of the example
+static struct {
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUComputePipeline pipelines;
+} graphics;
+
+// Other variables
+static const char* example_title = "Conway's Game of Life";
+static bool prepared             = false;
+
+static void generate_square(wgpu_context_t* wgpu_context)
+{
+  // Setup vertices of the square
+  uint32_t square_vertices[8] = {0, 0, 0, 1, 1, 0, 1, 1};
+
+  // Create the Vertex buffer
+  square.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Square vertex buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                    .size  = sizeof(square_vertices),
+                    .initial.data = square_vertices,
+                  });
+}
+
+static void setup_compute_bind_group_layout(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      // Binding 0: Storage buffer (size)
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type             = WGPUBufferBindingType_ReadOnlyStorage,
+        .minBindingSize   = sizeof(ubo_vs),
+      },
+      .sampler = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      // Binding 1: Storage buffer (current)
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type             = WGPUBufferBindingType_ReadOnlyStorage,
+        .minBindingSize   = sizeof(ubo_vs),
+      },
+      .sampler = {0},
+    },
+    [2] = (WGPUBindGroupLayoutEntry) {
+      // Binding 2: Storage buffer (next)
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type             = WGPUBufferBindingType_Storage,
+        .minBindingSize   = sizeof(ubo_vs),
+      },
+      .sampler = {0},
+    }
+  };
+  compute.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Compute bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(compute.bind_group_layout != NULL);
+}
+
+static void prepare_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupLayoutEntry bgl_entries[1] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      // Binding 0: Uniform buffer (size)
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type             = WGPUBufferBindingType_Uniform,
+        .minBindingSize   = sizeof(ubo_vs),
+      },
+      .sampler = {0},
+    },
+  };
+  graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Graphics bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(graphics.bind_group_layout != NULL);
+}
+
+static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Primitive state
+  WGPUPrimitiveState primitive_state = {
+    .topology  = WGPUPrimitiveTopology_TriangleStrip,
+    .frontFace = WGPUFrontFace_CCW,
+    .cullMode  = WGPUCullMode_None,
+  };
+
+  // Vertex buffer layouts
+  WGPU_VERTEX_BUFFER_LAYOUT(cell_stride, sizeof(uint32_t),
+                            // Attribute location 0: Cell
+                            WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Uint32, 0))
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    square_stride, 2 * sizeof(uint32_t),
+    // Attribute location 1: Position
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 0))
+
+  // Vertex state
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+    wgpu_context, &(wgpu_vertex_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Vertex shader WGSL
+                      .label            = "Vertex shader WGSL",
+                      .wgsl_code.source = vertex_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .buffer_count = 1,
+                    .buffers      = &square_stride_vertex_buffer_layout,
+                  });
+
+  // Fragment state
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      // Vertex shader WGSL
+                      .label            = "Fragment shader WGSL",
+                      .wgsl_code.source = fragment_shader_wgsl,
+                      .entry            = "main",
+                    },
+                    .target_count = 1,
+                    .targets      = &color_target_state,
+                  });
+
+  // Partial cleanup
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+/* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
