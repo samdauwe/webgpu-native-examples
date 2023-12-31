@@ -42,10 +42,23 @@ static struct {
   wgpu_buffer_t vertex_buffer;
 } square = {0};
 
+static struct {
+  wgpu_buffer_t size;
+  wgpu_buffer_t buffer0;
+  wgpu_buffer_t buffer1;
+} buffers;
+
+static struct {
+  wgpu_buffer_t uniform;
+  WGPUBindGroup bind_group0;
+  WGPUBindGroup bind_group1;
+} bind_groups;
+
 // Resources for the compute part of the example
 static struct {
   WGPUBindGroupLayout bind_group_layout;
-  WGPUComputePipeline pipelines;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUComputePipeline pipeline;
 } compute;
 
 // Resources for the graphics part of the example
@@ -114,6 +127,55 @@ static void setup_compute_bind_group_layout(wgpu_context_t* wgpu_context)
                             .entries    = bgl_entries,
                           });
   ASSERT(compute.bind_group_layout != NULL);
+}
+
+static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
+{
+  compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label                = "Blur pipeline layout",
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts     = &compute.bind_group_layout,
+                          });
+  ASSERT(compute.pipeline_layout != NULL);
+}
+
+static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
+{
+  // Compute shader constants
+  WGPUConstantEntry constant_entries[1] = {
+    [0] = (WGPUConstantEntry){
+      .key   = "blockSize",
+      .value = game_options.workgroup_size,
+    },
+  };
+
+  // Compute shader
+  wgpu_shader_t compute_shader = wgpu_shader_create(
+    wgpu_context,
+    &(wgpu_shader_desc_t){
+      // Compute shader WGSL
+      .label            = "Compute shader WGSL",
+      .wgsl_code.source = compute_shader_wgsl,
+      .entry            = "main",
+      .constants        = {
+        .count   = (uint32_t)ARRAY_SIZE(constant_entries),
+        .entries = constant_entries,
+      },
+    });
+
+  // Compute pipeline
+  compute.pipeline = wgpuDeviceCreateComputePipeline(
+    wgpu_context->device,
+    &(WGPUComputePipelineDescriptor){
+      .label   = "Image blur render pipeline",
+      .layout  = compute.pipeline_layout,
+      .compute = compute_shader.programmable_stage_descriptor,
+    });
+  ASSERT(compute.pipeline != NULL);
+
+  // Partial clean-up
+  wgpu_shader_release(&compute_shader);
 }
 
 static void prepare_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
