@@ -49,7 +49,6 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
 
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
 {
-  ASSERT(buffer->buffer);
   WGPU_RELEASE_RESOURCE(Buffer, buffer->buffer)
 }
 
