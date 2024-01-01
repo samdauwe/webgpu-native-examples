@@ -221,6 +221,7 @@ set(SOURCES
     src/examples/dynamic_uniform_buffer.c
     src/examples/equirectangular_image.c
     src/examples/fluid_simulation.c
+    src/examples/game_of_life.c
     src/examples/gears.c
     src/examples/gerstner_waves.c
     src/examples/gltf_loading.c

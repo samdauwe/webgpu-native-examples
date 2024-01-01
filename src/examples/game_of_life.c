@@ -1,8 +1,6 @@
 #include "example_base.h"
 #include "meshes.h"
 
-#include "../webgpu/imgui_overlay.h"
-
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Conway's Game of Life
  *
@@ -374,7 +372,7 @@ static void setup_bind_group_graphics(wgpu_context_t* wgpu_context)
   bind_groups.uniform = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
                             .label      = "Uniform bind group",
-                            .layout     = compute.bind_group_layout,
+                            .layout     = graphics.bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
@@ -414,10 +412,9 @@ static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
                             // Attribute location 0: Cell
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Uint32, 0))
   cell_stride_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
-  WGPU_VERTEX_BUFFER_LAYOUT(
-    square_stride, 2 * sizeof(uint32_t),
+  WGPU_VERTEX_BUFFER_LAYOUT(square_stride, 2 * sizeof(uint32_t),
     // Attribute location 1: Position
-    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 0))
+                            WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Uint32x2, 0))
   WGPUVertexBufferLayout vertex_state_buffers[2]
     = {cell_stride_vertex_buffer_layout, square_stride_vertex_buffer_layout};
 
@@ -497,12 +494,6 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
-{
-  if (imgui_overlay_header("Settings")) {
-  }
-}
-
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
@@ -549,9 +540,6 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
-
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
   /* Get command buffer */
   WGPUCommandBuffer command_buffer
@@ -656,7 +644,6 @@ void example_game_of_life(int argc, char* argv[])
   example_run(argc, argv, &(refexport_t){
     .example_settings = (wgpu_example_settings_t){
       .title   = example_title,
-      .overlay = true,
       .vsync   = true,
     },
     .example_initialize_func = &example_initialize,
