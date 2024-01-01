@@ -413,6 +413,7 @@ static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
   WGPU_VERTEX_BUFFER_LAYOUT(cell_stride, sizeof(uint32_t),
                             // Attribute location 0: Cell
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Uint32, 0))
+  cell_stride_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
   WGPU_VERTEX_BUFFER_LAYOUT(
     square_stride, 2 * sizeof(uint32_t),
     // Attribute location 1: Position
