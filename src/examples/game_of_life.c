@@ -609,7 +609,17 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return EXIT_FAILURE;
   }
-  return example_draw(context);
+
+  if (game_options.timestep) {
+    whole_time++;
+    if (whole_time >= game_options.timestep) {
+      example_draw(context);
+      whole_time -= game_options.timestep;
+      loop_times = 1 - loop_times;
+    }
+  }
+
+  return EXIT_SUCCESS;
 }
 
 // Clean up used resources
