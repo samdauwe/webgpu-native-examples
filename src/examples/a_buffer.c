@@ -832,7 +832,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     };
     composite_render_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "compositeBindGroup",
+                              .label  = "Composite bind group",
                               .layout = composite_render_pass.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
