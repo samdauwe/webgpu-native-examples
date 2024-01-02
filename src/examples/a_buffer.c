@@ -893,7 +893,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label  = "Composite pipeline",
+                              .label  = "Composite render pipeline",
                               .layout = composite_render_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
