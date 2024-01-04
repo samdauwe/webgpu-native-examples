@@ -267,6 +267,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     };
     particle_bind_groups[i]
       = wgpuDeviceCreateBindGroup(context->wgpu_context->device, &bg_desc);
+    ASSERT(particle_bind_groups[i] != NULL);
   }
 
   // Calculates number of work groups from PARTICLES_PER_GROUP constant
