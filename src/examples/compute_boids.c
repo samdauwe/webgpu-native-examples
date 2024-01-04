@@ -119,7 +119,7 @@ static void prepare_vertices(wgpu_context_t* wgpu_context)
     -0.02f,  0.00f, 0.02f, //
   };
   // clang-format on
-  uint32_t vertex_buffer_size
+  const uint32_t vertex_buffer_size
     = (uint32_t)(ARRAY_SIZE(vertex_buffer_data) * sizeof(float));
   sprite_vertex_buffer
     = wgpu_create_buffer_from_data(wgpu_context, vertex_buffer_data,
