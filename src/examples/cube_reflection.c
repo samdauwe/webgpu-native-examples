@@ -323,7 +323,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               /* Fragment shader SPIR-V */
-              .label = "Cube fragment shader",
+              .label = "Cube fragment shader SPIR-V",
               .file  = "shaders/cube_reflection/shader.frag.spv",
             },
             .target_count = 1,
