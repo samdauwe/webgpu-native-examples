@@ -254,7 +254,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
 
     // Compute pipeline layout
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Compute pipeline layouts",
+      .label                = "Compute pipeline layout",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &compute.bind_group_layout,
     };
