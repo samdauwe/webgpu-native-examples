@@ -81,7 +81,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   ASSERT(low_res_target_texture.view != NULL);
 
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Nearest Neighbor Sampler",
+    .label         = "Nearest Neighbor Texture Sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
