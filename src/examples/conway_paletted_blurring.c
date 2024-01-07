@@ -519,11 +519,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   wgpu_context_t* wgpu_context          = context->wgpu_context;
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // -- Frame compute -- //
+  /* -- Frame compute -- */
   {
     wgpu_context->cpass_enc
       = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
@@ -540,7 +540,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
-  // -- Frame rendering -- //
+  /* -- Frame rendering -- */
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass.descriptor);
@@ -554,7 +554,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL);
