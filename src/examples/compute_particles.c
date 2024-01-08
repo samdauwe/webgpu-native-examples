@@ -15,7 +15,7 @@
  * https://github.com/gpuweb/gpuweb/issues/332
  * -------------------------------------------------------------------------- */
 
-#define PARTICLE_COUNT 256u * 1024u
+#define PARTICLE_COUNT (256u * 1024u)
 
 static float timer           = 0.0f;
 static float animStart       = 20.0f;
