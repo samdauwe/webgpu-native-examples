@@ -49,7 +49,7 @@ static struct Compute {
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
-} render_pass;
+} render_pass = {0};
 
 static wgpu_buffer_t vertex_buffer     = {0};
 static wgpu_buffer_t index_buffer      = {0};
