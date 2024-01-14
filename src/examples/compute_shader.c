@@ -617,7 +617,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpu_context->cmd_enc, &render_pass.descriptor);
 
     wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, 0.0f, 0.0f,
-                                     (float)wgpu_context->surface.width / 2,
+                                     (float)wgpu_context->surface.width / 2.0f,
                                      (float)wgpu_context->surface.height, 0.0f,
                                      1.0f);
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
