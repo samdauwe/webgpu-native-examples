@@ -591,10 +591,10 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
   {
@@ -611,7 +611,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
-  // Render pass
+  /* Render pass */
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass.descriptor);
@@ -629,7 +629,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpu_context->rpass_enc, index_buffer.buffer, WGPUIndexFormat_Uint32, 0,
       WGPU_WHOLE_SIZE);
 
-    // Left (pre compute)
+    /* Left (pre compute) */
     {
       wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                        graphics.pipeline);
@@ -640,7 +640,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                        index_buffer.count, 1, 0, 0, 0);
     }
 
-    // Right (post compute)
+    /* Right (post compute) */
     {
       wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                        graphics.pipeline);
@@ -659,10 +659,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
