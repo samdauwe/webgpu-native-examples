@@ -351,14 +351,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, cube_vertex_count,
                             num_instances, 0, 0);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
