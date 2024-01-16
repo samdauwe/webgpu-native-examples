@@ -156,6 +156,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       = (dragon_mesh->positions.count + ground_plane_vertex_count)
         * vertex_stride * sizeof(float);
     WGPUBufferDescriptor buffer_desc = {
+      .label            = "Vertex buffer",
       .usage            = WGPUBufferUsage_Vertex,
       .size             = vertex_buffer_size,
       .mappedAtCreation = true,
