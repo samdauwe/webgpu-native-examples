@@ -869,6 +869,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     lights.config_uniform_buffer      = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
+             .label            = "Config uniform buffer",
              .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
              .size             = lights.config_uniform_buffer_size,
              .mappedAtCreation = true,
