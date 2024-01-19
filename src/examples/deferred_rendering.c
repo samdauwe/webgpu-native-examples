@@ -1006,6 +1006,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     lights.buffer_size = sizeof(float) * light_data_stride * max_num_lights;
     lights.buffer      = wgpuDeviceCreateBuffer(wgpu_context->device,
                                                 &(WGPUBufferDescriptor){
+                                                  .label = "Lights storage buffer",
                                                   .usage = WGPUBufferUsage_Storage,
                                                   .size  = lights.buffer_size,
                                                   .mappedAtCreation = true,
