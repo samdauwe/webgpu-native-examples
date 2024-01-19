@@ -1046,6 +1046,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     lights.extent_buffer      = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
+             .label = "Lights extent uniform buffer",
              .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
              .size  = lights.extent_buffer_size,
       });
