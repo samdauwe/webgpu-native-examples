@@ -888,6 +888,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     model_uniform_buffer = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
+        .label = "Model uniform buffer",
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
         .size  = sizeof(mat4) * 2, // two 4x4 matrix
       });
