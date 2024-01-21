@@ -1322,7 +1322,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   {
-    // Write position, normal, albedo etc. data to gBuffers
+    /* Write position, normal, albedo etc. data to gBuffers */
     WGPURenderPassEncoder gbuffer_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &write_gbuffer_pass.descriptor);
     wgpuRenderPassEncoderSetPipeline(gbuffer_pass, write_gbuffers_pipeline);
@@ -1338,7 +1338,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   {
-    // Update lights position
+    /* Update lights position */
     WGPUComputePassEncoder light_pass
       = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
     wgpuComputePassEncoderSetPipeline(light_pass,
@@ -1370,7 +1370,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, debug_view_pass)
     }
     else {
-      // Deferred rendering
+      // Deferred rendering */
       texture_quad_pass.color_attachments[0].view
         = wgpu_context->swap_chain.frame_buffer;
       WGPURenderPassEncoder deferred_rendering_pass
@@ -1388,10 +1388,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     }
   }
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL);
