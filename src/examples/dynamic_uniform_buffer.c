@@ -288,7 +288,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label  = "dynamic_uniform_buffer_render_pipeline",
+                            .label  = "Dynamic uniform buffer render pipeline",
                             .layout = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
@@ -357,7 +357,7 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
         .label              = "dynamic_uniform_buffer_render_bundle_encoder",
-        .colorFormatCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormatCount   = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
         .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
         .sampleCount        = 1,
