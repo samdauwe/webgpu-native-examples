@@ -456,7 +456,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   /* Time */
   const float now = context->frame.timestamp_millis;
-  float dt        = now - time_old;
+  const float dt  = now - time_old;
   time_old        = now;
 
   /* Update view matrix update */
