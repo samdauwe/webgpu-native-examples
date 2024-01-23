@@ -789,7 +789,7 @@ static void prepare_torus_knot_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader WGSL
-                      .label            = "blinn_phong_lighting_torus_knot_vertex_shader_wgsl",
+                      .label            = "Blinn-Phong lighting torus knot vertex shader WGSL",
                       .wgsl_code.source = blinn_phong_lighting_torus_knot_vertex_shader_wgsl,
                       .entry            = "main",
                     },
