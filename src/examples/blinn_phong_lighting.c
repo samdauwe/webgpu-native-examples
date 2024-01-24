@@ -821,7 +821,7 @@ static void prepare_torus_knot_pipeline(wgpu_context_t* wgpu_context)
   pipelines.torus_knot = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label        = "blinn_phong_lighting_torus_knot_render_pipeline",
+      .label        = "Blinn phong lighting torus knot render pipeline",
       .primitive    = primitive_state,
       .vertex       = vertex_state,
       .fragment     = &fragment_state,
