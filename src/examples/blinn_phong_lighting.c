@@ -897,7 +897,7 @@ static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader WGSL
-                      .label            = "blinn_phong_lighting_sphere_fragment_shader_wgsl",
+                      .label            = "Blinn-Phong lighting sphere fragment shader WGSL",
                       .wgsl_code.source = blinn_phong_lighting_sphere_fragment_shader_wgsl,
                       .entry            = "main",
                     },
