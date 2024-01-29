@@ -576,7 +576,7 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_t comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       /* Compute shader WGSL */
-                      .label = "Fluid simulation compute shader",
+                      .label = "Fluid simulation compute shader WGSL",
                       .file  = shader_wgsl_path,
                       .entry = "main",
                     });
