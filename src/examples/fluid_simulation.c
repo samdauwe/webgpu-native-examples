@@ -1371,10 +1371,10 @@ static int example_initialize(wgpu_example_context_t* context)
     programs_init(context->wgpu_context);
     render_program_init(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
