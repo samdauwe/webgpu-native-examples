@@ -129,8 +129,8 @@ static void setup_render_bundle(wgpu_context_t* wgpu_context)
 {
   WGPURenderBundleEncoderDescriptor rbe_desc = {
     .colorFormatCount = 1,
-    .colorFormats      = &wgpu_context->swap_chain.format,
-    .sampleCount       = sample_count,
+    .colorFormats     = &wgpu_context->swap_chain.format,
+    .sampleCount      = sample_count,
   };
   WGPURenderBundleEncoder encoder
     = wgpuDeviceCreateRenderBundleEncoder(wgpu_context->device, &rbe_desc);
@@ -274,7 +274,7 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   if (sample_count == 1) {
     rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
     rp_color_att_descriptors[0].resolveTarget = NULL;
@@ -285,23 +285,23 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       = wgpu_context->swap_chain.frame_buffer;
   }
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass
+  /* Create render pass */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass_desc);
 
-  // Execute render bundles
+  /* Execute render bundles */
   wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
                                       &render_bundle);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
