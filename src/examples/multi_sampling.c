@@ -442,7 +442,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   if (use_msaa) {
     rp_color_att_descriptors[0].view = multi_sample_target.color.view;
     rp_color_att_descriptors[0].resolveTarget
@@ -453,15 +453,15 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     rp_color_att_descriptors[0].resolveTarget = NULL;
   }
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass
+  /* Create render pass */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass_desc);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   if (use_msaa) {
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.msaa);
   }
@@ -469,11 +469,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.normal);
   }
 
-  // Bind scene matrices descriptor to set 0
+  /* Bind scene matrices descriptor to set 0 */
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
                                     0);
 
-  // Draw model
+  /* Draw model */
   static wgpu_gltf_render_flags_enum_t render_flags
     = WGPU_GLTF_RenderFlags_BindImages;
   wgpu_gltf_model_draw(gltf_model, (wgpu_gltf_model_render_options_t){
@@ -481,14 +481,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                      .bind_image_set = 1,
                                    });
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
