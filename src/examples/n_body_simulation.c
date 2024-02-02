@@ -482,7 +482,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
-                  .label = "Fragment shader n_body_simulation.wgsl",
+                  .label = "Fragment shader N-Body simulation WGSL",
                   .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                   .entry = "fs_main",
                 },
