@@ -844,7 +844,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     pipelines.glow_pass = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "color_pass_render_pipeline",
+                              .label        = "Color pass render pipeline",
                               .layout       = pipeline_layouts.scene,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
