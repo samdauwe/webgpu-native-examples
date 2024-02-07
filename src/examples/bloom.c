@@ -921,7 +921,7 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
   camera_t* camera = context->camera;
   float timer      = context->timer;
 
-  // UFO
+  // UBO
   glm_mat4_copy(camera->matrices.perspective, ubos.scene.projection);
   glm_mat4_copy(camera->matrices.view, ubos.scene.view);
 
