@@ -295,7 +295,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .multisample  = multisample_state,
   };
 
-  // Solid rendering pipeline
+  /* Solid rendering pipeline */
   {
     // Vertex state
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
@@ -333,7 +333,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Basic pipeline for coloring occluded objects
+  /* Basic pipeline for coloring occluded objects */
   {
     // Vertex state
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
@@ -372,7 +372,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // Visual pipeline for the occluder
+  /* Visual pipeline for the occluder */
   {
     // Color target state
     blend_state        = wgpu_create_blend_state(true);
