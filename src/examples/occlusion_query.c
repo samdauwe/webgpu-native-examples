@@ -399,7 +399,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .label = "occluder_fragment_shader",
+                .label = "Occluder fragment shader SPIR-V",
                 .file  = "shaders/occlusion_query/occluder.frag.spv",
               },
               .target_count = 1,
