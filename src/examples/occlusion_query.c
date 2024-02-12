@@ -497,6 +497,7 @@ static void prepare_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
   occlusion_query_set_src_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
+      .label = "Occlusion query set src buffer",
       .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
       .size  = sizeof(passed_samples),
       .mappedAtCreation = false,
