@@ -507,6 +507,7 @@ static void prepare_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
     occlusion_query_set_dst_buffer[i] = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
+        .label            = "Occlusion query set dst buffer",
         .usage            = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
         .size             = sizeof(passed_samples),
         .mappedAtCreation = false,
