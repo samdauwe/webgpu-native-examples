@@ -17,7 +17,7 @@
  * -------------------------------------------------------------------------- */
 
 // Offscreen frame buffer properties
-#define FB_DIM 512
+#define FB_DIM 512u
 #define FB_COLOR_FORMAT WGPUTextureFormat_RGBA8Unorm
 
 static bool debug_display = false;
