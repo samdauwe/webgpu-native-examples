@@ -292,6 +292,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     bind_group_layouts.shaded = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Shaded bind group layout",
                               .entryCount = 1,
                               .entries    = bgl_entries,
                             });
