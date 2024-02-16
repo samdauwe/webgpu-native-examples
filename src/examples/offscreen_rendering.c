@@ -321,6 +321,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.textured = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label = "Textured pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.textured,
                             });
