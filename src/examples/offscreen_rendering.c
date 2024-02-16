@@ -301,6 +301,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.shaded = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label                = "Shaded pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.shaded,
                             });
