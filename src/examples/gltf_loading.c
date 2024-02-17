@@ -1052,7 +1052,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .label = "Mesh fragment shader",
+              .label = "Mesh fragment shader SPIR-V",
               .file  = "shaders/gltf_loading/mesh.frag.spv",
             },
             .target_count = 1,
