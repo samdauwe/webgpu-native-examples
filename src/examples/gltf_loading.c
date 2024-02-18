@@ -1096,10 +1096,10 @@ static int example_initialize(wgpu_example_context_t* context)
                                           texture_bind_group_layout);
     gltf_model_setup_mesh_bind_groups(gltf_model, model_data_bind_group_layout);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
