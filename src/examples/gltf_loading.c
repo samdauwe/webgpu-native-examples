@@ -1104,33 +1104,33 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass_desc);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, solid_pipeline);
 
-  // Bind scene matrices descriptor to set 0
+  /* Bind scene matrices descriptor to set 0 */
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     ubo_scene_bind_group, 0, 0);
   gltf_model_draw(gltf_model);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, NULL);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
