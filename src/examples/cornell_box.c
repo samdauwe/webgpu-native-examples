@@ -177,7 +177,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Common.bindGroup",
+      .label      = "Common bind group",
       .layout     = this->uniforms.bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
