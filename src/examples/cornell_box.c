@@ -766,7 +766,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   {
     // Texture
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Radiosity.lightmap texture",
+      .label         = "Radiosity lightmap texture",
       .size          = (WGPUExtent3D) {
         .width              = this->lightmap_width,
         .height             = this->lightmap_height,
