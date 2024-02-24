@@ -967,7 +967,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     this->radiosity_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Radiosity.radiosityPipeline",
+        .label   = "Radiosity radiosity pipeline",
         .layout  = this->pipeline_layout,
         .compute = radiosity_comp_shader.programmable_stage_descriptor,
       });
