@@ -1005,7 +1005,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     this->accumulation_to_lightmap_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label  = "Radiosity.accumulationToLightmapPipeline",
+        .label  = "Radiosity accumulation to lightmap comp pipeline",
         .layout = this->pipeline_layout,
         .compute
         = accumulation_to_lightmap_comp_shader.programmable_stage_descriptor,
