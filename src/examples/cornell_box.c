@@ -1186,7 +1186,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
 
     // Render pass descriptor
     this->render_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                  = "RasterizerRenderer.renderPassDescriptor",
+      .label                  = "Rasterizer renderer render pass descriptor",
       .colorAttachmentCount   = 1,
       .colorAttachments       = this->render_pass.color_attachments,
       .depthStencilAttachment = &this->render_pass.depth_stencil_attachment,
