@@ -2149,7 +2149,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Update uniforms
+  /* Update uniforms */
   common_update(&example.common,
                 &(common_update_params_t){
                   .rotate_camera = example_parms.rotate_camera,
@@ -2157,7 +2157,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                             / (float)wgpu_context->surface.height,
                 });
 
-  // Software raytracing
+  /* Software raytracing */
   radiosity_run(&example.radiosity, wgpu_context->cmd_enc);
 
   switch (example_parms.renderer) {
@@ -2169,17 +2169,17 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     } break;
   }
 
-  // Tone mapping
+  /* Tone mapping */
   tonemapper_run(&example.tonemapper, wgpu_context->cmd_enc);
 
-  // Render result
+  /* Render result */
   result_renderer_run(&example.result_renderer, wgpu_context->cmd_enc,
                       frame_buffer);
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL);
