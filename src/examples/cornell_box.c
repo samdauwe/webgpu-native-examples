@@ -1907,7 +1907,7 @@ static void result_renderer_create(result_renderer_t* this,
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "quad_vertex_shader",
+                .label = "Quad vertex shader",
                 .file  = "shaders/cornell_box/quad.vert.spv",
               },
               .buffer_count = 0,
