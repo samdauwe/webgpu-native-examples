@@ -2205,7 +2205,7 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
@@ -2213,7 +2213,7 @@ static int example_render(wgpu_example_context_t* context)
   UNUSED_VAR(context);
 
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
 
   return example_draw(context);
