@@ -1314,7 +1314,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader WGSL
-        .label     = "RasterizerRenderer.vertex.module",
+        .label     = "Rasterizer renderer fragment module",
         .wgsl_code  = {wgsl_code},
         .entry     = "fs_main",
       },
