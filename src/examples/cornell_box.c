@@ -1332,7 +1332,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     // Create rendering pipeline using the specified states
     this->pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "RasterizerRenderer.pipeline",
+                              .label        = "Rasterizer renderer pipeline",
                               .layout       = this->pipeline_layout,
                               .primitive    = primitive_state_desc,
                               .vertex       = vertex_state_desc,
