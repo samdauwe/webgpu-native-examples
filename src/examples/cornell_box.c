@@ -1526,7 +1526,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
-                      .label           = "raytracer_comp_shader",
+                      .label           = "Raytracer compute shader",
                       .wgsl_code       = {wgsl_code},
                       .entry           = "main",
                       .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
