@@ -2012,7 +2012,7 @@ static struct {
   raytracer_t raytracer;
   tonemapper_t tonemapper;
   result_renderer_t result_renderer;
-} example;
+} example = {0};
 
 // GUI
 typedef enum {
