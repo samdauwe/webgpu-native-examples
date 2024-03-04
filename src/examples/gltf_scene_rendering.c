@@ -131,7 +131,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_primitive != NULL);
   }
 
-  // Bind group layout for passing material textures and matrial constants
+  // Bind group layout for passing material textures and material constants
   {
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
