@@ -198,9 +198,9 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Pipeline layout using the bind group layouts
   {
     WGPUBindGroupLayout bind_group_layout_sets[3] = {
-      bind_group_layouts.ubo_scene,     // set 0
-      bind_group_layouts.textures,      // set 1
-      bind_group_layouts.ubo_primitive, // set 2
+      bind_group_layouts.ubo_scene,     /* set 0 */
+      bind_group_layouts.textures,      /* set 1 */
+      bind_group_layouts.ubo_primitive, /* set 2 */
     };
     // Pipeline layout
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
