@@ -279,6 +279,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
         material->bind_group = wgpuDeviceCreateBindGroup(
           wgpu_context->device,
           &(WGPUBindGroupDescriptor){
+            .label      = "Materials bind group",
             .layout     = bind_group_layouts.textures,
             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
             .entries    = bg_entries,
