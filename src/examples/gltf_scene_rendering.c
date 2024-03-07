@@ -373,7 +373,8 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .file = "shaders/gltf_scene_rendering/scene.frag.spv",
+              .label = "glTF scene rendering fragment shader",
+              .file  = "shaders/gltf_scene_rendering/scene.frag.spv",
             },
             .target_count = 1,
             .targets      = &color_target_state,
