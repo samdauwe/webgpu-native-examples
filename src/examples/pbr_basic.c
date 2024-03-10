@@ -554,49 +554,49 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass_desc);
 
-  // Set viewport
+  /* Set viewport */
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
     (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-  // Set scissor rectangle
+  /* Set scissor rectangle */
   wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
   for (uint32_t i = 0; i < GRID_DIM * GRID_DIM; ++i) {
     uint32_t dynamic_offset     = i * (uint32_t)ALIGNMENT;
     uint32_t dynamic_offsets[2] = {dynamic_offset, dynamic_offset};
-    // Bind the bind group for rendering a mesh using the dynamic offset
+    /* Bind the bind group for rendering a mesh using the dynamic offset */
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 2,
                                       dynamic_offsets);
-    // Draw object
+    /* Draw object */
     wgpu_gltf_model_draw(models[current_object_index].object,
                          (wgpu_gltf_model_render_options_t){0});
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
