@@ -545,7 +545,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
                                 &current_material_index, material_names, 11)) {
       update_dynamic_uniform_buffer(context->wgpu_context);
     }
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Object type",
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Object Type",
                                 &current_object_index, object_names, 4)) {
       update_dynamic_uniform_buffer(context->wgpu_context);
     }
