@@ -201,16 +201,16 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  /* Construct the different states making up the pipeline */
 
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -218,13 +218,13 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(quad, sizeof(vertex_t),
                             // Attribute location 0: Position
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
                                                offsetof(vertex_t, position)))
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
     wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
@@ -237,7 +237,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .buffers      = &quad_vertex_buffer_layout,
   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
@@ -250,14 +250,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .targets      = &color_target_state,
   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
                                             &(WGPURenderPipelineDescriptor){
                                               .label  = "PRNG render pipeline",
@@ -270,7 +270,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                             });
   ASSERT(pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
