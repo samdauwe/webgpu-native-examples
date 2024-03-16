@@ -152,7 +152,7 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader SPIR-V
-          .label = "Triangle and lines red colored fragment shader",
+          .label = "Triangle and lines red colored fragment shader SPIR-V",
           .file = "shaders/conservative_raster/triangle_and_lines_red.frag.spv",
         },
         .target_count = 1,
