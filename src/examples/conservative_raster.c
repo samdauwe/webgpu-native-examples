@@ -375,7 +375,8 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Vertex shader SPIR-V
-          .file = "shaders/conservative_raster/upscale.vert.spv",
+          .label = "Upscale vertex shader SPIR-V",
+          .file  = "shaders/conservative_raster/upscale.vert.spv",
         },
         .buffer_count = 0,
         .buffers      = NULL,
