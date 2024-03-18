@@ -404,7 +404,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipelines.upscale = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Upscale",
+                            .label       = "Upscale rendering pipeline",
                             .layout      = pipeline_layout,
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
