@@ -438,12 +438,12 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   WGPUTextureView view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   {
-    // Render pass descriptor
+    /* Render pass descriptor */
     WGPURenderPassDescriptor render_pass_desc = (WGPURenderPassDescriptor){
       .label                  = "Low resolution render pass",
       .colorAttachmentCount   = 1,
@@ -462,7 +462,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       .depthStencilAttachment = NULL,
     };
 
-    // Render pass
+    /* Render pass */
     WGPURenderPassEncoder rpass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
 
@@ -478,7 +478,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   }
 
   {
-    // Render pass descriptor
+    /* Render pass descriptor */
     WGPURenderPassDescriptor render_pass_desc = (WGPURenderPassDescriptor){
       .label                  = "Full resolution render pass",
       .colorAttachmentCount   = 1,
@@ -497,7 +497,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       .depthStencilAttachment = NULL,
     };
 
-    // Render pass
+    /* Render pass */
     WGPURenderPassEncoder rpass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
 
@@ -512,7 +512,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
   }
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
