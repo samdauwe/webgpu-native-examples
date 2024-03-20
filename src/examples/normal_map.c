@@ -121,7 +121,7 @@ static struct {
 static struct {
   mat4 world_view_proj_matrix;
   mat4 world_view_matrix;
-} space_transforms;
+} space_transforms = {0};
 
 static struct {
   vec3 light_pos_vs; // Light position in view space
@@ -130,13 +130,13 @@ static struct {
   float depth_scale;
   float depth_layers;
   float padding;
-} map_info;
+} map_info = {0};
 
 // Uniforms buffer
 static struct {
   wgpu_buffer_t space_transforms;
   wgpu_buffer_t map_info;
-} uniforms_bufers;
+} uniforms_bufers = {0};
 
 // The bind groups and layouts
 static struct {
