@@ -1138,7 +1138,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipelines.normal_map = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "normal_map_render_pipeline",
+                            .label        = "Normal map render pipeline",
                             .layout       = pipeline_layouts.normal_map,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
