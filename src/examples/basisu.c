@@ -403,56 +403,56 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 /* Build separate command buffer for the framebuffer image */
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-  // Set the bind group
+  /* Set the bind group */
   wgpuRenderPassEncoderSetBindGroup(
     wgpu_context->rpass_enc, 0,
     (current_texture_type == 0) ? bind_groups.opaque : bind_groups.alpha, 0, 0);
 
-  // Set viewport
+  /* Set viewport */
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
     (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-  // Set scissor rectangle
+  /* Set scissor rectangle */
   wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind triangle vertex buffer (contains position and colors)
+  /* Bind triangle vertex buffer (contains position and colors) */
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        vertices.buffer, 0, WGPU_WHOLE_SIZE);
 
-  // Bind triangle index buffer
+  /* Bind triangle index buffer */
   wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
                                       WGPUIndexFormat_Uint32, 0,
                                       WGPU_WHOLE_SIZE);
 
-  // Draw indexed triangle
+  /* Draw indexed triangle */
   wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
                                    0, 0);
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
