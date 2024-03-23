@@ -916,6 +916,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
+      .label         = "Depth texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
