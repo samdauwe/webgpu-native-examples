@@ -959,6 +959,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   {
     textures.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
+                              .label         = "Texture sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
