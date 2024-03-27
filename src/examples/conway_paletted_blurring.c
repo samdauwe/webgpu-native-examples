@@ -374,8 +374,8 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   //    1 -> 2
   //    2 -> 1
   texture_t* trailTextureArray[2] = {
-    &textures.trails[0], //
-    &textures.trails[1], //
+    &textures.trails[0], /* 1 -> 2 */
+    &textures.trails[1], /* 2 -> 1 */
   };
   const uint32_t nbTextures = (uint32_t)ARRAY_SIZE(trailTextureArray);
   for (uint32_t i = 0; i < nbTextures; ++i) {
