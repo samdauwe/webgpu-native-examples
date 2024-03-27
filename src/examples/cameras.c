@@ -1253,7 +1253,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    imgui_overlay_text("Camera type");
+    imgui_overlay_text("Camera Type");
     int32_t camera_type = example_parms.camera_type;
     if (imgui_overlay_combo_box(context->imgui_overlay, "cameratype",
                                 &camera_type, camera_type_names, 2)) {
