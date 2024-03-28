@@ -477,11 +477,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
   wgpu_context_t* wgpu_context          = context->wgpu_context;
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // -- Do compute pass, where the actual effect is -- //
+  /* -- Do compute pass, where the actual effect is -- */
   {
     wgpu_context->cpass_enc
       = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
@@ -498,7 +498,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
-  // -- And do the frame rendering -- //
+  /* -- And do the frame rendering -- */
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass.descriptor);
@@ -507,13 +507,13 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
     wgpuRenderPassEncoderSetBindGroup(
       wgpu_context->rpass_enc, 0,
       is_forward ? graphics.bind_groups[0] : graphics.bind_groups[1], 0, NULL);
-    // Double-triangle for fullscreen has 6 vertices
+    /* Double-triangle for fullscreen has 6 vertices */
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL);
