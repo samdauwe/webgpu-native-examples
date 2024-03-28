@@ -33,10 +33,10 @@ static const char* update_sprites_compute_shader_wgsl;
  * -------------------------------------------------------------------------- */
 
 // Number of boid particles to simulate
-static const uint32_t NUM_PARTICLES = 1500;
+static const uint32_t NUM_PARTICLES = 1500u;
 
 // Number of single-particle calculations (invocations) in each gpu work group
-static const uint32_t PARTICLES_PER_GROUP = 64;
+static const uint32_t PARTICLES_PER_GROUP = 64u;
 
 // Sim parameters
 static struct sim_params_t {
