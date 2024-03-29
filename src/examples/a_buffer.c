@@ -842,14 +842,14 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
 
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_Back,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     blend_state.color.srcFactor             = WGPUBlendFactor_One;
     blend_state.color.dstFactor             = WGPUBlendFactor_OneMinusSrcAlpha;
@@ -859,18 +859,18 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
+                        // Vertex shader WGSL */
                         .label            = "Composite vertex shader WGSL",
                         .wgsl_code.source = composite_shader_wgsl,
                         .entry            = "main_vs",
                       },
                     });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
@@ -883,14 +883,14 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
                       .targets      = &color_target_state,
                     });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label  = "Composite render pipeline",
@@ -902,7 +902,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
                             });
     ASSERT(composite_render_pass.pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
