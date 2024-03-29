@@ -731,7 +731,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
 
     /* Pass descriptor */
     translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Translucent pass descriptor",
+      .label                = "Translucent render pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments = translucent_render_pass.pass_desc.color_attachments,
       .depthStencilAttachment = NULL,
