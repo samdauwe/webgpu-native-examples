@@ -116,7 +116,7 @@ static bool prepared             = false;
 static void init_device_limits(wgpu_context_t* wgpu_context)
 {
   if (!wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
-    log_error("Could not query WebGPU qdqpter limits");
+    log_error("Could not query WebGPU adapter limits");
   }
 }
 
