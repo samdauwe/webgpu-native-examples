@@ -366,7 +366,7 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
   const float aspect_ratio = (float)context->wgpu_context->surface.width
                              / (float)context->wgpu_context->surface.height;
 
-  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
+  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.0f, 2000.f,
                   view_matrices.projection_matrix);
 
   glm_vec3_copy((vec3){0.0f, 5.0f, -100.0f}, view_matrices.eye_position);
