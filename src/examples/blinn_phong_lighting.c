@@ -413,7 +413,7 @@ static struct {
   .view_matrix       = GLM_MAT4_IDENTITY_INIT,
   .model_matrix      = GLM_MAT4_IDENTITY_INIT,
 };
-static float time_old = 0;
+static float time_old = 0.0f;
 
 static struct {
   vec4 eye_position;
