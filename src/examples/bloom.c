@@ -590,7 +590,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .r = 0.025f,
         .g = 0.025f,
         .b = 0.025f,
-        .a = 1.0f,
+        .a = 1.000f,
       },
   };
 
