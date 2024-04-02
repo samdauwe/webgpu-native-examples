@@ -605,7 +605,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .label            = "Fragment Write GBuffers WGSL",
+              .label            = "Write GBuffers fragment shader WGSL",
               .wgsl_code.source = fragment_write_gbuffers_wgsl,
               .entry            = "main",
              },
