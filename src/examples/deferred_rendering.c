@@ -855,7 +855,7 @@ static void setup_render_passes(void)
 
     // Render pass descriptor
     texture_quad_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Texture Quad render pass",
+      .label                = "Textured Quad render pass",
       .colorAttachmentCount = 1,
       .colorAttachments     = texture_quad_pass.color_attachments,
     };
