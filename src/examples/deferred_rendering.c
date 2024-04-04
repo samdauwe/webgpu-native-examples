@@ -684,7 +684,7 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label            = "Fragment gbuffers debug view WGSL",
+          .label            = "GBuffers debug view fragment shader WGSL",
           .wgsl_code.source = fragment_gbuffers_debug_view_wgsl,
           .entry            = "main",
         },
