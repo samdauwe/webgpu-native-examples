@@ -539,10 +539,12 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     {
       // Create the bind group layout
       bind_group_layouts.composition = wgpuDeviceCreateBindGroupLayout(
-        wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                                .entryCount = 4u,
-                                .entries    = bgl_entries,
-                              });
+        wgpu_context->device,
+        &(WGPUBindGroupLayoutDescriptor){
+          .label      = "G-Buffer composition bind group layout",
+          .entryCount = 4u,
+          .entries    = bgl_entries,
+        });
       ASSERT(bind_group_layouts.composition != NULL);
 
       // Create the pipeline layout
