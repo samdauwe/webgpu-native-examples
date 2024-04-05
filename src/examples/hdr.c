@@ -134,8 +134,8 @@ static struct {
   WGPUSampler sampler;
 } filter_pass = {0};
 
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
+static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
+static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
 static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24PlusStencil8;
 
