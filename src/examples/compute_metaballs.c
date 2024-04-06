@@ -614,10 +614,10 @@ camera_controller_update_rotate_handler(camera_controller_t* this,
 static void camera_controller_update_zoom_handler(camera_controller_t* this)
 {
   const float force = this->mouse_wheel_force;
-  if (this->_zoom.delta[1] > 0) {
+  if (this->_zoom.delta[1] > 0.0f) {
     damped_action_add_force(&this->target_radius_damped_action, force);
   }
-  else if (this->_zoom.delta[1] < 0) {
+  else if (this->_zoom.delta[1] < 0.0f) {
     damped_action_add_force(&this->target_radius_damped_action, -force);
   }
 }
