@@ -302,10 +302,10 @@ static void perspective_camera_set_position(perspective_camera_t* this,
 
 static void perspective_camera_update_view_matrix(perspective_camera_t* this)
 {
-  glm_lookat(this->position,         // eye
-             this->look_at_position, // center
-             this->UP_VECTOR,        // up
-             this->view_matrix       // dest
+  glm_lookat(this->position,         /* eye    */
+             this->look_at_position, /* center */
+             this->UP_VECTOR,        /* up     */
+             this->view_matrix       /* dest   */
   );
   glm_mat4_inv(this->view_matrix, this->view_inv_matrix);
 }
@@ -313,11 +313,11 @@ static void perspective_camera_update_view_matrix(perspective_camera_t* this)
 static void
 perspective_camera_update_projection_matrix(perspective_camera_t* this)
 {
-  glm_perspective(this->field_of_view,    // fovy
-                  this->aspect,           // aspect
-                  this->near,             // nearZ
-                  this->far,              // farZ
-                  this->projection_matrix // dest
+  glm_perspective(this->field_of_view,    /* fovy   */
+                  this->aspect,           /* aspect */
+                  this->near,             /* nearZ  */
+                  this->far,              /* farZ   */
+                  this->projection_matrix /* dest   */
   );
   glm_mat4_inv(this->projection_matrix, this->projection_inv_matrix);
 }
