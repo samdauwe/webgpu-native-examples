@@ -107,19 +107,19 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  mat4 matrix;         // matrix
-  mat4 inverse_matrix; // inverse matrix
-  vec2 output_size;    // screen size
-  float z_near;        // near
-  float z_far;         // far
+  mat4 matrix;         /* matrix         */
+  mat4 inverse_matrix; /* inverse matrix */
+  vec2 output_size;    /* screen size    */
+  float z_near;        /* near           */
+  float z_far;         /* far            */
 } projection_uniforms_t;
 
 typedef struct {
-  mat4 matrix;         // matrix
-  mat4 inverse_matrix; // inverse matrix
-  vec3 position;       // camera position
-  float time;          // time
-  float delta_time;    // delta time
+  mat4 matrix;         /* matrix          */
+  mat4 inverse_matrix; /* inverse matrix  */
+  vec3 position;       /* camera position */
+  float time;          /* time            */
+  float delta_time;    /* delta time      */
 } view_uniforms_t;
 
 typedef struct {
