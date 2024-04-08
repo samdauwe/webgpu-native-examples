@@ -21,9 +21,9 @@ static struct {
   float min_life;
   float max_life;
 } sim_param_data = {
-  .time     = 0.0f,     // startTime time
-  .min_life = 2000.0f,  // Min lifeRange
-  .max_life = 10000.0f, // Max lifeRange
+  .time     = 0.0f,     /* startTime time */
+  .min_life = 2000.0f,  /* Min lifeRange  */
+  .max_life = 10000.0f, /* Max lifeRange  */
 };
 
 // Vertex buffer and attributes
