@@ -466,7 +466,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   /* Vertex shader SPIR-V */
-                  .label = "particle_vertex_shader",
+                  .label = "Particle Vertex shader SPIR-V",
                   .file  = "shaders/compute_particles_easing/particle.vert.spv",
                 },
                 .buffer_count = (uint32_t) ARRAY_SIZE(buffers),
