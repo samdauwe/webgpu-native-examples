@@ -485,7 +485,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Attach attractor to cursor",
+    imgui_overlay_checkBox(context->imgui_overlay, "Attach Attractor to Cursor",
                            &attach_to_cursor);
   }
 }
