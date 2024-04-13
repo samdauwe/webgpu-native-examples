@@ -494,15 +494,15 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Compute pass: Compute particle movement
+  /* Compute pass: Compute particle movement */
   {
     wgpu_context->cpass_enc
       = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
-    // Dispatch the compute job
+    /* Dispatch the compute job */
     wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
                                       compute.pipeline);
     wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
@@ -513,7 +513,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
   }
 
-  // Render pass: Draw the particle system using the update vertex buffer
+  /* Render pass: Draw the particle system using the update vertex buffer */
   {
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass.descriptor);
@@ -529,10 +529,10 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   ASSERT(command_buffer != NULL)
