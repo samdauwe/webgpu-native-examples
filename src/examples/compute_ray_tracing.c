@@ -564,6 +564,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   compute.uniform_buffer = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Compute shader parameter uniform buffer block",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(compute.ubo),
     });
