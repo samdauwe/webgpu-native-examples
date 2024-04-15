@@ -38,7 +38,7 @@ static struct {
 
 // Textures
 static WGPUTextureFormat COMPUTE_TEX_FORMAT = WGPUTextureFormat_RGBA8Unorm;
-static uint32_t COMPUTE_TEX_BYTES           = 4; // Bytes per pixel in compute.
+static uint32_t COMPUTE_TEX_BYTES           = 4u; // Bytes per pixel in compute.
 static struct {
   // Swapchain for the cellular automata progression
   texture_t cells[2];
