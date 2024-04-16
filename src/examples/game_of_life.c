@@ -188,7 +188,7 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Storage buffer (size)
+      /* Binding 0: Storage buffer (size) */
       .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -198,7 +198,7 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Storage buffer (current)
+      /* Binding 1: Storage buffer (current) */
       .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -208,7 +208,7 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Storage buffer (next)
+      /* Binding 2: Storage buffer (next) */
       .binding    = 2,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
