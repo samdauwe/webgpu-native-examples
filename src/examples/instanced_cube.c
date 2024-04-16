@@ -268,7 +268,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .label            = "Instanced vertex shader wgsl",
+              .label            = "Instanced vertex shader WGSL",
               .wgsl_code.source = instanced_vertex_shader_wgsl,
             },
             .buffer_count = 1,
