@@ -136,7 +136,7 @@ static void prepare_static_buffers(wgpu_context_t* wgpu_context)
 
 static float float_random(float min, float max)
 {
-  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0] */
+  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0]   */
   return min + scale * (max - min);             /* [min, max] */
 }
 
@@ -413,7 +413,7 @@ static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Uint32, 0))
   cell_stride_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
   WGPU_VERTEX_BUFFER_LAYOUT(square_stride, 2 * sizeof(uint32_t),
-    // Attribute location 1: Position
+                            // Attribute location 1: Position
                             WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Uint32x2, 0))
   WGPUVertexBufferLayout vertex_state_buffers[2]
     = {cell_stride_vertex_buffer_layout, square_stride_vertex_buffer_layout};
