@@ -435,14 +435,14 @@ static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
 // Create the graphics pipeline
 static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state = {
     .color.operation = WGPUBlendOperation_Add,
     .color.srcFactor = WGPUBlendFactor_One,
@@ -457,18 +457,18 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     position, 4 * sizeof(float),
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
   position_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
+                  /* Vertex shader WGSL */
                   .label = "Vertex shader N-Body simulation WGSL",
                   .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                   .entry = "vs_main",
@@ -477,11 +477,11 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                 .buffers = &position_vertex_buffer_layout,
               });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader WGSL
+                  /* Fragment shader WGSL */
                   .label = "Fragment shader N-Body simulation WGSL",
                   .file  = "shaders/n_body_simulation/n_body_simulation.wgsl",
                   .entry = "fs_main",
@@ -490,14 +490,14 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                 .targets = &color_target_state,
               });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipelines.render = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "N-Body simulation render pipeline",
@@ -510,7 +510,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipelines.render != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
