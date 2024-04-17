@@ -460,7 +460,6 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
   // Vertex buffer layout
   WGPU_VERTEX_BUFFER_LAYOUT(
     position, 4 * sizeof(float),
-    /* Attribute descriptions */
     // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
   position_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
