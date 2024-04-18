@@ -280,7 +280,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
-              .label            = "Vertex position color fragment shader wgsl",
+              .label            = "Vertex position color fragment shader WGSL",
               .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
             },
             .target_count = 1,
