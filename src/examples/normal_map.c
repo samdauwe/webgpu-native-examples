@@ -247,10 +247,10 @@ static mat4* get_projection_matrix(wgpu_context_t* wgpu_context)
 static mat4* get_view_matrix(void)
 {
   glm_lookat((vec3){settings.camera_pos_x, settings.camera_pos_y,
-                    settings.camera_pos_z}, // eye vector
-             (vec3){0.0f, 0.0f, 0.0f},      // center vector
-             (vec3){0.0f, 1.0f, 0.0f},      // up vector
-             view_matrices.view             // result matrix
+                    settings.camera_pos_z}, /* eye vector    */
+             (vec3){0.0f, 0.0f, 0.0f},      /* center vector */
+             (vec3){0.0f, 1.0f, 0.0f},      /* up vector     */
+             view_matrices.view             /* result matrix */
   );
 
   return &view_matrices.view;
