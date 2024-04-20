@@ -527,7 +527,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .label = "Radial blur fragment shader",
+                .label = "Radial blur fragment shader SPIR-V",
                 .file  = "shaders/radial_blur/radialblur.frag.spv",
               },
               .target_count = 1,
