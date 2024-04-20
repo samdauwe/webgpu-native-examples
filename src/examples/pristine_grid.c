@@ -964,57 +964,57 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, get_default_render_pass_descriptor(wgpu_context));
 
   if (pipeline) {
-    // Bind the rendering pipeline
+    /* Bind the rendering pipeline */
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-    // Set viewport
+    /* Set viewport */
     wgpuRenderPassEncoderSetViewport(
       wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
       (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-    // Set scissor rectangle
+    /* Set scissor rectangle */
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                         wgpu_context->surface.width,
                                         wgpu_context->surface.height);
 
-    // Set the bind groups
+    /* Set the bind groups */
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       frame_bind_group, 0, 0);
     wgpuRenderPassEncoderSetBindGroup(
       wgpu_context->rpass_enc, 1, bind_group, 0,
-      0); // Assumes the camera bind group is already set.
+      0); /* Assumes the camera bind group is already set. */
 
-    // Bind vertex buffer (contains positions & uvs)
+    /* Bind vertex buffer (contains positions & uvs) */
     wgpuRenderPassEncoderSetVertexBuffer(
       wgpu_context->rpass_enc, 0, vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
 
-    // Bind index buffer
+    /* Bind index buffer */
     wgpuRenderPassEncoderSetIndexBuffer(
       wgpu_context->rpass_enc, index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
       WGPU_WHOLE_SIZE);
 
-    // Draw quad
+    /* Draw quad */
     wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
                                      index_buffer.count, 1, 0, 0, 0);
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
   /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
