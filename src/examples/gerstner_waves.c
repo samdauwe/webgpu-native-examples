@@ -96,7 +96,7 @@ static void position_from_view_matrix(mat4 view_matrix, vec3* dest)
  */
 static void from_euler(float x, float y, float z, versor* dest)
 {
-  const float halfToRad = (0.5f * PI) / 180.0f;
+  const float halfToRad = PI_2 / 180.0f;
 
   x *= halfToRad;
   y *= halfToRad;
