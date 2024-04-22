@@ -1066,7 +1066,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Object type",
+    if (imgui_overlay_combo_box(context->imgui_overlay, "Object Type",
                                 &models.object_index, object_names, 4)) {
       update_uniform_buffers(context);
     }
