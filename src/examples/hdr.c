@@ -1034,6 +1034,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.dynamic.buffer      = wgpuDeviceCreateBuffer(
     context->wgpu_context->device,
     &(WGPUBufferDescriptor){
+           .label            = "Uniform buffer object with constants",
            .usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
            .size             = uniform_buffers.dynamic.buffer_size,
            .mappedAtCreation = false,
