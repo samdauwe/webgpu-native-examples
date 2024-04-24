@@ -1009,10 +1009,10 @@ static void update_dynamic_uniform_buffers(wgpu_example_context_t* context)
                           uniform_buffers.dynamic.buffer_size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Matrices vertex shader uniform buffer
+  /* Matrices vertex shader uniform buffer */
   uniform_buffers.matrices = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -1021,7 +1021,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_matrices),
     });
 
-  // Params
+  /* Params */
   uniform_buffers.params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -1030,7 +1030,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_matrices),
     });
 
-  // Uniform buffer object with constants
+  /* Uniform buffer object with constants */
   uniform_buffers.dynamic.model_size  = sizeof(int);
   uniform_buffers.dynamic.buffer_size = sizeof(ubo_constants);
   uniform_buffers.dynamic.buffer      = wgpuDeviceCreateBuffer(
@@ -1042,7 +1042,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
            .mappedAtCreation = false,
     });
 
-  // Initialize uniform buffers
+  /* Initialize uniform buffers */
   update_uniform_buffers(context);
   update_params(context);
   update_dynamic_uniform_buffers(context);
