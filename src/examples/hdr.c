@@ -857,7 +857,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     color_target_state_desc.format = wgpu_context->swap_chain.format;
     pipelines.bloom[0]             = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                          .label        = "bloom_1_render_pipeline",
+                                          .label        = "Bloom 1 render pipeline",
                                           .layout       = pipeline_layouts.bloom_filter,
                                           .primitive    = primitive_state_desc,
                                           .vertex       = vertex_state_desc,
