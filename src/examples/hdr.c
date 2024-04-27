@@ -998,12 +998,12 @@ static void update_params(wgpu_example_context_t* context)
 
 static void update_dynamic_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Set constant values
+  /* Set constant values */
   for (uint32_t i = 0u; i < NUMBER_OF_CONSTANTS; ++i) {
     ubo_constants[i].value = (int32_t)i;
   }
 
-  // Update buffer
+  /* Update buffer */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.dynamic.buffer,
                           0, &ubo_constants,
                           uniform_buffers.dynamic.buffer_size);
