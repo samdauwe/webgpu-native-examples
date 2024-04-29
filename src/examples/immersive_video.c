@@ -24,8 +24,8 @@ static wgpu_buffer_t uniform_buffer_vs = {0};
 // Uniform block data - inputs of the shader
 static bool shader_inputs_ubo_update_needed = false;
 static struct {
-  vec2 iResolution; // viewport resolution (in pixels)
-  vec4 iMouse;      // mouse pixel coords. xy: current (if MLB down), zw: click
+  vec2 iResolution; // Viewport resolution (in pixels)
+  vec4 iMouse;      // Mouse pixel coords. xy: current (if MLB down), zw: click
   float iHFovDegrees;   // Horizontal field of view in degrees
   float iVFovDegrees;   // Vertical field of view in degrees
   bool iVisualizeInput; // Show the unprocessed input image
