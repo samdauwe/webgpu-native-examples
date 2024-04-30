@@ -623,30 +623,30 @@ static void update_uniform_buffers_scene(wgpu_example_context_t* context)
 {
   const wgpu_context_t* wgpu_context = context->wgpu_context;
 
-  // Elapsed time
+  /* Elapsed time */
   if (!context->paused) {
     scene_data.elapsed_time = (context->run_time - start_time);
   }
 
-  // MVP
+  /* MVP */
   from_euler(controls.current_mouse_position[1],
              controls.current_mouse_position[0], 0.0f, &tmp_mtx.rotation);
   create_orbit_view_matrix(15, tmp_mtx.rotation, &tmp_mtx.view_matrix);
 
-  // View position
+  /* View position */
   position_from_view_matrix(tmp_mtx.view_matrix, &scene_data.view_position);
 
-  // Projection matrix
+  /* Projection matrix */
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
   glm_perspective(glm_rad(50.0f), aspect_ratio, 0.1f, 100.0f,
                   tmp_mtx.projection_matrix);
 
-  // View projection matrix
+  /* View projection matrix */
   glm_mat4_mul(tmp_mtx.projection_matrix, tmp_mtx.view_matrix,
                scene_data.view_projection_matrix);
 
-  // Update uniform buffer
+  /* Update uniform buffer */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene.buffer,
                           0, &scene_data, uniform_buffers.scene.size);
 }
