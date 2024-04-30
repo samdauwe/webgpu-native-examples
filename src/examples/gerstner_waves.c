@@ -681,7 +681,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Gerstner Waves scene uniform buffer",
+      .label = "Gerstner Waves - Scene uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(scene_data),
     });
