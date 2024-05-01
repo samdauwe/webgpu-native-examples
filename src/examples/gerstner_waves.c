@@ -432,7 +432,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       }
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Sea color texture bind group",
+      .label      = "Bind group - Sea color texture",
       .layout     = bind_group_layouts.textures,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
