@@ -267,7 +267,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              /* Vertex shader WGSL */
               .label            = "Instanced vertex shader WGSL",
               .wgsl_code.source = instanced_vertex_shader_wgsl,
             },
@@ -279,7 +279,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "Vertex position color fragment shader WGSL",
               .wgsl_code.source = vertex_position_color_fragment_shader_wgsl,
             },
