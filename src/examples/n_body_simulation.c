@@ -357,7 +357,6 @@ static void setup_compute_bind_group(wgpu_context_t* wgpu_context)
   }
 }
 
-// Create the bind group for the compute shader.
 static void setup_render_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[1] = {
