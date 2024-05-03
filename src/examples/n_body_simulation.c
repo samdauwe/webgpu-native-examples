@@ -622,7 +622,7 @@ static void update_fps_counter(wgpu_example_context_t* context)
       fps_counter.fps = fps_counter.num_frames_since_fps_update
                         / (time_since_last_log / 1000.0f);
       fps_counter.last_fps_update_time        = now;
-      fps_counter.num_frames_since_fps_update = 0;
+      fps_counter.num_frames_since_fps_update = 0.0f;
     }
   }
   else {
