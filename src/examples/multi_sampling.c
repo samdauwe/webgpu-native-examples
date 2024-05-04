@@ -155,7 +155,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Set 0 for passing vertex shader ubo */
   {
     WGPUBindGroupLayoutEntry bgl_entry = {
-        // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+        /* Binding 0: Uniform buffer (Vertex shader) => UBOScene */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -178,7 +178,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: texture2D (Fragment shader) => Color map
+        /* Binding 0: texture2D (Fragment shader) => Color map */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -189,7 +189,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: sampler (Fragment shader) => Color map
+        /* Binding 1: sampler (Fragment shader) => Color map */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
