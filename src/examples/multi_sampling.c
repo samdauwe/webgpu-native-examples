@@ -165,7 +165,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Vertex shader ubo bind group layout",
+      .label      = "Vertex shader - ubo bind group layout",
       .entryCount = 1,
       .entries    = &bgl_entry,
     };
