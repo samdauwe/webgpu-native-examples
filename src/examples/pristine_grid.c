@@ -452,10 +452,10 @@ static void update_uniforms(wgpu_context_t* wgpu_context)
 {
   /* Update color attachment clear color */
   render_pass.color_attachments[0].clearValue = (WGPUColor){
-    .r = grid_options.clear_color[0],
-    .g = grid_options.clear_color[1],
-    .b = grid_options.clear_color[2],
-    .a = grid_options.clear_color[3],
+    .r = grid_options.clear_color[0], /* Red   */
+    .g = grid_options.clear_color[1], /* Green */
+    .b = grid_options.clear_color[2], /* Blue  */
+    .a = grid_options.clear_color[3], /* Alpha */
   };
 
   /* Update uniforms data */
