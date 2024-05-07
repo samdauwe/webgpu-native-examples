@@ -61,7 +61,6 @@ static struct {
   },
 };
 
-/* Render pass descriptor for frame buffer writes */
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
 static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
