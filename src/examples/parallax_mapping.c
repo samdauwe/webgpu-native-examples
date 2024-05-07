@@ -358,7 +358,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader
+  /* Vertex shader */
   glm_mat4_copy(context->camera->matrices.perspective,
                 ubos.vertex_shader.projection);
   glm_mat4_copy(context->camera->matrices.view, ubos.vertex_shader.view);
@@ -380,7 +380,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
     context->wgpu_context, uniform_buffers.vertex_shader.buffer, 0,
     &ubos.vertex_shader, uniform_buffers.vertex_shader.size);
 
-  // Fragment shader
+  /* Fragment shader */
   wgpu_queue_write_buffer(
     context->wgpu_context, uniform_buffers.fragment_shader.buffer, 0,
     &ubos.fragment_shader, uniform_buffers.fragment_shader.size);
