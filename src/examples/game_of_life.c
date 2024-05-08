@@ -353,7 +353,7 @@ static void prepare_bind_group_layout_graphics(wgpu_context_t* wgpu_context)
   };
   graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Bind group layout graphics",
+                            .label      = "Graphics bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
