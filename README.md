@@ -223,6 +223,12 @@ Loads a cube map texture from disk containing six different faces. All faces and
 
 Generates a 3D texture on the cpu (using perlin noise), uploads it to the device and samples it to render an animation. 3D textures store volumetric data and interpolate in all three dimensions.
 
+#### [Volume Rendering - Texture 3D](src/examples/volume_rendering_texture_3d.c)
+
+This example shows how to render volumes with WebGPU using a 3D texture. It demonstrates simple direct volume rendering for photometric content through ray marching in a fragment shader, where a full-screen triangle determines the color from ray start and step size values as set in the vertex shader. This implementation employs data from the BrainWeb Simulated Brain Database, with decompression streams, to save disk space and network traffic.
+
+The original raw data is generated using [the BrainWeb Simulated Brain Database](https://brainweb.bic.mni.mcgill.ca/brainweb/) before processing in [a custom Python script](https://github.com/webgpu/webgpu-samples/tree/main/public/assets/img/volume/t1_icbm_normal_1mm_pn0_rf0.py).
+
 #### [Equirectangular panorama](src/examples/equirectangular_image.c)
 
 This example shows how to render an equirectangular panorama consisting of a single rectangular image. The equirectangular input can be used for a 360 degrees viewing experience to achieve more realistic surroundings and convincing real-time effects.
