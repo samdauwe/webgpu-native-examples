@@ -270,6 +270,7 @@ set(SOURCES
     src/examples/two_cubes.c
     src/examples/vertex_buffer.c
     src/examples/video_uploading.c
+    src/examples/volume_rendering_texture_3d.c
     src/examples/wireframe_vertex_pulling.c
 )
 
