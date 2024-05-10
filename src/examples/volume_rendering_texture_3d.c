@@ -144,7 +144,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void prepare_uniform_buffer(wgpu_example_context_t* context)
 {
   // Create vertex shader uniform buffer block
   uniform_buffer_vs = wgpu_create_buffer(
@@ -351,7 +351,7 @@ static void setup_render_pass(void)
 }
 
 // Create the graphics pipeline
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void prepare_pipeline(wgpu_context_t* wgpu_context)
 {
   // Primitive state
   WGPUPrimitiveState primitive_state = {
@@ -417,10 +417,10 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    prepare_uniform_buffers(context);
+    prepare_uniform_buffer(context);
     prepare_multisampled_framebuffer(context->wgpu_context);
     prepare_volume_texture(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
+    prepare_pipeline(context->wgpu_context);
     setup_bind_group(context->wgpu_context);
     setup_render_pass();
     prepared = true;
