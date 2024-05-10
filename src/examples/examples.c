@@ -57,6 +57,7 @@ void example_parallax_mapping(int argc, char* argv[]);
 void example_pbr_basic(int argc, char* argv[]);
 void example_pbr_ibl(int argc, char* argv[]);
 void example_pbr_texture(int argc, char* argv[]);
+void example_points(int argc, char* argv[]);
 void example_post_processing(int argc, char* argv[]);
 void example_pristine_grid(int argc, char* argv[]);
 void example_prng(int argc, char* argv[]);
@@ -137,6 +138,7 @@ static examplecase_t g_example_cases[] = {
   {"pbr_basic", example_pbr_basic},
   {"pbr_ibl", example_pbr_ibl},
   {"pbr_texture", example_pbr_texture},
+  {"points", example_points},
   {"post_processing", example_post_processing},
   {"pristine_grid", example_pristine_grid},
   {"prng", example_prng},

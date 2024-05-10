@@ -245,6 +245,7 @@ set(SOURCES
     src/examples/pbr_basic.c
     src/examples/pbr_ibl.c
     src/examples/pbr_texture.c
+    src/examples/points.c
     src/examples/post_processing.c
     src/examples/pristine_grid.c
     src/examples/prng.c
