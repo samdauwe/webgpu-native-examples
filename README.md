@@ -191,6 +191,10 @@ Basic and verbose example for getting a colored triangle rendered to the screen 
 
 This example shows some of the alignment requirements involved when updating and binding multiple slices of a uniform buffer.
 
+#### [Points](src/examples/points.c)
+
+This example shows how to render points of various sizes using a quad and instancing. You can read more details [here](https://webgpufundamentals.org/webgpu/lessons/webgpu-points.html).
+
 #### [Cameras](src/examples/cameras.c)
 
 This example provides example camera implementations
