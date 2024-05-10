@@ -521,7 +521,8 @@ static int example_render(wgpu_example_context_t* context)
 
 static void example_destroy(wgpu_example_context_t* context)
 {
-  camera_release(context->camera);
+  UNUSED_VAR(context);
+
   WGPU_RELEASE_RESOURCE(Texture, textures.volume.texture)
   WGPU_RELEASE_RESOURCE(TextureView, textures.volume.view)
   WGPU_RELEASE_RESOURCE(Sampler, textures.volume.sampler)
