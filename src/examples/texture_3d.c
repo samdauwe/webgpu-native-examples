@@ -384,8 +384,8 @@ static void generate_quad(wgpu_context_t* wgpu_context)
 
   // Setup indices
   static const uint16_t index_buffer[6] = {
-    0, 1, 2, // Vertex 1
-    2, 3, 0  // Vertex 2
+    0, 1, 2, /* Vertex 1 */
+    2, 3, 0  /* Vertex 2 */
   };
 
   // Create index buffer
