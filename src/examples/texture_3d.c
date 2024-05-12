@@ -217,9 +217,7 @@ static struct {
 static WGPUPipelineLayout pipeline_layout = NULL; // solid
 
 // Pipeline
-static struct {
-  WGPURenderPipeline solid;
-} pipelines = {0};
+static WGPURenderPipeline render_pipeline = NULL; // solid
 
 // Render pass descriptor for frame buffer writes
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
@@ -619,7 +617,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipelines.solid = wgpuDeviceCreateRenderPipeline(
+  render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "texture_3d_quad_render_pipeline",
                             .layout       = pipeline_layout,
@@ -679,7 +677,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpu_context->cmd_enc, &render_pass_desc);
 
   // Bind the rendering pipeline
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.solid);
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
 
   // Set the bind group
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
@@ -767,7 +765,7 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.solid)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
 }
 
 void example_texture_3d(int argc, char* argv[])
