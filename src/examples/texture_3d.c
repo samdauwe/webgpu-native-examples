@@ -591,7 +591,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader SPIR-V
-                  .label = "texture_3d_vertex_shader",
+                  .label = "Texture 3d - vertex shader",
                   .file  = "shaders/texture_3d/texture_3d.vert.spv",
                 },
                 .buffer_count = 1,
