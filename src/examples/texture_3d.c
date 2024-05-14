@@ -657,7 +657,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_button(context->imgui_overlay, "Generate new texture")) {
+    if (imgui_overlay_button(context->imgui_overlay, "Generate New Texture")) {
       update_noise_texture(context->wgpu_context);
     }
   }
