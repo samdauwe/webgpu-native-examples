@@ -330,7 +330,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
@@ -340,7 +340,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     .cullMode = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -357,7 +357,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   sphere_mesh_layout_t sphere_mesh_layout = {0};
   sphere_mesh_layout_init(&sphere_mesh_layout);
   WGPU_VERTEX_BUFFER_LAYOUT(
@@ -372,7 +372,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x2,
                        sphere_mesh_layout.uv_offset))
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
@@ -385,7 +385,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     .buffers      = &sphere_vertex_buffer_layout,
   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
@@ -398,14 +398,14 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
       .targets = &color_target_state,
   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   mesh_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Sphere mesh render pipeline",
@@ -417,7 +417,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(mesh_render_pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
@@ -536,7 +536,7 @@ static void update_render_bundle(wgpu_context_t* wgpu_context)
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
         .label              = "Scene bundle encoder",
-        .colorFormatCount  = (uint32_t)ARRAY_SIZE(color_formats),
+        .colorFormatCount   = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
         .depthStencilFormat = WGPUTextureFormat_Depth24Plus,
         .sampleCount        = 1,
