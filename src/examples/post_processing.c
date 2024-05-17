@@ -661,7 +661,7 @@ typedef struct {
 /**
  * @brief Generates geometry data for a sphere.
  * @param sphere sphere geometry
- * @param sphere_desc params
+ * @param sphere_desc sphere creation parameters
  * @return pointer to the generated geometry data
  */
 static geometry_t* create_sphere(geometry_t* sphere, sphere_desc_t* sphere_desc)
