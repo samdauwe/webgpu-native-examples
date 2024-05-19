@@ -126,6 +126,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
 
   // Create texture
   WGPUTextureDescriptor texture_desc = {
+    .label         = "Mip map texture",
     .size          = (WGPUExtent3D) {
       .width               = texture.width,
       .height              = texture.height,
