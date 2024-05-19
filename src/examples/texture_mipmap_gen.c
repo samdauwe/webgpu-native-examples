@@ -109,6 +109,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
 
   // Create a host-visible staging buffer that contains the raw image data
   WGPUBufferDescriptor staging_buffer_desc = {
+    .label            = "Host-visible staging buffer",
     .usage            = WGPUBufferUsage_CopySrc | WGPUBufferUsage_MapWrite,
     .size             = ktx_texture_size,
     .mappedAtCreation = true,
