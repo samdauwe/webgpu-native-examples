@@ -40,7 +40,7 @@ int init_video_decode(void)
 int open_video_file(const char* fname)
 {
   AVFormatContext* fmt_ctx = NULL;
-  AVCodec* dec;
+  AVCodec const* dec;
   AVCodecContext* dec_ctx;
   int video_stream_index = -1;
   int ret;
@@ -235,7 +235,7 @@ static void sleep_to_pts(AVPacket* packet)
     av_usleep(delay_us);
   }
 }
-static void* decode_thread_main(void)
+static void* decode_thread_main(void* vars)
 {
   AVFrame* frame    = av_frame_alloc();
   AVFrame* framergb = av_frame_alloc();
