@@ -198,7 +198,7 @@ static WGPUSurface CreateSurface(void* display, void* window)
     return nullptr;
   }
   WGPUSurface surf = surface.Get();
-  wgpuSurfaceReference(surf);
+  // wgpuSurfaceReference(surf);
   return surf;
 }
 
@@ -221,6 +221,8 @@ static const char* BackendTypeName(wgpu::BackendType t)
       return "OpenGL";
     case wgpu::BackendType::OpenGLES:
       return "OpenGL ES";
+    default:
+      break;
   }
   return "?";
 }
