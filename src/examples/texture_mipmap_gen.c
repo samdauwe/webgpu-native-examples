@@ -264,10 +264,10 @@ static void load_assets(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[5] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform buffer (Vertex shader)
+      /* Binding 0: Uniform buffer (Vertex shader) */
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -278,7 +278,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader texture image view
+      /* Binding 1: Fragment shader texture image view */
       .binding = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -289,7 +289,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Fragment shader texture image sampler 1
+      /* Binding 2: Fragment shader texture image sampler 1 */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -298,7 +298,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
-      // Binding 3: Fragment shader texture image sampler 2
+      /* Binding 3: Fragment shader texture image sampler 2 */
       .binding    = 3,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -307,7 +307,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     },
     [4] = (WGPUBindGroupLayoutEntry) {
-      // Binding 4: Fragment shader texture image sampler 3
+      /* Binding 4: Fragment shader texture image sampler 3 */
       .binding    = 4,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
