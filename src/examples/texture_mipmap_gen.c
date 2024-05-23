@@ -337,32 +337,32 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[5] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0: Uniform buffer (Vertex shader)
+      /* Binding 0: Uniform buffer (Vertex shader) */
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
       .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1: Fragment shader texture image view
+      /* Binding 1: Fragment shader texture image view */
       .binding     = 1,
       .textureView = texture.view,
     },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2: Fragment shader texture image sampler 1
+      /* Binding 2: Fragment shader texture image sampler 1 */
       .binding = 2,
       .sampler = samplers[0],
     },
     [3] = (WGPUBindGroupEntry) {
-      // Binding 3: Fragment shader texture image sampler 2
+      /* Binding 3: Fragment shader texture image sampler 2 */
       .binding = 3,
       .sampler = samplers[1],
     },
     [4] = (WGPUBindGroupEntry) {
-     // Binding 4: Fragment shader texture image sampler 3
+     /* Binding 4: Fragment shader texture image sampler 3 */
       .binding = 4,
       .sampler = samplers[2],
     },
