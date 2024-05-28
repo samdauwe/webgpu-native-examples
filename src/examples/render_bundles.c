@@ -389,10 +389,10 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-       // Fragment shader WGSL
-         .label = "Fragment shader WGSL",
-         .file  = "shaders/render_bundles/mesh.wgsl",
-         .entry = "fragmentMain"
+        // Fragment shader WGSL
+        .label = "Fragment shader WGSL",
+        .file  = "shaders/render_bundles/mesh.wgsl",
+        .entry = "fragmentMain"
        },
       .target_count = 1,
       .targets = &color_target_state,
