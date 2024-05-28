@@ -651,12 +651,12 @@ static void example_destroy(wgpu_example_context_t* context)
   WGPU_RELEASE_RESOURCE(BindGroup, frame_bind_group)
   wgpu_destroy_buffer(&scene.planet.vertices);
   wgpu_destroy_buffer(&scene.planet.indices);
-  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(scene.asteroids); ++i) {
+  for (uint32_t i = 0u; i < (uint32_t)ARRAY_SIZE(scene.asteroids); ++i) {
     renderable_t* renderable = &scene.asteroids[i];
     wgpu_destroy_buffer(&renderable->vertices);
     wgpu_destroy_buffer(&renderable->indices);
   }
-  for (uint32_t ri = 0; ri < renderables_length; ++ri) {
+  for (uint32_t ri = 0u; ri < renderables_length; ++ri) {
     WGPU_RELEASE_RESOURCE(BindGroup, renderables[ri].bind_group)
     wgpu_destroy_buffer(&renderables[ri].uniforms);
   }
