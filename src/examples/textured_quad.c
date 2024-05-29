@@ -327,7 +327,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   /* Fragment shader SPIR-V */
-                  .label = "Texture quad fragment shader",
+                  .label = "Texture quad fragment shader SPIR-V",
                   .file  = "shaders/textured_quad/texture.frag.spv",
                 },
                 .target_count = 1,
