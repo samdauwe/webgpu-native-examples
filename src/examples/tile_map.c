@@ -185,7 +185,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
   {
     this->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "Tile map texture sampler",
+                              .label         = "Tile map - texture sampler",
                               .addressModeU  = WGPUAddressMode_Repeat,
                               .addressModeV  = WGPUAddressMode_Repeat,
                               .addressModeW  = WGPUAddressMode_Repeat,
