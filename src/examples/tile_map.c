@@ -245,7 +245,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     };
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Tile map - bind group layout",
+                              .label      = "Tile map - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -256,7 +256,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
   {
     this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label = "Tile map render pipeline layout",
+                              .label = "Tile map - Render pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &this->bind_group_layout,
                             });
