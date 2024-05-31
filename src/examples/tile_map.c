@@ -123,7 +123,7 @@ static void tile_map_layer_create(tile_map_layer_t* this,
       }
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Tile map layer bind group",
+      .label      = "Tile map - Layer bind group",
       .layout     = bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
