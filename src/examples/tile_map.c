@@ -323,7 +323,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     // Create rendering pipeline using the specified states
     this->pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "Tile map render pipeline",
+                              .label       = "Tile map - Render pipeline",
                               .layout      = this->pipeline_layout,
                               .primitive   = primitive_state_desc,
                               .vertex      = vertex_state_desc,
