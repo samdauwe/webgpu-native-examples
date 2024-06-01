@@ -305,7 +305,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Fragment shader WGSL
-                        .label            = "Tile map fragment shader",
+                        .label            = "Tile map - Fragment shader",
                         .wgsl_code.source = tile_map_shader_wgsl,
                         .entry            = "fragmentMain",
                       },
