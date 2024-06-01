@@ -292,7 +292,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Vertex shader WGSL
-                        .label            = "Tile map vertex shader",
+                        .label            = "Tile map - Vertex shader",
                         .wgsl_code.source = tile_map_shader_wgsl,
                         .entry            = "vertexMain",
                       },
