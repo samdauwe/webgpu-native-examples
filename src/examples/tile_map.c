@@ -336,7 +336,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
-  /* Render pass*/
+  /* Render pass */
   {
     /* Color attachment */
     this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
