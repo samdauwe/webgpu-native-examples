@@ -265,14 +265,14 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
 
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state_desc = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_None,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state = (WGPUBlendState){
       .color.operation = WGPUBlendOperation_Add,
       .color.srcFactor = WGPUBlendFactor_SrcAlpha,
@@ -287,11 +287,11 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
+                        /* Vertex shader WGSL */
                         .label            = "Tile map - Vertex shader",
                         .wgsl_code.source = tile_map_shader_wgsl,
                         .entry            = "vertexMain",
@@ -300,11 +300,11 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
                       .buffers = NULL,
                     });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Fragment shader WGSL
+                        /* Fragment shader WGSL */
                         .label            = "Tile map - Fragment shader",
                         .wgsl_code.source = tile_map_shader_wgsl,
                         .entry            = "fragmentMain",
@@ -313,14 +313,14 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
                       .targets = &color_target_state_desc,
                     });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state_desc
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     this->pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label       = "Tile map - Render pipeline",
@@ -331,16 +331,16 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
                               .multisample = multisample_state_desc,
                             });
 
-    // Cleanup shaders
+    /* Cleanup shaders */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
   }
 
   /* Render pass*/
   {
-    // Color attachment
+    /* Color attachment */
     this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
+      .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
@@ -352,7 +352,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       },
     };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     this->render_pass.descriptor = (WGPURenderPassDescriptor){
       .label                  = "Render pass descriptor",
       .colorAttachmentCount   = 1,
