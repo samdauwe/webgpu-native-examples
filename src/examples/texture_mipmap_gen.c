@@ -476,7 +476,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "Texture mipmap gen render pipeline",
+                            .label     = "Texture mipmap gen - Render pipeline",
                             .layout    = pipeline_layout,
                             .primitive = primitive_state,
                             .vertex    = vertex_state,
