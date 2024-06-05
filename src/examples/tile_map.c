@@ -410,15 +410,15 @@ tile_map_renderer_build_command_buffer(tile_map_renderer_t* this)
   this->render_pass.color_attachments[0].view
     = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass
+  /* Create render pass */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &this->render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
 
   // Draw tile map layers: Layer rendering is back-to-front to ensure proper
@@ -430,14 +430,14 @@ tile_map_renderer_build_command_buffer(tile_map_renderer_t* this)
     wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
