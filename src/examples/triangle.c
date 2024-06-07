@@ -339,20 +339,21 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    // Setup a default look-at camera
+    /* Setup a default look-at camera */
     setup_camera(context);
-    // Initialize vertex and index buffers
+    /* Initialize vertex and index buffers */
     prepare_vertex_and_index_buffers(context->wgpu_context);
-    // Prepare and initialize a uniform buffer block containing shader uniforms
+    /* Prepare and initialize a uniform buffer block containing shader uniforms
+     */
     prepare_uniform_buffers(context);
-    // Create the pipeline layout that is used to generate the rendering
-    // pipelines
+    /* Create the pipeline layout that is used to generate the rendering
+     * pipelines */
     setup_pipeline_layout(context->wgpu_context);
-    // Setup bind groups
+    /* Setup bind groups */
     setup_bind_groups(context->wgpu_context);
-    // Create the graphics pipeline
+    /* Create the graphics pipeline */
     prepare_pipelines(context->wgpu_context);
-    // Setup render pass
+    /* Setup render pass */
     setup_render_pass(context->wgpu_context);
     prepared = true;
     return EXIT_SUCCESS;
