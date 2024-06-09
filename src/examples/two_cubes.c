@@ -188,13 +188,13 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // Setup the view matrices for the camera
+  /* Setup the view matrices for the camera */
   prepare_view_matrices(wgpu_context);
 
-  // Unform buffer
-  uniform_buffer.size = sizeof(mat4); // 4x4 matrix
+  /* Unform buffer */
+  uniform_buffer.size = sizeof(mat4); /* 4x4 matrix */
   uniform_buffer.offset
-    = 256; // uniformBindGroup offset must be 256-byte aligned
+    = 256; /* uniformBindGroup offset must be 256-byte aligned */
   uniform_buffer.size_with_offset
     = ((settings.number_of_cubes - 1) * uniform_buffer.offset)
       + uniform_buffer.size;
