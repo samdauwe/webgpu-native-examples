@@ -32,7 +32,7 @@ static uint64_t num_vertices = 0ull;
 static WGPUBuffer vertices_buffer = {0};
 
 // Rendering
-static WGPURenderPipeline render_pipeline;
+static WGPURenderPipeline render_pipeline = NULL;
 
 // Other variables
 static const char* example_title = "Vertex Buffer";
