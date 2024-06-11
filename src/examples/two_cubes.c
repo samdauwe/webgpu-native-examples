@@ -158,12 +158,12 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-  // Projection matrix
+  /* Projection matrix */
   glm_mat4_identity(view_matrices.projection);
   glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 100.0f,
                   view_matrices.projection);
 
-  // View matrix
+  /* View matrix */
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -7.0f});
 
@@ -174,14 +174,14 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
     cube = &cubes[i];
     x    = start_x + i * increment_x;
 
-    // Model matrices
+    /* Model matrices */
     glm_mat4_identity(cube->view_mtx.model);
     glm_translate(cube->view_mtx.model, (vec3){x, 0.0f, 0.0f});
 
-    // Model view matrices
+    /* Model view matrices */
     glm_mat4_identity(cube->view_mtx.model_view_projection);
 
-    // Temporary matrices
+    /* Temporary matrices */
     glm_mat4_identity(cube->view_mtx.tmp);
   }
 }
