@@ -258,10 +258,10 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout entries
+  /* Bind group layout entries */
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Vertex shader uniform buffer
+      /* Binding 0: Vertex shader uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -273,7 +273,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     }
   };
 
-  // Create the bind group layout
+  /* Create the bind group layout */
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                             .label      = "Bind group layout",
@@ -282,7 +282,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                           });
   ASSERT(bind_group_layout != NULL)
 
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                             .label                = "Pipeline layout",
@@ -296,7 +296,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex shader uniform buffer
+        /* Binding 0: Vertex shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffer.buffer,
         .offset  = 0,
