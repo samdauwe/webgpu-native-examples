@@ -316,7 +316,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   scene_rendering.render_pass.color_attachment[0]
     = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
@@ -331,10 +331,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   scene_rendering.render_pass.render_pass_descriptor
     = (WGPURenderPassDescriptor){
       .label                  = "Render pass descriptor",
