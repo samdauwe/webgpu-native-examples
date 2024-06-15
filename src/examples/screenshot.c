@@ -52,7 +52,7 @@ static struct scene_rendering_t {
 } scene_rendering = {0};
 
 static struct offscreen_rendering_t {
-  // Framebuffer for offscreen rendering
+  /* Framebuffer for offscreen rendering */
   struct {
     WGPUTextureFormat format;
     WGPUTexture texture;
@@ -64,7 +64,7 @@ static struct offscreen_rendering_t {
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
     WGPURenderPassDescriptor render_pass_descriptor;
   } render_pass;
-  // The pixel buffer lets us retrieve the framebuffer data as an array
+  /* The pixel buffer lets us retrieve the framebuffer data as an array */
   struct {
     wgpu_buffer_t buffer;
     bool buffer_mapped;
