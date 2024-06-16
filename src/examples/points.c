@@ -157,10 +157,10 @@ static void update_uniform_buffer_data(wgpu_example_context_t* context)
                              / (float)context->wgpu_context->surface.height;
   glm_perspective(view_info.fov, aspect_ratio, 0.1f, 50.0f,
                   view_info.projection_matrix);
-  glm_lookat(view_info.position,   // eye vector
-             view_info.target,     // center vector
-             view_info.up_vector,  // up vector
-             view_info.view_matrix // result matrix
+  glm_lookat(view_info.position,   /* eye vector    */
+             view_info.target,     /* center vector */
+             view_info.up_vector,  /* up vector     */
+             view_info.view_matrix /* result matrix */
   );
   glm_mat4_mul(view_info.projection_matrix, view_info.view_matrix,
                view_info.view_projection_matrix);
