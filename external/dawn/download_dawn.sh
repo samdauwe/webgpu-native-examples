@@ -15,6 +15,7 @@ set -e
 
 GIT_DEPOT_TOOLS_URL="https://chromium.googlesource.com/chromium/tools/depot_tools.git"
 DAWN_URL="https://dawn.googlesource.com/dawn"
+DAWN_BRANCH="chromium/6370"
 
 # Get location of the script itself
 SOURCE="${BASH_SOURCE[0]}"
@@ -83,7 +84,7 @@ pull_dawn() {
         mkdir -p "$DAWN_ROOT"
 
         echo "Pull the latest dawn code"
-        git clone $DAWN_URL $DAWN_ROOT
+        git clone -b $DAWN_BRANCH $DAWN_URL $DAWN_ROOT
     else
         echo "Change directory into dawn"
         cd "$DAWN_ROOT"
