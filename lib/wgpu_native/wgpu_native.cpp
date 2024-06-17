@@ -198,7 +198,7 @@ static WGPUSurface CreateSurface(void* display, void* window)
     return nullptr;
   }
   WGPUSurface surf = surface.Get();
-  // wgpuSurfaceReference(surf);
+  wgpuSurfaceReference(surf);
   return surf;
 }
 
