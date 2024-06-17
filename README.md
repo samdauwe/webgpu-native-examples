@@ -556,10 +556,11 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### January 2024 - ...
+### June 2024 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
+* [ ] Make wgpu_native lib compatible with latest Dawn version
 * [ ] Extend command-line options
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
