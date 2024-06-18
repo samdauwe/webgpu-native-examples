@@ -111,7 +111,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // Create position buffer
   cube.positions = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Cube position - vertex buffer",
+                    .label = "Cube position - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
                     .size  = sizeof(indexed_cube_mesh.vertex_array),
                     .initial.data = indexed_cube_mesh.vertex_array,
@@ -120,7 +120,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // Create color buffer
   cube.colors = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Cube color buffer",
+                    .label = "Cube color - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
                     .size  = sizeof(indexed_cube_mesh.color_array),
                     .initial.data = indexed_cube_mesh.color_array,
