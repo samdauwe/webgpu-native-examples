@@ -300,14 +300,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       .size    = cube.positions.size,
     },
     [2] = (WGPUBindGroupEntry) {
-      /*  Binding 2: colors */
+      /* Binding 2: colors */
       .binding = 2,
       .buffer  = cube.colors.buffer,
       .offset  = 0,
       .size    = cube.colors.size,
     },
     [3] = (WGPUBindGroupEntry) {
-      /*  Binding 3: indices */
+      /* Binding 3: indices */
       .binding = 3,
       .buffer  = cube.indices.buffer,
       .offset  = 0,
