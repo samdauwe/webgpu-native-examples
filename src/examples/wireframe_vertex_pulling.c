@@ -377,7 +377,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
          // Fragment shader WGSL
-         .label             = "Render solid mesh fragment shader",
+         .label             = "Render solid mesh fragment shader WGSL",
          .wgsl_code.source  = render_solid_mesh_wgsl,
          .entry             = "main_fragment",
        },
