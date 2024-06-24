@@ -458,11 +458,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   {
     primitive_state.topology = WGPUPrimitiveTopology_LineList;
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Vertex shader WGSL
+         /* Vertex shader WGSL */
          .label            = "Render wireframe vertex shader WGSL",
          .wgsl_code.source = render_wireframe_wgsl,
          .entry            = "main_vertex",
@@ -471,11 +471,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .buffers      = NULL,
      });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Vertex shader WGSL
+         /* Vertex shader WGSL */
          .label            = "Render wireframe fragment shader",
          .wgsl_code.source = render_wireframe_wgsl,
          .entry            = "main_fragment",
@@ -484,7 +484,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .targets      = &color_target_state,
      });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     render_pipelines[(uint32_t)RenderMode_Wireframe]
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
                                        &(WGPURenderPipelineDescriptor){
