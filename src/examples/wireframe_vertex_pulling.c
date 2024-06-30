@@ -547,6 +547,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                 .depthStencil = &depth_stencil_state,
                                 .multisample  = multisample_state,
                               });
+    ASSERT(render_pipelines[(uint32_t)RenderMode_Wireframe_Thick] != NULL);
 
     // Shader modules are no longer needed once the graphics pipeline has been
     // created
