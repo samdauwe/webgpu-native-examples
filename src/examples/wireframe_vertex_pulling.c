@@ -539,11 +539,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     render_pipelines[(uint32_t)RenderMode_Wireframe_Thick]
       = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label     = "Wireframe thick render pipeline",
-                                .layout    = pipeline_layout,
-                                .primitive = primitive_state,
-                                .vertex    = vertex_state,
-                                .fragment  = &fragment_state,
+                                .label  = "Wireframe thick - Render pipeline",
+                                .layout = pipeline_layout,
+                                .primitive    = primitive_state,
+                                .vertex       = vertex_state,
+                                .fragment     = &fragment_state,
                                 .depthStencil = &depth_stencil_state,
                                 .multisample  = multisample_state,
                               });
