@@ -207,7 +207,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
   const uint32_t blocks_high     = ceil(height / (float)block_length);
   const uint32_t bytes_per_row   = blocks_wide * bytes_per_block;
 
-  // Read volume data from file
+  /* Read volume data from file */
   {
     file_read_result_t file_read_result = {0};
     const char* data_path
@@ -222,7 +222,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
     }
   }
 
-  // Create the volume texture
+  /* Create the volume texture */
   WGPUTextureDescriptor texture_desc = {
     .label         = "Volume texture",
     .size          =   (WGPUExtent3D) {
@@ -240,7 +240,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   ASSERT(textures.volume.texture != NULL);
 
-  // Copy volume data to texture
+  /* Copy volume data to texture */
   wgpuQueueWriteTexture(wgpu_context->queue,
                         &(WGPUImageCopyTexture) {
                           .texture = textures.volume.texture,
@@ -264,7 +264,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
                           .depthOrArrayLayers = depth,
                         });
 
-  // Create a sampler with linear filtering for smooth interpolation.
+  /* Create a sampler with linear filtering for smooth interpolation. */
   textures.volume.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
                             .label         = "Volume texture sampler",
@@ -278,7 +278,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
                           });
   ASSERT(textures.volume.sampler != NULL);
 
-  // Create the texture view
+  /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
     .label           = "Volume texture view",
     .dimension       = WGPUTextureViewDimension_3D,
