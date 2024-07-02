@@ -295,22 +295,22 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Vertex shader uniform buffer
+      /* Binding 0 : Vertex shader uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
       .size    = uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1: Fragment shader image sampler
+      /* Binding 1: Fragment shader image sampler */
       .binding = 1,
       .sampler = textures.volume.sampler,
     },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2 : Fragment shader texture view
+      /* Binding 2 : Fragment shader texture view */
       .binding     = 2,
       .textureView = textures.volume.view,
     },
