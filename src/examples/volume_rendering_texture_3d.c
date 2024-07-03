@@ -162,7 +162,7 @@ static void prepare_uniform_buffer(wgpu_example_context_t* context)
 
 static void prepare_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 {
-  // Create the multi-sampled texture
+  /* Create the multi-sampled texture */
   WGPUTextureDescriptor multisampled_frame_desc = {
     .label         = "Multi-sampled texture",
     .size          = (WGPUExtent3D){
@@ -180,7 +180,7 @@ static void prepare_multisampled_framebuffer(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
   ASSERT(textures.multisampled.texture != NULL);
 
-  // Create the multi-sampled texture view
+  /* Create the multi-sampled texture view */
   textures.multisampled.framebuffer = wgpuTextureCreateView(
     textures.multisampled.texture, &(WGPUTextureViewDescriptor){
                                      .label  = "Multi-sampled texture view",
