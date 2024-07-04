@@ -410,6 +410,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                             .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
+  ASSERT(render_pipeline != NULL);
 
   // Partial cleanup
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
