@@ -101,7 +101,7 @@ static void
 get_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context,
                                          float delta_time, mat4* dest)
 {
-  // View matrix
+  /* View matrix */
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
   if (params.rotate_camera) {
@@ -110,7 +110,7 @@ get_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context,
   glm_rotate(view_matrices.view, 1.0f,
              (vec3){sin(rotation), cos(rotation), 0.0f});
 
-  // Projection matrix
+  /* Projection matrix */
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
   glm_mat4_identity(view_matrices.projection);
