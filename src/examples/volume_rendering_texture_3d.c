@@ -404,10 +404,10 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   /* Create rendering pipeline using the specified states */
   render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "volume_texture_3d_render_pipeline",
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
+                            .label     = "Volume texture 3d - Render pipeline",
+                            .primitive = primitive_state,
+                            .vertex    = vertex_state,
+                            .fragment  = &fragment_state,
                             .multisample = multisample_state,
                           });
   ASSERT(render_pipeline != NULL);
