@@ -146,7 +146,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 // Prepare and initialize uniform buffer containing shader uniforms
 static void prepare_uniform_buffer(wgpu_example_context_t* context)
 {
-  // Create vertex shader uniform buffer block
+  /* Create vertex shader uniform buffer block */
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -155,7 +155,7 @@ static void prepare_uniform_buffer(wgpu_example_context_t* context)
       .size  = sizeof(ubo_vs),
     });
 
-  // Set uniform buffer block data
+  /* Set uniform buffer block data */
   last_frame_ms = context->frame.timestamp_millis;
   update_uniform_buffers(context);
 }
