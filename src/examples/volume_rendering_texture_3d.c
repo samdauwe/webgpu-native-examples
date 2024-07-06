@@ -386,7 +386,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       /* Fragment shader WGSL */
-                      .label            = "Volume texture 3d - Fragment shader",
+                      .label            = "Volume texture 3d - Fragment shader WGSL",
                       .wgsl_code.source = volume_shader_wgsl,
                       .entry            = "fragment_main",
                     },
