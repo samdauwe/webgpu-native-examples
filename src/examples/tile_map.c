@@ -449,19 +449,19 @@ static int tile_map_renderer_draw(tile_map_renderer_t* this)
 {
   wgpu_example_context_t* context = this->wgpu_context->context;
 
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = tile_map_renderer_build_command_buffer(this);
 
-  // Submit to queue
+  /* Submit to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return EXIT_SUCCESS;
