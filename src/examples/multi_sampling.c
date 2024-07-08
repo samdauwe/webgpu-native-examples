@@ -231,7 +231,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   /* Bind group for scene matrices */
   {
     WGPUBindGroupEntry bg_entry = {
-      // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+      /* Binding 0: Uniform buffer (Vertex shader) => UBOScene */
       .binding = 0,
       .buffer  = uniform_buffer.buffer,
       .offset  = 0,
@@ -255,12 +255,12 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       if (material->base_color_texture) {
         WGPUBindGroupEntry bg_entries[2] = {
             [0] = (WGPUBindGroupEntry) {
-              // Binding 0: texture2D (Fragment shader) => Color map
+              /* Binding 0: texture2D (Fragment shader) => Color map */
               .binding     = 0,
               .textureView = material->base_color_texture->wgpu_texture.view,
             },
             [1] = (WGPUBindGroupEntry) {
-              // Binding 1: sampler (Fragment shader) => Color map
+              /* Binding 1: sampler (Fragment shader) => Color map */
               .binding = 1,
               .sampler =  material->base_color_texture->wgpu_texture.sampler,
             }
