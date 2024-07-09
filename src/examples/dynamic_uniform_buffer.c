@@ -104,7 +104,7 @@ static void setup_camera(wgpu_example_context_t* context)
 
 static void generate_cube(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices for a colored cube
+  /* Setup vertices for a colored cube */
   vertex_t vertex_buffer[8] = {
     // clang-format off
     {.pos = {-1.0f, -1.0f,  1.0f}, .color = {1.0f, 0.0f, 0.0f}},
@@ -118,7 +118,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
     // clang-format on
   };
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube vertex buffer",
@@ -128,13 +128,13 @@ static void generate_cube(wgpu_context_t* wgpu_context)
                     .initial.data = vertex_buffer,
                   });
 
-  // Setup indices for a colored cube
+  /* Setup indices for a colored cube */
   uint32_t index_buffer[36] = {
     0, 1, 2, 2, 3, 0, 1, 5, 6, 6, 2, 1, 7, 6, 5, 5, 4, 7,
     4, 0, 3, 3, 7, 4, 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3,
   };
 
-  // Create index buffer
+  /* Create index buffer */
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Index buffer",
