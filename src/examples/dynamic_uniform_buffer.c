@@ -288,8 +288,8 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label  = "Dynamic uniform buffer render pipeline",
-                            .layout = pipeline_layout,
+                            .label = "Dynamic uniform buffer - Render pipeline",
+                            .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
