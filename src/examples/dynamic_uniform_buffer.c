@@ -147,10 +147,10 @@ static void generate_cube(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : Projection/View matrix uniform buffer
+      /* Binding 0 : Projection/View matrix uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -161,7 +161,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1 : Instance matrix as dynamic uniform buffer
+      /* Binding 1 : Instance matrix as dynamic uniform buffer */
       .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -180,7 +180,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                           });
   ASSERT(bind_group_layout != NULL);
 
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                             .label                = "Pipeline layout",
