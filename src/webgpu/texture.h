@@ -85,6 +85,7 @@ typedef struct wgpu_texture_client_t {
 } wgpu_texture_client;
 
 typedef struct wgpu_texture_load_options_t {
+  const char* label;
   bool flip_y;
   bool generate_mipmaps;
   WGPUTextureUsage usage;
