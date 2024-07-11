@@ -105,6 +105,7 @@ static void prepare_planet_texture(wgpu_context_t* wgpu_context)
 {
   const char* file                                    = "textures/saturn.jpg";
   wgpu_texture_load_options wgpu_texture_load_options = {
+    .label        = "Saturn texture",
     .format       = WGPUTextureFormat_RGBA8Unorm,
     .address_mode = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                     | WGPUTextureUsage_RenderAttachment,
