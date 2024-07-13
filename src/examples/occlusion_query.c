@@ -1,531 +1,518 @@
 #include "example_base.h"
 
-#include <string.h>
-
-#include "../webgpu/gltf_model.h"
 #include "../webgpu/imgui_overlay.h"
 
 /* -------------------------------------------------------------------------- *
- * WebGPU Example - Occlusion Queries
+ * WebGPU Example - Occlusion Query
  *
- * Demonstrated how to use occlusion queries to get the number of fragment
- * samples that pass all the per-fragment tests for a set of drawing commands.
+ * This example demonstrates using Occlusion Queries.
  *
  * Ref:
- * https://github.com/SaschaWillems/Vulkan/blob/master/examples/occlusionquery/occlusionquery.cpp
+ * https://github.com/webgpu/webgpu-samples/tree/main/sample/occlusionQuery
  * -------------------------------------------------------------------------- */
 
-#define MAX_DEST_BUFFERS 1
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* solid_color_lit_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Math functions
+ * -------------------------------------------------------------------------- */
+
+static float lerp(float a, float b, float t)
+{
+  return a + (b - a) * t;
+}
+
+static void lerp_v(vec3 a, vec3 b, float t, vec3* dst)
+{
+  (*dst)[0] = lerp(a[0], b[0], t);
+  (*dst)[1] = lerp(a[1], b[1], t);
+  (*dst)[2] = lerp(a[2], b[2], t);
+}
+
+static float ping_pong_sine(float t)
+{
+  return sin(t * PI2) * 0.5f + 0.5f;
+}
+
+/**
+ * @brief Sets a matrix from a vector translation.
+ * This is equivalent to (but much faster than):
+ *
+ *     mat4.identity(dest);
+ *     mat4.translate(dest, dest, vec);
+ *
+ * @param {ReadonlyVec3} v Translation vector
+ * @param {mat4} dst mat4 receiving operation result
+ */
+static void glm_mat4_translation(vec3 v, mat4* dst)
+{
+  glm_mat4_identity(*dst);
+  (*dst)[3][0] = v[0];
+  (*dst)[3][1] = v[1];
+  (*dst)[3][2] = v[2];
+}
+
+/* -------------------------------------------------------------------------- *
+ * Occlusion Query example
+ * -------------------------------------------------------------------------- */
+
+typedef enum cube_id_t {
+  CUBE_ID_RED,
+  CUBE_ID_YELLOW,
+  CUBE_ID_GREEN,
+  CUBE_ID_ORANGE,
+  CUBE_ID_BLUE,
+  CUBE_ID_PURPLE,
+  CUBE_ID_COUNT,
+} cube_id_t;
 
 static struct {
-  struct gltf_model_t* teapot;
-  struct gltf_model_t* plane;
-  struct gltf_model_t* sphere;
-} models = {0};
-
-static struct {
-  wgpu_buffer_t teapot;
-  wgpu_buffer_t occluder;
-  wgpu_buffer_t sphere;
-} uniform_buffers = {0};
-
-static struct ubo_vs_t {
-  mat4 projection;
-  mat4 view;
-  mat4 model;
+  vec3 position;
   vec4 color;
-  vec4 light_pos;
-  float visible;
-} ubo_vs = {
-  .color     = GLM_VEC4_ZERO_INIT,
-  .light_pos = {10.0f, -10.0f, 10.0f, 1.0f},
+} cube_positions[CUBE_ID_COUNT] = {
+  // clang-format off
+  [CUBE_ID_RED]    = { .position = {-1,  0,  0}, .color = { 1,   0,   0,   1} },
+  [CUBE_ID_YELLOW] = { .position = { 1,  0,  0}, .color = { 1,   1,   0,   1} },
+  [CUBE_ID_GREEN]  = { .position = { 0, -1,  0}, .color = { 0,   0.5, 0,   1} },
+  [CUBE_ID_ORANGE] = { .position = { 0,  1,  0}, .color = { 1,   0.6, 0,   1} },
+  [CUBE_ID_BLUE]   = { .position = { 0,  0, -1}, .color = { 0,   0,   1,   1} },
+  [CUBE_ID_PURPLE] = { .position = { 0,  0,  1}, .color = { 0.5, 0,   0.5, 1} },
+  // clang-format on
+};
+
+typedef struct cube_uniform_values_t {
+  mat4 world_view_projection;
+  mat4 world_inverse_transpose;
+  vec4 color_value;
+} cube_uniform_values_t;
+
+static struct {
+  cube_id_t id;
+  vec3 position;
+  wgpu_buffer_t uniform_buffer;
+  WGPUBindGroup uniform_buffer_bind_group;
+  cube_uniform_values_t uniform_values;
+} cubes[CUBE_ID_COUNT] = {0};
+
+static struct {
+  WGPUQuerySet set;
+  WGPUBuffer resolve_buffer;
+  WGPUBuffer result_buffer;
+  size_t result_buffer_size;
+} occlusion_query = {0};
+
+static struct {
+  wgpu_buffer_t vertices;
+  wgpu_buffer_t indices;
+} buffers = {0};
+
+static struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor descriptor;
+} render_pass = {0};
+
+static WGPURenderPipeline render_pipeline = NULL;
+
+static struct {
+  float time;
+  float then;
+  vec3 lerp_a;
+  vec3 lerp_b;
+  mat4 projection;
+  mat4 m;
+  vec3 translation;
+  mat4 view;
+  mat4 view_projection;
+} render_state = {
+  .time            = 0.0f,
+  .then            = 0.0f,
+  .lerp_a          = {0.0f, 0.0f, 5.0f},
+  .lerp_b          = {0.0f, 0.0f, 40.0f},
+  .projection      = GLM_MAT4_ZERO_INIT,
+  .m               = GLM_MAT4_IDENTITY_INIT,
+  .translation     = GLM_VEC3_ZERO_INIT,
+  .view            = GLM_MAT4_ZERO_INIT,
+  .view_projection = GLM_MAT4_ZERO_INIT,
 };
 
 static struct {
-  WGPURenderPipeline solid;
-  WGPURenderPipeline occluder;
-  // Pipeline with basic shaders used for occlusion pass
-  WGPURenderPipeline simple;
-} pipelines = {0};
+  bool animate;
+} settings = {
+  .animate = true,
+};
 
-static struct {
-  WGPUBindGroup teapot;
-  WGPUBindGroup sphere;
-} bind_groups = {0};
-
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-static WGPUPipelineLayout pipeline_layout    = NULL;
-static WGPUBindGroup bind_group              = NULL;
-static WGPUBindGroupLayout bind_group_layout = NULL;
-
-static WGPUQuerySet occlusion_query_set                            = NULL;
-static WGPUBuffer occlusion_query_set_src_buffer                   = NULL;
-static WGPUBuffer occlusion_query_set_dst_buffer[MAX_DEST_BUFFERS] = {0};
-static bool dest_buffer_mapped[MAX_DEST_BUFFERS]                   = {0};
-
-// Passed query samples
-static uint64_t passed_samples[2] = {1, 1};
+static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24Plus;
+static texture_t depth_texture        = {0};
 
 // Other variables
-static const char* example_title = "Occlusion Queries";
+static const char* example_title = "Occlusion Query";
 static bool prepared             = false;
 
-static void setup_camera(wgpu_example_context_t* context)
+static void create_occlusion_query_set(wgpu_context_t* wgpu_context)
 {
-  context->camera       = camera_create();
-  context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, -7.5f});
-  camera_set_rotation(context->camera, (vec3){0.0f, -123.75f, 0.0f});
-  camera_set_rotation_speed(context->camera, 0.5f);
-  camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 1.0f, 256.0f);
-}
-
-static void load_assets(wgpu_context_t* wgpu_context)
-{
-  const uint32_t gltf_loading_flags
-    = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
-      | WGPU_GLTF_FileLoadingFlags_PreMultiplyVertexColors
-      | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
-  models.plane
-    = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
-      .wgpu_context       = wgpu_context,
-      .filename           = "models/plane_z.gltf",
-      .file_loading_flags = gltf_loading_flags,
-    });
-  models.teapot
-    = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
-      .wgpu_context       = wgpu_context,
-      .filename           = "models/teapot.gltf",
-      .file_loading_flags = gltf_loading_flags,
-    });
-  models.sphere
-    = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
-      .wgpu_context       = wgpu_context,
-      .filename           = "models/sphere.gltf",
-      .file_loading_flags = gltf_loading_flags,
-    });
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
-{
-  // Bind group layout
-  WGPUBindGroupLayoutEntry bgl_entries[1] = {
-    [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Vertex shader uniform buffer
-      .binding    = 0,
-      .visibility = WGPUShaderStage_Vertex,
-      .buffer = (WGPUBufferBindingLayout) {
-        .type             = WGPUBufferBindingType_Uniform,
-        .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(ubo_vs),
-      },
-      .sampler = {0},
-    },
-  };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Bind group layout",
-                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                            .entries    = bgl_entries,
-                          });
-  ASSERT(bind_group_layout != NULL);
-
-  // Create the pipeline layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
-                          });
-  ASSERT(pipeline_layout != NULL);
-}
-
-static void setup_bind_group(wgpu_context_t* wgpu_context)
-{
-  // Occluder (plane)
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
-        .buffer  = uniform_buffers.occluder.buffer,
-        .offset  = 0,
-        .size    = uniform_buffers.occluder.size,
-      },
-    };
-    bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Occluder bind group",
-                              .layout     = bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_group != NULL);
-  }
-
-  // Teapot
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
-        .buffer  = uniform_buffers.teapot.buffer,
-        .offset  = 0,
-        .size    = uniform_buffers.teapot.size,
-      },
-    };
-    bind_groups.teapot = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Teapot bind group",
-                              .layout     = bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_groups.teapot != NULL);
-  }
-
-  // Sphere
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex shader uniform buffer
-        .binding = 0,
-        .buffer  = uniform_buffers.sphere.buffer,
-        .offset  = 0,
-        .size    = uniform_buffers.sphere.size,
-      },
-    };
-    bind_groups.sphere = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Sphere bind group",
-                              .layout     = bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_groups.sphere != NULL);
-  }
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 0.0f,
-      },
-  };
-
-  // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  // Occlusion query set
-  occlusion_query_set = wgpuDeviceCreateQuerySet(
+  occlusion_query.set = wgpuDeviceCreateQuerySet(
     wgpu_context->device, &(WGPUQuerySetDescriptor){
                             .label = "Occlusion query set",
                             .type  = WGPUQueryType_Occlusion,
-                            .count = 2,
+                            .count = CUBE_ID_COUNT,
                           });
-
-  // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-    .occlusionQuerySet      = occlusion_query_set,
-  };
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+// Create buffers for storing the occlusion query result
+static void create_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  occlusion_query.resolve_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = "resolveBuffer",
+      /* Query results are 64bit unsigned integers.*/
+      .size  = CUBE_ID_COUNT * sizeof(size_t),
+      .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
+    });
+
+  occlusion_query.result_buffer_size = CUBE_ID_COUNT * sizeof(uint64_t);
+  occlusion_query.result_buffer      = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+           .label = "resultBuffer",
+           .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
+           .size  = occlusion_query.result_buffer_size,
+    });
+}
+
+// Prepare vertex and index buffers for an indexed triangle
+static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
+{
+  /* Cube vertices */
+  {
+    typedef struct {
+      vec3 position;
+      vec3 normal;
+    } vertex_t;
+    static const vertex_t vertex_data[24] = {
+      // clang-format off
+      // position                   normal
+      { .position = { 1,  1, -1}, .normal = { 1,  0,  0} },
+      { .position = { 1,  1,  1}, .normal = { 1,  0,  0} },
+      { .position = { 1, -1,  1}, .normal = { 1,  0,  0} },
+      { .position = { 1, -1, -1}, .normal = { 1,  0,  0} },
+      { .position = {-1,  1,  1}, .normal = {-1,  0,  0} },
+      { .position = {-1,  1, -1}, .normal = {-1,  0,  0} },
+      { .position = {-1, -1, -1}, .normal = {-1,  0,  0} },
+      { .position = {-1, -1,  1}, .normal = {-1,  0,  0} },
+      { .position = {-1,  1,  1}, .normal = { 0,  1,  0} },
+      { .position = { 1,  1,  1}, .normal = { 0,  1,  0} },
+      { .position = { 1,  1, -1}, .normal = { 0,  1,  0} },
+      { .position = {-1,  1, -1}, .normal = { 0,  1,  0} },
+      { .position = {-1, -1, -1}, .normal = { 0, -1,  0} },
+      { .position = { 1, -1, -1}, .normal = { 0, -1,  0} },
+      { .position = { 1, -1,  1}, .normal = { 0, -1,  0} },
+      { .position = {-1, -1,  1}, .normal = { 0, -1,  0} },
+      { .position = { 1,  1,  1}, .normal = { 0,  0,  1} },
+      { .position = {-1,  1,  1}, .normal = { 0,  0,  1} },
+      { .position = {-1, -1,  1}, .normal = { 0,  0,  1} },
+      { .position = { 1, -1,  1}, .normal = { 0,  0,  1} },
+      { .position = {-1,  1, -1}, .normal = { 0,  0, -1} },
+      { .position = { 1,  1, -1}, .normal = { 0,  0, -1} },
+      { .position = { 1, -1, -1}, .normal = { 0,  0, -1} },
+      { .position = {-1, -1, -1}, .normal = { 0,  0, -1} },
+      // clang-format on
+    };
+    buffers.vertices = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Vertex buffer",
+                      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+                      .size  = sizeof(vertex_data),
+                      .count = (uint32_t)ARRAY_SIZE(vertex_data),
+                      .initial.data = vertex_data,
+                    });
+  }
+
+  /* Cube indices */
+  {
+    static const uint16_t indices[36] = {
+      // clang-format off
+      0,  1,  2,  0,  2,  3, /* +x face */
+      4,  5,  6,  4,  6,  7, /* -x face */
+      8,  9, 10,  8, 10, 11, /* +y face */
+      12, 13, 14, 12, 14, 15, /* -y face */
+      16, 17, 18, 16, 18, 19, /* +z face */
+      20, 21, 22, 20, 22, 23, /* -z face */
+      // clang-format on
+    };
+    buffers.indices = wgpu_create_buffer(
+      wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Index buffer",
+                      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+                      .size  = sizeof(indices),
+                      .count = (uint32_t)ARRAY_SIZE(indices),
+                      .initial.data = indices,
+                    });
+  }
+}
+
+static void prepare_cubes(wgpu_context_t* wgpu_context)
+{
+  const uint32_t uniform_buffer_size = (2 * 16 + 3 + 1 + 4) * 4;
+  for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+    cubes[i].id        = i;
+    vec3 cube_position = {cube_positions[i].position[0] * 10.0f,
+                          cube_positions[i].position[1] * 10.0f,
+                          cube_positions[i].position[2] * 10.0f};
+    glm_vec3_copy(cube_position, cubes[i].position);
+    cubes[i].uniform_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Cube uniform buffer",
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
+                                           .size = uniform_buffer_size,
+                                         });
+    glm_vec4_copy(cube_positions[i].color, cubes[i].uniform_values.color_value);
+    cubes[i].uniform_buffer_bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor) {
+        .label      = "Uniform buffer - Bind group",
+        .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
+        .entryCount = 1,
+        .entries    = &(WGPUBindGroupEntry) {
+          .binding = 0,
+          .buffer  = cubes[i].uniform_buffer.buffer,
+          .size    = cubes[i].uniform_buffer.size,
+        },
+      }
+    );
+    ASSERT(cubes[i].uniform_buffer_bind_group != NULL);
+  }
+}
+
+static void prepare_pipeline(wgpu_context_t* wgpu_context)
+{
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+  /* Color target state */
+  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
+  // Enable depth testing so that the fragment closest to the camera is rendered
+  // in front.
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = depth_format,
       .depth_write_enabled = true,
     });
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
-  WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
-    gltf_model,
-    // Location 0: Vertex Position
-    WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Vertex normal
-    WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
-    // Location 3: Vertex color
-    WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_Color));
+  /* Vertex buffer layout */
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    cube, 6 * 4 /* 3x2 floats, 4 bytes each */,
+    /* Attribute location 0: Position */
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
+    /* Attribute location 1: Normal */
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, 12))
 
-  // Multisample state
+  /* Vertex state */
+  WGPUVertexState vertex_state = wgpu_create_vertex_state(
+    wgpu_context, &(wgpu_vertex_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      /* Vertex shader WGSL */
+                      .label            = "Cube - Vertex shader WGSL",
+                      .wgsl_code.source = solid_color_lit_shader_wgsl,
+                      .entry            = "vs",
+                    },
+                    .buffer_count = 1,
+                    .buffers = &cube_vertex_buffer_layout,
+                  });
+
+  /* Fragment state */
+  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
+    wgpu_context, &(wgpu_fragment_state_t){
+                    .shader_desc = (wgpu_shader_desc_t){
+                      /* Fragment shader WGSL */
+                      .label            = "Cube - Fragment shader WGSL",
+                      .wgsl_code.source = solid_color_lit_shader_wgsl,
+                      .entry            = "fs",
+                    },
+                    .target_count = 1,
+                    .targets = &color_target_state,
+                  });
+
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Render pipeline description
-  WGPURenderPipelineDescriptor pipeline_desc = {
-    .layout       = pipeline_layout,
-    .primitive    = primitive_state,
-    .depthStencil = &depth_stencil_state,
-    .multisample  = multisample_state,
+  /* Create rendering pipeline using the specified states */
+  render_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label        = "Cube - Render pipeline",
+                            .primitive    = primitive_state,
+                            .vertex       = vertex_state,
+                            .fragment     = &fragment_state,
+                            .depthStencil = &depth_stencil_state,
+                            .multisample  = multisample_state,
+                          });
+  ASSERT(render_pipeline != NULL);
+
+  /* Partial cleanup */
+  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
+  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+}
+
+static void setup_render_pass(void)
+{
+  /* Color attachment */
+  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+    .view       = NULL, /* Assigned later */
+    .depthSlice = ~0,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = (WGPUColor) {
+      .r = 0.5f,
+      .g = 0.5f,
+      .b = 0.5f,
+      .a = 1.0f,
+    },
   };
 
-  /* Solid rendering pipeline */
-  {
-    // Vertex state
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
-                .label = "Mesh vertex shader SPIR-V",
-                .file  = "shaders/occlusion_query/mesh.vert.spv",
-              },
-              .buffer_count = 1,
-              .buffers      = &gltf_model_vertex_buffer_layout,
-            });
+  /* Depth-stencil attachment */
+  render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
+    .view            = NULL, /* Assigned later */
+    .depthClearValue = 1.0f,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+  };
 
-    // Fragment state
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .label = "Mesh fragment shader SPIR-V",
-                .file  = "shaders/occlusion_query/mesh.frag.spv",
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
+  /* Render pass descriptor */
+  render_pass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = render_pass.color_attachments,
+    .depthStencilAttachment = &render_pass.depth_stencil_attachment,
+    .occlusionQuerySet      = occlusion_query.set,
+  };
+}
 
-    // Create solid pipeline
-    pipeline_desc.vertex   = vertex_state;
-    pipeline_desc.fragment = &fragment_state;
-    pipelines.solid
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.solid);
+static void update_view_projection_matrix(wgpu_example_context_t* context)
+{
+  const float now
+    = context->frame.timestamp_millis / 1000.0f; /* convert to seconds */
+  const float delta_time = now - render_state.then;
+  render_state.then      = now;
 
-    // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  if (settings.animate) {
+    render_state.time += delta_time;
   }
 
-  /* Basic pipeline for coloring occluded objects */
-  {
-    // Vertex state
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
-                .label = "Simple vertex shader SPIR-V",
-                .file  = "shaders/occlusion_query/simple.vert.spv",
-              },
-              .buffer_count = 1,
-              .buffers      = &gltf_model_vertex_buffer_layout,
-            });
+  wgpu_context_t* wgpu_context = context->wgpu_context;
+  const float aspect_ratio
+    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-    // Fragment state
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .label = "Simple fragment shader SPIR-V",
-                .file  = "shaders/occlusion_query/simple.frag.spv",
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
+  /* Projection matrix */
+  glm_perspective((30.0f * PI) / 180.0f, aspect_ratio, 0.5f, 100.0f,
+                  render_state.projection);
 
-    // Create solid pipeline
-    pipeline_desc.primitive.cullMode = WGPUCullMode_None;
-    pipeline_desc.vertex             = vertex_state;
-    pipeline_desc.fragment           = &fragment_state;
-    pipelines.simple
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.simple);
+  glm_mat4_identity(render_state.m);
+  glm_rotate_x(render_state.m, render_state.time, render_state.m);
+  glm_rotate_y(render_state.m, render_state.time * 0.7f, render_state.m);
+  lerp_v(render_state.lerp_a, render_state.lerp_b,
+         ping_pong_sine(render_state.time * 0.2f), &render_state.translation);
+  glm_translate(render_state.m, render_state.translation);
+  glm_mat4_inv(render_state.m, render_state.view);
+  glm_mat4_mul(render_state.projection, render_state.view,
+               render_state.view_projection);
+}
 
-    // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+static void update_cubes_inform_buffer(wgpu_example_context_t* context)
+{
+  if (!settings.animate) {
+    return;
   }
 
-  /* Visual pipeline for the occluder */
-  {
-    // Color target state
-    blend_state        = wgpu_create_blend_state(true);
-    color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
-      .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
-    };
+  /* Update view-projection matrix */
+  update_view_projection_matrix(context);
 
-    // Vertex state
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
-                .label = "Occluder vertex shader SPIR-V",
-                .file  = "shaders/occlusion_query/occluder.vert.spv",
-              },
-              .buffer_count = 1,
-              .buffers      = &gltf_model_vertex_buffer_layout,
-            });
+  /* Update uniform buffer of each cube */
+  mat4 world = GLM_MAT4_ZERO_INIT;
+  for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+    glm_mat4_translation(cubes[i].position, &world);
+    glm_mat4_inv(world, world);
+    glm_mat4_transpose_to(world,
+                          cubes[i].uniform_values.world_inverse_transpose);
+    glm_mat4_mul(render_state.view_projection, world,
+                 cubes[i].uniform_values.world_view_projection);
 
-    // Fragment state
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
-                .label = "Occluder fragment shader SPIR-V",
-                .file  = "shaders/occlusion_query/occluder.frag.spv",
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
-
-    // Create solid pipeline
-    pipeline_desc.vertex   = vertex_state;
-    pipeline_desc.fragment = &fragment_state;
-    pipelines.occluder
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(pipelines.occluder);
-
-    // Partial cleanup
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+    wgpu_queue_write_buffer(
+      context->wgpu_context, cubes[i].uniform_buffer.buffer, 0,
+      &cubes[i].uniform_values, sizeof(cube_uniform_values_t));
   }
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void create_depth_texture(wgpu_context_t* wgpu_context)
 {
-  glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
-  glm_mat4_copy(context->camera->matrices.view, ubo_vs.view);
-
-  // Occluder
-  ubo_vs.visible     = 1.0f;
-  mat4 identity_mtx  = GLM_MAT4_IDENTITY_INIT;
-  const float scale  = 6.0f;
-  identity_mtx[0][0] = scale;
-  identity_mtx[1][1] = scale;
-  identity_mtx[2][2] = scale;
-  glm_mat4_copy(identity_mtx, ubo_vs.model);
-  glm_vec4_copy((vec4){0.0f, 0.0f, 1.0f, 0.5f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          uniform_buffers.occluder.buffer, 0, &ubo_vs,
-                          uniform_buffers.occluder.size);
-
-  // Teapot
-  // Toggle color depending on visibility
-  ubo_vs.visible = (passed_samples[0] > 0) ? 1.0f : 0.0f;
-  glm_mat4_identity(identity_mtx);
-  glm_translate(identity_mtx, (vec3){0.0f, 0.0f, -3.0f});
-  glm_mat4_copy(identity_mtx, ubo_vs.model);
-  glm_vec4_copy((vec4){1.0f, 0.0f, 0.0f, 1.0f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.teapot.buffer,
-                          0, &ubo_vs, uniform_buffers.teapot.size);
-
-  // Sphere
-  // Toggle color depending on visibility
-  ubo_vs.visible = (passed_samples[1] > 0) ? 1.0f : 0.0f;
-  glm_mat4_identity(identity_mtx);
-  glm_translate(identity_mtx, (vec3){0.0f, 0.0f, 3.0f});
-  glm_mat4_copy(identity_mtx, ubo_vs.model);
-  glm_vec4_copy((vec4){0.0f, 1.0f, 0.0f, 1.0f}, ubo_vs.color);
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.sphere.buffer,
-                          0, &ubo_vs, uniform_buffers.sphere.size);
-}
-
-// Prepare and initialize uniform buffer containing shader uniforms
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
-{
-  // Vertex shader uniform buffer block
-  uniform_buffers.occluder = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Occluder uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(ubo_vs),
-    });
-
-  // Teapot
-  uniform_buffers.teapot = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Teapot uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(ubo_vs),
-    });
-
-  // Sphere
-  uniform_buffers.sphere = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Sphere uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(ubo_vs),
-    });
-
-  update_uniform_buffers(context);
-}
-
-// Create a buffers for storing the occlusion query result
-static void prepare_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
-{
-  occlusion_query_set_src_buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .label = "Occlusion query set src buffer",
-      .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
-      .size  = sizeof(passed_samples),
-      .mappedAtCreation = false,
-    });
-
-  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
-    occlusion_query_set_dst_buffer[i] = wgpuDeviceCreateBuffer(
-      wgpu_context->device,
-      &(WGPUBufferDescriptor){
-        .label            = "Occlusion query set dst buffer",
-        .usage            = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-        .size             = sizeof(passed_samples),
-        .mappedAtCreation = false,
-      });
+  if (depth_texture.texture
+      && depth_texture.size.width == (uint32_t)wgpu_context->surface.width
+      && depth_texture.size.height == (uint32_t)wgpu_context->surface.height) {
+    return;
   }
+
+  /* Create the texture  */
+  wgpu_destroy_texture(&depth_texture);
+  depth_texture.size = (WGPUExtent3D){
+    .width              = wgpu_context->surface.width,
+    .height             = wgpu_context->surface.height,
+    .depthOrArrayLayers = 1,
+  };
+  depth_texture.texture = wgpuDeviceCreateTexture(
+    wgpu_context->device, &(WGPUTextureDescriptor){
+                            .size          = depth_texture.size,
+                            .mipLevelCount = 1,
+                            .sampleCount   = 1,
+                            .dimension     = WGPUTextureDimension_2D,
+                            .format        = depth_format,
+                            .usage         = WGPUTextureUsage_RenderAttachment,
+                          });
+  ASSERT(depth_texture.texture != NULL);
+
+  /* Create the texture view */
+  depth_texture.view = wgpuTextureCreateView(
+    depth_texture.texture, &(WGPUTextureViewDescriptor){
+                             .dimension       = WGPUTextureViewDimension_2D,
+                             .format          = depth_format,
+                             .baseMipLevel    = 0,
+                             .mipLevelCount   = 1,
+                             .baseArrayLayer  = 0,
+                             .arrayLayerCount = 1,
+                             .aspect          = WGPUTextureAspect_All,
+                           });
+  ASSERT(depth_texture.view != NULL);
 }
 
 static int example_initialize(wgpu_example_context_t* context)
 {
   if (context) {
-    setup_camera(context);
-    load_assets(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    prepare_occlusion_query_set_buffers(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_bind_group(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
+    prepare_pipeline(context->wgpu_context);
+    prepare_cubes(context->wgpu_context);
+    create_occlusion_query_set(context->wgpu_context);
+    create_occlusion_query_set_buffers(context->wgpu_context);
+    prepare_vertex_and_index_buffers(context->wgpu_context);
+    setup_render_pass();
     prepared = true;
     return EXIT_SUCCESS;
   }
@@ -533,28 +520,68 @@ static int example_initialize(wgpu_example_context_t* context)
   return EXIT_FAILURE;
 }
 
-static int32_t get_unmapped_dest_buffer_index(void)
+static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
-  int32_t index = -1;
-  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
-    if (!dest_buffer_mapped[i]) {
-      index = i;
-      break;
-    }
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_checkBox(context->imgui_overlay, "Animate",
+                           &settings.animate);
   }
-  return index;
 }
 
-static int32_t get_mapped_dest_buffer_index(void)
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  int32_t index = -1;
-  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
-    if (dest_buffer_mapped[i]) {
-      index = i;
-      break;
-    }
+  // Set color and depth-stencil attachments
+  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  create_depth_texture(wgpu_context);
+  render_pass.depth_stencil_attachment.view = depth_texture.view;
+
+  // Create command encoder and render pass encoder
+  wgpu_context->cmd_enc
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    wgpu_context->cmd_enc, &render_pass.descriptor);
+
+  // Draw cubes
+  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    wgpu_context->rpass_enc, 0, buffers.vertices.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    wgpu_context->rpass_enc, buffers.indices.buffer, WGPUIndexFormat_Uint16, 0,
+    WGPU_WHOLE_SIZE);
+
+  for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
+                                      cubes[i].uniform_buffer_bind_group, 0, 0);
+    wgpuRenderPassEncoderBeginOcclusionQuery(wgpu_context->rpass_enc, i);
+    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
+                                     buffers.indices.count, 1, 0, 0, 0);
+    wgpuRenderPassEncoderEndOcclusionQuery(wgpu_context->rpass_enc);
   }
-  return index;
+
+  /* End render pass */
+  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+
+  /* Draw ui overlay */
+  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+
+  /* Resolve query set */
+  wgpuCommandEncoderResolveQuerySet(wgpu_context->cmd_enc, occlusion_query.set,
+                                    0, CUBE_ID_COUNT,
+                                    occlusion_query.resolve_buffer, 0);
+  if (wgpuBufferGetMapState(occlusion_query.result_buffer)
+      == WGPUBufferMapState_Unmapped) {
+    wgpuCommandEncoderCopyBufferToBuffer(
+      wgpu_context->cmd_enc, occlusion_query.resolve_buffer, 0,
+      occlusion_query.result_buffer, 0, occlusion_query.result_buffer_size);
+  }
+
+  /* Get command buffer */
+  WGPUCommandBuffer command_buffer
+    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+
+  return command_buffer;
 }
 
 static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
@@ -562,166 +589,45 @@ static void read_buffer_map_cb(WGPUBufferMapAsyncStatus status, void* user_data)
   UNUSED_VAR(user_data);
 
   if (status == WGPUBufferMapAsyncStatus_Success) {
-    int32_t mapped_dest_buffer_index = get_mapped_dest_buffer_index();
-    uint64_t const* mapping          = (uint64_t*)wgpuBufferGetConstMappedRange(
-      occlusion_query_set_dst_buffer[mapped_dest_buffer_index], 0,
-      sizeof(passed_samples));
+    uint64_t const* mapping = (uint64_t*)wgpuBufferGetConstMappedRange(
+      occlusion_query.result_buffer, 0, occlusion_query.result_buffer_size);
     ASSERT(mapping)
-    memcpy(passed_samples, mapping, sizeof(passed_samples));
-    wgpuBufferUnmap(occlusion_query_set_dst_buffer[mapped_dest_buffer_index]);
-    dest_buffer_mapped[(uint64_t)mapped_dest_buffer_index] = false;
+    for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+      printf("%lu ", mapping[i]);
+    }
+    printf("\n");
+    wgpuBufferUnmap(occlusion_query.result_buffer);
   }
 }
 
-// Retrieves the results of the occlusion queries submitted to the command
-// buffer
 static void get_occlusion_query_results(void)
 {
-  int32_t unmapped_dest_buffer_index = get_unmapped_dest_buffer_index();
-  if (unmapped_dest_buffer_index != -1) {
-    dest_buffer_mapped[(uint64_t)unmapped_dest_buffer_index] = true;
-    wgpuBufferMapAsync(
-      occlusion_query_set_dst_buffer[(uint64_t)unmapped_dest_buffer_index],
-      WGPUMapMode_Read, 0, sizeof(passed_samples), read_buffer_map_cb, NULL);
+  if (wgpuBufferGetMapState(occlusion_query.result_buffer)
+      == WGPUBufferMapState_Unmapped) {
+    wgpuBufferMapAsync(occlusion_query.result_buffer, WGPUMapMode_Read, 0,
+                       occlusion_query.result_buffer_size, read_buffer_map_cb,
+                       NULL);
   }
-}
-
-static WGPUCommandBuffer resolve_query_set(wgpu_context_t* wgpu_context)
-{
-  // Create command encoder
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  // Resolve occlusion queries
-  wgpuCommandEncoderResolveQuerySet(wgpu_context->cmd_enc, occlusion_query_set,
-                                    0, (uint32_t)ARRAY_SIZE(passed_samples),
-                                    occlusion_query_set_src_buffer, 0);
-
-  int32_t unmapped_dest_buffer_index = get_unmapped_dest_buffer_index();
-  if (unmapped_dest_buffer_index != -1) {
-    // Copy occlusion query result to destination buffer
-    wgpuCommandEncoderCopyBufferToBuffer(
-      wgpu_context->cmd_enc, occlusion_query_set_src_buffer, 0,
-      occlusion_query_set_dst_buffer[(uint64_t)unmapped_dest_buffer_index], 0,
-      sizeof(passed_samples));
-  }
-
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
-  if (imgui_overlay_header("Occlusion query results")) {
-    imgui_overlay_text("Teapot: %d samples passed", passed_samples[0]);
-    imgui_overlay_text("Sphere: %d samples passed", passed_samples[1]);
-  }
-}
-
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
-
-  // Create command encoder
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  // Create render pass encoder for encoding drawing commands
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
-
-  // Set viewport
-  wgpuRenderPassEncoderSetViewport(
-    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-    (float)wgpu_context->surface.height, 0.0f, 1.0f);
-
-  // Set scissor rectangle
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
-
-  // Occlusion pass
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.simple);
-
-  // Occluder first
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                    0);
-  wgpu_gltf_model_draw(models.plane, (wgpu_gltf_model_render_options_t){0});
-
-  // Teapot
-  wgpuRenderPassEncoderBeginOcclusionQuery(wgpu_context->rpass_enc, 0);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.teapot, 0, 0);
-  wgpu_gltf_model_draw(models.teapot, (wgpu_gltf_model_render_options_t){0});
-  wgpuRenderPassEncoderEndOcclusionQuery(wgpu_context->rpass_enc);
-
-  // Sphere
-  wgpuRenderPassEncoderBeginOcclusionQuery(wgpu_context->rpass_enc, 1);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.sphere, 0, 0);
-  wgpu_gltf_model_draw(models.sphere, (wgpu_gltf_model_render_options_t){0});
-  wgpuRenderPassEncoderEndOcclusionQuery(wgpu_context->rpass_enc);
-
-  // Visible pass
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.solid);
-
-  // Teapot
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.teapot, 0, 0);
-  wgpu_gltf_model_draw(models.teapot, (wgpu_gltf_model_render_options_t){0});
-
-  // Sphere
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.sphere, 0, 0);
-  wgpu_gltf_model_draw(models.sphere, (wgpu_gltf_model_render_options_t){0});
-
-  // Occluder
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipelines.occluder);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                    0);
-  wgpu_gltf_model_draw(models.plane, (wgpu_gltf_model_render_options_t){0});
-
-  // End render pass
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  // Draw ui overlay
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
 }
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 2;
+  wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
-  wgpu_context->submit_info.command_buffers[1]
-    = resolve_query_set(context->wgpu_context);
 
-  // Submit to queue
+  /* Submit command buffers to queue */
   submit_command_buffers(context);
 
-  // Read query results for displaying in next frame
+  /* Map and read results buffer */
   get_occlusion_query_results();
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return EXIT_SUCCESS;
@@ -732,46 +638,29 @@ static int example_render(wgpu_example_context_t* context)
   if (!prepared) {
     return EXIT_FAILURE;
   }
+  update_cubes_inform_buffer(context);
   return example_draw(context);
-}
-
-static void example_on_view_changed(wgpu_example_context_t* context)
-{
-  update_uniform_buffers(context);
 }
 
 static void example_destroy(wgpu_example_context_t* context)
 {
-  camera_release(context->camera);
+  UNUSED_VAR(context);
 
-  wgpu_gltf_model_destroy(models.teapot);
-  wgpu_gltf_model_destroy(models.plane);
-  wgpu_gltf_model_destroy(models.sphere);
-
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.teapot.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.occluder.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.sphere.buffer)
-
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.solid);
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.occluder)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.simple)
-
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.teapot)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.sphere)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
-
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-
-  WGPU_RELEASE_RESOURCE(QuerySet, occlusion_query_set)
-  WGPU_RELEASE_RESOURCE(Buffer, occlusion_query_set_src_buffer)
-  for (uint32_t i = 0; i < (uint32_t)MAX_DEST_BUFFERS; ++i) {
-    if (dest_buffer_mapped[i]) {
-      wgpuBufferUnmap(occlusion_query_set_dst_buffer[i]);
-      dest_buffer_mapped[i] = false;
-    }
-    WGPU_RELEASE_RESOURCE(Buffer, occlusion_query_set_dst_buffer[i])
+  for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+    wgpu_destroy_buffer(&cubes[i].uniform_buffer);
+    WGPU_RELEASE_RESOURCE(BindGroup, cubes[i].uniform_buffer_bind_group)
   }
+
+  WGPU_RELEASE_RESOURCE(QuerySet, occlusion_query.set)
+  WGPU_RELEASE_RESOURCE(Buffer, occlusion_query.resolve_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, occlusion_query.result_buffer);
+
+  wgpu_destroy_buffer(&buffers.vertices);
+  wgpu_destroy_buffer(&buffers.indices);
+
+  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline);
+
+  wgpu_destroy_texture(&depth_texture);
 }
 
 void example_occlusion_query(int argc, char* argv[])
@@ -783,10 +672,48 @@ void example_occlusion_query(int argc, char* argv[])
       .overlay = true,
       .vsync   = true,
     },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
+    .example_initialize_func = &example_initialize,
+    .example_render_func     = &example_render,
+    .example_destroy_func    = &example_destroy,
   });
   // clang-format on
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* solid_color_lit_shader_wgsl = CODE(
+  struct Uniforms {
+    worldViewProjectionMatrix: mat4x4f,
+    worldMatrix: mat4x4f,
+    color: vec4f,
+  };
+
+  struct Vertex {
+    @location(0) position: vec4f,
+    @location(1) normal: vec3f,
+  };
+
+  struct VSOut {
+    @builtin(position) position: vec4f,
+    @location(0) normal: vec3f,
+  };
+
+  @group(0) @binding(0) var<uniform> uni: Uniforms;
+
+  @vertex fn vs(vin: Vertex) -> VSOut {
+    var vOut: VSOut;
+    vOut.position = uni.worldViewProjectionMatrix * vin.position;
+    vOut.normal = (uni.worldMatrix * vec4f(vin.normal, 0)).xyz;
+    return vOut;
+  }
+
+  @fragment fn fs(vin: VSOut) -> @location(0) vec4f {
+    let lightDirection = normalize(vec3f(4, 10, 6));
+    let light = dot(normalize(vin.normal), lightDirection) * 0.5 + 0.5;
+    return vec4f(uni.color.rgb * light, uni.color.a);
+  }
+);
+// clang-format on

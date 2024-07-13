@@ -343,7 +343,7 @@ Uses the instancing feature for rendering (many) instances of the same mesh from
 
 #### [Occlusion queries](src/examples/occlusion_query.c)
 
-Demonstrated how to use occlusion queries to get the number of fragment samples that pass all the per-fragment tests for a set of drawing commands.
+This example demonstrates using Occlusion Queries.
 
 #### [Render bundles](src/examples/render_bundles.c)
 
