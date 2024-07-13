@@ -84,7 +84,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
         .size          = (WGPUExtent3D) {
           .width               = texture.size.width,
           .height              = texture.size.height,
-          .depthOrArrayLayers  = texture.size.depth,
+          .depthOrArrayLayers  = texture.size.depthOrArrayLayers,
         },
         .format        = texture.format,
         .mipLevelCount = 1,

@@ -2055,12 +2055,12 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
              | WGPUTextureUsage_TextureBinding,
   };
   *frame_buffer = (texture_t){
-    .size.width      = texture_extent.width,
-    .size.height     = texture_extent.height,
-    .size.depth      = texture_extent.depthOrArrayLayers,
-    .mip_level_count = texture_desc.mipLevelCount,
-    .format          = texture_desc.format,
-    .dimension       = texture_desc.dimension,
+    .size.width              = texture_extent.width,
+    .size.height             = texture_extent.height,
+    .size.depthOrArrayLayers = texture_extent.depthOrArrayLayers,
+    .mip_level_count         = texture_desc.mipLevelCount,
+    .format                  = texture_desc.format,
+    .dimension               = texture_desc.dimension,
     .texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc),
   };
   ASSERT(frame_buffer->texture != NULL);

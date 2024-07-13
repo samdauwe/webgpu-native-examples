@@ -10,11 +10,7 @@ typedef enum color_space_enum_t {
 } color_space_enum_t;
 
 typedef struct texture_t {
-  struct {
-    uint32_t width;
-    uint32_t height;
-    uint32_t depth;
-  } size;
+  WGPUExtent3D size;
   uint32_t mip_level_count;
   WGPUTextureFormat format;
   WGPUTextureDimension dimension;

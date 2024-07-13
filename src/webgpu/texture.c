@@ -1415,9 +1415,9 @@ wgpu_create_texture(wgpu_context_t* wgpu_context,
 
   return (texture_t){
     .size = {
-      .width  = texture_result->width,
-      .height = texture_result->height,
-      .depth  = texture_result->depth,
+      .width               = texture_result->width,
+      .height              = texture_result->height,
+      .depthOrArrayLayers  = texture_result->depth,
     },
     .mip_level_count = texture_result->mip_level_count,
     .format          = texture_result->format,
@@ -1624,9 +1624,9 @@ texture_t wgpu_create_empty_texture(wgpu_context_t* wgpu_context)
 
   return (texture_t){
     .size = {
-      .width  = texture_size.width,
-      .height = texture_size.height,
-      .depth  = texture_size.depthOrArrayLayers,
+      .width               = texture_size.width,
+      .height              = texture_size.height,
+      .depthOrArrayLayers  = texture_size.depthOrArrayLayers,
     },
     .mip_level_count = texture_desc.mipLevelCount,
     .format          = texture_desc.format,

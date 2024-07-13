@@ -113,11 +113,11 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
                                    WGPUTextureFormat format)
 {
   // Prepare blit target texture
-  tex->size.width      = width;
-  tex->size.height     = height;
-  tex->size.depth      = 1;
-  tex->mip_level_count = 1;
-  tex->format          = format;
+  tex->size.width              = width;
+  tex->size.height             = height;
+  tex->size.depthOrArrayLayers = 1;
+  tex->mip_level_count         = 1;
+  tex->format                  = format;
 
   tex->texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
@@ -128,7 +128,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
       .size          = (WGPUExtent3D){
         .width               = tex->size.width,
         .height              = tex->size.height,
-        .depthOrArrayLayers  = tex->size.depth,
+        .depthOrArrayLayers  = tex->size.depthOrArrayLayers,
       },
       .format        = tex->format,
       .mipLevelCount = tex->mip_level_count,
