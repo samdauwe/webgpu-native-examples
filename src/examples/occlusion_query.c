@@ -169,7 +169,7 @@ static void create_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
   occlusion_query.resolve_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = "resolveBuffer",
+      .label = "Query set - resolve buffer",
       /* Query results are 64bit unsigned integers.*/
       .size  = CUBE_ID_COUNT * sizeof(size_t),
       .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
