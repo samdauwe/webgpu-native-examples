@@ -412,7 +412,7 @@ static void setup_render_pass(void)
 static void update_view_projection_matrix(wgpu_example_context_t* context)
 {
   const float now
-    = context->frame.timestamp_millis / 1000.0f; /* convert to seconds */
+    = context->frame.timestamp_millis / 1000.0f; /* Convert to seconds */
   const float delta_time = now - render_state.then;
   render_state.then      = now;
 
