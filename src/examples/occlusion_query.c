@@ -237,9 +237,9 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   {
     static const uint16_t indices[36] = {
       // clang-format off
-      0,  1,  2,  0,  2,  3, /* +x face */
-      4,  5,  6,  4,  6,  7, /* -x face */
-      8,  9, 10,  8, 10, 11, /* +y face */
+       0,  1,  2,  0,  2,  3, /* +x face */
+       4,  5,  6,  4,  6,  7, /* -x face */
+       8,  9, 10,  8, 10, 11, /* +y face */
       12, 13, 14, 12, 14, 15, /* -y face */
       16, 17, 18, 16, 18, 19, /* +z face */
       20, 21, 22, 20, 22, 23, /* -z face */
