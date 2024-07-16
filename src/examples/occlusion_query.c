@@ -532,18 +532,18 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set color and depth-stencil attachments
+  /* Set color and depth-stencil attachments */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
   create_depth_texture(wgpu_context);
   render_pass.depth_stencil_attachment.view = depth_texture.view;
 
-  // Create command encoder and render pass encoder
+  /* Create command encoder and render pass encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Draw cubes
+  /* Draw cubes */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(
     wgpu_context->rpass_enc, 0, buffers.vertices.buffer, 0, WGPU_WHOLE_SIZE);
