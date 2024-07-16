@@ -481,6 +481,7 @@ static void create_depth_texture(wgpu_context_t* wgpu_context)
   };
   depth_texture.texture = wgpuDeviceCreateTexture(
     wgpu_context->device, &(WGPUTextureDescriptor){
+                            .label         = "Depth texture",
                             .size          = depth_texture.size,
                             .mipLevelCount = 1,
                             .sampleCount   = 1,
