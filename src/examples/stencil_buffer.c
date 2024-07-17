@@ -133,7 +133,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -147,14 +147,14 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Set clear sample for this example
+  /* Set clear sample for this example */
   wgpu_context->depth_stencil.att_desc.depthClearValue   = 1.0f;
   wgpu_context->depth_stencil.att_desc.stencilClearValue = 1;
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
