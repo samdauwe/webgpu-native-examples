@@ -488,6 +488,7 @@ void example_stencil_buffer(int argc, char* argv[])
     .example_settings = (wgpu_example_settings_t){
       .title   = example_title,
       .overlay = true,
+      .vsync   = true,
     },
     .example_initialize_func      = &example_initialize,
     .example_render_func          = &example_render,
