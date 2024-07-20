@@ -364,7 +364,7 @@ static int example_initialize(wgpu_example_context_t* context)
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_input_float(context->imgui_overlay, "Outline width",
+    if (imgui_overlay_input_float(context->imgui_overlay, "Outline Width",
                                   &ubo_vs.outline_width, 0.05f, "%.2f")) {
       update_uniform_buffers(context);
     }
