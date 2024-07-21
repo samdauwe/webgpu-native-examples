@@ -264,7 +264,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -278,13 +278,13 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context,
                           &(struct deph_stencil_texture_creation_options_t){
                             .format = WGPUTextureFormat_Depth32Float,
                           });
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass_desc = (WGPURenderPassDescriptor){
     .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
