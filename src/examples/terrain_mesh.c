@@ -223,7 +223,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
   // Create index buffer
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Terrain mesh index buffer",
+                    .label = "Terrain mesh - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(indices_data),
                     .count = (uint32_t)ARRAY_SIZE(indices_data),
