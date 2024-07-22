@@ -254,8 +254,6 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
-
   /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
