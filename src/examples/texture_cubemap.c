@@ -192,19 +192,19 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Vertex shader uniform buffer
+        /* Binding 0 : Vertex shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffers.object.buffer,
         .offset  = 0,
         .size    = uniform_buffers.object.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image view
+        /* Binding 1: Fragment shader image view */
         .binding     = 1,
         .textureView = cube_map.view
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding = 2,
         .sampler = cube_map.sampler,
       },
@@ -225,19 +225,19 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Vertex shader uniform buffer
+        /* Binding 0 : Vertex shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffers.skybox.buffer,
         .offset  = 0,
         .size    = uniform_buffers.skybox.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image view
+        /* Binding 1: Fragment shader image view */
         .binding     = 1,
         .textureView = cube_map.view
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding = 2,
         .sampler = cube_map.sampler,
       },
