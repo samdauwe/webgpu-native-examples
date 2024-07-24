@@ -272,7 +272,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   /* Create index buffer */
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane mesh index buffer",
+                    .label = "Plane mesh - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = plane_mesh.index_count * sizeof(uint32_t),
                     .count = plane_mesh.index_count,
