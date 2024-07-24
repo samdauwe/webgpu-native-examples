@@ -256,10 +256,10 @@ static void prepare_plane_mesh(void)
                                });
 }
 
-// Prepare vertex and index buffers for an indexed plane mesh
+/* Prepare vertex and index buffers for an indexed plane mesh */
 static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane mesh - Vertex buffer",
@@ -269,7 +269,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
                     .initial.data = plane_mesh.vertices,
                   });
 
-  // Create index buffer
+  /* Create index buffer */
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane mesh index buffer",
