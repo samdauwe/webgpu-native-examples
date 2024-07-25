@@ -592,7 +592,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
-              .label            = "Write GBuffers vertex shader WGSL",
+              .label            = "Write GBuffers - Vertex shader WGSL",
               .wgsl_code.source = vertex_write_gbuffers_wgsl,
               .entry            = "main",
             },
