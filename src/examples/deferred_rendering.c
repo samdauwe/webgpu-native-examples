@@ -502,7 +502,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
 
 static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
 {
-  // Write GBuffers pipeline layout
+  /* Write GBuffers pipeline layout */
   {
     write_gbuffers_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
@@ -514,10 +514,10 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     ASSERT(write_gbuffers_pipeline_layout != NULL);
   }
 
-  // GBuffers debug view pipeline layout
+  /* GBuffers debug view pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[1] = {
-      gbuffer_textures_bind_group_layout, // set 0
+      gbuffer_textures_bind_group_layout, /* set 0 */
     };
     gbuffers_debug_view_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
@@ -529,11 +529,11 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     ASSERT(gbuffers_debug_view_pipeline_layout != NULL);
   }
 
-  // Deferred render pipeline layout
+  /* Deferred render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      gbuffer_textures_bind_group_layout, // set 0
-      lights.buffer_bind_group_layout,    // set 1
+      gbuffer_textures_bind_group_layout, /* set 0 */
+      lights.buffer_bind_group_layout,    /* set 1 */
     };
     deferred_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
