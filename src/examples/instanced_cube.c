@@ -199,7 +199,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
   // instance.
   uniform_buffer.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Camera view matrices uniform buffer",
+                    .label = "Camera view matrices - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = uniform_buffer_size,
                   });
