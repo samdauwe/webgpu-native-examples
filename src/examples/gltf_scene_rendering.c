@@ -361,7 +361,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader SPIR-V
-              .label = "glTF scene rendering vertex shader",
+              .label = "glTF scene rendering vertex shader SPIR-V",
               .file  = "shaders/gltf_scene_rendering/scene.vert.spv",
             },
             .buffer_count = 1,
