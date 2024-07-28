@@ -430,7 +430,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Scene uniform buffer
+  /* Scene uniform buffer */
   {
     ubo_buffers.ubo_scene = wgpu_create_buffer(
       context->wgpu_context,
@@ -442,7 +442,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
     update_uniform_buffers(context);
   }
 
-  // Material constants uniform buffer
+  /* Material constants uniform buffer */
   {
     wgpu_gltf_materials_t materials = wgpu_gltf_model_get_materials(gltf_model);
     ubo_buffers.ubo_material_consts.buffer_count = materials.material_count;
