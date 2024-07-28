@@ -122,7 +122,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .texture = {0},
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Mesh matrix bind group layout",
+      .label      = "Mesh matrix - Bind group layout",
       .entryCount = 1,
       .entries    = &bgl_entry,
     };
