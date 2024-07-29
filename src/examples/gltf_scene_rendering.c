@@ -100,7 +100,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Scene data bind group layout",
+      .label      = "Scene data - Bind group layout",
       .entryCount = 1,
       .entries    = &bgl_entry,
     };
