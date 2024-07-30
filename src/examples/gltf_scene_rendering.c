@@ -249,27 +249,27 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       if (material->base_color_texture && material->normal_texture) {
         WGPUBindGroupEntry bg_entries[5] = {
             [0] = (WGPUBindGroupEntry) {
-              // Binding 0: texture2D (Fragment shader) => Color map
+              /* Binding 0: texture2D (Fragment shader) => Color map */
               .binding     = 0,
               .textureView = material->base_color_texture->wgpu_texture.view,
             },
             [1] = (WGPUBindGroupEntry) {
-              // Binding 1: sampler (Fragment shader) => Color map
+              /* Binding 1: sampler (Fragment shader) => Color map */
               .binding = 1,
               .sampler = material->base_color_texture->wgpu_texture.sampler,
             },
             [2] = (WGPUBindGroupEntry) {
-              // Binding 2: texture2D (Fragment shader) => Normal map
+              /* Binding 2: texture2D (Fragment shader) => Normal map */
               .binding     = 2,
               .textureView = material->normal_texture->wgpu_texture.view,
             },
             [3] = (WGPUBindGroupEntry) {
-              // Binding 3: sampler (Fragment shader) => Normal map
+              /* Binding 3: sampler (Fragment shader) => Normal map */
               .binding = 3,
               .sampler =  material->normal_texture->wgpu_texture.sampler,
             },
             [4] = (WGPUBindGroupEntry) {
-              // Binding 4: Uniform buffer (Fragment shader) => MaterialConsts
+              /* Binding 4: Uniform buffer (Fragment shader) => MaterialConsts */
               .binding = 4,
               .buffer  = ubo_buffers.ubo_material_consts.buffers[i],
               .offset  = 0,
