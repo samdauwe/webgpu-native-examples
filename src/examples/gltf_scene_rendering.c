@@ -227,7 +227,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.ubo_scene = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Scene matrices bind group",
+                              .label      = "Scene matrices - Bind group",
                               .layout     = bind_group_layouts.ubo_scene,
                               .entryCount = 1,
                               .entries    = &bg_entry,
