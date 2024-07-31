@@ -216,10 +216,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind group for scene matrices
+  /* Bind group for scene matrices */
   {
     WGPUBindGroupEntry bg_entry = {
-      // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+      /* Binding 0: Uniform buffer (Vertex shader) => UBOScene */
       .binding = 0,
       .buffer  = ubo_buffers.ubo_scene.buffer,
       .offset  = 0,
@@ -235,13 +235,13 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.ubo_scene != NULL)
   }
 
-  // Bind group for glTF model meshes
+  /* Bind group for glTF model meshes */
   {
     wgpu_gltf_model_prepare_nodes_bind_group(gltf_model,
                                              bind_group_layouts.ubo_primitive);
   }
 
-  // Bind group for materials
+  /* Bind group for materials */
   {
     wgpu_gltf_materials_t materials = wgpu_gltf_model_get_materials(gltf_model);
     for (uint32_t i = 0; i < materials.material_count; ++i) {
