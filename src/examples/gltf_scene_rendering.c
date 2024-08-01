@@ -320,14 +320,14 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -335,32 +335,32 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     gltf_scene,
-    // Location 0: Position
+    /* Location 0: Position */
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Vertex normal
+    /* Location 1: Vertex normal */
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
-    // Location 2: Texture coordinates
+    /* Location 2: Texture coordinates */
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV),
-    // Location 3: Vertex color
+    /* Location 3: Vertex color */
     WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Color),
-    // Location 4: Vertex tangent
+    /* Location 4: Vertex tangent */
     WGPU_GLTF_VERTATTR_DESC(4, WGPU_GLTF_VertexComponent_Tangent));
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
+              /* Vertex shader SPIR-V */
               .label = "glTF scene rendering - Vertex shader SPIR-V",
               .file  = "shaders/gltf_scene_rendering/scene.vert.spv",
             },
@@ -368,11 +368,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = &gltf_scene_vertex_buffer_layout,
           });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              /* Fragment shader SPIR-V */
               .label = "glTF scene rendering fragment shader SPIR-V",
               .file  = "shaders/gltf_scene_rendering/scene.frag.spv",
             },
@@ -380,14 +380,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets      = &color_target_state,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Render pipeline descriptor
+  /* Render pipeline descriptor */
   WGPURenderPipelineDescriptor render_pipeline_descriptor = {
     .label        = "glTF scene - Rendering pipeline",
     .layout       = pipeline_layout,
@@ -403,7 +403,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   wgpu_gltf_materials_t materials = wgpu_gltf_model_get_materials(gltf_model);
   for (uint32_t i = 0; i < materials.material_count; ++i) {
     wgpu_gltf_material_t* material = &materials.materials[i];
-    // For double sided materials, culling will be disabled
+    /* For double sided materials, culling will be disabled */
     WGPUPrimitiveState* primitive_desc = &render_pipeline_descriptor.primitive;
     primitive_desc->cullMode
       = material->double_sided ? WGPUCullMode_None : WGPUCullMode_Back;
