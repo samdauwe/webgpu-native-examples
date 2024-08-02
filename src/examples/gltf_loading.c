@@ -890,7 +890,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group for uniform UBOScene
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "UBOScene uniform bind group layout",
+      .label      = "UBOScene uniform - Bind group layout",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => UBOScene
