@@ -1169,9 +1169,9 @@ static void example_on_view_changed(wgpu_example_context_t* context)
   update_uniform_buffers(context);
 }
 
+/* Clean up used WebGPU resources */
 static void example_destroy(wgpu_example_context_t* context)
 {
-  // Clean up used WebGPU resources
   camera_release(context->camera);
   gltf_model_destroy(gltf_model);
   WGPU_RELEASE_RESOURCE(Buffer, scene_uniform_buffer)
