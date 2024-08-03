@@ -217,7 +217,7 @@ static struct {
 static WGPUPipelineLayout pipeline_layout = NULL; // solid pipeline layout
 
 // Pipeline
-static WGPURenderPipeline render_pipeline = NULL; // solid
+static WGPURenderPipeline render_pipeline = NULL; // solid render pipeline
 
 // Render pass descriptor for frame buffer writes
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
