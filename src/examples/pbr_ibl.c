@@ -430,7 +430,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = "Skybox pipeline layout",
+                              .label = "Skybox - Pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.skybox,
                             });
