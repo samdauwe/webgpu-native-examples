@@ -543,7 +543,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
 
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Skybox bind group",
+      .label      = "Skybox - Bind group",
       .layout     = bind_group_layouts.skybox,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
