@@ -584,16 +584,16 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Construct the different states making up the pipeline
+  /* Construct the different states making up the pipeline */
 
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -601,40 +601,40 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     skybox,
-    // Location 0: Position
+    /* Location 0: Position */
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Vertex normal
+    /* Location 1: Vertex normal */
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
-    // Location 2: UV
+    /* Location 2: UV */
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV));
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Skybox pipeline (background cube)
+  /* Skybox pipeline (background cube) */
   {
     primitive_state.cullMode              = WGPUCullMode_Front;
     depth_stencil_state.depthWriteEnabled = false;
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              /* Vertex shader WGSL */
               .label            = "Skybox - Vertex shader WGSL",
               .wgsl_code.source = skybox_vertex_shader_wgsl,
               .entry            = "main",
@@ -643,11 +643,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = &skybox_vertex_buffer_layout,
           });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "Skybox - Fragment shader WGSL",
               .wgsl_code.source = skybox_fragment_shader_wgsl,
               .entry            = "main",
@@ -656,7 +656,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets      = &color_target_state,
           });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     pipelines.skybox = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "Skybox - Render pipeline",
@@ -669,23 +669,23 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             });
     ASSERT(pipelines.skybox != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
 
-  // PBR pipeline
+  /* PBR pipeline */
   {
     primitive_state.cullMode = WGPUCullMode_None;
 
-    // Enable depth write
+    /* Enable depth write */
     depth_stencil_state.depthWriteEnabled = true;
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              /* Vertex shader WGSL */
               .label            = "PBR IBL vertex shader",
               .wgsl_code.source = pbr_ibl_vertex_shader_wgsl,
               .entry            = "main",
@@ -694,14 +694,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = &skybox_vertex_buffer_layout,
           });
 
-    // Fragment state
+    /* Fragment state */
     char* fragment_shader_wgsl
       = concat_strings(pbr_ibl_functions_fragment_shader_wgsl,
                        pbr_ibl_main_fragment_shader_wgsl, "\n");
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "PBR IBL fragment shader",
               .wgsl_code.source = fragment_shader_wgsl,
               .entry            = "main",
@@ -711,7 +711,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
           });
     free(fragment_shader_wgsl);
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     pipelines.pbr = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "PBR render pipeline",
@@ -724,7 +724,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             });
     ASSERT(pipelines.pbr != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
