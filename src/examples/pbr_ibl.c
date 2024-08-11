@@ -714,7 +714,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     /* Create rendering pipeline using the specified states */
     pipelines.pbr = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "PBR render pipeline",
+                              .label        = "PBR IBL - Render pipeline",
                               .layout       = pipeline_layouts.pbr,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
