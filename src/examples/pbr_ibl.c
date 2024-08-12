@@ -702,7 +702,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               /* Fragment shader WGSL */
-              .label            = "PBR IBL - Fragment shader",
+              .label            = "PBR IBL - Fragment shader WGSL",
               .wgsl_code.source = fragment_shader_wgsl,
               .entry            = "main",
             },
