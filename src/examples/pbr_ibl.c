@@ -772,14 +772,14 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set objects positions and material properties
+  /* Set objects positions and material properties */
   uint32_t obj_count = (uint32_t)SINGLE_ROW_OBJECT_COUNT;
   for (uint32_t x = 0; x < obj_count; ++x) {
-    // Set object position
+    /* Set object position */
     vec3* pos = &object_params_dynamic[x].position;
     glm_vec3_copy((vec3){((float)(x - (obj_count / 2.0f))) * 2.15f, 0.0f, 0.0f},
                   *pos);
-    // Set material metallic and roughness properties
+    /* Set material metallic and roughness properties */
     struct matrial_params_dynamic_t* mat_params = &material_params_dynamic[x];
     mat_params->roughness
       = 1.0f - glm_clamp((float)x / (float)obj_count, 0.005f, 1.0f);
@@ -788,7 +788,7 @@ static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context)
                   (*mat_params).color);
   }
 
-  // Update buffers
+  /* Update buffers */
   wgpu_queue_write_buffer(wgpu_context, uniform_buffers.object_params.buffer, 0,
                           &object_params_dynamic,
                           uniform_buffers.object_params.buffer_size);
