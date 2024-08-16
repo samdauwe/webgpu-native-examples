@@ -666,12 +666,12 @@ static void gltf_model_setup_material_bind_groups(
 
     WGPUBindGroupEntry bg_entries[2] = {
         [0] = (WGPUBindGroupEntry) {
-          // Binding 0: Texture view
+          /* Binding 0: Texture view */
           .binding     = 0,
           .textureView = image->texture.view,
         },
         [1] = (WGPUBindGroupEntry) {
-          // Binding 1: Texture sampler
+          /* Binding 1: Texture sampler */
           .binding = 1,
           .sampler = image->texture.sampler,
         }
