@@ -947,7 +947,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // Bind group for uniform ModelData
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "ModelData uniform bind group",
+      .label      = "ModelData - Uniform bind group",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Vertex shader) => modelData
