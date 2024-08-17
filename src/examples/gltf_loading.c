@@ -967,7 +967,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
   // Bind Group
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "UBO scene bind group",
+    .label      = "UBO scene - Bind group",
     .layout     = ubo_scene_bind_group_layout,
     .entryCount = 1,
     .entries = &(WGPUBindGroupEntry) {
