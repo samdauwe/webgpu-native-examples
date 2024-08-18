@@ -843,10 +843,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &ubo_scene, sizeof(ubo_scene));
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer block
+  /* Vertex shader uniform buffer block */
   scene_uniform_buffer = wgpuDeviceCreateBuffer(
     context->wgpu_context->device,
     &(WGPUBufferDescriptor){
