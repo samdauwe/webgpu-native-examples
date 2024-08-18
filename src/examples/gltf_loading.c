@@ -989,7 +989,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   // Pipeline layout
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-    .label                = "Pipeline layout",
+    .label                = "Render pipeline layout",
     .bindGroupLayoutCount = 3,
     .bindGroupLayouts     = bind_group_layouts,
   };
