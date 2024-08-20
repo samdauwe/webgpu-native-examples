@@ -475,7 +475,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Frame constants bind group
+  /* Frame constants bind group */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
@@ -502,7 +502,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.frame_constants != NULL)
   }
 
-  // Instance buffer bind group
+  /* Instance buffer bind group */
   {
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
