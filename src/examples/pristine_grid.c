@@ -582,7 +582,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
 
     frame_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Frame - bind group layout",
+                              .label      = "Frame - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
