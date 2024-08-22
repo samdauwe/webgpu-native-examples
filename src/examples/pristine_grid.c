@@ -535,7 +535,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   {
     frame_uniform_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Frame uniform buffer",
+                                           .label = "Frame - Uniform buffer",
                                            .usage = WGPUBufferUsage_CopyDst
                                                     | WGPUBufferUsage_Uniform,
                                            .size = sizeof(camera_uniforms),
