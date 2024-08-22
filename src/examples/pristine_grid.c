@@ -623,7 +623,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
-      .label                = "Pristine Grid pipeline layout",
+      .label                = "Pristine Grid - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     });
