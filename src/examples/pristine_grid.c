@@ -1047,7 +1047,7 @@ static int example_render(wgpu_example_context_t* context)
   }
 
   if (!context->paused) {
-    // Update the frame uniforms
+    /* Update the frame uniforms */
     update_frame_uniforms(context);
   }
 
