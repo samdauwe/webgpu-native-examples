@@ -657,7 +657,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-        .label      = "Pristine Grid bind group",
+        .label      = "Pristine Grid - Bind group",
         .layout     = bind_group_layout,
         .entryCount = 1,
         .entries    = &(WGPUBindGroupEntry) {
