@@ -637,7 +637,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     frame_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-        .label      = "Frame bind group",
+        .label      = "Frame - Bind group",
         .layout     = frame_bind_group_layout,
         .entryCount = 1,
         .entries    = &(WGPUBindGroupEntry) {
