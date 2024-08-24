@@ -840,7 +840,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       /* Fragment shader WGSL */
-      .label             = "Grid fragment shader WGSL",
+      .label             = "Grid - Fragment shader WGSL",
       .wgsl_code.source  = grid_shader_wgsl,
       .entry             = "fragmentMain",
     },
