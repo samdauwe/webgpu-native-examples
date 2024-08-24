@@ -305,7 +305,7 @@ static const bool use_msaa              = false;
 static const uint32_t msaa_sample_count = use_msaa ? 4u : 1u;
 static WGPUTextureFormat depth_format   = WGPUTextureFormat_Depth24PlusStencil8;
 
-// Vertex layout used in this example
+/* Vertex layout used in this example */
 typedef struct {
   vec3 position;
   vec2 uv;
@@ -375,14 +375,14 @@ static struct {
   } msaa_color, depth;
 } textures = {0};
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// The orbit camera
+/* The orbit camera */
 static struct {
   float fov;
   float z_near;
@@ -395,7 +395,7 @@ static struct {
 
 static orbit_camera_t camera;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Pristine Grid";
 static bool prepared             = false;
 
