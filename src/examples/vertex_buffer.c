@@ -144,9 +144,11 @@ static void create_geometry(wgpu_context_t* wgpu_context)
   num_vertices = 0;
 
   float2 v[3] = {
+    // clang-format off
     {-4.0f, -4.0f}, //
-    {-4.0f, 4.0f},  //
+    {-4.0f,  4.0f}, //
     {12.0f, -4.0f}, //
+    // clang-format on
   };
 
   WGPUBufferDescriptor buffer_desc = {
