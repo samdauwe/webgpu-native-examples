@@ -326,17 +326,17 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
 static int example_draw(wgpu_context_t* wgpu_context)
 {
-  // Get next image in the swap chain (back/front buffer)
+  /* Get next image in the swap chain (back/front buffer) */
   wgpu_swap_chain_get_current_image(wgpu_context);
 
-  // Create command buffer
+  /* Create command buffer */
   WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
   ASSERT(command_buffer != NULL);
 
-  // Submit command buffer to the queue
+  /* Submit command buffer to the queue */
   wgpu_flush_command_buffers(wgpu_context, &command_buffer, 1);
 
-  // Present the current buffer to the swap chain
+  /* Present the current buffer to the swap chain */
   wgpu_swap_chain_present(wgpu_context);
 
   return EXIT_SUCCESS;
