@@ -500,10 +500,10 @@ static struct {
   },
 };
 
-// Tile map renderer
+/* Tile map renderer */
 static tile_map_renderer_t tile_map_renderer = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Tile Map";
 static bool prepared             = false;
 
