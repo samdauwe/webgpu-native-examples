@@ -188,7 +188,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Setup the view matrices for the camera
+  /* Setup the view matrices for the camera */
   prepare_view_matrices(context->wgpu_context);
 
   /* Uniform buffer */
@@ -206,12 +206,12 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 {
   const float now = context->frame.timestamp_millis / 1000.0f;
 
-  // View matrix
+  /* View matrix */
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
   glm_rotate(view_matrices.view, 1.0f, (vec3){sin(now), cos(now), 0.0f});
 
-  // Model view projection matrix
+  /* Model view projection matrix */
   glm_mat4_identity(cube.view_mtx.model_view_projection);
   glm_mat4_mul(view_matrices.projection, view_matrices.view,
                cube.view_mtx.model_view_projection);
@@ -219,10 +219,10 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Update the model-view-projection matrix
+  /* Update the model-view-projection matrix */
   update_transformation_matrix(context);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                           &cube.view_mtx.model_view_projection,
                           uniform_buffer_vs.size);
