@@ -313,7 +313,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label            = "sampled_texture_mix_color_fragment_shader_wgsl",
+          .label            = "Sampled texture mix color - Fragment shader WGSL",
           .wgsl_code.source = sampled_texture_mix_color_fragment_shader_wgsl,
        },
        .target_count = 1,
