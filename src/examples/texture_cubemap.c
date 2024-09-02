@@ -133,7 +133,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
+      /* Binding 0: Uniform buffer (Vertex shader & Fragment shader) */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
@@ -144,7 +144,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader image view
+      /* Binding 1: Fragment shader image view */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -155,7 +155,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Fragment shader image sampler
+      /* Binding 2: Fragment shader image sampler */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -165,7 +165,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Create the bind group layout
+  /* Create the bind group layout */
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                             .label      = "Bind group layout",
