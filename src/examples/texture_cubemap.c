@@ -104,18 +104,18 @@ static void setup_camera(wgpu_example_context_t* context)
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
-  // Load glTF models
+  /* Load glTF models */
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
       | WGPU_GLTF_FileLoadingFlags_DontLoadImages;
-  // Skybox
+  /* Skybox */
   models.skybox
     = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
       .wgpu_context       = wgpu_context,
       .filename           = "models/cube.gltf",
       .file_loading_flags = gltf_loading_flags,
     });
-  // Objects
+  /* Objects */
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(models.objects); ++i) {
     models.objects[i].object
       = wgpu_gltf_model_load_from_file(&(wgpu_gltf_model_load_options_t){
@@ -124,7 +124,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
         .file_loading_flags = gltf_loading_flags,
       });
   }
-  // Cubemap texture
+  /* Cubemap texture */
   cube_map = wgpu_create_texture_from_file(
     wgpu_context, "textures/cubemap_yokohama_rgba.ktx", NULL);
 }
