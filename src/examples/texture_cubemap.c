@@ -487,7 +487,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
                                    (float)cube_map.mip_level_count, "%.1f")) {
       update_uniform_buffers(context);
     }
-    imgui_overlay_combo_box(context->imgui_overlay, "Object type",
+    imgui_overlay_combo_box(context->imgui_overlay, "Object Type",
                             &models.object_index, object_names, 4);
     imgui_overlay_checkBox(context->imgui_overlay, "Skybox", &display_skybox);
   }
