@@ -346,7 +346,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
 
 static void generate_quad(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices for a single uv-mapped quad made from two triangles
+  /* Setup vertices for a single uv-mapped quad made from two triangles */
   static const vertex_t vertices_data[4] = {
     [0] = {
       .pos    = {1.0f, 1.0f, 0.0f},
@@ -370,7 +370,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad vertex buffer",
@@ -380,13 +380,13 @@ static void generate_quad(wgpu_context_t* wgpu_context)
                     .initial.data = vertices_data,
                   });
 
-  // Setup indices
+  /* Setup indices */
   static const uint16_t index_buffer[6] = {
     0, 1, 2, /* Vertex 1 */
     2, 3, 0  /* Vertex 2 */
   };
 
-  // Create index buffer
+  /* Create index buffer */
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Index buffer",
