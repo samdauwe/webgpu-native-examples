@@ -305,7 +305,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
     .depthOrArrayLayers = noise_texture.depth,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "3D noise texture",
+    .label         = "3D noise - Texture",
     .size          = texture_extent,
     .mipLevelCount = noise_texture.mip_levels,
     .sampleCount   = 1,
