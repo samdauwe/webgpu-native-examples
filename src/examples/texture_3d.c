@@ -329,7 +329,7 @@ static void prepare_noise_texture(wgpu_context_t* wgpu_context, uint32_t width,
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "3D noise texture view",
+    .label           = "3D noise - Texture view",
     .dimension       = WGPUTextureViewDimension_3D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
