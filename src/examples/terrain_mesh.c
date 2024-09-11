@@ -329,18 +329,18 @@ static void update_uniforms(wgpu_example_context_t* context)
 
   // Determine the nearest nine terrain patches and calculate their positions
   const vec3 nearest_patch_center = {
-    round(camera_position[0] / patch_size) * patch_size, // x
-    0.0f,                                                // y
-    round(camera_position[2] / patch_size) * patch_size  // z
+    round(camera_position[0] / patch_size) * patch_size, /* x */
+    0.0f,                                                /* y */
+    round(camera_position[2] / patch_size) * patch_size  /* z */
   };
   uint32_t patch_index = 0;
   for (int8_t pz = -1; pz <= 1; ++pz) {
     for (int8_t px = -1; px <= 1; ++px) {
       glm_vec3_copy(
         (vec3){
-          nearest_patch_center[0] + patch_size * px, // x
-          nearest_patch_center[1],                   // y
-          nearest_patch_center[2] + patch_size * pz  // z
+          nearest_patch_center[0] + patch_size * px, /* x */
+          nearest_patch_center[1],                   /* y */
+          nearest_patch_center[2] + patch_size * pz  /* z */
         },
         patch_centers[patch_index]);
       ++patch_index;
