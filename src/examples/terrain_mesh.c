@@ -301,13 +301,13 @@ static float float_random(float min, float max)
 
 static void update_camera_pose(float dt)
 {
-  // Update camera position
+  /* Update camera position */
   const float dx = -sin(camera_heading) * camera_speed * dt;
   const float dz = -cos(camera_heading) * camera_speed * dt;
   camera_position[0] += dx;
   camera_position[2] += dz;
 
-  // Update camera direction, choosing a new direction if needed
+  /* Update camera direction, choosing a new direction if needed */
   camera_heading
     += (camera_target_heading - camera_heading) * camera_angular_easing_factor;
   if (direction_change_countdown < 0.0f) {
