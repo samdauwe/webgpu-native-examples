@@ -233,20 +233,20 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
 
 static void prepare_textures(wgpu_context_t* wgpu_context)
 {
-  // Color texture
+  /* Color texture */
   {
     const char* file = "textures/color.png";
     textures.color   = wgpu_create_texture_from_file(wgpu_context, file, NULL);
   }
 
-  // Heightmap texture
+  /* Heightmap texture */
   {
     const char* file = "textures/heightmap.png";
     textures.heightmap
       = wgpu_create_texture_from_file(wgpu_context, file, NULL);
   }
 
-  // Linear sampler
+  /* Linear sampler */
   WGPUSamplerDescriptor sampler_desc = {
     .label         = "Color texture - Linear sampler",
     .addressModeU  = WGPUAddressMode_Repeat,
