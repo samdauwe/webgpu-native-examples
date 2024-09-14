@@ -592,7 +592,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Terrain mesh render pipeline",
+                            .label        = "Terrain mesh - Render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
