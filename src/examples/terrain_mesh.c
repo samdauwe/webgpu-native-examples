@@ -248,7 +248,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
   // Linear sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Linear sampler",
+    .label         = "Color texture - Linear sampler",
     .addressModeU  = WGPUAddressMode_Repeat,
     .addressModeV  = WGPUAddressMode_Repeat,
     .addressModeW  = WGPUAddressMode_Repeat,
