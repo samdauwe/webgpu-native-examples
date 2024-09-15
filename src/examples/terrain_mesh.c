@@ -187,10 +187,10 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
       float s               = xi / (float)patch_segment_count;
       float t               = zi / (float)patch_segment_count;
       uint64_t vi           = v * floats_per_vertex;
-      vertices_data[vi + 0] = (s * patch_size) - (patch_size * 0.5f); // x
-      vertices_data[vi + 1] = 0.0f;                                   // y
-      vertices_data[vi + 2] = (t * patch_size) - (patch_size * 0.5f); // z
-      vertices_data[vi + 3] = 1.0f;                                   // w
+      vertices_data[vi + 0] = (s * patch_size) - (patch_size * 0.5f); /* x */
+      vertices_data[vi + 1] = 0.0f;                                   /* y */
+      vertices_data[vi + 2] = (t * patch_size) - (patch_size * 0.5f); /* z */
+      vertices_data[vi + 3] = 1.0f;                                   /* w */
       vertices_data[vi + 4] = s;
       vertices_data[vi + 5] = t;
       ++v;
@@ -210,7 +210,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
     }
   }
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Terrain mesh - Vertex buffer",
@@ -220,7 +220,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
                     .initial.data = vertices_data,
                   });
 
-  // Create index buffer
+  /* Create index buffer */
   indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Terrain mesh - Index buffer",
