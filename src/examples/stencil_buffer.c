@@ -110,10 +110,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[1] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0: Uniform buffer (Vertex shader)
+      /* Binding 0: Uniform buffer (Vertex shader) */
       .binding = 0,
       .buffer  = uniform_buffer_vs.buffer,
       .offset  = 0,
