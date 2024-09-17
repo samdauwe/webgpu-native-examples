@@ -22,7 +22,7 @@ static struct ubo_vs_t {
   mat4 projection;
   mat4 model;
   vec4 light_pos;
-  // Vertex shader extrudes model by this value along normals for outlining
+  /* Vertex shader extrudes model by this value along normals for outlining */
   float outline_width;
 } ubo_vs = {
   .projection    = GLM_MAT4_ZERO_INIT,
@@ -42,13 +42,13 @@ static WGPUPipelineLayout pipeline_layout    = {0};
 static WGPUBindGroup bind_group              = {0};
 static WGPUBindGroupLayout bind_group_layout = {0};
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Stencil Buffer Outlines";
 static bool prepared             = false;
 
