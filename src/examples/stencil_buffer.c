@@ -328,10 +328,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &ubo_vs, sizeof(ubo_vs));
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Mesh vertex shader uniform buffer block
+  /* Mesh vertex shader uniform buffer block */
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
