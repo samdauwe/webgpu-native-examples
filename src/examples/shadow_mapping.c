@@ -546,18 +546,18 @@ static void glm_vec3_rotate_y(vec3 a, vec3 b, float rad, vec3* out)
 {
   vec3 p, r;
 
-  // Translate point to the origin
+  /* Translate point to the origin */
   p[0] = a[0] - b[0];
   p[1] = a[1] - b[1];
   p[2] = a[2] - b[2];
 
-  // perform rotation
+  /* perform rotation */
 
   r[0] = p[2] * sin(rad) + p[0] * cos(rad);
   r[1] = p[1];
   r[2] = p[2] * cos(rad) - p[0] * sin(rad);
 
-  // translate to correct position
+  /* translate to correct position */
   (*out)[0] = r[0] + b[0];
   (*out)[1] = r[1] + b[1];
   (*out)[2] = r[2] + b[2];
