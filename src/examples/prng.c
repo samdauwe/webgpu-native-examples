@@ -62,7 +62,7 @@ static bool prepared             = false;
 
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  // Vertices
+  /* Vertices */
   static const vertex_t vertex_buffer[6] = {
     {
       .position = {-1.0f, -1.0f},
@@ -84,7 +84,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad - Vertex buffer",
