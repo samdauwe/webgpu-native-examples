@@ -186,16 +186,16 @@ void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Create a uniform buffer
+  /* Create a uniform buffer */
   uniform_buffer_fs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
       .label = "Uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(ubo_fs), // One u32, 4 bytes each
+      .size  = sizeof(ubo_fs), /* One u32, 4 bytes each */
     });
 
-  // Upload the uniform buffer to the GPU
+  /* Upload the uniform buffer to the GPU */
   update_uniform_buffers(context);
 }
 
