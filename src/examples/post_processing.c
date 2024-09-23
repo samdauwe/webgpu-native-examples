@@ -906,7 +906,7 @@ static void generate_gpu_buffers_from_instanced_geometry(
   /* Instance model matrix */
   gpu_buffers->normal_matrix = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Instance model matrix",
+                    .label = "Instance - Model matrix",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(geometry->normal_matrix_data),
                     .initial.data = geometry->normal_matrix_data,
