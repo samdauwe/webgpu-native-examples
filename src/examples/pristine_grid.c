@@ -570,7 +570,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
         /* Binding 0 : Camera/Frame uniforms */
-        .binding    = 0, // Camera/Frame uniforms
+        .binding    = 0, /* Camera/Frame uniforms */
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
           .type           = WGPUBufferBindingType_Uniform,
