@@ -679,19 +679,19 @@ static geometry_t* create_sphere(geometry_t* sphere, sphere_desc_t* sphere_desc)
   const uint32_t num         = (w_segs + 1) * (h_segs + 1);
   const uint32_t num_indices = w_segs * h_segs * 6;
 
-  // Set array count
+  /* Set array count */
   sphere->positions.count = num;
   sphere->normals.count   = num;
   sphere->uvs.count       = num;
   sphere->indices.count   = num_indices;
 
-  // Set array size (in bytes)
+  /* Set array size (in bytes) */
   sphere->positions.data_size = num * 3 * sizeof(float);
   sphere->normals.data_size   = num * 3 * sizeof(float);
   sphere->uvs.data_size       = num * 2 * sizeof(float);
   sphere->indices.data_size   = num_indices * sizeof(uint32_t);
 
-  // Generate empty arrays once
+  /* Generate empty arrays once */
   sphere->positions.data = (float*)malloc(sphere->positions.data_size);
   sphere->normals.data   = (float*)malloc(sphere->normals.data_size);
   sphere->uvs.data       = (float*)malloc(sphere->uvs.data_size);
