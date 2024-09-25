@@ -1120,9 +1120,9 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   /* Write perspective camera projection and view matrix to uniform block */
   perspective_camera_set_position(&cameras.perspective_camera,
                                   (vec3){
-                                    cos(ts * 0.2f) * WORLD_SIZE_X, // x
-                                    0.0f,                          // y
-                                    sin(ts * 0.2f) * WORLD_SIZE_Z, // z
+                                    cos(ts * 0.2f) * WORLD_SIZE_X, /* x */
+                                    0.0f,                          /* y */
+                                    sin(ts * 0.2f) * WORLD_SIZE_Z, /* z */
                                   });
   perspective_camera_look_at(&cameras.perspective_camera, GLM_VEC3_ZERO);
   perspective_camera_update_projection_matrix(&cameras.perspective_camera);
