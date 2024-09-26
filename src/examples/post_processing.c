@@ -1557,7 +1557,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   /* Instanced scene render pass descriptor */
   {
-    // Color attachments
+    /* Color attachments */
     render_passes.scene_render.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = NULL, /* Assigned later */
@@ -1572,7 +1572,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         },
       };
 
-    // Depth attachment
+    /* Depth attachment */
     render_passes.scene_render.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view              = offscreen_framebuffer.depth_stencil.texture_view,
@@ -1584,7 +1584,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         .stencilClearValue = 0,
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     render_passes.scene_render.descriptor = (WGPURenderPassDescriptor){
       .label                = "Instanced scene render pass descriptor",
       .colorAttachmentCount = 1,
@@ -1595,7 +1595,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
   /* Postfx fullscreen quad render pass descriptor */
   {
-    // Color attachments
+    /* Color attachments */
     render_passes.post_fx.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = NULL,
@@ -1610,7 +1610,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
         },
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     render_passes.post_fx.descriptor = (WGPURenderPassDescriptor){
       .label                  = "Postfx fullscreen quad render pass descriptor",
       .colorAttachmentCount   = 1,
