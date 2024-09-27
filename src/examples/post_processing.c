@@ -1275,12 +1275,12 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
 
     /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Offscreen framebuffer depth attachment texture view",
-      .dimension       = WGPUTextureViewDimension_2D,
-      .format          = texture_desc.format,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
+      .label          = "Offscreen framebuffer - Depth attachment texture view",
+      .dimension      = WGPUTextureViewDimension_2D,
+      .format         = texture_desc.format,
+      .baseMipLevel   = 0,
+      .mipLevelCount  = 1,
+      .baseArrayLayer = 0,
       .arrayLayerCount = 1,
       .aspect          = WGPUTextureAspect_All,
     };
