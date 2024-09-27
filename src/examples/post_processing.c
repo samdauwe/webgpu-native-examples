@@ -1227,7 +1227,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     .depthOrArrayLayers = 1,
   };
 
-  // Color attachment
+  /* Color attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Offscreen framebuffer - Color attachment texture",
@@ -1243,7 +1243,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(offscreen_framebuffer.color.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label          = "Offscreen framebuffer - Color attachment texture view",
       .dimension      = WGPUTextureViewDimension_2D,
@@ -1258,7 +1258,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
     ASSERT(offscreen_framebuffer.color.texture_view != NULL);
   }
 
-  // Depth stencil attachment
+  /* Depth stencil attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Offscreen framebuffer depth attachment texture",
@@ -1273,7 +1273,7 @@ static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(offscreen_framebuffer.depth_stencil.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Offscreen framebuffer depth attachment texture view",
       .dimension       = WGPUTextureViewDimension_2D,
