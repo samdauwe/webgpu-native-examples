@@ -1402,7 +1402,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.persp_camera = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-       .label  = "Perspective camera bind group",
+       .label  = "Perspective camera - Bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.scene_meshes, 0),
        .entryCount = 1,
        .entries    = &(WGPUBindGroupEntry) {
