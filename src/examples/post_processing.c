@@ -1421,7 +1421,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.ortho_camera = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-       .label  = "Orthographic camera bind group",
+       .label  = "Orthographic camera - Bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
                                                       0),
        .entryCount = 1,
