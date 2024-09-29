@@ -995,7 +995,7 @@ static struct {
   WGPURenderPipeline scene_meshes;
 } pipelines = {0};
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 typedef struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
@@ -1013,7 +1013,7 @@ static struct {
   float last_tween_factor_target_change_time;
 } time_info = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Post-processing";
 static bool prepared             = false;
 
