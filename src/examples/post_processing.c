@@ -1612,9 +1612,9 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
     /* Render pass descriptor */
     render_passes.post_fx.descriptor = (WGPURenderPassDescriptor){
-      .label                  = "Postfx fullscreen quad render pass descriptor",
-      .colorAttachmentCount   = 1,
-      .colorAttachments       = render_passes.post_fx.color_attachments,
+      .label                = "Postfx fullscreen quad - Render pass descriptor",
+      .colorAttachmentCount = 1,
+      .colorAttachments     = render_passes.post_fx.color_attachments,
       .depthStencilAttachment = NULL,
     };
   }
