@@ -1317,7 +1317,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
     /* Create texture view */
     WGPUTextureViewDescriptor texture_view_desc = {
-      .label           = "post-fx0-texture-view",
+      .label           = "Post-fx0 texture view",
       .format          = texture_desc.format,
       .dimension       = WGPUTextureViewDimension_2D,
       .baseMipLevel    = 0,
