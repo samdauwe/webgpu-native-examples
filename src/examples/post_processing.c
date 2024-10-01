@@ -1873,7 +1873,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   pipelines.scene_meshes = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Scene meshes pipeline",
+                            .label        = "Scene meshes  - Pipeline",
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
