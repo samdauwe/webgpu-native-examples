@@ -1855,7 +1855,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader WGSL
-                .label = "Instanced-shader fragment shader",
+                .label = "Instanced-shader - Fragment shader",
                 .file  = "shaders/post_processing/instanced-shader.frag.wgsl",
                 .entry = "main"
               },
