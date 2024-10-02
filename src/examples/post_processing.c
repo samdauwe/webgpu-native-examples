@@ -1478,7 +1478,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.quad_sampler = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Quad sampler uniform bind group",
+                              .label  = "Quad sampler uniform - Bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 pipelines.fullscreen_quad, 2),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
