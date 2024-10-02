@@ -1441,7 +1441,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.quad_transform = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-       .label  = "Fullscreen quad transform uniform block",
+       .label  = "Fullscreen quad transform - Uniform block",
        .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
                                                       1),
        .entryCount = 1,
