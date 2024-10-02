@@ -1366,7 +1366,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   /* Texture sampler */
   {
     WGPUSamplerDescriptor sampler_desc = {
-      .label         = "post-fx-texture-sampler",
+      .label         = "Post-fx1 texture sampler",
       .addressModeU  = WGPUAddressMode_Repeat,
       .addressModeV  = WGPUAddressMode_Repeat,
       .addressModeW  = WGPUAddressMode_Repeat,
