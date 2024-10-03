@@ -1512,7 +1512,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.light_position = wgpuDeviceCreateBindGroup(
           wgpu_context->device,
           &(WGPUBindGroupDescriptor) {
-           .label  = "Light position uniform bind group",
+           .label  = "Light position uniform - Bind group",
            .layout = wgpuRenderPipelineGetBindGroupLayout(
              pipelines.scene_meshes, 1),
            .entryCount = 1,
