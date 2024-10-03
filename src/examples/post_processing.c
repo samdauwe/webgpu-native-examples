@@ -1492,7 +1492,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.quad_tween = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor) {
-       .label  = "Quad tween uniform bind group",
+       .label  = "Quad tween uniform - Bind group",
        .layout = wgpuRenderPipelineGetBindGroupLayout(
          pipelines.fullscreen_quad, 3),
        .entryCount = 1,
