@@ -1527,14 +1527,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.light_position != NULL)
   }
 
-  /* Base color uniform groups */
+  /* Base color uniform bind groups */
   {
     uint32_t base_color_cnt = (uint32_t)ARRAY_SIZE(uniform_buffers.base_colors);
     for (uint32_t i = 0; i < base_color_cnt; ++i) {
       bind_groups.base_colors[i] = wgpuDeviceCreateBindGroup(
             wgpu_context->device,
             &(WGPUBindGroupDescriptor) {
-             .label  = "Base color uniform group",
+             .label  = "Base color uniform bind group",
              .layout = wgpuRenderPipelineGetBindGroupLayout(
                pipelines.scene_meshes, i + 1),
              .entryCount = 1,
