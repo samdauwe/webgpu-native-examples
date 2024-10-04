@@ -1674,7 +1674,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader WGSL
-                .label = "quad-shader_vertex_shader",
+                .label = "Quad shader - Vertex shader",
                 .file  = "shaders/post_processing/quad-shader.vert.wgsl",
                 .entry = "main"
               },
