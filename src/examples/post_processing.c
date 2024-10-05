@@ -1687,7 +1687,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader WGSL
-                .label = "quad-shader_fragment_shader",
+                .label = "Quad shader - Fragment shader",
                 .file  = "shaders/post_processing/quad-shader.frag.wgsl",
                 .entry = "main"
               },
