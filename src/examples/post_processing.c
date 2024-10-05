@@ -1705,7 +1705,7 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
   /* Create rendering pipeline using the specified states */
   pipelines.fullscreen_quad = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "fullscreen_quad_pipeline",
+                            .label       = "Fullscreen quad pipeline",
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
                             .fragment    = &fragment_state,
