@@ -1721,14 +1721,14 @@ static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
 /* Instanced meshes pipeline */
 static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -1736,7 +1736,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
@@ -1744,11 +1744,11 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPUVertexBufferLayout instanced_meshes_vertex_buffer_layouts[4] = {0};
 
   WGPUVertexAttribute attribute_0 = {
-    // Shader location 0 : position attribute
+    /* Shader location 0 : position attribute */
     .shaderLocation = 0,
     .offset         = 0 * sizeof(float),
     .format         = WGPUVertexFormat_Float32x3,
@@ -1761,7 +1761,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
   };
 
   WGPUVertexAttribute attribute_1 = {
-    // Shader location 1 : normal attribute
+    /* Shader location 1 : normal attribute */
     .shaderLocation = 1,
     .offset         = 0,
     .format         = WGPUVertexFormat_Float32x3,
@@ -1835,13 +1835,13 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
     .attributes     = attributes_3,
   };
 
-  // Vertex state
+  /* Vertex state */
   const uint32_t buffer_count
     = (uint32_t)ARRAY_SIZE(instanced_meshes_vertex_buffer_layouts);
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader WGSL
+                /* Vertex shader WGSL */
                 .label = "Instanced-shader - Vertex shader",
                 .file  = "shaders/post_processing/instanced-shader.vert.wgsl",
                 .entry = "main"
@@ -1850,11 +1850,11 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
               .buffers      = instanced_meshes_vertex_buffer_layouts,
             });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader WGSL
+                /* Fragment shader WGSL */
                 .label = "Instanced-shader - Fragment shader",
                 .file  = "shaders/post_processing/instanced-shader.frag.wgsl",
                 .entry = "main"
@@ -1863,14 +1863,14 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
               .targets      = &color_target_state,
             });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipelines.scene_meshes = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Scene meshes - Render pipeline",
@@ -1882,7 +1882,7 @@ static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipelines.scene_meshes != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
