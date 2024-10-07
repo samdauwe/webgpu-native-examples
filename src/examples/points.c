@@ -428,7 +428,7 @@ static void setup_render_pass(void)
     },
   };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
     .view            = NULL, /* To be filled out when we render */
     .depthLoadOp     = WGPULoadOp_Clear,
