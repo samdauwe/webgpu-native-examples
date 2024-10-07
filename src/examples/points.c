@@ -403,7 +403,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Uniform buffer bind group",
+    .label      = "Uniform buffer - Bind group",
     .layout     = bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
