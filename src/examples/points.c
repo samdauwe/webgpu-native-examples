@@ -377,7 +377,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // that are based on this bind group layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Render pipeline layout",
+                            .label                = "Render - Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
