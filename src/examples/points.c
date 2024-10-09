@@ -136,7 +136,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 
   vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertex buffer vertices",
+                    .label = "Vertex buffer - Vertices",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = num_samples * 3 * sizeof(float),
                     .initial.data = vertex_data,
