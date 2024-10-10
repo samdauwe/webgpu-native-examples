@@ -34,8 +34,6 @@ static const char* skybox_fragment_shader_wgsl;
  * Physical based rendering a textured object with image based lighting example
  * -------------------------------------------------------------------------- */
 
-#define ALIGNMENT 256 // 256-byte alignment
-
 static bool display_skybox = true;
 
 static struct {
