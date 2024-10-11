@@ -414,7 +414,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     // Create the bind group layout
     bind_group_layouts.skybox = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "skybox_bind_group_layout",
+                              .label      = "Skybox - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
