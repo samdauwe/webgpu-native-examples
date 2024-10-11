@@ -428,7 +428,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     pipeline_layouts.pbr = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = "pbr_pipeline_layout",
+                              .label                = "PBR - Pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts = &bind_group_layouts.object,
                             });
