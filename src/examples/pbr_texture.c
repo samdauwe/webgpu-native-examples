@@ -795,7 +795,7 @@ static void generate_prefiltered_env_cube(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // 3D object
+  /* 3D object */
   camera_t* camera = context->camera;
   glm_mat4_copy(camera->matrices.perspective, ubo_matrices.projection);
   glm_mat4_copy(camera->matrices.view, ubo_matrices.view);
@@ -805,7 +805,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.object.buffer,
                           0, &ubo_matrices, uniform_buffers.object.size);
 
-  // Skybox
+  /* Skybox */
   mat3 mat3_tmp = GLM_MAT3_ZERO_INIT;
   glm_mat4_pick3(camera->matrices.view, mat3_tmp);
   glm_mat4_ins3(mat3_tmp, ubo_matrices.model);
