@@ -272,14 +272,14 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -287,30 +287,30 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     quad,
-    // Location 0: Vertex positions
+    /* Location 0: Vertex positions */
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Texture coordinates
+    /* Location 1: Texture coordinates */
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_UV),
-    // Location 2: Vertex normals
+    /* Location 2: Vertex normals */
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_Normal),
-    // Location 3: Vertex tangents
+    /* Location 3: Vertex tangents */
     WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Tangent));
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader SPIR-V
+              /* Vertex shader SPIR-V */
               .label = "Parallax mapping - Vertex shader SPIR-V",
               .file  = "shaders/parallax_mapping/parallax.vert.spv",
             },
@@ -318,11 +318,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = &quad_vertex_buffer_layout,
           });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              /* Fragment shader SPIR-V */
               .label = "Parallax mapping - Fragment shader SPIR-V",
               .file  = "shaders/parallax_mapping/parallax.frag.spv",
             },
@@ -330,14 +330,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets      = &color_target_state,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label     = "Parallax mapping - Render pipeline",
@@ -350,7 +350,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
