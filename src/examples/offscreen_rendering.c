@@ -187,7 +187,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   // Depth stencil attachment
   {
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Depth stencil texture",
+      .label         = "Depth stencil - Texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
