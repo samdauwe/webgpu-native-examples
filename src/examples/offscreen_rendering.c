@@ -201,7 +201,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Depth stencil texture view",
+      .label           = "Depth stencil - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
