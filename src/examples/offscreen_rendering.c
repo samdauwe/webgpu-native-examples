@@ -608,7 +608,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                 ubo_shared_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_shared_vs.view);
 
-  // Model
+  /* Model */
   glm_mat4_identity(ubo_shared_vs.model);
   glm_rotate(ubo_shared_vs.model, glm_rad(model.rotation[1]),
              (vec3){0.0f, 1.0f, 0.0f});
@@ -617,7 +617,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           uniform_buffers_vs.shared.buffer, 0, &ubo_shared_vs,
                           uniform_buffers_vs.shared.size);
 
-  // Mirror
+  /* Mirror */
   glm_mat4_identity(ubo_shared_vs.model);
   wgpu_queue_write_buffer(context->wgpu_context,
                           uniform_buffers_vs.mirror.buffer, 0, &ubo_shared_vs,
