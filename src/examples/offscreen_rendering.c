@@ -393,6 +393,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.offscreen = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Offscreen - Bind group",
                               .layout     = bind_group_layouts.shaded,
                               .entryCount = 1,
                               .entries    = &bg_entry,
