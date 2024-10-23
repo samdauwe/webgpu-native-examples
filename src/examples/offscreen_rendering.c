@@ -355,7 +355,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.mirror = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Mirror bind group",
+                              .label      = "Mirror - Bind group",
                               .layout     = bind_group_layouts.textured,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
