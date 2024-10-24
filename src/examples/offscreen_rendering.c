@@ -485,7 +485,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Vertex shader SPIR-V
-                .label = "quad_vertex_shader",
+                .label = "Quad - Vertex shader",
                 .file  = "shaders/offscreen_rendering/quad.vert.spv",
               },
               .buffer_count = 0,
