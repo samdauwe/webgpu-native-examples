@@ -331,23 +331,23 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind group for Mirror
+  /* Bind group for Mirror */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex shader uniform buffer
+        /* Binding 0: Vertex shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffers_vs.mirror.buffer,
         .offset  = 0,
         .size    =  uniform_buffers_vs.mirror.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding     = 1,
         .textureView = offscreen_pass.color.texture_view,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding = 2,
         .sampler = offscreen_pass.sampler,
       },
@@ -363,10 +363,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.mirror != NULL);
   }
 
-  // Bind group for Model
+  /* Bind group for Model */
   {
     WGPUBindGroupEntry bg_entry = {
-      // Binding 0 : Vertex shader uniform buffer
+      /* Binding 0 : Vertex shader uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffers_vs.shared.buffer,
       .offset  = 0,
@@ -382,10 +382,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.model != NULL);
   }
 
-  // Bind group for Offscreen
+  /* Bind group for Offscreen */
   {
     WGPUBindGroupEntry bg_entry = {
-      // Binding 0 : Vertex shader uniform buffer
+      /* Binding 0 : Vertex shader uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffers_vs.offScreen.buffer,
       .offset  = 0,
