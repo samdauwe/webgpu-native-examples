@@ -641,10 +641,10 @@ static void update_uniform_buffer_offscreen(wgpu_example_context_t* context)
                           &ubo_shared_vs, uniform_buffers_vs.offScreen.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Mesh vertex shader uniform buffer block
+  /* Mesh vertex shader uniform buffer block */
   uniform_buffers_vs.shared = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -652,7 +652,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_shared_vs),
     });
 
-  // Mirror plane vertex shader uniform buffer block
+  /* Mirror plane vertex shader uniform buffer block */
   uniform_buffers_vs.mirror = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -660,7 +660,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(ubo_shared_vs),
     });
 
-  // Offscreen vertex shader uniform buffer block
+  /* Offscreen vertex shader uniform buffer block */
   uniform_buffers_vs.offScreen = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
