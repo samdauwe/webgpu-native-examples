@@ -657,6 +657,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers_vs.mirror = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
+      .label = "Mirror plane vertex shader - Uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_shared_vs),
     });
