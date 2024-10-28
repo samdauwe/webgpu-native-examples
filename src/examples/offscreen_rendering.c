@@ -253,10 +253,10 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout entries
+  /* Bind group layout entries */
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Vertex shader uniform buffer
+      /* Binding 0: Vertex shader uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -267,7 +267,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader image view
+      /* Binding 1: Fragment shader image view */
       .binding = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -278,7 +278,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Fragment shader image sampler
+      /* Binding 2: Fragment shader image sampler */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout) {
@@ -288,7 +288,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     }
   };
 
-  // Shaded layouts (only use first layout binding)
+  /* Shaded layouts (only use first layout binding) */
   {
     bind_group_layouts.shaded = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
@@ -298,7 +298,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.shaded != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.shaded = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label = "Shaded - Pipeline layout",
@@ -308,7 +308,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.shaded != NULL);
   }
 
-  // Textured layouts (use all layout bindings)
+  /* Textured layouts (use all layout bindings) */
   {
     bind_group_layouts.textured = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
@@ -318,7 +318,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.textured != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.textured = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label = "Textured - Pipeline layout",
