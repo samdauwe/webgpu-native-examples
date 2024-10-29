@@ -149,7 +149,7 @@ static struct {
 static WGPUTextureFormat depth_format = WGPUTextureFormat_Depth24Plus;
 static texture_t depth_texture        = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Occlusion Query";
 static bool prepared             = false;
 
