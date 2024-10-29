@@ -179,7 +179,7 @@ static void create_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
   occlusion_query.result_buffer      = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-           .label = "Query set - result buffer",
+           .label = "Query set - Result buffer",
            .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
            .size  = occlusion_query.result_buffer_size,
     });
