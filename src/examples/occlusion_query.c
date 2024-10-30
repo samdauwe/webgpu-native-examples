@@ -267,7 +267,7 @@ static void prepare_cubes(wgpu_context_t* wgpu_context)
     glm_vec3_copy(cube_position, cubes[i].position);
     cubes[i].uniform_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Cube uniform buffer",
+                                           .label = "Cube - Uniform buffer",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size = uniform_buffer_size,
