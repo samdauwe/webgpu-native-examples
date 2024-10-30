@@ -247,7 +247,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
     };
     buffers.indices = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "Cube index buffer",
+                      .label = "Cube - Index buffer",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                       .size  = sizeof(indices),
                       .count = (uint32_t)ARRAY_SIZE(indices),
