@@ -618,7 +618,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Vertex buffer */
   buffers.torus_knot.vertex = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Torus knot vertex buffer",
+                    .label = "Torus knot - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.vertices),
                     .initial.data = torus_knot_mesh.vertices,
