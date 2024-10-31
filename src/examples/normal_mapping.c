@@ -627,7 +627,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Index buffer */
   buffers.torus_knot.index = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Torus knot index buffer",
+                    .label = "Torus knot - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(torus_knot_mesh.indices),
                     .initial.data = torus_knot_mesh.indices,
