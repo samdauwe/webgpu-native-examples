@@ -664,7 +664,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Bitangent buffer */
   buffers.torus_knot.bitangent = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Torus knot bitangents buffer",
+                    .label = "Torus knot - Bitangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.bitangents),
                     .initial.data = torus_knot_mesh.bitangents,
