@@ -675,7 +675,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Vertex buffer */
   buffers.plane.vertex = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane vertex buffer",
+                    .label = "Plane - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(plane_mesh.vertices),
                     .initial.data = plane_mesh.vertices,
