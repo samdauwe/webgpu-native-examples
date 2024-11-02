@@ -694,7 +694,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* UV buffer */
   buffers.plane.uv = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane UV buffer",
+                    .label = "Plane - UV buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(plane_mesh.uvs),
                     .initial.data = plane_mesh.uvs,
