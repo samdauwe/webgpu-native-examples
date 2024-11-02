@@ -684,7 +684,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Index buffer */
   buffers.plane.index = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane index buffer",
+                    .label = "Plane - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(plane_mesh.indices),
                     .initial.data = plane_mesh.indices,
