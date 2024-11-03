@@ -712,7 +712,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Tangent buffer */
   buffers.plane.tangent = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane tangents buffer",
+                    .label = "Plane - Tangents buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(plane_mesh.tangents),
                     .initial.data = plane_mesh.tangents,
