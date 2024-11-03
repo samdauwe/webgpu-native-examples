@@ -703,7 +703,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Normal buffer */
   buffers.plane.normal = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane normal buffer",
+                    .label = "Plane - Normal buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(plane_mesh.normals),
                     .initial.data = plane_mesh.normals,
