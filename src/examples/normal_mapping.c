@@ -732,7 +732,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Normal map vertex shader uniform buffer */
   buffers.normal_map_vs_uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Normal map vertex shader uniform buffer",
+                    .label = "Normal map vertex shader - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(view_matrices),
                     .initial.data = &view_matrices,
