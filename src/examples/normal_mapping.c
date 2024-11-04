@@ -741,7 +741,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Normal map fragment shader uniform buffer */
   buffers.normal_map_fs_uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Normal map fragment shader uniform buffer 0",
+                    .label = "Normal map fragment shader - Uniform buffer 0",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(light_positions),
                     .initial.data = &light_positions,
