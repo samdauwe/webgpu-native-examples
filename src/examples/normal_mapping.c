@@ -781,7 +781,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   {
     samplers.normal_map = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "Normal map texture sampler",
+                              .label         = "Normal map - Texture sampler",
                               .addressModeU  = WGPUAddressMode_Repeat,
                               .addressModeV  = WGPUAddressMode_Repeat,
                               .addressModeW  = WGPUAddressMode_Repeat,
