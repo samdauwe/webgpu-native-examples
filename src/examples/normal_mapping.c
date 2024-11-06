@@ -931,7 +931,7 @@ static void setup_bind_group_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layouts.normal_map = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label = "Bind group layout for normal map pass",
+                            .label      = "Normal map pass - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
