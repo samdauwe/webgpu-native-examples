@@ -850,7 +850,7 @@ static void setup_render_passes(void)
 
   // Render pass descriptor
   render_pass.normal_map.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Normal map render pass  descriptor",
+    .label                  = "Normal map - Render pass descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.normal_map.color_attachments,
     .depthStencilAttachment = &render_pass.normal_map.depth_stencil_attachment,
