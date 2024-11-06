@@ -848,7 +848,7 @@ static void setup_render_passes(void)
       .depthStoreOp    = WGPUStoreOp_Store,
     };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.normal_map.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Normal map - Render pass descriptor",
     .colorAttachmentCount   = 1,
