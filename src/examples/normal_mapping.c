@@ -992,7 +992,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Bind group for normal map pass",
+    .label      = "Normal map pass - Bind group",
     .layout     = bind_group_layouts.normal_map,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
