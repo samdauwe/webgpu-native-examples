@@ -946,7 +946,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   pipeline_layouts.normal_map = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
-      .label                = "Pipeline layout for normal map pass",
+      .label                = "Normal map pass - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_list),
       .bindGroupLayouts     = bind_group_layout_list,
     });
