@@ -224,7 +224,7 @@ static void create_box_mesh_renderable(wgpu_context_t* wgpu_context)
   // Create index buffer
   box.renderable.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Box mesh indices buffer",
+                    .label = "Box mesh - Indices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = box.mesh.index_count * sizeof(uint32_t),
                     .initial.data = box.mesh.index_array,
