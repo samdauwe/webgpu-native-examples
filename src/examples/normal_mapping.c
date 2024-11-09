@@ -375,10 +375,10 @@ void _camera_update_camera_vectors(_camera_t* this)
 
   glm_mat4_copy(
     (mat4){
-      {rx[0], rx[1], rx[2], this->eye[0]}, //
-      {uy[0], uy[1], uy[2], this->eye[1]}, //
-      {fz[0], fz[1], fz[2], this->eye[2]}, //
-      {0.0f, 0, 0.0f, 1.0f},               //
+      {rx[0], rx[1], rx[2], this->eye[0]}, /* mat  */
+      {uy[0], uy[1], uy[2], this->eye[1]}, /*      */
+      {fz[0], fz[1], fz[2], this->eye[2]}, /*      */
+      {0.0f, 0, 0.0f, 1.0f},               /* dest */
     },
     this->world_matrix);
 }
