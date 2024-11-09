@@ -215,7 +215,7 @@ static void create_box_mesh_renderable(wgpu_context_t* wgpu_context)
   // Create vertex buffers
   box.renderable.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Box mesh vertices buffer",
+                    .label = "Box mesh - Vertices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = box.mesh.vertex_count * sizeof(float),
                     .initial.data = box.mesh.vertex_array,
