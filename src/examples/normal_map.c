@@ -315,7 +315,7 @@ static void prepare_uniforms_buffers(wgpu_context_t* wgpu_context)
     wgpu_context,
     &(wgpu_buffer_desc_t){
       // Buffer holding projection, view, and model matrices plus padding bytes
-      .label = "Space transforms buffer",
+      .label = "Space transforms - Uniform buffer",
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size  = sizeof(space_transforms),
     });
