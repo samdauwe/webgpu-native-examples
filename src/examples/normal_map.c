@@ -50,7 +50,7 @@ static vec3* glm_vec3_transform_mat4(vec3 v, mat4 m, vec3* dst)
  * Normal Map example
  * -------------------------------------------------------------------------- */
 
-// The mesh to be rendered
+/* The mesh to be rendered */
 typedef struct renderable_t {
   wgpu_buffer_t vertex_buffer;
   wgpu_buffer_t index_buffer;
@@ -62,7 +62,7 @@ static struct {
   box_mesh_t mesh;
 } box = {0};
 
-// The texture type
+/* The texture type */
 typedef enum texture_atlas_t {
   TEXTURE_ATLAS_SPIRAL    = 0,
   TEXTURE_ATLAS_TOYBOX    = 1,
@@ -70,7 +70,7 @@ typedef enum texture_atlas_t {
   TEXTURE_ATLAS_COUNT     = 3,
 } texture_atlas_t;
 
-// The bump mode
+/* The bump mode */
 typedef enum bump_mode_t {
   BUMP_MODE_ALBEDO_TEXTURE = 0,
   BUMP_MODE_NORMAL_TEXTURE = 1,
@@ -81,7 +81,7 @@ typedef enum bump_mode_t {
   BUMP_MODE_COUNT          = 6,
 } bump_mode_t;
 
-// The textures
+/* The textures */
 static struct {
   texture_t wood_albedo;
   texture_t spiral_normal;
@@ -111,7 +111,7 @@ static struct {
   // clang-format on
 };
 
-// Uniforms data
+/* Uniforms data */
 static struct {
   mat4 projection;
   mat4 view;
@@ -124,7 +124,7 @@ static struct {
 } space_transforms = {0};
 
 static struct {
-  vec3 light_pos_vs; // Light position in view space
+  vec3 light_pos_vs; /* Light position in view space */
   uint32_t mode;
   float light_intensity;
   float depth_scale;
@@ -132,13 +132,13 @@ static struct {
   float padding;
 } map_info = {0};
 
-// Uniforms buffer
+/* Uniforms buffer */
 static struct {
   wgpu_buffer_t space_transforms;
   wgpu_buffer_t map_info;
 } uniforms_bufers = {0};
 
-// The bind groups and layouts
+/* The bind groups and layouts */
 static struct {
   WGPUBindGroup bind_group;
   WGPUBindGroupLayout bind_group_layout;
@@ -149,18 +149,18 @@ static struct {
   WGPUBindGroupLayout bind_group_layout;
 } surface_bg_descriptor = {0};
 
-// The render pipeline + pipeline layout
+/* The render pipeline + pipeline layout */
 static WGPURenderPipeline textured_cube_pipeline        = NULL;
 static WGPUPipelineLayout textured_cube_pipeline_layout = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// GUI control
+/* GUI control */
 static int32_t current_surface_bind_group = 0;
 
 static struct {
@@ -204,7 +204,7 @@ static const char* bump_modes_str[BUMP_MODE_COUNT] = {
   "Steep Parallax", /* */
 };
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Normal Mapping";
 static bool prepared             = false;
 
