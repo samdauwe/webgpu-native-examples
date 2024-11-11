@@ -356,7 +356,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Depth texture view",
+      .label           = "Depth - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
