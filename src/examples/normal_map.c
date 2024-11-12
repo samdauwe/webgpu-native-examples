@@ -440,7 +440,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[4] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Sampler
+        /* Sampler */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -451,7 +451,7 @@ static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     for (uint8_t i = 1; i < (uint32_t)ARRAY_SIZE(bgl_entries); ++i) {
       bgl_entries[i] = (WGPUBindGroupLayoutEntry) {
-        // Texture view
+        /* Texture view */
         .binding    = i,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
