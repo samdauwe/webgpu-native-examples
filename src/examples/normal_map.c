@@ -583,7 +583,7 @@ static void create_3d_render_pipeline(
   // Create the pipeline layout
   *render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Render pipeline layout",
+                            .label                = "Render - Pipeline layout",
                             .bindGroupLayoutCount = bg_layout_count,
                             .bindGroupLayouts     = bg_layouts,
                           });
