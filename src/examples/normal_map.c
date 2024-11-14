@@ -375,6 +375,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
       *(texture_mappings[i].texture) = wgpu_create_texture_from_file(
         wgpu_context, texture_mappings[i].file,
         &(struct wgpu_texture_load_options_t){
+          .label = "Texture",
           .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                    | WGPUTextureUsage_RenderAttachment,
         });
