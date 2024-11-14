@@ -703,7 +703,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                        offsetof(v_buffer_layout_t, bitangent)))
 
   create_3d_render_pipeline(
-    wgpu_context, "Normal mapping render pipeline", bg_layouts,
+    wgpu_context, "Normal mapping - Render pipeline", bg_layouts,
     (uint32_t)ARRAY_SIZE(bg_layouts), normal_map_shader_wgsl,
     &box_vertex_buffer_layout, 1, normal_map_shader_wgsl,
     wgpu_context->swap_chain.format, true, WGPUPrimitiveTopology_TriangleList,
