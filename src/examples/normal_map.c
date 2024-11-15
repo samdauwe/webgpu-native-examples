@@ -924,12 +924,12 @@ static const char* normal_map_shader_wgsl = CODE(
   }
 
   struct VertexOutput {
-    @builtin(position) posCS : vec4f,    // vertex position in clip space
-    @location(0) posVS : vec3f,          // vertex position in view space
-    @location(1) tangentVS: vec3f,       // vertex tangent in view space
-    @location(2) bitangentVS: vec3f,     // vertex tangent in view space
-    @location(3) normalVS: vec3f,        // vertex normal in view space
-    @location(5) uv : vec2f,             // vertex texture coordinate
+    @builtin(position) posCS : vec4f, // vertex position in clip space
+    @location(0) posVS : vec3f,       // vertex position in view space
+    @location(1) tangentVS: vec3f,    // vertex tangent in view space
+    @location(2) bitangentVS: vec3f,  // vertex tangent in view space
+    @location(3) normalVS: vec3f,     // vertex normal in view space
+    @location(5) uv : vec2f,          // vertex texture coordinate
   }
 
   // Uniforms
