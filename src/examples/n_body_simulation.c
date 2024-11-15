@@ -16,10 +16,7 @@
 
 #define NUM_BODIES 8192u
 #define WORKGROUP_SIZE 64u
-#define INITIAL_EYE_POSITION                                                   \
-  {                                                                            \
-    0.0f, 0.0f, -1.5f                                                          \
-  }
+#define INITIAL_EYE_POSITION {0.0f, 0.0f, -1.5f}
 
 // Simulation parameters
 static const uint32_t num_bodies = NUM_BODIES;
@@ -135,7 +132,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.render_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Vertex shader uniform buffer block",
+      .label = "Vertex shader - Uniform buffer block",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(mat4), // sizeof(mat4x4<f32>)
     });
