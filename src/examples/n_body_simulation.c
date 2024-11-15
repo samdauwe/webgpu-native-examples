@@ -140,7 +140,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   update_uniform_buffers(context);
 }
 
-// Generate initial positions on the surface of a sphere
+/* Generate initial positions on the surface of a sphere */
 static void init_bodies(wgpu_context_t* wgpu_context)
 {
   const float radius = 0.6f;
@@ -156,7 +156,7 @@ static void init_bodies(wgpu_context_t* wgpu_context)
     positions[i * 4 + 3] = 1.0f;
   }
 
-  // Write the render parameters to the uniform buffer
+  /* Write the render parameters to the uniform buffer */
   wgpu_queue_write_buffer(wgpu_context,
                           storage_buffers.positions_in.buffer.buffer, 0,
                           storage_buffers.positions_in.positions,
