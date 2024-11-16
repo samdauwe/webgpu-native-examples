@@ -178,7 +178,7 @@ static void prepare_storage_buffers(wgpu_example_context_t* context)
   storage_buffers.positions_out = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Positions out storage buffers",
+      .label = "Positions out - Storage buffers",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage
                | WGPUBufferUsage_Vertex,
       .size = num_bodies * 4 * 4,
