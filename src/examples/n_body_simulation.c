@@ -187,7 +187,7 @@ static void prepare_storage_buffers(wgpu_example_context_t* context)
   storage_buffers.velocities = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Velocities storage buffers",
+      .label = "Velocities - Storage buffers",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
       .size  = num_bodies * 4 * 4,
     });
