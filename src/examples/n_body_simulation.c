@@ -271,7 +271,7 @@ static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(bind_group_layouts.render != NULL);
 
   WGPUPipelineLayoutDescriptor render_pipeline_layout_desc = {
-    .label                = "Render pipeline layout",
+    .label                = "Render - Pipeline layout",
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &bind_group_layouts.render,
   };
