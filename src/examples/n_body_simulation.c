@@ -358,7 +358,7 @@ static void setup_render_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[1] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Render params uniform buffer
+      /* Binding 0 : Render params uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffers.render_params.buffer,
       .offset  = 0,
