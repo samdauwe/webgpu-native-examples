@@ -368,7 +368,7 @@ static void setup_render_bind_group(wgpu_context_t* wgpu_context)
 
   bind_groups.render = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Render bind group",
+                            .label      = "Render - Bind group",
                             .layout     = bind_group_layouts.render,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
