@@ -496,11 +496,11 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
   /* Create rendering pipeline using the specified states */
   pipelines.render = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "N-Body simulation render pipeline",
-                            .layout       = pipeline_layouts.render,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
+                            .label     = "N-Body simulation - Render pipeline",
+                            .layout    = pipeline_layouts.render,
+                            .primitive = primitive_state,
+                            .vertex    = vertex_state,
+                            .fragment  = &fragment_state,
                             .depthStencil = NULL,
                             .multisample  = multisample_state,
                           });
