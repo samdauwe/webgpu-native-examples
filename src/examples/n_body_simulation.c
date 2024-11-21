@@ -163,7 +163,7 @@ static void init_bodies(wgpu_context_t* wgpu_context)
                           storage_buffers.positions_in.buffer.size);
 }
 
-// Create buffers for body positions and velocities.
+/* Create buffers for body positions and velocities. */
 static void prepare_storage_buffers(wgpu_example_context_t* context)
 {
   storage_buffers.positions_in.buffer = wgpu_create_buffer(
@@ -192,7 +192,7 @@ static void prepare_storage_buffers(wgpu_example_context_t* context)
       .size  = num_bodies * 4 * 4,
     });
 
-  // Generate initial positions on the surface of a sphere
+  /* Generate initial positions on the surface of a sphere */
   init_bodies(context->wgpu_context);
 }
 
