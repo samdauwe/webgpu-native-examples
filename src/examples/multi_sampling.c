@@ -84,9 +84,9 @@ static void load_assets(wgpu_context_t* wgpu_context)
 // resolve into the visible frame buffer target in the render pass
 static void setup_multisample_target(wgpu_context_t* wgpu_context)
 {
-  // Color target
+  /* Color target */
   {
-    // Create the multi-sampled texture
+    /* Create the multi-sampled texture */
     WGPUTextureDescriptor multisampled_frame_desc = {
       .label         = "Multi-sampled texture",
       .size          = (WGPUExtent3D){
@@ -104,7 +104,7 @@ static void setup_multisample_target(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
     ASSERT(multi_sample_target.color.texture != NULL);
 
-    // Create the multi-sampled texture view
+    /* Create the multi-sampled texture view */
     multi_sample_target.color.view
       = wgpuTextureCreateView(multi_sample_target.color.texture,
                               &(WGPUTextureViewDescriptor){
