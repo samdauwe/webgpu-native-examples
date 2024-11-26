@@ -66,7 +66,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const uint32_t vertex_count = NUMBER_OF_LINES * 2;
   vertex_t vertex_data[vertex_count];
-  float percent = 0, sin_value = 0, cos_value = 0;
+  float percent = 0.0f, sin_value = 0.0f, cos_value = 0.0f;
   for (uint32_t i = 0; i < NUMBER_OF_LINES; ++i) {
     percent                = (float)i / (float)NUMBER_OF_LINES;
     sin_value              = sinf(percent * PI2);
