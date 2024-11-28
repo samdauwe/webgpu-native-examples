@@ -174,7 +174,7 @@ static void prepare_model_matrices(void)
 {
   const float step = 4.0f;
 
-  // Initialize the matrix data for every instance.
+  /* Initialize the matrix data for every instance. */
   uint32_t m = 0;
   for (uint32_t x = 0; x < x_count; x++) {
     for (uint32_t y = 0; y < y_count; y++) {
@@ -192,7 +192,7 @@ static void prepare_model_matrices(void)
 
 static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // Prepare camera view matrices
+  /* Prepare camera view matrices */
   prepare_view_matrices(wgpu_context);
 
   // Uniform buffer: allocate a buffer large enough to hold transforms for every
