@@ -153,20 +153,20 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_view_matrices(wgpu_context_t* wgpu_context)
 {
-  // Calculate aspect ratio
+  /* Calculate aspect ratio */
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-  // Projection matrix
+  /* Projection matrix */
   glm_mat4_identity(view_matrices.projection);
   glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 100.0f,
                   view_matrices.projection);
 
-  // View matrix
+  /* View matrix */
   glm_mat4_identity(view_matrices.view);
   glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -12.0f});
 
-  // Temporary matrix
+  /* Temporary matrix */
   glm_mat4_identity(view_matrices.tmp);
 }
 
