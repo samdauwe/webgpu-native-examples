@@ -209,7 +209,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Uniform bind group
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Cube bind group",
+    .label      = "Cube - Bind group",
     .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
     .entryCount = 1,
     .entries    = &(WGPUBindGroupEntry) {
