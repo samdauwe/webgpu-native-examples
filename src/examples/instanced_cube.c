@@ -207,7 +207,7 @@ static void prepare_uniform_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Uniform bind group
+  /* Uniform bind group */
   WGPUBindGroupDescriptor bg_desc = {
     .label      = "Cube - Bind group",
     .layout     = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
@@ -223,7 +223,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
   ASSERT(uniform_buffer.bind_group != NULL);
 
-  // Model matrices
+  /* Model matrices */
   prepare_model_matrices();
 }
 
