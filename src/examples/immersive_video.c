@@ -93,7 +93,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   video_texture.texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
-      .label = "Video texture",
+      .label = "Video - Texture",
       .size          = (WGPUExtent3D){
         .width               = video_info.frame_size.width,
         .height              = video_info.frame_size.height,
