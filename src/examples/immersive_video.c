@@ -139,7 +139,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      //  Binding 1: Fragment shader uniform buffer
+      /*  Binding 1: Fragment shader uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
@@ -150,7 +150,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader texture view
+      /* Binding 1: Fragment shader texture view */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -161,7 +161,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Fragment shader texture sampler
+      /* Binding 2: Fragment shader texture sampler */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
@@ -178,7 +178,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                           });
   ASSERT(bind_group_layout != NULL);
 
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                             .label = "Immersive video pipeline layout",
