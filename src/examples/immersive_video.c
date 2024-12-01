@@ -66,7 +66,7 @@ static WGPUBindGroupLayout bind_group_layout = NULL;
 // The bind group
 static WGPUBindGroup bind_group = NULL;
 
-// Texture and sampler
+/* Texture and sampler */
 static struct video_texture_t {
   WGPUSampler sampler;
   WGPUTexture texture;
@@ -83,13 +83,13 @@ static struct video_info_t {
 static const char* video_file_location
   = "videos/immersive_video/underwater_diving_360degrees.mp4";
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Immersive Video";
 static bool prepared             = false;
 
 static void prepare_video_texture(wgpu_context_t* wgpu_context)
 {
-  // Create the texture
+  /* Create the texture */
   video_texture.texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
@@ -107,7 +107,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   });
   ASSERT(video_texture.texture != NULL);
 
-  // Create the texture view
+  /* Create the texture view */
   video_texture.view = wgpuTextureCreateView(
     video_texture.texture, &(WGPUTextureViewDescriptor){
                              .label           = "Video - Texture view",
@@ -120,7 +120,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
                            });
   ASSERT(video_texture.view != NULL);
 
-  // Create the sampler
+  /* Create the sampler */
   video_texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
                             .label         = "Video - Texture sampler",
