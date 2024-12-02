@@ -210,7 +210,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Immersive video bind group",
+    .label      = "Immersive video - Bind group",
     .layout     = bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
