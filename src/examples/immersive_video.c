@@ -223,7 +223,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -237,7 +237,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                = "Render pass descriptor",
     .colorAttachmentCount = 1,
