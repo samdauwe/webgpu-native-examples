@@ -154,7 +154,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Compute shader blur parameters */
   blur_params_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Compute shader blur parameters uniform buffer",
+                    .label = "Compute shader blur parameters - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = 8,
                   });
