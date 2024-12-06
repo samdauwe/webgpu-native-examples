@@ -176,7 +176,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Compute constants bind group",
+      .label      = "Compute constants - Bind group",
       .layout     = wgpuComputePipelineGetBindGroupLayout(blur_pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
