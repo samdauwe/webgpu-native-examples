@@ -208,7 +208,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Compute bind group 0",
+      .label      = "Compute - Bind group 0",
       .layout     = wgpuComputePipelineGetBindGroupLayout(blur_pipeline, 1),
       .entryCount = 3,
       .entries    = bg_entries,
