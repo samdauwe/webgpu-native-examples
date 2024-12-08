@@ -309,21 +309,21 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   }
 }
 
-// Create the compute & graphics pipelines
+/* Create the compute & graphics pipelines */
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Blur compute pipeline */
   {
-    // Compute shader
+    /* Compute shader */
     wgpu_shader_t blur_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
+                      /* Compute shader WGSL */
                       .label            = "Blur - Compute shader WGSL",
                       .wgsl_code.source = blur_compute_shader_wgsl,
                       .entry            = "main",
                     });
 
-    // Compute pipeline
+    /* Compute pipeline */
     blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
@@ -332,20 +332,20 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
     ASSERT(blur_pipeline != NULL);
 
-    // Partial clean-up
+    /* Partial clean-up */
     wgpu_shader_release(&blur_comp_shader);
   }
 
   /* Fullscreen quad render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CW,
       .cullMode  = WGPUCullMode_Back,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
@@ -353,22 +353,22 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex state
+    /* Vertex state*/
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
                   wgpu_context, &(wgpu_vertex_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
-                    // Vertex shader WGSL
+                    /* Vertex shader WGSL */
                     .label            = "Fullscreen textured quad WGSL",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "vert_main"
                   },
                 });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                   wgpu_context, &(wgpu_fragment_state_t){
                   .shader_desc = (wgpu_shader_desc_t){
-                    // Fragment shader WGSL
+                    /* Fragment shader WGSL */
                     .label            = "Fullscreen textured quad WGSL",
                     .wgsl_code.source = fullscreen_textured_quad_wgsl,
                     .entry            = "frag_main"
@@ -377,14 +377,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                   .targets = &color_target_state,
                 });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     fullscreen_quad_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label       = "Fullscreen quad pipeline",
@@ -395,7 +395,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             });
     ASSERT(fullscreen_quad_pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
