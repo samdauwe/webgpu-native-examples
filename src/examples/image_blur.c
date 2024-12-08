@@ -327,7 +327,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Image blur render pipeline",
+        .label   = "Image blur - Render pipeline",
         .compute = blur_comp_shader.programmable_stage_descriptor,
       });
     ASSERT(blur_pipeline != NULL);
