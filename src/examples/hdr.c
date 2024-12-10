@@ -194,14 +194,14 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
                        wgpu_render_pass_attachment_type_t attachment_type,
                        frame_buffer_attachment_t* attachment)
 {
-  // Create the texture extent
+  /* Create the texture extent */
   WGPUExtent3D texture_extent = {
     .width              = offscreen_pass.width,
     .height             = offscreen_pass.height,
     .depthOrArrayLayers = 1,
   };
 
-  // Texture usage flags
+  /* Texture usage flags */
   WGPUTextureUsageFlags usage_flags = WGPUTextureUsage_RenderAttachment;
   if (attachment_type == WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE) {
     usage_flags = usage_flags | WGPUTextureUsage_TextureBinding;
@@ -210,10 +210,10 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
     usage_flags = usage_flags | WGPUTextureUsage_CopySrc;
   }
 
-  // Texture format
+  /* Texture format */
   attachment->format = format;
 
-  // Create the texture
+  /* Create the texture */
   WGPUTextureDescriptor texture_desc = {
     .label         = texture_label,
     .size          = texture_extent,
@@ -227,7 +227,7 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   ASSERT(attachment->texture);
 
-  // Create the texture view
+  /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
     .label           = "Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
