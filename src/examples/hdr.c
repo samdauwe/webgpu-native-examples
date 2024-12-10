@@ -332,7 +332,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
     /* Floating point color buffer */
     create_attachment(
-      wgpu_context, "Bloom color texture", WGPUTextureFormat_RGBA8Unorm,
+      wgpu_context, "Bloom color - Texture", WGPUTextureFormat_RGBA8Unorm,
       WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &filter_pass.color[0]);
 
     /* Init attachment properties */
