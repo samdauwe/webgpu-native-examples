@@ -261,7 +261,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
       wgpu_context, "Offscreen color texure 2", WGPUTextureFormat_RGBA8Unorm,
       WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE, &offscreen_pass.color[1]);
     /* Depth attachment */
-    create_attachment(wgpu_context, "Offscreen depth texture", depth_format,
+    create_attachment(wgpu_context, "Offscreen - Depth texture", depth_format,
                       WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE,
                       &offscreen_pass.depth);
 
