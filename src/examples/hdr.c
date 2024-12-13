@@ -438,7 +438,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
 
-    // Create the bind group layout
+    /* Create the bind group layout */
     bind_group_layouts.models = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .label      = "Models - Bind group layout",
@@ -447,7 +447,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.models != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.models = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label = "Models - Pipeline layout",
