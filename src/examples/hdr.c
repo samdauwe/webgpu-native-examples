@@ -551,7 +551,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       pipeline_layouts.composition = wgpuDeviceCreatePipelineLayout(
         wgpu_context->device,
         &(WGPUPipelineLayoutDescriptor){
-          .label                = "G-Buffer composition pipeline layout",
+          .label                = "G-Buffer composition - Pipeline layout",
           .bindGroupLayoutCount = 1,
           .bindGroupLayouts     = &bind_group_layouts.composition,
         });
