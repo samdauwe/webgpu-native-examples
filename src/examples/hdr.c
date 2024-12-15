@@ -562,35 +562,35 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Model bind groups
+  /* Model bind groups */
   {
     WGPUBindGroupEntry bg_entries[5] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Vertex / fragment shader uniform buffer
+        /* Binding 0: Vertex / fragment shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffers.matrices.buffer,
         .offset  = 0,
         .size    = uniform_buffers.matrices.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image view
+        /* Binding 1: Fragment shader image view */
         .binding     = 1,
         .textureView = textures.envmap.view,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding = 2,
         .sampler = textures.envmap.sampler,
       },
       [3] = (WGPUBindGroupEntry) {
-        // Binding 3: Fragment shader uniform buffer
+        /* Binding 3: Fragment shader uniform buffer */
         .binding = 3,
         .buffer  = uniform_buffers.params.buffer,
         .offset  = 0,
         .size    = uniform_buffers.params.size,
       },
       [4] = (WGPUBindGroupEntry) {
-        // Binding 4: Vertex / fragment shader dynamic uniform buffer
+        /* Binding 4: Vertex / fragment shader dynamic uniform buffer */
         .binding = 4,
         .buffer  = uniform_buffers.dynamic.buffer,
         .offset  = 0,
@@ -598,7 +598,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       },
     };
 
-    // 3D object bind group
+    /* 3D object bind group */
     {
       WGPUBindGroupDescriptor bg_desc = {
         .label      = "3D object - Bind group",
@@ -611,7 +611,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
       ASSERT(bind_groups.object != NULL);
     }
 
-    // Skybox bind group
+    /* Skybox bind group */
     {
       WGPUBindGroupDescriptor bg_desc = {
         .label      = "Skybox - Bind group",
@@ -625,31 +625,31 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     }
   }
 
-  // Bloom filter bind group
+  /* Bloom filter bind group */
   {
     WGPUBindGroupEntry bg_entries[5] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Fragment shader image view
+        /* Binding 0: Fragment shader image view */
         .binding     = 0,
         .textureView = offscreen_pass.color[0].texture_view
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding = 1,
         .sampler = offscreen_pass.sampler,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image view
+        /* Binding 2: Fragment shader image view */
         .binding     = 2,
         .textureView = offscreen_pass.color[1].texture_view
       },
       [3] = (WGPUBindGroupEntry) {
-        // Binding 3: Fragment shader image sampler
+        /* Binding 3: Fragment shader image sampler */
         .binding = 3,
         .sampler = offscreen_pass.sampler,
       },
       [4] = (WGPUBindGroupEntry) {
-        // Binding 4: fragment shader dynamic uniform buffer
+        /* Binding 4: fragment shader dynamic uniform buffer */
         .binding = 4,
         .buffer  = uniform_buffers.dynamic.buffer,
         .offset  = 0,
@@ -668,26 +668,26 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     ASSERT(bind_groups.bloom_filter != NULL);
   }
 
-  // Composition bind group
+  /* Composition bind group */
   {
     WGPUBindGroupEntry bg_entries[4] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Fragment shader image view
+        /* Binding 0: Fragment shader image view */
         .binding    = 0,
         .textureView = offscreen_pass.color[0].texture_view
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding = 1,
         .sampler = offscreen_pass.sampler,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image view
+        /* Binding 2: Fragment shader image view */
         .binding     = 2,
         .textureView = filter_pass.color[0].texture_view
       },
       [3] = (WGPUBindGroupEntry) {
-        // Binding 3: Fragment shader image sampler
+        /*Binding 3: Fragment shader image sampler */
         .binding = 3,
         .sampler = filter_pass.sampler,
       },
