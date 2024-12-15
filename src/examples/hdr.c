@@ -614,7 +614,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     // Skybox bind group
     {
       WGPUBindGroupDescriptor bg_desc = {
-        .label      = "Skybox bind group",
+        .label      = "Skybox - Bind group",
         .layout     = bind_group_layouts.models,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
