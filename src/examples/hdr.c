@@ -601,7 +601,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     // 3D object bind group
     {
       WGPUBindGroupDescriptor bg_desc = {
-        .label      = "3D object bind group",
+        .label      = "3D object - Bind group",
         .layout     = bind_group_layouts.models,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
