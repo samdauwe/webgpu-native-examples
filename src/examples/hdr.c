@@ -658,7 +658,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
 
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Bloom filter bind group",
+      .label      = "Bloom filter - Bind group",
       .layout     = bind_group_layouts.bloom_filter,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
