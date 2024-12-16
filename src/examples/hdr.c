@@ -694,7 +694,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
 
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Composition bind group",
+      .label      = "Composition - Bind group",
       .layout     = bind_group_layouts.composition,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
