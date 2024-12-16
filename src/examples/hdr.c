@@ -17,7 +17,7 @@
  * -------------------------------------------------------------------------- */
 
 #define NUMBER_OF_CONSTANTS 3u
-#define ALIGNMENT 256u // 256-byte alignment
+#define ALIGNMENT 256u /* 256-byte alignment */
 
 static bool bloom          = false;
 static bool display_skybox = true;
@@ -105,7 +105,7 @@ typedef enum wgpu_render_pass_attachment_type_t {
   WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE = 0x00000002,
 } wgpu_render_pass_attachment_type_t;
 
-// Framebuffer for offscreen rendering
+/* Framebuffer for offscreen rendering */
 typedef struct {
   WGPUTexture texture;
   WGPUTextureView texture_view;
@@ -154,7 +154,7 @@ static void setup_camera(wgpu_example_context_t* context)
 
 static void load_assets(wgpu_context_t* wgpu_context)
 {
-  // Load glTF models
+  /* Load glTF models */
   const uint32_t gltf_loading_flags
     = WGPU_GLTF_FileLoadingFlags_PreTransformVertices
       | WGPU_GLTF_FileLoadingFlags_FlipY;
@@ -172,7 +172,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
         .file_loading_flags = gltf_loading_flags,
       });
   }
-  // Load cube map
+  /* Load cube map */
   static const char* cubemap[6] = {
     "textures/cubemaps/uffizi_cube_px.png", /* Right  */
     "textures/cubemaps/uffizi_cube_nx.png", /* Left   */
@@ -243,7 +243,9 @@ void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
   ASSERT(attachment->texture_view);
 }
 
-// Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
+/**
+ * Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
+ */
 static void prepare_offscreen(wgpu_context_t* wgpu_context)
 {
   /* Offscreen render pass */
