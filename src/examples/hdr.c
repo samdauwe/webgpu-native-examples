@@ -798,7 +798,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Create rendering pipeline using the specified states
     pipelines.composition = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "Composition render pipeline",
+                              .label        = "Composition - Render pipeline",
                               .layout       = pipeline_layouts.composition,
                               .primitive    = primitive_state_desc,
                               .vertex       = vertex_state_desc,
