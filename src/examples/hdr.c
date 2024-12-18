@@ -848,7 +848,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
           wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader SPIR-V
-              .label = "Bloom fragment shader SPIR-V",
+              .label = "Bloom - Fragment shader SPIR-V",
               .file  = "shaders/hdr/bloom.frag.spv",
             },
             .target_count = 1,
