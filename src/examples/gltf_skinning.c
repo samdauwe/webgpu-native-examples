@@ -218,7 +218,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   shader_data.ubo_scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Scene vertex shader uniform buffer",
+      .label = "Scene vertex shader - Uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(shader_data.ubo_scene_values),
     });
