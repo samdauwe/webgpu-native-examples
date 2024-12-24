@@ -204,3 +204,51 @@ static void _camera_tick(_camera_t* this)
   _camera_update_damped_action(this);
   _camera_update_camera(this);
 }
+
+/* -------------------------------------------------------------------------- *
+ * Material
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-raytracer/blob/main/src/Material.ts
+ * -------------------------------------------------------------------------- */
+
+typedef enum {
+  MATERIAL_TYPE_EMISSIVE_MATERIAL,
+  MATERIAL_TYPE_REFLECTIVE_MATERIAL,
+  MATERIAL_TYPE_DIELECTRIC_MATERIAL,
+  MATERIAL_TYPE_LAMBERTIAN_MATERIAL,
+} material_type_t;
+
+typedef struct {
+  material_type_t EMISSIVE_MATERIAL;
+  material_type_t REFLECTIVE_MATERIAL;
+  material_type_t DIELECTRIC_MATERIAL;
+  material_type_t LAMBERTIAN_MATERIAL;
+
+  vec4 albedo;
+  material_type_t mtl_type;
+  float reflection_ratio;
+  float reflection_gloss;
+  float refraction_index;
+} material_t;
+
+static void material_init_defaults(material_t* this)
+{
+  this->EMISSIVE_MATERIAL   = MATERIAL_TYPE_EMISSIVE_MATERIAL;
+  this->REFLECTIVE_MATERIAL = MATERIAL_TYPE_REFLECTIVE_MATERIAL;
+  this->DIELECTRIC_MATERIAL = MATERIAL_TYPE_DIELECTRIC_MATERIAL;
+  this->LAMBERTIAN_MATERIAL = MATERIAL_TYPE_LAMBERTIAN_MATERIAL;
+}
+
+static void material_create(material_t* this, vec4 albedo,
+                            material_type_t mtl_type, float reflection_ratio,
+                            float reflection_gloss, float refraction_index)
+{
+  material_init_defaults(this);
+
+  glm_vec4_copy(albedo, this->albedo);
+  this->mtl_type         = mtl_type;
+  this->reflection_ratio = reflection_ratio;
+  this->reflection_gloss = reflection_gloss;
+  this->refraction_index = refraction_index;
+}
