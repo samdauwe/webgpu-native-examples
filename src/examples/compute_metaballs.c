@@ -120,6 +120,7 @@ typedef struct {
   vec3 position;       /* camera position */
   float time;          /* time            */
   float delta_time;    /* delta time      */
+  vec3 padding; /* padding required for struct alignment: size % 8 == 0 */
 } view_uniforms_t;
 
 typedef struct {
@@ -2271,15 +2272,13 @@ point_lights_update_sim(point_lights_t* this,
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  vec3 position;
-  float padding_pos;
-  vec3 direction;
-  float padding_dir;
+  vec4 position;
+  vec4 direction;
   vec3 color;
   float cut_off;
   float outer_cut_off;
   float intensity;
-  vec2 padding;
+  vec2 padding; /* padding required for struct alignment: size % 8 == 0 */
 } spot_light_info_t;
 
 typedef struct {
@@ -3831,13 +3830,14 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
 
   /* Metaballs ubo */
   {
+    /* padding required for struct alignment: size % 8 == 0 */
     const float metaballs_ubo_data[5] = {1.0f, 1.0f, 1.0f, 0.3f, 0.1f};
     this->ubo
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "metaballs ubo",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
-                                           .size         = 32,
+                                           .size         = 8 * sizeof(float),
                                            .initial.data = metaballs_ubo_data,
                                          });
   }
@@ -4600,10 +4600,7 @@ static void copy_pass_render(copy_pass_t* this,
  * -------------------------------------------------------------------------- */
 
 #define BLOOM_PASS_TILE_DIM 128u
-#define BLOOM_PASS_BATCH                                                       \
-  {                                                                            \
-    4, 4                                                                       \
-  }
+#define BLOOM_PASS_BATCH {4, 4}
 #define BLOOM_PASS_FILTER_SIZE 10u
 #define BLOOM_PASS_ITERATIONS 2u
 
