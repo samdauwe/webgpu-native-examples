@@ -393,7 +393,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   // Render pipeline descriptor
   WGPURenderPipelineDescriptor render_pipeline_descriptor = {
-    .label        = "GLTF skinning render pipeline",
+    .label        = "GLTF skinning - Render pipeline",
     .layout       = pipeline_layout,
     .primitive    = primitive_state,
     .vertex       = vertex_state,
