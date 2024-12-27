@@ -87,10 +87,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
    * and materials (textures)
    */
 
-  // Bind group layout to pass scene data to the shader
+  /* Bind group layout to pass scene data to the shader */
   {
     WGPUBindGroupLayoutEntry bgl_entry= {
-        // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+        /* Binding 0: Uniform buffer (Vertex shader) => UBOScene */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -109,10 +109,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_scene != NULL);
   }
 
-  // Bind group layout to pass mesh matrix to the shader
+  /* Bind group layout to pass mesh matrix to the shader */
   {
     WGPUBindGroupLayoutEntry bgl_entry = {
-        // Binding 0: Uniform buffer (Vertex shader) => Primitive
+        /* Binding 0: Uniform buffer (Vertex shader) => Primitive */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -131,11 +131,11 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.ubo_primitive != NULL);
   }
 
-  // Bind group layout for passing material textures and material constants
+  /* Bind group layout for passing material textures and material constants */
   {
     WGPUBindGroupLayoutEntry bgl_entries[5] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: texture2D (Fragment shader) => Color map
+        /* Binding 0: texture2D (Fragment shader) => Color map */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -146,7 +146,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: sampler (Fragment shader) => Color map
+        /* Binding 1: sampler (Fragment shader) => Color map */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -155,7 +155,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .texture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: texture2D (Fragment shader) => Normal map
+        /* Binding 2: texture2D (Fragment shader) => Normal map */
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -166,7 +166,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [3] = (WGPUBindGroupLayoutEntry) {
-        // Binding 3: sampler (Fragment shader) => Normal map
+        /* Binding 3: sampler (Fragment shader) => Normal map */
         .binding    = 3,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -175,7 +175,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .texture = {0},
       },
       [4] = (WGPUBindGroupLayoutEntry) {
-        // Binding 4: Uniform buffer (Fragment shader) => MaterialConsts
+        /* Binding 4: Uniform buffer (Fragment shader) => MaterialConsts */
         .binding    = 4,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout){
@@ -195,14 +195,14 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(bind_group_layouts.textures != NULL);
   }
 
-  // Pipeline layout using the bind group layouts
+  /*/ Pipeline layout using the bind group layouts */
   {
     WGPUBindGroupLayout bind_group_layout_sets[3] = {
       bind_group_layouts.ubo_scene,     /* set 0 */
       bind_group_layouts.textures,      /* set 1 */
       bind_group_layouts.ubo_primitive, /* set 2 */
     };
-    // Pipeline layout
+    /* Pipeline layout */
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layout_sets),
