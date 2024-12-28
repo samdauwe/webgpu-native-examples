@@ -1072,7 +1072,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   solid_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Solid render pipeline",
+                            .label        = "Solid mesh - Render pipeline",
                             .layout       = pipeline_layout,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
