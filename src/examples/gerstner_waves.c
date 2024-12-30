@@ -570,10 +570,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
   };
 }
 
-// Create attachment for multisampling support
+/* Create attachment for multisampling support */
 static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 {
-  // Create the multi-sampled texture
+  /* Create the multi-sampled texture */
   WGPUTextureDescriptor multisampled_frame_desc = {
     .label         = "Multi-sampled texture",
     .size          = (WGPUExtent3D){
@@ -591,7 +591,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
   ASSERT(render_pass.multisampled_framebuffer.texture != NULL);
 
-  // Create the multi-sampled texture view
+  /* Create the multi-sampled texture view */
   render_pass.multisampled_framebuffer.view
     = wgpuTextureCreateView(render_pass.multisampled_framebuffer.texture,
                             &(WGPUTextureViewDescriptor){
