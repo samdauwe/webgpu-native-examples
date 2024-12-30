@@ -595,7 +595,7 @@ static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
   render_pass.multisampled_framebuffer.view
     = wgpuTextureCreateView(render_pass.multisampled_framebuffer.texture,
                             &(WGPUTextureViewDescriptor){
-                              .label          = "Multi-sampled texture view",
+                              .label          = "Multi-sampled - Texture view",
                               .format         = wgpu_context->swap_chain.format,
                               .dimension      = WGPUTextureViewDimension_2D,
                               .baseMipLevel   = 0,
