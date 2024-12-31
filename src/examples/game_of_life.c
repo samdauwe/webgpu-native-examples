@@ -112,7 +112,7 @@ static void prepare_static_buffers(wgpu_context_t* wgpu_context)
     // Create the vertex buffer
     buffers.square.handle = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "Square vertex buffer",
+                      .label = "Square - Vertex buffer",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                       .size  = sizeof(square_vertices),
                       .initial.data = square_vertices,
