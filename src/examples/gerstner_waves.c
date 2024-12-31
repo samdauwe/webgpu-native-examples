@@ -678,7 +678,7 @@ update_uniform_buffers_gerstner_waves(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Scene uniform buffer
+  /* Scene uniform buffer */
   uniform_buffers.scene = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -687,7 +687,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(scene_data),
     });
 
-  // Gerstner Waves parameters buffer
+  /* Gerstner Waves parameters buffer */
   uniform_buffers.gerstner_wave_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -696,7 +696,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(gerstner_wave_params),
     });
 
-  // Initialize uniform buffers
+  /* Initialize uniform buffers */
   update_uniform_buffers_scene(context);
   update_uniform_buffers_gerstner_waves(context);
 }
