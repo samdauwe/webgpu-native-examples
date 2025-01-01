@@ -150,7 +150,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
     buffers.buffer0.data = NULL;
   }
 
-  // Update the buffer data
+  /* Update the buffer data */
   const uint32_t cell_count = get_cell_count();
   const uint32_t length     = cell_count * sizeof(uint32_t);
   buffers.buffer0.data      = (uint32_t*)malloc(length);
@@ -301,7 +301,7 @@ static void prepare_pipeline_layout_compute(wgpu_context_t* wgpu_context)
 
 static void prepare_pipeline_compute(wgpu_context_t* wgpu_context)
 {
-  // Compute shader constants
+  /* Compute shader constants */
   WGPUConstantEntry constant_entries[1] = {
     [0] = (WGPUConstantEntry){
       .key   = "blockSize",
@@ -309,11 +309,11 @@ static void prepare_pipeline_compute(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Compute shader
+  /* Compute shader */
   wgpu_shader_t compute_shader = wgpu_shader_create(
     wgpu_context,
     &(wgpu_shader_desc_t){
-      // Compute shader WGSL
+      /* Compute shader WGSL */
       .label            = "Compute shader WGSL",
       .wgsl_code.source = compute_shader_wgsl,
       .entry            = "main",
@@ -323,7 +323,7 @@ static void prepare_pipeline_compute(wgpu_context_t* wgpu_context)
       },
     });
 
-  // Compute pipeline
+  /* Compute pipeline */
   compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
@@ -333,7 +333,7 @@ static void prepare_pipeline_compute(wgpu_context_t* wgpu_context)
     });
   ASSERT(compute.pipeline != NULL);
 
-  // Partial clean-up
+  /* Partial clean-up */
   wgpu_shader_release(&compute_shader);
 }
 
