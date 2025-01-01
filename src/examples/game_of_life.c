@@ -124,7 +124,7 @@ static void prepare_static_buffers(wgpu_context_t* wgpu_context)
     buffers.size.handle = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
-        .label = "Size uniform buffer",
+        .label = "Size - Uniform buffer",
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Uniform
                  | WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
         .size = sizeof(buffers.size.data),
