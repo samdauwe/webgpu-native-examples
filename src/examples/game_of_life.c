@@ -292,7 +292,7 @@ static void prepare_pipeline_layout_compute(wgpu_context_t* wgpu_context)
 {
   compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Ppeline layout compute",
+                            .label                = "Pipeline layout - Compute",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &compute.bind_group_layout,
                           });
