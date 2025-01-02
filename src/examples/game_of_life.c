@@ -279,7 +279,7 @@ static void setup_bind_groups_compute(wgpu_context_t* wgpu_context)
     };
     bind_groups.bind_group1 = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group compute 0",
+                              .label      = "Bind group - Compute 1",
                               .layout     = compute.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
