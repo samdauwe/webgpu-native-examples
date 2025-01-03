@@ -383,7 +383,7 @@ static void prepare_pipeline_layout_graphics(wgpu_context_t* wgpu_context)
 {
   graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout graphics",
+                            .label = "Graphics - Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &graphics.bind_group_layout,
                           });
