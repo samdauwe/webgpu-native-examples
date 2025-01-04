@@ -454,7 +454,7 @@ static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   graphics.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Graphics pipeline",
+                            .label       = "Graphics - Render pipeline",
                             .layout      = graphics.pipeline_layout,
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
