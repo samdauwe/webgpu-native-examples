@@ -192,17 +192,17 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Projection/View matrix uniform buffer
+      /* Binding 0 : Projection/View matrix uniform buffer */
       .binding = 0,
       .buffer  = uniform_buffers.view.buffer,
       .offset  = 0,
       .size    = uniform_buffers.view.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1 : Instance matrix as dynamic uniform buffer
+      /* Binding 1 : Instance matrix as dynamic uniform buffer */
       .binding = 1,
       .buffer  = uniform_buffers.dynamic.buffer,
       .offset  = 0,
