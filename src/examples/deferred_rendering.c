@@ -372,7 +372,7 @@ static void prepare_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     gbuffer_textures_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label = "GBuffer textures bind group layout",
+                              .label = "GBuffer textures - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
