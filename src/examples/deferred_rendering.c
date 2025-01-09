@@ -38,7 +38,7 @@ static const char* vertex_write_gbuffers_wgsl;
  * Deferred Rendering example
  * -------------------------------------------------------------------------- */
 
-// Constants
+/* Constants */
 #define MAX_NUM_LIGHTS 1024u
 
 static const uint32_t max_num_lights   = (uint32_t)MAX_NUM_LIGHTS;
@@ -61,12 +61,12 @@ static struct {
 
 static stanford_dragon_mesh_t stanford_dragon_mesh = {0};
 
-// Vertex and index buffers
+/* Vertex and index buffers */
 static WGPUBuffer vertex_buffer = NULL;
 static WGPUBuffer index_buffer  = NULL;
 static uint32_t index_count     = 0;
 
-// GBuffer
+/* GBuffer */
 static struct {
   WGPUTexture texture_2d_float16;
   WGPUTexture texture_albedo;
@@ -74,12 +74,12 @@ static struct {
   WGPUTextureView texture_views[3];
 } gbuffer = {0};
 
-// Uniform buffers
+/* Uniform buffers */
 static wgpu_buffer_t model_uniform_buffer  = {0};
 static wgpu_buffer_t camera_uniform_buffer = {0};
 static uint64_t camera_uniform_buffer_size = 0;
 
-// Lights
+/* Lights */
 static struct {
   WGPUBuffer buffer;
   uint64_t buffer_size;
@@ -93,27 +93,27 @@ static struct {
   WGPUBindGroupLayout buffer_compute_bind_group_layout;
 } lights = {0};
 
-// Bind groups
+/* Bind groups */
 static WGPUBindGroup scene_uniform_bind_group    = NULL;
 static WGPUBindGroup gbuffer_textures_bind_group = NULL;
 
-// Bind group layouts
+/* Bind group layouts */
 static WGPUBindGroupLayout scene_uniform_bind_group_layout    = NULL;
 static WGPUBindGroupLayout gbuffer_textures_bind_group_layout = NULL;
 
-// Pipelines
+/* Pipelines */
 static WGPURenderPipeline write_gbuffers_pipeline        = NULL;
 static WGPURenderPipeline gbuffers_debug_view_pipeline   = NULL;
 static WGPURenderPipeline deferred_render_pipeline       = NULL;
 static WGPUComputePipeline light_update_compute_pipeline = NULL;
 
-// Pipeline layouts
+/* Pipeline layouts */
 static WGPUPipelineLayout write_gbuffers_pipeline_layout       = NULL;
 static WGPUPipelineLayout gbuffers_debug_view_pipeline_layout  = NULL;
 static WGPUPipelineLayout deferred_render_pipeline_layout      = NULL;
 static WGPUPipelineLayout light_update_compute_pipeline_layout = NULL;
 
-// Render pass descriptor
+/* Render pass descriptor */
 static struct {
   WGPURenderPassColorAttachment color_attachments[2];
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
@@ -138,11 +138,11 @@ static struct {
   .num_lights          = 128,
 };
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Deferred Rendering";
 static bool prepared             = false;
 
-// Prepare vertex and index buffers for the Stanford dragon mesh
+/* Prepare vertex and index buffers for the Stanford dragon mesh */
 static void
 prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
                                  stanford_dragon_mesh_t* dragon_mesh)
