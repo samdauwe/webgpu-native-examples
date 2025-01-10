@@ -538,7 +538,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     deferred_render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "Deferred render pipeline layout",
+        .label                = "Deferred render - Pipeline layout",
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
         .bindGroupLayouts     = bind_group_layouts,
       });
