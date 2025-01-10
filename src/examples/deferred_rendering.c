@@ -507,7 +507,7 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
     write_gbuffers_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "Write gbuffers pipeline layout",
+        .label                = "Write gbuffers - Pipeline layout",
         .bindGroupLayoutCount = 1,
         .bindGroupLayouts     = &scene_uniform_bind_group_layout,
       });
