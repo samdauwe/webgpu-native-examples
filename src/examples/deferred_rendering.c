@@ -150,7 +150,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
   /* Create the model vertex buffer */
   {
     const uint8_t ground_plane_vertex_count = 4;
-    // position: vec3, normal: vec3, uv: vec2
+    /* position: vec3, normal: vec3, uv: vec2 */
     const uint8_t vertex_stride = 8;
     uint64_t vertex_buffer_size
       = (dragon_mesh->positions.count + ground_plane_vertex_count)
@@ -174,7 +174,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       memcpy(&mapping[vertex_stride * i + 6], dragon_mesh->uvs.data[i],
              sizeof(vec2));
     }
-    // Push vertex attributes for an additional ground plane
+    /* Push vertex attributes for an additional ground plane */
     // clang-format off
     static const vec3 ground_plane_positions[4] = {
       {-100.0f, 20.0f, -100.0f}, //
@@ -227,7 +227,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       memcpy(&mapping[3 * i], dragon_mesh->triangles.data[i],
              sizeof(uint16_t) * 3);
     }
-    // Push indices for an additional ground plane
+    /* Push indices for an additional ground plane */
     static const uint16_t ground_plane_indices[2][3] = {
       {STANFORD_DRAGON_POSITION_COUNT_RES_4,
        STANFORD_DRAGON_POSITION_COUNT_RES_4 + 2,
@@ -245,7 +245,7 @@ prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
   }
 }
 
-// GBuffer texture render targets
+/* GBuffer texture render targets  */
 static void prepare_gbuffer_texture_render_targets(wgpu_context_t* wgpu_context)
 {
   {
