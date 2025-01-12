@@ -704,11 +704,11 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   gbuffers_debug_view_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "GBuffers debug view render pipeline",
-                            .layout    = gbuffers_debug_view_pipeline_layout,
-                            .primitive = primitive_state,
-                            .vertex    = vertex_state,
-                            .fragment  = &fragment_state,
+                            .label  = "GBuffers debug view - Render pipeline",
+                            .layout = gbuffers_debug_view_pipeline_layout,
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
                             .multisample = multisample_state,
                           });
 
