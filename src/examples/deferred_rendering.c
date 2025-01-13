@@ -548,28 +548,28 @@ static void prepare_render_pipeline_layouts(wgpu_context_t* wgpu_context)
 
 static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUColorTargetState color_target_states[2] = {
-    // Normal
+    /* Normal */
     [0] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_RGBA16Float,
       .writeMask = WGPUColorWriteMask_All,
     },
-    // Albedo
+    /* Albedo */
     [1] = (WGPUColorTargetState){
       .format    = WGPUTextureFormat_BGRA8Unorm,
       .writeMask = WGPUColorWriteMask_All,
     },
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24Plus,
@@ -577,21 +577,21 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     write_gbuffers, sizeof(float) * 8,
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-    // Attribute location 1: Normal
+    /* Attribute location 1: Normal */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, sizeof(float) * 3),
-    // Attribute location 2: uv
+    /* Attribute location 2: uv */
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x2, sizeof(float) * 6))
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              /* Vertex shader WGSL */
               .label            = "Write GBuffers - Vertex shader WGSL",
               .wgsl_code.source = vertex_write_gbuffers_wgsl,
               .entry            = "main",
@@ -600,11 +600,11 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             .buffers      = &write_gbuffers_vertex_buffer_layout,
           });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "Write GBuffers - Fragment shader WGSL",
               .wgsl_code.source = fragment_write_gbuffers_wgsl,
               .entry            = "main",
@@ -613,14 +613,14 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
             .targets = color_target_states,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   write_gbuffers_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Write GBuffers - Render pipeline",
@@ -632,7 +632,7 @@ static void prepare_write_gbuffers_pipeline(wgpu_context_t* wgpu_context)
                             .multisample  = multisample_state,
                           });
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
