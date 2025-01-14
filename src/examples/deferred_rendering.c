@@ -719,14 +719,14 @@ static void prepare_gbuffers_debug_view_pipeline(wgpu_context_t* wgpu_context)
 
 static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = WGPUTextureFormat_BGRA8Unorm,
@@ -734,11 +734,11 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
         wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-          // Vertex shader WGSL
+          /* Vertex shader WGSL */
           .label            = "Textured quad - Vertex shader WGSL",
           .wgsl_code.source = vertex_texture_quad_wgsl,
           .entry            = "main",
@@ -747,11 +747,11 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
         .buffers = NULL,
       });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
         wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-          // Fragment shader WGSL
+          /* Fragment shader WGSL */
           .label            = "Deferred rendering - Fragment shader WGSL",
           .wgsl_code.source = fragment_deferred_rendering_wgsl,
           .entry            = "main",
@@ -760,14 +760,14 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
         .targets      = &color_target_state,
       });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   deferred_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Deferred - Render pipeline",
@@ -778,7 +778,7 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
                             .multisample = multisample_state,
                           });
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
