@@ -770,7 +770,7 @@ static void prepare_deferred_render_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   deferred_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Deferred render pipeline",
+                            .label       = "Deferred - Render pipeline",
                             .layout      = deferred_render_pipeline_layout,
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
