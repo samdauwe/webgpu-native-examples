@@ -828,7 +828,7 @@ static void setup_render_passes(void)
 
     // Render pass descriptor
     write_gbuffer_pass.descriptor = (WGPURenderPassDescriptor){
-      .label = "Write GBuffer render pass",
+      .label = "Write GBuffer - Render pass",
       .colorAttachmentCount
       = (uint32_t)ARRAY_SIZE(write_gbuffer_pass.color_attachments),
       .colorAttachments       = write_gbuffer_pass.color_attachments,
