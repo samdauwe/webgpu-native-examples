@@ -841,7 +841,7 @@ static void setup_render_passes(void)
     // Color attachment
     texture_quad_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
-        .view       = NULL, // view is acquired and set in render loop.
+        .view       = NULL, /* view is acquired and set in render loop. */
         .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
