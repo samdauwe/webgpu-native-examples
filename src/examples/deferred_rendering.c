@@ -787,7 +787,7 @@ static void setup_render_passes(void)
 {
   /* Write GBuffer pass */
   {
-    // Color attachments
+    /* Color attachments */
     write_gbuffer_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = gbuffer.texture_views[0],
@@ -816,7 +816,7 @@ static void setup_render_passes(void)
         },
       };
 
-    // Render pass depth stencil attachment descriptor
+    /* Render pass depth stencil attachment descriptor */
     write_gbuffer_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view              = gbuffer.texture_views[2],
@@ -826,7 +826,7 @@ static void setup_render_passes(void)
         .stencilClearValue = 1,
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     write_gbuffer_pass.descriptor = (WGPURenderPassDescriptor){
       .label = "Write GBuffer - Render pass",
       .colorAttachmentCount
@@ -838,7 +838,7 @@ static void setup_render_passes(void)
 
   /* Texture Quad Pass */
   {
-    // Color attachment
+    /* Color attachment */
     texture_quad_pass.color_attachments[0] =
       (WGPURenderPassColorAttachment) {
         .view       = NULL, /* view is acquired and set in render loop. */
@@ -853,7 +853,7 @@ static void setup_render_passes(void)
         },
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     texture_quad_pass.descriptor = (WGPURenderPassDescriptor){
       .label                = "Textured Quad - Render pass",
       .colorAttachmentCount = 1,
