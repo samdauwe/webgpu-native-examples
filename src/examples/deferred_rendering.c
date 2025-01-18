@@ -923,7 +923,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Scene - Uniform bind group",
+                              .label  = "Scene uniform - Bind group",
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
                                 write_gbuffers_pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
