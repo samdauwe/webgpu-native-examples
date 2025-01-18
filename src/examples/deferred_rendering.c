@@ -950,7 +950,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     };
     gbuffer_textures_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "GBuffer textures bind group",
+                              .label      = "GBuffer textures - Bind group",
                               .layout     = gbuffer_textures_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
