@@ -964,7 +964,7 @@ static void prepare_compute_pipeline_layout(wgpu_context_t* wgpu_context)
   // Light update compute pipeline layout
   {
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Light update compute pipeline layout",
+      .label                = "Light update compute - Pipeline layout",
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &lights.buffer_compute_bind_group_layout,
     };
