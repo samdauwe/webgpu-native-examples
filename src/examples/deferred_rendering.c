@@ -980,7 +980,7 @@ static void prepare_light_update_compute_pipeline(wgpu_context_t* wgpu_context)
   wgpu_shader_t light_update_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
-                    .label            = "Light update compute shader WGSL",
+                    .label            = "Light update - Compute shader WGSL",
                     .wgsl_code.source = light_update_wgsl,
                     .entry            = "main",
                   });
