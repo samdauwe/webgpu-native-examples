@@ -1125,7 +1125,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-  // Scene matrices
+  /* Scene matrices */
   glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, view_matrices.up_vector);
   glm_vec3_copy((vec3){0.0f, 0.0f, 0.0f}, view_matrices.origin);
 
@@ -1133,15 +1133,15 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.f, 2000.f,
                   view_matrices.projection_matrix);
 
-  // Move the model so it's centered.
+  /* Move the model so it's centered. */
   mat4 model_matrix = GLM_MAT4_IDENTITY_INIT;
   glm_translate(model_matrix, (vec3){0.0f, -45.0f, 0.0f});
 
-  // Write data to buffers
+  /* Write data to buffers */
   wgpuQueueWriteBuffer(wgpu_context->queue, model_uniform_buffer.buffer, 0,
                        model_matrix, sizeof(mat4));
 
-  // Normal model data
+  /* Normal model data */
   mat4 invert_transpose_model_matrix = GLM_MAT4_IDENTITY_INIT;
   glm_mat4_inv(model_matrix, invert_transpose_model_matrix);
   glm_mat4_transpose(invert_transpose_model_matrix);
