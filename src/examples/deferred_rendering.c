@@ -1110,7 +1110,7 @@ static void prepare_lights(wgpu_context_t* wgpu_context)
     };
     lights.buffer_compute_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Lights buffer compute bind group",
+                              .label  = "Lights buffer compute - Bind group",
                               .layout = wgpuComputePipelineGetBindGroupLayout(
                                 light_update_compute_pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
