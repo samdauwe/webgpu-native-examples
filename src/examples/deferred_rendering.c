@@ -1248,10 +1248,11 @@ static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
                           &rotated_eye_position);
 
   mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(rotated_eye_position,    //
-             view_matrices.origin,    //
-             view_matrices.up_vector, //
-             view_matrix);
+  glm_lookat(rotated_eye_position,    /* eye    */
+             view_matrices.origin,    /* center */
+             view_matrices.up_vector, /* up     */
+             view_matrix              /* dest   */
+  );
 
   glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
                 view_matrices.view_proj_matrix);
