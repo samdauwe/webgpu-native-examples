@@ -864,7 +864,7 @@ static void setup_render_passes(void)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Config uniform buffer
+  /* Config uniform buffer */
   {
     lights.config_uniform_buffer_size = sizeof(uint32_t);
     lights.config_uniform_buffer      = wgpuDeviceCreateBuffer(
@@ -883,42 +883,42 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     wgpuBufferUnmap(lights.config_uniform_buffer);
   }
 
-  // Model uniform buffer
+  /* Model uniform buffer */
   {
     model_uniform_buffer = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
         .label = "Model - Uniform buffer",
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size  = sizeof(mat4) * 2, // two 4x4 matrix
+        .size  = sizeof(mat4) * 2, /* two 4x4 matrix */
       });
     ASSERT(model_uniform_buffer.buffer);
   }
 
-  // Camera uniform buffer
+  /* Camera uniform buffer */
   {
     camera_uniform_buffer = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
         .label = "Camera - Uniform buffer",
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size  = sizeof(mat4) * 2, // two 4x4 matrix
+        .size  = sizeof(mat4) * 2, /* two 4x4 matrix */
       });
     ASSERT(camera_uniform_buffer.buffer);
   }
 
-  // Scene uniform bind group
+  /* Scene uniform bind group */
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
         .buffer  = model_uniform_buffer.buffer,
-        .size    = model_uniform_buffer.size, // two 4x4 matrix
+        .size    = model_uniform_buffer.size, /* two 4x4 matrix */
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
         .buffer  = camera_uniform_buffer.buffer,
-        .size    = camera_uniform_buffer.size, // two 4x4 matrix
+        .size    = camera_uniform_buffer.size, /* two 4x4 matrix */
       },
     };
     scene_uniform_bind_group = wgpuDeviceCreateBindGroup(
@@ -932,7 +932,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     ASSERT(scene_uniform_bind_group != NULL);
   }
 
-  // GBuffer textures bind group
+  /* GBuffer textures bind group */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
