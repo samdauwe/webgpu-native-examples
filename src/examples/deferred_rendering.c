@@ -1301,7 +1301,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
-    static const char* mode[3] = {"rendering", "gBuffers view"};
+    static const char* mode[3] = {"Rendering", "gBuffers View"};
     int32_t item_index         = (int32_t)settings.current_render_mode;
     if (imgui_overlay_combo_box(context->imgui_overlay, "Mode", &item_index,
                                 mode, 2)) {
