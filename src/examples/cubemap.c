@@ -80,7 +80,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
   // Create a vertex buffer from the cube data.
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Cube vertex data",
+                    .label = "Cube - Vertex data",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(cube_mesh.vertex_array),
                     .initial.data = cube_mesh.vertex_array,
