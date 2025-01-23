@@ -74,10 +74,10 @@ static void prepare_cube_mesh(void)
   cube_mesh_init(&cube_mesh);
 }
 
-// Prepare vertex buffer
+/* Prepare vertex buffer */
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
-  // Create a vertex buffer from the cube data.
+  /* Create a vertex buffer from the cube data. */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube - Vertex data",
