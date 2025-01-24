@@ -197,19 +197,19 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-  // Projection matrix
+  /* Projection matrix */
   glm_mat4_identity(view_matrices.projection);
   glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 3000.0f,
                   view_matrices.projection);
 
-  // Model matrix
+  /* Model matrix */
   glm_mat4_identity(view_matrices.model);
   glm_scale(view_matrices.model, (vec3){1000.0f, 1000.0f, 1000.0f});
 
-  // Model view projection matrix
+  /* Model view projection matrix */
   glm_mat4_identity(cube.view_mtx.model_view_projection);
 
-  // Other matrices
+  /* Other matrices */
   glm_mat4_identity(view_matrices.view);
   glm_mat4_identity(view_matrices.tmp);
 }
