@@ -230,13 +230,13 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   ASSERT(uniform_buffer_vs.buffer != NULL);
 }
 
-// Compute camera movement:
-// It rotates around Y axis with a slight pitch movement.
+/* Compute camera movement:                               */
+/* It rotates around Y axis with a slight pitch movement. */
 static void update_transformation_matrix(wgpu_example_context_t* context)
 {
   const float now = context->frame.timestamp_millis / 800.0f;
 
-  // View matrix
+  /* View matrix */
   glm_mat4_copy(view_matrices.view, view_matrices.tmp);
   glm_rotate(view_matrices.tmp, (PI / 10.f) * sin(now),
              (vec3){1.0f, 0.0f, 0.0f});
@@ -250,10 +250,10 @@ static void update_transformation_matrix(wgpu_example_context_t* context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Update the model-view-projection matrix
+  /* Update the model-view-projection matrix */
   update_transformation_matrix(context);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                           &cube.view_mtx.model_view_projection,
                           uniform_buffer_vs.size);
