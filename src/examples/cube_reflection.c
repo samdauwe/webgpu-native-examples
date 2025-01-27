@@ -207,7 +207,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Uniform buffer (Vertex shader) => cameraData
+      /* Binding 0: Uniform buffer (Vertex shader) => cameraData */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -218,7 +218,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Uniform buffer (Vertex shader) => modelData
+      /* Binding 1: Uniform buffer (Vertex shader) => modelData */
       .binding    = 1,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
