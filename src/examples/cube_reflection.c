@@ -125,7 +125,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
     };
     plane_vertices = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "Plane vertices buffer",
+                      .label = "Plane - Vertices buffer",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                       .size  = sizeof(plane_data),
                       .count = (uint32_t)ARRAY_SIZE(plane_data),
