@@ -255,14 +255,14 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(bind_group); ++i) {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = {
-        // Binding 0: Uniform buffer (Vertex shader) => cameraData
+        /* Binding 0: Uniform buffer (Vertex shader) => cameraData */
         .binding = 0,
         .buffer  = camera_buffer.buffer,
         .offset  = 0,
         .size    = camera_buffer.size,
       },
       [1] = {
-        // Binding 1: Uniform buffer (Vertex shader) => modelData
+        /* Binding 1: Uniform buffer (Vertex shader) => modelData */
         .binding = 1,
         .buffer  = transform_buffer[i].buffer,
         .offset  = 0,
