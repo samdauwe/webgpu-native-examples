@@ -280,7 +280,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   }
 }
 
-// Create the graphics pipeline
+/* Create the graphics pipeline */
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
@@ -301,9 +301,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     cube_reflection, 6 * sizeof(float),
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-    // Attribute location 1: Color
+    /* Attribute location 1: Color */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3, 3 * sizeof(float)));
 
   /* Vertex state */
@@ -538,7 +538,7 @@ static int example_draw(wgpu_example_context_t* context)
   /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue */
+  /* Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
