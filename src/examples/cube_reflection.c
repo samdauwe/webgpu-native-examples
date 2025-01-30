@@ -414,11 +414,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     /* Create rendering pipeline using the specified states */
     reflection_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "Cube reflection render pipeline",
-                              .layout       = pipeline_layout,
-                              .primitive    = primitive_state,
-                              .vertex       = vertex_state,
-                              .fragment     = &fragment_state_reflection,
+                              .label     = "Cube reflection - Render pipeline",
+                              .layout    = pipeline_layout,
+                              .primitive = primitive_state,
+                              .vertex    = vertex_state,
+                              .fragment  = &fragment_state_reflection,
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
