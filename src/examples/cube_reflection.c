@@ -13,13 +13,13 @@
  * https://dawn.googlesource.com/dawn/+/refs/heads/main/examples/CubeReflection.cpp
  * -------------------------------------------------------------------------- */
 
-// Index buffer
+/* Index buffer */
 static struct wgpu_buffer_t indices = {0};
 
-// Cube vertex buffer
+/* Cube vertex buffer */
 static struct wgpu_buffer_t cube_vertices = {0};
 
-// Plane vertex buffer
+/* Plane vertex buffer */
 static struct wgpu_buffer_t plane_vertices = {0};
 
 static struct {
@@ -27,35 +27,35 @@ static struct {
   mat4 proj;
 } camera_data = {0};
 
-// Other buffers
+/* Other buffers */
 static wgpu_buffer_t camera_buffer       = {0};
 static wgpu_buffer_t transform_buffer[2] = {0};
 
-// Bind groups stores the resources bound to the binding points in a shader
+/* Bind groups stores the resources bound to the binding points in a shader */
 static WGPUBindGroup bind_group[2]           = {0};
 static WGPUBindGroupLayout bind_group_layout = NULL;
 
-// The pipeline layout
+/* The pipeline layout */
 static WGPUPipelineLayout pipeline_layout = NULL;
 
-// Pipelines
+/* Pipelines */
 static WGPURenderPipeline pipeline            = NULL;
 static WGPURenderPipeline plane_pipeline      = NULL;
 static WGPURenderPipeline reflection_pipeline = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Render state
+/* Render state */
 static struct {
   uint32_t a;
   float b;
 } render_state = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Cube Reflection";
 static bool prepared             = false;
 
@@ -565,7 +565,7 @@ static int example_render(wgpu_example_context_t* context)
   return draw_result;
 }
 
-// Clean up used resources
+/* Clean up used resources */
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
