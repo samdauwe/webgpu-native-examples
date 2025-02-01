@@ -117,7 +117,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
   /* Uniform buffer */
   this->uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Common uniform buffer",
+                    .label = "Common - Uniform buffer",
                     .size  = 0 +     //
                             4 * 16 + // mvp
                             4 * 16 + // inv_mvp
