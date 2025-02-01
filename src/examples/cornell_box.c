@@ -118,10 +118,10 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
   this->uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Common - Uniform buffer",
-                    .size  = 0 +     //
-                            4 * 16 + // mvp
-                            4 * 16 + // inv_mvp
-                            4 * 4,   // seed
+                    .size  = 0 +     /*         */
+                            4 * 16 + /* mvp     */
+                            4 * 16 + /* inv_mvp */
+                            4 * 4,   /* seed    */
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                   });
 
