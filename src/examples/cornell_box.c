@@ -211,7 +211,8 @@ static void common_update(common_t* this, common_update_params_t* params)
   glm_perspective(PI2 / 8.0f, params->aspect, 0.5f, 100.0f,
                   this->ubo_vs.projection_matrix);
 
-  float view_rotation = params->rotate_camera ? this->frame / 1000.0f : 0.0f;
+  const float view_rotation
+    = params->rotate_camera ? this->frame / 1000.0f : 0.0f;
 
   glm_lookat(
     (vec3){sin(view_rotation) * 15.0f, 5.0f, cos(view_rotation) * 15.0f},
