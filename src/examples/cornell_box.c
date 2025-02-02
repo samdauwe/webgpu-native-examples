@@ -129,7 +129,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // common_uniforms
+        /* Common uniforms */
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -139,7 +139,7 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // quads
+        /* Quads */
         .binding = 1,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -162,14 +162,14 @@ static void common_create(common_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // common_uniforms
+        /* Common uniforms */
         .binding = 0,
         .buffer  = this->uniform_buffer.buffer,
         .offset  = 0,
         .size    = this->uniform_buffer.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // quads
+        /* Quads */
         .binding = 1,
         .buffer  = quads->buffer,
         .offset  = 0,
