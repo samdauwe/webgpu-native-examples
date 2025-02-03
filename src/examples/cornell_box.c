@@ -625,7 +625,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
     /* Quads storage buffer */
     this->quad_buffer = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
-                      .label        = "Scene quad buffer",
+                      .label        = "Scene quad - Storage buffer",
                       .size         = SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH,
                       .usage        = WGPUBufferUsage_Storage,
                       .initial.data = quad_data,
