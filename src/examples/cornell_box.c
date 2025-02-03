@@ -643,7 +643,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
     /* Quads indices buffer */
     this->indices
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Scene indices buffer",
+                                           .label = "Scene - Indices buffer",
                                            .size  = sizeof(index_data),
                                            .usage = WGPUBufferUsage_Index,
                                            .initial.data = index_data,
