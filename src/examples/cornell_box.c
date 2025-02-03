@@ -634,7 +634,7 @@ static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
     /* Quads vertices buffer */
     this->vertices
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Scene vertices buffer",
+                                           .label = "Scene - Vertices buffer",
                                            .size  = sizeof(vertex_data),
                                            .usage = WGPUBufferUsage_Vertex,
                                            .initial.data = vertex_data,
