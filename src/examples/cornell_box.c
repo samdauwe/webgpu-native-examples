@@ -802,7 +802,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
     // Texture sampler
     WGPUSamplerDescriptor sampler_desc = {
-      .label         = "Radiosity lightmap texture sampler",
+      .label         = "Radiosity lightmap - Texture sampler",
       .addressModeU  = WGPUAddressMode_ClampToEdge,
       .addressModeV  = WGPUAddressMode_ClampToEdge,
       .addressModeW  = WGPUAddressMode_ClampToEdge,
