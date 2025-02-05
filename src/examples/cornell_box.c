@@ -836,7 +836,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     this->uniform_buffer = wgpu_create_buffer(
       this->wgpu_context,
       &(wgpu_buffer_desc_t){
-        .label = "Radiosity uniform buffer",
+        .label = "Radiosity - Uniform buffer",
         .size  = 8 * 4, /* 8 x f32 */
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
