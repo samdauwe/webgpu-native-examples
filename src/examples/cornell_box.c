@@ -822,7 +822,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   {
     this->accumulation_buffer = wgpu_create_buffer(
       this->wgpu_context, &(wgpu_buffer_desc_t){
-                            .label = "Radiosity accumulation buffer",
+                            .label = "Radiosity accumulation - Storage buffer",
                             .size = this->lightmap_width * this->lightmap_height
                                     * this->scene->quads_length * 16,
                             .usage = WGPUBufferUsage_Storage,
