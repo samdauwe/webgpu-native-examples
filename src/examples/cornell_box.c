@@ -957,7 +957,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_t radiosity_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
-                      .label           = "Radiosity comp shader",
+                      .label           = "Radiosity - Compute shader",
                       .wgsl_code       = {wgsl_code},
                       .entry           = "radiosity",
                       .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
