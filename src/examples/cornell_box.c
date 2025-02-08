@@ -995,9 +995,9 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_t accumulation_to_lightmap_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
-                      .label           = "Accumulation to lightmap comp shader",
-                      .wgsl_code       = {wgsl_code},
-                      .entry           = "accumulation_to_lightmap",
+                      .label     = "Accumulation to lightmap - Compute shader",
+                      .wgsl_code = {wgsl_code},
+                      .entry     = "accumulation_to_lightmap",
                       .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
                       .constants.entries = constant_entries,
                     });
