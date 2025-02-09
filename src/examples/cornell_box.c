@@ -1037,7 +1037,7 @@ static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
 {
   wgpu_context_t* wgpu_context = this->wgpu_context;
 
-  // Calculate the new mean value for the accumulation buffer
+  /* Calculate the new mean value for the accumulation buffer */
   this->accumulation_mean += (this->photons_per_frame * this->photon_energy)
                              / (float)this->total_lightmap_texels;
 
@@ -1050,20 +1050,20 @@ static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
     = this->accumulation_mean > 2 * this->accumulation_mean_max ? 0.5f : 1.0f;
   this->accumulation_mean *= accumulation_buffer_scale;
 
-  // Update the radiosity uniform buffer data.
+  /* Update the radiosity uniform buffer data. */
   const float uniform_data_f32[8] = {
-    accumulation_to_lightmap_scale, // accumulation_to_lightmap_scale */
-    accumulation_buffer_scale,      // accumulation_buffer_scale */
-    this->scene->light_width,       // light_width */
-    this->scene->light_height,      // light_height */
-    this->scene->light_center[0],   // light_center x */
-    this->scene->light_center[1],   // light_center y */
-    this->scene->light_center[2],   // light_center z */
+    accumulation_to_lightmap_scale, /* accumulation_to_lightmap_scale */
+    accumulation_buffer_scale,      /* accumulation_buffer_scale      */
+    this->scene->light_width,       /* light_width                    */
+    this->scene->light_height,      /* light_height                   */
+    this->scene->light_center[0],   /* light_center x                 */
+    this->scene->light_center[1],   /* light_center y                 */
+    this->scene->light_center[2],   /* light_center z                 */
   };
   wgpu_queue_write_buffer(wgpu_context, this->uniform_buffer.buffer, 0,
                           &uniform_data_f32[0], sizeof(uniform_data_f32));
 
-  // Dispatch the radiosity workgroups
+  /* Dispatch the radiosity workgroups */
   wgpu_context->cpass_enc
     = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
   wgpuComputePassEncoderSetBindGroup(
@@ -1075,7 +1075,7 @@ static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
   wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
                                            this->workgroups_per_frame, 1, 1);
 
-  // Then copy the 'accumulation' data to 'lightmap'
+  /* Then copy the 'accumulation' data to 'lightmap' */
   wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
                                     this->accumulation_to_lightmap_pipeline);
   wgpuComputePassEncoderDispatchWorkgroups(
