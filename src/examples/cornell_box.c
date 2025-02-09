@@ -1147,7 +1147,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Rasterizer renderer depth texture view",
+      .label           = "Rasterizer renderer - Depth texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
