@@ -1133,7 +1133,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Rasterizer renderer depth texture",
+      .label         = "Rasterizer renderer - Depth texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
