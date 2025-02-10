@@ -1220,7 +1220,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
       &(WGPUBindGroupLayoutDescriptor){
-        .label      = "'Rasterizer renderer - Bind group layout",
+        .label      = "Rasterizer renderer - Bind group layout",
         .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
         .entries    = bgl_entries,
       });
@@ -1244,7 +1244,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Rasterizer renderer bind group",
+                              .label      = "Rasterizer renderer - Bind group",
                               .layout     = this->bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
