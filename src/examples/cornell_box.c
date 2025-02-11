@@ -765,7 +765,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
 
   /* Lightmap */
   {
-    // Texture
+    /* Texture */
     WGPUTextureDescriptor texture_desc = {
       .label         = "Radiosity lightmap - Texture",
       .size          = (WGPUExtent3D) {
@@ -785,7 +785,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     ASSERT(this->lightmap.texture != NULL);
     this->lightmap_depth_or_array_layers = this->scene->quads_length;
 
-    // Texture view
+    /* Texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Radiosity lightmap - Texture view",
       .dimension       = WGPUTextureViewDimension_2DArray,
@@ -800,7 +800,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
       = wgpuTextureCreateView(this->lightmap.texture, &texture_view_dec);
     ASSERT(this->lightmap.view != NULL);
 
-    // Texture sampler
+    /* Texture sampler */
     WGPUSamplerDescriptor sampler_desc = {
       .label         = "Radiosity lightmap - Texture sampler",
       .addressModeU  = WGPUAddressMode_ClampToEdge,
@@ -846,7 +846,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: accumulation buffer
+        /* Binding 0: accumulation buffer */
         .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -856,7 +856,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: lightmap
+        /* Binding 1: lightmap */
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = {
@@ -866,7 +866,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
         },
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: radiosity_uniforms
+        /* Binding 2: radiosity_uniforms */
         .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -889,19 +889,19 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: accumulation buffer
+        /* Binding 0: accumulation buffer */
         .binding = 0,
         .buffer  = this->accumulation_buffer.buffer,
         .offset  = 0,
         .size    = this->accumulation_buffer.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: lightmap
+        /* Binding 1: lightmap */
         .binding     = 1,
         .textureView = this->lightmap.view,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: radiosity_uniforms
+        /* Binding 2: radiosity_uniforms */
         .binding = 2,
         .buffer  = this->uniform_buffer.buffer,
         .offset  = 0,
