@@ -1303,7 +1303,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       wgpu_context, &(wgpu_vertex_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Vertex shader WGSL
-        .label     = "Rasterizer renderer vertex module",
+        .label     = "Rasterizer renderer - Vertex module",
         .wgsl_code  = {wgsl_code},
         .entry     = "vs_main",
       },
