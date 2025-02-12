@@ -1126,7 +1126,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
 
   /* Depth texture */
   {
-    // Create the texture
+    /* Create the texture */
     WGPUExtent3D texture_extent = {
       .width              = frame_buffer->size.width,
       .height             = frame_buffer->size.height,
@@ -1145,7 +1145,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(this->depth_texture.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Rasterizer renderer - Depth texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -1162,7 +1162,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
 
   /* Render pass */
   {
-    // Color attachment
+    /* Color attachment */
     this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = frame_buffer->view,
       .depthSlice = ~0,
@@ -1176,7 +1176,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       },
     };
 
-    // Depth-stencil attachment
+    /* Depth-stencil attachment */
     this->render_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
         .view            = this->depth_texture.view,
@@ -1185,7 +1185,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
         .depthStoreOp    = WGPUStoreOp_Store,
       };
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     this->render_pass.descriptor = (WGPURenderPassDescriptor){
       .label                  = "Rasterizer renderer - Render pass descriptor",
       .colorAttachmentCount   = 1,
@@ -1198,7 +1198,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: lightmap
+        /* Binding 0: lightmap */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -1208,7 +1208,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: sampler
+        /* Binding 1: sampler */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .sampler = (WGPUSamplerBindingLayout) {
@@ -1231,12 +1231,12 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: lightmap
+        /* Binding 0: lightmap */
         .binding = 0,
         .textureView  = radiosity->lightmap.view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: sampler
+        /* Binding 1: sampler */
         .binding     = 1,
         .sampler = radiosity->lightmap.sampler,
 
@@ -1270,14 +1270,14 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
 
   /* Rasterizer render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state_desc = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_Back,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
       .format    = frame_buffer->format,
@@ -1285,7 +1285,7 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state_desc
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = WGPUTextureFormat_Depth24Plus,
@@ -1293,16 +1293,16 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       });
     depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
 
-    // Shader code
+    /* Shader code */
     char* wgsl_code = {0};
     concat_shader_store_entries(&shader_store.common, &shader_store.rasterizer,
                                 &wgsl_code);
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
       .shader_desc = (wgpu_shader_desc_t){
-        // Vertex shader WGSL
+        /* Vertex shader WGSL */
         .label     = "Rasterizer renderer - Vertex module",
         .wgsl_code  = {wgsl_code},
         .entry     = "vs_main",
@@ -1311,11 +1311,11 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .buffers      = &this->scene->vertex_buffer_layout,
     });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
-        // Fragment shader WGSL
+        /* Fragment shader WGSL */
         .label     = "Rasterizer renderer fragment module",
         .wgsl_code  = {wgsl_code},
         .entry     = "fs_main",
@@ -1324,14 +1324,14 @@ static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
       .targets = &color_target_state_desc,
     });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state_desc
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     this->pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "Rasterizer - Renderer pipeline",
