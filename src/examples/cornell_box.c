@@ -1423,7 +1423,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: lightmap
+        /* Binding 0: lightmap */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -1433,7 +1433,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: sampler
+        /* Binding 1: sampler */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
         .sampler = (WGPUSamplerBindingLayout) {
@@ -1442,7 +1442,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
         .texture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: framebuffer
+        /* Binding 2: framebuffer */
         .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = {
@@ -1465,18 +1465,18 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: lightmap
+        /* Binding 0: lightmap */
         .binding = 0,
         .textureView  = radiosity->lightmap.view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: sampler
+        /* Binding 1: sampler */
         .binding     = 1,
         .sampler = radiosity->lightmap.sampler,
 
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: framebuffer
+        /* Binding 2: framebuffer */
         .binding = 2,
         .textureView = frame_buffer->view,
       },
@@ -1527,7 +1527,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
                                 &wgsl_code);
     wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
+                      /* Compute shader WGSL */
                       .label           = "Raytracer compute shader",
                       .wgsl_code       = {wgsl_code},
                       .entry           = "main",
