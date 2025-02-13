@@ -1498,7 +1498,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
       this->bind_group_layout,                  /* Group 1 */
     };
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Raytracer pipeline layout",
+      .label                = "Raytracer - Compute pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
