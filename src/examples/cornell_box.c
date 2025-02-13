@@ -1483,7 +1483,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Renderer bind group",
+                              .label      = "Renderer - Bind group",
                               .layout     = this->bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
