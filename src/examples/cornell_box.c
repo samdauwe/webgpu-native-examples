@@ -695,11 +695,11 @@ static void scene_destroy(scene_t* this)
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  // The output lightmap format and dimensions
+  /* The output lightmap format and dimensions */
   WGPUTextureFormat lightmap_format;
   uint32_t lightmap_width;
   uint32_t lightmap_height;
-  // The output lightmap.
+  /* The output lightmap. */
   texture_t lightmap;
   uint32_t lightmap_depth_or_array_layers;
   // Number of photons emitted per workgroup.
@@ -711,7 +711,7 @@ typedef struct {
   // Maximum value that can be added to the 'accumulation' buffer, per
   // photon, across all texels.
   uint32_t photon_energy;
-  // The total number of lightmap texels for all quads.
+  /* The total number of lightmap texels for all quads. */
   uint32_t total_lightmap_texels;
   uint32_t accumulation_to_lightmap_workgroup_size_x;
   uint32_t accumulation_to_lightmap_workgroup_size_y;
@@ -725,7 +725,7 @@ typedef struct {
   WGPUBindGroup bind_group;
   wgpu_buffer_t accumulation_buffer;
   wgpu_buffer_t uniform_buffer;
-  // The 'accumulation' buffer average value
+  /* The 'accumulation' buffer average value */
   float accumulation_mean;
   // The maximum value of 'accumulationAverage' before all values in
   // 'accumulation' are reduced to avoid integer overflows.
@@ -956,7 +956,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     /* Compute shader */
     wgpu_shader_t radiosity_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
+                      /* Compute shader WGSL */
                       .label           = "Radiosity - Compute shader",
                       .wgsl_code       = {wgsl_code},
                       .entry           = "radiosity",
@@ -994,7 +994,7 @@ static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
     /* Compute shader */
     wgpu_shader_t accumulation_to_lightmap_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
+                      /* Compute shader WGSL */
                       .label     = "Accumulation to lightmap - Compute shader",
                       .wgsl_code = {wgsl_code},
                       .entry     = "accumulation_to_lightmap",
