@@ -1665,7 +1665,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
     this->bind_group = wgpuDeviceCreateBindGroup(
       this->wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = "Tonemapper bind group",
+        .label      = "Tonemapper - Bind group",
         .layout     = this->bind_group_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
