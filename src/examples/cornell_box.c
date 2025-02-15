@@ -1539,7 +1539,7 @@ static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
     this->pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Raytracer compute pipeline",
+        .label   = "Raytracer - Compute pipeline",
         .layout  = this->pipeline_layout,
         .compute = raytracer_comp_shader.programmable_stage_descriptor,
       });
