@@ -1720,7 +1720,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
     this->pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Tonemap pipeline",
+        .label   = "Tonemap - Compute pipeline",
         .layout  = this->pipeline_layout,
         .compute = tonemapper_comp_shader.programmable_stage_descriptor,
       });
