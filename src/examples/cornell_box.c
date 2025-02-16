@@ -1709,7 +1709,7 @@ static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
     wgpu_shader_t tonemapper_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       // Compute shader WGSL
-                      .label           = "Tonemapper compute shader",
+                      .label           = "Tonemapper - Compute shader",
                       .wgsl_code       = {wgsl_code},
                       .entry           = "main",
                       .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
