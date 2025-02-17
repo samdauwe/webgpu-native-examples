@@ -1812,7 +1812,7 @@ static void result_renderer_create(result_renderer_t* this,
     };
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Quad bind group layout",
+                              .label      = "Quad - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
