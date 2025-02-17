@@ -1835,7 +1835,7 @@ static void result_renderer_create(result_renderer_t* this,
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Quad bind group",
+                              .label      = "Quad - Bind group",
                               .layout     = this->bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
