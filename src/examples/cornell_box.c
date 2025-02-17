@@ -1847,6 +1847,7 @@ static void result_renderer_create(result_renderer_t* this,
   {
     this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                              .label = "Quad - Render pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &this->bind_group_layout,
                             });
