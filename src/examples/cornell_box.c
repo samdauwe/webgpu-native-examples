@@ -1790,7 +1790,7 @@ static void result_renderer_create(result_renderer_t* this,
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Fragment shader image view
+        /* Binding 0: Fragment shader image view */
         .binding = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -1801,7 +1801,7 @@ static void result_renderer_create(result_renderer_t* this,
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout) {
@@ -1823,12 +1823,12 @@ static void result_renderer_create(result_renderer_t* this,
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Fragment shader image sampler
+        /* Binding 0: Fragment shader image sampler */
         .binding     = 0,
         .textureView = texture->view,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1: Fragment shader image sampler
+        /* Binding 1: Fragment shader image sampler */
         .binding = 1,
         .sampler = texture->sampler,
       },
@@ -1856,7 +1856,7 @@ static void result_renderer_create(result_renderer_t* this,
 
   /* Render pass */
   {
-    // Color attachment
+    /* Color attachment */
     this->render_pass.color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
         .view       = NULL, /* Assigned later */
         .depthSlice = ~0,
@@ -1870,10 +1870,10 @@ static void result_renderer_create(result_renderer_t* this,
         },
     };
 
-    // Depth attachment
+    /* Depth attachment */
     wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-    // Render pass descriptor
+    /* Render pass descriptor */
     this->render_pass.descriptor = (WGPURenderPassDescriptor){
       .colorAttachmentCount   = 1,
       .colorAttachments       = this->render_pass.color_att_descriptors,
@@ -1883,14 +1883,14 @@ static void result_renderer_create(result_renderer_t* this,
 
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_None,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
@@ -1898,18 +1898,18 @@ static void result_renderer_create(result_renderer_t* this,
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = WGPUTextureFormat_Depth24PlusStencil8,
         .depth_write_enabled = true,
       });
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
               wgpu_context, &(wgpu_vertex_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader SPIR-V
+                /* Vertex shader SPIR-V */
                 .label = "Quad - Vertex shader",
                 .file  = "shaders/cornell_box/quad.vert.spv",
               },
@@ -1917,11 +1917,11 @@ static void result_renderer_create(result_renderer_t* this,
               .buffers      = NULL,
             });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader SPIR-V
+                /* Fragment shader SPIR-V */
                 .label = "Quad - Fragment shader",
                 .file  = "shaders/cornell_box/quad.frag.spv",
               },
@@ -1929,14 +1929,14 @@ static void result_renderer_create(result_renderer_t* this,
               .targets      = &color_target_state,
             });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Render pipeline description
+    /* Render pipeline description */
     WGPURenderPipelineDescriptor pipeline_desc = {
       .label        = "Quad render pipeline",
       .layout       = this->pipeline_layout,
@@ -1950,7 +1950,7 @@ static void result_renderer_create(result_renderer_t* this,
       = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
     ASSERT(this->pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
