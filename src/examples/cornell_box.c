@@ -1922,7 +1922,7 @@ static void result_renderer_create(result_renderer_t* this,
               wgpu_context, &(wgpu_fragment_state_t){
               .shader_desc = (wgpu_shader_desc_t){
                 // Fragment shader SPIR-V
-                .label = "Quad fragment shader",
+                .label = "Quad - Fragment shader",
                 .file  = "shaders/cornell_box/quad.frag.spv",
               },
               .target_count = 1,
