@@ -2070,7 +2070,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
 
   // Create the texture view
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Framebuffer texture view",
+    .label           = "Framebuffer - Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
