@@ -1938,7 +1938,7 @@ static void result_renderer_create(result_renderer_t* this,
 
     /* Render pipeline description */
     WGPURenderPipelineDescriptor pipeline_desc = {
-      .label        = "Quad render pipeline",
+      .label        = "Quad  - Render pipeline",
       .layout       = this->pipeline_layout,
       .primitive    = primitive_state,
       .depthStencil = &depth_stencil_state,
