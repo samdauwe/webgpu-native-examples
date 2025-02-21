@@ -2084,7 +2084,7 @@ static void create_frame_buffer(wgpu_context_t* wgpu_context,
 
   // Texture sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Framebuffer texture sampler",
+    .label         = "Framebuffer - Texture sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
