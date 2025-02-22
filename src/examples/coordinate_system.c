@@ -199,7 +199,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     bind_groups.ccw = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group CCW",
+                              .label      = "Bind group - CCW",
                               .layout     = bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
