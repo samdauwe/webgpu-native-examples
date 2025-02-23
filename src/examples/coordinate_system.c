@@ -210,10 +210,10 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : Fragment shader texture view
+      /* Binding 0 : Fragment shader texture view */
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout) {
@@ -224,7 +224,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1: Fragment shader image sampler
+      /* Binding 1: Fragment shader image sampler */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
