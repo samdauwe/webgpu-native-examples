@@ -370,20 +370,20 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 {
   if (imgui_overlay_header("Scene")) {
     imgui_overlay_text("Quad Type");
-    static const char* quadtype[2] = {"VK (y negative)", "WebGPU (y positive)"};
+    static const char* quadtype[2] = {"VK (Y Negative)", "WebGPU (Y Positive)"};
     imgui_overlay_combo_box(context->imgui_overlay, "##quadtype",
                             &settings.quad_type, quadtype, 2);
   }
 
   if (imgui_overlay_header("Pipeline")) {
     imgui_overlay_text("Winding Order");
-    static const char* windingorder[2] = {"clock wise", "counter clock wise"};
+    static const char* windingorder[2] = {"Clock Wise", "Counter Clock Wise"};
     if (imgui_overlay_combo_box(context->imgui_overlay, "##windingorder",
                                 &settings.winding_order, windingorder, 2)) {
       prepare_pipelines(context->wgpu_context);
     }
     imgui_overlay_text("Cull Mode");
-    static const char* cullmode[3] = {"none", "front face", "back face"};
+    static const char* cullmode[3] = {"None", "Front Face", "Back Face"};
     if (imgui_overlay_combo_box(context->imgui_overlay, "##cullmode",
                                 &settings.cull_mode, cullmode, 3)) {
       prepare_pipelines(context->wgpu_context);
