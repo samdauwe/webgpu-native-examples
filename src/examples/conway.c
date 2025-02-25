@@ -109,7 +109,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
 
     // Create the texture
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Texture for compute part",
+      .label         = "Compute part - Texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
