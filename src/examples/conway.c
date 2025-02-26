@@ -92,7 +92,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   update_uniform_buffers(wgpu_context);
 }
 
-// Textures, used for compute part
+/* Textures, used for compute part */
 static void prepare_textures(wgpu_context_t* wgpu_context)
 {
   const uint32_t compute_width  = wgpu_context->surface.width;
@@ -107,7 +107,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < 2; ++i) {
     texture_t* tex = &textures[i];
 
-    // Create the texture
+    /* Create the texture */
     WGPUTextureDescriptor texture_desc = {
       .label         = "Compute part - Texture",
       .size          = texture_extent,
@@ -124,7 +124,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     tex->texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(tex->texture);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Compute part - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -137,7 +137,8 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     tex->view = wgpuTextureCreateView(tex->texture, &texture_view_dec);
     ASSERT(tex->view);
 
-    // Create sampler to sample to pick from the texture and write to the screen
+    /* Create sampler to sample to pick from the texture and write to the screen
+     */
     tex->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
                               .label         = "Compute part - Texture sampler",
@@ -154,7 +155,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     ASSERT(tex->sampler);
   }
 
-  // Setup the initial texture1, with some initial data.
+  /* Setup the initial texture1, with some initial data. */
   uint8_t* b = malloc(compute_width * compute_height * 4 * sizeof(uint8_t));
   ASSERT(b);
   bool has_life = false;
