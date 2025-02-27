@@ -180,7 +180,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0 : Uniforms
+        /* Binding 0 : Uniforms */
         .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
@@ -190,7 +190,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1 : Input compute buffer as texture
+        /* Binding 1 : Input compute buffer as texture */
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -201,7 +201,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-         // Binding 2 : Output compute buffer as texture
+         /* Binding 2 : Output compute buffer as texture */
         .binding    = 2,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
@@ -221,7 +221,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
     ASSERT(compute.bind_group_layout != NULL);
 
-    // Compute pipeline layout
+    /* Compute pipeline layout */
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
       .label                = "Compute - Pipeline layout",
       .bindGroupLayoutCount = 1,
@@ -236,7 +236,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0 : Current compute texture updated by the compute shader
+        /* Binding 0 : Current compute texture updated by the compute shader */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -247,7 +247,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1 : Sampler for the texture
+        /* Binding 1 : Sampler for the texture */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -265,7 +265,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
     ASSERT(graphics.bind_group_layout != NULL);
 
-    // Render pipeline layout
+    /* Render pipeline layout */
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
       .label                = "Rendering - Pipeline layout",
       .bindGroupLayoutCount = 1,
