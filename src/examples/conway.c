@@ -355,7 +355,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     graphics.bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label  = "Graphics bind group",
+        .label  = "Graphics - Bind group",
         .layout = wgpuRenderPipelineGetBindGroupLayout(graphics.pipeline, 0),
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
