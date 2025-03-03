@@ -89,7 +89,7 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 
 static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Create uniforms buffer
+  /* Create uniforms buffer */
   uniforms.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Uniform buffer",
@@ -97,7 +97,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
                     .size  = sizeof(uniforms.desc),
                   });
 
-  // Update unifroms buffer data
+  /* Update unifroms buffer data */
   update_uniform_buffers(wgpu_context);
 }
 
