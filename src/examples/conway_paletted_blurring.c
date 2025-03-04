@@ -156,7 +156,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     // Create sampler to sample to pick from the texture and write to the screen
     tex->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "Compute texture sampler",
+                              .label         = "Compute - Texture sampler",
                               .addressModeU  = WGPUAddressMode_ClampToEdge,
                               .addressModeV  = WGPUAddressMode_ClampToEdge,
                               .addressModeW  = WGPUAddressMode_ClampToEdge,
