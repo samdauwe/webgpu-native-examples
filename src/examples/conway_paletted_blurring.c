@@ -101,7 +101,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   update_uniform_buffers(wgpu_context);
 }
 
-// Textures, used for compute part
+/* Textures, used for compute part */
 static void prepare_textures(wgpu_context_t* wgpu_context)
 {
   const uint32_t compute_width  = wgpu_context->surface.width;
@@ -123,7 +123,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(textureArray); ++i) {
     texture_t* tex = textureArray[i];
 
-    // Create the texture
+    /* Create the texture */
     WGPUTextureDescriptor texture_desc = {
       .label         = "Compute - Texture",
       .size          = texture_extent,
@@ -140,7 +140,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     tex->texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(tex->texture);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Compute - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
