@@ -288,7 +288,7 @@ static void setup_pipeline_layouts(wgpu_context_t* wgpu_context)
       }
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Rendering pipeline main layout",
+      .label      = "Rendering pipeline main - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
