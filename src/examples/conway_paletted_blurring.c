@@ -420,7 +420,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     compute.pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Effect compute pipeline",
+        .label   = "Effect - Compute pipeline",
         .layout  = compute.pipeline_layout,
         .compute = conway_comp_shader.programmable_stage_descriptor,
       });
