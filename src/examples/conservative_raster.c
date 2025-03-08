@@ -110,7 +110,7 @@ static void create_low_res_target(wgpu_context_t* wgpu_context)
   };
   bind_group_upscale = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Upscale bind group",
+                            .label      = "Upscale - Bind group",
                             .layout     = bind_group_layout_upscale,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
