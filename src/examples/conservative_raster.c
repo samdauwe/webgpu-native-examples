@@ -52,7 +52,7 @@ static bool prepared             = false;
 static void create_low_res_target(wgpu_context_t* wgpu_context)
 {
   WGPUTextureDescriptor texture_desc = {
-     .label         = "Low Resolution Target",
+     .label         = "Low Resolution Target - Texture",
      .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment,
      .dimension     = WGPUTextureDimension_2D,
      .size          = (WGPUExtent3D) {
