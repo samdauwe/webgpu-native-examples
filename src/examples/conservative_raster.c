@@ -168,13 +168,14 @@ static void prepare_pipeline_triangle_conservative(wgpu_context_t* wgpu_context)
 
   // Create rendering pipeline using the specified states
   render_pipelines.triangle_conservative = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "Conservative Rasterization pipeline",
-                            .primitive = primitive_state,
-                            .vertex    = vertex_state,
-                            .fragment  = &fragment_state,
-                            .multisample = multisample_state,
-                          });
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label       = "Conservative Rasterization - Render pipeline",
+      .primitive   = primitive_state,
+      .vertex      = vertex_state,
+      .fragment    = &fragment_state,
+      .multisample = multisample_state,
+    });
   ASSERT(render_pipelines.triangle_conservative != NULL);
 
   // Partial cleanup
