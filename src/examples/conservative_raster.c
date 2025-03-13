@@ -389,7 +389,7 @@ static void prepare_pipeline_upscale(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_fragment_state_t){
       .shader_desc = (wgpu_shader_desc_t){
         // Fragment shader SPIR-V
-        .label = "Upscale fragment shader SPIR-V",
+        .label = "Upscale - Fragment shader SPIR-V",
         .file  = "shaders/conservative_raster/upscale.frag.spv",
       },
       .target_count = 1,
