@@ -447,7 +447,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   {
     /* Render pass descriptor */
     WGPURenderPassDescriptor render_pass_desc = (WGPURenderPassDescriptor){
-      .label                  = "Low resolution render pass",
+      .label                  = "Low resolution - Render pass",
       .colorAttachmentCount   = 1,
       .colorAttachments       = &(WGPURenderPassColorAttachment) {
         .view       = low_res_target_texture.view,
