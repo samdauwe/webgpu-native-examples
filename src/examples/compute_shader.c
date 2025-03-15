@@ -139,7 +139,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   // Create the texture view
   tex->view = wgpuTextureCreateView(tex->texture,
                                     &(WGPUTextureViewDescriptor){
-                                      .label     = "Blit target texture view",
+                                      .label     = "Blit target - Texture view",
                                       .format    = tex->format,
                                       .dimension = WGPUTextureViewDimension_2D,
                                       .baseMipLevel    = 0,
