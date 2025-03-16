@@ -230,7 +230,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     };
     graphics.bind_group_pre_compute = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Input image bind group",
+                              .label      = "Input image - Bind group",
                               .layout     = graphics.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
