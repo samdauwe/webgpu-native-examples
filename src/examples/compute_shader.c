@@ -197,7 +197,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
   // Index buffer
   index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Quad index buffer",
+                    .label = "Quad - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sizeof(uint32_t) * (uint32_t)ARRAY_SIZE(indices),
                     .count = (uint32_t)ARRAY_SIZE(indices),
