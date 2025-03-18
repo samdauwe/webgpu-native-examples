@@ -465,7 +465,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Compute pipeline bind group layout",
+      .label      = "Compute pipeline - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
