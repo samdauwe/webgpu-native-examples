@@ -534,19 +534,19 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Updated view matrices
+  /* Updated view matrices */
   glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                           &ubo_vs, uniform_buffer_vs.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer block
+  /* Vertex shader uniform buffer block */
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
