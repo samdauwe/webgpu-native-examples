@@ -150,7 +150,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   // Create sampler
   tex->sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Blit target texture sampler",
+                            .label         = "Blit target - Texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
