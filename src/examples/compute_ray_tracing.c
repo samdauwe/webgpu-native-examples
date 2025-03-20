@@ -166,7 +166,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
 void init_sphere(sphere_t* sphere, vec3 pos, float radius, vec3 diffuse,
                  float specular)
 {
-  pos[1] *= -1.0f; // flip y
+  pos[1] *= -1.0f; /* flip y */
 
   sphere->id = current_id++;
   glm_vec3_copy(pos, sphere->pos);
