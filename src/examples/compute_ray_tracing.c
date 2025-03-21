@@ -204,7 +204,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // vertex buffer in the graphics pipeline
   compute.storage_buffers.spheres = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Spheres compute storage buffer",
+                    .label = "Spheres compute - Storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = storage_buffer_size,
