@@ -233,7 +233,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // vertex buffer in the graphics pipeline
   compute.storage_buffers.planes = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane compute storage buffer",
+                    .label = "Plane compute - Storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = storage_buffer_size,
