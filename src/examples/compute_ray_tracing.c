@@ -122,7 +122,7 @@ static void prepare_texture_target(wgpu_context_t* wgpu_context, texture_t* tex,
   tex->texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
-      .label         = "Blit target texture",
+      .label         = "Blit target - Texture",
       .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
       .dimension     = WGPUTextureDimension_2D,
       .size          = (WGPUExtent3D){
