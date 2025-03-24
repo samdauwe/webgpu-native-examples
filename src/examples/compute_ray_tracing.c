@@ -519,7 +519,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   wgpu_shader_t particle_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader SPIR-V
-                    .label = "Ray tracing compute shader",
+                    .label = "Ray tracing - Compute shader",
                     .file  = "shaders/compute_ray_tracing/raytracing.comp.spv",
                   });
 
