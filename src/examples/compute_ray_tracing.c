@@ -550,10 +550,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           0, &compute.ubo, compute.uniform_buffer.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Default values
+  /* Default values */
   glm_vec4_zero(compute.ubo.fogColor);
   glm_vec3_copy((vec3){0.0f, 0.0f, 4.0f}, compute.ubo.camera.pos);
   glm_vec3_copy((vec3){0.0f, 0.5f, 0.0f}, compute.ubo.camera.lookat);
@@ -561,7 +561,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   compute.ubo.aspectRatio = context->window_size.aspect_ratio;
   context->timer_speed *= 0.25f;
 
-  // Compute shader parameter uniform buffer block
+  /* Compute shader parameter uniform buffer block */
   compute.uniform_buffer = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -570,7 +570,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
       .size  = sizeof(compute.ubo),
     });
 
-  // Update uniform buffer
+  /* Update uniform buffer */
   update_uniform_buffers(context);
 }
 
