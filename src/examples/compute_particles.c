@@ -100,7 +100,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
   // SSBO won't be changed on the host after upload
   compute.storage_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Compute shader storage buffer",
+                    .label = "Compute shader - Storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = PARTICLE_COUNT * sizeof(particle_t),
