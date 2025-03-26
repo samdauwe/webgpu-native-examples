@@ -413,13 +413,13 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
-// Prepare the compute pipeline that generates the ray traced image
+/* Prepare the compute pipeline that generates the ray traced image */
 static void prepare_compute(wgpu_context_t* wgpu_context)
 {
   /* Compute pipeline layout */
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : Storage image (raytraced output)
+      /* Binding 0 : Storage image (raytraced output) */
       .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .storageTexture = (WGPUStorageTextureBindingLayout) {
@@ -430,7 +430,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1 : Uniform buffer block
+      /* Binding 1 : Uniform buffer block */
       .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -440,7 +440,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [2] = (WGPUBindGroupLayoutEntry) {
-      // Binding 2: Shader storage buffer for the spheres
+      /* Binding 2: Shader storage buffer for the spheres */
       .binding    = 2,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -450,7 +450,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [3] = (WGPUBindGroupLayoutEntry) {
-      // Binding 3: Shader storage buffer for the planes
+      /* Binding 3: Shader storage buffer for the planes */
       .binding    = 3,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -480,26 +480,26 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   /* Compute pipeline bind group */
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0: Output storage image
+      /* Binding 0: Output storage image */
       .binding     = 0,
       .textureView = texture_compute_target.view,
     },
     [1] = (WGPUBindGroupEntry) {
-     // Binding 1 : Uniform buffer
+     /* Binding 1 : Uniform buffer */
       .binding = 1,
       .buffer  = compute.uniform_buffer.buffer,
       .offset  = 0,
       .size    = compute.uniform_buffer.size,
     },
     [2] = (WGPUBindGroupEntry) {
-     // Binding 2: Shader storage buffer for the spheres
+     /* Binding 2: Shader storage buffer for the spheres */
       .binding = 2,
       .buffer  = compute.storage_buffers.spheres.buffer,
       .offset  = 0,
       .size    = compute.storage_buffers.spheres.size,
     },
     [3] = (WGPUBindGroupEntry) {
-     // Binding 3: Shader storage buffer for the planes
+     /* Binding 3: Shader storage buffer for the planes */
       .binding = 3,
       .buffer  = compute.storage_buffers.planes.buffer,
       .offset  = 0,
@@ -518,7 +518,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   /* Compute shader */
   wgpu_shader_t particle_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader SPIR-V
+                    /* Compute shader SPIR-V */
                     .label = "Ray tracing - Compute shader",
                     .file  = "shaders/compute_ray_tracing/raytracing.comp.spv",
                   });
