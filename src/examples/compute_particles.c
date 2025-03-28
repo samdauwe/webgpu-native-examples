@@ -360,7 +360,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   };
 
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Particle color and gradient bind group",
+    .label      = "Particle color and gradient - Bind group",
     .layout     = graphics.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
