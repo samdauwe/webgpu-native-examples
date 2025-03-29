@@ -79,16 +79,16 @@ static void load_assets(wgpu_context_t* wgpu_context)
     wgpu_context, "textures/particle_gradient_rgba.ktx", NULL);
 }
 
-// Setup and fill the compute shader storage buffers containing the particles
+/* Setup and fill the compute shader storage buffers containing the particles */
 static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
 {
-  // Initial particle positions
+  /* Initial particle positions */
   static particle_t particle_buffer[PARTICLE_COUNT] = {0};
   for (uint32_t i = 0; i < (uint32_t)PARTICLE_COUNT; ++i) {
     particle_buffer[i] = (particle_t){
       .pos = {
-        random_float_min_max(-1.0f, 1.0f), // x
-        random_float_min_max(-1.0f, 1.0f)  // y
+        random_float_min_max(-1.0f, 1.0f), /* x */
+        random_float_min_max(-1.0f, 1.0f)  /* y */
        },
       .vel = GLM_VEC2_ZERO_INIT,
       .gradient_pos = GLM_VEC4_ZERO_INIT,
@@ -96,8 +96,8 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
     particle_buffer[i].gradient_pos[0] = particle_buffer[i].pos[0] / 2.0f;
   }
 
-  // Staging
-  // SSBO won't be changed on the host after upload
+  /* Staging */
+  /* SSBO won't be changed on the host after upload */
   compute.storage_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Compute shader - Storage buffer",
@@ -135,7 +135,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &compute.ubo, compute.uniform_buffer.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
   /* Initialize the uniform buffer block */
