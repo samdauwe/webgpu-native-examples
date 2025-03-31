@@ -102,6 +102,7 @@ static void prepare_particles_buffer(wgpu_context_t* wgpu_context)
 {
   particles_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Particles storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size = num_particles * particle_instance_byte_size,
