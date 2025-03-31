@@ -200,6 +200,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Fragment shader WGSL
+              .label = "Particle - Fragment shader",
               .file  = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "fs_main",
             },
