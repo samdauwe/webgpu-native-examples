@@ -187,6 +187,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader WGSL
+              .label = "Particle - Vertex shader",
               .file  = "shaders/compute_particles_webgpu_logo/particle.wgsl",
               .entry = "vs_main",
             },
@@ -454,7 +455,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
       const uint32_t level_height = texture.size.height >> level;
       const WGPUBindGroupLayout pipeline_layout
         = level == 0 ? wgpuComputePipelineGetBindGroupLayout(
-            probability_map_import_level_pipeline, 0) :
+                         probability_map_import_level_pipeline, 0) :
                        wgpuComputePipelineGetBindGroupLayout(
                          probability_map_export_level_pipeline, 0);
       /* Texture view */
