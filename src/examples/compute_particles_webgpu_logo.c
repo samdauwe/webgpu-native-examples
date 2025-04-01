@@ -219,7 +219,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "particle_render_pipeline",
+                            .label        = "Particle - Render pipeline",
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
