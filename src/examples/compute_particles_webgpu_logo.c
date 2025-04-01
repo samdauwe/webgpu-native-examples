@@ -236,6 +236,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
 static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 {
   WGPUTextureDescriptor texture_desc = {
+    .label         = "Depth - Texture",
     .size          = (WGPUExtent3D) {
       .width              = wgpu_context->surface.width,
       .height             = wgpu_context->surface.height,
