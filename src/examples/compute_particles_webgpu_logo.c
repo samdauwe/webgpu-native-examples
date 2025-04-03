@@ -323,6 +323,7 @@ static void setup_render_pass(void)
 
   // Render pass descriptor
   render_pass_desc = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = rp_color_att_descriptors,
     .depthStencilAttachment = &render_pass_depth_stencil_att_desc,
