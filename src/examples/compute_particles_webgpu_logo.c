@@ -384,6 +384,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
   wgpu_shader_t probability_map_export_lvl_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
                     // Compute shader WGSL
+                    .label = "Probability map export lvl compute shader",
                     .file  = "shaders/compute_particles_webgpu_logo/"
                              "probabilityMap.wgsl",
                     .entry = "export_level",
