@@ -354,6 +354,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 {
   const char* file = "textures/webgpu.png";
   struct wgpu_texture_load_options_t texture_load_options = {
+    .label            = "WebGPU logo - Texture",
     .generate_mipmaps = true,
     .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding
              | WGPUTextureUsage_CopyDst | WGPUTextureUsage_RenderAttachment,
