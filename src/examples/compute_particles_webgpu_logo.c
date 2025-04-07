@@ -342,7 +342,7 @@ static void prepare_quad_vertex_buffer(wgpu_context_t* wgpu_context)
   /* Create vertex buffer */
   quad_vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Quad vertex buffer",
+                    .label = "Quad - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertex_buffer),
                     .count = (uint32_t)ARRAY_SIZE(vertex_buffer),
