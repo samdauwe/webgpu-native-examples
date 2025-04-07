@@ -403,6 +403,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
   probability_map_export_level_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
+      .label = "Probability map export level - Compute pipeline",
       .compute
       = probability_map_export_lvl_comp_shader.programmable_stage_descriptor,
     });
