@@ -414,6 +414,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
                                   3 * 4 + /* padding */
                                   0;
     WGPUBufferDescriptor uniform_buffer_desc = {
+      .label            = "ProbabilityMap UBO Buffer",
       .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size             = probability_ubo_buffer.size,
       .mappedAtCreation = false,
