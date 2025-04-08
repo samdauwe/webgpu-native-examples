@@ -226,7 +226,7 @@ static void prepare_render_pipelines(wgpu_context_t* wgpu_context)
                             .depthStencil = &depth_stencil_state,
                             .multisample  = multisample_state,
                           });
-  ASSERT(render_pipeline)
+  ASSERT(render_pipeline);
 
   /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -410,8 +410,8 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
 
   /* ProbabilityMap UBO Buffer */
   {
-    probability_ubo_buffer.size = 1 * 4 + // stride
-                                  3 * 4 + // padding
+    probability_ubo_buffer.size = 1 * 4 + /* stride  */
+                                  3 * 4 + /* padding */
                                   0;
     WGPUBufferDescriptor uniform_buffer_desc = {
       .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
