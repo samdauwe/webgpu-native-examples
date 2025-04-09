@@ -447,6 +447,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
   {
     buffer_b.size = texture.size.width * texture.size.height * 4;
     WGPUBufferDescriptor uniform_buffer_desc = {
+      .label            = "Storage buffer B",
       .usage            = WGPUBufferUsage_Storage,
       .size             = buffer_b.size,
       .mappedAtCreation = false,
