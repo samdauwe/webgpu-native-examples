@@ -477,7 +477,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
       /* Texture view */
       texture_views[level] = wgpuTextureCreateView(
         texture.texture, &(WGPUTextureViewDescriptor){
-                           .label           = "lvl_view",
+                           .label           = "Probability map - Texture view",
                            .format          = WGPUTextureFormat_RGBA8Unorm,
                            .aspect          = WGPUTextureAspect_All,
                            .baseMipLevel    = level,
