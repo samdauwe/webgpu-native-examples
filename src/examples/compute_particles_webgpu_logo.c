@@ -583,6 +583,7 @@ static void prepare_simulation_uniform_buffer(wgpu_context_t* wgpu_context)
   simulation_ubo_buffer.size = sizeof(simulation_ubo_buffer.data);
 
   WGPUBufferDescriptor uniform_buffer_desc = {
+    .label            = "Simulation UBO buffer",
     .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     .size             = simulation_ubo_buffer.size,
     .mappedAtCreation = false,
