@@ -600,6 +600,7 @@ static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context,
     &(wgpu_shader_desc_t){
       // Compute shader WGSL
+      .label = "Particle - Compute shader WGSL",
       .file  = "shaders/compute_particles_webgpu_logo/particle.wgsl",
       .entry = "simulate",
     });
