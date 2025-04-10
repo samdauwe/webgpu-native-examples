@@ -515,6 +515,7 @@ static void generate_probability_map(wgpu_context_t* wgpu_context)
         },
       };
       WGPUBindGroupDescriptor bg_desc = {
+        .label      = "Probability map - Bind group layout",
         .layout     = pipeline_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
