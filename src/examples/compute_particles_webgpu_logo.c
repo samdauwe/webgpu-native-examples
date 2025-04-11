@@ -21,7 +21,7 @@ const uint32_t particle_instance_byte_size = 3 * 4 + /* position */
                                              1 * 4 + /* lifetime */
                                              4 * 4 + /* color    */
                                              3 * 4 + /* velocity */
-                                             1 * 4 + /* padding */
+                                             1 * 4 + /* padding  */
                                              0;
 
 /* Particles buffer */
