@@ -609,6 +609,7 @@ static void prepare_compute_pipeline(wgpu_context_t* wgpu_context)
   compute_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
+      .label   = "Particle - Compute pipeline",
       .compute = particle_comp_shader.programmable_stage_descriptor,
     });
   ASSERT(compute_pipeline)
