@@ -623,20 +623,20 @@ static void prepare_compute_bind_group(wgpu_context_t* wgpu_context)
   /* Compute pipeline bind group */
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Simulation UBO buffer
+      /* Binding 0 : Simulation UBO buffer */
       .binding = 0,
       .buffer  = simulation_ubo_buffer.buffer,
       .size    = simulation_ubo_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
-     // Binding 1 : Particles buffer
+     /* Binding 1 : Particles buffer */
       .binding = 1,
       .buffer  = particles_buffer.buffer,
       .offset  = 0,
       .size    = particles_buffer.size,
     },
     [2] = (WGPUBindGroupEntry) {
-     // Binding 2 : Texture view
+     /* Binding 2 : Texture view */
       .binding     = 2,
       .textureView = texture.view,
     },
@@ -657,7 +657,7 @@ static void prepare_view_matrices(wgpu_context_t* wgpu_context)
   const float aspect_ratio
     = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
 
-  // Projection matrix
+  /* Projection matrix */
   glm_mat4_identity(view_matrices.projection);
   glm_mat4_identity(view_matrices.view);
   glm_mat4_identity(view_matrices.model_view_projection);
