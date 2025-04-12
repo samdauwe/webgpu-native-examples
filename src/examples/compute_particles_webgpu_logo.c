@@ -734,10 +734,10 @@ static int example_initialize(wgpu_example_context_t* context)
     prepare_compute_bind_group(context->wgpu_context);
     prepare_view_matrices(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
@@ -815,13 +815,13 @@ static int example_draw(wgpu_example_context_t* context)
   // Submit frame
   submit_frame(context);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 static int example_render(wgpu_example_context_t* context)
 {
   if (!prepared) {
-    return 1;
+    return EXIT_FAILURE;
   }
 
   update_simulation_ubo_data(context->wgpu_context);
