@@ -366,7 +366,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 }
 
 /**
- * @brief Probability map generation
+ * @brief Probability map generation.
  * The 0'th mip level of texture holds the color data and spawn-probability in
  * the alpha channel. The mip levels 1..N are generated to hold spawn
  * probabilities up to the top 1x1 mip level.
