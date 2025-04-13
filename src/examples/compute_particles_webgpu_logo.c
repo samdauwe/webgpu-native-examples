@@ -642,7 +642,7 @@ static void prepare_compute_bind_group(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Compute pipeline bind group",
+    .label      = "Compute pipeline - Bind group",
     .layout     = wgpuComputePipelineGetBindGroupLayout(compute_pipeline, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
