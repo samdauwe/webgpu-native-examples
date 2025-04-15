@@ -287,7 +287,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
   ASSERT(graphics.uniforms_bind_group_layout != NULL)
 
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
     .label                = "Render pipeline layout",
     .bindGroupLayoutCount = 1,
@@ -355,7 +355,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   /* Color attachment */
   rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
+      .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
