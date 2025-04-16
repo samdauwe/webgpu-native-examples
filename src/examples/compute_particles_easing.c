@@ -242,6 +242,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       .layout  = compute.pipeline_layout,
       .compute = particle_comp_shader.programmable_stage_descriptor,
     });
+  ASSERT(compute.pipeline != NULL);
 
   /* Partial clean-up */
   wgpu_shader_release(&particle_comp_shader);
