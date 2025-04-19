@@ -162,7 +162,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   /* Compute pipeline layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : SimParams
+      /* Binding 0 : SimParams */
       .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
@@ -172,7 +172,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1 : ParticlesA
+      /* Binding 1 : ParticlesA */
       .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
