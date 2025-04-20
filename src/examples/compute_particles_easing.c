@@ -26,13 +26,13 @@ static struct {
   .max_life = 10000.0f, /* Max lifeRange  */
 };
 
-// Vertex buffer and attributes
+/* Vertex buffer and attributes */
 static struct wgpu_buffer_t vertices = {0};
 
-// Particles data
+/* Particles data */
 static float initial_particle_data[PARTICLE_NUM * PROPERTY_NUM] = {0};
 
-// Resources for the graphics part of the example
+/* Resources for the graphics part of the example */
 static struct {
   WGPUBindGroupLayout uniforms_bind_group_layout;
   WGPUBindGroup uniforms_bind_group;
@@ -40,7 +40,7 @@ static struct {
   WGPURenderPipeline pipeline;
 } graphics = {0};
 
-// Resources for the compute part of the example
+/* Resources for the compute part of the example */
 static struct {
   wgpu_buffer_t sim_param_buffer;
   wgpu_buffer_t particle_buffer;
@@ -50,14 +50,14 @@ static struct {
   WGPUComputePipeline pipeline;
 } compute = {0};
 
-// Texture and sampler
+/* Texture and sampler */
 static texture_t particle_texture = {0};
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
 static WGPURenderPassDescriptor render_pass_desc                 = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Compute Shader Particle Easing";
 static bool prepared             = false;
 
@@ -76,7 +76,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     // clang-format on
   };
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Particle - Vertex buffer",
@@ -535,7 +535,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   /* Set target frame buffer */
   rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
