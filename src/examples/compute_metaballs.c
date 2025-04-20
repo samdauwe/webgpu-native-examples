@@ -846,15 +846,15 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* default sampler */
   this->default_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Default WebGPU renderer sampler",
-                            .addressModeU  = WGPUAddressMode_Repeat,
-                            .addressModeV  = WGPUAddressMode_Repeat,
-                            .addressModeW  = WGPUAddressMode_Repeat,
-                            .minFilter     = WGPUFilterMode_Linear,
-                            .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-                            .lodMinClamp   = 0.0f,
-                            .lodMaxClamp   = 1.0f,
+                            .label        = "Default WebGPU renderer - Sampler",
+                            .addressModeU = WGPUAddressMode_Repeat,
+                            .addressModeV = WGPUAddressMode_Repeat,
+                            .addressModeW = WGPUAddressMode_Repeat,
+                            .minFilter    = WGPUFilterMode_Linear,
+                            .magFilter    = WGPUFilterMode_Linear,
+                            .mipmapFilter = WGPUMipmapFilterMode_Linear,
+                            .lodMinClamp  = 0.0f,
+                            .lodMaxClamp  = 1.0f,
                             .maxAnisotropy = 1,
                           });
   ASSERT(this->default_sampler != NULL);
