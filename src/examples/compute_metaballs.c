@@ -952,6 +952,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
 
   /* Frame buffer descriptor */
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Frame buffer descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = &this->framebuffer.color_attachments[0],
     .depthStencilAttachment = NULL,
