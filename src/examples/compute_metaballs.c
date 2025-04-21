@@ -929,7 +929,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
 
   /* Depth texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "WebGPU renderer depth texture view",
+    .label           = "WebGPU renderer - Depth texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
