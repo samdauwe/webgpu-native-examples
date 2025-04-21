@@ -914,7 +914,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "WebGPU renderer depth texture",
+    .label         = "WebGPU renderer - Depth texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
