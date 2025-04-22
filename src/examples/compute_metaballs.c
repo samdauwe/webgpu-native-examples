@@ -988,7 +988,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   };
   this->bind_group_layouts.frame = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Frame bind group layout",
+                            .label      = "Frame - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
