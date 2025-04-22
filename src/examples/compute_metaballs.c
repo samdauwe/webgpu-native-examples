@@ -1013,7 +1013,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Frame bind group",
+      .label      = "Frame - Bind group",
       .layout     = this->bind_group_layouts.frame,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
