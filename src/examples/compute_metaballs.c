@@ -1371,7 +1371,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
       this->renderer->wgpu_context,
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
-        .label = "metaballs isosurface compute shader",
+        .label = "Metaballs isosurface - Compute shader",
         .file  = "shaders/compute_metaballs/metaball_field_compute_shader.wgsl",
         .entry = "main",
       });
