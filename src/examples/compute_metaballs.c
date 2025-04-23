@@ -1404,7 +1404,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
     };
 
     WGPUBindGroupDescriptor bg_desc = {
-      .label  = "compute metaballs bind group",
+      .label  = "Compute metaballs - Bind group",
       .layout = wgpuComputePipelineGetBindGroupLayout(
         this->compute_metaballs_pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
