@@ -1432,7 +1432,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
     this->compute_marching_cubes_pipeline = wgpuDeviceCreateComputePipeline(
       this->renderer->wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "compute marching cubes pipeline",
+        .label   = "Compute marching - Cubes pipeline",
         .compute = comp_shader.programmable_stage_descriptor,
       });
     ASSERT(this->compute_marching_cubes_pipeline != NULL);
