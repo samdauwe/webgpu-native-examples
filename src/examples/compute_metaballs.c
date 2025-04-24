@@ -1608,7 +1608,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
   this->vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "metaballs vertex buffer",
+                    .label = "Metaballs - Vertex buffer",
                     .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Vertex,
                     .size  = vertex_buffer_size,
                   });
