@@ -1615,7 +1615,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
 
   this->normal_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "metaballs normal buffer",
+                    .label = "Metaballs - Normal buffer",
                     .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Vertex,
                     .size  = vertex_buffer_size,
                   });
