@@ -1479,7 +1479,7 @@ static void metaballs_compute_init(metaballs_compute_t* this)
     WGPUBindGroupDescriptor bg_desc = {
       .layout = wgpuComputePipelineGetBindGroupLayout(
         this->compute_marching_cubes_pipeline, 0),
-      .label      = "compute marching cubes bind group",
+      .label      = "compute marching cubes - Bind group",
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     };
