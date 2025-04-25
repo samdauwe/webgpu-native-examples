@@ -1519,7 +1519,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
                          + ARRAY_SIZE(MARCHING_CUBES_TRI_TABLE))
                         * sizeof(int32_t);
     WGPUBufferDescriptor buffer_desc = {
-      .label            = "metaballs table buffer",
+      .label            = "Metaballs table - Storage buffer",
       .usage            = WGPUBufferUsage_Storage,
       .size             = table_size,
       .mappedAtCreation = true,
