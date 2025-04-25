@@ -1550,13 +1550,13 @@ static void metaballs_compute_create(metaballs_compute_t* this,
     this->metaball_array_header
       = (uint32_t*)(&this->metaball_array.ball_count[0]);
     this->metaball_array_balls = (metaball_t*)(&this->metaball_array.balls[0]);
-    this->metaball_buffer
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "metaballs buffer",
-                                           .usage = WGPUBufferUsage_Storage
-                                                    | WGPUBufferUsage_CopyDst,
-                                           .size = sizeof(this->metaball_array),
-                                         });
+    this->metaball_buffer      = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+             .label = "Metaballs  - Storage buffer",
+             .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+             .size  = sizeof(this->metaball_array),
+      });
   }
 
   /* Metaballs volume buffer */
