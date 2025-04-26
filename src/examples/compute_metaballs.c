@@ -870,7 +870,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* View UBO */
   this->ubos.view_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "View UBO",
+                    .label = "View - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(view_uniforms_t),
                   });
