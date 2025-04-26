@@ -878,7 +878,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* Screen projection UBO*/
   this->ubos.screen_projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Screen projection UBO",
+                    .label = "Screen projection - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(screen_projection_uniforms_t),
                   });
