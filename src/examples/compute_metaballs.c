@@ -862,7 +862,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* Projection UBO */
   this->ubos.projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Projection UBO",
+                    .label = "Projection - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(projection_uniforms_t),
                   });
