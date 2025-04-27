@@ -1631,7 +1631,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
   this->indirect_render_array[0] = 500;
   this->indirect_render_buffer   = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "metaballs indirect draw buffer",
+                      .label = "Metaballs indirect draw - Storage buffer",
                       .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Indirect
                              | WGPUBufferUsage_CopyDst,
                       .size = sizeof(this->indirect_render_array),
