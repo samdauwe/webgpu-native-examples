@@ -886,7 +886,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* Screen view UBO*/
   this->ubos.screen_view_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Screen view UBO",
+                    .label = "Screen view - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(screen_view_uniforms_t),
                   });
