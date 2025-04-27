@@ -1567,7 +1567,7 @@ static void metaballs_compute_create(metaballs_compute_t* this,
                                         + sizeof(uint32_t) * 4
                                         + sizeof(float) * volume_elements;
     WGPUBufferDescriptor buffer_desc = {
-      .label            = "metaballs volume buffer",
+      .label            = "Metaballs volume - Storage buffer",
       .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
       .size             = volume_buffer_size,
       .mappedAtCreation = true,
