@@ -2084,7 +2084,7 @@ static void point_lights_init(point_lights_t* this)
       wgpu_context,
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
-        .label = "update point lights compute shader wgsl",
+        .label = "Update point lights - Compute shader wgsl",
         .file
         = "shaders/compute_metaballs/update_point_lights_compute_shader.wgsl",
         .entry = "main",
