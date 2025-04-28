@@ -2092,7 +2092,7 @@ static void point_lights_init(point_lights_t* this)
     this->update_compute_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "point light update compute pipeline",
+        .label   = "Point light update - Compute pipeline",
         .layout  = this->update_compute_pipeline_layout,
         .compute = comp_shader.programmable_stage_descriptor,
       });
