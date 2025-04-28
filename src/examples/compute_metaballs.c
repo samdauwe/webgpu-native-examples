@@ -2069,7 +2069,7 @@ static void point_lights_init(point_lights_t* this)
       this->renderer->bind_group_layouts.frame,      // Group 1
     };
     WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "point light update compute pipeline layout",
+      .label                = "Point light update - Compute pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
