@@ -2166,13 +2166,14 @@ static void point_lights_create(point_lights_t* this,
   /* Lights config uniform buffer */
   {
     this->lights_count = settings_get_quality_level().point_lights_count;
-    this->lights_config_uniform_buffer
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .usage = WGPUBufferUsage_Uniform
-                                                    | WGPUBufferUsage_CopyDst,
-                                           .size         = 1,
-                                           .initial.data = &this->lights_count,
-                                         });
+    this->lights_config_uniform_buffer = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .label        = "Lights config - Uniform buffer",
+        .usage        = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+        .size         = 1,
+        .initial.data = &this->lights_count,
+      });
   }
 
   /* Lights buffer compute bind group layout */
