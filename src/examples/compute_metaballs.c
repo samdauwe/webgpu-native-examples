@@ -2156,6 +2156,7 @@ static void point_lights_create(point_lights_t* this,
     }
     this->lights_buffer
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Lights - Uniform buffer",
                                            .usage = WGPUBufferUsage_Storage,
                                            .size  = sizeof(lights_data),
                                            .initial.data = lights_data,
