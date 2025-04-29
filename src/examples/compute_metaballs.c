@@ -2199,7 +2199,7 @@ static void point_lights_create(point_lights_t* this,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "lights update compute bind group layout",
+      .label      = "Lights update compute - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
