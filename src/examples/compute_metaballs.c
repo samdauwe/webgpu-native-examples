@@ -2463,7 +2463,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "spot light depth texture",
+    .label         = "Spot light - Depth texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
