@@ -2223,7 +2223,7 @@ static void point_lights_create(point_lights_t* this,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "lights buffer compute bind group",
+      .label      = "lights buffer compute - Bind group",
       .layout     = this->lights_buffer_compute_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
