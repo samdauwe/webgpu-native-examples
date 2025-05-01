@@ -2520,6 +2520,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* View UBO */
   this->ubos.view = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "View - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(view_uniforms_t),
                   });
