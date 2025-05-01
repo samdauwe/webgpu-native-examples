@@ -2501,6 +2501,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* Projection UBO */
   this->ubos.projection = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Projection - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(projection_uniforms_t),
                   });
