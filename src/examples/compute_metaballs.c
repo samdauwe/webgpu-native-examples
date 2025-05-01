@@ -2493,6 +2493,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
   /* Light info UBO */
   this->ubos.light_info = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Light info - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(spot_light_info_t),
                   });
