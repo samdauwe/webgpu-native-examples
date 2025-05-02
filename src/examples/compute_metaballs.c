@@ -2549,6 +2549,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
       .depthStoreOp = WGPUStoreOp_Store,
     };
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 0,
     .colorAttachments       = NULL,
     .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
