@@ -894,7 +894,7 @@ static void webgpu_renderer_init(webgpu_renderer_t* this)
   /* Frame buffer Color attachment */
   this->framebuffer.color_attachments[0] =
     (WGPURenderPassColorAttachment) {
-      .view          = NULL,
+      .view          = NULL, /* Assigned later */
       .resolveTarget = NULL,
       .depthSlice    = ~0,
       .loadOp        = WGPULoadOp_Clear,
