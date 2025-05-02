@@ -2589,7 +2589,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
     };
     this->bind_group_layouts.ubos = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "spot light ubos bind group layout",
+                              .label = "Spot light ubos - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
