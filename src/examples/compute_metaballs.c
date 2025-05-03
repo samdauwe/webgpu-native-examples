@@ -2660,7 +2660,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
       };
     this->bind_groups.depth_texture = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "spot light depth texture bind group",
+                              .label  = "Spot light depth texture - Bind group",
                               .layout = this->bind_group_layouts.depth_texture,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
