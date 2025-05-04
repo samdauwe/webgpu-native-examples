@@ -2816,7 +2816,7 @@ static void box_outline_init(box_outline_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label = "box outline fragment shader wgsl",
+          .label = "Box outline - Fragment shader wgsl",
           .file  = "shaders/compute_metaballs/box_outline_fragment_shader.wgsl",
           .entry = "main",
         },
