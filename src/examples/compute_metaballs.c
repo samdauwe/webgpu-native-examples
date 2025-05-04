@@ -2803,7 +2803,7 @@ static void box_outline_init(box_outline_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "box outline vertex shader wgsl",
+            .label = "Box outline - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/box_outline_vertex_shader.wgsl",
             .entry = "main",
           },
