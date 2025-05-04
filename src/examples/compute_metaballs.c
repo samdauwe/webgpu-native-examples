@@ -2711,7 +2711,7 @@ static void box_outline_init(box_outline_t* this)
       this->renderer->bind_group_layouts.frame, // Group 0
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "box outline render pipeline layout",
+      .label                = "Box outline render - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
