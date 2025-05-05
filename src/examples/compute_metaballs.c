@@ -2885,7 +2885,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
 
   this->buffers.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "box outline index buffer",
+                    .label = "Box outline - Index buffer",
                     .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(indices),
                     .initial.data = indices,
