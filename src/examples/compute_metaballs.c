@@ -2832,17 +2832,17 @@ static void box_outline_init(box_outline_t* this)
         });
 
     // Create rendering pipeline using the specified states
-    this->render_pipeline
-      = wgpuDeviceCreateRenderPipeline(this->renderer->wgpu_context->device,
-                                       &(WGPURenderPipelineDescriptor){
-                                         .label = "box outline render pipeline",
-                                         .layout       = this->pipeline_layout,
-                                         .primitive    = primitive_state,
-                                         .vertex       = vertex_state,
-                                         .fragment     = &fragment_state,
-                                         .depthStencil = &depth_stencil_state,
-                                         .multisample  = multisample_state,
-                                       });
+    this->render_pipeline = wgpuDeviceCreateRenderPipeline(
+      this->renderer->wgpu_context->device,
+      &(WGPURenderPipelineDescriptor){
+        .label        = "Box outline - Render pipeline",
+        .layout       = this->pipeline_layout,
+        .primitive    = primitive_state,
+        .vertex       = vertex_state,
+        .fragment     = &fragment_state,
+        .depthStencil = &depth_stencil_state,
+        .multisample  = multisample_state,
+      });
     ASSERT(this->render_pipeline != NULL);
 
     // Partial cleanup
