@@ -3074,8 +3074,8 @@ static void ground_init(ground_t* this)
   /* Ground render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->renderer->bind_group_layouts.frame, // Group 0
-      this->model_bind_group_layout,            // Group 1
+      this->renderer->bind_group_layouts.frame, /* Group 0 */
+      this->model_bind_group_layout,            /* Group 1 */
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "Ground render - Pipeline layout",
