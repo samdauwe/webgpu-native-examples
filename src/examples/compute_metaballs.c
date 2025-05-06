@@ -2987,7 +2987,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
 
   this->buffers.instance_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "box outline instance matrices buffer",
+                    .label = "Box outline instance matrices - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(instance_matrices),
                     .initial.data = instance_matrices,
