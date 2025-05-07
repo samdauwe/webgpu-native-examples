@@ -3194,7 +3194,7 @@ static void ground_init(ground_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
           // Fragment shader WGSL
-          .label = "ground fragment shader wgsl",
+          .label = "Ground - Fragment shader wgsl",
           .file  = "shaders/compute_metaballs/ground_fragment_shader.wgsl",
           .entry = "main",
         },
