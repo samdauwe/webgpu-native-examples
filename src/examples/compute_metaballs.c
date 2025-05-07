@@ -3213,7 +3213,7 @@ static void ground_init(ground_t* this)
     this->render_pipelines.render_pipeline = wgpuDeviceCreateRenderPipeline(
       this->renderer->wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label        = "ground render pipeline",
+        .label        = "Ground - Render pipeline",
         .layout       = this->pipeline_layouts.render_pipeline,
         .primitive    = primitive_state,
         .vertex       = vertex_state,
