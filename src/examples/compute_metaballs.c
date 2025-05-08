@@ -3295,7 +3295,7 @@ static void ground_init(ground_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "ground shadow vertex shader wgsl",
+            .label = "Ground shadow - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/ground_shadow_vertex_shader.wgsl",
             .entry = "main",
           },
