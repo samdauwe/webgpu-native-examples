@@ -3235,7 +3235,7 @@ static void ground_init(ground_t* this)
       this->model_bind_group_layout,             // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "ground shadow rendering pipeline layout",
+      .label                = "Ground shadow rendering - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
