@@ -3382,15 +3382,15 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
       x_pos = x * spacing_x;
       y_pos = y * spacing_y;
 
-      // xyz offset
+      /* xyz offset */
       instance_offsets[i * 3 + 0] = x_pos - GROUND_WIDTH / 2.0f;
       instance_offsets[i * 3 + 1] = y_pos - GROUND_HEIGHT / 2.0f;
       instance_offsets[i * 3 + 2] = random_float() * 3 + 1;
 
-      // metallic
+      /* metallic */
       instance_metallic_rougness[i * 2 + 0] = 1.0f;
 
-      // roughness
+      /* roughness */
       instance_metallic_rougness[i * 2 + 1] = 0.5f;
 
       ++i;
