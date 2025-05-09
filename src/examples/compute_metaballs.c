@@ -3354,7 +3354,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   /* Ground vertex buffer */
   this->buffers.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "ground vertex buffer",
+                    .label = "Ground - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = cube_geometry.positions.data_size,
                     .initial.data = cube_geometry.positions.data,
