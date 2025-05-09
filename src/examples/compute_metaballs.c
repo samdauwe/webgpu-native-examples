@@ -3363,7 +3363,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   /* Ground normal buffer */
   this->buffers.normal_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "ground normal buffer",
+                    .label = "Ground - Normal buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = cube_geometry.normals.data_size,
                     .initial.data = cube_geometry.normals.data,
