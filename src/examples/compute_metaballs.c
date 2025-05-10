@@ -3419,7 +3419,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
   glm_translate(this->model_matrix, (vec3){0, GROUND_WORLD_Y, 0});
   this->buffers.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "ground uniform buffer",
+                    .label = "Ground - Uniform buffer",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(this->model_matrix),
                     .initial.data = this->model_matrix,
