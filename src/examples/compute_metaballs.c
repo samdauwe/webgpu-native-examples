@@ -3401,7 +3401,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
 
   this->buffers.instance_offsets_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "ground instance xyz buffer",
+                    .label = "Ground instance xyz - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(instance_offsets),
                     .initial.data = instance_offsets,
