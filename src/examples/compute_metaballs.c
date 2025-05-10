@@ -3409,7 +3409,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
 
   this->buffers.instance_material_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "ground instance material buffer",
+                    .label = "Ground instance material - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(instance_metallic_rougness),
                     .initial.data = instance_metallic_rougness,
