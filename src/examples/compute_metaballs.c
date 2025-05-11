@@ -3458,7 +3458,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "ground bind group",
+      .label      = "Ground - Bind group",
       .layout     = this->model_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
