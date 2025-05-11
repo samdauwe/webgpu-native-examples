@@ -3594,8 +3594,8 @@ static void metaballs_init(metaballs_t* this)
   /* Render pipeline layout */
   {
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->renderer->bind_group_layouts.frame, // Group 0
-      this->bind_group_layout,                  // Group 1
+      this->renderer->bind_group_layouts.frame, /* Group 0 */
+      this->bind_group_layout,                  /* Group 1 */
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
       .label                = "metaball rendering pipeline layout",
