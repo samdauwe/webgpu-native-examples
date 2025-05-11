@@ -3439,7 +3439,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "ground bind group layout",
+      .label      = "Ground - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
