@@ -3706,7 +3706,7 @@ static void metaballs_init(metaballs_t* this)
     this->render_pipelines.render_pipeline = wgpuDeviceCreateRenderPipeline(
       this->renderer->wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label        = "metaball rendering pipeline",
+        .label        = "Metaball - rendering pipeline",
         .layout       = this->pipeline_layouts.render_pipeline,
         .primitive    = primitive_state,
         .vertex       = vertex_state,
