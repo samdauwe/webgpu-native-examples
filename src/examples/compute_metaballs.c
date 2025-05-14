@@ -3774,7 +3774,7 @@ static void metaballs_init(metaballs_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "metaballs shadow vertex shader wgsl",
+            .label = "Metaballs shadow - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/metaballs_shadow_vertex_shader.wgsl",
             .entry = "main",
           },
