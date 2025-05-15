@@ -3863,7 +3863,7 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "metaballs bind group layout",
+      .label      = "Metaballs - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
