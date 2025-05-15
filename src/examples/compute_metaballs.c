@@ -3841,7 +3841,7 @@ static void metaballs_create(metaballs_t* this, webgpu_renderer_t* renderer,
     const float metaballs_ubo_data[5] = {1.0f, 1.0f, 1.0f, 0.3f, 0.1f};
     this->ubo
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "metaballs ubo",
+                                           .label = "Metaballs - UBO",
                                            .usage = WGPUBufferUsage_Uniform
                                                     | WGPUBufferUsage_CopyDst,
                                            .size         = 8 * sizeof(float),
