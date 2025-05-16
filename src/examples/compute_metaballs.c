@@ -4074,7 +4074,7 @@ static void particles_init(particles_t* this)
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "particles vertex shader wgsl",
+            .label = "Particles - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/particles_vertex_shader.wgsl",
             .entry = "main",
            },
