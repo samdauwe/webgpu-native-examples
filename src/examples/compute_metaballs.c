@@ -4025,7 +4025,7 @@ static void particles_init(particles_t* this)
       this->bind_group_layout,                  // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "particles render pipeline layout",
+      .label                = "Particles render - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
