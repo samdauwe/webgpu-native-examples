@@ -4036,7 +4036,7 @@ static void particles_init(particles_t* this)
 
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology         = WGPUPrimitiveTopology_TriangleStrip,
       .stripIndexFormat = WGPUIndexFormat_Uint16,
@@ -4044,24 +4044,24 @@ static void particles_init(particles_t* this)
       .cullMode         = WGPUCullMode_None,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_states[2] = {
       [0] = (WGPUColorTargetState){
-        // normal + material id
+        /* normal + material id */
         .format    = WGPUTextureFormat_RGBA16Float,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
       },
       [1] = (WGPUColorTargetState){
-        // albedo
+        /* albedo */
         .format    = WGPUTextureFormat_BGRA8Unorm,
         .blend     = &blend_state,
         .writeMask = WGPUColorWriteMask_All,
       }
     };
 
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = DEPTH_FORMAT,
@@ -4069,11 +4069,11 @@ static void particles_init(particles_t* this)
       });
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-            // Vertex shader WGSL
+            /* Vertex shader WGSL */
             .label = "Particles - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/particles_vertex_shader.wgsl",
             .entry = "main",
@@ -4082,11 +4082,11 @@ static void particles_init(particles_t* this)
           .buffers = NULL,
         });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-            // Fragment shader WGSL
+            /* Fragment shader WGSL */
             .label = "Particles - Fragment shader wgsl",
             .file  = "shaders/compute_metaballs/particles_fragment_shader.wgsl",
             .entry = "main",
@@ -4095,14 +4095,14 @@ static void particles_init(particles_t* this)
           .targets      = color_target_states,
         });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     this->render_pipeline
       = wgpuDeviceCreateRenderPipeline(this->renderer->wgpu_context->device,
                                        &(WGPURenderPipelineDescriptor){
@@ -4116,7 +4116,7 @@ static void particles_init(particles_t* this)
                                        });
     ASSERT(this->render_pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
