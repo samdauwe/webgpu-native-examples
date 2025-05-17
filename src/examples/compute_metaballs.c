@@ -4087,7 +4087,7 @@ static void particles_init(particles_t* this)
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Fragment shader WGSL
-            .label = "particles fragment shader wgsl",
+            .label = "Particles - Fragment shader wgsl",
             .file  = "shaders/compute_metaballs/particles_fragment_shader.wgsl",
             .entry = "main",
           },
