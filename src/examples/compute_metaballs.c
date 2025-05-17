@@ -4106,8 +4106,8 @@ static void particles_init(particles_t* this)
     this->render_pipeline
       = wgpuDeviceCreateRenderPipeline(this->renderer->wgpu_context->device,
                                        &(WGPURenderPipelineDescriptor){
-                                         .label  = "particles render pipeline",
-                                         .layout = this->pipeline_layout,
+                                         .label = "Particles - Render pipeline",
+                                         .layout       = this->pipeline_layout,
                                          .primitive    = primitive_state,
                                          .vertex       = vertex_state,
                                          .fragment     = &fragment_state,
