@@ -4149,7 +4149,7 @@ static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "particles bind group layout",
+      .label      = "Particles - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
