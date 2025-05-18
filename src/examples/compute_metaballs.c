@@ -4285,7 +4285,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Vertex shader WGSL
-            .label = "effect vertex shader wgsl",
+            .label = "Effect - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/effect_vertex_shader.wgsl",
             .entry = "main",
            },
