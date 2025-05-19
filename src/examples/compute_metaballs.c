@@ -4368,7 +4368,7 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
   /* Effect vertex buffer */
   this->buffers.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "fullscreen effect vertex buffer",
+                    .label = "Fullscreen effect - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(vertex_data),
                     .initial.data = vertex_data,
