@@ -4298,7 +4298,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
             // Fragment shader WGSL
-            .label = "effect fragment shader wgsl",
+            .label = "Effect - Fragment shader wgsl",
             .file  = fragment_shader_file,
             .entry = "main",
           },
