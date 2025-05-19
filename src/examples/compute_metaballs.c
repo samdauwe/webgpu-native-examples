@@ -4249,7 +4249,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
 
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology         = WGPUPrimitiveTopology_TriangleStrip,
       .stripIndexFormat = WGPUIndexFormat_Uint16,
@@ -4257,7 +4257,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
       .cullMode         = WGPUCullMode_None,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(false);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = this->presentation_format,
@@ -4265,7 +4265,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexAttribute attribute = {
       .shaderLocation = 0,
       .offset         = 0 * sizeof(float),
@@ -4280,11 +4280,11 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
       },
     };
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
         this->renderer->wgpu_context, &(wgpu_vertex_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-            // Vertex shader WGSL
+            /* Vertex shader WGSL */
             .label = "Effect - Vertex shader wgsl",
             .file  = "shaders/compute_metaballs/effect_vertex_shader.wgsl",
             .entry = "main",
@@ -4293,11 +4293,11 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
           .buffers      = vertex_buffers,
         });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
         this->renderer->wgpu_context, &(wgpu_fragment_state_t){
         .shader_desc = (wgpu_shader_desc_t){
-            // Fragment shader WGSL
+            /* Fragment shader WGSL */
             .label = "Effect - Fragment shader wgsl",
             .file  = fragment_shader_file,
             .entry = "main",
@@ -4306,14 +4306,14 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
           .targets      = &color_target_state,
         });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     this->render_pipeline = wgpuDeviceCreateRenderPipeline(
       this->renderer->wgpu_context->device, &(WGPURenderPipelineDescriptor){
                                               .label  = label,
@@ -4325,7 +4325,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_file,
                                             });
     ASSERT(this->render_pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
