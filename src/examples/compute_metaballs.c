@@ -4377,7 +4377,7 @@ static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
   /* Effect index buffer */
   this->buffers.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "fullscreen effect index buffer",
+                    .label = "Fullscreen effect - Index buffer",
                     .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(indices),
                     .initial.data = indices,
