@@ -4466,7 +4466,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "copy pass texture",
+    .label         = "Copy pass - Texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
