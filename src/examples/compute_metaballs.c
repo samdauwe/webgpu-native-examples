@@ -4571,6 +4571,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
 
   /* Frame buffer descriptor */
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Frame buffer descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = &this->framebuffer.color_attachments[0],
     .depthStencilAttachment = NULL,
