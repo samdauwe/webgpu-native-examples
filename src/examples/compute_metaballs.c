@@ -4509,7 +4509,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "copy pass bind group layout",
+                            .label      = "Copy pass - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
