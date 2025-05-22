@@ -4690,6 +4690,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
       wgpu_context,
       &(wgpu_shader_desc_t){
         // Compute shader WGSL
+        .label = "Bloom blur - Compute shader",
         .file  = "shaders/compute_metaballs/bloom_blur_compute_shader.wgsl",
         .entry = "main",
       });
