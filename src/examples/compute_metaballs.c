@@ -4675,7 +4675,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
       this->blur_compute_bind_group_layout,   // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "bloom pass blur pipeline layout",
+      .label                = "Bloom pass blur - Pipeline layout",
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
