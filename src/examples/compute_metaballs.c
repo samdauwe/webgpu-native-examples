@@ -4720,13 +4720,13 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
   const uint32_t vertical_flip_data[1] = {
     1 //
   };
-  this->buffer_1
-    = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                         .label = "Vertical flip buffer",
-                                         .usage = WGPUBufferUsage_Uniform,
-                                         .size  = sizeof(vertical_flip_data),
-                                         .initial.data = &vertical_flip_data[0],
-                                       });
+  this->buffer_1 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label        = "Vertical flip - Uniform buffer",
+                    .usage        = WGPUBufferUsage_Uniform,
+                    .size         = sizeof(vertical_flip_data),
+                    .initial.data = &vertical_flip_data[0],
+                  });
 
   /* Blur compute bind group 0 */
   {
