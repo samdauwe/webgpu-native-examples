@@ -4697,7 +4697,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     this->blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "bloom pass blur pipeline",
+        .label   = "Bloom pass blur - Compute pipeline",
         .layout  = this->blur_pipeline_layout,
         .compute = comp_shader.programmable_stage_descriptor,
       });
