@@ -4801,7 +4801,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     };
     this->blur_compute_bind_groups[2] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "blur compute bind group 2",
+                              .label  = "Blur compute - Bind group 2",
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
