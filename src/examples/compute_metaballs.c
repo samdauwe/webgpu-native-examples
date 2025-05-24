@@ -4831,7 +4831,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "bloom texture",
+    .label         = "Bloom - Texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
