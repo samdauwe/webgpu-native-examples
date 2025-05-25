@@ -4710,7 +4710,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
   };
   this->buffer_0 = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label        = "Horizontal flip buffer",
+                    .label        = "Horizontal flip - Uniform buffer",
                     .usage        = WGPUBufferUsage_Uniform,
                     .size         = sizeof(horizontal_flip_data),
                     .initial.data = &horizontal_flip_data[0],
