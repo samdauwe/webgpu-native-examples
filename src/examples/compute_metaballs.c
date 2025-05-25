@@ -4846,7 +4846,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
   /* Bloom texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "bloom texture view",
+    .label           = "Bloom - Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
