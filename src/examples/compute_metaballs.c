@@ -4875,7 +4875,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     };
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "bloom pass bind group layout",
+                              .label      = "Bloom pass - Bind group layout",
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
