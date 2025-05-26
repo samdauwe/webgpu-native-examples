@@ -4929,7 +4929,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "gbuffer bind group",
+                              .label      = "Gbuffer - Bind group",
                               .layout     = this->bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
