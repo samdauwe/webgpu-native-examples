@@ -5000,7 +5000,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   /* Bloom sampler */
   this->sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "bloom sampler",
+                            .label         = "Bloom - Sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
