@@ -4991,7 +4991,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   const uint32_t blur_params[2] = {BLOOM_PASS_FILTER_SIZE, this->block_dim};
   this->blur_params_buffer      = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                         .label = "blur params buffer",
+                         .label = "Blur params - Uniform buffer",
                          .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                          .size  = sizeof(blur_params),
                          .initial.data = &blur_params[0],
