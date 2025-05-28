@@ -5100,7 +5100,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "blur compute bind group layout",
+      .label      = "Blur compute - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
