@@ -5057,7 +5057,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "blur constants bind group",
+      .label      = "Blur constants - Bind group",
       .layout     = this->blur_constants_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
