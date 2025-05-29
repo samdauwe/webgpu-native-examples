@@ -5158,34 +5158,34 @@ static void bloom_pass_update_bloom(bloom_pass_t* this,
     compute_pass, 1, this->blur_compute_bind_groups[0], 0, NULL);
   wgpuComputePassEncoderDispatchWorkgroups(
     compute_pass,
-    (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
-    (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
-    1                                             // workgroupCountZ
+    (uint32_t)ceil(src_width / (float)block_dim), /* workgroupCountX */
+    (uint32_t)ceil(src_height / (float)batch[1]), /* workgroupCountY */
+    1                                             /* workgroupCountZ */
   );
   wgpuComputePassEncoderSetBindGroup(
     compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
   wgpuComputePassEncoderDispatchWorkgroups(
     compute_pass,
-    (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
-    (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
-    1                                              // workgroupCountZ
+    (uint32_t)ceil(src_height / (float)block_dim), /* workgroupCountX */
+    (uint32_t)ceil(src_width / (float)batch[1]),   /* workgroupCountY */
+    1                                              /* workgroupCountZ */
   );
   for (uint32_t i = 0; i < BLOOM_PASS_ITERATIONS - 1; ++i) {
     wgpuComputePassEncoderSetBindGroup(
       compute_pass, 1, this->blur_compute_bind_groups[2], 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(
       compute_pass,
-      (uint32_t)ceil(src_width / (float)block_dim), // workgroupCountX
-      (uint32_t)ceil(src_height / (float)batch[1]), // workgroupCountY
-      1                                             // workgroupCountZ
+      (uint32_t)ceil(src_width / (float)block_dim), /* workgroupCountX */
+      (uint32_t)ceil(src_height / (float)batch[1]), /* workgroupCountY */
+      1                                             /* workgroupCountZ */
     );
     wgpuComputePassEncoderSetBindGroup(
       compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(
       compute_pass,
-      (uint32_t)ceil(src_height / (float)block_dim), // workgroupCountX
-      (uint32_t)ceil(src_width / (float)batch[1]),   // workgroupCountY
-      1                                              // workgroupCountZ
+      (uint32_t)ceil(src_height / (float)block_dim), /* workgroupCountX */
+      (uint32_t)ceil(src_width / (float)batch[1]),   /* workgroupCountY */
+      1                                              /* workgroupCountZ */
     );
   }
 }
