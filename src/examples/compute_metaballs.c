@@ -5338,7 +5338,7 @@ static void deferred_pass_create(deferred_pass_t* this,
 
     /* G-Buffer diffuse texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "gbuffer diffuse texture view",
+      .label           = "Gbuffer diffuse - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
