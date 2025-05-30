@@ -5404,7 +5404,7 @@ static void deferred_pass_create(deferred_pass_t* this,
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "gbuffer bind group layout",
+                            .label      = "Gbuffer - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
