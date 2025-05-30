@@ -5323,7 +5323,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "gbuffer diffuse texture",
+      .label         = "Gbuffer diffuse - Texture",
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
