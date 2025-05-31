@@ -2671,15 +2671,16 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
 
 static void spot_light_destroy(spot_light_t* this)
 {
-  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.light_info.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.projection.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.view.buffer)
-  WGPU_RELEASE_RESOURCE(Texture, this->depth_texture.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, this->depth_texture.view)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.ubos)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.depth_texture)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.ubos)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.depth_texture)
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.light_info.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.projection.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.view.buffer);
+  WGPU_RELEASE_RESOURCE(Texture, this->depth_texture.texture);
+  WGPU_RELEASE_RESOURCE(TextureView, this->depth_texture.view);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.ubos);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        this->bind_group_layouts.depth_texture);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.ubos);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.depth_texture);
 }
 
 /* -------------------------------------------------------------------------- *
