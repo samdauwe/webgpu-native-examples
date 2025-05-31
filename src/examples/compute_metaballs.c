@@ -5469,7 +5469,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .presentation_format = settings_get_quality_level().bloom_toggle ?
                                WGPUTextureFormat_RGBA16Float :
                                WGPUTextureFormat_BGRA8Unorm,
-      .label               = "deferred pass effect",
+      .label               = "Deferred - Pass effect",
     };
     effect_create(&this->effect, renderer, &screen_effect);
   }
