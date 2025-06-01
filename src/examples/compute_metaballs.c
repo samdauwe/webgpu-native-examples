@@ -5558,24 +5558,24 @@ static void deferred_pass_update_lights_sim(deferred_pass_t* this,
     (vec3){
       this->spot_light._position[0]
         + (this->spot_light_target[0] - this->spot_light._position[0])
-            * speed, // x
+            * speed, /* x */
       this->spot_light._position[1]
         + (this->spot_light_target[1] - this->spot_light._position[1])
-            * speed, // y
+            * speed, /* y */
       this->spot_light._position[2]
         + (this->spot_light_target[2] - this->spot_light._position[2])
-            * speed, // z
+            * speed, /* z */
     },
     this->spot_light._position);
 
   glm_vec3_copy(
     (vec3){
       (this->spot_light_color_target[0] - this->spot_light._color[0]) * speed
-        * 4, // r
+        * 4, /* r */
       (this->spot_light_color_target[1] - this->spot_light._color[1]) * speed
-        * 4, // g
+        * 4, /* g */
       (this->spot_light_color_target[2] - this->spot_light._color[2]) * speed
-        * 4, // b
+        * 4, /* b */
     },
     this->spot_light._color);
 }
