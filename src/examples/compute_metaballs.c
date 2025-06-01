@@ -4550,7 +4550,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
       .bind_groups.items             = bind_groups,
       .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
       .presentation_format           = WGPUTextureFormat_RGBA16Float,
-      .label                         = "Copy pass - Effect",
+      .label                         = "Copy - Pass effect",
     };
     effect_create(&this->effect, renderer, &screen_effect);
   }
