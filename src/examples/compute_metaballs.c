@@ -5735,7 +5735,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
       .bind_groups.items             = bind_groups,
       .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
       .presentation_format           = renderer->presentation_format,
-      .label                         = "result pass effect",
+      .label                         = "Result - Pass effect",
     };
     effect_create(&this->effect, renderer, &screen_effect);
   }
