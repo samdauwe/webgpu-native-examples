@@ -5684,7 +5684,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
 
   /* G-Buffer normal texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "empty texture view",
+    .label           = "Empty - Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
