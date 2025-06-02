@@ -5670,7 +5670,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "empty texture",
+    .label         = "Empty - Texture",
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
