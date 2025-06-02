@@ -5657,7 +5657,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "result pass bind group layout",
+                            .label      = "Result pass - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
