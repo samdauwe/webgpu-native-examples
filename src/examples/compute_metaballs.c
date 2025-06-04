@@ -5962,10 +5962,10 @@ static int example_initialize(wgpu_example_context_t* context)
     suppress_unused_functions();
     init_example_state(context->wgpu_context);
     prepared = true;
-    return 0;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
 static void example_on_update_ui_overlay(wgpu_example_context_t* context)
