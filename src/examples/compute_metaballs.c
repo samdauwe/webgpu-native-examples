@@ -6018,7 +6018,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   /* Render scene from spot light POV */
   {
     example_state.deferred_pass.spot_light.framebuffer.descriptor.label
-      = "spot light 0 shadow map render pass";
+      = "Spot light 0 shadow map - Render pass";
     WGPURenderPassEncoder spot_light_shadow_pass
       = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc,
