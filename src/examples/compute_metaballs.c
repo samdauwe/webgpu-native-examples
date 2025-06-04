@@ -5710,7 +5710,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
   };
   this->bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "result pass bind group",
+                            .label      = "Result pass - Bind group",
                             .layout     = this->bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
