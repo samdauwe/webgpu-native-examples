@@ -6031,7 +6031,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   /* Deferred pass */
   {
-    example_state.deferred_pass.framebuffer.descriptor.label = "gbuffer";
+    example_state.deferred_pass.framebuffer.descriptor.label = "G-Buffer";
     WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc,
       &example_state.deferred_pass.framebuffer.descriptor);
