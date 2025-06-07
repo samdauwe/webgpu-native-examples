@@ -6060,7 +6060,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
     /* Bloom pass */
     {
-      example_state.bloom_pass.framebuffer.descriptor.label = "Bloom - Pass";
+      example_state.bloom_pass.framebuffer.descriptor.label
+        = "Bloom - Render pass";
       WGPURenderPassEncoder bloom_render_pass
         = wgpuCommandEncoderBeginRenderPass(
           wgpu_context->cmd_enc,
