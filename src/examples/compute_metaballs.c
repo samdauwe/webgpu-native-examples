@@ -6048,7 +6048,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   if (settings_get_quality_level().bloom_toggle) {
     /* Copy pass */
     {
-      example_state.copy_pass.framebuffer.descriptor.label = "Copy - Pass";
+      example_state.copy_pass.framebuffer.descriptor.label
+        = "Copy - Render pass";
       WGPURenderPassEncoder copy_render_pass
         = wgpuCommandEncoderBeginRenderPass(
           wgpu_context->cmd_enc,
