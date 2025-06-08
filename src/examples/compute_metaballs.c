@@ -6087,7 +6087,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     /* Final composite pass */
     {
       example_state.renderer.framebuffer.descriptor.label
-        = "draw default framebuffer";
+        = "Draw default framebuffer - Render pass";
       WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
         wgpu_context->cmd_enc, &example_state.renderer.framebuffer.descriptor);
       deferred_pass_render(&example_state.deferred_pass, render_pass);
