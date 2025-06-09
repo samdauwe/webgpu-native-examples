@@ -168,7 +168,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(compute_bind_group_layout != NULL);
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-    .label                = "Compute pipeline layout",
+    .label                = "Compute - Pipeline layout",
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &compute_bind_group_layout,
   };
