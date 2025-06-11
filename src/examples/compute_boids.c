@@ -32,13 +32,14 @@ static const char* update_sprites_compute_shader_wgsl;
  * Compute Boids example
  * -------------------------------------------------------------------------- */
 
-// Number of boid particles to simulate
+/* Number of boid particles to simulate */
 static const uint32_t NUM_PARTICLES = 1500u;
 
-// Number of single-particle calculations (invocations) in each gpu work group
+/* Number of single-particle calculations (invocations) in each gpu work group
+ */
 static const uint32_t PARTICLES_PER_GROUP = 64u;
 
-// Sim parameters
+/* Sim parameters */
 static struct sim_params_t {
   float delta_t;        /* deltaT */
   float rule1_distance; /* rule1Distance */
@@ -57,7 +58,7 @@ static struct sim_params_t {
   .rule3_scale    = 0.005f, /* rule3Scale */
 };
 
-// Used to configure Sim parameters in GUI
+/* Used to configure Sim parameters in GUI */
 static const uint8_t sim_params_count = 7;
 static struct {
   const char* label;
@@ -81,42 +82,42 @@ static struct {
   // clang-format on
 };
 
-// WebGPU buffers
+/* WebGPU buffers */
 static WGPUBuffer sim_param_buffer     = NULL; /* Simulation Parameter Buffer */
 static WGPUBuffer particle_buffers[2]  = {0};
 static WGPUBuffer sprite_vertex_buffer = NULL;
 
-// The pipeline layouts
+/* The pipeline layouts */
 static WGPUPipelineLayout compute_pipeline_layout = NULL;
 static WGPUPipelineLayout render_pipeline_layout  = NULL;
 
-// Pipelines
+/* Pipelines */
 static WGPUComputePipeline compute_pipeline = NULL;
 static WGPURenderPipeline render_pipeline   = NULL;
 
-// Bind groups and layouts
+/* Bind groups and layouts */
 static WGPUBindGroup particle_bind_groups[2]         = {0};
 static WGPUBindGroupLayout compute_bind_group_layout = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Compute Boids";
 static bool prepared             = false;
 static uint32_t work_group_count = 0;
 
-// Prepare vertex buffers
+/* Prepare vertex buffers */
 static void prepare_vertices(wgpu_context_t* wgpu_context)
 {
   // Buffer for the three 2d triangle vertices of each instance
   // clang-format off
   const float vertex_buffer_data[6] = {
-    -0.01f, -0.02f, 0.01f, //
-    -0.02f,  0.00f, 0.02f, //
+    -0.01f, -0.02f, 0.01f, /* */
+    -0.02f,  0.00f, 0.02f, /* */
   };
   // clang-format on
   const uint32_t vertex_buffer_size
