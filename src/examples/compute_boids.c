@@ -113,7 +113,7 @@ static uint32_t work_group_count = 0;
 /* Prepare vertex buffers */
 static void prepare_vertices(wgpu_context_t* wgpu_context)
 {
-  // Buffer for the three 2d triangle vertices of each instance
+  /* Buffer for the three 2d triangle vertices of each instance */
   // clang-format off
   const float vertex_buffer_data[6] = {
     -0.01f, -0.02f, 0.01f, /* */
