@@ -257,7 +257,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
         .binding = 2,
         .buffer  = particle_buffers[(i + 1) % 2],
         .offset  = 0,
-        .size    = sizeof(particle_data), /* bind to opposite buffer */
+        .size    = sizeof(particle_data), /* Bind to opposite buffer */
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
