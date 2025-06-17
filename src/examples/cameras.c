@@ -1116,14 +1116,14 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
 static void prepare_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -1141,20 +1141,20 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     textured_cube, cube_mesh.vertex_size,
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4,
                        cube_mesh.position_offset),
-    // Attribute location 1: UV
+    /* Attribute location 1: UV */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, cube_mesh.uv_offset))
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
+                      /* Vertex shader WGSL */
                       .label            = "Cube - Vertex shader WGSL",
                       .wgsl_code.source = cube_shader_wgsl,
                       .entry            = "vertex_main",
@@ -1163,11 +1163,11 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                     .buffers = &textured_cube_vertex_buffer_layout,
                   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
+                      /* Fragment shader WGSL */
                       .label            = "Cube - Fragment shader WGSL",
                       .wgsl_code.source = cube_shader_wgsl,
                       .entry            = "fragment_main",
@@ -1176,14 +1176,14 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                     .targets = &color_target_state,
                   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Textured cube render pipeline",
@@ -1195,14 +1195,14 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
 
 static void setup_render_pass(void)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -1216,7 +1216,7 @@ static void setup_render_pass(void)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   render_pass.depth_stencil_attachment = (WGPURenderPassDepthStencilAttachment){
     .view            = textures.depth.view,
     .depthLoadOp     = WGPULoadOp_Clear,
@@ -1224,7 +1224,7 @@ static void setup_render_pass(void)
     .depthClearValue = 1.0f,
   };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
