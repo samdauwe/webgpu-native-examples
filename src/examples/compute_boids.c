@@ -282,17 +282,17 @@ static void update_sim_params(wgpu_context_t* wgpu_context)
                           sizeof(sim_param_data));
 }
 
-// Create the compute & graphics pipelines
+/* Create the compute & graphics pipelines */
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -300,37 +300,37 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexAttribute vert_buff_attrs_0[2] = {
     [0] = (WGPUVertexAttribute) {
-      // Attribute location 0: instance position
+      /* Attribute location 0: instance position */
       .shaderLocation = 0,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x2,
     },
     [1] = (WGPUVertexAttribute) {
-      // Attribute location 1: instance velocity
+      /* Attribute location 1: instance velocity */
       .shaderLocation = 1,
       .offset         = 2 * 4,
       .format         = WGPUVertexFormat_Float32x2,
     },
   };
   WGPUVertexAttribute vert_buff_attrs_1 = {
-    // Attribute location 2: vertex positions
+    /* Attribute location 2: vertex positions */
     .shaderLocation = 2,
     .offset         = 0,
     .format         = WGPUVertexFormat_Float32x2,
   };
   WGPUVertexBufferLayout vert_buf[2] = {
     [0] = (WGPUVertexBufferLayout) {
-      // Instanced particles buffer
+      /* Instanced particles buffer */
       .arrayStride    = 4 * 4,
       .stepMode       = WGPUVertexStepMode_Instance,
       .attributeCount = (uint32_t)ARRAY_SIZE(vert_buff_attrs_0),
       .attributes     = vert_buff_attrs_0,
     },
     [1] = (WGPUVertexBufferLayout) {
-      // vertex buffer
+      /* vertex buffer */
       .arrayStride    = 2 * 4,
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = 1,
@@ -338,20 +338,20 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Compute shader
+  /* Compute shader */
   wgpu_shader_t boids_comp_shader = wgpu_shader_create(
     wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader WGSL
+                    /* Compute shader WGSL */
                     .label            = "Update sprites - Compute shader",
                     .wgsl_code.source = update_sprites_compute_shader_wgsl,
                     .entry            = "main",
                   });
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              /* Vertex shader WGSL */
               .label            = "Sprite - Vertex shader WGSL",
               .wgsl_code.source = sprite_vertex_shader_wgsl,
               .entry            = "vert_main",
@@ -360,11 +360,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = vert_buf,
           });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "Sprite - Fragment shader WGSL",
               .wgsl_code.source = sprite_fragment_shader_wgsl,
               .entry            = "frag_main",
@@ -373,14 +373,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets = &color_target_state,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Compute pipeline
+  /* Compute pipeline */
   compute_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
@@ -390,7 +390,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     });
   ASSERT(compute_pipeline != NULL);
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Compute boids - Render pipeline",
@@ -402,7 +402,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                           });
   ASSERT(render_pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   wgpu_shader_release(&boids_comp_shader);
@@ -516,7 +516,7 @@ static int example_render(wgpu_example_context_t* context)
   return example_draw(context);
 }
 
-// Clean up used resources
+/* Clean up used resources */
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
