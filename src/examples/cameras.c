@@ -950,6 +950,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     textures.cube    = wgpu_create_texture_from_file(
       wgpu_context, file,
       &(struct wgpu_texture_load_options_t){
+           .label = "Cube texture",
            .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                  | WGPUTextureUsage_RenderAttachment,
       });
