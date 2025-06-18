@@ -1187,7 +1187,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
   /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Textured cube render pipeline",
+                            .label        = "Textured cube - Render pipeline",
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
                             .fragment     = &fragment_state,
