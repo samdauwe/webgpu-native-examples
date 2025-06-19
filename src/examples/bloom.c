@@ -196,7 +196,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
 
     // Create the texture view
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Offscreen frame buffer color texture view",
+      .label           = "Offscreen frame buffer color - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
