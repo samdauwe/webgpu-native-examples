@@ -146,7 +146,7 @@ static void load_assets(wgpu_context_t* wgpu_context)
       .filename           = "models/cube.gltf",
       .file_loading_flags = gltf_loading_flags,
     });
-  // Cube map
+  /* Cube map */
   static const char* cubemap[6] = {
     "textures/cubemaps/cubemap_space_px.png", /* Right  */
     "textures/cubemaps/cubemap_space_nx.png", /* Left   */
@@ -171,14 +171,14 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
                                            WGPUTextureFormat color_format,
                                            WGPUTextureFormat depth_format)
 {
-  // Create the texture extent
+  /* Create the texture extent */
   WGPUExtent3D texture_extent = {
     .width              = FB_DIM,
     .height             = FB_DIM,
     .depthOrArrayLayers = 1,
   };
 
-  // Color attachment
+  /* Color attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Offscreen frame buffer color - Texture",
@@ -194,7 +194,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(frame_buf->color.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Offscreen frame buffer color - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -209,7 +209,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
     ASSERT(frame_buf->color.texture_view != NULL);
   }
 
-  // Depth stencil attachment
+  /* Depth stencil attachment */
   {
     WGPUTextureDescriptor texture_desc = {
       .label         = "Offscreen frame buffer depth stencil - Texture",
@@ -224,7 +224,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
       = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
     ASSERT(frame_buf->depth.texture != NULL);
 
-    // Create the texture view
+    /* Create the texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
       .label           = "Offscreen frame buffer depth stencil - Texture view",
       .dimension       = WGPUTextureViewDimension_2D,
@@ -257,7 +257,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
       },
   };
 
-  // Depth stencil attachment
+  /* Depth stencil attachment */
   frame_buf->render_pass_desc.depth_stencil_attachment
     = (WGPURenderPassDepthStencilAttachment){
       .view              = frame_buf->depth.texture_view,
@@ -269,7 +269,7 @@ static void prepare_offscreen_frame_buffer(wgpu_context_t* wgpu_context,
       .stencilClearValue = 0,
     };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   frame_buf->render_pass_desc.render_pass_descriptor
     = (WGPURenderPassDescriptor){
       .label                = "Render pass descriptor",
