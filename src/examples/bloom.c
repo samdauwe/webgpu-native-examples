@@ -394,7 +394,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Create the pipeline layout
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = "Scene pipeline layout",
+                              .label                = "Scene - Pipeline layout",
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &bind_group_layouts.scene,
                             });
