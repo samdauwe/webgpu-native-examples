@@ -286,7 +286,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
   offscreen_pass.width  = (uint32_t)FB_DIM;
   offscreen_pass.height = (uint32_t)FB_DIM;
 
-  // Create sampler to sample from the color attachments
+  /* Create sampler to sample from the color attachments */
   offscreen_pass.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
                             .label         = "Offscreen pass - Sampler",
@@ -302,7 +302,7 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
                           });
   ASSERT(offscreen_pass.sampler != NULL);
 
-  // Create two frame buffers
+  /* Create two frame buffers */
   prepare_offscreen_frame_buffer(wgpu_context, &offscreen_pass.frame_buffers[0],
                                  FB_COLOR_FORMAT, FB_DEPTH_FORMAT);
   prepare_offscreen_frame_buffer(wgpu_context, &offscreen_pass.frame_buffers[1],
