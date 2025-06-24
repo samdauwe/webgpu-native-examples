@@ -311,11 +311,11 @@ static void prepare_offscreen(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout for fullscreen blur
+  /* Bind group layout for fullscreen blur */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Fragment shader uniform buffer
+        /* Binding 0: Fragment shader uniform buffer */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .buffer = (WGPUBufferBindingLayout) {
@@ -326,7 +326,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Fragment shader image view
+        /* Binding 1: Fragment shader image view */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -337,7 +337,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -347,7 +347,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       }
     };
 
-    // Create the bind group layout
+    /* Create the bind group layout */
     bind_group_layouts.blur = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .label      = "Blur - Bind group layout",
@@ -356,7 +356,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.blur != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.blur = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label                = "Blur - Pipeline layout",
@@ -366,11 +366,11 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.blur != NULL);
   }
 
-  // Bind group layout for scene rendering
+  /* Bind group layout for scene rendering */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Vertex shader uniform buffer
+        /* Binding 0: Vertex shader uniform buffer */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
@@ -382,7 +382,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
 
-    // Create the bind group layout
+    /* Create the bind group layout */
     bind_group_layouts.scene = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .label      = "Scene - Bind group layout",
@@ -391,7 +391,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.scene != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label                = "Scene - Pipeline layout",
@@ -401,11 +401,11 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(pipeline_layouts.scene != NULL);
   }
 
-  // Bind group layout for skybox rendering
+  /* Bind group layout for skybox rendering */
   {
     WGPUBindGroupLayoutEntry bgl_entries[3] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Vertex shader uniform buffer
+        /* Binding 0: Vertex shader uniform buffer */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout) {
@@ -416,7 +416,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Fragment shader image view
+        /* Binding 1: Fragment shader image view */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -427,7 +427,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -437,7 +437,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       }
     };
 
-    // Create the bind group layout
+    /* Create the bind group layout */
     bind_group_layouts.skybox = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .label      = "Skybox - Bind group layout",
@@ -446,7 +446,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
                             });
     ASSERT(bind_group_layouts.skybox != NULL);
 
-    // Create the pipeline layout
+    /* Create the pipeline layout */
     pipeline_layouts.skybox = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                               .label = "Skybox - Pipeline layout",
