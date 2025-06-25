@@ -484,7 +484,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
     bind_groups.blur_vert = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Full screen vertical blur bind group",
+                              .label  = "Full screen vertical blur - Bind group",
                               .layout = bind_group_layouts.blur,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
