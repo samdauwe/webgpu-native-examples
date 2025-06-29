@@ -794,7 +794,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     /* Create rendering pipeline using the specified states */
     pipelines.phong_pass = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "Phong render pipeline",
+                              .label        = "Phong - Render pipeline",
                               .layout       = pipeline_layouts.scene,
                               .primitive    = primitive_state,
                               .vertex       = vertex_state,
