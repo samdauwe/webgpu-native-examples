@@ -976,7 +976,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffers.blur_params = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label = "Blur parameters uniform buffer",
+      .label = "Blur parameters - Uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_blur_params_t),
     });
