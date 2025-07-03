@@ -430,10 +430,10 @@ static bool prepared             = false;
 static void prepare_uniform_data(wgpu_context_t* wgpu_context)
 {
   /* View matrix */
-  glm_lookat(light_positions.eye_position,        // eye vector
-             (vec3){0.0f, 0.0f, 0.0f},            // center vector
-             (vec3){0.0f, 1.0f, 0.0f},            // up vector
-             torus_knot_view_matrices.view_matrix // result matrix
+  glm_lookat(light_positions.eye_position,        /* eye vector    */
+             (vec3){0.0f, 0.0f, 0.0f},            /* center vector */
+             (vec3){0.0f, 1.0f, 0.0f},            /* up vector     */
+             torus_knot_view_matrices.view_matrix /* result matrix */
   );
   glm_mat4_copy(torus_knot_view_matrices.view_matrix,
                 sphere_view_matrices.view_matrix);
