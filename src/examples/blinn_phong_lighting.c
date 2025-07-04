@@ -522,7 +522,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* UV buffer */
   buffers.torus_knot.uv = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "UV buffer",
+                    .label = "UV buffer - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(torus_knot_mesh.uvs),
                     .initial.data = torus_knot_mesh.uvs,
