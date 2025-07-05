@@ -549,7 +549,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Fragment shader uniform buffer */
   buffers.torus_knot.fs_uniform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Torus knot fragment shader uniform buffer",
+                    .label = "Torus knot fragment shader - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(light_positions),
                     .initial.data = &light_positions,
