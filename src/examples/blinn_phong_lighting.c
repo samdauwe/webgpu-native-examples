@@ -560,7 +560,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Vertex buffer */
   buffers.sphere.vertex = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Sphere vertex buffer",
+                    .label = "Sphere - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sphere_geometry.vertices.byte_length,
                     .initial.data = sphere_geometry.vertices.ptr,
