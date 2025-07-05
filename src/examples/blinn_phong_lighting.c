@@ -540,7 +540,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Vertex shader uniform buffer */
   buffers.torus_knot.vs_uniform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Torus knot vertex shader uniform buffer",
+                    .label = "Torus knot vertex shader - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(torus_knot_view_matrices),
                     .initial.data = &torus_knot_view_matrices,
