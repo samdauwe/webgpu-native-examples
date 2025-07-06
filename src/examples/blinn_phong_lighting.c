@@ -579,7 +579,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Vertex shader uniform buffer */
   buffers.sphere.vs_uniform = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Sphere vertex shader uniform buffer",
+                    .label = "Sphere vertex shader - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(sphere_view_matrices),
                     .initial.data = &sphere_view_matrices,
