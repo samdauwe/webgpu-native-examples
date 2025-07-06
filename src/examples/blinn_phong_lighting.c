@@ -569,7 +569,7 @@ static void prepare_buffers(wgpu_context_t* wgpu_context)
   /* Index buffer */
   buffers.sphere.index = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Sphere index buffer",
+                    .label = "Sphere - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
                     .size  = sphere_geometry.indices.byte_length,
                     .initial.data = sphere_geometry.indices.ptr,
