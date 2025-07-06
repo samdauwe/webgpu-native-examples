@@ -599,7 +599,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   {
     textures.depth.texture =  wgpuDeviceCreateTexture(wgpu_context->device,
       &(WGPUTextureDescriptor) {
-        .label         = "Depth texture",
+        .label         = "Depth - Texture",
         .usage         = WGPUTextureUsage_RenderAttachment,
         .dimension     = WGPUTextureDimension_2D,
         .format        = WGPUTextureFormat_Depth24Plus,
