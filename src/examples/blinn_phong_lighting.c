@@ -702,7 +702,7 @@ static void setup_sphere_bind_group(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Sphere uniform buffer bind group",
+    .label      = "Sphere uniform buffer - Bind group",
     .layout     = wgpuRenderPipelineGetBindGroupLayout(pipelines.sphere, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
