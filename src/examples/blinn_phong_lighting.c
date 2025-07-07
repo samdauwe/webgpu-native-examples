@@ -681,7 +681,7 @@ static void setup_torus_bind_group(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Torus knot uniform buffer bind group",
+    .label      = "Torus knot uniform buffer - Bind group",
     .layout     = wgpuRenderPipelineGetBindGroupLayout(pipelines.torus_knot, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
