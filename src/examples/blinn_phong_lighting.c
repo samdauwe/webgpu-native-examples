@@ -916,7 +916,7 @@ static void prepare_sphere_pipeline(wgpu_context_t* wgpu_context)
   pipelines.sphere = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label        = "Blinn-Phong lighting sphere render pipeline",
+      .label        = "Blinn-Phong lighting sphere - Render pipeline",
       .primitive    = primitive_state,
       .vertex       = vertex_state,
       .fragment     = &fragment_state,
