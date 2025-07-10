@@ -158,7 +158,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = "Cube bind group layout",
+      .label      = "Cube - Bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bind_group_layout_entries),
       .entries    = bind_group_layout_entries,
     });
