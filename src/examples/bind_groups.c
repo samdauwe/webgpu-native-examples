@@ -253,7 +253,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
-      .label                = "Graphics pipeline layout",
+      .label                = "Graphics - Pipeline layout",
       .bindGroupLayoutCount = 1,
       // The pipeline layout is based on the bind group layout we created above
       .bindGroupLayouts = &bind_group_layout,
