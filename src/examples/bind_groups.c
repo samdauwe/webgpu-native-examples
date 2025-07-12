@@ -181,7 +181,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
      * Binding 0: Object matrices Uniform buffer
      */
     bind_group_entries[0] = (WGPUBindGroupEntry){
-      // Binding 0: Uniform buffer (Vertex shader)
+      /* Binding 0: Uniform buffer (Vertex shader) */
       .binding = 0,
       .buffer  = cube->uniform_buffer,
       .offset  = 0,
@@ -192,7 +192,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
      * Binding 1: Object texture view
      */
     bind_group_entries[1] = (WGPUBindGroupEntry){
-      // Binding 1: Fragment shader color map image view
+      /* Binding 1: Fragment shader color map image view */
       .binding     = 1,
       .textureView = cube->texture.view,
     };
@@ -201,7 +201,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
      * Binding 2: Object texture sampler
      */
     bind_group_entries[2] = (WGPUBindGroupEntry){
-      // Binding 2: Fragment shader color map image sampler
+      /* Binding 2: Fragment shader color map image sampler */
       .binding = 2,
       .sampler = cube->texture.sampler,
     };
@@ -221,7 +221,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -235,10 +235,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
@@ -249,7 +249,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 
 static void prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Create a pipeline layout used for our graphics pipeline
+  /* Create a pipeline layout used for our graphics pipeline */
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
@@ -260,16 +260,16 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     });
   ASSERT(pipeline_layout != NULL);
 
-  // Construct the different states making up the pipeline
+  /* Construct the different states making up the pipeline */
 
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state_desc = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_Back,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state                   = wgpu_create_blend_state(false);
   WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -277,30 +277,30 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_GLTF_VERTEX_BUFFER_LAYOUT(
     cube,
-    // Location 0: Position
+    /* Location 0: Position */
     WGPU_GLTF_VERTATTR_DESC(0, WGPU_GLTF_VertexComponent_Position),
-    // Location 1: Vertex normal
+    /* Location 1: Vertex normal */
     WGPU_GLTF_VERTATTR_DESC(1, WGPU_GLTF_VertexComponent_Normal),
-    // Location 2: Texture coordinates
+    /* Location 2: Texture coordinates */
     WGPU_GLTF_VERTATTR_DESC(2, WGPU_GLTF_VertexComponent_UV),
-    // Location 3: Vertex color
+    /* Location 3: Vertex color */
     WGPU_GLTF_VERTATTR_DESC(3, WGPU_GLTF_VertexComponent_Color));
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL
+              // Vertex shader WGSL */
               .label            = "Cube - Vertex shader WGSL",
               .wgsl_code.source = bind_groups_vertex_shader_wgsl,
               .entry            = "main",
@@ -309,11 +309,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .buffers      = &cube_vertex_buffer_layout,
           });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader WGSL
+              /* Fragment shader WGSL */
               .label            = "Cube - Fragment shader WGSL",
               .wgsl_code.source = bind_groups_fragment_shader_wgsl,
               .entry            = "main",
@@ -322,14 +322,14 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             .targets      = &color_target_state_desc,
           });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state_desc
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Cube render pipeline",
@@ -342,7 +342,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
