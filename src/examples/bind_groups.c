@@ -300,7 +300,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Vertex shader WGSL */
+              /* Vertex shader WGSL */
               .label            = "Cube - Vertex shader WGSL",
               .wgsl_code.source = bind_groups_vertex_shader_wgsl,
               .entry            = "main",
@@ -378,7 +378,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader matrix uniform buffer block
+  /* Vertex shader matrix uniform buffer block */
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(cubes); ++i) {
     cube_t* cube = &cubes[i];
 
@@ -421,31 +421,31 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
 
-  // Set viewport
+  /* Set viewport */
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
     (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-  // Set scissor rectangle
+  /* Set scissor rectangle */
   wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Render cubes with separate bind groups
+  /* Render cubes with separate bind groups */
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(cubes); ++i) {
     // Bind the cube's bind group. This tells the command buffer to use the
     // uniform buffer and image set for this cube
@@ -454,14 +454,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     wgpu_gltf_model_draw(model, (wgpu_gltf_model_render_options_t){0});
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
@@ -471,19 +471,19 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
 
-  // Submit command buffer to queue
+  /* Submit command buffer to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return EXIT_SUCCESS;
