@@ -54,8 +54,9 @@ typedef struct {
 bv_array_t* bv_array_create(size_t initial_capacity)
 {
   bv_array_t* array = (bv_array_t*)malloc(sizeof(bv_array_t));
-  if (!array)
+  if (!array) {
     return NULL;
+  }
 
   array->data = (bv_t*)malloc(sizeof(bv_t) * initial_capacity);
   if (!array->data) {
@@ -78,8 +79,9 @@ void bv_array_destroy(bv_array_t* this)
 
 void bv_array_resize(bv_array_t* this, size_t new_capacity)
 {
-  if (!this)
+  if (!this) {
     return;
+  }
 
   bv_t* new_data = (bv_t*)realloc(this->data, sizeof(bv_t) * new_capacity);
   if (new_data) {
@@ -90,8 +92,9 @@ void bv_array_resize(bv_array_t* this, size_t new_capacity)
 
 void bv_array_push(bv_array_t* this, bv_t bv)
 {
-  if (!this)
+  if (!this) {
     return;
+  }
 
   if (this->size >= this->capacity) {
     bv_array_resize(this, this->capacity * 2);
@@ -327,8 +330,9 @@ static void bv_split_across(bv_t* this, axis_t axis, face_t* faces,
 
   /* Create a copy of faces array for sorting */
   face_t* sorted_faces = (face_t*)malloc(sizeof(face_t) * face_count);
-  if (!sorted_faces)
+  if (!sorted_faces) {
     return;
+  }
 
   memcpy(sorted_faces, faces, sizeof(face_t) * face_count);
 
