@@ -623,12 +623,12 @@ static void rt_camera_init(rt_camera_t* this, dom_element_t* dom_element,
   memset(&this->pan_end, 0, sizeof(point_t));
 
   /* Initialize spherical coordinates */
-  float dx     = position[0];
-  float dy     = position[1];
-  float dz     = position[2];
-  float radius = sqrtf(dx * dx + dy * dy + dz * dz);
-  float theta  = atan2f(dx, dz);
-  float phi    = acosf(clamp_f(dy / radius, -1.0f, 1.0f));
+  const float dx     = position[0];
+  const float dy     = position[1];
+  const float dz     = position[2];
+  const float radius = sqrtf(dx * dx + dy * dy + dz * dz);
+  const float theta  = atan2f(dx, dz);
+  const float phi    = acosf(clamp_f(dy / radius, -1.0f, 1.0f));
 
   this->spherical.radius = radius;
   this->spherical.theta  = theta;
