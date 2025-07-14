@@ -19,7 +19,11 @@
  * -------------------------------------------------------------------------- */
 
 /* Axis enumeration */
-typedef enum { AXIS_X = 0, AXIS_Y = 1, AXIS_Z = 2 } axis_t;
+typedef enum {
+  AXIS_X = 0,
+  AXIS_Y = 1,
+  AXIS_Z = 2,
+} axis_t;
 
 /* Constants */
 #define BV_MIN_DELTA 0.01f
