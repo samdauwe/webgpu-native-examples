@@ -252,7 +252,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
     (*bindgroup_array)[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Opaque and alpha texture bind group",
+                              .label  = "Opaque and alpha texture - Bind group",
                               .layout = bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
