@@ -32,25 +32,25 @@ static const char* basisu_fragment_shader_wgsl;
  * Basis Universal Texture Loading example
  * -------------------------------------------------------------------------- */
 
-// Vertex layout used in this example
+/* Vertex layout used in this example */
 typedef struct vertex_t {
   vec3 pos;
   vec2 uv;
 } vertex_t;
 
-// Vertex buffer
+/* Vertex buffer */
 static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
-// Index buffer
+/* Index buffer */
 static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } indices = {0};
 
-// Uniform buffer block object
+/* Uniform buffer block object */
 static struct {
   WGPUBuffer buffer;
   uint64_t size;
@@ -61,19 +61,19 @@ static struct {
   mat4 model_view;
 } ubo_vs = {0};
 
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout = NULL; // solid
+/* The pipeline layout */
+static WGPUPipelineLayout pipeline_layout = NULL; /* solid */
 
-// Pipeline
-static WGPURenderPipeline pipeline = NULL; // solid
+/* Pipeline */
+static WGPURenderPipeline pipeline = NULL; /* solid */
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Bind groups stores the resources bound to the binding points in a shader
+/* Bind groups stores the resources bound to the binding points in a shader */
 static struct {
   WGPUBindGroup opaque;
   WGPUBindGroup alpha;
@@ -81,20 +81,20 @@ static struct {
 
 static WGPUBindGroupLayout bind_group_layout = NULL;
 
-// Basis Universal textures
+/* Basis Universal textures */
 static struct {
   texture_t opaque;
   texture_t alpha;
 } textures = {0};
 
-// GUI - current texture type
+/* GUI - current texture type */
 static int32_t current_texture_type = 0;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Basis Universal Texture Loading";
 static bool prepared             = false;
 
-// Setup a default look-at camera
+/* Setup a default look-at camera */
 static void setup_camera(wgpu_example_context_t* context)
 {
   context->camera       = camera_create();
@@ -105,7 +105,7 @@ static void setup_camera(wgpu_example_context_t* context)
                          context->window_size.aspect_ratio, 0.0f, 256.0f);
 }
 
-// Upload texture image data to the GPU
+/* Upload texture image data to the GPU */
 static void load_texture(wgpu_context_t* wgpu_context)
 {
   textures.opaque = wgpu_create_texture_from_file(
@@ -114,10 +114,10 @@ static void load_texture(wgpu_context_t* wgpu_context)
     wgpu_context, "textures/basisu/testcard_rgba.basis", NULL);
 }
 
-// Setup vertices for a single uv-mapped quad
+/* Setup vertices for a single uv-mapped quad */
 static void generate_quad(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices for a single uv-mapped quad made from two triangles
+  /* Setup vertices for a single uv-mapped quad made from two triangles */
   struct vertex_t vertex_data[4] = {
     // clang-format off
     {.pos = { 1.0f, -1.0f, 0.0f}, .uv = {1.0f, 1.0f}}, //
@@ -129,7 +129,7 @@ static void generate_quad(wgpu_context_t* wgpu_context)
   vertices.count              = (uint32_t)ARRAY_SIZE(vertex_data);
   uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
 
-  // Setup indices
+  /* Setup indices */
   static uint32_t index_data[6] = {
     0, 1, 2, //
     2, 3, 0, //
@@ -137,22 +137,22 @@ static void generate_quad(wgpu_context_t* wgpu_context)
   indices.count              = (uint32_t)ARRAY_SIZE(index_data);
   uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, vertex_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
 
-  // Create index buffer
+  /* Create index buffer */
   indices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, index_data, index_buffer_size, WGPUBufferUsage_Index);
 }
 
 static void update_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Update view matrices
+  /* Update view matrices */
   glm_mat4_copy(context->camera->matrices.perspective, ubo_vs.projection);
   glm_mat4_copy(context->camera->matrices.view, ubo_vs.model_view);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
                           &ubo_vs, sizeof(ubo_vs));
 }
