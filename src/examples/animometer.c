@@ -24,7 +24,7 @@ static const char* fragment_shader_wgsl;
  * Animometer example
  * -------------------------------------------------------------------------- */
 
-// Settings
+/* Settings */
 static struct settings_t {
   uint64_t num_triangles;
   bool render_bundles;
@@ -38,26 +38,26 @@ static uint64_t uniform_bytes          = 0;
 static uint64_t aligned_uniform_bytes  = 0;
 static uint64_t aligned_uniform_floats = 0;
 
-// Vertex buffer
+/* Vertex buffer */
 static struct {
   WGPUBuffer buffer;
   uint32_t count;
 } vertices = {0};
 
-//  Uniform buffer
+/*  Uniform buffer */
 static WGPUBuffer uniform_buffer = NULL;
 static uint64_t time_offset      = 0;
 static float uniform_time[1]     = {0};
 
-// The pipeline layouts
+/* The pipeline layouts */
 static WGPUPipelineLayout pipeline_layout         = NULL;
 static WGPUPipelineLayout dynamic_pipeline_layout = NULL;
 
-// Pipelines
+/* Pipelines */
 static WGPURenderPipeline pipeline         = NULL;
 static WGPURenderPipeline dynamic_pipeline = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
@@ -67,7 +67,7 @@ static struct {
 // GPURenderBundles as part of this render pass.
 static WGPURenderBundle render_bundle = NULL;
 
-// Bind groups stores the resources bound to the binding points in a shader
+/* Bind groups stores the resources bound to the binding points in a shader */
 static WGPUBindGroupLayout time_bind_group_layout    = NULL;
 static WGPUBindGroupLayout bind_group_layout         = NULL;
 static WGPUBindGroupLayout dynamic_bind_group_layout = NULL;
@@ -76,27 +76,27 @@ static WGPUBindGroup* bind_groups       = NULL;
 static WGPUBindGroup dynamic_bind_group = NULL;
 static WGPUBindGroup time_bind_group    = NULL;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Animometer";
 static bool prepared             = false;
 static float start_time          = -1.0f;
 
-// Prepare vertex buffers
+/* Prepare vertex buffers */
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   // clang-format off
   static const float vertices_data[(4 + 4) * 3] = {
-    // position data          /**/ color data              //
-     0.0f,  0.1f, 0.0f, 1.0f, /**/ 1.0f, 0.0f, 0.0f, 1.0f, //
-    -0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 1.0f, 0.0f, 1.0f, //
-     0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 0.0f, 1.0f, 1.0f, //
+    // position data          /**/ color data              /**/
+     0.0f,  0.1f, 0.0f, 1.0f, /**/ 1.0f, 0.0f, 0.0f, 1.0f, /**/
+    -0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 1.0f, 0.0f, 1.0f, /**/
+     0.1f, -0.1f, 0.0f, 1.0f, /**/ 0.0f, 0.0f, 1.0f, 1.0f, /**/
   };
   // clang-format on
 
   vertices.count              = 3u;
   uint64_t vertex_buffer_size = (uint64_t)sizeof(vertices_data);
 
-  // Vertex buffer
+  /* Vertex buffer */
   vertices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, vertices_data, vertex_buffer_size, WGPUBufferUsage_Vertex);
 }
@@ -443,8 +443,8 @@ static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
                                           &(WGPURenderBundleEncoderDescriptor){
                                             .label = "Render bundle encoder",
                                             .colorFormatCount = 1,
-                                            .colorFormats      = color_formats,
-                                            .sampleCount       = 1,
+                                            .colorFormats     = color_formats,
+                                            .sampleCount      = 1,
                                           });
   RECORD_RENDER_PASS(RenderBundleEncoder, render_bundle_encoder)
   render_bundle = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
