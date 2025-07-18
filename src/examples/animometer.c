@@ -161,7 +161,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor dynamic_bgl_desc = {
-    .label      = "Dynamic bind group layout",
+    .label      = "Dynamic - Bind group layout",
     .entryCount = (uint32_t)ARRAY_SIZE(dynamic_bgl_entries),
     .entries    = dynamic_bgl_entries,
   };
