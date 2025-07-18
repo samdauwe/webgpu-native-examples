@@ -174,7 +174,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout bgl_pipeline[2]
     = {time_bind_group_layout, bind_group_layout};
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-    .label                = "Render pipeline layout",
+    .label                = "Render - Pipeline layout",
     .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bgl_pipeline),
     .bindGroupLayouts     = bgl_pipeline,
   };
