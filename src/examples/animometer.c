@@ -103,10 +103,10 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Time bind group layout
+  /* Time bind group layout */
   WGPUBindGroupLayoutEntry time_bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Time
+      /* Binding 0: Time */
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -125,10 +125,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &time_bgl_desc);
   ASSERT(time_bind_group_layout != NULL);
 
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0: Time
+      /* Binding 0: Time */
       .binding = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -147,7 +147,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
   ASSERT(bind_group_layout != NULL);
 
-  // Dynamic bind group layout
+  /* Dynamic bind group layout */
   WGPUBindGroupLayoutEntry dynamic_bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       .binding = 0,
@@ -198,7 +198,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -212,7 +212,7 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                = "Render pass descriptor",
     .colorAttachmentCount = 1,
@@ -230,7 +230,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
 {
   float frame_timestamp_millis = context->frame.timestamp_millis;
 
-  // Update uniforms
+  /* Update uniforms */
   if (start_time < 0.0f) {
     start_time = frame_timestamp_millis;
   }
@@ -254,15 +254,15 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
   bind_groups = malloc(settings.num_triangles * sizeof(WGPUBindGroup));
   for (uint64_t i = 0; i < settings.num_triangles; ++i) {
     uniform_buffer_data[aligned_uniform_floats * i + 0]
-      = float_random(0.0f, 1.0f) * 0.2f + 0.2f; // scale
+      = float_random(0.0f, 1.0f) * 0.2f + 0.2f; /* scale */
     uniform_buffer_data[aligned_uniform_floats * i + 1]
-      = 0.9f * 2.0f * (float_random(0.0f, 1.0f) - 0.5f); // offsetX
+      = 0.9f * 2.0f * (float_random(0.0f, 1.0f) - 0.5f); /* offsetX */
     uniform_buffer_data[aligned_uniform_floats * i + 2]
-      = 0.9f * 2.0f * (float_random(0.0f, 1.0f) - 0.5f); // offsetY
+      = 0.9f * 2.0f * (float_random(0.0f, 1.0f) - 0.5f); /* offsetY */
     uniform_buffer_data[aligned_uniform_floats * i + 3]
-      = float_random(0.0f, 1.0f) * 1.5f + 0.5f; // scalar
+      = float_random(0.0f, 1.0f) * 1.5f + 0.5f; /* scalar */
     uniform_buffer_data[aligned_uniform_floats * i + 4]
-      = float_random(0.0f, 1.0f) * 10.0f; // scalarOffset
+      = float_random(0.0f, 1.0f) * 10.0f; /* scalarOffset */
 
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry) {
