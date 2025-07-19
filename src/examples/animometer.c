@@ -275,8 +275,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 
     bind_groups[i] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, (&(WGPUBindGroupDescriptor){
-                              .label      = "Uniform buffer bind group layout",
-                              .layout     = bind_group_layout,
+                              .label  = "Uniform buffer - Bind group layout",
+                              .layout = bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             }));
