@@ -310,7 +310,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
       };
   time_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, (&(WGPUBindGroupDescriptor){
-                            .label      = "Time bind group layout",
+                            .label      = "Time - Bind group layout",
                             .layout     = time_bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(time_bg_entries),
                             .entries    = time_bg_entries,
