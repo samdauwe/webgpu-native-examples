@@ -248,7 +248,8 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
     wgpu_context->device,
     &(WGPUBufferDescriptor){
               .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-              .size  = settings.num_triangles * aligned_uniform_bytes + sizeof(float),
+              .size
+      = MAX(settings.num_triangles, 1) * aligned_uniform_bytes + sizeof(float),
     });
   float uniform_buffer_data[settings.num_triangles * aligned_uniform_floats];
   bind_groups = malloc(settings.num_triangles * sizeof(WGPUBindGroup));
