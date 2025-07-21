@@ -403,9 +403,9 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
 static void update_settings(wgpu_context_t* wgpu_context)
 {
-  block_dim = tile_dim - (settings.filter_size - 1);
+  block_dim = tile_dim - settings.filter_size;
 
-  uniform_buffer_data[0] = settings.filter_size;
+  uniform_buffer_data[0] = settings.filter_size + 1;
   uniform_buffer_data[1] = block_dim;
 
   // Map uniform buffer and update the blur parameters
