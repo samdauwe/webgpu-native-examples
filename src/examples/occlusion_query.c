@@ -171,7 +171,7 @@ static void create_occlusion_query_set_buffers(wgpu_context_t* wgpu_context)
     &(WGPUBufferDescriptor){
       .label = "Query set - Resolve buffer",
       /* Query results are 64bit unsigned integers.*/
-      .size  = CUBE_ID_COUNT * sizeof(size_t),
+      .size  = CUBE_ID_COUNT * sizeof(uint64_t),
       .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
     });
 
