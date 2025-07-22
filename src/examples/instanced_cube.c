@@ -430,22 +430,22 @@ void example_instanced_cube(int argc, char* argv[])
 // clang-format off
 static const char* instanced_vertex_shader_wgsl = CODE(
   struct Uniforms {
-    modelViewProjectionMatrix : array<mat4x4<f32>, 16>,
+    modelViewProjectionMatrix : array<mat4x4f, 16>,
   }
 
   @binding(0) @group(0) var<uniform> uniforms : Uniforms;
 
   struct VertexOutput {
-    @builtin(position) Position : vec4<f32>,
-    @location(0) fragUV : vec2<f32>,
-    @location(1) fragPosition: vec4<f32>,
+    @builtin(position) Position : vec4f,
+    @location(0) fragUV : vec2f,
+    @location(1) fragPosition: vec4f,
   }
 
   @vertex
   fn main(
     @builtin(instance_index) instanceIdx : u32,
-    @location(0) position : vec4<f32>,
-    @location(1) uv : vec2<f32>
+    @location(0) position : vec4f,
+    @location(1) uv : vec2f
   ) -> VertexOutput {
     var output : VertexOutput;
     output.Position = uniforms.modelViewProjectionMatrix[instanceIdx] * position;
