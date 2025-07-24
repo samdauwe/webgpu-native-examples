@@ -133,7 +133,7 @@ static void prepare_texture_sampler(wgpu_context_t* wgpu_context)
 {
   // Create linear sampler
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Linear texture sampler",
+    .label         = "Linear texture - Sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
