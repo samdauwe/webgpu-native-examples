@@ -119,7 +119,7 @@ static void prepare_moon_texture(wgpu_context_t* wgpu_context)
 {
   const char* file                                    = "textures/moon.jpg";
   wgpu_texture_load_options wgpu_texture_load_options = {
-    .label        = "Moon texture",
+    .label        = "Moon - Texture",
     .format       = WGPUTextureFormat_RGBA8Unorm,
     .address_mode = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                     | WGPUTextureUsage_RenderAttachment,
