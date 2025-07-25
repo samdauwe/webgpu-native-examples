@@ -19,7 +19,7 @@
 
 #define MAX_ASTEROID_COUNT 10000u
 
-// Renderables
+/* Renderables */
 typedef struct renderable_t {
   wgpu_buffer_t vertices;
   wgpu_buffer_t indices;
@@ -37,14 +37,14 @@ static struct {
 } renderables[1 + MAX_ASTEROID_COUNT] = {0};
 static uint32_t renderables_length    = 0;
 
-// Texture
+/* Texture */
 static struct {
   texture_t planet;
   texture_t moon;
   WGPUSampler sampler;
 } textures = {0};
 
-// View matrices
+/* View matrices */
 static struct {
   mat4 transform;
   mat4 view;
@@ -57,13 +57,13 @@ static struct {
   .model_view_projection = GLM_MAT4_IDENTITY_INIT,
 };
 
-// Uniform buffer
+/* Uniform buffer */
 static wgpu_buffer_t uniform_buffer = {0};
 
-// Frame bind group
+/* Frame bind group */
 static WGPUBindGroup frame_bind_group = NULL;
 
-// Settings
+/* Settings */
 static struct {
   bool use_render_bundles;
   int32_t asteroid_count;
@@ -72,19 +72,19 @@ static struct {
   .asteroid_count     = 500,
 };
 
-// Mesh render pipeline
+/* Mesh render pipeline */
 static WGPURenderPipeline mesh_render_pipeline = NULL;
 
-// Render bundle
+/* Render bundle */
 static WGPURenderBundle render_bundle = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Render Bundles";
 static bool prepared             = false;
 
@@ -131,7 +131,7 @@ static void prepare_moon_texture(wgpu_context_t* wgpu_context)
 
 static void prepare_texture_sampler(wgpu_context_t* wgpu_context)
 {
-  // Create linear sampler
+  /* Create linear sampler */
   WGPUSamplerDescriptor sampler_desc = {
     .label         = "Linear texture - Sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
