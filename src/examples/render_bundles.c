@@ -166,7 +166,7 @@ static void create_sphere_renderable(wgpu_context_t* wgpu_context,
   /* Create a vertex buffer from the sphere data. */
   renderable->vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Sphere vertex buffer",
+                    .label = "Sphere - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sphere_mesh.vertices.length * sizeof(float),
                     .initial.data = sphere_mesh.vertices.data,
