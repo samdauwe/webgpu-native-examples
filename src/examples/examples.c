@@ -42,7 +42,9 @@ void example_gltf_skinning(int argc, char* argv[]);
 void example_hdr(int argc, char* argv[]);
 void example_image_blur(int argc, char* argv[]);
 void example_imgui_overlay(int argc, char* argv[]);
+#ifdef ENABLE_FFMPEG
 void example_immersive_video(int argc, char* argv[]);
+#endif
 void example_instanced_cube(int argc, char* argv[]);
 void example_minimal(int argc, char* argv[]);
 void example_msaa_line(int argc, char* argv[]);
@@ -82,7 +84,9 @@ void example_tile_map(int argc, char* argv[]);
 void example_triangle(int argc, char* argv[]);
 void example_two_cubes(int argc, char* argv[]);
 void example_vertex_buffer(int argc, char* argv[]);
+#ifdef ENABLE_FFMPEG
 void example_video_uploading(int argc, char* argv[]);
+#endif
 void example_volume_rendering_texture_3d(int argc, char* argv[]);
 void example_wireframe_vertex_pulling(int argc, char* argv[]);
 
@@ -123,7 +127,9 @@ static examplecase_t g_example_cases[] = {
   {"hdr", example_hdr},
   {"image_blur", example_image_blur},
   {"imgui_overlay", example_imgui_overlay},
+#ifdef ENABLE_FFMPEG
   {"immersive_video", example_immersive_video},
+#endif
   {"instanced_cube", example_instanced_cube},
   {"minimal", example_minimal},
   {"msaa_line", example_msaa_line},
@@ -163,7 +169,9 @@ static examplecase_t g_example_cases[] = {
   {"triangle", example_triangle},
   {"two_cubes", example_two_cubes},
   {"vertex_buffer", example_vertex_buffer},
+#ifdef ENABLE_FFMPEG
   {"video_uploading", example_video_uploading},
+#endif
   {"volume_rendering_texture_3d", example_volume_rendering_texture_3d},
   {"wireframe_vertex_pulling", example_wireframe_vertex_pulling},
 };

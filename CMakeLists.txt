@@ -7,6 +7,9 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# Build options
+option(ENABLE_FFMPEG "Enable FFmpeg support for video examples" ON)
+
 # Architecture string.
 set(ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Override CPU architecture")
 string(REGEX REPLACE "amd64" "x86_64" KERNEL_ARCH "${ARCH}")
@@ -120,17 +123,19 @@ set(RPLY_SOURCES
 )
 
 # ffmpeg
-# dnf -y install ffmpeg-devel
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-    libavdevice
-    libavfilter
-    libavformat
-    libavcodec
-    libswresample
-    libswscale
-    libavutil
-)
+if(ENABLE_FFMPEG)
+  # dnf -y install ffmpeg-devel
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+      libavdevice
+      libavfilter
+      libavformat
+      libavcodec
+      libswresample
+      libswscale
+      libavutil
+  )
+endif()
 
 # ==============================================================================
 # Headers and sources
@@ -149,7 +154,6 @@ set(HEADERS
     src/core/math.h
     src/core/platform.h
     src/core/utils.h
-    src/core/video_decode.h
     src/core/window.h
     src/examples/common_shaders.h
     src/examples/examples.h
@@ -166,6 +170,10 @@ set(HEADERS
     src/webgpu/texture.h
 )
 
+if(ENABLE_FFMPEG)
+    list(APPEND HEADERS src/core/video_decode.h)
+endif()
+
 set(SOURCES
     src/main.c
     src/core/argparse.c
@@ -176,7 +184,6 @@ set(SOURCES
     src/core/log.c
     src/core/math.c
     src/core/utils.c
-    src/core/video_decode.c
     src/core/window.c
     src/examples/example_base.c
     src/examples/examples.c
@@ -190,6 +197,10 @@ set(SOURCES
     src/webgpu/text_overlay.c
     src/webgpu/texture.c
 )
+
+if(ENABLE_FFMPEG)
+    list(APPEND SOURCES src/core/video_decode.c)
+endif()
 
 # examples
 set(SOURCES
@@ -230,7 +241,6 @@ set(SOURCES
     src/examples/hdr.c
     src/examples/image_blur.c
     src/examples/imgui_overlay.c
-    src/examples/immersive_video.c
     src/examples/instanced_cube.c
     src/examples/minimal.c
     src/examples/msaa_line.c
@@ -251,6 +261,7 @@ set(SOURCES
     src/examples/prng.c
     src/examples/procedural_mesh.c
     src/examples/radial_blur.c
+    # src/examples/raytracer.c
     src/examples/render_bundles.c
     src/examples/reversed_z.c
     src/examples/sampler_parameters.c
@@ -270,10 +281,17 @@ set(SOURCES
     src/examples/triangle.c
     src/examples/two_cubes.c
     src/examples/vertex_buffer.c
-    src/examples/video_uploading.c
     src/examples/volume_rendering_texture_3d.c
     src/examples/wireframe_vertex_pulling.c
 )
+
+# Video examples (require FFmpeg)
+if(ENABLE_FFMPEG)
+    list(APPEND SOURCES
+        src/examples/immersive_video.c
+        src/examples/video_uploading.c
+    )
+endif()
 
 if(WIN32)
   set(SOURCES ${SOURCES} src/platforms/win32.c)
@@ -335,6 +353,11 @@ if(UNIX AND NOT APPLE)
     target_compile_options(${TARGET} PRIVATE -D_POSIX_C_SOURCE=200809L)
 endif()
 
+# Conditional compilation definitions
+if(ENABLE_FFMPEG)
+    target_compile_definitions(${TARGET} PRIVATE ENABLE_FFMPEG=1)
+endif()
+
 # ==============================================================================
 # Include directories
 # ==============================================================================
@@ -372,7 +395,6 @@ else()
       m
       ${Vulkan_LIBRARIES}
       Threads::Threads
-      PkgConfig::LIBAV
       dawncpp
       dawn_proc
       dawn_common
@@ -381,6 +403,10 @@ else()
       wgpu_native
       glfw
     )
+    
+    if(ENABLE_FFMPEG)
+        target_link_libraries(${TARGET} PRIVATE PkgConfig::LIBAV)
+    endif()
 endif()
 
 # ==============================================================================

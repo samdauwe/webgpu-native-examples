@@ -84,6 +84,24 @@ $ cmake ..
 $ make all
 ```
 
+#### Optional Dependencies
+
+**FFmpeg (libav) Support**: The project includes optional support for FFmpeg libraries (libav) which enables video-related examples such as `immersive_video` and `video_uploading`. This dependency is enabled by default but can be controlled using the `ENABLE_FFMPEG` CMake option.
+
+To build **with** FFmpeg support (default):
+```bash
+$ cmake .. -DENABLE_FFMPEG=ON
+# or simply
+$ cmake ..
+```
+
+To build **without** FFmpeg support:
+```bash
+$ cmake .. -DENABLE_FFMPEG=OFF
+```
+
+When FFmpeg support is disabled, the video-related examples will be excluded from the build, and you won't need to install the FFmpeg development libraries on your system.
+
 ### Docker container
 
 To build and run the examples inside a [Docker](https://www.docker.com/) container, follow the steps as described below.
@@ -451,11 +469,11 @@ WebGPU interpretation of [glxgears](https://linuxreviews.org/Glxgears). Procedur
 
 #### [Video uploading](src/examples/video_uploading.c)
 
-This example shows how to upload video frames to WebGPU. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding.
+This example shows how to upload video frames to WebGPU. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding. **Note**: Requires FFmpeg support to be enabled (`-DENABLE_FFMPEG=ON`).
 
 #### [Immersive video](src/examples/immersive_video.c)
 
-This example shows how to display a 360-degree video where the viewer has control of the viewing direction. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding.
+This example shows how to display a 360-degree video where the viewer has control of the viewing direction. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding. **Note**: Requires FFmpeg support to be enabled (`-DENABLE_FFMPEG=ON`).
 
 #### [Shadertoy](src/examples/video_uploading.c)
 
