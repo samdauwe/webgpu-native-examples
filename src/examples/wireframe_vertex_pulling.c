@@ -726,11 +726,11 @@ void example_wireframe_vertex_pulling(int argc, char* argv[])
 // clang-format off
 static const char* render_points_wgsl = CODE(
   struct Uniforms {
-    world           : mat4x4<f32>,
-    view            : mat4x4<f32>,
-    proj            : mat4x4<f32>,
-    screen_width    : f32,
-    screen_height   : f32
+    world         : mat4x4<f32>,
+    view          : mat4x4<f32>,
+    proj          : mat4x4<f32>,
+    screen_width  : f32,
+    screen_height : f32
   }
 
   struct U32s {
@@ -801,11 +801,11 @@ static const char* render_points_wgsl = CODE(
 
 static const char* render_solid_mesh_wgsl = CODE(
   struct Uniforms {
-    world           : mat4x4<f32>,
-    view            : mat4x4<f32>,
-    proj            : mat4x4<f32>,
-    screen_width    : f32,
-    screen_height   : f32
+    world         : mat4x4<f32>,
+    view          : mat4x4<f32>,
+    proj          : mat4x4<f32>,
+    screen_width  : f32,
+    screen_height : f32
   }
 
   struct U32s {
@@ -876,11 +876,11 @@ static const char* render_solid_mesh_wgsl = CODE(
 
 static const char* render_wireframe_thick_wgsl = CODE(
   struct Uniforms {
-    world           : mat4x4<f32>,
-    view            : mat4x4<f32>,
-    proj            : mat4x4<f32>,
-    screen_width    : f32,
-    screen_height   : f32
+    world         : mat4x4<f32>,
+    view          : mat4x4<f32>,
+    proj          : mat4x4<f32>,
+    screen_width  : f32,
+    screen_height : f32
   }
 
   struct U32s {
@@ -1017,11 +1017,11 @@ static const char* render_wireframe_thick_wgsl = CODE(
 
 static const char* render_wireframe_wgsl = CODE(
   struct Uniforms {
-    world           : mat4x4<f32>,
-    view            : mat4x4<f32>,
-    proj            : mat4x4<f32>,
-    screen_width    : f32,
-    screen_height   : f32
+    world         : mat4x4<f32>,
+    view          : mat4x4<f32>,
+    proj          : mat4x4<f32>,
+    screen_width  : f32,
+    screen_height : f32
   }
 
   struct U32s {
