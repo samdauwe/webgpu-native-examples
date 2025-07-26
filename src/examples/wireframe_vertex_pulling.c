@@ -47,22 +47,22 @@ static const char* render_wireframe_wgsl;
  * Wireframe and Thick-Line Rendering example
  * -------------------------------------------------------------------------- */
 
-// Cube mesh
+/* Cube mesh */
 static indexed_cube_mesh_t indexed_cube_mesh = {0};
 
-// Cube struct
+/* Cube struct */
 typedef struct cube_t {
   WGPUBindGroup uniform_buffer_bind_group;
   WGPUBindGroupLayout bind_group_layout;
-  // Vertex buffer
+  /* Vertex buffer */
   wgpu_buffer_t positions;
-  // Colors
+  /* Colors */
   wgpu_buffer_t colors;
-  // Index buffer
+  /* Index buffer */
   wgpu_buffer_t indices;
-  // Uniform buffer block object
+  /* Uniform buffer block object */
   wgpu_buffer_t uniform_buffer_vs;
-  // View matrices
+  /* View matrices */
   struct view_matrices_t {
     mat4 world;
     mat4 view;
@@ -74,16 +74,16 @@ typedef struct cube_t {
 } cube_t;
 static cube_t cube = {0};
 
-// The pipeline layout
+/* The pipeline layout */
 static WGPUPipelineLayout pipeline_layout = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Render modes
+/* Render modes */
 typedef enum render_mode_enum {
   RenderMode_Solid_Mesh      = 0,
   RenderMode_Points          = 1,
@@ -93,10 +93,10 @@ typedef enum render_mode_enum {
 
 static render_mode_enum current_render_mode = RenderMode_Solid_Mesh;
 
-// Render pipeline
+/* Render pipeline */
 static WGPURenderPipeline render_pipelines[4] = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title
   = "Wireframe and Thick-Line Rendering in WebGPU";
 static bool prepared = false;
@@ -261,7 +261,7 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
   /* Update the view matrices */
   update_view_matrices(context);
 
-  // Map uniform buffer and update it
+  /* Map uniform buffer and update it */
   wgpu_queue_write_buffer(context->wgpu_context, cube.uniform_buffer_vs.buffer,
                           0, &cube.view_matrices, cube.uniform_buffer_vs.size);
 }
@@ -359,11 +359,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
 
   /* Render pipeline: Solid mesh */
   {
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Vertex shader WGSL
+         /* Vertex shader WGSL */
          .label             = "Render solid mesh - Vertex shader WGSL",
          .wgsl_code.source  = render_solid_mesh_wgsl,
          .entry             = "main_vertex",
@@ -372,11 +372,11 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .buffers      = NULL,
      });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
        wgpu_context, &(wgpu_fragment_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Fragment shader WGSL
+         /* Fragment shader WGSL */
          .label             = "Render solid mesh - Fragment shader WGSL",
          .wgsl_code.source  = render_solid_mesh_wgsl,
          .entry             = "main_fragment",
@@ -385,7 +385,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
        .targets = &color_target_state,
      });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     render_pipelines[(uint32_t)RenderMode_Solid_Mesh]
       = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device, &(WGPURenderPipelineDescriptor){
@@ -513,7 +513,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
        wgpu_context, &(wgpu_vertex_state_t){
        .shader_desc = (wgpu_shader_desc_t){
-         // Vertex shader WGSL
+         /* Vertex shader WGSL */
          .label            = "Render wireframe thick - Vertex shader WGSL",
          .wgsl_code.source = render_wireframe_thick_wgsl,
          .entry            = "main_vertex",
@@ -592,23 +592,23 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass
+  /* Create render pass */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(
     wgpu_context->rpass_enc, render_pipelines[(uint32_t)current_render_mode]);
 
-  // Set the bind group
+  /* Set the bind group */
   wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                     cube.uniform_buffer_bind_group, 0, 0);
 
-  // Bind vertex buffers
+  /* Bind vertex buffers */
   wgpuRenderPassEncoderSetVertexBuffer(
     wgpu_context->rpass_enc, 1, cube.positions.buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
@@ -617,11 +617,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                        cube.indices.buffer, 0, WGPU_WHOLE_SIZE);
 
   if (current_render_mode == RenderMode_Solid_Mesh) {
-    // Bind index buffer
+    /* Bind index buffer */
     wgpuRenderPassEncoderSetIndexBuffer(
       wgpu_context->rpass_enc, cube.indices.buffer, WGPUIndexFormat_Uint32, 0,
       cube.indices.size);
-    // Draw indexed cube
+    /* Draw indexed cube */
     wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
                                      cube.indices.count, 1, 0, 0, 0);
   }
@@ -640,14 +640,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                               0, 0);
   }
 
-  // End render pass
+  /* End render pass */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
@@ -687,7 +687,7 @@ static int example_render(wgpu_example_context_t* context)
   return draw_result;
 }
 
-// Clean up used resources
+/* Clean up used resources */
 static void example_destroy(wgpu_example_context_t* context)
 {
   UNUSED_VAR(context);
