@@ -123,7 +123,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   // Create the sampler
   video_texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Video texture sampler",
+                            .label         = "Video - Texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
