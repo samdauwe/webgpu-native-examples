@@ -110,7 +110,7 @@ static void prepare_video_texture(wgpu_context_t* wgpu_context)
   // Create the texture view
   video_texture.view = wgpuTextureCreateView(
     video_texture.texture, &(WGPUTextureViewDescriptor){
-                             .label           = "Video texture view",
+                             .label           = "Video - Texture view",
                              .format          = WGPUTextureFormat_RGBA8Unorm,
                              .dimension       = WGPUTextureViewDimension_2D,
                              .baseMipLevel    = 0,
