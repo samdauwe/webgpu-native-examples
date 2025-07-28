@@ -267,7 +267,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
   /* Create a sampler with linear filtering for smooth interpolation. */
   textures.volume.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Volume texture sampler",
+                            .label         = "Volume - Texture sampler",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
