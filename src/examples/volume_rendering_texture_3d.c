@@ -224,7 +224,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
 
   /* Create the volume texture */
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Volume texture",
+    .label         = "Volume - Texture",
     .size          =   (WGPUExtent3D) {
       .width              = width,
       .height             = height,
