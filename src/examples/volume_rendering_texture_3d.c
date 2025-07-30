@@ -319,7 +319,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = "Uniform bind group",
+      .label      = "Uniform - Bind group",
       .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
