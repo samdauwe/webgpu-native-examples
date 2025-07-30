@@ -280,7 +280,7 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
 
   /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Volume texture view",
+    .label           = "Volume - Texture view",
     .dimension       = WGPUTextureViewDimension_3D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
