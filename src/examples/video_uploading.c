@@ -80,7 +80,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertex buffer",
+                    .label = "Quad - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(rectangle_vertices),
                     .count = 6,
