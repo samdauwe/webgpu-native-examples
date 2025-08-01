@@ -152,6 +152,7 @@ static void create_geometry(wgpu_context_t* wgpu_context)
   };
 
   WGPUBufferDescriptor buffer_desc = {
+    .label            = "Geometry - Vertices buffer",
     .usage            = WGPUBufferUsage_Vertex,
     .size             = MAX_VERTICES * sizeof(vertex_t),
     .mappedAtCreation = true,
