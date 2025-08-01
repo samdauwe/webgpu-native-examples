@@ -348,18 +348,18 @@ static int example_draw(wgpu_example_context_t* context)
 
   update_capture_texture(wgpu_context);
 
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the queue */
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0]
     = build_command_buffer(context->wgpu_context);
 
-  // Submit to queue
+  /* Submit to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return EXIT_SUCCESS;
