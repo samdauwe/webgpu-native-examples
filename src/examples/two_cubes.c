@@ -19,7 +19,7 @@
 
 #define NUMBER_OF_CUBES 2ull
 
-// Settings
+/* Settings */
 static struct {
   uint64_t number_of_cubes;
   bool render_bundles;
@@ -28,10 +28,10 @@ static struct {
   .render_bundles  = true,
 };
 
-// Cube mesh
+/* Cube mesh */
 static cube_mesh_t cube_mesh = {0};
 
-// Cube struct
+/* Cube struct */
 typedef struct cube_t {
   WGPUBindGroup uniform_buffer_bind_group;
   struct {
@@ -42,10 +42,10 @@ typedef struct cube_t {
 } cube_t;
 static cube_t cubes[NUMBER_OF_CUBES] = {0};
 
-// Vertex buffer
+/* Vertex buffer */
 static wgpu_buffer_t vertices = {0};
 
-// Uniform buffer object
+/* Uniform buffer object */
 static struct {
   WGPUBuffer buffer;
   uint64_t offset;
@@ -58,29 +58,29 @@ static struct {
   mat4 view;
 } view_matrices = {0};
 
-// Pipeline
+/* Pipeline */
 static WGPURenderPipeline pipeline = NULL;
 
-// Render bundle
+/* Render bundle */
 static WGPURenderBundle render_bundle = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Two Cubes";
 static bool prepared             = false;
 
-// Prepare the cube geometry
+/* Prepare the cube geometry */
 static void prepare_cube_mesh(void)
 {
   cube_mesh_init(&cube_mesh);
 }
 
-// Create a vertex buffer from the cube data.
+/* Create a vertex buffer from the cube data. */
 static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   vertices = wgpu_create_buffer(
@@ -94,7 +94,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void setup_render_pass(wgpu_context_t* wgpu_context)
 {
-  // Color attachment
+  /* Color attachment */
   render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
       .depthSlice = ~0,
@@ -108,10 +108,10 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
       },
   };
 
-  // Depth attachment
+  /* Depth attachment */
   wgpu_setup_deph_stencil(wgpu_context, NULL);
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Render pass descriptor",
     .colorAttachmentCount   = 1,
