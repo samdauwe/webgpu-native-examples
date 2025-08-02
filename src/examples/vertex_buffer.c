@@ -282,39 +282,39 @@ static int example_initialize(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
+  /* Set target frame buffer */
   render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
 
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
+  /* Create render pass encoder for encoding drawing commands */
   wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
     wgpu_context->cmd_enc, &render_pass.descriptor);
 
-  // Bind the rendering pipeline
+  /* Bind the rendering pipeline */
   wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
 
-  // Set viewport
+  /* Set viewport */
   wgpuRenderPassEncoderSetViewport(
     wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
     (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-  // Set scissor rectangle
+  /* Set scissor rectangle */
   wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                       wgpu_context->surface.width,
                                       wgpu_context->surface.height);
 
-  // Bind vertex buffer (contains positions and colors)
+  /* Bind vertex buffer (contains positions and colors) */
   wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
                                        vertices_buffer, 0,
                                        num_vertices * sizeof(vertex_t));
 
-  // Draw geometry
+  /* Draw geometry */
   wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, num_vertices, 1, 0, 0);
 
-  // Create command buffer and cleanup
+  /* Create command buffer and cleanup */
   wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
   WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
 
