@@ -93,10 +93,10 @@ static void setup_camera(wgpu_example_context_t* context)
                          context->window_size.aspect_ratio, 0.0f, 256.0f);
 }
 
-// Prepare vertex and index buffers for an indexed triangle
+/* Prepare vertex and index buffers for an indexed triangle */
 static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
-  // Setup vertices (x, y, z, r, g, b)
+  /* Setup vertices (x, y, z, r, g, b) */
   static const vertex_t vertex_buffer[3] = {
     {
       .position = {1.0f, -1.0f, 0.0f},
@@ -114,19 +114,18 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
   uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
 
-  // Setup indices
+  /* Setup indices */
   static const uint16_t index_buffer[4] = {
-    0, 1, 2,
-    0 // padding
+    0, 1, 2, 0 /* padding */
   };
   indices.count              = (uint32_t)ARRAY_SIZE(index_buffer);
   uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
 
-  // Create vertex buffer
+  /* Create vertex buffer */
   vertices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
 
-  // Create index buffer
+  /* Create index buffer */
   indices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
 }
