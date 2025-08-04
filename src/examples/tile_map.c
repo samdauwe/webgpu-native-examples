@@ -151,7 +151,7 @@ static void tile_map_layer_write_uniform(tile_map_layer_t* this)
  * Tile map renderer
  * -------------------------------------------------------------------------- */
 
-#define MAX_TILE_MAP_LAYER_COUNT 2u
+#define MAX_TILE_MAP_LAYER_COUNT (2u)
 
 typedef struct {
   wgpu_context_t* wgpu_context;
