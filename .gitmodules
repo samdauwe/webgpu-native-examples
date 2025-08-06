@@ -13,3 +13,8 @@
 [submodule "external/cJSON"]
 	path = external/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "external/dawn"]
+	path = external/dawn
+	url = https://dawn.googlesource.com/dawn
+	branch = chromium/7339 # Chrome 140
+	shallow = true
