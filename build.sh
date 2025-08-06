@@ -2,22 +2,10 @@
 
 set -e
 
-EXTERNAL_DIR="$PWD/external"
-DAWN_DIR="$EXTERNAL_DIR/dawn"
 BUILD_DIR="$PWD/build"
 
 DOCKER_DIR="$PWD/docker"
 DOCKER_NAME="docker-webgpu-native-examples:latest"
-
-update_dawn() {
-    WORKING_DIR=`pwd`
-
-    echo "---------- Updating Dawn code ----------"
-    cd "$DAWN_DIR"
-    /bin/bash download_dawn.sh
-
-    cd "$WORKING_DIR"
-}
 
 webgpu_native_examples() {
     WORKING_DIR=`pwd`
@@ -62,10 +50,6 @@ docker_run() {
 }
 
 while [[ $# -gt 0 ]]; do case "$1" in
-  -update_dawn)
-    shift
-    update_dawn
-    ;;
   -webgpu_native_examples)
     shift
     webgpu_native_examples
@@ -82,7 +66,6 @@ while [[ $# -gt 0 ]]; do case "$1" in
     cat << EOF
 usage: $0 [options]
 options:
-  -update_dawn            Update to the latest version of "depot_tools" and "Dawn"
   -webgpu_native_examples Build WebGPU native examples
   -docker_build           Build Docker image for running the examples
   -docker_run             Run the Docker container with the examples

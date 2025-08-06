@@ -64,18 +64,7 @@ The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an 
 
 ### GNU/Linux
 
-A helper bash script was created to fetch the latest version of "[depot_tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up)" and "[Dawn](https://dawn.googlesource.com/dawn)". With this approach only the Dawn code base is fetched in order to build the WebGPU implementation using [CMake](https://cmake.org/) and without using the Chromium build system and dependency management.
-
-The first step into building the WebGPU examples is running this script as follows:
-
-```bash
-$ cd external/dawn
-$ bash download_dawn.sh
-```
-
-Note: running this script takes a while as it needs to pull several Gigabytes of dependencies from the internet.
-
-The second step is building the examples:
+Build the examples using the following commands:
 
 ```bash
 $ mkdir build
