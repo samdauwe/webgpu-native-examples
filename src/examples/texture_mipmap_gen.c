@@ -204,7 +204,7 @@ static void load_texture(wgpu_context_t* wgpu_context, const char* filename,
 
   // Create samplers
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Mip map texture sampler",
+    .label         = "Mip map - Texture sampler",
     .addressModeU  = WGPUAddressMode_MirrorRepeat,
     .addressModeV  = WGPUAddressMode_MirrorRepeat,
     .addressModeW  = WGPUAddressMode_MirrorRepeat,
