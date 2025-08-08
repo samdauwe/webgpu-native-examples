@@ -318,7 +318,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Texture Mipmap -Bind group layout",
+                            .label      = "Texture Mipmap - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -328,7 +328,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // that are based on this descriptor set layout
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout",
+                            .label = "Texture Mipmap - Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
