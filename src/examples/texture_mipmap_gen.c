@@ -459,7 +459,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               /* Fragment shader SPIR-V */
-              .label = "Texture - Fragment shader SPIR-V",
+              .label = "Texture Mipmap - Fragment shader SPIR-V",
               .file  = "shaders/texture_mipmap_gen/texture.frag.spv",
             },
             .target_count = 1,
