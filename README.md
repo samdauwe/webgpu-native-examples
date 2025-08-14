@@ -1,7 +1,7 @@
 <img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu-logo.png">
 
 <p align="center" width="100%">
-:warning: Code refactoring is ongoing, most examples are ccurrently disabled! :warning:
+:warning: Code refactoring is ongoing, most examples are currently disabled! :warning:
 </p>
 
 # WebGPU Native Examples and Demos
