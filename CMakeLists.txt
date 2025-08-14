@@ -43,7 +43,7 @@ set(SOURCES
 
 # ==============================================================================
 # Function to add example executables
-# ============================================================================== 
+# ==============================================================================
 function(add_example_executable EXAMPLE_SOURCE)
     get_filename_component(EXAMPLE_NAME ${EXAMPLE_SOURCE} NAME_WE)
     add_executable(${EXAMPLE_NAME} ${HEADERS} ${SOURCES} ${EXAMPLE_SOURCE})
@@ -109,6 +109,7 @@ endfunction()
 
 # Examples
 add_example_executable(src/examples/hello_triangle.c)
+add_example_executable(src/examples/square.c)
 
 
 # ==============================================================================
