@@ -1,5 +1,9 @@
 <img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu-logo.png">
 
+<p align="center" width="100%">
+:warning: Code refactoring is ongoing, most examples are ccurrently disabled! :warning:
+</p>
+
 # WebGPU Native Examples and Demos
 
 [WebGPU](https://gpuweb.github.io/gpuweb/) is a new graphics and compute API designed by the [“GPU for the Web”](https://www.w3.org/community/gpu/) W3C community group. It aims to provide modern features such as “GPU compute” as well as lower overhead access to GPU hardware and better, more predictable performance. WebGPU should work with existing platform APIs such as Direct3D 12 from Microsoft, Metal from Apple, and Vulkan from the Khronos Group. 
@@ -54,8 +58,7 @@ $ git clone --recursive https://github.com/samdauwe/webgpu-native-examples.git
 Existing repositories can be updated manually:
 
 ```bash
-$ git submodule init
-$ git submodule update
+$ git submodule update --init
 ```
 
 ## Building for native with Dawn
@@ -67,29 +70,8 @@ The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an 
 Build the examples using the following commands:
 
 ```bash
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make all
+$ cmake -B build && cmake --build build -j4
 ```
-
-#### Optional Dependencies
-
-**FFmpeg (libav) Support**: The project includes optional support for FFmpeg libraries (libav) which enables video-related examples such as `immersive_video` and `video_uploading`. This dependency is enabled by default but can be controlled using the `ENABLE_FFMPEG` CMake option.
-
-To build **with** FFmpeg support (default):
-```bash
-$ cmake .. -DENABLE_FFMPEG=ON
-# or simply
-$ cmake ..
-```
-
-To build **without** FFmpeg support:
-```bash
-$ cmake .. -DENABLE_FFMPEG=OFF
-```
-
-When FFmpeg support is disabled, the video-related examples will be excluded from the build, and you won't need to install the FFmpeg development libraries on your system.
 
 ### Docker container
 
@@ -107,20 +89,6 @@ Run the Docker container:
 $ bash ./build.sh -docker_run
 ```
 
-Once the docker container is running, update to the latest version of "depot_tools" and "Dawn":
-
-```bash
-$ bash ./build.sh -update_dawn
-```
-
-Note: The build toolchain from depot_tools will not be used for building Dawn. Therefore, if this steps fails when extracting the build toolchains (i.e. debian_sid_i386_sysroot.tar.xz) and you see an error similar to this:
-
-```
-tar: .: Cannot change ownership to uid 416578, gid 89939: Invalid argument
-```
-
-then just ignore this error, because the required Dawn source code is already fetched at this point.
-
 Finally, build the samples
 
 ```bash
@@ -131,10 +99,10 @@ $ bash ./build.sh -webgpu_native_examples
 
 ### Linux
 
-The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. Instead of a separate executable for each different example, a different approach was chosen to create an example launcher. This launcher can be used as follows, "./wgpu_sample_launcher -s <example_name>" where <example_name> is the filename of the example without the extension, like for example:
+The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. A separate executable is created for each different example.
 
 ```bash
-$ ./wgpu_sample_launcher -s shadertoy
+$ ./hello_triangle
 ```
 
 ## Project Layout
@@ -144,12 +112,10 @@ $ ./wgpu_sample_launcher -s shadertoy
 ├─ 📂 doc/            # Documentation files
 │  └─ 📁 images         # WebGPU diagram, logo
 ├─ 📂 docker/         # Contains the Dockerfile for building Docker image
-├─ 📂 external/       # Dependencies dependencies
+├─ 📂 external/       # Dependencies
 │  ├─ 📁 cglm           # Highly Optimized Graphics Math (glm) for C
 │  ├─ 📁 dawn           # WebGPU implementation
 │  └─ 📁 ...            # Other Dependencies (cgltf, cimgui, stb, etc.)
-├─ 📂 lib/            # Custom libraries
-│  └─ 📁 wgpu_native    # Helper functions using the Dawn C++ API exposed as C API
 ├─ 📂 screenshots/    # Contains screenshots for each functional example
 ├─ 📂 src/            # Helper functions and examples source code
 │  ├─ 📁 core           # Base functions (input, camera, logging, etc.)
