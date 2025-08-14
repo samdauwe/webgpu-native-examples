@@ -1,5 +1,7 @@
 #include "webgpu/wgpu_common.h"
 
+#include <stdio.h>
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Hello Triangle
  *
@@ -24,6 +26,7 @@ static struct {
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
+  bool prepared;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -37,28 +40,15 @@ static struct {
   },
 };
 
-static WGPUShaderModule create_shader_module(WGPUDevice device,
-                                             const char* wgsl_source)
-{
-  WGPUShaderSourceWGSL shaderCodeDesc
-    = {.chain = {.sType = WGPUSType_ShaderSourceWGSL},
-       .code  = {
-          .data   = wgsl_source,
-          .length = WGPU_STRLEN,
-       }};
-  WGPUShaderModuleDescriptor shaderDesc
-    = {.nextInChain = &shaderCodeDesc.chain};
-  return wgpuDeviceCreateShaderModule(device, &shaderDesc);
-}
-
-static void prepare_pipelines(struct wgpu_context_t* wgpu_context)
+static void prepare_pipeline(struct wgpu_context_t* wgpu_context)
 {
   WGPUShaderModule vert_shader_module
-    = create_shader_module(wgpu_context->device, triangle_vert_wgsl);
+    = wgpu_create_shader_module(wgpu_context->device, triangle_vert_wgsl);
   WGPUShaderModule frag_shader_module
-    = create_shader_module(wgpu_context->device, red_frag_wgsl);
+    = wgpu_create_shader_module(wgpu_context->device, red_frag_wgsl);
 
-  WGPURenderPipelineDescriptor rpdesc = {
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label = STRVIEW("Hello Triangle - Render pipeline"),
     .vertex = {
       .module     = vert_shader_module,
       .entryPoint = STRVIEW("main"),
@@ -67,7 +57,7 @@ static void prepare_pipelines(struct wgpu_context_t* wgpu_context)
       .entryPoint  = STRVIEW("main"),
       .module      = frag_shader_module,
       .targetCount = 1,
-      .targets = &  (WGPUColorTargetState)  {
+      .targets = &(WGPUColorTargetState)  {
         .format    = wgpu_context->render_format,
         .writeMask = WGPUColorWriteMask_All,
       },
@@ -84,40 +74,54 @@ static void prepare_pipelines(struct wgpu_context_t* wgpu_context)
   };
 
   state.pipeline
-    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rpdesc);
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
   wgpuShaderModuleRelease(vert_shader_module);
   wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static void init(struct wgpu_context_t* wgpu_context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  prepare_pipelines(wgpu_context);
+  if (wgpu_context) {
+    prepare_pipeline(wgpu_context);
+    state.prepared = true;
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_FAILURE;
 }
 
-static void frame(struct wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
+  if (!state.prepared) {
+    return EXIT_FAILURE;
+  }
+
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
 
   state.color_attachment.view = wgpu_context->swapchain_view;
 
-  WGPUCommandEncoder cenc = wgpuDeviceCreateCommandEncoder(device, NULL);
-  WGPURenderPassEncoder rpenc
-    = wgpuCommandEncoderBeginRenderPass(cenc, &state.render_pass_dscriptor);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
 
-  // Record render commands.
-  wgpuRenderPassEncoderSetPipeline(rpenc, state.pipeline);
-  wgpuRenderPassEncoderDraw(rpenc, 3, 1, 0, 0);
-  wgpuRenderPassEncoderEnd(rpenc);
-  WGPUCommandBuffer cbuffer = wgpuCommandEncoderFinish(cenc, NULL);
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
+  wgpuRenderPassEncoderDraw(rpass_enc, 3, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  // Submit and present.
-  wgpuQueueSubmit(queue, 1, &cbuffer);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  wgpuRenderPassEncoderRelease(rpenc);
-  wgpuCommandBufferRelease(cbuffer);
-  wgpuCommandEncoderRelease(cenc);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
+
+  return EXIT_SUCCESS;
 }
 
 static void shutdown(struct wgpu_context_t* wgpu_context)
@@ -129,8 +133,8 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .width       = 900,
-    .height      = 900,
+    .width       = 800,
+    .height      = 800,
     .title       = "Hello Triangle",
     .init_cb     = init,
     .frame_cb    = frame,

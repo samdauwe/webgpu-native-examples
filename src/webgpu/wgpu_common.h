@@ -28,8 +28,8 @@ extern "C" {
 
 typedef struct wgpu_context_t wgpu_context_t;
 
-typedef void (*wgpu_init_func)(struct wgpu_context_t* wgpu_context);
-typedef void (*wgpu_frame_func)(struct wgpu_context_t* wgpu_context);
+typedef int (*wgpu_init_func)(struct wgpu_context_t* wgpu_context);
+typedef int (*wgpu_frame_func)(struct wgpu_context_t* wgpu_context);
 typedef void (*wgpu_shutdown_func)(struct wgpu_context_t* wgpu_context);
 typedef void (*wgpu_key_func)(int key);
 typedef void (*wgpu_char_func)(uint32_t c);
@@ -88,6 +88,52 @@ WGPUSurface glfw_create_surface_for_window(WGPUInstance instance,
                                            GLFWwindow* window);
 
 /* -------------------------------------------------------------------------- *
+ * WebGPU buffer helper functions
+ * -------------------------------------------------------------------------- */
+
+typedef struct wgpu_buffer_desc_t {
+  const char* label;
+  WGPUBufferUsage usage;
+  uint32_t size;
+  uint32_t count; /* numer of elements in the buffer (optional) */
+  struct {
+    const void* data;
+    uint32_t size;
+  } initial;
+} wgpu_buffer_desc_t;
+
+typedef struct wgpu_buffer_t {
+  WGPUBuffer buffer;
+  WGPUBufferUsage usage;
+  uint32_t size;
+  uint32_t count; /* numer of elements in the buffer (optional) */
+} wgpu_buffer_t;
+
+/* WebGPU buffer creating  / destroy */
+wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
+                                 const wgpu_buffer_desc_t* desc);
+void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU shader helper functions
+ * -------------------------------------------------------------------------- */
+
+/* WebGPU shader */
+typedef struct wgpu_shader_desc_t {
+  const char* label;
+  /* WGSL source code ( ref: https://www.w3.org/TR/WGSL ) */
+  const char* wgsl_source_code;
+  const char* entry;
+  struct {
+    uint32_t count;
+    WGPUConstantEntry const* entries;
+  } constants; /* pipeline shader constants*/
+} wgpu_shader_desc_t;
+
+WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
+                                           const char* wgsl_source_code);
+
+/* -------------------------------------------------------------------------- *
  * Time functions
  * -------------------------------------------------------------------------- */
 
@@ -105,8 +151,23 @@ uint64_t nano_time(void);
 #define UNUSED_VAR(x) ((void)(x))
 #define UNUSED_FUNCTION(x) ((void)(x))
 
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
+#define WGPU_VALUE_OR(val, def) ((val == 0) ? def : val)
+
 #ifndef CODE
 #define CODE(...) #__VA_ARGS__
+#endif
+
+#ifndef NDEBUG
+#define ASSERT(expression)                                                     \
+  {                                                                            \
+    if (!(expression)) {                                                       \
+      printf("Assertion(%s) failed: file \"%s\", line %d\n", #expression,      \
+             __FILE__, __LINE__);                                              \
+    }                                                                          \
+  }
+#else
+#define ASSERT(expression) NULL;
 #endif
 
 #ifndef STRVIEW

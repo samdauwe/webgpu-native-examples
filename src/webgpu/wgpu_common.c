@@ -11,8 +11,6 @@
 
 static wgpu_context_t wgpu_context;
 
-#define WGPU_VALUE_OR(val, def) ((val == 0) ? def : val)
-
 /* Forward declarations */
 static void wgpu_platform_start(wgpu_context_t* wgpu_context);
 static void wgpu_swapchain_init(wgpu_context_t* wgpu_context);
@@ -295,6 +293,8 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
 
 /* -------------------------------------------------------------------------- *
  * WebGPU SwapChain
+ * Ref:
+ * https://github.com/floooh/sokol-samples/blob/master/wgpu/wgpu_entry_swapchain.c
  * -------------------------------------------------------------------------- */
 
 static void wgpu_swapchain_init(wgpu_context_t* wgpu_context)
@@ -567,6 +567,74 @@ WGPUSurface glfw_create_surface_for_window(WGPUInstance instance,
       // Unsupported platform
       return NULL;
   }
+}
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU buffer helper functions
+ * -------------------------------------------------------------------------- */
+
+wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
+                                 const wgpu_buffer_desc_t* desc)
+{
+  /* Ensure that buffer size is a multiple of 4 */
+  const uint32_t size = (desc->size + 3) & ~3;
+
+  wgpu_buffer_t wgpu_buffer = {
+    .usage = desc->usage,
+    .size  = size,
+    .count = desc->count,
+  };
+
+  WGPUBufferDescriptor buffer_desc = {
+    .label            = STRVIEW(WGPU_VALUE_OR(desc->label, "WebGPU buffer")),
+    .usage            = desc->usage,
+    .size             = size,
+    .mappedAtCreation = false,
+  };
+
+  const uint32_t initial_size
+    = (desc->initial.size == 0) ? desc->size : desc->initial.size;
+
+  if (desc->initial.data && initial_size > 0 && initial_size <= desc->size) {
+    buffer_desc.mappedAtCreation = true;
+    WGPUBuffer buffer
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(buffer != NULL);
+    void* mapping = wgpuBufferGetMappedRange(buffer, 0, size);
+    ASSERT(mapping != NULL);
+    memcpy(mapping, desc->initial.data, initial_size);
+    wgpuBufferUnmap(buffer);
+    wgpu_buffer.buffer = buffer;
+  }
+  else {
+    wgpu_buffer.buffer
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    ASSERT(wgpu_buffer.buffer != NULL);
+  }
+  return wgpu_buffer;
+}
+
+void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, buffer->buffer)
+}
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU shader helper functions
+ * -------------------------------------------------------------------------- */
+
+WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
+                                           const char* wgsl_source_code)
+{
+  WGPUShaderSourceWGSL shader_code_desc
+    = {.chain = {.sType = WGPUSType_ShaderSourceWGSL},
+       .code  = {
+          .data   = wgsl_source_code,
+          .length = WGPU_STRLEN,
+       }};
+  WGPUShaderModuleDescriptor shader_desc
+    = {.nextInChain = &shader_code_desc.chain};
+  return wgpuDeviceCreateShaderModule(device, &shader_desc);
 }
 
 /* -------------------------------------------------------------------------- *
