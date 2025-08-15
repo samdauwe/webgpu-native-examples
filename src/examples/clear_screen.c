@@ -1,6 +1,6 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <stdio.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Clear Screen
@@ -12,49 +12,27 @@
  * https://github.com/tsherif/webgpu-examples/blob/gh-pages/blank.html
  * -------------------------------------------------------------------------- */
 
-// Render pass descriptor for frame buffer writes
 static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
+  bool prepared;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {1.0, 1.0, 1.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_dscriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+};
 
-// Other variables
-static const char* example_title = "Clear Screen";
-static bool prepared             = false;
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
-
-  // Color attachment
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 1.0f,
-        .g = 1.0f,
-        .b = 1.0f,
-        .a = 1.0f,
-      },
-  };
-
-  // Render pass descriptor
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = NULL,
-  };
-}
-
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    // Setup render pass
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    state.prepared = true;
     return EXIT_SUCCESS;
   }
 
@@ -70,92 +48,66 @@ static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
   };
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  render_pass.color_attachments[0].view
-    = context->wgpu_context->swap_chain.frame_buffer;
+  if (!state.prepared) {
+    return EXIT_FAILURE;
+  }
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view = wgpu_context->swapchain_view;
 
   /* Figure out how far along duration we are, between 0.0 and 1.0 */
-  const float t = cos(context->frame.timestamp_millis * 0.001f) * 0.5f + 0.5f;
+  const float t = cos(nano_time() * 0.001f * 0.001f * 0.001f) * 0.5f + 0.5f;
 
   /* Interpolate between two colors */
-  render_pass.color_attachments[0].clearValue = lerp(
+  state.color_attachment.clearValue = lerp(
     &(WGPUColor){
-      .r = 0.0f,
-      .g = 0.0f,
-      .b = 0.0f,
+      .r = 0.0,
+      .g = 0.0,
+      .b = 0.0,
     },
     &(WGPUColor){
-      .r = 1.0f,
-      .g = 1.0f,
-      .b = 1.0f,
+      .r = 1.0,
+      .g = 1.0,
+      .b = 1.0,
     },
     t);
 
-  /* Create command encoder */
-  WGPUCommandEncoder cmd_encoder
-    = wgpuDeviceCreateCommandEncoder(context->wgpu_context->device, NULL);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
 
-  /* Create render pass */
-  WGPURenderPassEncoder rpass
-    = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass.descriptor);
+  /* Record render commands. */
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(rpass);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass)
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer = wgpu_get_command_buffer(cmd_encoder);
-  ASSERT(command_buffer != NULL)
-  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  // Prepare frame
-  prepare_frame(context);
-
-  // Command buffer to be submitted to the queue
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0] = build_command_buffer(context);
-
-  // Submit command buffer to queue
-  submit_command_buffers(context);
-
-  // Submit frame
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
 }
 
-// Clean up used resources
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-}
-
-void example_clear_screen(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title = example_title,
-     .vsync = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Clear Screen",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
