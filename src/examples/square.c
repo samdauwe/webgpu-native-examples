@@ -231,8 +231,6 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .width       = 1280,
-    .height      = 720,
     .title       = "Square",
     .init_cb     = init,
     .frame_cb    = frame,

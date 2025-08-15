@@ -11,6 +11,13 @@ extern "C" {
 #endif
 
 /* -------------------------------------------------------------------------- *
+ * Constants
+ * -------------------------------------------------------------------------- */
+
+#define DEFAULT_WINDOW_WIDTH (1280)
+#define DEFAULT_WINDOW_HEIGHT (720)
+
+/* -------------------------------------------------------------------------- *
  * Macros
  * -------------------------------------------------------------------------- */
 
@@ -152,7 +159,11 @@ uint64_t nano_time(void);
 #define UNUSED_FUNCTION(x) ((void)(x))
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
-#define WGPU_VALUE_OR(val, def) ((val == 0) ? def : val)
+#define VALUE_OR(val, def) ((val == 0) ? def : val)
+
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define CLAMP(x, lo, hi) (MIN(hi, MAX(lo, x)))
 
 #ifndef CODE
 #define CODE(...) #__VA_ARGS__

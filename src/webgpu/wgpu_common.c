@@ -22,16 +22,16 @@ void wgpu_start(const wgpu_desc_t* desc)
 {
   assert(desc);
   assert(desc->title);
-  assert((desc->width > 0) && (desc->height > 0));
+  assert((desc->width >= 0) && (desc->height >= 0));
   assert(desc->init_cb && desc->frame_cb && desc->shutdown_cb);
 
   memset(&wgpu_context, 0, sizeof(wgpu_context));
 
-  wgpu_context.desc   = *desc;
-  wgpu_context.width  = wgpu_context.desc.width;
-  wgpu_context.height = wgpu_context.desc.height;
-  wgpu_context.desc.sample_count
-    = WGPU_VALUE_OR(wgpu_context.desc.sample_count, 1);
+  wgpu_context.desc  = *desc;
+  wgpu_context.width = VALUE_OR(wgpu_context.desc.width, DEFAULT_WINDOW_WIDTH);
+  wgpu_context.height
+    = VALUE_OR(wgpu_context.desc.height, DEFAULT_WINDOW_HEIGHT);
+  wgpu_context.desc.sample_count = VALUE_OR(wgpu_context.desc.sample_count, 1);
 
   wgpu_platform_start(&wgpu_context);
 }
@@ -586,7 +586,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
   };
 
   WGPUBufferDescriptor buffer_desc = {
-    .label            = STRVIEW(WGPU_VALUE_OR(desc->label, "WebGPU buffer")),
+    .label            = STRVIEW(VALUE_OR(desc->label, "WebGPU buffer")),
     .usage            = desc->usage,
     .size             = size,
     .mappedAtCreation = false,
@@ -616,7 +616,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
 
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
 {
-  WGPU_RELEASE_RESOURCE(Buffer, buffer->buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, buffer->buffer);
 }
 
 /* -------------------------------------------------------------------------- *
