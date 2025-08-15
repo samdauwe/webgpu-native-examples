@@ -108,6 +108,7 @@ function(add_example_executable EXAMPLE_SOURCE)
 endfunction()
 
 # Examples
+add_example_executable(src/examples/clear_screen.c)
 add_example_executable(src/examples/hello_triangle.c)
 add_example_executable(src/examples/square.c)
 
