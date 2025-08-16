@@ -60,7 +60,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   state.color_attachment.view = wgpu_context->swapchain_view;
 
   /* Figure out how far along duration we are, between 0.0 and 1.0 */
-  const float t = cos(nano_time() * 0.001f * 0.001f * 0.001f) * 0.5f + 0.5f;
+  const float t = cos(nano_time() * powf(10, -9)) * 0.5f + 0.5f;
 
   /* Interpolate between two colors */
   state.color_attachment.clearValue = lerp(
