@@ -44,8 +44,8 @@ set(SOURCES
 # ==============================================================================
 # Function to add example executables
 # ==============================================================================
-function(add_example_executable EXAMPLE_SOURCE)
-    get_filename_component(EXAMPLE_NAME ${EXAMPLE_SOURCE} NAME_WE)
+function(add_example_executable EXAMPLE_NAME)
+    set(EXAMPLE_SOURCE "src/examples/${EXAMPLE_NAME}.c")
     add_executable(${EXAMPLE_NAME} ${HEADERS} ${SOURCES} ${EXAMPLE_SOURCE})
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR}
@@ -108,9 +108,9 @@ function(add_example_executable EXAMPLE_SOURCE)
 endfunction()
 
 # Examples
-add_example_executable(src/examples/clear_screen.c)
-add_example_executable(src/examples/hello_triangle.c)
-add_example_executable(src/examples/square.c)
+add_example_executable(clear_screen)
+add_example_executable(hello_triangle)
+add_example_executable(square)
 
 
 # ==============================================================================
