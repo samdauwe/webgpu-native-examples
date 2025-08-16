@@ -182,7 +182,7 @@ uint64_t nano_time(void);
 #endif
 
 #ifndef STRVIEW
-#define STRVIEW(X) (WGPUStringView){X, sizeof(X) - 1}
+#define STRVIEW(X) ((WGPUStringView){X, sizeof(X) - 1})
 #endif
 
 #define WGPU_RELEASE_RESOURCE(Type, Name)                                      \

@@ -40,7 +40,6 @@ static struct {
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
   .render_pass_dscriptor = {
-    .label                = STRVIEW("Render pass descriptor"),
     .colorAttachmentCount = 1,
     .colorAttachments     = &state.color_attachment,
   },
