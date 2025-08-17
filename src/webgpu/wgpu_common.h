@@ -102,7 +102,7 @@ typedef struct wgpu_buffer_desc_t {
   const char* label;
   WGPUBufferUsage usage;
   uint32_t size;
-  uint32_t count; /* numer of elements in the buffer (optional) */
+  uint32_t count; /* Numer of elements in the buffer (optional) */
   struct {
     const void* data;
     uint32_t size;
@@ -113,7 +113,7 @@ typedef struct wgpu_buffer_t {
   WGPUBuffer buffer;
   WGPUBufferUsage usage;
   uint32_t size;
-  uint32_t count; /* numer of elements in the buffer (optional) */
+  uint32_t count; /* Numer of elements in the buffer (optional) */
 } wgpu_buffer_t;
 
 /* WebGPU buffer creating  / destroy */
@@ -134,7 +134,7 @@ typedef struct wgpu_shader_desc_t {
   struct {
     uint32_t count;
     WGPUConstantEntry const* entries;
-  } constants; /* pipeline shader constants*/
+  } constants; /* Pipeline shader constant s*/
 } wgpu_shader_desc_t;
 
 WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
