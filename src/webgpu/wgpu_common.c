@@ -39,8 +39,8 @@ void wgpu_start(const wgpu_desc_t* desc)
 static void glfw_key_cb(GLFWwindow* window, int key, int scancode, int action,
                         int mods)
 {
-  (void)scancode;
-  (void)mods;
+  UNUSED_VAR(scancode);
+  UNUSED_VAR(mods);
   wgpu_context_t* wgpu_context
     = (wgpu_context_t*)glfwGetWindowUserPointer(window);
   if ((action == GLFW_PRESS) && wgpu_context->key_down_cb) {
@@ -63,7 +63,7 @@ static void glfw_char_cb(GLFWwindow* window, unsigned int chr)
 static void glfw_mousebutton_cb(GLFWwindow* window, int button, int action,
                                 int mods)
 {
-  (void)mods;
+  UNUSED_VAR(mods);
   wgpu_context_t* wgpu_context
     = (wgpu_context_t*)glfwGetWindowUserPointer(window);
   if ((action == GLFW_PRESS) && wgpu_context->mouse_btn_down_cb) {
@@ -85,7 +85,7 @@ static void glfw_cursorpos_cb(GLFWwindow* window, double xpos, double ypos)
 
 static void glfw_scroll_cb(GLFWwindow* window, double xoffset, double yoffset)
 {
-  (void)xoffset;
+  UNUSED_VAR(xoffset);
   wgpu_context_t* wgpu_context
     = (wgpu_context_t*)glfwGetWindowUserPointer(window);
   if (wgpu_context->mouse_wheel_cb) {
@@ -106,9 +106,9 @@ static void uncaptured_error_cb(const WGPUDevice* dev, WGPUErrorType type,
                                 WGPUStringView message, void* userdata1,
                                 void* userdata2)
 {
-  (void)dev;
-  (void)userdata1;
-  (void)userdata2;
+  UNUSED_VAR(dev);
+  UNUSED_VAR(userdata1);
+  UNUSED_VAR(userdata2);
   if (type != WGPUErrorType_NoError) {
     printf("UNCAPTURED ERROR: %s\n", message.data);
   }
@@ -118,10 +118,10 @@ static void device_lost_cb(const WGPUDevice* dev, WGPUDeviceLostReason reason,
                            WGPUStringView message, void* userdata1,
                            void* userdata2)
 {
-  (void)dev;
-  (void)reason;
-  (void)userdata1;
-  (void)userdata2;
+  UNUSED_VAR(dev);
+  UNUSED_VAR(reason);
+  UNUSED_VAR(userdata1);
+  UNUSED_VAR(userdata2);
   printf("DEVICE LOST: %s\n", message.data);
 }
 
@@ -129,9 +129,9 @@ static void error_scope_cb(WGPUPopErrorScopeStatus status, WGPUErrorType type,
                            WGPUStringView message, void* userdata1,
                            void* userdata2)
 {
-  (void)status;
-  (void)userdata1;
-  (void)userdata2;
+  UNUSED_VAR(status);
+  UNUSED_VAR(userdata1);
+  UNUSED_VAR(userdata2);
   if (type != WGPUErrorType_NoError) {
     printf("ERROR: %s\n", message.data);
   }
@@ -140,9 +140,9 @@ static void error_scope_cb(WGPUPopErrorScopeStatus status, WGPUErrorType type,
 static void logging_cb(WGPULoggingType type, WGPUStringView message,
                        void* userdata1, void* userdata2)
 {
-  (void)type;
-  (void)userdata1;
-  (void)userdata2;
+  UNUSED_VAR(type);
+  UNUSED_VAR(userdata1);
+  UNUSED_VAR(userdata2);
   printf("LOG: %s\n", message.data);
 }
 
@@ -150,9 +150,9 @@ static void request_device_cb(WGPURequestDeviceStatus status, WGPUDevice device,
                               WGPUStringView message, void* userdata1,
                               void* userdata2)
 {
-  (void)status;
-  (void)message;
-  (void)userdata2;
+  UNUSED_VAR(status);
+  UNUSED_VAR(message);
+  UNUSED_VAR(userdata2);
   wgpu_context_t* wgpu_context   = (wgpu_context_t*)userdata1;
   wgpu_context->device           = device;
   wgpu_context->async_setup_done = true;
@@ -162,8 +162,8 @@ static void request_adapter_cb(WGPURequestAdapterStatus status,
                                WGPUAdapter adapter, WGPUStringView message,
                                void* userdata1, void* userdata2)
 {
-  (void)message;
-  (void)userdata2;
+  UNUSED_VAR(message);
+  UNUSED_VAR(userdata2);
   wgpu_context_t* wgpu_context = (wgpu_context_t*)userdata1;
   if (status != WGPURequestAdapterStatus_Success) {
     printf("wgpuInstanceRequestAdapter failed!\n");
