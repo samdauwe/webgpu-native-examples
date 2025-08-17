@@ -87,7 +87,7 @@ static void prepare_vertex_buffers(wgpu_context_t* wgpu_context)
   };
   state.square.colors = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Colored square vertex buffer",
+                    .label = "Colored square - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(colors),
                     .count = 4,
