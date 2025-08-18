@@ -78,6 +78,7 @@ function(add_example_executable EXAMPLE_NAME)
     else()
         target_include_directories(${EXAMPLE_NAME}
             PRIVATE ${PROJECT_SOURCE_DIR}/src
+            PRIVATE external/cglm/include
         )
     endif()
     # ==============================================================================
