@@ -123,7 +123,7 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
   bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Bind group",
+                            .label      = "Stencil Buffer - Bind group",
                             .layout     = bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
