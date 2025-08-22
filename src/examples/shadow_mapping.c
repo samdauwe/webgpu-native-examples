@@ -393,8 +393,8 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     // Specify the pipeline layout. The layout for the model is the same, so
     // reuse it from the shadow pipeline.
     WGPUBindGroupLayout bind_group_layouts[2] = {
-      bind_groups_layouts.render,               // Group 0
-      bind_groups_layouts.uniform_buffer_model, // Group 1
+      bind_groups_layouts.render,               /* Group 0 */
+      bind_groups_layouts.uniform_buffer_model, /*Group 1 */
     };
     pipeline_layouts.color = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
