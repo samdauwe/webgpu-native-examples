@@ -1,7 +1,7 @@
 #ifndef COMMON_SHADERS_H
 #define COMMON_SHADERS_H
 
-#include "../core/macro.h"
+#include "webgpu/wgpu_common.h"
 
 // clang-format off
 static const char* basic_vertex_shader_wgsl = CODE(
