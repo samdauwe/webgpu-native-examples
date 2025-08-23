@@ -147,6 +147,24 @@ WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
 uint64_t nano_time(void);
 
 /* -------------------------------------------------------------------------- *
+ * Math
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Generates a random float number in range [min, max].
+ * @param min minimum number
+ * @param max maximum number
+ * @return random float number in range [min, max]
+ */
+float random_float_min_max(float min, float max);
+
+/**
+ * @brief Generates a random float number in range [0.0f, 1.0f].
+ * @return random float number in range [0.0f, 1.0f]
+ */
+float random_float(void);
+
+/* -------------------------------------------------------------------------- *
  * Macros
  * -------------------------------------------------------------------------- */
 
@@ -190,6 +208,41 @@ uint64_t nano_time(void);
     wgpu##Type##Release(Name);                                                 \
     Name = NULL;                                                               \
   }
+
+#define WGPU_VERTATTR_DESC(l, f, o)                                            \
+  (WGPUVertexAttribute)                                                        \
+  {                                                                            \
+    .shaderLocation = l, .format = f, .offset = o,                             \
+  }
+
+#define WGPU_VERTBUFFERLAYOUT_DESC(s, a)                                       \
+  {                                                                            \
+    .arrayStride    = s,                                                       \
+    .stepMode       = WGPUVertexStepMode_Vertex,                               \
+    .attributeCount = sizeof(a) / sizeof(a[0]),                                \
+    .attributes     = a,                                                       \
+  };
+
+#define WPU_VERTEXSTATE_DESC(b)                                                \
+  {                                                                            \
+    .vertexBufferCount = 1,                                                    \
+    .vertexBuffers     = &b,                                                   \
+  }
+
+#define WGPU_VERTSTATE(name, bindSize, ...)                                    \
+  WGPUVertexAttribute vertAttrDesc##name[] = {__VA_ARGS__};                    \
+  WGPUVertexBufferLayout name##VertBuffLayoutDesc                              \
+    = WGPU_VERTBUFFERLAYOUT_DESC(bindSize, vertAttrDesc##name);                \
+  WGPUVertexStateDescriptor vert_state_##name                                  \
+    = WPU_VERTEXSTATE_DESC(name##VertBuffLayoutDesc);
+
+#define WGPU_VERTEX_BUFFER_LAYOUT(name, bind_size, ...)                        \
+  WGPUVertexAttribute vert_attr_desc_##name[] = {__VA_ARGS__};                 \
+  WGPUVertexBufferLayout name##_vertex_buffer_layout                           \
+    = WGPU_VERTBUFFERLAYOUT_DESC(bind_size, vert_attr_desc_##name);
+
+/* Constants */
+#define PI 3.14159265358979323846f /* pi */
 
 #ifdef __cplusplus
 }

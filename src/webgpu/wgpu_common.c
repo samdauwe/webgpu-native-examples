@@ -673,3 +673,18 @@ uint64_t nano_time(void)
 #else
 #error "Platform not supported"
 #endif
+
+/* -------------------------------------------------------------------------- *
+ * Math
+ * -------------------------------------------------------------------------- */
+
+float random_float_min_max(float min, float max)
+{
+  /* [min, max] */
+  return ((max - min) * ((float)rand() / (float)RAND_MAX)) + min;
+}
+
+float random_float(void)
+{
+  return random_float_min_max(0.0f, 1.0f); /* [0, 1.0] */
+}
