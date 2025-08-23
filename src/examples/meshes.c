@@ -4,9 +4,7 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
-#include "../core/file.h"
-#include "../core/macro.h"
-#include "../core/math.h"
+#include "webgpu/wgpu_common.h"
 
 /* -------------------------------------------------------------------------- *
  * Plane mesh
@@ -628,6 +626,8 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
   }
 }
 
+#if __UTAH_TEAPOT__
+
 /* -------------------------------------------------------------------------- *
  * Utah teapot
  * -------------------------------------------------------------------------- */
@@ -761,3 +761,5 @@ void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
     glm_vec3_normalize(normals[i]);
   }
 }
+
+#endif /*__UTAH_TEAPOT__ */

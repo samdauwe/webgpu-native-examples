@@ -7,7 +7,7 @@
  * Plane mesh
  * -------------------------------------------------------------------------- */
 
-#define MAX_PLANE_VERTEX_COUNT 1024 * 1024 * 4
+#define MAX_PLANE_VERTEX_COUNT (1024 * 1024 * 4)
 
 typedef struct plane_vertex_t {
   float position[3];
@@ -40,12 +40,12 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
  * Box mesh
  * -------------------------------------------------------------------------- */
 
-#define BOX_MESH_FACES_COUNT 6
-#define BOX_MESH_VERTICES_PER_SIDE 4
-#define BOX_MESH_INDICES_PER_SIZE 6
+#define BOX_MESH_FACES_COUNT (6)
+#define BOX_MESH_VERTICES_PER_SIDE (4)
+#define BOX_MESH_INDICES_PER_SIZE (6)
 #define BOX_MESH_F32S_PER_VERTEX                                               \
-  14 // position : vec3f, tangent : vec3f, bitangent : vec3f, normal : vec3f, uv
-     // :vec2f
+  (14) // position : vec3f, tangent : vec3f, bitangent : vec3f, normal : vec3f,
+       // uv :vec2f
 #define BOX_MESH_VERTEX_STRIDE (BOX_MESH_F32S_PER_VERTEX * 4)
 #define BOX_MESH_VERTICES_COUNT                                                \
   (BOX_MESH_FACES_COUNT * BOX_MESH_VERTICES_PER_SIDE * BOX_MESH_F32S_PER_VERTEX)
@@ -147,9 +147,9 @@ void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh);
 #pragma GCC diagnostic pop
 #endif
 
-#define STANFORD_DRAGON_POSITION_COUNT_RES_4 5205
-#define STANFORD_DRAGON_CELL_COUNT_RES_4 11102
-#define STANFORD_DRAGON_MESH_SCALE 500
+#define STANFORD_DRAGON_POSITION_COUNT_RES_4 (5205)
+#define STANFORD_DRAGON_CELL_COUNT_RES_4 (11102)
+#define STANFORD_DRAGON_MESH_SCALE (500)
 
 typedef struct stanford_dragon_mesh_t {
   struct {
@@ -203,12 +203,14 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
 
 #endif /* MESHES_H */
 
+#if __UTAH_TEAPOT__
+
 /* -------------------------------------------------------------------------- *
  * Utah teapot
  * -------------------------------------------------------------------------- */
 
-#define UTAH_TEAPOT_POSITION_COUNT 792
-#define UTAH_TEAPOT_CELL_COUNT 992
+#define UTAH_TEAPOT_POSITION_COUNT (792)
+#define UTAH_TEAPOT_CELL_COUNT (992)
 
 typedef struct utah_teapot_mesh_t {
   struct {
@@ -236,3 +238,5 @@ int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh);
  * @param utah_teapot_mesh mesh object
  */
 void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh);
+
+#endif /*__UTAH_TEAPOT__ */
