@@ -1,8 +1,6 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
-
-#include "../webgpu/imgui_overlay.h"
+#include <cglm/cglm.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Pseudorandom Number Generation
@@ -31,36 +29,42 @@ static const char* prng_shader_wgsl;
  * Pseudorandom Number Generation example
  * -------------------------------------------------------------------------- */
 
-// Vertex layout used in this example
+/* Vertex layout used in this example */
 typedef struct {
   vec2 position;
 } vertex_t;
 
-// Vertex buffer and attributes
-static wgpu_buffer_t vertices = {0};
-
-// Uniform buffer block object
-static wgpu_buffer_t uniform_buffer_fs = {0};
-
-// Uniform block fragment shader
 static struct {
-  uint32_t offset;
-} ubo_fs = {0};
+  /* Vertex buffer and attributes */
+  wgpu_buffer_t vertices;
+  /* Uniform buffer block object */
+  wgpu_buffer_t uniform_buffer_fs;
+  /* Uniform block fragment shader */
+  struct {
+    uint32_t offset;
+  } ubo_fs;
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUBindGroupLayout uniform_bind_group_layout;
+  WGPUBindGroup uniform_bind_group;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
+  int8_t initialized;
+  int8_t paused;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.125, 0.125, 0.250, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_dscriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+};
 
-static WGPUPipelineLayout pipeline_layout = NULL;
-static WGPURenderPipeline pipeline        = NULL;
-
-static WGPUBindGroupLayout uniform_bind_group_layout = NULL;
-static WGPUBindGroup uniform_bind_group              = NULL;
-
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-// Other variables
-static const char* example_title = "Pseudorandom Number Generation";
-static bool prepared             = false;
-
-static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   /* Vertices */
   static const vertex_t vertex_buffer[6] = {
@@ -85,7 +89,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
   };
 
   /* Create vertex buffer */
-  vertices = wgpu_create_buffer(
+  state.vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -95,13 +99,13 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   // Bind group layout
-  uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor) {
-      .label      = "Bind group layout",
+      .label      = STRVIEW("Bind group layout"),
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Fragment shader)
@@ -110,113 +114,72 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout){
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = sizeof(ubo_fs),
+          .minBindingSize   = sizeof(state.ubo_fs),
         },
         .sampler = {0},
       }
     }
   );
-  ASSERT(uniform_bind_group_layout != NULL);
+  ASSERT(state.uniform_bind_group_layout != NULL);
 
   // Pipeline layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &uniform_bind_group_layout,
-                          });
-  ASSERT(pipeline_layout != NULL);
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.uniform_bind_group_layout,
+    });
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_group(wgpu_context_t* wgpu_context)
+static void init_bind_group(wgpu_context_t* wgpu_context)
 {
   // Bind Group
-  uniform_bind_group = wgpuDeviceCreateBindGroup(
+  state.uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor) {
-     .label      = "Bind group",
-     .layout     = uniform_bind_group_layout,
+     .label      = STRVIEW("Bind group"),
+     .layout     = state.uniform_bind_group_layout,
      .entryCount = 1,
      .entries    = &(WGPUBindGroupEntry) {
        // Binding 0: Uniform buffer (Fragment shader)
        .binding = 0,
-       .buffer  = uniform_buffer_fs.buffer,
+       .buffer  = state.uniform_buffer_fs.buffer,
        .offset  = 0,
-       .size    = uniform_buffer_fs.size,
+       .size    = state.uniform_buffer_fs.size,
      },
    }
   );
-  ASSERT(uniform_bind_group != NULL);
+  ASSERT(state.uniform_bind_group != NULL);
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
+  state.ubo_fs.offset = (uint32_t)roundf(random_float() * 4294967295.f);
 
-  // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.125f,
-        .g = 0.125f,
-        .b = 0.250f,
-        .a = 1.000f,
-      },
-  };
-
-  // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = NULL,
-  };
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_fs.buffer, 0,
+                       &state.ubo_fs, state.uniform_buffer_fs.size);
 }
 
-void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  ubo_fs.offset = (uint32_t)roundf(random_float() * 4294967295.f);
-
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_fs.buffer, 0,
-                          &ubo_fs, uniform_buffer_fs.size);
-}
-
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create a uniform buffer */
-  uniform_buffer_fs = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(ubo_fs), /* One u32, 4 bytes each */
-    });
+  state.uniform_buffer_fs = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.ubo_fs), /* One u32, 4 bytes each */
+                  });
 
   /* Upload the uniform buffer to the GPU */
-  update_uniform_buffers(context);
+  update_uniform_buffers(wgpu_context);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_pipelines(wgpu_context_t* wgpu_context)
 {
-  /* Construct the different states making up the pipeline */
-
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
-
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, prng_shader_wgsl);
 
   /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(quad, sizeof(vertex_t),
@@ -224,171 +187,118 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
                                                offsetof(vertex_t, position)))
 
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-    wgpu_context, &(wgpu_vertex_state_t){
-    .shader_desc = (wgpu_shader_desc_t){
-      // Vertex shader WGSL
-      .label            = "PRNG - Vertex shader WGSL",
-      .wgsl_code.source = prng_shader_wgsl,
-      .entry            = "vs_main",
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("PRNG - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = shader_module,
+      .entryPoint  = STRVIEW("vs_main"),
+      .bufferCount = 1,
+      .buffers     = &quad_vertex_buffer_layout,
     },
-    .buffer_count = 1,
-    .buffers      = &quad_vertex_buffer_layout,
-  });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-    wgpu_context, &(wgpu_fragment_state_t){
-    .shader_desc = (wgpu_shader_desc_t){
-      // Fragment shader WGSL
-      .label            = "PRNG - Fragment shader WGSL",
-      .wgsl_code.source = prng_shader_wgsl,
-      .entry            = "fs_main",
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("fs_main"),
+      .module      = shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState)  {
+        .format    = wgpu_context->render_format,
+        .writeMask = WGPUColorWriteMask_All,
+      },
     },
-    .target_count = 1,
-    .targets      = &color_target_state,
-  });
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_Back,
+      .frontFace = WGPUFrontFace_CCW
+    },
+    .multisample = {
+      .count = 1,
+      .mask  = 0xffffffff
+    },
+  };
 
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
+  state.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
-  /* Create rendering pipeline using the specified states */
-  pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
-                                            &(WGPURenderPipelineDescriptor){
-                                              .label = "PRNG - Render pipeline",
-                                              .layout       = pipeline_layout,
-                                              .primitive    = primitive_state,
-                                              .vertex       = vertex_state,
-                                              .fragment     = &fragment_state,
-                                              .depthStencil = NULL,
-                                              .multisample  = multisample_state,
-                                            });
-  ASSERT(pipeline != NULL);
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(shader_module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_vertex_buffer(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_group(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    init_vertex_buffer(wgpu_context);
+    init_uniform_buffers(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_bind_group(wgpu_context);
+    init_pipelines(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
   }
-}
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  /* Set target frame buffer */
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.paused) {
+    update_uniform_buffers(wgpu_context);
+  }
 
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+  state.color_attachment.view = wgpu_context->swapchain_view;
 
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    uniform_bind_group, 0, 0);
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, vertices.count, 1, 0, 0);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
 
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.uniform_bind_group, 0,
+                                    0);
+  wgpuRenderPassEncoderDraw(rpass_enc, state.vertices.count, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  // Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffers to the queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  const int draw_result = example_draw(context);
-  if (!context->paused) {
-    update_uniform_buffers(context);
-  }
-  return draw_result;
+  UNUSED_VAR(wgpu_context);
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer_fs.buffer)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.uniform_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.uniform_bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_fs.buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, uniform_bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-}
-
-void example_prng(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Pseudorandom Number Generation",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *

@@ -24,21 +24,34 @@ set(BUILD_DIR ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}${ARCH})
 # Dependencies
 # ==============================================================================
 
+# cJSON: Ultralightweight JSON parser in ANSI C.
+set(CJSON_SOURCES
+    external/cJSON/cJSON.c
+)
+
 # Google Dawn
 set(DAWN_FETCH_DEPENDENCIES ON)
 set(DAWN_BUILD_MONOLITHIC_LIBRARY SHARED)
 add_subdirectory(external/dawn EXCLUDE_FROM_ALL)
 
+# rply
+set(RPLY_SOURCES
+    external/rply/rply.c
+)
+
 # ==============================================================================
 # Common headers and sources
 # ==============================================================================
 
-set(HEADERS
+set(COMMON_HEADERS
     src/webgpu/wgpu_common.h
+    src/examples/common_shaders.h
+    src/examples/meshes.h
 )
 
-set(SOURCES
+set(COMMON_SOURCES
     src/webgpu/wgpu_common.c
+    src/examples/meshes.c
 )
 
 # ==============================================================================
@@ -46,7 +59,13 @@ set(SOURCES
 # ==============================================================================
 function(add_example_executable EXAMPLE_NAME)
     set(EXAMPLE_SOURCE "src/examples/${EXAMPLE_NAME}.c")
-    add_executable(${EXAMPLE_NAME} ${HEADERS} ${SOURCES} ${EXAMPLE_SOURCE})
+    add_executable(${EXAMPLE_NAME}
+        ${COMMON_HEADERS}
+        ${COMMON_SOURCES}
+        ${EXAMPLE_SOURCE}
+        ${CJSON_SOURCES}
+        ${RPLY_SOURCES}
+    )
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR}
         C_STANDARD 99
@@ -79,6 +98,10 @@ function(add_example_executable EXAMPLE_NAME)
         target_include_directories(${EXAMPLE_NAME}
             PRIVATE ${PROJECT_SOURCE_DIR}/src
             PRIVATE external/cglm/include
+            PRIVATE external/cJSON
+            PRIVATE external/rply
+            PRIVATE external/sokol
+            PRIVATE external/stb
         )
     endif()
     # ==============================================================================
@@ -111,8 +134,8 @@ endfunction()
 # Examples
 add_example_executable(clear_screen)
 add_example_executable(hello_triangle)
+add_example_executable(prng)
 add_example_executable(square)
-
 
 # ==============================================================================
 # IDE support
