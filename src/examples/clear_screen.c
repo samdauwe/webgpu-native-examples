@@ -15,7 +15,7 @@
 static struct {
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
-  bool prepared;
+  int8_t initialized;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -32,7 +32,7 @@ static struct {
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
-    state.prepared = true;
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
@@ -50,7 +50,7 @@ static WGPUColor lerp(WGPUColor* a, WGPUColor* b, float t)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.prepared) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
 
