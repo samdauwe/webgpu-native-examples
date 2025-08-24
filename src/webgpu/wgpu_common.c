@@ -320,6 +320,7 @@ static void wgpu_swapchain_init(wgpu_context_t* wgpu_context)
                        });
 
   if (!wgpu_context->desc.no_depth_buffer) {
+    wgpu_context->depth_stencil_format = WGPUTextureFormat_Depth32FloatStencil8;
     wgpu_context->depth_stencil_tex = wgpuDeviceCreateTexture(wgpu_context->device, &(WGPUTextureDescriptor){
                                                                         .usage = WGPUTextureUsage_RenderAttachment,
                                                                         .dimension = WGPUTextureDimension_2D,
@@ -328,7 +329,7 @@ static void wgpu_swapchain_init(wgpu_context_t* wgpu_context)
                                                                                .height = (uint32_t) wgpu_context->height,
                                                                                .depthOrArrayLayers = 1,
                                                                         },
-                                                                        .format = WGPUTextureFormat_Depth32FloatStencil8,
+                                                                        .format = wgpu_context->depth_stencil_format,
                                                                         .mipLevelCount = 1,
                                                                         .sampleCount = (uint32_t)wgpu_context->desc.sample_count
                                                                       });
@@ -635,6 +636,55 @@ WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
   WGPUShaderModuleDescriptor shader_desc
     = {.nextInChain = &shader_code_desc.chain};
   return wgpuDeviceCreateShaderModule(device, &shader_desc);
+}
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU pipeline helper functions
+ * -------------------------------------------------------------------------- */
+
+WGPUBlendState wgpu_create_blend_state(bool enable_blend)
+{
+  WGPUBlendComponent blend_component_descriptor = {
+    .operation = WGPUBlendOperation_Add,
+  };
+
+  if (enable_blend) {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+  }
+  else {
+    blend_component_descriptor.srcFactor = WGPUBlendFactor_One;
+    blend_component_descriptor.dstFactor = WGPUBlendFactor_Zero;
+  }
+
+  return (WGPUBlendState){
+    .color = blend_component_descriptor,
+    .alpha = blend_component_descriptor,
+  };
+}
+
+WGPUDepthStencilState
+wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc)
+{
+  WGPUStencilFaceState stencil_state_face_descriptor = {
+    .compare     = WGPUCompareFunction_Always,
+    .failOp      = WGPUStencilOperation_Keep,
+    .depthFailOp = WGPUStencilOperation_Keep,
+    .passOp      = WGPUStencilOperation_Keep,
+  };
+
+  return (WGPUDepthStencilState){
+    .depthWriteEnabled   = desc->depth_write_enabled,
+    .format              = desc->format,
+    .depthCompare        = WGPUCompareFunction_LessEqual,
+    .stencilFront        = stencil_state_face_descriptor,
+    .stencilBack         = stencil_state_face_descriptor,
+    .stencilReadMask     = 0xFFFFFFFF,
+    .stencilWriteMask    = 0xFFFFFFFF,
+    .depthBias           = 0,
+    .depthBiasSlopeScale = 0.0f,
+    .depthBiasClamp      = 0.0f,
+  };
 }
 
 /* -------------------------------------------------------------------------- *

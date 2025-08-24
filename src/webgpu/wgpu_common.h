@@ -76,6 +76,7 @@ struct wgpu_context_t {
   WGPUTextureFormat render_format;
   WGPUTexture msaa_tex;
   WGPUTexture depth_stencil_tex;
+  WGPUTextureFormat depth_stencil_format;
   WGPUTextureView swapchain_view;
   WGPUTextureView msaa_view;
   WGPUTextureView depth_stencil_view;
@@ -139,6 +140,19 @@ typedef struct wgpu_shader_desc_t {
 
 WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
                                            const char* wgsl_source_code);
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU pipeline helper functions
+ * -------------------------------------------------------------------------- */
+
+typedef struct create_depth_stencil_state_desc_t {
+  WGPUTextureFormat format;
+  bool depth_write_enabled;
+} create_depth_stencil_state_desc_t;
+
+WGPUBlendState wgpu_create_blend_state(bool enable_blend);
+WGPUDepthStencilState
+wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc);
 
 /* -------------------------------------------------------------------------- *
  * Time functions
@@ -242,7 +256,9 @@ float random_float(void);
     = WGPU_VERTBUFFERLAYOUT_DESC(bind_size, vert_attr_desc_##name);
 
 /* Constants */
-#define PI 3.14159265358979323846f /* pi */
+#define PI 3.14159265358979323846f   /* pi */
+#define PI2 6.28318530717958647692f  /* pi * 2 */
+#define PI_2 1.57079632679489661923f /* pi/2 */
 
 #ifdef __cplusplus
 }
