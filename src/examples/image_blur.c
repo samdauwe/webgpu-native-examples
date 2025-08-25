@@ -94,7 +94,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 
     blur_textures[i].view = wgpuTextureCreateView(
       blur_textures[i].texture, &(WGPUTextureViewDescriptor){
-                                  .label          = "Blur - Texture view",
+                                  .label          = "Image Blur - Texture view",
                                   .format         = texture.format,
                                   .dimension      = WGPUTextureViewDimension_2D,
                                   .baseMipLevel   = 0,
