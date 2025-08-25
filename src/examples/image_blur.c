@@ -318,7 +318,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     wgpu_shader_t blur_comp_shader = wgpu_shader_create(
       wgpu_context, &(wgpu_shader_desc_t){
                       /* Compute shader WGSL */
-                      .label            = "Blur - Compute shader WGSL",
+                      .label            = "Image Blur - Compute shader WGSL",
                       .wgsl_code.source = blur_compute_shader_wgsl,
                       .entry            = "main",
                     });
