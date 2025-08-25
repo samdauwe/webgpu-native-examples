@@ -77,7 +77,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
     blur_textures[i].texture = wgpuDeviceCreateTexture(
       wgpu_context->device,
       &(WGPUTextureDescriptor){
-        .label = "Blur - Texture",
+        .label = "Image Blur - Texture",
         .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
                  | WGPUTextureUsage_TextureBinding,
         .dimension     = WGPUTextureDimension_2D,
