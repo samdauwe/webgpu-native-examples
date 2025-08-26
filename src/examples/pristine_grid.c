@@ -739,11 +739,11 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
     /* Create the multi-sampled texture view */
     textures.depth.view = wgpuTextureCreateView(
       textures.depth.texture, &(WGPUTextureViewDescriptor){
-                                .label           = "Multi-sampled texture view",
-                                .format          = depth_format,
-                                .dimension       = WGPUTextureViewDimension_2D,
-                                .baseMipLevel    = 0,
-                                .mipLevelCount   = 1,
+                                .label         = "Multi-sampled - Texture view",
+                                .format        = depth_format,
+                                .dimension     = WGPUTextureViewDimension_2D,
+                                .baseMipLevel  = 0,
+                                .mipLevelCount = 1,
                                 .baseArrayLayer  = 0,
                                 .arrayLayerCount = 1,
                               });
