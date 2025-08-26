@@ -702,7 +702,7 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
     /* Create the multi-sampled texture view */
     textures.msaa_color.view = wgpuTextureCreateView(
       textures.msaa_color.texture, &(WGPUTextureViewDescriptor){
-                                     .label  = "Multi-sampled texture view",
+                                     .label  = "Multi-sampled - Texture view",
                                      .format = wgpu_context->swap_chain.format,
                                      .dimension = WGPUTextureViewDimension_2D,
                                      .baseMipLevel    = 0,
