@@ -720,7 +720,7 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
   {
     /* Create the multi-sampled texture */
     WGPUTextureDescriptor multisampled_frame_desc = {
-      .label         = "Depth texture",
+      .label         = "Depth - Texture",
       .size          = (WGPUExtent3D){
          .width              = size.width,
          .height             = size.height,
