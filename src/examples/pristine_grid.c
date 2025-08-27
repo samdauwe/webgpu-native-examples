@@ -827,7 +827,7 @@ static void prepare_render_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       /* Vertex shader WGSL */
-      .label             = "Grid - Vertex shader WGSL",
+      .label             = "Pristine Grid - Vertex shader WGSL",
       .wgsl_code.source  = grid_shader_wgsl,
       .entry             = "vertexMain",
     },
