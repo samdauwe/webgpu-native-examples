@@ -683,7 +683,7 @@ static void allocate_render_targets(wgpu_context_t* wgpu_context,
   if (msaa_sample_count > 1) {
     /* Create the multi-sampled texture */
     WGPUTextureDescriptor multisampled_frame_desc = {
-      .label         = "Multi-sampled texture",
+      .label         = "Multi-sampled - Texture",
       .size          = (WGPUExtent3D){
          .width              = size.width,
          .height             = size.height,
