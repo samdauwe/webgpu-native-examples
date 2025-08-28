@@ -257,7 +257,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 
   /* Texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Texture view",
+    .label           = "Quad - Texture view",
     .format          = texture_desc.format,
     .dimension       = WGPUTextureViewDimension_2D,
     .baseMipLevel    = 0,
