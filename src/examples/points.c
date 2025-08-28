@@ -272,7 +272,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   /* Create a sampler with linear filtering for smooth interpolation */
   texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Sampler with linear filtering",
+                            .label = "Quad - Sampler with linear filtering",
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
