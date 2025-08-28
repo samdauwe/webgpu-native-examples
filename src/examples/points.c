@@ -201,7 +201,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
 {
   /* Texture */
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Texture",
+    .label         = "Quad - Texture",
     .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding
                      | WGPUTextureUsage_RenderAttachment,
     .format        = WGPUTextureFormat_RGBA8Unorm,
