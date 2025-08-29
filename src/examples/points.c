@@ -294,7 +294,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
 
   /* Create the depth texture */
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Depth texture",
+    .label         = "Depth - Texture",
     .size          = (WGPUExtent3D) {
        .width              = depth_texture.width,
        .height             = depth_texture.height,
