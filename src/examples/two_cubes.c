@@ -4,6 +4,9 @@
 
 #include <cglm/cglm.h>
 
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Two Cubes
  *
@@ -98,7 +101,7 @@ static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(void)
 {
-  const float now     = nano_time() * powf(10, -9);
+  const float now     = stm_sec(stm_now());
   const float sin_now = sin(now), cos_now = cos(now);
 
   cube_t* cube = NULL;
@@ -308,6 +311,7 @@ static void init_render_bundle_encoder(wgpu_context_t* wgpu_context)
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    stm_setup();
     init_cube_mesh();
     init_vertex_buffer(wgpu_context);
     init_pipeline(wgpu_context);

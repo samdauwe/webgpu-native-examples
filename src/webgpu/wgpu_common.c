@@ -688,43 +688,6 @@ wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc)
 }
 
 /* -------------------------------------------------------------------------- *
- * Time functions
- * -------------------------------------------------------------------------- */
-
-/* ---------- POSIX / Unix-like ---------- */
-#if defined(__unix__) || defined(__APPLE__)
-#include <time.h>
-
-uint64_t nano_time(void)
-{
-  struct timespec ts;
-#if defined(CLOCK_MONOTONIC_RAW) /* Linux, FreeBSD */
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-#else /* macOS 10.12+, other POSIX */
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-#endif
-  return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
-}
-/* ---------- Windows ---------- */
-#elif defined(_WIN32)
-#include <windows.h>
-
-uint64_t nano_time(void)
-{
-  static LARGE_INTEGER freq = {0};
-  if (freq.QuadPart == 0) /* one-time init */
-    QueryPerformanceFrequency(&freq);
-
-  LARGE_INTEGER counter;
-  QueryPerformanceCounter(&counter);
-  /* scale ticks → ns: (ticks * 1e9) / freq */
-  return (uint64_t)((counter.QuadPart * 1000000000ULL) / freq.QuadPart);
-}
-#else
-#error "Platform not supported"
-#endif
-
-/* -------------------------------------------------------------------------- *
  * Math
  * -------------------------------------------------------------------------- */
 

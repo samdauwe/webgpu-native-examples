@@ -6,6 +6,9 @@
 
 #include <string.h>
 
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Instanced Cube
  *
@@ -97,7 +100,7 @@ static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(void)
 {
-  const float now = nano_time() * powf(10, -9);
+  const float now = stm_sec(stm_now());
 
   uint32_t m = 0, i = 0;
   for (uint32_t x = 0; x < x_count; ++x) {
@@ -277,6 +280,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    stm_setup();
     init_cube_mesh();
     init_vertex_buffer(wgpu_context);
     init_pipeline(wgpu_context);
