@@ -198,28 +198,7 @@ static void fetch_callback(const sfetch_response_t* response)
 
 static void init_texture(wgpu_context_t* wgpu_context)
 {
-  uint32_t w = 10, h = 10, d = 4;
-  uint8_t* texture_data = calloc(w * h, d);
-  for (size_t i = 0; i < w * h * d; i++) {
-    texture_data[i] = (i) & 255;
-  }
-
-  state.texture = wgpu_create_texture(wgpu_context, &(wgpu_texture_desc_t){
-                                        .extent = (WGPUExtent3D) {
-                                          .width              = w,
-                                          .height             = h,
-                                          .depthOrArrayLayers = d,
-                                        },
-                                        .format = WGPUTextureFormat_RGBA8Unorm,
-                                        .pixels = {
-                                          .ptr  = texture_data,
-                                          .size = w * h * d,
-                                        },
-                                      });
-  if (state.texture.desc.pixels.ptr) {
-    free((void*)state.texture.desc.pixels.ptr);
-    state.texture.desc.pixels.size = 0;
-  }
+  state.texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 }
 
 static void fetch_texture(wgpu_context_t* wgpu_context)
