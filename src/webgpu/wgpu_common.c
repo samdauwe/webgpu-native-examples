@@ -621,6 +621,100 @@ void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
 }
 
 /* -------------------------------------------------------------------------- *
+ * WebGPU texture helper functions
+ * -------------------------------------------------------------------------- */
+
+wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
+                                   const wgpu_texture_desc_t* desc)
+{
+  wgpu_texture_t texture = {0};
+  memcpy(&texture.desc, desc, sizeof(wgpu_texture_desc_t));
+
+  /* Texture */
+  {
+    WGPUTextureDescriptor tdesc = {
+      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .dimension = WGPUTextureDimension_2D,
+      .size      = {desc->extent.width, desc->extent.height, 1},
+      .format    = desc->format,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+    };
+    texture.handle = wgpuDeviceCreateTexture(wgpu_context->device, &tdesc);
+  }
+
+  /* Texture data */
+  {
+    wgpuQueueWriteTexture(
+      wgpu_context->queue,
+      &(WGPUTexelCopyTextureInfo){
+        .texture = texture.handle,
+        .aspect  = WGPUTextureAspect_All,
+      },
+      desc->pixels.ptr,
+      desc->extent.width * desc->extent.height
+        * desc->extent.depthOrArrayLayers,
+      &(WGPUTexelCopyBufferLayout){
+        .bytesPerRow  = desc->extent.width * desc->extent.depthOrArrayLayers,
+        .rowsPerImage = desc->extent.height,
+      },
+      &(WGPUExtent3D){desc->extent.width, desc->extent.height, 1});
+  }
+
+  /* Texture view */
+  {
+    WGPUTextureViewDescriptor view_desc = {
+      .format          = desc->format,
+      .dimension       = WGPUTextureViewDimension_2D,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+      .aspect          = WGPUTextureAspect_All,
+      .usage           = WGPUTextureUsage_TextureBinding,
+    };
+    texture.view = wgpuTextureCreateView(texture.handle, &view_desc);
+  }
+
+  /* Texture sampler */
+  {
+    WGPUSamplerDescriptor sampler_desc = {
+      .addressModeU  = WGPUAddressMode_Repeat,
+      .addressModeV  = WGPUAddressMode_Repeat,
+      .addressModeW  = WGPUAddressMode_Repeat,
+      .magFilter     = WGPUFilterMode_Linear,
+      .minFilter     = WGPUFilterMode_Nearest,
+      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+      .lodMinClamp   = 0,
+      .lodMaxClamp   = 1,
+      .compare       = WGPUCompareFunction_Undefined,
+      .maxAnisotropy = 1,
+    };
+    texture.sampler
+      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  }
+
+  texture.initialized = true;
+  texture.desc.is_dirty = false;
+
+  return texture;
+}
+
+void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
+                           wgpu_texture_t* texture)
+{
+  wgpu_destroy_texture(texture);
+  *texture = wgpu_create_texture(wgpu_context, &texture->desc);
+}
+
+void wgpu_destroy_texture(wgpu_texture_t* texture)
+{
+  WGPU_RELEASE_RESOURCE(Sampler, texture->sampler);
+  WGPU_RELEASE_RESOURCE(TextureView, texture->view);
+  WGPU_RELEASE_RESOURCE(Texture, texture->handle);
+}
+
+/* -------------------------------------------------------------------------- *
  * WebGPU shader helper functions
  * -------------------------------------------------------------------------- */
 

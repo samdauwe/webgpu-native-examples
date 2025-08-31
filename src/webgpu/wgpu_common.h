@@ -117,10 +117,39 @@ typedef struct wgpu_buffer_t {
   uint32_t count; /* Numer of elements in the buffer (optional) */
 } wgpu_buffer_t;
 
-/* WebGPU buffer creating  / destroy */
+/* WebGPU buffer create / destroy */
 wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
                                  const wgpu_buffer_desc_t* desc);
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU texture helper functions
+ * -------------------------------------------------------------------------- */
+
+typedef struct wgpu_texture_desc_t {
+  WGPUExtent3D extent;
+  WGPUTextureFormat format;
+  struct {
+    const void* ptr;
+    size_t size;
+  } pixels;
+  int8_t is_dirty; /* Pixel data has been update */
+} wgpu_texture_desc_t;
+
+typedef struct wgpu_texture_t {
+  wgpu_texture_desc_t desc;
+  WGPUTexture handle;
+  WGPUTextureView view;
+  WGPUSampler sampler;
+  int8_t initialized; /* Texture is initialized */
+} wgpu_texture_t;
+
+/* WebGPU texture create / destroy */
+wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
+                                   const wgpu_texture_desc_t* desc);
+void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
+                           wgpu_texture_t* texture);
+void wgpu_destroy_texture(wgpu_texture_t* texture);
 
 /* -------------------------------------------------------------------------- *
  * WebGPU shader helper functions

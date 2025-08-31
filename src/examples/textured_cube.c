@@ -41,24 +41,6 @@ static const char* sampled_texture_mix_color_fragment_shader_wgsl;
  * Textured Cube example
  * -------------------------------------------------------------------------- */
 
-typedef struct wgpu_texture_desc_t {
-  WGPUExtent3D extent;
-  WGPUTextureFormat format;
-  struct {
-    const void* ptr;
-    size_t size;
-  } pixels;
-  int8_t is_dirty; /* Pixel data has been update*/
-} wgpu_texture_desc_t;
-
-typedef struct wgpu_texture_t {
-  wgpu_texture_desc_t desc;
-  WGPUTexture handle;
-  WGPUTextureView view;
-  WGPUSampler sampler;
-  int8_t initialized; /* Texture is initialized*/
-} wgpu_texture_t;
-
 /* State struct */
 static struct {
   cube_mesh_t cube_mesh;
@@ -182,83 +164,6 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
   ASSERT(state.pipeline_layout != NULL);
 }
 
-static void init_wgpu_texture(struct wgpu_context_t* wgpu_context,
-                              wgpu_texture_t* wgpu_texture)
-{
-  wgpu_texture_desc_t* tex_desc = &wgpu_texture->desc;
-
-  /* Texture */
-  {
-    WGPU_RELEASE_RESOURCE(Texture, wgpu_texture->handle);
-    WGPUTextureDescriptor tdesc = {
-      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-      .dimension = WGPUTextureDimension_2D,
-      .size      = {tex_desc->extent.width, tex_desc->extent.height, 1},
-      .format    = tex_desc->format,
-      .mipLevelCount = 1,
-      .sampleCount   = 1,
-    };
-    wgpu_texture->handle
-      = wgpuDeviceCreateTexture(wgpu_context->device, &tdesc);
-  }
-
-  /* Texture data */
-  {
-    wgpuQueueWriteTexture(
-      wgpu_context->queue,
-      &(WGPUTexelCopyTextureInfo){
-        .texture = wgpu_texture->handle,
-        .aspect  = WGPUTextureAspect_All,
-      },
-      tex_desc->pixels.ptr,
-      tex_desc->extent.width * tex_desc->extent.height
-        * tex_desc->extent.depthOrArrayLayers,
-      &(WGPUTexelCopyBufferLayout){
-        .bytesPerRow
-        = tex_desc->extent.width * tex_desc->extent.depthOrArrayLayers,
-        .rowsPerImage = tex_desc->extent.height,
-      },
-      &(WGPUExtent3D){tex_desc->extent.width, tex_desc->extent.height, 1});
-  }
-
-  /* Texture view */
-  {
-    WGPU_RELEASE_RESOURCE(TextureView, wgpu_texture->view);
-    WGPUTextureViewDescriptor view_desc = {
-      .format          = tex_desc->format,
-      .dimension       = WGPUTextureViewDimension_2D,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
-      .aspect          = WGPUTextureAspect_All,
-      .usage           = WGPUTextureUsage_TextureBinding,
-    };
-    wgpu_texture->view
-      = wgpuTextureCreateView(wgpu_texture->handle, &view_desc);
-  }
-
-  /* Texture sampler */
-  if (!wgpu_texture->sampler) {
-    WGPUSamplerDescriptor sampler_desc = {
-      .addressModeU  = WGPUAddressMode_Repeat,
-      .addressModeV  = WGPUAddressMode_Repeat,
-      .addressModeW  = WGPUAddressMode_Repeat,
-      .magFilter     = WGPUFilterMode_Linear,
-      .minFilter     = WGPUFilterMode_Nearest,
-      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-      .lodMinClamp   = 0,
-      .lodMaxClamp   = 1,
-      .compare       = WGPUCompareFunction_Undefined,
-      .maxAnisotropy = 1,
-    };
-    wgpu_texture->sampler
-      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  }
-
-  wgpu_texture->initialized = true;
-}
-
 /**
  * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
  * or when an error has occurred.
@@ -298,25 +203,23 @@ static void init_texture(wgpu_context_t* wgpu_context)
   for (size_t i = 0; i < w * h * d; i++) {
     texture_data[i] = (i) & 255;
   }
-  state.texture.desc = (wgpu_texture_desc_t){
-    .extent = (WGPUExtent3D) {
-      .width              = w,
-      .height             = h,
-      .depthOrArrayLayers = d,
-    },
-    .format = WGPUTextureFormat_RGBA8Unorm,
-    .pixels = {
-      .ptr  = texture_data,
-      .size = w * h * d,
-    },
-  };
 
-  init_wgpu_texture(wgpu_context, &state.texture);
+  state.texture = wgpu_create_texture(wgpu_context, &(wgpu_texture_desc_t){
+                                        .extent = (WGPUExtent3D) {
+                                          .width              = w,
+                                          .height             = h,
+                                          .depthOrArrayLayers = d,
+                                        },
+                                        .format = WGPUTextureFormat_RGBA8Unorm,
+                                        .pixels = {
+                                          .ptr  = texture_data,
+                                          .size = w * h * d,
+                                        },
+                                      });
   if (state.texture.desc.pixels.ptr) {
     free((void*)state.texture.desc.pixels.ptr);
     state.texture.desc.pixels.size = 0;
   }
-  state.texture.desc.is_dirty = false;
 }
 
 static void fetch_texture(wgpu_context_t* wgpu_context)
@@ -517,12 +420,11 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Recreate texture when pixel data loaded */
   if (state.texture.desc.is_dirty) {
-    init_wgpu_texture(wgpu_context, &state.texture);
+    wgpu_recreate_texture(wgpu_context, &state.texture);
     if (state.texture.desc.pixels.ptr) {
       free((void*)state.texture.desc.pixels.ptr);
       state.texture.desc.pixels.size = 0;
     }
-    state.texture.desc.is_dirty = false;
     /* Upddate the bindgroup */
     init_bind_group(wgpu_context);
   }
@@ -566,9 +468,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   sfetch_shutdown();
 
   UNUSED_VAR(wgpu_context);
-  WGPU_RELEASE_RESOURCE(Sampler, state.texture.sampler);
-  WGPU_RELEASE_RESOURCE(TextureView, state.texture.view);
-  WGPU_RELEASE_RESOURCE(Texture, state.texture.handle);
+  wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, state.cube.bind_group.handle)
