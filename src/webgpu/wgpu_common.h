@@ -147,6 +147,9 @@ typedef struct wgpu_texture_t {
 /* WebGPU texture create / destroy */
 wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
                                    const wgpu_texture_desc_t* desc);
+wgpu_texture_t
+wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
+                               uint32_t width, uint32_t height);
 void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
                            wgpu_texture_t* texture);
 void wgpu_destroy_texture(wgpu_texture_t* texture);

@@ -694,8 +694,85 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
       = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
   }
 
-  texture.initialized = true;
+  texture.initialized   = true;
   texture.desc.is_dirty = false;
+
+  return texture;
+}
+
+/**
+ * @brief Generates a texture containing the 100% EBU Color Bars (named after
+ * the standards body, the European Broadcasting Union).
+ *
+ * The EBU Color Bars consist of 8 vertical bars of equal width. They are
+ * defined in the same way for both SD and HD formats. In the RGB color space,
+ * they alternate each of the red, green and blue channels at different rates
+ * (much like counting in binary) from 0 to 100% intensity.
+ *
+ * The blue channel alternates every column, the red channel after two columns,
+ * and the green after four columns. This arrangement has the useful property
+ * that the luminance (Y in YCb'Cr' colour space) results in a downward stepping
+ * plot.
+ *
+ * @ref https://en.wikipedia.org/wiki/Color_bars
+ */
+wgpu_texture_t
+wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
+                               uint32_t width, uint32_t height)
+{
+  typedef struct rgba_t {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+  } rgba_t;
+
+  static const rgba_t BAR_COLOUR[8] = {
+    // clang-format off
+    {255, 255, 255, 255}, /* 100% White */
+    {255, 255,   0, 255}, /* Yellow     */
+    {  0, 255, 255, 255}, /* Cyan       */
+    {  0, 255,   0, 255}, /* Green      */
+    {255,   0, 255, 255}, /* Magenta    */
+    {255,   0,   0, 255}, /* Red        */
+    {  0,   0, 255, 255}, /* Blue       */
+    {  0,   0,   0, 255}, /* Black      */
+    // clang-format on
+  };
+
+  /* Check with and height parameters */
+  width  = MAX(ARRAY_SIZE(BAR_COLOUR), width);
+  height = MAX(1, height);
+
+  /* Allocate frame buffer */
+  size_t frame_bytes    = width * height * sizeof(rgba_t);
+  rgba_t* frame         = malloc(frame_bytes);
+  uint32_t column_width = width / ARRAY_SIZE(BAR_COLOUR);
+
+  /* Generate complete frame */
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      uint32_t col_idx     = x / column_width;
+      frame[y * width + x] = BAR_COLOUR[col_idx];
+    }
+  }
+
+  wgpu_texture_t texture = wgpu_create_texture(wgpu_context, &(wgpu_texture_desc_t){
+                                                 .extent = (WGPUExtent3D) {
+                                                   .width              = width,
+                                                   .height             = height,
+                                                   .depthOrArrayLayers = 4,
+                                                 },
+                                                 .format = WGPUTextureFormat_RGBA8Unorm,
+                                                 .pixels = {
+                                                   .ptr  = frame,
+                                                   .size = frame_bytes,
+                                                 },
+                                               });
+  if (texture.desc.pixels.ptr) {
+    free((void*)texture.desc.pixels.ptr);
+    texture.desc.pixels.size = 0;
+  }
 
   return texture;
 }
