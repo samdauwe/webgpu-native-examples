@@ -251,15 +251,15 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
       });
 
   // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
-                                            &(WGPURenderPipelineDescriptor){
-                                              .label       = "Render pipeline",
-                                              .layout      = pipeline_layout,
-                                              .primitive   = primitive_state,
-                                              .vertex      = vertex_state,
-                                              .fragment    = &fragment_state,
-                                              .multisample = multisample_state,
-                                            });
+  pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device, &(WGPURenderPipelineDescriptor){
+                            .label = "Out-of-bounds Viewport - Render pipeline",
+                            .layout      = pipeline_layout,
+                            .primitive   = primitive_state,
+                            .vertex      = vertex_state,
+                            .fragment    = &fragment_state,
+                            .multisample = multisample_state,
+                          });
   ASSERT(pipeline != NULL);
 
   // Partial cleanup
