@@ -170,16 +170,20 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
  */
 static void fetch_callback(const sfetch_response_t* response)
 {
-  if (response->fetched) {
-    /* The file data has been fetched, since we provided a big-enough buffer we
-     * can be sure that all data has been loaded here */
-    int img_width, img_height, num_channels;
-    const int desired_channels = 4;
-    stbi_uc* pixels            = stbi_load_from_memory(
-      response->data.ptr, (int)response->data.size, &img_width, &img_height,
-      &num_channels, desired_channels);
-    if (pixels) {
-      state.texture.desc = (wgpu_texture_desc_t){
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    state.texture.desc = (wgpu_texture_desc_t){
         .extent = (WGPUExtent3D) {
           .width              = img_width,
           .height             = img_height,
@@ -191,8 +195,7 @@ static void fetch_callback(const sfetch_response_t* response)
           .size = img_width * img_height * 4,
         },
       };
-      state.texture.desc.is_dirty = true;
-    }
+    state.texture.desc.is_dirty = true;
   }
 }
 
@@ -201,17 +204,13 @@ static void init_texture(wgpu_context_t* wgpu_context)
   state.texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 }
 
-static void fetch_texture(wgpu_context_t* wgpu_context)
+static void fetch_texture(void)
 {
   /* Start loading the image file */
   sfetch_send(&(sfetch_request_t){
-    .path      = "assets/textures/Di-3d.png",
-    .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
-    .user_data = {
-      .ptr = wgpu_context,
-      .size = sizeof(wgpu_context_t*),
-    },
+    .path     = "assets/textures/Di-3d.png",
+    .callback = fetch_callback,
+    .buffer   = SFETCH_RANGE(state.file_buffer),
   });
 }
 
@@ -379,7 +378,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_pipeline_layout(wgpu_context);
     init_uniform_buffers(wgpu_context);
     init_texture(wgpu_context);
-    fetch_texture(wgpu_context);
+    fetch_texture();
     init_bind_group(wgpu_context);
     init_pipelines(wgpu_context);
     state.initialized = true;
@@ -391,19 +390,16 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  sfetch_dowork();
-
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
 
+  sfetch_dowork();
+
   /* Recreate texture when pixel data loaded */
   if (state.texture.desc.is_dirty) {
     wgpu_recreate_texture(wgpu_context, &state.texture);
-    if (state.texture.desc.pixels.ptr) {
-      free((void*)state.texture.desc.pixels.ptr);
-      state.texture.desc.pixels.size = 0;
-    }
+    FREE_TEXTURE_PIXELS(state.texture);
     /* Upddate the bindgroup */
     init_bind_group(wgpu_context);
   }
@@ -444,9 +440,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
+  UNUSED_VAR(wgpu_context);
+
   sfetch_shutdown();
 
-  UNUSED_VAR(wgpu_context);
   wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
