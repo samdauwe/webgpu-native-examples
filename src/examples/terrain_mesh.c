@@ -1,6 +1,26 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
+
+#define SOKOL_FETCH_IMPL
+#include "sokol_fetch.h"
+
+#define SOKOL_LOG_IMPL
+#include "sokol_log.h"
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Terrain Mesh
@@ -21,84 +41,124 @@
  * https://blogs.igalia.com/itoral/2016/10/13/opengl-terrain-renderer-rendering-the-terrain-mesh/
  * -------------------------------------------------------------------------- */
 
-// Terrain patch parameters
-#define PATCH_SIZE 50
-#define PATCH_SEGMENT_COUNT 40
-#define PATCH_INDEX_COUNT PATCH_SEGMENT_COUNT* PATCH_SEGMENT_COUNT * 6
-#define PATCH_VERTEX_COUNT (PATCH_SEGMENT_COUNT + 1) * (PATCH_SEGMENT_COUNT + 1)
-#define PATCH_FLOATS_PER_VERTEX 6
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-// Camera parameters
-static const float fov_y  = TO_RADIANS(60.0f);
-static const float near_z = 0.1f, far_z = 150.0f;
-static vec3 camera_position                     = {0.0f, 5.0f, 0.0f};
-static float camera_heading                     = PI / 2.0f; // radians
-static float camera_target_heading              = PI / 2.0f; // radians
-static const float camera_angular_easing_factor = 0.005f;
-static const float camera_speed                 = 8.0f; // meters per second
+static const char* terrain_mesh_vertex_shader_wgsl;
+static const char* terrain_mesh_fragment_shader_wgsl;
 
-// Used to calculate view and projection matrices
-static float rot_y[16], trans[16], view_matrix[16], projection_matrix[16];
+/* Terrain patch parameters */
+// clang-format off
+#define PATCH_SIZE (50)
+#define PATCH_SEGMENT_COUNT (40)
+#define PATCH_INDEX_COUNT (PATCH_SEGMENT_COUNT* PATCH_SEGMENT_COUNT * 6)
+#define PATCH_VERTEX_COUNT ((PATCH_SEGMENT_COUNT + 1) * (PATCH_SEGMENT_COUNT + 1))
+#define PATCH_FLOATS_PER_VERTEX (6)
+// clang-format on
 
-// Camera matrices
-static float model_matrix[16], model_view_matrix[16];
-static float model_view_projection_matrix[16];
-
-// Nine terrain patches
-static vec3 patch_centers[9];
-
-// Time-related state
-static float last_frame_time            = -1.0f;
-static float direction_change_countdown = 6.0f; // seconds
-
-// Internal constants
-static const uint32_t instance_length
-  = 16 * 2; // Length of the data associated with a single instance
-static const uint32_t max_instance_count = 9;
-static const uint64_t instance_buffer_length
-  = 4 * instance_length * max_instance_count; // in bytes
-static float* instance_data    = NULL;
-static uint32_t instance_count = 1;
-
-// Vertex buffer
-static wgpu_buffer_t vertices = {0};
-
-// Index buffer
-static wgpu_buffer_t indices = {0};
-
-// Instance buffer
-static wgpu_buffer_t instance_buffer = {0};
-
-// Textures
+/* State struct */
 static struct {
-  texture_t color;
-  texture_t heightmap;
-} textures;
-static WGPUSampler linear_sampler = {0};
-
-// Render pipeline + layout
-static WGPURenderPipeline render_pipeline = {0};
-static WGPUPipelineLayout pipeline_layout = {0};
-
-// Bind group layouts
-static struct {
-  WGPUBindGroupLayout frame_constants;
-  WGPUBindGroupLayout instance_buffer;
-} bind_group_layouts = {0};
-
-// Bind groups
-static struct {
-  WGPUBindGroup frame_constants;
-  WGPUBindGroup instance_buffer;
-} bind_groups = {0};
-
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-// Other variables
-static const char* example_title = "Terrain Mesh";
-static bool prepared             = false;
+  /* Camera parameters */
+  struct {
+    float fov_y;
+    float near_z;
+    float far_z;
+    vec3 position;
+    float heading;
+    float target_heading;
+    float angular_easing_factor;
+    float speed;
+  } camera;
+  /* Camera matrices */
+  struct {
+    float model[16];
+    float model_view[16];
+    float model_view_projection[16];
+  } camera_mtx;
+  /* Used to calculate view and projection matrices */
+  float rot_y[16];
+  float trans[16];
+  float view_matrix[16];
+  float projection_matrix[16];
+  /* Nine terrain patches */
+  vec3 patch_centers[9];
+  /* Time-related state */
+  float last_frame_time;
+  float direction_change_countdown;
+  /* Internal constants */
+  uint32_t
+    instance_length; /* Length of the data associated with a single instance */
+  uint32_t max_instance_count;
+  uint64_t instance_buffer_length; /* In bytes */
+  float* instance_data;
+  uint32_t instance_count;
+  /* Vertex buffer */
+  wgpu_buffer_t vertices;
+  /* Index buffer */
+  wgpu_buffer_t indices;
+  /* Instance buffer */
+  wgpu_buffer_t instance_buffer;
+  /* Textures */
+  struct {
+    wgpu_texture_t color;
+    wgpu_texture_t heightmap;
+  } textures;
+  WGPUSampler linear_sampler;
+  uint8_t file_buffers[2][512 * 512 * 4];
+  /* Render pipeline + layout */
+  WGPURenderPipeline render_pipeline;
+  WGPUPipelineLayout pipeline_layout;
+  /* Bind group layouts */
+  struct {
+    WGPUBindGroupLayout frame_constants;
+    WGPUBindGroupLayout instance_buffer;
+  } bind_group_layouts;
+  /* Bind groups */
+  struct {
+    WGPUBindGroup frame_constants;
+    WGPUBindGroup instance_buffer;
+  } bind_groups;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
+  int8_t initialized;
+} state = {
+  .camera = {
+    .fov_y                 = TO_RADIANS(60.0f),
+    .near_z                = 0.1f,
+    .far_z                 = 150.0f,
+    .position              = {0.0f, 5.0f, 0.0f},
+    .heading               = PI / 2.0f, // radians */
+    .target_heading        = PI / 2.0f, /* radians */
+    .angular_easing_factor = 0.005f,
+    .speed                 = 8.0f,      /* meters per second */
+  },
+  .last_frame_time            = -1.0f,
+  .direction_change_countdown =  6.0f, /* seconds */
+  .instance_length            =  16 * 2,
+  .max_instance_count         =  9,
+  .instance_count             =  1,
+  .color_attachment = {
+     .loadOp     = WGPULoadOp_Clear,
+     .storeOp    = WGPUStoreOp_Store,
+     .clearValue = {0.812, 0.914, 1.0, 1.0},
+     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .depth_stencil_attachment = {
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
+  },
+  .render_pass_dscriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+    .depthStencilAttachment = &state.depth_stencil_attachment,
+  }
+};
 
 /* -------------------------------------------------------------------------- *
  * Custom math
@@ -173,7 +233,7 @@ static void mat4_perspective_fov(float fovY, float aspect, float near,
  * Terrain Mesh example
  * -------------------------------------------------------------------------- */
 
-static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
+static void init_patch_mesh(wgpu_context_t* wgpu_context)
 {
   float vertices_data[PATCH_VERTEX_COUNT * PATCH_FLOATS_PER_VERTEX] = {0};
   uint32_t indices_data[PATCH_INDEX_COUNT]                          = {0};
@@ -211,7 +271,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
   }
 
   /* Create vertex buffer */
-  vertices = wgpu_create_buffer(
+  state.vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Terrain mesh - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -221,7 +281,7 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
                   });
 
   /* Create index buffer */
-  indices = wgpu_create_buffer(
+  state.indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Terrain mesh - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
@@ -231,24 +291,18 @@ static void prepare_patch_mesh(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void prepare_textures(wgpu_context_t* wgpu_context)
+static void init_textures(wgpu_context_t* wgpu_context)
 {
   /* Color texture */
-  {
-    const char* file = "textures/color.png";
-    textures.color   = wgpu_create_texture_from_file(wgpu_context, file, NULL);
-  }
+  state.textures.color = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 
   /* Heightmap texture */
-  {
-    const char* file = "textures/heightmap.png";
-    textures.heightmap
-      = wgpu_create_texture_from_file(wgpu_context, file, NULL);
-  }
+  state.textures.heightmap
+    = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 
   /* Linear sampler */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Color texture - Linear sampler",
+    .label         = STRVIEW("Color texture - Linear sampler"),
     .addressModeU  = WGPUAddressMode_Repeat,
     .addressModeV  = WGPUAddressMode_Repeat,
     .addressModeW  = WGPUAddressMode_Repeat,
@@ -259,69 +313,94 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
     .lodMaxClamp   = 1.0f,
     .maxAnisotropy = 1,
   };
-  linear_sampler = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  state.linear_sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+/**
+ * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
+ * or when an error has occurred.
+ */
+static void fetch_callback(const sfetch_response_t* response)
 {
-  /* Color attachment */
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.812f,
-        .g = 0.914f,
-        .b = 1.0f,
-        .a = 1.0f,
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+        .extent = (WGPUExtent3D) {
+          .width              = img_width,
+          .height             = img_height,
+          .depthOrArrayLayers = 4,
+        },
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .pixels = {
+          .ptr  = pixels,
+          .size = img_width * img_height * 4,
+        },
+      };
+    texture->desc.is_dirty = true;
+  }
+}
+
+static void fetch_textures(void)
+{
+  const char* tex_paths[2] = {
+    "assets/textures/color.png",     /* Color texture */
+    "assets/textures/heightmap.png", /* Heightmap texture */
+  };
+
+  for (uint32_t i = 0; i < ARRAY_SIZE(tex_paths); ++i) {
+    wgpu_texture_t* texture
+      = (i == 0) ? &state.textures.color : &state.textures.heightmap;
+    /* Start loading the image file */
+    sfetch_send(&(sfetch_request_t){
+      .path      = tex_paths[i],
+      .callback  = fetch_callback,
+      .buffer    = SFETCH_RANGE(state.file_buffers[i]),
+      .user_data = {
+        .ptr = &texture,
+        .size = sizeof(wgpu_texture_t*),
       },
-  };
-
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context,
-                          &(struct deph_stencil_texture_creation_options_t){
-                            .format = WGPUTextureFormat_Depth32Float,
-                          });
-
-  /* Render pass descriptor */
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static float float_random(float min, float max)
-{
-  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0]   */
-  return min + scale * (max - min);             /* [min, max] */
+    });
+  }
 }
 
 static void update_camera_pose(float dt)
 {
   /* Update camera position */
-  const float dx = -sin(camera_heading) * camera_speed * dt;
-  const float dz = -cos(camera_heading) * camera_speed * dt;
-  camera_position[0] += dx;
-  camera_position[2] += dz;
+  const float dx = -sin(state.camera.heading) * state.camera.speed * dt;
+  const float dz = -cos(state.camera.heading) * state.camera.speed * dt;
+  state.camera.position[0] += dx;
+  state.camera.position[2] += dz;
 
   /* Update camera direction, choosing a new direction if needed */
-  camera_heading
-    += (camera_target_heading - camera_heading) * camera_angular_easing_factor;
-  if (direction_change_countdown < 0.0f) {
-    camera_target_heading      = (float_random(0.0f, 1.0f) * PI * 2.0f) - PI;
-    direction_change_countdown = 6.0f;
+  state.camera.heading += (state.camera.target_heading - state.camera.heading)
+                          * state.camera.angular_easing_factor;
+  if (state.direction_change_countdown < 0.0f) {
+    state.camera.target_heading
+      = (random_float_min_max(0.0f, 1.0f) * PI * 2.0f) - PI;
+    state.direction_change_countdown = 6.0f;
   }
-  direction_change_countdown -= dt;
+  state.direction_change_countdown -= dt;
 }
 
-static void update_uniforms(wgpu_example_context_t* context)
+static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  const float frame_timestamp_millis = context->frame.timestamp_millis;
-  const float dt  = (frame_timestamp_millis - last_frame_time) * 0.001; // s
-  last_frame_time = frame_timestamp_millis;
+  const float frame_timestamp_millis = stm_ms(stm_now());
+  const float dt
+    = (frame_timestamp_millis - state.last_frame_time) * 0.001; // s
+  state.last_frame_time = frame_timestamp_millis;
 
   update_camera_pose(dt);
 
@@ -329,9 +408,9 @@ static void update_uniforms(wgpu_example_context_t* context)
 
   // Determine the nearest nine terrain patches and calculate their positions
   const vec3 nearest_patch_center = {
-    round(camera_position[0] / patch_size) * patch_size, /* x */
-    0.0f,                                                /* y */
-    round(camera_position[2] / patch_size) * patch_size  /* z */
+    round(state.camera.position[0] / patch_size) * patch_size, /* x */
+    0.0f,                                                      /* y */
+    round(state.camera.position[2] / patch_size) * patch_size  /* z */
   };
   uint32_t patch_index = 0;
   for (int8_t pz = -1; pz <= 1; ++pz) {
@@ -342,53 +421,61 @@ static void update_uniforms(wgpu_example_context_t* context)
           nearest_patch_center[1],                   /* y */
           nearest_patch_center[2] + patch_size * pz  /* z */
         },
-        patch_centers[patch_index]);
+        state.patch_centers[patch_index]);
       ++patch_index;
     }
   }
 
   // Calculate view and projection matrices
-  mat4_rotation_y(&rot_y, -camera_heading);
-  mat4_translation(&trans, (vec3){-camera_position[0], -camera_position[1],
-                                  -camera_position[2]});
-  mat4_mul(&rot_y, &trans, &view_matrix);
-  const float aspect_ratio = context->window_size.aspect_ratio;
-  mat4_perspective_fov(fov_y, aspect_ratio, near_z, far_z, &projection_matrix);
+  mat4_rotation_y(&state.rot_y, -state.camera.heading);
+  mat4_translation(&state.trans,
+                   (vec3){-state.camera.position[0], -state.camera.position[1],
+                          -state.camera.position[2]});
+  mat4_mul(&state.rot_y, &state.trans, &state.view_matrix);
+  const float aspect_ratio
+    = (float)wgpu_context->width / (float)wgpu_context->height;
+  mat4_perspective_fov(state.camera.fov_y, aspect_ratio, state.camera.near_z,
+                       state.camera.far_z, &state.projection_matrix);
 
   // Calculate the per-instance matrices
-  if (instance_data == NULL) {
-    instance_data = calloc(instance_buffer_length / 4, sizeof(float));
+  if (state.instance_data == NULL) {
+    state.instance_data
+      = calloc(state.instance_buffer_length / 4, sizeof(float));
   }
-  instance_count = MIN(ARRAY_SIZE(patch_centers), max_instance_count);
-  for (uint32_t i = 0; i < instance_count; ++i) {
-    mat4_translation(&model_matrix, patch_centers[i]);
-    mat4_mul(&view_matrix, &model_matrix, &model_view_matrix);
-    mat4_mul(&projection_matrix, &model_view_matrix,
-             &model_view_projection_matrix);
-    memcpy(instance_data + (i * instance_length), model_view_matrix,
-           sizeof(model_view_matrix));
-    memcpy(instance_data + (i * instance_length + 16),
-           model_view_projection_matrix, sizeof(model_view_projection_matrix));
+  state.instance_count
+    = MIN(ARRAY_SIZE(state.patch_centers), state.max_instance_count);
+  for (uint32_t i = 0; i < state.instance_count; ++i) {
+    mat4_translation(&state.camera_mtx.model, state.patch_centers[i]);
+    mat4_mul(&state.view_matrix, &state.camera_mtx.model,
+             &state.camera_mtx.model_view);
+    mat4_mul(&state.projection_matrix, &state.camera_mtx.model_view,
+             &state.camera_mtx.model_view_projection);
+    memcpy(state.instance_data + (i * state.instance_length),
+           state.camera_mtx.model_view, sizeof(state.camera_mtx.model_view));
+    memcpy(state.instance_data + (i * state.instance_length + 16),
+           state.camera_mtx.model_view_projection,
+           sizeof(state.camera_mtx.model_view_projection));
   }
 
-  // Write the instance data to the instance buffer
-  wgpu_queue_write_buffer(context->wgpu_context, instance_buffer.buffer, 0,
-                          instance_data,
-                          (instance_buffer_length / 4) * sizeof(float));
+  /* Write the instance data to the instance buffer */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.instance_buffer.buffer, 0,
+                       state.instance_data,
+                       (state.instance_buffer_length / 4) * sizeof(float));
 }
 
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  instance_buffer = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Instance - Uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = instance_buffer_length,
-    });
+  state.instance_buffer_length
+    = 4 * state.instance_length * state.max_instance_count;
+  state.instance_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Instance - Uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = state.instance_buffer_length,
+                  });
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Frame constants bind group layout */
   {
@@ -425,13 +512,14 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       }
     };
-    bind_group_layouts.frame_constants = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label = "Frame constants - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(bind_group_layouts.frame_constants != NULL)
+    state.bind_group_layouts.frame_constants = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Frame constants - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(state.bind_group_layouts.frame_constants != NULL)
   }
 
   /* Instance buffer bind group */
@@ -444,107 +532,106 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = instance_buffer_length,
+          .minBindingSize   = state.instance_buffer_length,
         },
         .sampler = {0},
       },
     };
-    bind_group_layouts.instance_buffer = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label = "Instance buffer - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(bind_group_layouts.instance_buffer != NULL)
+    state.bind_group_layouts.instance_buffer = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Instance buffer - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(state.bind_group_layouts.instance_buffer != NULL)
   }
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this bind group layout
   WGPUBindGroupLayout bindGroupLayouts[2] = {
-    bind_group_layouts.frame_constants, /* Set 0 */
-    bind_group_layouts.instance_buffer, /* Set 1 */
+    state.bind_group_layouts.frame_constants, /* Set 0 */
+    state.bind_group_layouts.instance_buffer, /* Set 1 */
   };
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bindGroupLayouts),
       .bindGroupLayouts     = bindGroupLayouts,
     });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(state.pipeline_layout != NULL)
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_frame_constants_bind_group(wgpu_context_t* wgpu_context)
 {
-  /* Frame constants bind group */
-  {
-    WGPUBindGroupEntry bg_entries[3] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .sampler = linear_sampler,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        .binding     = 1,
-        .textureView = textures.color.view,
-      },
-      [2] = (WGPUBindGroupEntry) {
-        .binding     = 2,
-        .textureView = textures.heightmap.view,
-      }
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Frame constants - Bind group",
-      .layout     = bind_group_layouts.frame_constants,
-      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-      .entries    = bg_entries,
-    };
-    bind_groups.frame_constants
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.frame_constants != NULL)
-  }
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.frame_constants)
 
-  /* Instance buffer bind group */
-  {
-    WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .buffer  = instance_buffer.buffer,
-        .offset  = 0,
-        .size    = instance_buffer.size,
-      },
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Instance buffer - Bind group",
-      .layout     = bind_group_layouts.instance_buffer,
-      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-      .entries    = bg_entries,
-    };
-    bind_groups.instance_buffer
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.instance_buffer != NULL)
-  }
+  WGPUBindGroupEntry bg_entries[3] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding = 0,
+      .sampler = state.linear_sampler,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      .binding     = 1,
+      .textureView = state.textures.color.view,
+    },
+    [2] = (WGPUBindGroupEntry) {
+      .binding     = 2,
+      .textureView = state.textures.heightmap.view,
+    }
+  };
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = STRVIEW("Frame constants - Bind group"),
+    .layout     = state.bind_group_layouts.frame_constants,
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
+  };
+  state.bind_groups.frame_constants
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_groups.frame_constants != NULL)
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_instance_buffer_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+  WGPUBindGroupEntry bg_entries[1] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding = 0,
+      .buffer  = state.instance_buffer.buffer,
+      .offset  = 0,
+      .size    = state.instance_buffer.size,
+    },
   };
-
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = STRVIEW("Instance buffer - Bind group"),
+    .layout     = state.bind_group_layouts.instance_buffer,
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
   };
+  state.bind_groups.instance_buffer
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_groups.instance_buffer != NULL)
+}
 
-  // Depth stencil state
+static void init_bind_groups(wgpu_context_t* wgpu_context)
+{
+  init_frame_constants_bind_group(wgpu_context);
+  init_instance_buffer_bind_group(wgpu_context);
+}
+
+static void init_pipeline(wgpu_context_t* wgpu_context)
+{
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, terrain_mesh_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, terrain_mesh_fragment_shader_wgsl);
+
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
+
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth32Float,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
@@ -558,172 +645,282 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     // Attribute location 1: Texture coordinates
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, 16))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .label = "Terrain mesh - Vertex shader",
-                      .file  = "shaders/terrain_mesh/shader.vert.spv",
-                    },
-                    .buffer_count = 1,
-                    .buffers      = &terrain_mesh_vertex_buffer_layout,
-                  });
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Terrain mesh - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &terrain_mesh_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_Back,
+      .frontFace = WGPUFrontFace_CCW
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+       .count = 1,
+       .mask  = 0xffffffff
+    },
+  };
 
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .label = "Terrain mesh - Fragment shader",
-                      .file  = "shaders/terrain_mesh/shader.frag.spv",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
+  state.render_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.render_pipeline != NULL);
 
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Terrain mesh - Render pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_patch_mesh(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    prepare_textures(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 2,
+      .num_channels = 1,
+      .num_lanes    = 1,
+      .logger.func  = slog_func,
+    });
+    init_patch_mesh(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_textures(wgpu_context);
+    fetch_textures();
+    init_pipeline_layout(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_bind_groups(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static void update_textures(struct wgpu_context_t* wgpu_context)
 {
-  // Set target frame buffer
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.textures.color.desc.is_dirty
+      || !state.textures.heightmap.desc.is_dirty) {
+    return;
+  }
 
-  // Create command encoder
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  /* Recreate color texture */
+  wgpu_recreate_texture(wgpu_context, &state.textures.color);
+  FREE_TEXTURE_PIXELS(state.textures.color);
 
-  // Create render pass encoder for encoding drawing commands
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+  /* Recreate heightmap texture */
+  wgpu_recreate_texture(wgpu_context, &state.textures.heightmap);
+  FREE_TEXTURE_PIXELS(state.textures.heightmap);
 
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.frame_constants, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                    bind_groups.instance_buffer, 0, 0);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0,
-                                      WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   (uint32_t)PATCH_INDEX_COUNT, instance_count,
-                                   0, 0, 0);
-
-  // Create command buffer and cleanup
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
+  /* Upddate the bindgroup */
+  init_frame_constants_bind_group(wgpu_context);
 }
 
-static int example_draw(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  // Prepare frame
-  prepare_frame(context);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  // Command buffer to be submitted to the queue
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
+  sfetch_dowork();
 
-  // Submit to queue
-  submit_command_buffers(context);
+  /* Update texture when pixel data loaded */
+  update_textures(wgpu_context);
 
-  // Submit frame
-  submit_frame(context);
+  /* Update matrix data */
+  update_uniform_buffer(wgpu_context);
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view         = wgpu_context->swapchain_view;
+  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
+
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.render_pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
+                                    state.bind_groups.frame_constants, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 1,
+                                    state.bind_groups.instance_buffer, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.indices.buffer,
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(rpass_enc, (uint32_t)PATCH_INDEX_COUNT,
+                                   state.instance_count, 0, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  update_uniforms(context);
-  return example_draw(context);
-}
+  UNUSED_VAR(wgpu_context);
 
-static void example_destroy(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
+  sfetch_shutdown();
 
-  if (instance_data != NULL) {
-    free(instance_data);
+  if (state.instance_data != NULL) {
+    free(state.instance_data);
+    state.instance_data = NULL;
   }
 
-  wgpu_destroy_texture(&textures.color);
-  wgpu_destroy_texture(&textures.heightmap);
-  WGPU_RELEASE_RESOURCE(Sampler, linear_sampler)
+  wgpu_destroy_texture(&state.textures.color);
+  wgpu_destroy_texture(&state.textures.heightmap);
+  WGPU_RELEASE_RESOURCE(Sampler, state.linear_sampler)
 
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, instance_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.frame_constants)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.instance_buffer)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.frame_constants)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.instance_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.instance_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.bind_group_layouts.frame_constants)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.bind_group_layouts.instance_buffer)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.frame_constants)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.instance_buffer)
 }
 
-void example_terrain_mesh(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Terrain Mesh",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* terrain_mesh_vertex_shader_wgsl = CODE(
+  const NUM_INSTANCES: u32 = 9;
+
+  struct Instance {
+    modelViewMatrix: mat4x4<f32>,
+    modelViewProjectionMatrix: mat4x4<f32>,
+  };
+
+  struct Uniforms {
+    instances: array<Instance, NUM_INSTANCES>,
+  };
+
+  @group(0) @binding(0) var linearSampler: sampler;
+  @group(0) @binding(1) var colorTexture: texture_2d<f32>;
+  @group(0) @binding(2) var heightmap: texture_2d<f32>;
+  @group(1) @binding(0) var<uniform> uniforms: Uniforms;
+
+  struct VertexInput {
+    @location(0) position: vec4<f32>,
+    @location(1) inTexCoords: vec2<f32>,
+    @builtin(instance_index) instanceIndex: u32,
+  };
+
+  struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) eyePosition: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) outTexCoords: vec2<f32>,
+  };
+
+  @vertex
+  fn main(input: VertexInput) -> VertexOutput {
+    // Displacement mapping constants
+    let patchSize = 50.0;
+    let heightScale = 8.0;
+    let d = vec3<f32>(1.0 / 256.0, 1.0 / 256.0, 0.0);
+    let dydy = heightScale / patchSize;
+
+    // Calculate displacement and differentials (for normal calculation)
+    let height = textureSampleLevel(heightmap, linearSampler, input.inTexCoords, 0.0f).x;
+    let dydx = height - textureSampleLevel(heightmap, linearSampler, input.inTexCoords + d.xz, 0.0f).x;
+    let dydz = height - textureSampleLevel(heightmap, linearSampler, input.inTexCoords + d.zy, 0.0f).x;
+
+    // Calculate model-space vertex position and normal
+    let modelPosition = vec4<f32>(input.position.x, input.position.y + height * heightScale, input.position.z, 1.0);
+    let modelNormal = vec4<f32>(normalize(vec3<f32>(dydx, dydy, dydz)), 0.0);
+
+    // Retrieve MV and MVP matrices from instance data
+    let modelViewMatrix = uniforms.instances[input.instanceIndex].modelViewMatrix;
+    let modelViewProjectionMatrix = uniforms.instances[input.instanceIndex].modelViewProjectionMatrix;
+
+    var output: VertexOutput;
+    output.position = modelViewProjectionMatrix * modelPosition;
+    output.eyePosition = modelViewMatrix * modelPosition;
+    output.normal = (modelViewMatrix * modelNormal).xyz;
+    output.outTexCoords = input.inTexCoords;
+    return output;
+  }
+);
+
+static const char* terrain_mesh_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var linearSampler: sampler;
+  @group(0) @binding(1) var colorTexture: texture_2d<f32>;
+
+  struct FragmentInput {
+    @location(0) eyePosition: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) texCoords: vec2<f32>,
+  };
+
+  @fragment
+  fn main(input: FragmentInput) -> @location(0) vec4<f32> {
+    // Lighting constants
+    let lightColor = 2.0 * vec3<f32>(0.812, 0.914, 1.0);
+    let L = normalize(vec3<f32>(1.0, 1.0, 1.0));
+
+    // Determine diffuse lighting contribution
+    let N = normalize(input.normal);
+    let diffuseFactor = clamp(dot(N, L), 0.0, 1.0);
+
+    let texCoordScale = 4.0;
+    let baseColor = textureSample(colorTexture, linearSampler,
+                                  input.texCoords * texCoordScale).rgb;
+
+    let litColor = diffuseFactor * lightColor * baseColor;
+
+    // Fog constants
+    let fogColor = vec3<f32>(0.812, 0.914, 1.0);
+    let fogStart = 3.0;
+    let fogEnd = 50.0;
+
+    // Calculate fog factor from eye space distance
+    let fogDist = length(input.eyePosition.xyz);
+    let fogFactor = clamp((fogEnd - fogDist) / (fogEnd - fogStart), 0.0, 1.0);
+
+    // Blend lit color and fog color to get fragment color
+    let finalColor = (fogColor * (1.0 - fogFactor)) + (litColor * fogFactor);
+    return vec4<f32>(finalColor, 1.0);
+  }
+);
+// clang-format on
