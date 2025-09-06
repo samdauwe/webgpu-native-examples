@@ -281,10 +281,22 @@ float random_float(void);
   WGPUVertexBufferLayout name##_vertex_buffer_layout                           \
     = WGPU_VERTBUFFERLAYOUT_DESC(bind_size, vert_attr_desc_##name);
 
+#define FREE_TEXTURE_PIXELS(tex)                                               \
+  do {                                                                         \
+    if ((tex).desc.pixels.ptr) {                                               \
+      free((void*)(tex).desc.pixels.ptr);                                      \
+      (tex).desc.pixels.ptr  = NULL;                                           \
+      (tex).desc.pixels.size = 0;                                              \
+    }                                                                          \
+  } while (0)
+
 /* Constants */
 #define PI 3.14159265358979323846f   /* pi */
 #define PI2 6.28318530717958647692f  /* pi * 2 */
 #define PI_2 1.57079632679489661923f /* pi/2 */
+
+#define TO_RADIANS(degrees) ((PI / 180.0f) * (degrees))
+#define TO_DEGREES(radians) ((180.0f / PI) * (radians))
 
 #ifdef __cplusplus
 }
