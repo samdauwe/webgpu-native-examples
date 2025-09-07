@@ -1,8 +1,26 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
+
+#define SOKOL_FETCH_IMPL
+#include "sokol_fetch.h"
+
+#define SOKOL_LOG_IMPL
+#include "sokol_log.h"
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 #include <string.h>
-
-#include "../webgpu/imgui_overlay.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Tile Map
@@ -24,18 +42,34 @@
 static const char* tile_map_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
+ * Forward declaration
+ * -------------------------------------------------------------------------- */
+
+static void fetch_callback(const sfetch_response_t* response);
+
+/* -------------------------------------------------------------------------- *
  * Tile set
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  texture_t texture;
+  wgpu_texture_t texture;
   float tile_size;
+  uint8_t file_buffer[128 * 128 * 4];
 } tile_set_t;
 
 static void tile_set_create(tile_set_t* this, wgpu_context_t* wgpu_context,
                             const char* file_path, float tile_size)
 {
-  this->texture = wgpu_create_texture_from_file(wgpu_context, file_path, NULL);
+  this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+  /*sfetch_send(&(sfetch_request_t){
+    .path      = file_path,
+    .callback  = fetch_callback,
+    .buffer    = SFETCH_RANGE(this->file_buffer),
+    .user_data = {
+      .ptr = &this->texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });*/
   this->tile_size = tile_size;
 }
 
@@ -59,13 +93,19 @@ typedef struct {
 
 typedef struct {
   wgpu_context_t* wgpu_context;
-  texture_t texture;
+  WGPUBindGroupLayout bind_group_layout;
+  tile_set_t* tile_set;
+  WGPUSampler tile_map_sampler;
+  wgpu_texture_t texture;
+  uint8_t file_buffer[64 * 64 * 4];
   struct {
     wgpu_buffer_t buffer;
     tile_data_t data;
     WGPUBindGroup bind_group;
   } uniform;
 } tile_map_layer_t;
+
+static void tile_map_layer_create_init_bind_group(tile_map_layer_t* this);
 
 static void tile_map_layer_create(tile_map_layer_t* this,
                                   wgpu_context_t* wgpu_context,
@@ -74,7 +114,10 @@ static void tile_map_layer_create(tile_map_layer_t* this,
                                   tile_set_t* tile_set,
                                   WGPUSampler tile_map_sampler)
 {
-  this->wgpu_context = wgpu_context;
+  this->wgpu_context      = wgpu_context;
+  this->bind_group_layout = bind_group_layout;
+  this->tile_set          = tile_set;
+  this->tile_map_sampler  = tile_map_sampler;
 
   /* Init uniform data */
   {
@@ -85,8 +128,18 @@ static void tile_map_layer_create(tile_map_layer_t* this,
   }
 
   /* Tile map layer texture */
-  this->texture
-    = wgpu_create_texture_from_file(wgpu_context, texture_path, NULL);
+  this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+
+  /* Start loading the image file */
+  /*sfetch_send(&(sfetch_request_t){
+    .path      = texture_path,
+    .callback  = fetch_callback,
+    .buffer    = SFETCH_RANGE(this->file_buffer),
+    .user_data = {
+      .ptr = &this->texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });*/
 
   /* Create uniform buffer */
   this->uniform.buffer = wgpu_create_buffer(
@@ -97,41 +150,46 @@ static void tile_map_layer_create(tile_map_layer_t* this,
                   });
 
   /* Create bind group */
-  {
-    WGPUBindGroupEntry bg_entries[4] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0 : Tile map uniforms */
-        .binding = 0,
-        .buffer  = this->uniform.buffer.buffer,
-        .offset  = 0,
-        .size    = this->uniform.buffer.size,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1 : Map texture */
-        .binding     = 1,
-        .textureView = this->texture.view,
-      },
-      [2] = (WGPUBindGroupEntry) {
-        /* Binding 2 : Sprite texture */
-        .binding     = 2,
-        .textureView = tile_set->texture.view,
-      },
-      [3] = (WGPUBindGroupEntry) {
-        /* Binding 3 : Sprite sampler */
-        .binding = 3,
-        .sampler = tile_map_sampler,
-      }
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Tile map - Layer bind group",
-      .layout     = bind_group_layout,
-      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-      .entries    = bg_entries,
-    };
-    this->uniform.bind_group
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(this->uniform.bind_group != NULL);
-  }
+  tile_map_layer_create_init_bind_group(this);
+}
+
+static void tile_map_layer_create_init_bind_group(tile_map_layer_t* this)
+{
+  WGPU_RELEASE_RESOURCE(BindGroup, this->uniform.bind_group)
+
+  WGPUBindGroupEntry bg_entries[4] = {
+    [0] = (WGPUBindGroupEntry) {
+      /* Binding 0 : Tile map uniforms */
+      .binding = 0,
+      .buffer  = this->uniform.buffer.buffer,
+      .offset  = 0,
+      .size    = this->uniform.buffer.size,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      /* Binding 1 : Map texture */
+      .binding     = 1,
+      .textureView = this->texture.view,
+    },
+    [2] = (WGPUBindGroupEntry) {
+      /* Binding 2 : Sprite texture */
+      .binding     = 2,
+      .textureView = this->tile_set->texture.view,
+    },
+    [3] = (WGPUBindGroupEntry) {
+      /* Binding 3 : Sprite sampler */
+      .binding = 3,
+      .sampler = this->tile_map_sampler,
+    }
+  };
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = STRVIEW("Tile map - Layer bind group"),
+    .layout     = this->bind_group_layout,
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
+  };
+  this->uniform.bind_group
+    = wgpuDeviceCreateBindGroup(this->wgpu_context->device, &bg_desc);
+  ASSERT(this->uniform.bind_group != NULL);
 }
 
 static void tile_map_layer_destroy(tile_map_layer_t* this)
@@ -143,8 +201,8 @@ static void tile_map_layer_destroy(tile_map_layer_t* this)
 
 static void tile_map_layer_write_uniform(tile_map_layer_t* this)
 {
-  wgpu_queue_write_buffer(this->wgpu_context, this->uniform.buffer.buffer, 0,
-                          &this->uniform.data, this->uniform.buffer.size);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->uniform.buffer.buffer,
+                       0, &this->uniform.data, this->uniform.buffer.size);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -162,10 +220,8 @@ typedef struct {
   WGPUSampler sampler;
   tile_set_t tile_set;
   tile_map_layer_t tile_map_layers[MAX_TILE_MAP_LAYER_COUNT];
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDescriptor descriptor;
-  } render_pass;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
 } tile_map_renderer_t;
 
 static void tile_map_renderer_init_defaults(tile_map_renderer_t* this)
@@ -185,7 +241,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
   {
     this->sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
-                              .label         = "Tile map - Texture sampler",
+                              .label = STRVIEW("Tile map - Texture sampler"),
                               .addressModeU  = WGPUAddressMode_Repeat,
                               .addressModeV  = WGPUAddressMode_Repeat,
                               .addressModeW  = WGPUAddressMode_Repeat,
@@ -245,7 +301,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     };
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Tile map - Bind group layout",
+                              .label = STRVIEW("Tile map - Bind group layout"),
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
@@ -255,23 +311,17 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
   /* Pipeline layout */
   {
     this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label = "Tile map - Render pipeline layout",
-                              .bindGroupLayoutCount = 1,
-                              .bindGroupLayouts     = &this->bind_group_layout,
-                            });
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Tile map - Render pipeline layout"),
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &this->bind_group_layout,
+      });
     ASSERT(this->pipeline_layout != NULL);
   }
 
   /* Render pipeline */
   {
-    /* Primitive state */
-    WGPUPrimitiveState primitive_state_desc = {
-      .topology  = WGPUPrimitiveTopology_TriangleList,
-      .frontFace = WGPUFrontFace_CCW,
-      .cullMode  = WGPUCullMode_None,
-    };
-
     /* Color target state */
     WGPUBlendState blend_state = (WGPUBlendState){
       .color.operation = WGPUBlendOperation_Add,
@@ -281,67 +331,52 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       .alpha.srcFactor = WGPUBlendFactor_One,
       .alpha.dstFactor = WGPUBlendFactor_One,
     };
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-      .format    = this->color_format,
-      .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
+
+    WGPUShaderModule tile_map_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, tile_map_shader_wgsl);
+
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Tile map - Render pipeline"),
+      .layout = this->pipeline_layout,
+      .vertex = {
+        .module      = tile_map_shader_module,
+        .entryPoint  = STRVIEW("vertexMain"),
+      },
+      .fragment = &(WGPUFragmentState) {
+        .entryPoint  = STRVIEW("fragmentMain"),
+        .module      = tile_map_shader_module,
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState) {
+          .format    = wgpu_context->render_format,
+          .blend     = &blend_state,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_Back,
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .multisample = {
+         .count = 1,
+         .mask  = 0xffffffff
+      },
     };
 
-    /* Vertex state */
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Vertex shader WGSL */
-                        .label            = "Tile map - Vertex shader",
-                        .wgsl_code.source = tile_map_shader_wgsl,
-                        .entry            = "vertexMain",
-                      },
-                      .buffer_count = 0,
-                      .buffers = NULL,
-                    });
-
-    /* Fragment state */
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Fragment shader WGSL */
-                        .label            = "Tile map - Fragment shader",
-                        .wgsl_code.source = tile_map_shader_wgsl,
-                        .entry            = "fragmentMain",
-                      },
-                      .target_count = 1,
-                      .targets = &color_target_state_desc,
-                    });
-
-    /* Multisample state */
-    WGPUMultisampleState multisample_state_desc
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
-
-    /* Create rendering pipeline using the specified states */
-    this->pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label       = "Tile map - Render pipeline",
-                              .layout      = this->pipeline_layout,
-                              .primitive   = primitive_state_desc,
-                              .vertex      = vertex_state_desc,
-                              .fragment    = &fragment_state_desc,
-                              .multisample = multisample_state_desc,
-                            });
+    this->pipeline
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+    ASSERT(this->pipeline != NULL);
 
     /* Cleanup shaders */
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, tile_map_shader_module);
   }
 
   /* Render pass */
   {
     /* Color attachment */
-    this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+    this->color_attachment = (WGPURenderPassColorAttachment) {
       .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
       .clearValue = (WGPUColor) {
@@ -353,11 +388,10 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     };
 
     /* Render pass descriptor */
-    this->render_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                  = "Render pass descriptor",
-      .colorAttachmentCount   = 1,
-      .colorAttachments       = this->render_pass.color_attachments,
-      .depthStencilAttachment = NULL,
+    this->render_pass_dscriptor = (WGPURenderPassDescriptor){
+      .label                = STRVIEW("Render pass descriptor"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &this->color_attachment,
     };
   }
 }
@@ -396,75 +430,63 @@ static void tile_map_renderer_create_tile_map_layer(tile_map_renderer_t* this,
                         this->bind_group_layout, tile_set, this->sampler);
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int tile_map_renderer_draw(tile_map_renderer_t* this)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
-  }
-}
+  WGPUDevice device = this->wgpu_context->device;
+  WGPUQueue queue   = this->wgpu_context->queue;
 
-static WGPUCommandBuffer
-tile_map_renderer_build_command_buffer(tile_map_renderer_t* this)
-{
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-  this->render_pass.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
+  this->color_attachment.view = this->wgpu_context->swapchain_view;
 
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &this->render_pass_dscriptor);
 
-  /* Create render pass */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &this->render_pass.descriptor);
-
-  /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, this->pipeline);
 
   // Draw tile map layers: Layer rendering is back-to-front to ensure proper
   // transparency, which means there can be quite a bit of unnecessary overdraw.
   for (int32_t i = MAX_TILE_MAP_LAYER_COUNT - 1; i >= 0; --i) {
     wgpuRenderPassEncoderSetBindGroup(
-      wgpu_context->rpass_enc, 0, this->tile_map_layers[i].uniform.bind_group,
-      0, 0);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+      rpass_enc, 0, this->tile_map_layers[i].uniform.bind_group, 0, 0);
+    wgpuRenderPassEncoderDraw(rpass_enc, 3, 1, 0, 0);
   }
 
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int tile_map_renderer_draw(tile_map_renderer_t* this)
-{
-  wgpu_example_context_t* context = this->wgpu_context->context;
-
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = tile_map_renderer_build_command_buffer(this);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
+}
+
+static void tile_map_renderer_update_textures(tile_map_renderer_t* this)
+{
+  int8_t is_dirty = this->tile_set.texture.desc.is_dirty;
+  for (uint32_t i = 0; i < MAX_TILE_MAP_LAYER_COUNT; ++i) {
+    is_dirty = is_dirty && this->tile_map_layers[i].texture.desc.is_dirty;
+  }
+
+  if (is_dirty) {
+    /* Recreate tile set texture */
+    wgpu_recreate_texture(this->wgpu_context, &this->tile_set.texture);
+    FREE_TEXTURE_PIXELS(this->tile_set.texture);
+
+    /* Recreate tile map layers texture */
+    for (uint32_t i = 0; i < MAX_TILE_MAP_LAYER_COUNT; ++i) {
+      wgpu_recreate_texture(this->wgpu_context,
+                            &this->tile_map_layers[i].texture);
+      FREE_TEXTURE_PIXELS(this->tile_map_layers[i].texture);
+      /* Upddate the bind group */
+      tile_map_layer_create_init_bind_group(&this->tile_map_layers[i]);
+    }
+  }
 }
 
 static void tile_map_renderer_update_tile_map_layers(tile_map_renderer_t* this,
@@ -486,6 +508,42 @@ static void tile_map_renderer_update_tile_map_layers(tile_map_renderer_t* this,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Fetch callback
+ * -------------------------------------------------------------------------- */
+
+static void fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+      .extent = (WGPUExtent3D) {
+        .width              = img_width,
+        .height             = img_height,
+        .depthOrArrayLayers = 4,
+      },
+      .format = WGPUTextureFormat_RGBA8Unorm,
+      .pixels = {
+        .ptr  = pixels,
+        .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Tile map example
  * -------------------------------------------------------------------------- */
 
@@ -493,10 +551,10 @@ static struct {
   const char* tile_set;
   const char* tile_map_layers[MAX_TILE_MAP_LAYER_COUNT];
 } texture_paths = {
-  .tile_set = "textures/spelunky-tiles.png",
+  .tile_set = "assets/textures/spelunky-tiles.png",
   .tile_map_layers = {
-    "textures/spelunky0.png", /* Tile map layer 0 */
-    "textures/spelunky1.png", /* Tile map layer 1 */
+    "assets/textures/spelunky0.png", /* Tile map layer 0 */
+    "assets/textures/spelunky1.png", /* Tile map layer 1 */
   },
 };
 
@@ -504,15 +562,20 @@ static struct {
 static tile_map_renderer_t tile_map_renderer = {0};
 
 /* Other variables */
-static const char* example_title = "Tile Map";
-static bool prepared             = false;
+static int8_t initialized = false;
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    wgpu_context_t* wgpu_context = context->wgpu_context;
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 3,
+      .num_channels = 1,
+      .num_lanes    = 1,
+      .logger.func  = slog_func,
+    });
     tile_map_renderer_create(&tile_map_renderer, wgpu_context,
-                             wgpu_context->swap_chain.format);
+                             wgpu_context->render_format);
     tile_map_renderer_create_tileset(&tile_map_renderer, texture_paths.tile_set,
                                      16.0f);
     for (uint32_t i = 0; i < MAX_TILE_MAP_LAYER_COUNT; ++i) {
@@ -520,46 +583,50 @@ static int example_initialize(wgpu_example_context_t* context)
                                               texture_paths.tile_map_layers[i],
                                               &tile_map_renderer.tile_set);
     }
-    prepared = true;
+    initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
+  UNUSED_VAR(wgpu_context);
+
+  if (!initialized) {
     return EXIT_FAILURE;
   }
-  if (!context->paused) {
-    /* Update the uniform data for every layer */
-    tile_map_renderer_update_tile_map_layers(&tile_map_renderer,
-                                             context->frame.timestamp_millis);
-  }
+
+  sfetch_dowork();
+
+  /* Update texture when pixel data loaded */
+  tile_map_renderer_update_textures(&tile_map_renderer);
+
+  /* Update the uniform data for every layer */
+  tile_map_renderer_update_tile_map_layers(&tile_map_renderer,
+                                           stm_ms(stm_now()));
+
   return tile_map_renderer_draw(&tile_map_renderer);
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
+  sfetch_shutdown();
   tile_map_renderer_destroy(&tile_map_renderer);
 }
 
-void example_tile_map(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = example_title,
-     .overlay = true,
-     .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Tile Map",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
