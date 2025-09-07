@@ -723,7 +723,7 @@ static void update_textures(struct wgpu_context_t* wgpu_context)
   wgpu_recreate_texture(wgpu_context, &state.textures.heightmap);
   FREE_TEXTURE_PIXELS(state.textures.heightmap);
 
-  /* Upddate the bindgroup */
+  /* Upddate the bind group */
   init_frame_constants_bind_group(wgpu_context);
 }
 
