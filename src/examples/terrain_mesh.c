@@ -368,10 +368,7 @@ static void fetch_textures(void)
       .path      = tex_paths[i],
       .callback  = fetch_callback,
       .buffer    = SFETCH_RANGE(state.file_buffers[i]),
-      .user_data = {
-        .ptr = &texture,
-        .size = sizeof(wgpu_texture_t*),
-      },
+      .user_data = SFETCH_RANGE(texture),
     });
   }
 }
