@@ -139,6 +139,7 @@ add_example_executable(prng)
 add_example_executable(square)
 add_example_executable(terrain_mesh)
 add_example_executable(textured_cube)
+add_example_executable(tile_map)
 add_example_executable(two_cubes)
 
 # ==============================================================================
