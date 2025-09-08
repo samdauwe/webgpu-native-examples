@@ -61,15 +61,16 @@ static void tile_set_create(tile_set_t* this, wgpu_context_t* wgpu_context,
                             const char* file_path, float tile_size)
 {
   this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
-  /*sfetch_send(&(sfetch_request_t){
+  wgpu_texture_t* texture = &this->texture;
+  sfetch_send(&(sfetch_request_t){
     .path      = file_path,
     .callback  = fetch_callback,
     .buffer    = SFETCH_RANGE(this->file_buffer),
     .user_data = {
-      .ptr = &this->texture,
+      .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
     },
-  });*/
+  });
   this->tile_size = tile_size;
 }
 
@@ -131,15 +132,16 @@ static void tile_map_layer_create(tile_map_layer_t* this,
   this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 
   /* Start loading the image file */
-  /*sfetch_send(&(sfetch_request_t){
+  wgpu_texture_t* texture = &this->texture;
+  sfetch_send(&(sfetch_request_t){
     .path      = texture_path,
     .callback  = fetch_callback,
     .buffer    = SFETCH_RANGE(this->file_buffer),
     .user_data = {
-      .ptr = &this->texture,
+      .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
     },
-  });*/
+  });
 
   /* Create uniform buffer */
   this->uniform.buffer = wgpu_create_buffer(
@@ -354,7 +356,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
       },
       .primitive = {
         .topology  = WGPUPrimitiveTopology_TriangleList,
-        .cullMode  = WGPUCullMode_Back,
+        .cullMode  = WGPUCullMode_None,
         .frontFace = WGPUFrontFace_CCW
       },
       .multisample = {
