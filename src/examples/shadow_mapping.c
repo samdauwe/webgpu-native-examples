@@ -712,7 +712,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
-                  .label            = "vertex_shadow_shader",
+                  .label            = "Shadow - Vertex shader",
                   .wgsl_code.source = vertex_shadow_wgsl,
                   .entry            = "main",
                 },
