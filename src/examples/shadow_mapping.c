@@ -730,7 +730,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipelines.shadow = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "shadow_render_pipeline",
+                            .label        = "Shadow - Render pipeline",
                             .layout       = pipeline_layouts.shadow,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
