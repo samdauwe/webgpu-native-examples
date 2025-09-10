@@ -846,7 +846,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   render_pipelines.color = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "color_render_pipeline",
+                            .label        = "Color - Render pipeline",
                             .layout       = pipeline_layouts.color,
                             .primitive    = primitive_state,
                             .vertex       = vertex_state,
