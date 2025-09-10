@@ -826,7 +826,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader WGSL
-                  .label            = "fragment_shader",
+                  .label            = "Fragment shader WGSL",
                   .wgsl_code.source = fragment_wgsl,
                   .entry            = "main",
                 },
