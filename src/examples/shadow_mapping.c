@@ -813,7 +813,7 @@ static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader WGSL
-                  .label            = "vertex_shader",
+                  .label            = "Vertex shader WGSL",
                   .wgsl_code.source = vertex_wgsl,
                   .entry            = "main",
                 },
