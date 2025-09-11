@@ -179,7 +179,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout",
+                            .label                = "Cubemap - Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
