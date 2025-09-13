@@ -153,6 +153,8 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
                                uint32_t width, uint32_t height);
 void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
                            wgpu_texture_t* texture);
+void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
+                          void* pixels, WGPUExtent3D size, uint32_t channels);
 void wgpu_destroy_texture(wgpu_texture_t* texture);
 
 /* -------------------------------------------------------------------------- *

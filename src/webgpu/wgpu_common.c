@@ -784,6 +784,35 @@ void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
   *texture = wgpu_create_texture(wgpu_context, &texture->desc);
 }
 
+void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
+                          void* pixels, WGPUExtent3D size, uint32_t channels)
+{
+  const uint64_t data_size = size.width * size.height * size.depthOrArrayLayers
+                             * channels * sizeof(uint8_t);
+  wgpuQueueWriteTexture(wgpu_context->queue,
+                        &(WGPUTexelCopyTextureInfo) {
+                          .texture = texture,
+                          .mipLevel = 0,
+                          .origin = (WGPUOrigin3D) {
+                              .x = 0,
+                              .y = 0,
+                              .z = 0,
+                          },
+                          .aspect = WGPUTextureAspect_All,
+                        },
+                        pixels, data_size,
+                        &(WGPUTexelCopyBufferLayout){
+                          .offset       = 0,
+                          .bytesPerRow  = size.width * channels * sizeof(uint8_t),
+                          .rowsPerImage = size.height,
+                        },
+                        &(WGPUExtent3D){
+                          .width              = size.width,
+                          .height             = size.height,
+                          .depthOrArrayLayers = size.depthOrArrayLayers,
+                        });
+}
+
 void wgpu_destroy_texture(wgpu_texture_t* texture)
 {
   WGPU_RELEASE_RESOURCE(Sampler, texture->sampler);
