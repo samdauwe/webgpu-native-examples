@@ -590,7 +590,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     .label            = STRVIEW(VALUE_OR(desc->label, "WebGPU buffer")),
     .usage            = desc->usage,
     .size             = size,
-    .mappedAtCreation = false,
+    .mappedAtCreation = desc->mapped_at_creation,
   };
 
   const uint32_t initial_size

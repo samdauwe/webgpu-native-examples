@@ -108,6 +108,7 @@ typedef struct wgpu_buffer_desc_t {
     const void* data;
     uint32_t size;
   } initial;
+  WGPUBool mapped_at_creation;
 } wgpu_buffer_desc_t;
 
 typedef struct wgpu_buffer_t {
