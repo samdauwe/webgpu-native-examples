@@ -133,6 +133,7 @@ endfunction()
 
 # Examples
 add_example_executable(clear_screen)
+add_example_executable(conway)
 add_example_executable(hello_triangle)
 add_example_executable(instanced_cube)
 add_example_executable(prng)
