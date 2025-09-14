@@ -24,6 +24,8 @@ static const char* graphics_fragment_shader_wgsl;
  * A Conway Game Of Life example
  * -------------------------------------------------------------------------- */
 
+#define COMPUTE_TEX_FORMAT (WGPUTextureFormat_RGBA8Unorm)
+
 static struct {
   struct {
     struct wgpu_buffer_t buffer;
@@ -32,7 +34,6 @@ static struct {
       uint32_t compute_height;
     } desc;
   } uniforms;
-  WGPUTextureFormat COMPUTE_TEX_FORMAT;
   wgpu_texture_t textures[2];
   struct {
     WGPUBindGroupLayout bind_group_layout;
@@ -53,7 +54,6 @@ static struct {
 } state = {
   .uniforms.desc.compute_width  = 0u,
   .uniforms.desc.compute_height = 1u,
-  .COMPUTE_TEX_FORMAT = WGPUTextureFormat_RGBA8Unorm,
   .color_attachment = {
    .loadOp     = WGPULoadOp_Clear,
    .storeOp    = WGPUStoreOp_Store,
@@ -114,7 +114,7 @@ static void init_textures(wgpu_context_t* wgpu_context)
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = state.COMPUTE_TEX_FORMAT,
+      .format        = COMPUTE_TEX_FORMAT,
       .usage
       = (i == 0) ?
           (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding
@@ -208,7 +208,7 @@ static void init_pipeline_layouts(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
           .access        = WGPUStorageTextureAccess_WriteOnly,
-          .format        = state.COMPUTE_TEX_FORMAT,
+          .format        = COMPUTE_TEX_FORMAT,
           .viewDimension = WGPUTextureViewDimension_2D,
         },
         .sampler = {0},
