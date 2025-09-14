@@ -144,6 +144,7 @@ add_example_executable(textured_cube)
 add_example_executable(tile_map)
 add_example_executable(two_cubes)
 add_example_executable(vertex_buffer)
+add_example_executable(wireframe_vertex_pulling)
 
 # ==============================================================================
 # IDE support

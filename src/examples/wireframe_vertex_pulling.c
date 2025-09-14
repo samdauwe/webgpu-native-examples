@@ -1,9 +1,10 @@
-﻿#include "example_base.h"
-#include "meshes.h"
+﻿#include "meshes.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Wireframe and Thick-Line Rendering in WebGPU
@@ -47,6 +48,8 @@ static const char* render_wireframe_wgsl;
  * Wireframe and Thick-Line Rendering example
  * -------------------------------------------------------------------------- */
 
+#define SWITCH_RENDER_TIME_INTERVAL (5.0f) /* seconds unit */
+
 /* Cube mesh */
 static indexed_cube_mesh_t indexed_cube_mesh = {0};
 
@@ -72,44 +75,68 @@ typedef struct cube_t {
     float padding[12];
   } view_matrices;
 } cube_t;
-static cube_t cube = {0};
-
-/* The pipeline layout */
-static WGPUPipelineLayout pipeline_layout = NULL;
-
-/* Render pass descriptor for frame buffer writes */
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
 
 /* Render modes */
-typedef enum render_mode_enum {
+typedef enum render_mode_enum_t {
   RenderMode_Solid_Mesh      = 0,
   RenderMode_Points          = 1,
   RenderMode_Wireframe       = 2,
   RenderMode_Wireframe_Thick = 3,
-} render_mode_enum;
+  RenderMode_Count           = 4,
+} render_mode_enum_t;
 
-static render_mode_enum current_render_mode = RenderMode_Solid_Mesh;
+/* Render mode descriptions */
+static const char* render_modes_desc[4]
+  = {"Solid", "Points", "Wireframe", "Wireframe Thick"};
 
-/* Render pipeline */
-static WGPURenderPipeline render_pipelines[4] = {0};
+/* State struct */
+static struct {
+  cube_t cube;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline render_pipelines[4];
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
+  struct {
+    render_mode_enum_t current_render_mode;
+  } settings;
+  float prev_render_mode_switch_time;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1, 0.2, 0.3, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .depth_stencil_attachment = {
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
+  },
+  .render_pass_dscriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+    .depthStencilAttachment = &state.depth_stencil_attachment,
+  },
+  .settings = {
+    .current_render_mode = RenderMode_Solid_Mesh,
+  },
+  .prev_render_mode_switch_time = -1.0f,
+};
 
-/* Other variables */
-static const char* example_title
-  = "Wireframe and Thick-Line Rendering in WebGPU";
-static bool prepared = false;
-
-static void prepare_cube_mesh(void)
+static void init_cube_mesh(void)
 {
   indexed_cube_mesh_init(&indexed_cube_mesh);
 }
 
-static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
+static void init_storage_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create position buffer */
-  cube.positions = wgpu_create_buffer(
+  state.cube.positions = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube position - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
@@ -118,7 +145,7 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
                   });
 
   /* Create color buffer */
-  cube.colors = wgpu_create_buffer(
+  state.cube.colors = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube color - Vertex buffer",
                     .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
@@ -127,10 +154,10 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void prepare_index_buffer(wgpu_context_t* wgpu_context)
+static void init_index_buffer(wgpu_context_t* wgpu_context)
 {
   /* Create index buffer */
-  cube.indices = wgpu_create_buffer(
+  state.cube.indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube - Index buffer",
                     .usage = WGPUBufferUsage_Index | WGPUBufferUsage_Vertex
@@ -141,7 +168,7 @@ static void prepare_index_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry) {
@@ -151,7 +178,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = cube.uniform_buffer_vs.size,
+        .minBindingSize   = state.cube.uniform_buffer_vs.size,
       },
       .sampler = {0},
     },
@@ -162,7 +189,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize   = cube.positions.size,
+        .minBindingSize   = state.cube.positions.size,
       },
       .sampler = {0},
     },
@@ -173,7 +200,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize   = cube.colors.size,
+        .minBindingSize   = state.cube.colors.size,
       },
       .sampler = {0},
     },
@@ -184,148 +211,119 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
         .hasDynamicOffset = false,
-        .minBindingSize   = cube.indices.size,
+        .minBindingSize   = state.cube.indices.size,
       },
       .sampler = {0},
     }
   };
-  cube.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.cube.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Cube - Bind group layout",
+                            .label      = STRVIEW("Cube - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(cube.bind_group_layout != NULL)
+  ASSERT(state.cube.bind_group_layout != NULL)
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this bind group layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Cube - Pipeline layout",
+                            .label = STRVIEW("Cube - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &cube.bind_group_layout,
+                            .bindGroupLayouts = &state.cube.bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL)
+  ASSERT(state.pipeline_layout != NULL)
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void update_view_matrices(wgpu_context_t* wgpu_context)
 {
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
-      },
-  };
+  glm_mat4_identity(state.cube.view_matrices.view);
+  glm_translate(state.cube.view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
+  const float now = stm_sec(stm_now());
+  glm_rotate(state.cube.view_matrices.view, 1.0f,
+             (vec3){sin(now), cos(now), 0.0f});
 
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static void update_view_matrices(wgpu_example_context_t* context)
-{
-  wgpu_context_t* wgpu_context = context->wgpu_context;
-
-  glm_mat4_identity(cube.view_matrices.view);
-  glm_translate(cube.view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
-  const float now = context->frame.timestamp_millis / 1000.0f;
-  glm_rotate(cube.view_matrices.view, 1.0f, (vec3){sin(now), cos(now), 0.0f});
-
-  glm_mat4_identity(cube.view_matrices.world);
+  glm_mat4_identity(state.cube.view_matrices.world);
   const float aspect_ratio
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
-  glm_mat4_identity(cube.view_matrices.proj);
+    = (float)wgpu_context->width / (float)wgpu_context->height;
+  glm_mat4_identity(state.cube.view_matrices.proj);
   glm_perspective((2 * PI) / 5.0f, aspect_ratio, 1.0f, 100.0f,
-                  cube.view_matrices.proj);
+                  state.cube.view_matrices.proj);
 
-  cube.view_matrices.screen_width  = (float)wgpu_context->surface.width;
-  cube.view_matrices.screen_height = (float)wgpu_context->surface.height;
+  state.cube.view_matrices.screen_width  = (float)wgpu_context->width;
+  state.cube.view_matrices.screen_height = (float)wgpu_context->height;
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Update the view matrices */
-  update_view_matrices(context);
+  update_view_matrices(wgpu_context);
 
   /* Map uniform buffer and update it */
-  wgpu_queue_write_buffer(context->wgpu_context, cube.uniform_buffer_vs.buffer,
-                          0, &cube.view_matrices, cube.uniform_buffer_vs.size);
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.cube.uniform_buffer_vs.buffer,
+                       0, &state.cube.view_matrices,
+                       state.cube.uniform_buffer_vs.size);
 }
 
-static void prepare_uniform_buffer(wgpu_example_context_t* context)
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   /* Create uniform buffer */
-  cube.uniform_buffer_vs = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Cube - Uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(cube.view_matrices),
-    });
-  ASSERT(cube.uniform_buffer_vs.buffer != NULL)
+  state.cube.uniform_buffer_vs = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Cube - Uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.cube.view_matrices),
+                  });
+  ASSERT(state.cube.uniform_buffer_vs.buffer != NULL)
 
   /* Update uniform buffer */
-  update_uniform_buffers(context);
+  update_uniform_buffers(wgpu_context);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_groups(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
       /* Binding 0: uniform buffer */
       .binding = 0,
-      .buffer  = cube.uniform_buffer_vs.buffer,
+      .buffer  = state.cube.uniform_buffer_vs.buffer,
       .offset  = 0,
-      .size    = cube.uniform_buffer_vs.size,
+      .size    = state.cube.uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
        /* Binding 1: positions */
       .binding = 1,
-      .buffer  = cube.positions.buffer,
+      .buffer  = state.cube.positions.buffer,
       .offset  = 0,
-      .size    = cube.positions.size,
+      .size    = state.cube.positions.size,
     },
     [2] = (WGPUBindGroupEntry) {
       /* Binding 2: colors */
       .binding = 2,
-      .buffer  = cube.colors.buffer,
+      .buffer  = state.cube.colors.buffer,
       .offset  = 0,
-      .size    = cube.colors.size,
+      .size    = state.cube.colors.size,
     },
     [3] = (WGPUBindGroupEntry) {
       /* Binding 3: indices */
       .binding = 3,
-      .buffer  = cube.indices.buffer,
+      .buffer  = state.cube.indices.buffer,
       .offset  = 0,
-      .size    = cube.indices.size,
+      .size    = state.cube.indices.size,
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Cube - Bind group layout",
-    .layout     = cube.bind_group_layout,
+    .label      = STRVIEW("Cube - Bind group layout"),
+    .layout     = state.cube.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  cube.uniform_buffer_bind_group
+  state.cube.uniform_buffer_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(cube.uniform_buffer_bind_group != NULL)
+  ASSERT(state.cube.uniform_buffer_bind_group != NULL)
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_pipelines(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
   WGPUPrimitiveState primitive_state = {
@@ -337,7 +335,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
+    .format    = wgpu_context->render_format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
@@ -345,378 +343,280 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
   /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
+  WGPUMultisampleState multisample_state = {
+    .count = 1,
+    .mask  = 0xffffffff,
+  };
 
   /* Render pipeline: Solid mesh */
   {
-    /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-       wgpu_context, &(wgpu_vertex_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label             = "Render solid mesh - Vertex shader WGSL",
-         .wgsl_code.source  = render_solid_mesh_wgsl,
-         .entry             = "main_vertex",
-       },
-       .buffer_count = 0,
-       .buffers      = NULL,
-     });
+    WGPUShaderModule vert_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, render_solid_mesh_wgsl);
+    WGPUShaderModule frag_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, render_solid_mesh_wgsl);
 
-    /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-       wgpu_context, &(wgpu_fragment_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Fragment shader WGSL */
-         .label             = "Render solid mesh - Fragment shader WGSL",
-         .wgsl_code.source  = render_solid_mesh_wgsl,
-         .entry             = "main_fragment",
-       },
-       .target_count = 1,
-       .targets = &color_target_state,
-     });
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Solid mesh - Render pipeline"),
+      .layout = state.pipeline_layout,
+      .vertex = {
+        .module      = vert_shader_module,
+        .entryPoint  = STRVIEW("main_vertex"),
+      },
+      .fragment = &(WGPUFragmentState) {
+        .entryPoint  = STRVIEW("main_fragment"),
+        .module      = frag_shader_module,
+        .targetCount = 1,
+        .targets     = &color_target_state,
+      },
+      .primitive    = primitive_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    };
 
-    /* Create rendering pipeline using the specified states */
-    render_pipelines[(uint32_t)RenderMode_Solid_Mesh]
-      = wgpuDeviceCreateRenderPipeline(
-        wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label        = "Solid mesh - Render pipeline",
-                                .layout       = pipeline_layout,
-                                .primitive    = primitive_state,
-                                .vertex       = vertex_state,
-                                .fragment     = &fragment_state,
-                                .depthStencil = &depth_stencil_state,
-                                .multisample  = multisample_state,
-                              });
-    ASSERT(render_pipelines[(uint32_t)RenderMode_Solid_Mesh] != NULL);
+    state.render_pipelines[(uint32_t)RenderMode_Solid_Mesh]
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+    ASSERT(state.render_pipelines[(uint32_t)RenderMode_Solid_Mesh] != NULL);
 
-    // Shader modules are no longer needed once the graphics pipeline has been
-    // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module);
   }
 
   /* Render pipeline: Points */
   {
     primitive_state.topology = WGPUPrimitiveTopology_PointList;
 
-    /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-       wgpu_context, &(wgpu_vertex_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render points - Vertex shader WGSL",
-         .wgsl_code.source = render_points_wgsl,
-         .entry            = "main_vertex",
-       },
-       .buffer_count = 0,
-       .buffers      = NULL,
-     });
+    WGPUShaderModule shader_module
+      = wgpu_create_shader_module(wgpu_context->device, render_points_wgsl);
 
-    /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-       wgpu_context, &(wgpu_fragment_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render points - Fragment shader WGSL",
-         .wgsl_code.source = render_points_wgsl,
-         .entry            = "main_fragment",
-       },
-       .target_count = 1,
-       .targets      = &color_target_state,
-     });
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Points - Render pipeline"),
+      .layout = state.pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("main_vertex"),
+      },
+      .fragment = &(WGPUFragmentState) {
+        .entryPoint  = STRVIEW("main_fragment"),
+        .module      = shader_module,
+        .targetCount = 1,
+        .targets     = &color_target_state,
+      },
+      .primitive    = primitive_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    };
 
-    /* Create rendering pipeline using the specified states */
-    render_pipelines[(uint32_t)RenderMode_Points]
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
-                                       &(WGPURenderPipelineDescriptor){
-                                         .label  = "Points - Render pipeline",
-                                         .layout = pipeline_layout,
-                                         .primitive    = primitive_state,
-                                         .vertex       = vertex_state,
-                                         .fragment     = &fragment_state,
-                                         .depthStencil = &depth_stencil_state,
-                                         .multisample  = multisample_state,
-                                       });
-    ASSERT(render_pipelines[(uint32_t)RenderMode_Points] != NULL);
+    state.render_pipelines[(uint32_t)RenderMode_Points]
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+    ASSERT(state.render_pipelines[(uint32_t)RenderMode_Points] != NULL);
 
-    // Shader modules are no longer needed once the graphics pipeline has been
-    // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, shader_module);
   }
 
   /* Render pipeline: Wireframe */
   {
     primitive_state.topology = WGPUPrimitiveTopology_LineList;
 
-    /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-       wgpu_context, &(wgpu_vertex_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render wireframe - Vertex shader WGSL",
-         .wgsl_code.source = render_wireframe_wgsl,
-         .entry            = "main_vertex",
-       },
-       .buffer_count = 0,
-       .buffers      = NULL,
-     });
+    WGPUShaderModule shader_module
+      = wgpu_create_shader_module(wgpu_context->device, render_wireframe_wgsl);
 
-    /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-       wgpu_context, &(wgpu_fragment_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render wireframe - Fragment shader WGSL",
-         .wgsl_code.source = render_wireframe_wgsl,
-         .entry            = "main_fragment",
-       },
-       .target_count = 1,
-       .targets      = &color_target_state,
-     });
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Wireframe - Render pipeline"),
+      .layout = state.pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("main_vertex"),
+      },
+      .fragment = &(WGPUFragmentState) {
+        .entryPoint  = STRVIEW("main_fragment"),
+        .module      = shader_module,
+        .targetCount = 1,
+        .targets     = &color_target_state,
+      },
+      .primitive    = primitive_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    };
 
-    /* Create rendering pipeline using the specified states */
-    render_pipelines[(uint32_t)RenderMode_Wireframe]
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
-                                       &(WGPURenderPipelineDescriptor){
-                                         .label = "Wireframe - Render pipeline",
-                                         .layout       = pipeline_layout,
-                                         .primitive    = primitive_state,
-                                         .vertex       = vertex_state,
-                                         .fragment     = &fragment_state,
-                                         .depthStencil = &depth_stencil_state,
-                                         .multisample  = multisample_state,
-                                       });
-    ASSERT(render_pipelines[(uint32_t)RenderMode_Wireframe] != NULL);
+    state.render_pipelines[(uint32_t)RenderMode_Wireframe]
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+    ASSERT(state.render_pipelines[(uint32_t)RenderMode_Wireframe] != NULL);
 
-    // Shader modules are no longer needed once the graphics pipeline has been
-    // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, shader_module);
   }
 
   /* Render pipeline: Wireframe Thick */
   {
     primitive_state.topology = WGPUPrimitiveTopology_TriangleList;
 
-    /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-       wgpu_context, &(wgpu_vertex_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render wireframe thick - Vertex shader WGSL",
-         .wgsl_code.source = render_wireframe_thick_wgsl,
-         .entry            = "main_vertex",
-       },
-       .buffer_count = 0,
-       .buffers      = NULL,
-     });
+    WGPUShaderModule shader_module = wgpu_create_shader_module(
+      wgpu_context->device, render_wireframe_thick_wgsl);
 
-    /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-       wgpu_context, &(wgpu_fragment_state_t){
-       .shader_desc = (wgpu_shader_desc_t){
-         /* Vertex shader WGSL */
-         .label            = "Render wireframe thick - Fragment shader WGSL",
-         .wgsl_code.source = render_wireframe_thick_wgsl,
-         .entry            = "main_fragment",
-       },
-       .target_count = 1,
-       .targets      = &color_target_state,
-     });
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Wireframe thick - Render pipeline"),
+      .layout = state.pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("main_vertex"),
+      },
+      .fragment = &(WGPUFragmentState) {
+        .entryPoint  = STRVIEW("main_fragment"),
+        .module      = shader_module,
+        .targetCount = 1,
+        .targets     = &color_target_state,
+      },
+      .primitive    = primitive_state,
+      .depthStencil = &depth_stencil_state,
+      .multisample  = multisample_state,
+    };
 
-    /* Create rendering pipeline using the specified states */
-    render_pipelines[(uint32_t)RenderMode_Wireframe_Thick]
-      = wgpuDeviceCreateRenderPipeline(
-        wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                                .label  = "Wireframe thick - Render pipeline",
-                                .layout = pipeline_layout,
-                                .primitive    = primitive_state,
-                                .vertex       = vertex_state,
-                                .fragment     = &fragment_state,
-                                .depthStencil = &depth_stencil_state,
-                                .multisample  = multisample_state,
-                              });
-    ASSERT(render_pipelines[(uint32_t)RenderMode_Wireframe_Thick] != NULL);
+    state.render_pipelines[(uint32_t)RenderMode_Wireframe_Thick]
+      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+    ASSERT(state.render_pipelines[(uint32_t)RenderMode_Wireframe_Thick]
+           != NULL);
 
-    // Shader modules are no longer needed once the graphics pipeline has been
-    // created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, shader_module);
   }
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_cube_mesh();
-    prepare_storage_buffers(context->wgpu_context);
-    prepare_index_buffer(context->wgpu_context);
-    prepare_uniform_buffer(context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    stm_setup();
+    init_cube_mesh();
+    init_storage_buffers(wgpu_context);
+    init_index_buffer(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_bind_groups(wgpu_context);
+    init_pipelines(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void update_render_mode(void)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
-    static const char* mode[4]
-      = {"Solid", "Points", "Wireframe", "Wireframe Thick"};
-    int32_t item_index = (int32_t)current_render_mode;
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Mode", &item_index,
-                                mode, 4)) {
-      current_render_mode = (render_mode_enum)item_index;
-    }
+  if (state.prev_render_mode_switch_time < 0.0f) {
+    state.prev_render_mode_switch_time = stm_sec(stm_now());
+    return;
+  }
+
+  const float now = stm_sec(stm_now());
+  if ((now - state.prev_render_mode_switch_time)
+      > SWITCH_RENDER_TIME_INTERVAL) {
+    state.settings.current_render_mode
+      = (state.settings.current_render_mode + 1) % RenderMode_Count;
+    state.prev_render_mode_switch_time = now;
+    printf("Switched to new render mode: %s\n",
+           render_modes_desc[state.settings.current_render_mode]);
   }
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  /* Update matrix data */
+  update_uniform_buffers(wgpu_context);
 
-  /* Create render pass */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  /* Update render mode */
+  update_render_mode();
 
-  /* Bind the rendering pipeline */
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view         = wgpu_context->swapchain_view;
+  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
+
   wgpuRenderPassEncoderSetPipeline(
-    wgpu_context->rpass_enc, render_pipelines[(uint32_t)current_render_mode]);
-
-  /* Set the bind group */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    cube.uniform_buffer_bind_group, 0, 0);
-
-  /* Bind vertex buffers */
+    rpass_enc,
+    state.render_pipelines[(uint32_t)state.settings.current_render_mode]);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
+                                    state.cube.uniform_buffer_bind_group, 0, 0);
   wgpuRenderPassEncoderSetVertexBuffer(
-    wgpu_context->rpass_enc, 1, cube.positions.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 2,
-                                       cube.colors.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 3,
-                                       cube.indices.buffer, 0, WGPU_WHOLE_SIZE);
+    rpass_enc, 1, state.cube.positions.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 2, state.cube.colors.buffer,
+                                       0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 3, state.cube.indices.buffer,
+                                       0, WGPU_WHOLE_SIZE);
 
-  if (current_render_mode == RenderMode_Solid_Mesh) {
+  if (state.settings.current_render_mode == RenderMode_Solid_Mesh) {
     /* Bind index buffer */
-    wgpuRenderPassEncoderSetIndexBuffer(
-      wgpu_context->rpass_enc, cube.indices.buffer, WGPUIndexFormat_Uint32, 0,
-      cube.indices.size);
+    wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.cube.indices.buffer,
+                                        WGPUIndexFormat_Uint32, 0,
+                                        state.cube.indices.size);
     /* Draw indexed cube */
-    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                     cube.indices.count, 1, 0, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.cube.indices.count, 1, 0,
+                                     0, 0);
   }
-  else if (current_render_mode == RenderMode_Points) {
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc,
-                              indexed_cube_mesh.vertex_count, 1, 0, 0);
-  }
-  else if (current_render_mode == RenderMode_Wireframe) {
-    const uint32_t num_triangles = indexed_cube_mesh.index_count / 3;
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6 * num_triangles, 1, 0,
+  else if (state.settings.current_render_mode == RenderMode_Points) {
+    wgpuRenderPassEncoderDraw(rpass_enc, indexed_cube_mesh.vertex_count, 1, 0,
                               0);
   }
-  else if (current_render_mode == RenderMode_Wireframe_Thick) {
+  else if (state.settings.current_render_mode == RenderMode_Wireframe) {
     const uint32_t num_triangles = indexed_cube_mesh.index_count / 3;
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3 * 6 * num_triangles, 1,
-                              0, 0);
+    wgpuRenderPassEncoderDraw(rpass_enc, 6 * num_triangles, 1, 0, 0);
+  }
+  else if (state.settings.current_render_mode == RenderMode_Wireframe_Thick) {
+    const uint32_t num_triangles = indexed_cube_mesh.index_count / 3;
+    wgpuRenderPassEncoderDraw(rpass_enc, 3 * 6 * num_triangles, 1, 0, 0);
   }
 
   /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  const int draw_result = example_draw(context);
-  if (!context->paused) {
-    update_uniform_buffers(context);
-  }
-  return draw_result;
-}
-
-/* Clean up used resources */
-static void example_destroy(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, cube.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, cube.uniform_buffer_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, cube.positions.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, cube.colors.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, cube.indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, cube.uniform_buffer_vs.buffer)
-  for (uint32_t i = 0; i < 4; ++i) {
-    WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipelines[i])
+  UNUSED_VAR(wgpu_context);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.cube.uniform_buffer_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube.positions.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube.colors.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube.uniform_buffer_vs.buffer)
+  for (uint32_t i = 0; i < ARRAY_SIZE(state.render_pipelines); ++i) {
+    WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipelines[i])
   }
 }
 
-void example_wireframe_vertex_pulling(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = example_title,
-     .overlay = true,
-     .vsync   = true
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Wireframe and Thick-Line Rendering in WebGPU",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
