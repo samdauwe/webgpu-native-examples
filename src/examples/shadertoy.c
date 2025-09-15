@@ -97,7 +97,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
 {
   // Bind Group
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Bind group",
+    .label      = "Shadertoy - Bind group",
     .layout     = bind_group_layout,
     .entryCount = 1,
     .entries    = &(WGPUBindGroupEntry) {
