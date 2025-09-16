@@ -66,7 +66,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   // Create the bind group layout
   WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .label      = "Bind group layout",
+    .label      = "Shadertoy - Bind group layout",
     .entryCount = 1,
     .entries = &(WGPUBindGroupLayoutEntry) {
       // Binding 0: Uniform buffer (Fragment shader)
