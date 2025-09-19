@@ -355,7 +355,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     bind_group_layouts.radial_blur = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
       &(WGPUBindGroupLayoutDescriptor){
-        .label      = "Full-screen radial blur rendering bind group layout",
+        .label      = "Full-screen radial blur rendering - Bind group layout",
         .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
         .entries    = bgl_entries,
       });
