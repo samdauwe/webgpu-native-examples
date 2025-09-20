@@ -48,6 +48,10 @@
 static const char* terrain_mesh_vertex_shader_wgsl;
 static const char* terrain_mesh_fragment_shader_wgsl;
 
+/* -------------------------------------------------------------------------- *
+ * Terrain Mesh Example
+ * -------------------------------------------------------------------------- */
+
 /* Terrain patch parameters */
 // clang-format off
 #define PATCH_SIZE (50)
