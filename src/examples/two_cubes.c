@@ -54,7 +54,7 @@ static struct {
     uint64_t number_of_cubes;
     bool render_bundles;
   } settings;
-  int8_t initialized;
+  WGPUBool initialized;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,

@@ -64,7 +64,7 @@ static struct {
    .colorAttachmentCount = 1,
    .colorAttachments     = &state.color_attachment,
   },
-  .is_forward = true,
+  .is_forward = 1,
 };
 
 static void update_uniform_buffer(wgpu_context_t* wgpu_context)
@@ -159,7 +159,7 @@ static void init_textures(wgpu_context_t* wgpu_context)
   /* Setup the initial texture1, with some initial data. */
   uint8_t* b = malloc(compute_width * compute_height * 4 * sizeof(uint8_t));
   ASSERT(b);
-  bool has_life = false;
+  WGPUBool has_life = 0;
   uint8_t v     = 0;
   for (uint32_t y = 0; y < compute_height; ++y) {
     for (uint32_t x = 0; x < compute_width; ++x) {
@@ -198,7 +198,7 @@ static void init_pipeline_layouts(wgpu_context_t* wgpu_context)
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled  = false,
+          .multisampled  = 0,
         },
         .storageTexture = {0},
       },
@@ -244,7 +244,7 @@ static void init_pipeline_layouts(wgpu_context_t* wgpu_context)
         .texture = (WGPUTextureBindingLayout) {
           .sampleType    = WGPUTextureSampleType_Float,
           .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled  = false,
+          .multisampled  = 0,
         },
         .storageTexture = {0},
       },
@@ -416,7 +416,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_pipeline_layouts(wgpu_context);
     init_pipelines(wgpu_context);
     init_bind_groups(wgpu_context);
-    state.initialized = true;
+    state.initialized = 1;
     return EXIT_SUCCESS;
   }
 

@@ -67,7 +67,7 @@ static struct {
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
-  int8_t initialized;
+  WGPUBool initialized;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,

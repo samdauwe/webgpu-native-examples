@@ -31,7 +31,7 @@ static struct {
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
-  int8_t initialized;
+  WGPUBool initialized;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -170,7 +170,7 @@ static int init(struct wgpu_context_t* wgpu_context)
   if (wgpu_context) {
     init_vertex_buffers(wgpu_context);
     init_pipeline(wgpu_context);
-    state.initialized = true;
+    state.initialized = 1;
     return EXIT_SUCCESS;
   }
 

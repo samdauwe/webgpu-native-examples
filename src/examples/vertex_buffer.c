@@ -32,7 +32,7 @@ static struct {
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
-  int8_t initialized;
+  WGPUBool initialized;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -158,7 +158,7 @@ static void create_geometry(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = MAX_VERTICES * sizeof(vertex_t),
                     .count = 4,
-                    .mapped_at_creation = true,
+                    .mapped_at_creation = 1,
                   });
 
   float viewport_x_scale = (float)wgpu_context->height / wgpu_context->width;
@@ -225,7 +225,7 @@ static int init(struct wgpu_context_t* wgpu_context)
   if (wgpu_context) {
     create_geometry(wgpu_context);
     init_pipeline(wgpu_context);
-    state.initialized = true;
+    state.initialized = 1;
     return EXIT_SUCCESS;
   }
 

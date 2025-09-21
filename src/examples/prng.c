@@ -49,8 +49,8 @@ static struct {
   WGPUBindGroup uniform_bind_group;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_dscriptor;
-  int8_t initialized;
-  int8_t paused;
+  WGPUBool initialized;
+  WGPUBool paused;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
