@@ -10,6 +10,19 @@
  * -------------------------------------------------------------------------- */
 
 static wgpu_context_t wgpu_context;
+static struct {
+  input_event_type_t event_type;
+  button_t button_type;
+  double cursor_pos[2];
+  double cursor_pos_delta[2];
+  double mouse_offset[2];
+  WGPUBool mouse_btn_pressed;
+  WGPUBool alt_key;
+  WGPUBool ctrl_key;
+  WGPUBool shift_key;
+  keycode_t key_code;
+  uint32_t char_code;
+} input_state = {0};
 
 /* Forward declarations */
 static void wgpu_platform_start(wgpu_context_t* wgpu_context);
@@ -17,6 +30,148 @@ static void wgpu_swapchain_init(wgpu_context_t* wgpu_context);
 static void wgpu_swapchain_discard(wgpu_context_t* wgpu_context);
 static void wgpu_swapchain_resized(wgpu_context_t* wgpu_context);
 static WGPUTextureView wgpu_swapchain_next(wgpu_context_t* wgpu_context);
+
+static keycode_t remap_glfw_key_code(int key)
+{
+  keycode_t key_code = KEY_UNKNOWN;
+  switch (key) {
+      // clang-format off
+    case GLFW_KEY_ESCAPE:        key_code = KEY_ESCAPE;        break;
+    case GLFW_KEY_TAB:           key_code = KEY_TAB;           break;
+    case GLFW_KEY_LEFT_SHIFT:    key_code = KEY_LEFT_SHIFT;    break;
+    case GLFW_KEY_RIGHT_SHIFT:   key_code = KEY_RIGHT_SHIFT;   break;
+    case GLFW_KEY_LEFT_CONTROL:  key_code = KEY_LEFT_CONTROL;  break;
+    case GLFW_KEY_RIGHT_CONTROL: key_code = KEY_RIGHT_CONTROL; break;
+    case GLFW_KEY_LEFT_ALT:      key_code = KEY_LEFT_ALT;      break;
+    case GLFW_KEY_RIGHT_ALT:     key_code = KEY_RIGHT_ALT;     break;
+    case GLFW_KEY_LEFT_SUPER:    key_code = KEY_LEFT_SUPER;    break;
+    case GLFW_KEY_RIGHT_SUPER:   key_code = KEY_RIGHT_SUPER;   break;
+    case GLFW_KEY_MENU:          key_code = KEY_MENU;          break;
+    case GLFW_KEY_NUM_LOCK:      key_code = KEY_NUM_LOCK;      break;
+    case GLFW_KEY_CAPS_LOCK:     key_code = KEY_CAPS_LOCK;     break;
+    case GLFW_KEY_PRINT_SCREEN:  key_code = KEY_PRINT_SCREEN;  break;
+    case GLFW_KEY_SCROLL_LOCK:   key_code = KEY_SCROLL_LOCK;   break;
+    case GLFW_KEY_PAUSE:         key_code = KEY_PAUSE;         break;
+    case GLFW_KEY_DELETE:        key_code = KEY_DELETE;        break;
+    case GLFW_KEY_BACKSPACE:     key_code = KEY_BACKSPACE;     break;
+    case GLFW_KEY_ENTER:         key_code = KEY_ENTER;         break;
+    case GLFW_KEY_HOME:          key_code = KEY_HOME;          break;
+    case GLFW_KEY_END:           key_code = KEY_END;           break;
+    case GLFW_KEY_PAGE_UP:       key_code = KEY_PAGE_UP;       break;
+    case GLFW_KEY_PAGE_DOWN:     key_code = KEY_PAGE_DOWN;     break;
+    case GLFW_KEY_INSERT:        key_code = KEY_INSERT;        break;
+    case GLFW_KEY_LEFT:          key_code = KEY_LEFT;          break;
+    case GLFW_KEY_RIGHT:         key_code = KEY_RIGHT;         break;
+    case GLFW_KEY_DOWN:          key_code = KEY_DOWN;          break;
+    case GLFW_KEY_UP:            key_code = KEY_UP;            break;
+    case GLFW_KEY_F1:            key_code = KEY_F1;            break;
+    case GLFW_KEY_F2:            key_code = KEY_F2;            break;
+    case GLFW_KEY_F3:            key_code = KEY_F3;            break;
+    case GLFW_KEY_F4:            key_code = KEY_F4;            break;
+    case GLFW_KEY_F5:            key_code = KEY_F5;            break;
+    case GLFW_KEY_F6:            key_code = KEY_F6;            break;
+    case GLFW_KEY_F7:            key_code = KEY_F7;            break;
+    case GLFW_KEY_F8:            key_code = KEY_F8;            break;
+    case GLFW_KEY_F9:            key_code = KEY_F9;            break;
+    case GLFW_KEY_F10:           key_code = KEY_F10;           break;
+    case GLFW_KEY_F11:           key_code = KEY_F11;           break;
+    case GLFW_KEY_F12:           key_code = KEY_F12;           break;
+    case GLFW_KEY_F13:           key_code = KEY_F13;           break;
+    case GLFW_KEY_F14:           key_code = KEY_F14;           break;
+    case GLFW_KEY_F15:           key_code = KEY_F15;           break;
+    case GLFW_KEY_F16:           key_code = KEY_F16;           break;
+    case GLFW_KEY_F17:           key_code = KEY_F17;           break;
+    case GLFW_KEY_F18:           key_code = KEY_F18;           break;
+    case GLFW_KEY_F19:           key_code = KEY_F19;           break;
+    case GLFW_KEY_F20:           key_code = KEY_F20;           break;
+    case GLFW_KEY_F21:           key_code = KEY_F21;           break;
+    case GLFW_KEY_F22:           key_code = KEY_F22;           break;
+    case GLFW_KEY_F23:           key_code = KEY_F23;           break;
+    case GLFW_KEY_F24:           key_code = KEY_F24;           break;
+    case GLFW_KEY_F25:           key_code = KEY_F25;           break;
+
+    /* Numeric keypad */
+    case GLFW_KEY_KP_DIVIDE:     key_code = KEY_KP_DIVIDE;     break;
+    case GLFW_KEY_KP_MULTIPLY:   key_code = KEY_KP_MULTIPLY;   break;
+    case GLFW_KEY_KP_SUBTRACT:   key_code = KEY_KP_SUBTRACT;   break;
+    case GLFW_KEY_KP_ADD:        key_code = KEY_KP_ADD;        break;
+
+    /* These should have been detected in secondary keysym test above! */
+    case GLFW_KEY_KP_0:          key_code = KEY_KP_0;          break;
+    case GLFW_KEY_KP_1:          key_code = KEY_KP_1;          break;
+    case GLFW_KEY_KP_2:          key_code = KEY_KP_2;          break;
+    case GLFW_KEY_KP_3:          key_code = KEY_KP_3;          break;
+    case GLFW_KEY_KP_4:          key_code = KEY_KP_4;          break;
+    case GLFW_KEY_KP_5:          key_code = KEY_KP_5;          break;
+    case GLFW_KEY_KP_6:          key_code = KEY_KP_6;          break;
+    case GLFW_KEY_KP_7:          key_code = KEY_KP_7;          break;
+    case GLFW_KEY_KP_8:          key_code = KEY_KP_8;          break;
+    case GLFW_KEY_KP_9:          key_code = KEY_KP_9;          break;
+    case GLFW_KEY_KP_DECIMAL:    key_code = KEY_KP_DECIMAL;    break;
+    case GLFW_KEY_KP_EQUAL:      key_code = KEY_KP_EQUAL;      break;
+    case GLFW_KEY_KP_ENTER:      key_code = KEY_KP_ENTER;      break;
+
+    /*
+     * Last resort: Check for printable keys (should not happen if the XKB
+     * extension is available). This will give a layout dependent mapping
+     * (which is wrong, and we may miss some keys, especially on non-US
+     * keyboards), but it's better than nothing...
+     */
+    case GLFW_KEY_A:             key_code = KEY_A;             break;
+    case GLFW_KEY_B:             key_code = KEY_B;             break;
+    case GLFW_KEY_C:             key_code = KEY_C;             break;
+    case GLFW_KEY_D:             key_code = KEY_D;             break;
+    case GLFW_KEY_E:             key_code = KEY_E;             break;
+    case GLFW_KEY_F:             key_code = KEY_F;             break;
+    case GLFW_KEY_G:             key_code = KEY_G;             break;
+    case GLFW_KEY_H:             key_code = KEY_H;             break;
+    case GLFW_KEY_I:             key_code = KEY_I;             break;
+    case GLFW_KEY_J:             key_code = KEY_J;             break;
+    case GLFW_KEY_K:             key_code = KEY_K;             break;
+    case GLFW_KEY_L:             key_code = KEY_L;             break;
+    case GLFW_KEY_M:             key_code = KEY_M;             break;
+    case GLFW_KEY_N:             key_code = KEY_N;             break;
+    case GLFW_KEY_O:             key_code = KEY_O;             break;
+    case GLFW_KEY_P:             key_code = KEY_P;             break;
+    case GLFW_KEY_Q:             key_code = KEY_Q;             break;
+    case GLFW_KEY_R:             key_code = KEY_R;             break;
+    case GLFW_KEY_S:             key_code = KEY_S;             break;
+    case GLFW_KEY_T:             key_code = KEY_T;             break;
+    case GLFW_KEY_U:             key_code = KEY_U;             break;
+    case GLFW_KEY_V:             key_code = KEY_V;             break;
+    case GLFW_KEY_W:             key_code = KEY_W;             break;
+    case GLFW_KEY_X:             key_code = KEY_X;             break;
+    case GLFW_KEY_Y:             key_code = KEY_Y;             break;
+    case GLFW_KEY_Z:             key_code = KEY_Z;             break;
+    case GLFW_KEY_1:             key_code = KEY_1;             break;
+    case GLFW_KEY_2:             key_code = KEY_2;             break;
+    case GLFW_KEY_3:             key_code = KEY_3;             break;
+    case GLFW_KEY_4:             key_code = KEY_4;             break;
+    case GLFW_KEY_5:             key_code = KEY_5;             break;
+    case GLFW_KEY_6:             key_code = KEY_6;             break;
+    case GLFW_KEY_7:             key_code = KEY_7;             break;
+    case GLFW_KEY_8:             key_code = KEY_8;             break;
+    case GLFW_KEY_9:             key_code = KEY_9;             break;
+    case GLFW_KEY_0:             key_code = KEY_0;             break;
+    case GLFW_KEY_SPACE:         key_code = KEY_SPACE;         break;
+    case GLFW_KEY_MINUS:         key_code = KEY_MINUS;         break;
+    case GLFW_KEY_EQUAL:         key_code = KEY_EQUAL;         break;
+    case GLFW_KEY_LEFT_BRACKET:  key_code = KEY_LEFT_BRACKET;  break;
+    case GLFW_KEY_RIGHT_BRACKET: key_code = KEY_RIGHT_BRACKET; break;
+    case GLFW_KEY_BACKSLASH:     key_code = KEY_BACKSLASH;     break;
+    case GLFW_KEY_SEMICOLON:     key_code = KEY_SEMICOLON;     break;
+    case GLFW_KEY_APOSTROPHE:    key_code = KEY_APOSTROPHE;    break;
+    case GLFW_KEY_GRAVE_ACCENT:  key_code = KEY_GRAVE_ACCENT;  break;
+    case GLFW_KEY_COMMA:         key_code = KEY_COMMA;         break;
+    case GLFW_KEY_PERIOD:        key_code = KEY_PERIOD;        break;
+    case GLFW_KEY_SLASH:         key_code = KEY_SLASH;         break;
+    case GLFW_KEY_WORLD_1:       key_code = KEY_WORLD_1;       break;
+    default:                     key_code = KEY_UNKNOWN;       break;
+      // clang-format on
+  }
+
+  return key_code;
+}
 
 void wgpu_start(const wgpu_desc_t* desc)
 {
@@ -32,6 +187,7 @@ void wgpu_start(const wgpu_desc_t* desc)
   wgpu_context.height
     = VALUE_OR(wgpu_context.desc.height, DEFAULT_WINDOW_HEIGHT);
   wgpu_context.desc.sample_count = VALUE_OR(wgpu_context.desc.sample_count, 1);
+  wgpu_context.input_event_cb    = desc->input_event_cb;
 
   wgpu_platform_start(&wgpu_context);
 }
@@ -39,58 +195,102 @@ void wgpu_start(const wgpu_desc_t* desc)
 static void glfw_key_cb(GLFWwindow* window, int key, int scancode, int action,
                         int mods)
 {
+  UNUSED_VAR(window);
   UNUSED_VAR(scancode);
-  UNUSED_VAR(mods);
-  wgpu_context_t* wgpu_context
-    = (wgpu_context_t*)glfwGetWindowUserPointer(window);
-  if ((action == GLFW_PRESS) && wgpu_context->key_down_cb) {
-    wgpu_context->key_down_cb(key);
+
+  /* Determine event type */
+  input_state.event_type = INPUT_EVENT_TYPE_INVALID;
+  if (action == GLFW_PRESS) {
+    input_state.event_type = INPUT_EVENT_TYPE_KEY_DOWN;
   }
-  else if ((action == GLFW_RELEASE) && wgpu_context->key_up_cb) {
-    wgpu_context->key_up_cb(key);
+  else if (action == GLFW_RELEASE) {
+    input_state.event_type = INPUT_EVENT_TYPE_KEY_UP;
   }
+  /* Determine modifier */
+  input_state.alt_key   = (mods & GLFW_MOD_ALT);
+  input_state.ctrl_key  = (mods & GLFW_MOD_CONTROL);
+  input_state.shift_key = (mods & GLFW_MOD_SHIFT);
+  /* Remap GLFW keycode to internal code */
+  input_state.key_code = remap_glfw_key_code(key);
 }
 
 static void glfw_char_cb(GLFWwindow* window, unsigned int chr)
 {
-  wgpu_context_t* wgpu_context
-    = (wgpu_context_t*)glfwGetWindowUserPointer(window);
-  if (wgpu_context->char_cb) {
-    wgpu_context->char_cb(chr);
-  }
+  UNUSED_VAR(window);
+
+  input_state.event_type = INPUT_EVENT_TYPE_CHAR;
+  input_state.char_code  = chr;
 }
 
 static void glfw_mousebutton_cb(GLFWwindow* window, int button, int action,
                                 int mods)
 {
-  UNUSED_VAR(mods);
-  wgpu_context_t* wgpu_context
-    = (wgpu_context_t*)glfwGetWindowUserPointer(window);
-  if ((action == GLFW_PRESS) && wgpu_context->mouse_btn_down_cb) {
-    wgpu_context->mouse_btn_down_cb(button);
+  /* Determine event type */
+  input_state.event_type = INPUT_EVENT_TYPE_INVALID;
+  if (action == GLFW_PRESS) {
+    input_state.event_type        = INPUT_EVENT_TYPE_MOUSE_DOWN;
+    input_state.mouse_btn_pressed = 1;
   }
-  else if ((action == GLFW_RELEASE) && wgpu_context->mouse_btn_up_cb) {
-    wgpu_context->mouse_btn_up_cb(button);
+  else if (action == GLFW_RELEASE) {
+    input_state.event_type        = INPUT_EVENT_TYPE_MOUSE_UP;
+    input_state.mouse_btn_pressed = 0;
   }
+  /* Determine mouse button type */
+  input_state.button_type = BUTTON_UNDEFINED;
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    input_state.button_type = BUTTON_LEFT;
+  }
+  else if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+    input_state.button_type = BUTTON_MIDDLE;
+  }
+  else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    input_state.button_type = BUTTON_RIGHT;
+  }
+  /* Determine modifier */
+  input_state.alt_key   = (mods & GLFW_MOD_ALT);
+  input_state.ctrl_key  = (mods & GLFW_MOD_CONTROL);
+  input_state.shift_key = (mods & GLFW_MOD_SHIFT);
+  /* Get cursor position */
+  glfwGetCursorPos(window, &input_state.cursor_pos[0],
+                   &input_state.cursor_pos[1]);
 }
 
 static void glfw_cursorpos_cb(GLFWwindow* window, double xpos, double ypos)
 {
-  wgpu_context_t* wgpu_context
-    = (wgpu_context_t*)glfwGetWindowUserPointer(window);
-  if (wgpu_context->mouse_pos_cb) {
-    wgpu_context->mouse_pos_cb((float)xpos, (float)ypos);
-  }
+  /* Determine event type */
+  input_state.event_type = INPUT_EVENT_TYPE_MOUSE_MOVE;
+  /* Determine modifier */
+  input_state.alt_key = (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == 1)
+                        || (glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == 1);
+  input_state.ctrl_key = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == 1)
+                         || (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == 1);
+  input_state.shift_key = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == 1)
+                          || (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == 1);
+  /* Determine delta */
+  input_state.cursor_pos_delta[0] = input_state.cursor_pos[0] - xpos;
+  input_state.cursor_pos_delta[1] = input_state.cursor_pos[1] - ypos;
+  /* Set new cursor position */
+  input_state.cursor_pos[0] = xpos;
+  input_state.cursor_pos[1] = ypos;
 }
 
 static void glfw_scroll_cb(GLFWwindow* window, double xoffset, double yoffset)
 {
-  UNUSED_VAR(xoffset);
-  wgpu_context_t* wgpu_context
-    = (wgpu_context_t*)glfwGetWindowUserPointer(window);
-  if (wgpu_context->mouse_wheel_cb) {
-    wgpu_context->mouse_wheel_cb((float)yoffset);
-  }
+  /* Determine event type */
+  input_state.event_type = INPUT_EVENT_TYPE_MOUSE_SCROLL;
+  /* Determine modifier */
+  input_state.alt_key = (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == 1)
+                        || (glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == 1);
+  input_state.ctrl_key = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == 1)
+                         || (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == 1);
+  input_state.shift_key = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == 1)
+                          || (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == 1);
+  /* Set mouse wheel offset */
+  input_state.mouse_offset[0] = xoffset;
+  input_state.mouse_offset[1] = yoffset;
+  /* Get cursor position */
+  glfwGetCursorPos(window, &input_state.cursor_pos[0],
+                   &input_state.cursor_pos[1]);
 }
 
 static void glfw_resize_cb(GLFWwindow* window, int width, int height)
@@ -155,7 +355,7 @@ static void request_device_cb(WGPURequestDeviceStatus status, WGPUDevice device,
   UNUSED_VAR(userdata2);
   wgpu_context_t* wgpu_context   = (wgpu_context_t*)userdata1;
   wgpu_context->device           = device;
-  wgpu_context->async_setup_done = true;
+  wgpu_context->async_setup_done = 1;
 }
 
 static void request_adapter_cb(WGPURequestAdapterStatus status,
@@ -215,6 +415,24 @@ static void request_device(wgpu_context_t* wgpu_context)
   assert(wgpu_context->device);
 }
 
+static void update_input_event(input_event_t* input_event, uint64_t frame_count)
+{
+  (*input_event) = (input_event_t){
+    .frame_count       = frame_count,
+    .type              = input_state.event_type,
+    .key_code          = input_state.key_code,
+    .char_code         = input_state.char_code,
+    .mouse_button      = input_state.button_type,
+    .mouse_btn_pressed = input_state.mouse_btn_pressed,
+    .mouse_x           = input_state.cursor_pos[0],
+    .mouse_y           = input_state.cursor_pos[1],
+    .mouse_dx          = input_state.cursor_pos_delta[0],
+    .mouse_dy          = input_state.cursor_pos_delta[1],
+    .scroll_x          = input_state.mouse_offset[0],
+    .scroll_y          = input_state.mouse_offset[1],
+  };
+}
+
 static void wgpu_platform_start(wgpu_context_t* wgpu_context)
 {
 #define wgpu_context_struct ((struct wgpu_context_t*)wgpu_context)
@@ -269,8 +487,17 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
                                     .callback = error_scope_cb});
   wgpuInstanceProcessEvents(wgpu_context->instance);
 
+  uint64_t frame_count      = 1;
+  input_event_t input_event = {0};
+
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
+    if (wgpu_context->input_event_cb
+        && input_state.event_type != INPUT_EVENT_TYPE_INVALID) {
+      update_input_event(&input_event, frame_count);
+      wgpu_context->input_event_cb(wgpu_context, &input_event);
+      input_state.event_type = INPUT_EVENT_TYPE_INVALID;
+    }
     wgpuDevicePushErrorScope(wgpu_context->device, WGPUErrorFilter_Validation);
     wgpu_context->swapchain_view = wgpu_swapchain_next(wgpu_context);
     if (wgpu_context->swapchain_view) {
@@ -284,6 +511,7 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
                               .mode     = WGPUCallbackMode_AllowProcessEvents,
                               .callback = error_scope_cb});
     wgpuInstanceProcessEvents(wgpu_context->instance);
+    frame_count++;
   }
   wgpu_context->desc.shutdown_cb(wgpu_context_struct);
   wgpu_swapchain_discard(wgpu_context);
@@ -574,6 +802,20 @@ WGPUSurface glfw_create_surface_for_window(WGPUInstance instance,
  * WebGPU buffer helper functions
  * -------------------------------------------------------------------------- */
 
+WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
+                                        const void* data, size_t size,
+                                        WGPUBufferUsage usage)
+{
+  WGPUBufferDescriptor buffer_desc = {
+    .usage = WGPUBufferUsage_CopyDst | usage,
+    .size  = size,
+  };
+  WGPUBuffer buffer
+    = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+  wgpuQueueWriteBuffer(wgpu_context->queue, buffer, 0, data, size);
+  return buffer;
+}
+
 wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
                                  const wgpu_buffer_desc_t* desc)
 {
@@ -597,7 +839,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     = (desc->initial.size == 0) ? desc->size : desc->initial.size;
 
   if (desc->initial.data && initial_size > 0 && initial_size <= desc->size) {
-    buffer_desc.mappedAtCreation = true;
+    buffer_desc.mappedAtCreation = 1;
     WGPUBuffer buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
     ASSERT(buffer != NULL);
@@ -694,8 +936,8 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
       = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
   }
 
-  texture.initialized   = true;
-  texture.desc.is_dirty = false;
+  texture.initialized   = 1;
+  texture.desc.is_dirty = 0;
 
   return texture;
 }
@@ -842,7 +1084,7 @@ WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
  * WebGPU pipeline helper functions
  * -------------------------------------------------------------------------- */
 
-WGPUBlendState wgpu_create_blend_state(bool enable_blend)
+WGPUBlendState wgpu_create_blend_state(WGPUBool enable_blend)
 {
   WGPUBlendComponent blend_component_descriptor = {
     .operation = WGPUBlendOperation_Add,

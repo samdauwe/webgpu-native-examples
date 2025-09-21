@@ -1,6 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+#include <stdint.h>
 typedef enum {
   KEY_UNKNOWN = 0,
   /* Printable keys */
@@ -143,5 +144,31 @@ typedef enum {
   BUTTON_ACTION_RELEASE,
   BUTTON_ACTION_NUM,
 } button_action_t;
+
+typedef enum input_event_type_t {
+  INPUT_EVENT_TYPE_INVALID,
+  INPUT_EVENT_TYPE_KEY_DOWN,
+  INPUT_EVENT_TYPE_KEY_UP,
+  INPUT_EVENT_TYPE_CHAR,
+  INPUT_EVENT_TYPE_MOUSE_DOWN,
+  INPUT_EVENT_TYPE_MOUSE_UP,
+  INPUT_EVENT_TYPE_MOUSE_SCROLL,
+  INPUT_EVENT_TYPE_MOUSE_MOVE,
+} input_event_type_t;
+
+typedef struct input_event_t {
+  uint64_t frame_count;
+  input_event_type_t type;
+  keycode_t key_code;
+  uint32_t char_code;
+  button_t mouse_button;
+  button_t mouse_btn_pressed;
+  float mouse_x;
+  float mouse_y;
+  float mouse_dx;
+  float mouse_dy;
+  float scroll_x;
+  float scroll_y;
+} input_event_t;
 
 #endif

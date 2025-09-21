@@ -4,9 +4,8 @@
 
 /* camera creating/releasing */
 
-camera_t* camera_create(void)
+void camera_init(camera_t* camera)
 {
-  camera_t* camera = (camera_t*)malloc(sizeof(camera_t));
   memset(camera, 0, sizeof(camera_t));
 
   camera->rotation_speed = 1.0f;
@@ -19,16 +18,40 @@ camera_t* camera_create(void)
   camera->keys.right = false;
   camera->keys.up    = false;
   camera->keys.down  = false;
-
-  return camera;
-}
-
-void camera_release(camera_t* camera)
-{
-  free(camera);
 }
 
 /* camera updating */
+
+void camera_on_input_event(camera_t* camera, const input_event_t* input_event)
+{
+  switch (input_event->type) {
+    case INPUT_EVENT_TYPE_MOUSE_MOVE: {
+      if (input_event->mouse_btn_pressed) {
+        if (input_event->mouse_button == BUTTON_LEFT) {
+          camera_rotate(camera,
+                        (vec3){input_event->mouse_dy * camera->rotation_speed,
+                               -input_event->mouse_dx * camera->rotation_speed,
+                               0.0f});
+        }
+        else if (input_event->mouse_button == BUTTON_MIDDLE) {
+          camera_translate(camera,
+                           (vec3){-input_event->mouse_dx * 0.01f,
+                                  -input_event->mouse_dy * 0.01f, 0.0f});
+        }
+        if (input_event->mouse_button == BUTTON_RIGHT) {
+          camera_translate(camera,
+                           (vec3){-0.0f, 0.0f, input_event->mouse_dy * 0.005f});
+        }
+      }
+    } break;
+    case INPUT_EVENT_TYPE_MOUSE_SCROLL: {
+      camera_translate(
+        camera, (vec3){0.0f, 0.0f, -(float)input_event->scroll_y * 0.05f});
+    }
+    default:
+      break;
+  }
+}
 
 void camera_update(camera_t* camera, float delta_time)
 {

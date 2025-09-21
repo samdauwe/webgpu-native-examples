@@ -1,6 +1,8 @@
 #ifndef WGPU_COMMON_H_
 #define WGPU_COMMON_H_
 
+#include "core/input.h"
+
 #include <stdlib.h>
 
 #include <GLFW/glfw3.h>
@@ -18,18 +20,6 @@ extern "C" {
 #define DEFAULT_WINDOW_HEIGHT (720)
 
 /* -------------------------------------------------------------------------- *
- * Macros
- * -------------------------------------------------------------------------- */
-
-/* Define bool, false, true if not defined */
-#ifndef __bool_true_false_are_defined
-#define bool int
-#define false 0
-#define true 1
-#define size_t uint64_t
-#endif
-
-/* -------------------------------------------------------------------------- *
  * WebGPU Context
  * -------------------------------------------------------------------------- */
 
@@ -38,36 +28,28 @@ typedef struct wgpu_context_t wgpu_context_t;
 typedef int (*wgpu_init_func)(struct wgpu_context_t* wgpu_context);
 typedef int (*wgpu_frame_func)(struct wgpu_context_t* wgpu_context);
 typedef void (*wgpu_shutdown_func)(struct wgpu_context_t* wgpu_context);
-typedef void (*wgpu_key_func)(int key);
-typedef void (*wgpu_char_func)(uint32_t c);
-typedef void (*wgpu_mouse_btn_func)(int btn);
-typedef void (*wgpu_mouse_pos_func)(float x, float y);
-typedef void (*wgpu_mouse_wheel_func)(float v);
+typedef void (*wgpu_input_event_func)(struct wgpu_context_t* wgpu_context,
+                                      const input_event_t* input_event);
 
 typedef struct {
   int width;
   int height;
   int sample_count;
-  bool no_depth_buffer;
+  WGPUBool no_depth_buffer;
   const char* title;
   wgpu_init_func init_cb;
   wgpu_frame_func frame_cb;
   wgpu_shutdown_func shutdown_cb;
+  wgpu_input_event_func input_event_cb;
 } wgpu_desc_t;
 
 struct wgpu_context_t {
   wgpu_desc_t desc;
-  bool async_setup_failed;
-  bool async_setup_done;
+  WGPUBool async_setup_failed;
+  WGPUBool async_setup_done;
   int width;
   int height;
-  wgpu_key_func key_down_cb;
-  wgpu_key_func key_up_cb;
-  wgpu_char_func char_cb;
-  wgpu_mouse_btn_func mouse_btn_down_cb;
-  wgpu_mouse_btn_func mouse_btn_up_cb;
-  wgpu_mouse_pos_func mouse_pos_cb;
-  wgpu_mouse_wheel_func mouse_wheel_cb;
+  wgpu_input_event_func input_event_cb;
   WGPUInstance instance;
   WGPUAdapter adapter;
   WGPUDevice device;
@@ -119,6 +101,9 @@ typedef struct wgpu_buffer_t {
 } wgpu_buffer_t;
 
 /* WebGPU buffer create / destroy */
+WGPUBuffer wgpu_create_buffer_from_data(wgpu_context_t* wgpu_context,
+                                        const void* data, size_t size,
+                                        WGPUBufferUsage usage);
 wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
                                  const wgpu_buffer_desc_t* desc);
 void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
@@ -182,10 +167,10 @@ WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
 
 typedef struct create_depth_stencil_state_desc_t {
   WGPUTextureFormat format;
-  bool depth_write_enabled;
+  WGPUBool depth_write_enabled;
 } create_depth_stencil_state_desc_t;
 
-WGPUBlendState wgpu_create_blend_state(bool enable_blend);
+WGPUBlendState wgpu_create_blend_state(WGPUBool enable_blend);
 WGPUDepthStencilState
 wgpu_create_depth_stencil_state(create_depth_stencil_state_desc_t* desc);
 

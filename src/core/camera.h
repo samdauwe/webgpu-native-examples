@@ -1,6 +1,8 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include "core/input.h"
+
 #include <cglm/cglm.h>
 
 typedef enum camera_type_enum {
@@ -35,11 +37,11 @@ typedef struct {
   } keys;
 } camera_t;
 
-/* Camera creating/releasing */
-camera_t* camera_create(void);
-void camera_release(camera_t* camera);
+/* Camera initialization */
+void camera_init(camera_t* camera);
 
 /* Camera updating */
+void camera_on_input_event(camera_t* camera, const input_event_t* input_event);
 void camera_update(camera_t* camera, float delta_time);
 bool camera_update_pad(camera_t* camera, vec2 axis_left, vec2 axis_right,
                        float delta_time);
