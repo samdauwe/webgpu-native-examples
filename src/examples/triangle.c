@@ -1,6 +1,8 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include "core/camera.h"
+
+#include <cglm/cglm.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Basic Indexed Triangle
@@ -24,77 +26,99 @@ static const char* triangle_fragment_shader_wgsl;
  * Basic Indexed Triangle example
  * -------------------------------------------------------------------------- */
 
-// Vertex layout used in this example
+/* Vertex layout used in this example */
 typedef struct {
   vec3 position;
   vec3 color;
 } vertex_t;
 
-// Vertex buffer and attributes
+/* State struct */
 static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} vertices = {0};
+  /* Vertex buffer and attributes */
+  struct {
+    WGPUBuffer buffer;
+    uint32_t count;
+  } vertices;
+  /* Index buffer */
+  struct {
+    WGPUBuffer buffer;
+    uint32_t count;
+  } indices;
+  /* Uniform buffer block object */
+  struct {
+    WGPUBuffer buffer;
+    uint32_t count;
+  } uniform_buffer_vs;
+  /* Uniform block vertex shader */
+  struct {
+    mat4 projection_matrix;
+    mat4 model_matrix;
+    mat4 view_matrix;
+  } ubo_vs;
+  /* Camera object */
+  camera_t camera;
+  WGPUBool view_updated;
+  /* The pipeline layout */
+  WGPUPipelineLayout pipeline_layout;
+  /* Pipeline */
+  WGPURenderPipeline pipeline;
+  // The bind group layout describes the shader binding layout (without actually
+  // referencing descriptor)
+  // Like the pipeline layout it's pretty much a blueprint and can be used with
+  // different descriptor sets as long as their layout matches
+  WGPUBindGroupLayout bind_group_layout;
+  // The bind group stores the resources bound to the binding points in a shader
+  // It connects the binding points of the different shaders with the buffers
+  // and images used for those bindings
+  WGPUBindGroup bind_group;
+  /* Render pass descriptor for frame buffer writes */
+  // Describe the attachments used during rendering. This allows the driver to
+  // know up-front what the rendering will look like and is a good opportunity
+  // to optimize.
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
+  WGPUBool initialized;
+} state = {
+  .render_pass = {
+    .color_attachment = {
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = {0.1, 0.2, 0.3, 1.0},
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    },
+    .depth_stencil_attachment = {
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .depthClearValue   = 1.0f,
+      .stencilLoadOp     = WGPULoadOp_Clear,
+      .stencilStoreOp    = WGPUStoreOp_Store,
+      .stencilClearValue = 0,
+    },
+    .descriptor = {
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = &state.render_pass.color_attachment,
+      .depthStencilAttachment = &state.render_pass.depth_stencil_attachment,
+    },
+  }
+};
 
-// Index buffer
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} indices = {0};
-
-// Uniform buffer block object
-static struct {
-  WGPUBuffer buffer;
-  uint32_t count;
-} uniform_buffer_vs = {0};
-
-// Uniform block vertex shader
-static struct {
-  mat4 projection_matrix;
-  mat4 model_matrix;
-  mat4 view_matrix;
-} ubo_vs = {0};
-
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout = NULL;
-
-// Pipeline
-static WGPURenderPipeline pipeline = NULL;
-
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
-
-// The bind group layout describes the shader binding layout (without actually
-// referencing descriptor)
-// Like the pipeline layout it's pretty much a blueprint and can be used with
-// different descriptor sets as long as their layout matches
-static WGPUBindGroupLayout bind_group_layout = NULL;
-
-// The bind group stores the resources bound to the binding points in a shader
-// It connects the binding points of the different shaders with the buffers and
-// images used for those bindings
-static WGPUBindGroup bind_group = NULL;
-
-// Other variables
-static const char* example_title = "Basic Indexed Triangle";
-static bool prepared             = false;
-
-// Setup a default look-at camera
-static void setup_camera(wgpu_example_context_t* context)
+// Initialize a default look-at camera
+static void init_camera(wgpu_context_t* wgpu_context)
 {
-  context->camera       = camera_create();
-  context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, -2.5f});
-  camera_set_rotation(context->camera, (vec3){0.0f, 0.0f, 0.0f});
-  camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.0f, 256.0f);
+  camera_init(&state.camera);
+  state.camera.type = CameraType_LookAt;
+  camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -2.5f});
+  camera_set_rotation(&state.camera, (vec3){0.0f, 0.0f, 0.0f});
+  camera_set_perspective(
+    &state.camera, 60.0f,
+    (float)wgpu_context->width / (float)wgpu_context->height, 0.0f, 256.0f);
 }
 
-/* Prepare vertex and index buffers for an indexed triangle */
-static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
+/* Initialize vertex and index buffers for an indexed triangle */
+static void init_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
   /* Setup vertices (x, y, z, r, g, b) */
   static const vertex_t vertex_buffer[3] = {
@@ -111,26 +135,26 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
       .color    = {0.0f, 0.0f, 1.0f},
     },
   };
-  vertices.count              = (uint32_t)ARRAY_SIZE(vertex_buffer);
-  uint32_t vertex_buffer_size = vertices.count * sizeof(vertex_t);
+  state.vertices.count        = (uint32_t)ARRAY_SIZE(vertex_buffer);
+  uint32_t vertex_buffer_size = state.vertices.count * sizeof(vertex_t);
 
   /* Setup indices */
   static const uint16_t index_buffer[4] = {
     0, 1, 2, 0 /* padding */
   };
-  indices.count              = (uint32_t)ARRAY_SIZE(index_buffer);
-  uint32_t index_buffer_size = indices.count * sizeof(uint32_t);
+  state.indices.count        = (uint32_t)ARRAY_SIZE(index_buffer);
+  uint32_t index_buffer_size = state.indices.count * sizeof(uint32_t);
 
   /* Create vertex buffer */
-  vertices.buffer = wgpu_create_buffer_from_data(
+  state.vertices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, vertex_buffer, vertex_buffer_size, WGPUBufferUsage_Vertex);
 
   /* Create index buffer */
-  indices.buffer = wgpu_create_buffer_from_data(
+  state.indices.buffer = wgpu_create_buffer_from_data(
     wgpu_context, index_buffer, index_buffer_size, WGPUBufferUsage_Index);
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   // Setup layout of descriptors used in this example
   // Basically connects the different shader stages to descriptors for binding
@@ -138,10 +162,10 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   // one descriptor set layout binding
 
   // Bind group layout
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor) {
-      .label      = "Triangle - Bind group layout",
+      .label      = STRVIEW("Triangle - Bind group layout"),
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         /* Binding 0: Uniform buffer (Vertex shader) */
@@ -150,105 +174,74 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout){
           .type = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize = sizeof(ubo_vs),
+          .minBindingSize = sizeof(state.ubo_vs),
         },
         .sampler = {0},
       }
     }
   );
-  ASSERT(bind_group_layout != NULL);
+  ASSERT(state.bind_group_layout != NULL);
 
   // Create the pipeline layout that is used to generate the rendering pipelines
   // that are based on this descriptor set layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = "Triangle - Pipeline layout",
+                            .label = STRVIEW("Triangle - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
+                            .bindGroupLayouts     = &state.bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_groups(wgpu_context_t* wgpu_context)
 {
   /* Bind Group */
-  bind_group = wgpuDeviceCreateBindGroup(
+  state.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor) {
-     .label      = "Triangle - Bind group",
-     .layout     = bind_group_layout,
+     .label      = STRVIEW("Triangle - Bind group"),
+     .layout     = state.bind_group_layout,
      .entryCount = 1,
      .entries    = &(WGPUBindGroupEntry) {
        /* Binding 0 : Uniform buffer */
        .binding = 0,
-       .buffer  = uniform_buffer_vs.buffer,
+       .buffer  = state.uniform_buffer_vs.buffer,
        .offset  = 0,
-       .size    = sizeof(ubo_vs),
+       .size    = sizeof(state.ubo_vs),
      },
    }
   );
-  ASSERT(bind_group != NULL);
+  ASSERT(state.bind_group != NULL);
 }
 
-// Describe the attachments used during rendering. This allows the driver to
-// know up-front what the rendering will look like and is a good opportunity to
-// optimize.
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Pass matrices to the shaders */
-  camera_t* camera = context->camera;
-  glm_mat4_copy(camera->matrices.perspective, ubo_vs.projection_matrix);
-  glm_mat4_copy(camera->matrices.view, ubo_vs.view_matrix);
-  glm_mat4_identity(ubo_vs.model_matrix);
+  glm_mat4_copy(state.camera.matrices.perspective,
+                state.ubo_vs.projection_matrix);
+  glm_mat4_copy(state.camera.matrices.view, state.ubo_vs.view_matrix);
+  glm_mat4_identity(state.ubo_vs.model_matrix);
 
   /* Map uniform buffer and update it */
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &ubo_vs, uniform_buffer_vs.count);
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_vs.buffer, 0,
+                       &state.ubo_vs, state.uniform_buffer_vs.count);
 }
 
 // Prepare and initialize a uniform buffer block containing shader uniforms
 // All Shader uniforms are passed via uniform buffer blocks
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   // Create the uniform bind group (note 'rotDeg' is copied here, not bound in
   // any way)
-  uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
-    context->wgpu_context, &ubo_vs, sizeof(ubo_vs), WGPUBufferUsage_Uniform);
-  uniform_buffer_vs.count = sizeof(ubo_vs);
+  state.uniform_buffer_vs.buffer = wgpu_create_buffer_from_data(
+    wgpu_context, &state.ubo_vs, sizeof(state.ubo_vs), WGPUBufferUsage_Uniform);
+  state.uniform_buffer_vs.count = sizeof(state.ubo_vs);
 
-  update_uniform_buffers(context);
+  update_uniform_buffers(wgpu_context);
 }
 
 /* Create the graphics pipeline */
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
   /* Construct the different states making up the pipeline */
 
@@ -262,7 +255,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   /* Color target state */
   WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
+    .format    = wgpu_context->render_format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
@@ -270,7 +263,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state_desc
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
 
@@ -284,50 +277,43 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                                                offsetof(vertex_t, color)))
 
   /* Vertex state */
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-    wgpu_context, &(wgpu_vertex_state_t){
-    .shader_desc = (wgpu_shader_desc_t){
-      /* Vertex shader WGSL */
-      .label             = "Triangle - Vertex shader WGSL",
-      .wgsl_code.source  = triangle_vertex_shader_wgsl,
-      .entry             = "main",
-    },
-    .buffer_count = 1,
-    .buffers = &triangle_vertex_buffer_layout,
-  });
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, triangle_vertex_shader_wgsl);
+  WGPUVertexState vertex_state_desc = {
+    .module      = vert_shader_module,
+    .entryPoint  = STRVIEW("main"),
+    .bufferCount = 1,
+    .buffers     = &triangle_vertex_buffer_layout,
+  };
 
   /* Fragment state */
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-    wgpu_context, &(wgpu_fragment_state_t){
-    .shader_desc = (wgpu_shader_desc_t){
-      /* Fragment shader WGSL */
-      .label             = "Triangle - Fragment shader WGSL",
-      .wgsl_code.source  = triangle_fragment_shader_wgsl,
-      .entry             = "main",
-    },
-    .target_count = 1,
-    .targets = &color_target_state_desc,
-  });
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, triangle_fragment_shader_wgsl);
+  WGPUFragmentState fragment_state_desc = {
+    .entryPoint  = STRVIEW("main"),
+    .module      = frag_shader_module,
+    .targetCount = 1,
+    .targets     = &color_target_state_desc,
+  };
 
   /* Multisample state */
-  WGPUMultisampleState multisample_state_desc
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
+  WGPUMultisampleState multisample_state_desc = {
+    .count = 1,
+    .mask  = 0xffffffff,
+  };
 
   /* Create rendering pipeline using the specified states */
-  pipeline = wgpuDeviceCreateRenderPipeline(
+  state.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Triangle - Render pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
+                            .label     = STRVIEW("Triangle - Render pipeline"),
+                            .layout    = state.pipeline_layout,
+                            .primitive = primitive_state_desc,
+                            .vertex    = vertex_state_desc,
+                            .fragment  = &fragment_state_desc,
                             .depthStencil = &depth_stencil_state_desc,
                             .multisample  = multisample_state_desc,
                           });
-  ASSERT(pipeline != NULL);
+  ASSERT(state.pipeline != NULL);
 
   /* Shader modules are no longer needed once the graphics pipeline has been
      created */
@@ -335,151 +321,130 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    /* Setup a default look-at camera */
-    setup_camera(context);
+  if (wgpu_context) {
+    /* Initialize a default look-at camera */
+    init_camera(wgpu_context);
     /* Initialize vertex and index buffers */
-    prepare_vertex_and_index_buffers(context->wgpu_context);
-    /* Prepare and initialize a uniform buffer block containing shader uniforms
-     */
-    prepare_uniform_buffers(context);
+    init_vertex_and_index_buffers(wgpu_context);
+    /* Initialize a uniform buffer block containing shader uniforms */
+    init_uniform_buffers(wgpu_context);
     /* Create the pipeline layout that is used to generate the rendering
      * pipelines */
-    setup_pipeline_layout(context->wgpu_context);
+    init_pipeline_layout(wgpu_context);
     /* Setup bind groups */
-    setup_bind_groups(context->wgpu_context);
+    init_bind_groups(wgpu_context);
     /* Create the graphics pipeline */
-    prepare_pipelines(context->wgpu_context);
-    /* Setup render pass */
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+    init_pipeline(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-// Build separate command buffer for the framebuffer image
-// Unlike in OpenGL all rendering commands are recorded once into command
-// buffers that are then resubmitted to the queue This allows to generate work
-// upfront and from multiple threads
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
+  UNUSED_VAR(wgpu_context);
+
+  camera_on_input_event(&state.camera, input_event);
+  state.view_updated = 1;
+}
+
+static int frame(struct wgpu_context_t* wgpu_context)
+{
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
+
+  if (state.view_updated) {
+    update_uniform_buffers(wgpu_context);
+    state.view_updated = 0;
+  }
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
   /* Set target frame buffer */
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  state.render_pass.color_attachment.view = wgpu_context->swapchain_view;
+  state.render_pass.depth_stencil_attachment.view
+    = wgpu_context->depth_stencil_view;
 
   /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
   /* Create render pass encoder for encoding drawing commands */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass.descriptor);
 
   /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
 
   /* Set the bind group */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                    0);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_group, 0, 0);
 
   /* Set viewport */
-  wgpuRenderPassEncoderSetViewport(
-    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-    (float)wgpu_context->surface.height, 0.0f, 1.0f);
+  wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
+                                   (float)wgpu_context->width,
+                                   (float)wgpu_context->height, 0.0f, 1.0f);
 
   /* Set scissor rectangle */
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
+  wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0u, 0u, wgpu_context->width,
+                                      wgpu_context->height);
 
   /* Bind triangle vertex buffer (contains position and colors) */
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
 
   /* Bind triangle index buffer */
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.indices.buffer,
                                       WGPUIndexFormat_Uint16, 0,
                                       WGPU_WHOLE_SIZE);
 
   /* Draw indexed triangle */
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
-                                   0, 0);
-
-  /* Create command buffer and cleanup */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_context_t* wgpu_context)
-{
-  /* Get next image in the swap chain (back/front buffer) */
-  wgpu_swap_chain_get_current_image(wgpu_context);
+  wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.indices.count, 1, 0, 0, 0);
 
   /* Create command buffer */
-  WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
-  ASSERT(command_buffer != NULL);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Submit command buffer to the queue */
-  wgpu_flush_command_buffers(wgpu_context, &command_buffer, 1);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Present the current buffer to the swap chain */
-  wgpu_swap_chain_present(wgpu_context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
-{
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context->wgpu_context);
-}
-
-// This function is called by the base example class each time the view is
-// changed by user input
-static void example_on_view_changed(wgpu_example_context_t* context)
-{
-  /* Update the uniform buffer when the view is changed by user input */
-  update_uniform_buffers(context);
-}
-
 /* Clean up used resources */
-static void example_destroy(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  camera_release(context->camera);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+  UNUSED_VAR(wgpu_context);
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer_vs.buffer)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
 }
 
-void example_triangle(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
-    },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Basic Indexed Triangle",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *

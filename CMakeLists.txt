@@ -44,12 +44,15 @@ set(RPLY_SOURCES
 # ==============================================================================
 
 set(COMMON_HEADERS
+    src/core/camera.h
+    src/core/input.h
     src/webgpu/wgpu_common.h
     src/examples/common_shaders.h
     src/examples/meshes.h
 )
 
 set(COMMON_SOURCES
+    src/core/camera.c
     src/webgpu/wgpu_common.c
     src/examples/meshes.c
 )
@@ -144,6 +147,7 @@ add_example_executable(square)
 add_example_executable(terrain_mesh)
 add_example_executable(textured_cube)
 add_example_executable(tile_map)
+add_example_executable(triangle)
 add_example_executable(two_cubes)
 add_example_executable(vertex_buffer)
 add_example_executable(wireframe_vertex_pulling)
