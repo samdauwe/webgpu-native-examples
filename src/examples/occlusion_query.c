@@ -157,7 +157,7 @@ static void create_occlusion_query_set(wgpu_context_t* wgpu_context)
 {
   occlusion_query.set = wgpuDeviceCreateQuerySet(
     wgpu_context->device, &(WGPUQuerySetDescriptor){
-                            .label = "Occlusion query set",
+                            .label = "Occlusion - Query set",
                             .type  = WGPUQueryType_Occlusion,
                             .count = CUBE_ID_COUNT,
                           });
