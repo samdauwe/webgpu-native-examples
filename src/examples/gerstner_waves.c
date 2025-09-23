@@ -285,7 +285,7 @@ static void prepare_texture(wgpu_context_t* wgpu_context)
   const char* file  = "textures/sea-color.jpg";
   sea_color_texture = wgpu_create_texture_from_file(wgpu_context, file, NULL);
 
-  // Create non-filtering sampler
+  /* Create non-filtering sampler */
   WGPUSamplerDescriptor sampler_desc = {
     .label         = "Non-filtering texture - Sampler",
     .addressModeU  = WGPUAddressMode_ClampToEdge,
