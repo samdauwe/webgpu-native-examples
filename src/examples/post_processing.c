@@ -853,7 +853,7 @@ generate_gpu_buffers_from_geometry(wgpu_context_t* wgpu_context,
   /* Vertices */
   gpu_buffers->vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertices buffer",
+                    .label = "Vertices - Buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = geometry->positions.data_size,
                     .initial.data = geometry->positions.data,
