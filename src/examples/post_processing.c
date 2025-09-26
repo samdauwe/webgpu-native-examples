@@ -1335,7 +1335,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   {
     /* Create texture */
     WGPUTextureDescriptor texture_desc = {
-      .label     = "Post-fx1 texture",
+      .label     = "Post-fx1 - Texture",
       .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
       .dimension = WGPUTextureDimension_2D,
       .size      = texture_size,
