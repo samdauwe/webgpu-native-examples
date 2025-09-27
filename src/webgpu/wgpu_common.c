@@ -22,6 +22,8 @@ static struct {
   WGPUBool shift_key;
   keycode_t key_code;
   uint32_t char_code;
+  int window_width;
+  int window_height;
 } input_state = {0};
 
 /* Forward declarations */
@@ -300,6 +302,12 @@ static void glfw_resize_cb(GLFWwindow* window, int width, int height)
   wgpu_context->width  = width;
   wgpu_context->height = height;
   wgpu_swapchain_resized(wgpu_context);
+
+  /* Determine event type */
+  input_state.event_type = INPUT_EVENT_TYPE_RESIZED;
+  /* Window width */
+  input_state.window_width  = wgpu_context->width;
+  input_state.window_height = wgpu_context->height;
 }
 
 static void uncaptured_error_cb(const WGPUDevice* dev, WGPUErrorType type,
@@ -430,6 +438,8 @@ static void update_input_event(input_event_t* input_event, uint64_t frame_count)
     .mouse_dy          = input_state.cursor_pos_delta[1],
     .scroll_x          = input_state.mouse_offset[0],
     .scroll_y          = input_state.mouse_offset[1],
+    .window_width      = input_state.window_width,
+    .window_height     = input_state.window_height,
   };
 }
 

@@ -154,6 +154,7 @@ typedef enum input_event_type_t {
   INPUT_EVENT_TYPE_MOUSE_UP,
   INPUT_EVENT_TYPE_MOUSE_SCROLL,
   INPUT_EVENT_TYPE_MOUSE_MOVE,
+  INPUT_EVENT_TYPE_RESIZED,
 } input_event_type_t;
 
 typedef struct input_event_t {
@@ -169,6 +170,8 @@ typedef struct input_event_t {
   float mouse_dy;
   float scroll_x;
   float scroll_y;
+  int window_width;
+  int window_height;
 } input_event_t;
 
 #endif
