@@ -1,7 +1,27 @@
-#include "example_base.h"
 #include "meshes.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
+
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Gerstner Waves
@@ -19,48 +39,6 @@
  * -------------------------------------------------------------------------- */
 
 static const char* gerstner_waves_shader_wgsl;
-
-/* -------------------------------------------------------------------------- *
- * Camera control
- * -------------------------------------------------------------------------- */
-
-// Controls
-static struct {
-  bool is_mouse_dragging;
-  vec2 prev_mouse_position;
-  vec2 mouse_drag_distance;
-  vec2 current_mouse_position;
-} controls = {
-  .is_mouse_dragging      = false,
-  .prev_mouse_position    = {50.0f, -25.0f},
-  .mouse_drag_distance    = GLM_VEC2_ZERO_INIT,
-  .current_mouse_position = {50.0f, -25.0f},
-};
-
-static void update_controls(wgpu_example_context_t* context)
-{
-  if (!controls.is_mouse_dragging && context->mouse_buttons.left) {
-    glm_vec2_copy(context->mouse_position, controls.prev_mouse_position);
-    controls.is_mouse_dragging = true;
-  }
-  else if (controls.is_mouse_dragging && context->mouse_buttons.left) {
-    glm_vec2_sub(context->mouse_position, controls.prev_mouse_position,
-                 controls.mouse_drag_distance);
-    glm_vec2_sub(controls.current_mouse_position, controls.mouse_drag_distance,
-                 controls.current_mouse_position);
-    glm_vec2_copy(context->mouse_position, controls.prev_mouse_position);
-  }
-  else if (controls.is_mouse_dragging && !context->mouse_buttons.left) {
-    controls.is_mouse_dragging = false;
-  }
-
-  // Limit x and y
-  const int x = (int)controls.current_mouse_position[0];
-  const int y = (int)controls.current_mouse_position[1];
-
-  controls.current_mouse_position[0] = x % 360;
-  controls.current_mouse_position[1] = MAX(-90, MIN(-10, y));
-}
 
 /* -------------------------------------------------------------------------- *
  * Matrix utility functions
@@ -119,186 +97,241 @@ static void from_euler(float x, float y, float z, versor* dest)
  * Gerstner Waves example.
  * -------------------------------------------------------------------------- */
 
-// Plane mesh
-static plane_mesh_t plane_mesh = {0};
+#define SAMPLE_COUNT (4)
 
-// Vertex buffer
-static wgpu_buffer_t vertices = {0};
-
-// Index buffer
-static wgpu_buffer_t indices = {0};
-
-// Uniform buffers
+/* State struct */
 static struct {
-  wgpu_buffer_t scene;
-  wgpu_buffer_t gerstner_wave_params;
-} uniform_buffers = {0};
-
-// Uniform buffer data
-static float start_time = 0.f;
-static struct {
-  float elapsed_time;
-  float padding[3];
-  mat4 model_matrix;
-  mat4 view_projection_matrix;
-  vec3 view_position;
-} scene_data = {0};
-
-static struct {
-  mat4 view_matrix;
-  versor rotation;
-  mat4 projection_matrix;
-} tmp_mtx = {
-  .view_matrix       = GLM_MAT4_ZERO_INIT,
-  .rotation          = GLM_VEC4_ZERO_INIT,
-  .projection_matrix = GLM_MAT4_ZERO_INIT,
-};
-
-// Gerstner Waves parameters
-static struct {
-  // Uniform storage requires that array elements be aligned to 16 bytes.
-  // 4 bytes waveLength + 4 bytes amplitude + 4+4 bytes steepness
-  // + 8+8 bytes direction = 32 Bytes
+  plane_mesh_t plane_mesh;
+  wgpu_buffer_t vertices;
+  wgpu_buffer_t indices;
   struct {
-    float wave_length; // 0 < L
-    float amplitude;   // 0 < A
-    float steepness;   // Steepness of the peak of the wave. 0 <= S <= 1
-    float padding1;
-    vec2 direction; // Normalized direction of the wave
-    vec2 padding2;
-  } waves[5];
-  float amplitude_sum; // Sum of waves amplitudes
-  float padding;       // The shader uses 168 bytes
-} gerstner_wave_params = {
-  .waves = {
-    {
-      .wave_length = 8.0f, // f32 - 4 bytes
-      .amplitude   = 0.1f, // f32 - 4 bytes
-      .steepness   = 1.0f, // f32 - 4 bytes, but 8 bytes will be reserved to match 32 bytes stride
-      .direction   = {1.0f, 1.3f}, // vec2<f32> - 8 bytes but 16 bytes will be reserved
-    },
-    {
-      .wave_length = 4.0f,
-      .amplitude   = 0.1f,
-      .steepness   = 0.8f,
-      .direction   ={-0.7f, 0.0f},
-    },
-    {
-      .wave_length = 5.0f,
-      .amplitude   = 0.2f,
-      .steepness   = 1.0f,
-      .direction   = {0.3f, 0.2f},
-    },
-    {
-      .wave_length = 10.f,
-      .amplitude   = 0.5f,
-      .steepness   = 1.0f,
-      .direction   = {4.3f, 1.2f},
-    },
-    {
-      .wave_length = 3.0f,
-      .amplitude   = 0.1f,
-      .steepness   = 1.0f,
-      .direction   = {0.5f, 0.5f},
+    wgpu_buffer_t scene;
+    wgpu_buffer_t gerstner_wave_params;
+  } uniform_buffers;
+  struct {
+    float elapsed_time;
+    float padding[3];
+    mat4 model_matrix;
+    mat4 view_projection_matrix;
+    vec3 view_position;
+  } scene_data;
+  struct {
+    mat4 view_matrix;
+    versor rotation;
+    mat4 projection_matrix;
+  } tmp_mtx;
+  vec2 current_mouse_position;
+  struct {
+    // Uniform storage requires that array elements be aligned to 16 bytes.
+    // 4 bytes waveLength + 4 bytes amplitude + 4+4 bytes steepness
+    // + 8+8 bytes direction = 32 Bytes
+    struct {
+      float wave_length; // 0 < L
+      float amplitude;   // 0 < A
+      float steepness;   // Steepness of the peak of the wave. 0 <= S <= 1
+      float padding1;
+      vec2 direction; // Normalized direction of the wave
+      vec2 padding2;
+    } waves[5];
+    float amplitude_sum; // Sum of waves amplitudes
+    float padding;       // The shader uses 168 bytes
+  } gerstner_wave_params;
+  WGPUBool gerstner_waves_normalized;
+  wgpu_texture_t sea_color_texture;
+  uint8_t file_buffer[128 * 1 * 10];
+  WGPUSampler non_filtering_sampler;
+  struct {
+    WGPUBindGroupLayout uniforms;
+    WGPUBindGroupLayout textures;
+  } bind_group_layouts;
+  struct {
+    WGPUBindGroup uniforms;
+    WGPUBindGroup textures;
+  } bind_groups;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline render_pipeline;
+  uint32_t sample_count;
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+    // Multi-sampled texture
+    struct {
+      WGPUTexture texture;
+      WGPUTextureView view;
+      uint32_t sample_count;
+    } multisampled_framebuffer;
+  } render_pass;
+  WGPUBool initialized;
+} state = {
+  .current_mouse_position = {50.0f, -25.0f},
+  .tmp_mtx = {
+    .view_matrix       = GLM_MAT4_ZERO_INIT,
+    .rotation          = GLM_VEC4_ZERO_INIT,
+    .projection_matrix = GLM_MAT4_ZERO_INIT,
+  },
+  .gerstner_wave_params = {
+    .waves = {
+      {
+        .wave_length = 8.0f, // f32 - 4 bytes
+        .amplitude   = 0.1f, // f32 - 4 bytes
+        .steepness   = 1.0f, // f32 - 4 bytes, but 8 bytes will be reserved to match 32 bytes stride
+        .direction   = {1.0f, 1.3f}, // vec2<f32> - 8 bytes but 16 bytes will be reserved
+      },
+      {
+        .wave_length = 4.0f,
+        .amplitude   = 0.1f,
+        .steepness   = 0.8f,
+        .direction   ={-0.7f, 0.0f},
+      },
+      {
+        .wave_length = 5.0f,
+        .amplitude   = 0.2f,
+        .steepness   = 1.0f,
+        .direction   = {0.3f, 0.2f},
+      },
+      {
+        .wave_length = 10.f,
+        .amplitude   = 0.5f,
+        .steepness   = 1.0f,
+        .direction   = {4.3f, 1.2f},
+      },
+      {
+        .wave_length = 3.0f,
+        .amplitude   = 0.1f,
+        .steepness   = 1.0f,
+        .direction   = {0.5f, 0.5f},
+      },
     },
   },
-};
-static bool gerstner_waves_normalized = false;
-
-// Texture and sampler for sea color image
-static texture_t sea_color_texture       = {0};
-static WGPUSampler non_filtering_sampler = NULL;
-
-static struct {
-  WGPUBindGroupLayout uniforms;
-  WGPUBindGroupLayout textures;
-} bind_group_layouts = {0};
-
-static struct {
-  WGPUBindGroup uniforms;
-  WGPUBindGroup textures;
-} bind_groups = {0};
-
-static WGPUPipelineLayout pipeline_layout = NULL;
-static WGPURenderPipeline pipeline        = NULL;
-
-static const uint32_t sample_count = 4;
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-  // Multi-sampled texture
-  struct {
-    WGPUTexture texture;
-    WGPUTextureView view;
-    uint32_t sample_count;
-  } multisampled_framebuffer;
-} render_pass = {
-  .multisampled_framebuffer.sample_count = sample_count,
+  .sample_count = SAMPLE_COUNT,
+  .render_pass = {
+    .color_attachment = {
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = {0.3, 0.3, 0.3, 1.0},
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    },
+    .depth_stencil_attachment = {
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .depthClearValue   = 1.0f,
+      .stencilLoadOp     = WGPULoadOp_Clear,
+      .stencilStoreOp    = WGPUStoreOp_Store,
+      .stencilClearValue = 0,
+    },
+    .descriptor = {
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = &state.render_pass.color_attachment,
+      .depthStencilAttachment = &state.render_pass.depth_stencil_attachment,
+    },
+    .multisampled_framebuffer.sample_count = SAMPLE_COUNT,
+  }
 };
 
-// Other variables
-static const char* example_title = "Gerstner Waves";
-static bool prepared             = false;
-
-static void prepare_example(wgpu_example_context_t* context)
+static void init_plane_mesh(void)
 {
-  start_time = context->run_time;
+  plane_mesh_init(&state.plane_mesh, &(plane_mesh_init_options_t){
+                                       .width   = 12.0f,
+                                       .height  = 12.0f,
+                                       .rows    = 100,
+                                       .columns = 100,
+                                     });
 }
 
-// Prepare the plane mesh
-static void prepare_plane_mesh(void)
-{
-  plane_mesh_init(&plane_mesh, &(plane_mesh_init_options_t){
-                                 .width   = 12.0f,
-                                 .height  = 12.0f,
-                                 .rows    = 100,
-                                 .columns = 100,
-                               });
-}
-
-/* Prepare vertex and index buffers for an indexed plane mesh */
-static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
+/* Initialize vertex and index buffers for an indexed plane mesh */
+static void init_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create vertex buffer */
-  vertices = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Plane mesh - Vertex buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = plane_mesh.vertex_count * sizeof(plane_vertex_t),
-                    .count = plane_mesh.vertex_count,
-                    .initial.data = plane_mesh.vertices,
-                  });
+  state.vertices = wgpu_create_buffer(
+    wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .label        = "Plane mesh - Vertex buffer",
+      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+      .size         = state.plane_mesh.vertex_count * sizeof(plane_vertex_t),
+      .count        = state.plane_mesh.vertex_count,
+      .initial.data = state.plane_mesh.vertices,
+    });
 
   /* Create index buffer */
-  indices = wgpu_create_buffer(
+  state.indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Plane mesh - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
-                    .size  = plane_mesh.index_count * sizeof(uint32_t),
-                    .count = plane_mesh.index_count,
-                    .initial.data = plane_mesh.indices,
+                    .size  = state.plane_mesh.index_count * sizeof(uint32_t),
+                    .count = state.plane_mesh.index_count,
+                    .initial.data = state.plane_mesh.indices,
                   });
 }
 
-static void prepare_texture(wgpu_context_t* wgpu_context)
+static void fetch_callback(const sfetch_response_t* response)
 {
-  const char* file  = "textures/sea-color.jpg";
-  sea_color_texture = wgpu_create_texture_from_file(wgpu_context, file, NULL);
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
 
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+        .extent = (WGPUExtent3D) {
+          .width              = img_width,
+          .height             = img_height,
+          .depthOrArrayLayers = 4,
+      },
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .pixels = {
+          .ptr  = pixels,
+          .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
+
+static void init_texture(wgpu_context_t* wgpu_context)
+{
+  /* Dummy particle texture */
+  state.sea_color_texture
+    = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+
+  /* Start loading the image file */
+  const char* particle_texture_path = "assets/textures/sea-color.jpg";
+  wgpu_texture_t* texture           = &state.sea_color_texture;
+  sfetch_send(&(sfetch_request_t){
+    .path      = particle_texture_path,
+    .callback  = fetch_callback,
+    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .user_data = {
+      .ptr  = &texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });
+}
+
+static void init_texture_sampler(wgpu_context_t* wgpu_context)
+{
   /* Create non-filtering sampler */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Non-filtering texture - Sampler",
+    .label         = STRVIEW("Non-filtering texture - Sampler"),
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
     .maxAnisotropy = 1,
   };
-  non_filtering_sampler
+  state.non_filtering_sampler
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(non_filtering_sampler != NULL);
+  ASSERT(state.non_filtering_sampler != NULL);
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Bind group layout for Gerstner Waves mesh rendering & parameters */
   {
@@ -310,7 +343,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = sizeof(scene_data),
+          .minBindingSize   = sizeof(state.scene_data),
         },
         .sampler = {0},
       },
@@ -321,21 +354,21 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = sizeof(gerstner_wave_params),
+          .minBindingSize   = sizeof(state.gerstner_wave_params),
         },
         .sampler = {0},
       },
     };
 
-    // Create the bind group layout
-    bind_group_layouts.uniforms = wgpuDeviceCreateBindGroupLayout(
+    /* Create the bind group layout */
+    state.bind_group_layouts.uniforms = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
       &(WGPUBindGroupLayoutDescriptor){
-        .label      = "Bind group layout - Gerstner Waves mesh",
+        .label      = STRVIEW("Bind group layout - Gerstner Waves mesh"),
         .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
         .entries    = bgl_entries,
       });
-    ASSERT(bind_group_layouts.uniforms != NULL);
+    ASSERT(state.bind_group_layouts.uniforms != NULL);
   }
 
   /* Bind group layout for sea color texture */
@@ -362,111 +395,101 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       }
     };
-    bind_group_layouts.textures = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label = "Bind group layout - Sea color texture",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(bind_group_layouts.textures != NULL);
+    state.bind_group_layouts.textures = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Bind group layout - Sea color texture"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(state.bind_group_layouts.textures != NULL);
   }
 
   /* Create the pipeline layout from bind group layouts */
   WGPUBindGroupLayout bind_groups_layout_array[2] = {
-    bind_group_layouts.uniforms, /* Group 0 */
-    bind_group_layouts.textures  /* Group 1 */
+    state.bind_group_layouts.uniforms, /* Group 0 */
+    state.bind_group_layouts.textures  /* Group 1 */
   };
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
-      .label                = "Pipeline layout",
+      .label                = STRVIEW("Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layout_array),
       .bindGroupLayouts     = bind_groups_layout_array,
     });
-  ASSERT(pipeline_layout != NULL);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+/* Bind group for Gerstner Waves mesh rendering & parameters */
+static void init_scene_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind group for Gerstner Waves mesh rendering & parameters
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0: Uniforms */
-        .binding = 0,
-        .buffer  = uniform_buffers.scene.buffer,
-        .offset  = 0,
-        .size    = uniform_buffers.scene.size,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: GerstnerWavesUniforms */
-        .binding = 1,
-        .buffer  = uniform_buffers.gerstner_wave_params.buffer,
-        .offset  = 0,
-        .size    = uniform_buffers.gerstner_wave_params.size,
-      },
-    };
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry) {
+      /* Binding 0: Uniforms */
+      .binding = 0,
+      .buffer  = state.uniform_buffers.scene.buffer,
+      .offset  = 0,
+      .size    = state.uniform_buffers.scene.size,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      /* Binding 1: GerstnerWavesUniforms */
+      .binding = 1,
+      .buffer  = state.uniform_buffers.gerstner_wave_params.buffer,
+      .offset  = 0,
+      .size    = state.uniform_buffers.gerstner_wave_params.size,
+    },
+  };
 
-    bind_groups.uniforms = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .label      = "Mesh rendering & parameters - Bind group",
-        .layout     = bind_group_layouts.uniforms,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(bind_groups.uniforms != NULL);
-  }
-
-  // Bind group for sea color texture
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-         /* Binding 0: Sampler */
-        .binding = 0,
-        .sampler = non_filtering_sampler,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: Texture view */
-        .binding     = 1,
-        .textureView = sea_color_texture.view,
-      }
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Bind group - Sea color texture",
-      .layout     = bind_group_layouts.textures,
+  state.bind_groups.uniforms = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label      = STRVIEW("Mesh rendering & parameters - Bind group"),
+      .layout     = state.bind_group_layouts.uniforms,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
-    };
-    bind_groups.textures
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(bind_groups.textures != NULL);
-  }
+    });
+  ASSERT(state.bind_groups.uniforms != NULL);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+/* Bind group for sea color texture */
+static void init_texture_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry) {
+       /* Binding 0: Sampler */
+      .binding = 0,
+      .sampler = state.non_filtering_sampler,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      /* Binding 1: Texture view */
+      .binding     = 1,
+      .textureView = state.sea_color_texture.view,
+    }
   };
-
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
+  WGPUBindGroupDescriptor bg_desc = {
+    .label      = STRVIEW("Bind group - Sea color texture"),
+    .layout     = state.bind_group_layouts.textures,
+    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+    .entries    = bg_entries,
   };
+  state.bind_groups.textures
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_groups.textures != NULL);
+}
 
-  // Depth stencil state
-  // Enable depth testing so that the fragment closest to the camera is rendered
-  // in front.
+static void init_pipeline(wgpu_context_t* wgpu_context)
+{
+
+  WGPUShaderModule shader_module = wgpu_create_shader_module(
+    wgpu_context->device, gerstner_waves_shader_wgsl);
+
+  /* Blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
+
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth32Float,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
@@ -484,354 +507,322 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x2,
                        offsetof(plane_vertex_t, uv)))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-             wgpu_context, &(wgpu_vertex_state_t){
-             .shader_desc = (wgpu_shader_desc_t){
-                // Vertex shader WGSL
-                .label            = "Gerstner waves - Vertex shader WGSL",
-                .wgsl_code.source = gerstner_waves_shader_wgsl,
-                .entry            = "vertex_main",
-             },
-             .buffer_count = 1,
-             .buffers      = &plane_vertex_buffer_layout,
-           });
-
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-             wgpu_context, &(wgpu_fragment_state_t){
-             .shader_desc = (wgpu_shader_desc_t){
-                // Fragment shader WGSL
-                .label            = "Gerstner waves - Fragment shader WGSL",
-                .wgsl_code.source = gerstner_waves_shader_wgsl,
-                .entry            = "fragment_main",
-             },
-             .target_count = 1,
-             .targets      = &color_target_state,
-           });
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = sample_count,
-      });
-
-  // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Gerstner waves - Render pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
-
-  // Color attachment
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view          = NULL, /* Assigned later */
-      .resolveTarget = NULL,
-      .depthSlice    = ~0,
-      .loadOp        = WGPULoadOp_Clear,
-      .storeOp       = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.3f,
-        .g = 0.3f,
-        .b = 0.3f,
-        .a = 1.0f,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Gerstner waves - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = shader_module,
+      .entryPoint  = STRVIEW("vertex_main"),
+      .bufferCount = 1,
+      .buffers     = &plane_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("fragment_main"),
+      .module      = shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
       },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_None,
+      .frontFace = WGPUFrontFace_CCW
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+       .count = SAMPLE_COUNT,
+       .mask  = 0xffffffff
+    },
   };
 
-  // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context,
-                          &(struct deph_stencil_texture_creation_options_t){
-                            .format       = WGPUTextureFormat_Depth32Float,
-                            .sample_count = sample_count,
-                          });
+  state.render_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.render_pipeline != NULL);
 
-  // Render pass descriptor
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
+  wgpuShaderModuleRelease(shader_module);
 }
 
 /* Create attachment for multisampling support */
-static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
+static void init_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(Texture,
+                        state.render_pass.multisampled_framebuffer.texture)
+  WGPU_RELEASE_RESOURCE(TextureView,
+                        state.render_pass.multisampled_framebuffer.view)
+
   /* Create the multi-sampled texture */
   WGPUTextureDescriptor multisampled_frame_desc = {
-    .label         = "Multi-sampled - Texture",
+    .label         = STRVIEW("Multi-sampled - Texture"),
     .size          = (WGPUExtent3D){
-      .width               = wgpu_context->surface.width,
-      .height              = wgpu_context->surface.height,
+      .width               = wgpu_context->width,
+      .height              = wgpu_context->height,
       .depthOrArrayLayers  = 1,
      },
     .mipLevelCount = 1,
-    .sampleCount   = sample_count,
+    .sampleCount   = state.sample_count,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = wgpu_context->swap_chain.format,
+    .format        = wgpu_context->render_format,
     .usage         = WGPUTextureUsage_RenderAttachment,
   };
-  render_pass.multisampled_framebuffer.texture
+  state.render_pass.multisampled_framebuffer.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
-  ASSERT(render_pass.multisampled_framebuffer.texture != NULL);
+  ASSERT(state.render_pass.multisampled_framebuffer.texture != NULL);
 
   /* Create the multi-sampled texture view */
-  render_pass.multisampled_framebuffer.view
-    = wgpuTextureCreateView(render_pass.multisampled_framebuffer.texture,
+  state.render_pass.multisampled_framebuffer.view
+    = wgpuTextureCreateView(state.render_pass.multisampled_framebuffer.texture,
                             &(WGPUTextureViewDescriptor){
-                              .label          = "Multi-sampled - Texture view",
-                              .format         = wgpu_context->swap_chain.format,
-                              .dimension      = WGPUTextureViewDimension_2D,
-                              .baseMipLevel   = 0,
-                              .mipLevelCount  = 1,
-                              .baseArrayLayer = 0,
+                              .label  = STRVIEW("Multi-sampled - Texture view"),
+                              .format = wgpu_context->render_format,
+                              .dimension       = WGPUTextureViewDimension_2D,
+                              .baseMipLevel    = 0,
+                              .mipLevelCount   = 1,
+                              .baseArrayLayer  = 0,
                               .arrayLayerCount = 1,
                             });
-  ASSERT(render_pass.multisampled_framebuffer.view != NULL);
+  ASSERT(state.render_pass.multisampled_framebuffer.view != NULL);
 }
 
 static void init_orbit_camera_matrices(void)
 {
   // Model matrix
-  glm_mat4_identity(scene_data.model_matrix);
-  glm_rotate(scene_data.model_matrix, glm_rad(-90.0f),
+  glm_mat4_identity(state.scene_data.model_matrix);
+  glm_rotate(state.scene_data.model_matrix, glm_rad(-90.0f),
              (vec3){1.0f, 0.0f, 0.0f});
-  glm_translate(scene_data.model_matrix,
+  glm_translate(state.scene_data.model_matrix,
                 (vec3){
-                  -plane_mesh.width / 2.0f,  /* center plane x */
-                  -plane_mesh.height / 2.0f, /* center plane y */
-                  0.0f,                      /* center plane z */
+                  -state.plane_mesh.width / 2.0f,  /* center plane x */
+                  -state.plane_mesh.height / 2.0f, /* center plane y */
+                  0.0f,                            /* center plane z */
                 });
 }
 
-static void update_uniform_buffers_scene(wgpu_example_context_t* context)
+static void update_uniform_buffers_scene(wgpu_context_t* wgpu_context)
 {
-  const wgpu_context_t* wgpu_context = context->wgpu_context;
-
   /* Elapsed time */
-  if (!context->paused) {
-    scene_data.elapsed_time = (context->run_time - start_time);
-  }
+  state.scene_data.elapsed_time = stm_sec(stm_now());
 
   /* MVP */
-  from_euler(controls.current_mouse_position[1],
-             controls.current_mouse_position[0], 0.0f, &tmp_mtx.rotation);
-  create_orbit_view_matrix(15, tmp_mtx.rotation, &tmp_mtx.view_matrix);
+  from_euler(state.current_mouse_position[1], state.current_mouse_position[0],
+             0.0f, &state.tmp_mtx.rotation);
+  create_orbit_view_matrix(15, state.tmp_mtx.rotation,
+                           &state.tmp_mtx.view_matrix);
 
   /* View position */
-  position_from_view_matrix(tmp_mtx.view_matrix, &scene_data.view_position);
+  position_from_view_matrix(state.tmp_mtx.view_matrix,
+                            &state.scene_data.view_position);
 
   /* Projection matrix */
   const float aspect_ratio
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+    = (float)wgpu_context->width / (float)wgpu_context->height;
   glm_perspective(glm_rad(50.0f), aspect_ratio, 0.1f, 100.0f,
-                  tmp_mtx.projection_matrix);
+                  state.tmp_mtx.projection_matrix);
 
   /* View projection matrix */
-  glm_mat4_mul(tmp_mtx.projection_matrix, tmp_mtx.view_matrix,
-               scene_data.view_projection_matrix);
+  glm_mat4_mul(state.tmp_mtx.projection_matrix, state.tmp_mtx.view_matrix,
+               state.scene_data.view_projection_matrix);
 
   /* Update uniform buffer */
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.scene.buffer,
-                          0, &scene_data, uniform_buffers.scene.size);
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.scene.buffer,
+                       0, &state.scene_data, state.uniform_buffers.scene.size);
 }
 
-static void
-update_uniform_buffers_gerstner_waves(wgpu_example_context_t* context)
+static void update_uniform_buffers_gerstner_waves(wgpu_context_t* wgpu_context)
 {
   // Normalize wave directions
-  const uint32_t wave_count = (uint32_t)ARRAY_SIZE(gerstner_wave_params.waves);
-  if (!gerstner_waves_normalized) {
+  const uint32_t wave_count
+    = (uint32_t)ARRAY_SIZE(state.gerstner_wave_params.waves);
+  if (!state.gerstner_waves_normalized) {
     for (uint32_t i = 0; i < wave_count; ++i) {
-      glm_vec2_normalize(gerstner_wave_params.waves[i].direction);
+      glm_vec2_normalize(state.gerstner_wave_params.waves[i].direction);
     }
-    gerstner_waves_normalized = true;
+    state.gerstner_waves_normalized = true;
   }
 
   // Calculate sum of wave amplitudes
   for (uint32_t i = 0; i < wave_count; ++i) {
-    gerstner_wave_params.amplitude_sum
-      += gerstner_wave_params.waves[i].amplitude;
+    state.gerstner_wave_params.amplitude_sum
+      += state.gerstner_wave_params.waves[i].amplitude;
   }
 
   // Update uniform buffer
-  wgpu_queue_write_buffer(
-    context->wgpu_context, uniform_buffers.gerstner_wave_params.buffer, 0,
-    &gerstner_wave_params, uniform_buffers.gerstner_wave_params.size);
+  wgpuQueueWriteBuffer(wgpu_context->queue,
+                       state.uniform_buffers.gerstner_wave_params.buffer, 0,
+                       &state.gerstner_wave_params,
+                       state.uniform_buffers.gerstner_wave_params.size);
 }
 
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
 {
   /* Scene uniform buffer */
-  uniform_buffers.scene = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Gerstner Waves - Scene uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(scene_data),
-    });
+  state.uniform_buffers.scene = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Gerstner Waves - Scene uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.scene_data),
+                  });
 
   /* Gerstner Waves parameters buffer */
-  uniform_buffers.gerstner_wave_params = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Gerstner Waves - Parameters uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(gerstner_wave_params),
-    });
+  state.uniform_buffers.gerstner_wave_params = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Gerstner Waves - Parameters uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.gerstner_wave_params),
+                  });
 
   /* Initialize uniform buffers */
-  update_uniform_buffers_scene(context);
-  update_uniform_buffers_gerstner_waves(context);
+  update_uniform_buffers_scene(wgpu_context);
+  update_uniform_buffers_gerstner_waves(wgpu_context);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_example(context);
-    prepare_plane_mesh();
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+      .logger.func  = slog_func,
+    });
+    init_plane_mesh();
     init_orbit_camera_matrices();
-    prepare_vertex_and_index_buffers(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    prepare_texture(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    create_multisampled_framebuffer(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+    init_vertex_and_index_buffers(wgpu_context);
+    init_uniform_buffers(wgpu_context);
+    init_texture(wgpu_context);
+    init_texture_sampler(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_scene_bind_group(wgpu_context);
+    init_texture_bind_group(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_multisampled_framebuffer(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  /* Set target frame buffer */
-  if (sample_count == 1) {
-    render_pass.color_attachments[0].view
-      = wgpu_context->swap_chain.frame_buffer;
-    render_pass.color_attachments[0].resolveTarget = NULL;
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    init_multisampled_framebuffer(wgpu_context);
   }
-  else {
-    render_pass.color_attachments[0].view
-      = render_pass.multisampled_framebuffer.view;
-    render_pass.color_attachments[0].resolveTarget
-      = wgpu_context->swap_chain.frame_buffer;
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE
+           && input_event->mouse_btn_pressed
+           && input_event->mouse_button == BUTTON_LEFT) {
+    state.current_mouse_position[0] = input_event->mouse_x;
+    state.current_mouse_position[1] = input_event->mouse_y;
   }
-
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Create render pass */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
-
-  /* Record render pass */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       vertices.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(wgpu_context->rpass_enc, indices.buffer,
-                                      WGPUIndexFormat_Uint32, 0,
-                                      WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    bind_groups.uniforms, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                    bind_groups.textures, 0, 0);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, indices.count, 1, 0,
-                                   0, 0);
-
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
 }
 
-static int example_draw(wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  /* Get next image in the swap chain (back/front buffer) */
-  wgpu_swap_chain_get_current_image(wgpu_context);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Create command buffer */
-  WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
-  ASSERT(command_buffer != NULL);
+  sfetch_dowork();
 
-  /* Submit command buffer to the queue */
-  wgpu_flush_command_buffers(wgpu_context, &command_buffer, 1);
+  /* Recreate texture when pixel data loaded */
+  if (state.sea_color_texture.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.sea_color_texture);
+    FREE_TEXTURE_PIXELS(state.sea_color_texture);
+    /* Upddate the bindgroup */
+    init_texture_bind_group(wgpu_context);
+  }
 
-  /* Present the current buffer to the swap chain */
-  wgpu_swap_chain_present(wgpu_context);
+  /* Update matrix data */
+  update_uniform_buffers_scene(wgpu_context);
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  /* Set target frame buffer */
+  if (state.sample_count == 1) {
+    state.render_pass.color_attachment.view = wgpu_context->swapchain_view;
+    state.render_pass.color_attachment.resolveTarget = NULL;
+  }
+  else {
+    state.render_pass.color_attachment.view
+      = state.render_pass.multisampled_framebuffer.view;
+    state.render_pass.color_attachment.resolveTarget
+      = wgpu_context->swapchain_view;
+  }
+  state.render_pass.depth_stencil_attachment.view
+    = wgpu_context->depth_stencil_view;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass.descriptor);
+
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.render_pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.indices.buffer,
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_groups.uniforms, 0,
+                                    0);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 1, state.bind_groups.textures, 0,
+                                    0);
+  wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.indices.count, 1, 0, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  update_controls(context);
-  update_uniform_buffers_scene(context);
-  return example_draw(context->wgpu_context);
+  UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
+
+  wgpu_destroy_texture(&state.sea_color_texture);
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffers.scene.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer,
+                        state.uniform_buffers.gerstner_wave_params.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layouts.uniforms)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layouts.textures)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.uniforms)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.textures)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
+  WGPU_RELEASE_RESOURCE(Sampler, state.non_filtering_sampler)
+  WGPU_RELEASE_RESOURCE(Texture,
+                        state.render_pass.multisampled_framebuffer.texture)
+  WGPU_RELEASE_RESOURCE(TextureView,
+                        state.render_pass.multisampled_framebuffer.view)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-
-  wgpu_destroy_texture(&sea_color_texture);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.scene.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.gerstner_wave_params.buffer)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.uniforms)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layouts.textures)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.uniforms)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.textures)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-  WGPU_RELEASE_RESOURCE(Sampler, non_filtering_sampler)
-  WGPU_RELEASE_RESOURCE(Texture, render_pass.multisampled_framebuffer.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, render_pass.multisampled_framebuffer.view)
-}
-
-void example_gerstner_waves(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Gerstner Waves",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
+    .sample_count   = SAMPLE_COUNT,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
