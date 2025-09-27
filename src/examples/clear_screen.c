@@ -1,7 +1,5 @@
 #include "webgpu/wgpu_common.h"
 
-#include <stdio.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
@@ -17,7 +15,7 @@
 
 static struct {
   WGPURenderPassColorAttachment color_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -26,7 +24,7 @@ static struct {
     .clearValue = {1.0, 1.0, 1.0, 1.0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
-  .render_pass_dscriptor = {
+  .render_pass_descriptor = {
     .colorAttachmentCount = 1,
     .colorAttachments     = &state.color_attachment,
   },
@@ -82,7 +80,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
   WGPURenderPassEncoder rpass_enc
-    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
   /* Record render commands. */
   wgpuRenderPassEncoderEnd(rpass_enc);

@@ -1,7 +1,7 @@
 #include "webgpu/wgpu_common.h"
 
 #define SOKOL_FETCH_IMPL
-#include "sokol_fetch.h"
+#include <sokol_fetch.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
@@ -67,7 +67,7 @@ static struct {
   uint8_t file_buffer[64 * 64 * 4];
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
   struct {
     float time;
     float min_life;
@@ -89,7 +89,7 @@ static struct {
     .stencilStoreOp    = WGPUStoreOp_Store,
     .stencilClearValue = 0,
   },
-  .render_pass_dscriptor = {
+  .render_pass_descriptor = {
     .colorAttachmentCount   = 1,
     .colorAttachments       = &state.color_attachment,
     .depthStencilAttachment = &state.depth_stencil_attachment,
@@ -657,7 +657,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
     state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
 
     WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      cmd_enc, &state.render_pass_dscriptor);
+      cmd_enc, &state.render_pass_descriptor);
     wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
     wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
                                       state.graphics.uniforms_bind_group, 0, 0);
@@ -685,6 +685,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
 
   /* Textures */
   wgpu_destroy_texture(&state.particle_texture);

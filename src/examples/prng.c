@@ -48,7 +48,7 @@ static struct {
   WGPUBindGroupLayout uniform_bind_group_layout;
   WGPUBindGroup uniform_bind_group;
   WGPURenderPassColorAttachment color_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
   WGPUBool initialized;
   WGPUBool paused;
 } state = {
@@ -58,7 +58,7 @@ static struct {
     .clearValue = {0.125, 0.125, 0.250, 1.0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
-  .render_pass_dscriptor = {
+  .render_pass_descriptor = {
     .colorAttachmentCount = 1,
     .colorAttachments     = &state.color_attachment,
   },
@@ -255,7 +255,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
   WGPURenderPassEncoder rpass_enc
-    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_dscriptor);
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
   /* Record render commands. */
   wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);

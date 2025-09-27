@@ -55,7 +55,7 @@ static struct {
     WGPUComputePipeline pipeline;
   } compute;
   WGPURenderPassColorAttachment color_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
   WGPUBool is_forward;
   WGPUBool initialized;
 } state = {
@@ -67,7 +67,7 @@ static struct {
     .clearValue = {0.0, 0.0, 0.0, 1.0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
-  .render_pass_dscriptor = {
+  .render_pass_descriptor = {
    .colorAttachmentCount = 1,
    .colorAttachments     = &state.color_attachment,
   },
@@ -174,7 +174,7 @@ static void init_textures(wgpu_context_t* wgpu_context)
                         * sizeof(uint8_t));
     ASSERT(b);
     WGPUBool has_life = 0;
-    uint8_t v     = 0;
+    uint8_t v         = 0;
     for (uint32_t y = 0; y < compute_height; ++y) {
       for (uint32_t x = 0; x < compute_width; ++x) {
         has_life = random_float() > 0.8f;
@@ -492,7 +492,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* -- Frame rendering -- */
   {
     WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      cmd_enc, &state.render_pass_dscriptor);
+      cmd_enc, &state.render_pass_descriptor);
     wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
     wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
                                       state.is_forward ?

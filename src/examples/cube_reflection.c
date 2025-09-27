@@ -44,7 +44,7 @@ static struct {
   WGPURenderPipeline reflection_pipeline;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
   struct {
     uint32_t a;
     float b;
@@ -65,7 +65,7 @@ static struct {
     .stencilStoreOp    = WGPUStoreOp_Store,
     .stencilClearValue = 0,
   },
-  .render_pass_dscriptor = {
+  .render_pass_descriptor = {
     .colorAttachmentCount   = 1,
     .colorAttachments       = &state.color_attachment,
     .depthStencilAttachment = &state.depth_stencil_attachment,
@@ -474,7 +474,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   {
     WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      cmd_enc, &state.render_pass_dscriptor);
+      cmd_enc, &state.render_pass_descriptor);
 
     /* Render cube */
     {

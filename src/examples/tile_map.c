@@ -1,10 +1,10 @@
 #include "webgpu/wgpu_common.h"
 
 #define SOKOL_FETCH_IMPL
-#include "sokol_fetch.h"
+#include <sokol_fetch.h>
 
 #define SOKOL_LOG_IMPL
-#include "sokol_log.h"
+#include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
@@ -223,7 +223,7 @@ typedef struct {
   tile_set_t tile_set;
   tile_map_layer_t tile_map_layers[MAX_TILE_MAP_LAYER_COUNT];
   WGPURenderPassColorAttachment color_attachment;
-  WGPURenderPassDescriptor render_pass_dscriptor;
+  WGPURenderPassDescriptor render_pass_descriptor;
 } tile_map_renderer_t;
 
 static void tile_map_renderer_init_defaults(tile_map_renderer_t* this)
@@ -390,7 +390,7 @@ static void tile_map_renderer_create(tile_map_renderer_t* this,
     };
 
     /* Render pass descriptor */
-    this->render_pass_dscriptor = (WGPURenderPassDescriptor){
+    this->render_pass_descriptor = (WGPURenderPassDescriptor){
       .label                = STRVIEW("Render pass descriptor"),
       .colorAttachmentCount = 1,
       .colorAttachments     = &this->color_attachment,
@@ -441,7 +441,7 @@ static int tile_map_renderer_draw(tile_map_renderer_t* this)
 
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
   WGPURenderPassEncoder rpass_enc
-    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &this->render_pass_dscriptor);
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &this->render_pass_descriptor);
 
   /* Record render commands. */
   wgpuRenderPassEncoderSetPipeline(rpass_enc, this->pipeline);
