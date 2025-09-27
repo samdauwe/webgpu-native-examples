@@ -136,6 +136,7 @@ endfunction()
 
 # Examples
 add_example_executable(clear_screen)
+add_example_executable(compute_particles_easing)
 add_example_executable(conway_paletted_blurring)
 add_example_executable(conway)
 add_example_executable(cube_reflection)

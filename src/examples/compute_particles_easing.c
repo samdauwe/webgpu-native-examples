@@ -1,6 +1,21 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#define SOKOL_FETCH_IMPL
+#include "sokol_fetch.h"
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Compute Shader Particle Easing
@@ -13,55 +28,80 @@
  * https://github.com/redcamel/webgpu/tree/master/14_compute
  * -------------------------------------------------------------------------- */
 
-#define PARTICLE_NUM 60000u
-#define PROPERTY_NUM 40u
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
+static const char* particle_compute_shader_wgsl_p1;
+static const char* particle_compute_shader_wgsl_p2;
+static const char* particle_vertex_shader_wgsl;
+static const char* particle_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Compute Shader Particle Easing example
+ * -------------------------------------------------------------------------- */
+
+#define PARTICLE_NUM (60000u)
+#define PROPERTY_NUM (40u)
+#define WORKGROUP_SIZE (256)
+
+/* State struct */
 static struct {
-  float time;
-  float min_life;
-  float max_life;
-} sim_param_data = {
-  .time     = 0.0f,     /* startTime time */
-  .min_life = 2000.0f,  /* Min lifeRange  */
-  .max_life = 10000.0f, /* Max lifeRange  */
+  wgpu_buffer_t vertices;
+  float initial_particle_data[PARTICLE_NUM * PROPERTY_NUM];
+  struct {
+    WGPUBindGroupLayout uniforms_bind_group_layout;
+    WGPUBindGroup uniforms_bind_group;
+    WGPUPipelineLayout pipeline_layout;
+    WGPURenderPipeline pipeline;
+  } graphics;
+  struct {
+    wgpu_buffer_t sim_param_buffer;
+    wgpu_buffer_t particle_buffer;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup particle_bind_group;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUComputePipeline pipeline;
+  } compute;
+  wgpu_texture_t particle_texture;
+  uint8_t file_buffer[64 * 64 * 4];
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor render_pass_dscriptor;
+  struct {
+    float time;
+    float min_life;
+    float max_life;
+  } sim_param_data;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .depth_stencil_attachment = {
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
+  },
+  .render_pass_dscriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+    .depthStencilAttachment = &state.depth_stencil_attachment,
+  },
+  .sim_param_data = {
+    .time     = 0.0f,     /* startTime time */
+    .min_life = 2000.0f,  /* Min lifeRange  */
+    .max_life = 10000.0f, /* Max lifeRange  */
+  },
 };
 
-/* Vertex buffer and attributes */
-static struct wgpu_buffer_t vertices = {0};
-
-/* Particles data */
-static float initial_particle_data[PARTICLE_NUM * PROPERTY_NUM] = {0};
-
-/* Resources for the graphics part of the example */
-static struct {
-  WGPUBindGroupLayout uniforms_bind_group_layout;
-  WGPUBindGroup uniforms_bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPURenderPipeline pipeline;
-} graphics = {0};
-
-/* Resources for the compute part of the example */
-static struct {
-  wgpu_buffer_t sim_param_buffer;
-  wgpu_buffer_t particle_buffer;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup particle_bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUComputePipeline pipeline;
-} compute = {0};
-
-/* Texture and sampler */
-static texture_t particle_texture = {0};
-
-/* Render pass descriptor for frame buffer writes */
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-/* Other variables */
-static const char* example_title = "Compute Shader Particle Easing";
-static bool prepared             = false;
-
-static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const float t_scale                     = 0.005f;
   static const float vertex_buffer[6 * 6] = {
@@ -77,7 +117,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
   };
 
   /* Create vertex buffer */
-  vertices = wgpu_create_buffer(
+  state.vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Particle - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -87,174 +127,250 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void prepare_particle_buffer(wgpu_context_t* wgpu_context)
+static void init_particle_buffer(wgpu_context_t* wgpu_context)
 {
-  // Particle data
-  const float current_time = platform_get_time();
+  /* Particle data */
+  const float current_time = stm_sec(stm_now());
   for (uint32_t i = 0; i < (uint32_t)PARTICLE_NUM; ++i) {
     const float life = random_float() * 8000.0f + 2000.0f;
     const float age  = random_float() * life;
-    initial_particle_data[PROPERTY_NUM * i + 0]
-      = current_time - age;                             // start time
-    initial_particle_data[PROPERTY_NUM * i + 1] = life; // life
+    state.initial_particle_data[PROPERTY_NUM * i + 0]
+      = current_time - age;                                   // start time
+    state.initial_particle_data[PROPERTY_NUM * i + 1] = life; // life
     // position
-    initial_particle_data[PROPERTY_NUM * i + 4] = random_float() * 2 - 1; // x
-    initial_particle_data[PROPERTY_NUM * i + 5] = random_float() * 2 - 1; // y
-    initial_particle_data[PROPERTY_NUM * i + 6] = random_float() * 2 - 1; // z
-    initial_particle_data[PROPERTY_NUM * i + 7] = 0.0f;
+    state.initial_particle_data[PROPERTY_NUM * i + 4]
+      = random_float() * 2 - 1; // x
+    state.initial_particle_data[PROPERTY_NUM * i + 5]
+      = random_float() * 2 - 1; // y
+    state.initial_particle_data[PROPERTY_NUM * i + 6]
+      = random_float() * 2 - 1; // z
+    state.initial_particle_data[PROPERTY_NUM * i + 7] = 0.0f;
     // scale
-    initial_particle_data[PROPERTY_NUM * i + 8]  = 0.0f; // scaleX
-    initial_particle_data[PROPERTY_NUM * i + 9]  = 0.0f; // scaleY
-    initial_particle_data[PROPERTY_NUM * i + 10] = 0.0f; // scaleZ
-    initial_particle_data[PROPERTY_NUM * i + 11] = 0.0f;
+    state.initial_particle_data[PROPERTY_NUM * i + 8]  = 0.0f; // scaleX
+    state.initial_particle_data[PROPERTY_NUM * i + 9]  = 0.0f; // scaleY
+    state.initial_particle_data[PROPERTY_NUM * i + 10] = 0.0f; // scaleZ
+    state.initial_particle_data[PROPERTY_NUM * i + 11] = 0.0f;
     // x
-    initial_particle_data[PROPERTY_NUM * i + 12] = 0.0f; // startValue
-    initial_particle_data[PROPERTY_NUM * i + 13]
+    state.initial_particle_data[PROPERTY_NUM * i + 12] = 0.0f; // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 13]
       = random_float() * 2.0f - 1.0f; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 14]
+    state.initial_particle_data[PROPERTY_NUM * i + 14]
       = (int)(random_float() * 27.0f); // ease
     // y
-    initial_particle_data[PROPERTY_NUM * i + 16] = 0.0f; // startValue
-    initial_particle_data[PROPERTY_NUM * i + 17]
+    state.initial_particle_data[PROPERTY_NUM * i + 16] = 0.0f; // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 17]
       = random_float() * 2.0f - 1.0f; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 18]
+    state.initial_particle_data[PROPERTY_NUM * i + 18]
       = (int)(random_float() * 27.0f); // ease
     // z
-    initial_particle_data[PROPERTY_NUM * i + 20] = 0.0f; // startValue
-    initial_particle_data[PROPERTY_NUM * i + 21]
+    state.initial_particle_data[PROPERTY_NUM * i + 20] = 0.0f; // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 21]
       = random_float() * 2.0f - 1.0f; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 22]
+    state.initial_particle_data[PROPERTY_NUM * i + 22]
       = (int)(random_float() * 27.0f); // ease
     // scaleX
-    const float t_scale                          = random_float() * 12.0f;
-    initial_particle_data[PROPERTY_NUM * i + 24] = 0.0f;    // startValue
-    initial_particle_data[PROPERTY_NUM * i + 25] = t_scale; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 26] = 0.0f;    // ease
+    const float t_scale                                = random_float() * 12.0f;
+    state.initial_particle_data[PROPERTY_NUM * i + 24] = 0.0f;    // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 25] = t_scale; // endValue
+    state.initial_particle_data[PROPERTY_NUM * i + 26] = 0.0f;    // ease
     // scaleY
-    initial_particle_data[PROPERTY_NUM * i + 28] = 0.0f;    // startValue
-    initial_particle_data[PROPERTY_NUM * i + 29] = t_scale; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 30] = 0.0f;    // ease
+    state.initial_particle_data[PROPERTY_NUM * i + 28] = 0.0f;    // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 29] = t_scale; // endValue
+    state.initial_particle_data[PROPERTY_NUM * i + 30] = 0.0f;    // ease
     // scaleZ
-    initial_particle_data[PROPERTY_NUM * i + 32] = 0.0f;    // startValue
-    initial_particle_data[PROPERTY_NUM * i + 33] = t_scale; // endValue
-    initial_particle_data[PROPERTY_NUM * i + 34] = 0.0f;    // ease
+    state.initial_particle_data[PROPERTY_NUM * i + 32] = 0.0f;    // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 33] = t_scale; // endValue
+    state.initial_particle_data[PROPERTY_NUM * i + 34] = 0.0f;    // ease
     // alpha
-    initial_particle_data[PROPERTY_NUM * i + 36] = random_float(); // startValue
-    initial_particle_data[PROPERTY_NUM * i + 37] = 0.0f;           // endValue
-    initial_particle_data[PROPERTY_NUM * i + 38]
-      = (int)(random_float() * 27.0f);                   // ease
-    initial_particle_data[PROPERTY_NUM * i + 39] = 0.0f; // value
+    state.initial_particle_data[PROPERTY_NUM * i + 36]
+      = random_float();                                        // startValue
+    state.initial_particle_data[PROPERTY_NUM * i + 37] = 0.0f; // endValue
+    state.initial_particle_data[PROPERTY_NUM * i + 38]
+      = (int)(random_float() * 27.0f);                         // ease
+    state.initial_particle_data[PROPERTY_NUM * i + 39] = 0.0f; // value
   }
 
-  // Create vertex buffer
-  compute.particle_buffer = wgpu_create_buffer(
+  /* Create vertex buffer */
+  state.compute.particle_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Compute particle - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
-                    .size         = sizeof(initial_particle_data),
-                    .initial.data = initial_particle_data,
+                    .size         = sizeof(state.initial_particle_data),
+                    .initial.data = state.initial_particle_data,
                   });
 }
 
-static void prepare_compute(wgpu_context_t* wgpu_context)
+static void fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+                .extent = (WGPUExtent3D) {
+                  .width              = img_width,
+                  .height             = img_height,
+                  .depthOrArrayLayers = 4,
+      },
+                .format = WGPUTextureFormat_RGBA8Unorm,
+                .pixels = {
+                  .ptr  = pixels,
+                  .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
+
+static void init_particle_texture(wgpu_context_t* wgpu_context)
+{
+  /* Dummy particle texture */
+  state.particle_texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+
+  /* Start loading the image file */
+  const char* particle_texture_path = "assets/textures/particle.png";
+  wgpu_texture_t* texture           = &state.particle_texture;
+  sfetch_send(&(sfetch_request_t){
+    .path      = particle_texture_path,
+    .callback  = fetch_callback,
+    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .user_data = {
+      .ptr  = &texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });
+}
+
+static void init_compute_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Compute pipeline layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       /* Binding 0 : SimParams */
-      .binding    = 0,
-      .visibility = WGPUShaderStage_Compute,
-      .buffer = (WGPUBufferBindingLayout) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
         .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(sim_param_data),
+        .minBindingSize = sizeof(state.sim_param_data),
       },
       .sampler = {0},
     },
     [1] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 1 : ParticlesA */
-      .binding    = 1,
-      .visibility = WGPUShaderStage_Compute,
-      .buffer = (WGPUBufferBindingLayout) {
+        /* Binding 1 : ParticlesA */
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
         .type           = WGPUBufferBindingType_Storage,
-        .minBindingSize = sizeof(initial_particle_data),
+        .minBindingSize = sizeof(state.initial_particle_data),
       },
       .sampler = {0},
     }
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .label      = "Compute - Bind group layout",
+    .label      = STRVIEW("Compute - Bind group layout"),
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
-  compute.bind_group_layout
+  state.compute.bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(compute.bind_group_layout != NULL)
+  ASSERT(state.compute.bind_group_layout != NULL)
 
   WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-    .label                = "Compute - Pipeline layout",
+    .label                = STRVIEW("Compute - Pipeline layout"),
     .bindGroupLayoutCount = 1,
-    .bindGroupLayouts     = &compute.bind_group_layout,
+    .bindGroupLayouts     = &state.compute.bind_group_layout,
   };
-  compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &compute_pipeline_layout_desc);
-  ASSERT(compute.pipeline_layout != NULL)
+  ASSERT(state.compute.pipeline_layout != NULL)
+}
 
+static void init_compute_bind_group(wgpu_context_t* wgpu_context)
+{
   /* Compute pipeline bind group */
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
       /* Binding 0 : SimParams */
       .binding = 0,
-      .buffer  = compute.sim_param_buffer.buffer,
-      .size    =  compute.sim_param_buffer.size,
+      .buffer  = state.compute.sim_param_buffer.buffer,
+      .size    =  state.compute.sim_param_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
      /* Binding 1 : Particles A */
       .binding = 1,
-      .buffer  = compute.particle_buffer.buffer,
+      .buffer  = state.compute.particle_buffer.buffer,
       .offset  = 0,
-      .size    = compute.particle_buffer.size,
+      .size    = state.compute.particle_buffer.size,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Compute pipeline - Bind group",
-    .layout     = compute.bind_group_layout,
+    .label      = STRVIEW("Compute pipeline - Bind group"),
+    .layout     = state.compute.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  compute.particle_bind_group
+  state.compute.particle_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+}
 
+static char* get_full_compute_shader(void)
+{
+  size_t len1      = strlen(particle_compute_shader_wgsl_p1);
+  size_t len2      = strlen(particle_compute_shader_wgsl_p2);
+  size_t total_len = len1 + len2 + 1; /* +1 for null terminator */
+
+  char* full_shader = malloc(total_len);
+  if (full_shader == NULL) {
+    return NULL; /* Handle allocation failure */
+  }
+
+  snprintf(full_shader, total_len, "%s%s", particle_compute_shader_wgsl_p1,
+           particle_compute_shader_wgsl_p2);
+
+  return full_shader;
+}
+
+static void init_compute_pipeline(wgpu_context_t* wgpu_context)
+{
   /* Compute shader */
-  wgpu_shader_t particle_comp_shader = wgpu_shader_create(
-    wgpu_context,
-    &(wgpu_shader_desc_t){
-      /* Compute shader SPIR-V */
-      .label = "Particle - Compute shader SPIR-V",
-      .file  = "shaders/compute_particles_easing/particle.comp.spv",
-    });
+  char* particle_compute_shader_wgsl = get_full_compute_shader();
+  if (particle_compute_shader_wgsl == NULL) {
+    printf("Could not create full compute shader");
+    return;
+  }
+  WGPUShaderModule comp_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_compute_shader_wgsl);
+  free(particle_compute_shader_wgsl);
 
   /* Create pipeline */
-  compute.pipeline = wgpuDeviceCreateComputePipeline(
+  state.compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = "Particle - Compute pipeline",
-      .layout  = compute.pipeline_layout,
-      .compute = particle_comp_shader.programmable_stage_descriptor,
+      .label   = STRVIEW("Particle - Compute pipeline"),
+      .layout  = state.compute.pipeline_layout,
+      .compute = {
+        .module     = comp_shader_module,
+        .entryPoint = STRVIEW("main"),
+      },
     });
-  ASSERT(compute.pipeline != NULL);
+  ASSERT(state.compute.pipeline != NULL);
 
-  /* Partial clean-up */
-  wgpu_shader_release(&particle_comp_shader);
+  /* Partial cleanup */
+  wgpuShaderModuleRelease(comp_shader_module);
 }
 
-static void prepare_particle_texture(wgpu_context_t* wgpu_context)
-{
-  const char* file = "textures/particle.png";
-  particle_texture = wgpu_create_texture_from_file(wgpu_context, file, NULL);
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_graphics_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Uniforms bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
@@ -280,114 +396,84 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     },
   };
   WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .label      = "Uniforms - Bind group layout",
+    .label      = STRVIEW("Uniforms - Bind group layout"),
     .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
     .entries    = bgl_entries,
   };
-  graphics.uniforms_bind_group_layout
+  state.graphics.uniforms_bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(graphics.uniforms_bind_group_layout != NULL)
+  ASSERT(state.graphics.uniforms_bind_group_layout != NULL)
 
   /* Create the pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-    .label                = "Render - Pipeline layout",
+    .label                = STRVIEW("Render - Pipeline layout"),
     .bindGroupLayoutCount = 1,
-    .bindGroupLayouts     = &graphics.uniforms_bind_group_layout,
+    .bindGroupLayouts     = &state.graphics.uniforms_bind_group_layout,
   };
-  graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &pipeline_layout_desc);
-  ASSERT(graphics.pipeline_layout != NULL);
+  ASSERT(state.graphics.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_graphics_bind_group(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(BindGroup, state.graphics.uniforms_bind_group)
+
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
        /* Binding 0 : sampler */
       .binding = 0,
-      .sampler = particle_texture.sampler,
+      .sampler = state.particle_texture.sampler,
     },
     [1] = (WGPUBindGroupEntry) {
        /* Binding 1 : texture view */
       .binding     = 1,
-      .textureView = particle_texture.view,
+      .textureView = state.particle_texture.view,
     }
   };
 
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Graphics uniforms - Bind group",
-    .layout     = graphics.uniforms_bind_group_layout,
+    .label      = STRVIEW("Graphics uniforms - Bind group"),
+    .layout     = state.graphics.uniforms_bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
 
-  graphics.uniforms_bind_group
+  state.graphics.uniforms_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(graphics.uniforms_bind_group != NULL)
+  ASSERT(state.graphics.uniforms_bind_group != NULL)
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  wgpu_context_t* wgpu_context = context->wgpu_context;
-
-  sim_param_data.time += (1.0 / 60.f) * 1000.0f;
+  state.sim_param_data.time += (1.0 / 60.f) * 1000.0f;
 
   /* Map uniform buffer and update it */
-  wgpu_queue_write_buffer(wgpu_context, compute.sim_param_buffer.buffer, 0,
-                          &sim_param_data, compute.sim_param_buffer.size);
+  wgpuQueueWriteBuffer(
+    wgpu_context->queue, state.compute.sim_param_buffer.buffer, 0,
+    &state.sim_param_data, state.compute.sim_param_buffer.size);
 }
 
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   /* Compute shader uniform buffer block */
-  compute.sim_param_buffer = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Compute shader - Uniform buffer block",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(sim_param_data),
-    });
+  state.compute.sim_param_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Compute shader - Uniform buffer block",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.sim_param_data),
+                  });
 
   /* Update uniform buffer */
-  update_uniform_buffers(context);
+  update_uniform_buffers(wgpu_context);
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
 {
-  /* Color attachment */
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  /* Render pass descriptor */
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
-{
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_fragment_shader_wgsl);
 
   /* Color target state */
   WGPUBlendState blend_state = wgpu_create_blend_state(true);
@@ -401,8 +487,9 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
     blend_state.alpha.dstFactor = WGPUBlendFactor_One;
     blend_state.alpha.operation = WGPUBlendOperation_Add;
   }
+
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
+    .format    = wgpu_context->render_format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
@@ -410,12 +497,13 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
   /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = false,
     });
 
   /* Vertex buffer layout */
   WGPUVertexBufferLayout buffers[2] = {0};
+
   /* Instanced particles buffer */
   buffers[0].arrayStride              = PROPERTY_NUM * 4;
   buffers[0].stepMode                 = WGPUVertexStepMode_Instance;
@@ -442,6 +530,7 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
     };
   }
   buffers[0].attributes = attributes_0;
+
   /* vertex buffer */
   buffers[1].arrayStride              = 6 * 4;
   buffers[1].stepMode                 = WGPUVertexStepMode_Vertex;
@@ -463,190 +552,498 @@ static void prepare_graphics_pipeline(wgpu_context_t* wgpu_context)
   }
   buffers[1].attributes = attributes_1;
 
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  /* Vertex shader SPIR-V */
-                  .label = "Particle - Vertex shader SPIR-V",
-                  .file  = "shaders/compute_particles_easing/particle.vert.spv",
-                },
-                .buffer_count = (uint32_t) ARRAY_SIZE(buffers),
-                .buffers      = buffers,
-              });
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Particle - Render pipeline"),
+    .layout = state.graphics.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = (uint32_t) ARRAY_SIZE(buffers),
+      .buffers     = buffers,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets     = &color_target_state,
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+       .count = 1,
+       .mask  = 0xffffffff
+    },
+  };
 
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  /* Fragment shader SPIR-V */
-                  .label = "Particle - Fragment shader SPIR-V",
-                  .file  = "shaders/compute_particles_easing/particle.frag.spv",
-                },
-                .target_count = 1,
-                .targets      = &color_target_state,
-              });
+  state.graphics.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.graphics.pipeline != NULL);
 
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  /* Create rendering pipeline using the specified states */
-  graphics.pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Particle - Render pipeline",
-                            .layout       = graphics.pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_vertex_buffer(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    prepare_particle_buffer(context->wgpu_context);
-    prepare_compute(context->wgpu_context);
-    prepare_particle_texture(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_graphics_pipeline(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+    });
+    init_vertex_buffer(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_particle_buffer(wgpu_context);
+    init_particle_texture(wgpu_context);
+    init_compute_pipeline_layout(wgpu_context);
+    init_compute_bind_group(wgpu_context);
+    init_compute_pipeline(wgpu_context);
+    init_graphics_pipeline_layout(wgpu_context);
+    init_graphics_bind_group(wgpu_context);
+    init_graphics_pipeline(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  /* Set target frame buffer */
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  sfetch_dowork();
+
+  /* Recreate texture when pixel data loaded */
+  if (state.particle_texture.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.particle_texture);
+    FREE_TEXTURE_PIXELS(state.particle_texture);
+    /* Upddate the bindgroup */
+    init_graphics_bind_group(wgpu_context);
+  }
+
+  /* Update matrix data */
+  update_uniform_buffers(wgpu_context);
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
   /* Compute pass: Compute particle movement */
   {
-    wgpu_context->cpass_enc
-      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
+    WGPUComputePassEncoder cpass_enc
+      = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
     /* Dispatch the compute job */
-    wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
-                                      compute.pipeline);
-    wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
-                                       compute.particle_bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
-                                             PARTICLE_NUM, 1, 1);
-    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-    WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+    wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute.pipeline);
+    wgpuComputePassEncoderSetBindGroup(
+      cpass_enc, 0, state.compute.particle_bind_group, 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      cpass_enc, (uint32_t)ceilf(PARTICLE_NUM / WORKGROUP_SIZE), 1, 1);
+    wgpuComputePassEncoderEnd(cpass_enc);
+    WGPU_RELEASE_RESOURCE(ComputePassEncoder, cpass_enc)
   }
 
   /* Render pass: Draw the particle system using the update vertex buffer */
   {
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass_desc);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     graphics.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      graphics.uniforms_bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         compute.particle_buffer.buffer, 0,
+    state.color_attachment.view         = wgpu_context->swapchain_view;
+    state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
+
+    WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.render_pass_dscriptor);
+    wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
+                                      state.graphics.uniforms_bind_group, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rpass_enc, 0, state.compute.particle_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 1, state.vertices.buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         vertices.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, PARTICLE_NUM, 0, 0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+    wgpuRenderPassEncoderDraw(rpass_enc, 6, PARTICLE_NUM, 0, 0);
+    wgpuRenderPassEncoderEnd(rpass_enc);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
   }
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  return command_buffer;
-}
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  update_uniform_buffers(context);
-
-  return example_draw(context);
-}
-
-static void example_destroy(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
 
   /* Textures */
-  wgpu_destroy_texture(&particle_texture);
+  wgpu_destroy_texture(&state.particle_texture);
 
   /* Vertices */
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
 
   /* Graphics pipeline */
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, graphics.uniforms_bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, graphics.uniforms_bind_group)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, graphics.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.graphics.uniforms_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.graphics.uniforms_bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.graphics.pipeline)
 
   /* Compute pipeline */
-  WGPU_RELEASE_RESOURCE(Buffer, compute.sim_param_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, compute.particle_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, compute.particle_bind_group)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, compute.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, compute.pipeline)
+  WGPU_RELEASE_RESOURCE(Buffer, state.compute.sim_param_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.compute.particle_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.compute.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.compute.particle_bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.compute.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
 }
 
-void example_compute_particles_easing(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title = example_title,
-     .vsync = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Compute Shader Particle Easing",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* particle_compute_shader_wgsl_p1 = CODE(
+  const PARTICLE_NUM: u32 = 60000u;
+
+  struct Info {
+    startValue: f32,
+    endValue: f32,
+    easeType: f32,
+    value: f32,
+  };
+
+  struct InfoGroup {
+    infoX: Info,
+    infoY: Info,
+    infoZ: Info,
+  };
+
+  struct Particle {
+    startTime: f32,
+    life: f32,
+    valuePosition: vec4<f32>,
+    valueScale: vec4<f32>,
+    infoPosition: InfoGroup,
+    infoScale: InfoGroup,
+    infoAlpha: Info,
+  };
+
+  struct SimParams {
+    time: f32,
+    minLife: f32,
+    maxLife: f32,
+  };
+
+  @group(0) @binding(0) var<uniform> params: SimParams;
+
+  @group(0) @binding(1) var<storage, read_write> particlesA: array<Particle, PARTICLE_NUM>;
+
+  fn rand(co: vec2<f32>) -> f32 {
+    return fract(sin(dot(co, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+  }
+
+  const PI: f32 = 3.141592653589793;
+  const HPI: f32 = PI * 0.5;
+  const PI2: f32 = PI * 2.0;
+
+  fn calEasing(n_in: f32, type_in: f32) -> f32 {
+    var n = n_in;
+    switch (i32(type_in)) {
+      // linear
+      case 0: { }
+      // QuintIn
+      case 1: { n = n * n * n * n * n; }
+      // QuintOut
+      case 2: { n = ((n - 1.0) * n * n * n * n) + 1.0; }
+      // QuintInOut
+      case 3: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = n * n * n * n * n * 0.5;
+        } else {
+          n = n - 2.0;
+          n = 0.5 * (n * n * n * n * n + 2.0);
+        }
+      }
+      // BackIn
+      case 4: { n = n * n * (n * 1.70158 + n - 1.70158); }
+      // BackOut
+      case 5: { n = (n - 1.0) * n * (n * 1.70158 + n + 1.70158) + 1.0; }
+      // BackInOut
+      case 6: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = 0.5 * n * n * (n * 1.70158 + n - 1.70158);
+        } else {
+          n = n - 2.0;
+          n = 0.5 * (n * n * (n * 1.70158 + n + 1.70158) + 2.0);  // Note: Added +2 for consistency with other InOut patterns
+        }
+      }
+      // CircIn
+      case 7: { n = -1.0 * (sqrt(1.0 - n * n) - 1.0); }
+      // CircOut
+      case 8: { n = sqrt(1.0 - (n - 1.0) * n); }
+      // CircInOut
+      case 9: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = -0.5 * (sqrt(1.0 - n * n) - 1.0);
+        } else {
+          n = n - 2.0;
+          n = 0.5 * (sqrt(1.0 - n * n) + 1.0);
+        }
+      }
+      // CubicIn
+      case 10: { n = n * n * n; }
+      // CubicOut
+      case 11: { n = ((n - 1.0) * n * n) + 1.0; }
+      // CubicInOut
+      case 12: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = n * n * n * 0.5;
+        } else {
+          n = n - 2.0;
+          n = 0.5 * (n * n * n + 2.0);
+        }
+      }
+      // ExpoIn
+      case 13: {
+        if (n == 0.0) {
+          n = 0.0;
+        } else {
+          n = pow(2.0, 10.0 * (n - 1.0));
+        }
+      }
+      // ExpoOut
+      case 14: {
+        if (n == 1.0) {
+          n = 1.0;
+        } else {
+          n = -pow(2.0, -10.0 * n) + 1.0;
+        }
+      }
+      // ExpoInOut
+      case 15: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          if (n == 0.0) {
+            n = 0.0;
+          } else {
+            n = 0.5 * pow(2.0, 10.0 * (n - 1.0));
+          }
+        } else {
+          if (n == 2.0) {
+            n = 1.0;
+          } else {
+            n = -0.5 * pow(2.0, -10.0 * (n - 1.0)) + 1.0;
+          }
+        }
+      }
+      // QuadIn
+      case 16: { n = n * n; }
+      // QuadOut
+      case 17: { n = (2.0 - n) * n; }
+      // QuadInOut
+      case 18: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = n * n * 0.5;
+        } else {
+          n = n - 1.0;
+          n = 0.5 * ((2.0 - n) * n + 1.0);
+        }
+      }
+      // QuartIn
+      case 19: { n = n * n * n * n; }
+      // QuartOut
+      case 20: { n = 1.0 - ((n - 1.0) * n * n * n); }
+      // QuartInOut
+      case 21: {
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = n * n * n * n * 0.5;
+        } else {
+          n = n - 2.0;
+          n = 1.0 - (n * n * n * n * 0.5);
+        }
+      }
+      // SineIn
+      case 22: { n = -cos(n * HPI) + 1.0; }
+      // SineOut
+      case 23: { n = sin(n * HPI); }
+      // SineInOut
+      case 24: { n = (-cos(n * PI) + 1.0) * 0.5; }
+      // ElasticIn
+      case 25: {
+        if (n == 0.0) {
+          n = 0.0;
+        } else if (n == 1.0) {
+          n = 1.0;
+        } else {
+          n = n - 1.0;
+          n = -1.0 * pow(2.0, 10.0 * n) * sin((n - 0.075) * PI2 / 0.3);
+        }
+      }
+      // ElasticOut
+      case 26: {
+        if (n == 0.0) {
+          n = 0.0;
+        } else if (n == 1.0) {
+          n = 1.0;
+        } else {
+          n = pow(2.0, -10.0 * n) * sin((n - 0.075) * PI2 / 0.3) + 1.0;
+        }
+      }
+      // ElasticInOut
+      case 27: {
+        if (n == 0.0) {
+          return 0.0;
+        }
+        if (n == 1.0) {
+          return 1.0;
+        }
+        n = n * 2.0;
+        if (n < 1.0) {
+          n = n - 1.0;
+          n = -0.5 * pow(2.0, 10.0 * n) * sin((n - 0.075) * PI2 / 0.3);
+        } else {
+          n = n - 1.0;
+          n = 0.5 * pow(2.0, -10.0 * n) * sin((n - 0.075) * PI2 / 0.3) + 1.0;
+        }
+      }
+      default: { }
+    }
+    return n;
+  }
+);
+
+static const char* particle_compute_shader_wgsl_p2 = CODE(
+  @compute @workgroup_size(256)
+  fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+    if (index >= PARTICLE_NUM) {
+      return;
+    }
+
+    var targetParticle = particlesA[index];
+
+    var n: f32;
+    let age = params.time - targetParticle.startTime;
+    var lifeRatio = age / targetParticle.life;
+
+    if (lifeRatio >= 1.0) {
+      particlesA[index].startTime = params.time;
+      var t0 = rand(vec2<f32>(params.minLife, params.maxLife) + params.time) * params.maxLife;
+      t0 = max(params.minLife, t0);
+      particlesA[index].life = t0;
+      lifeRatio = 0.0;
+    }
+
+    // position
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoPosition.infoX.easeType);
+    particlesA[index].valuePosition.x = targetParticle.infoPosition.infoX.startValue + (targetParticle.infoPosition.infoX.endValue - targetParticle.infoPosition.infoX.startValue) * n;
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoPosition.infoY.easeType);
+    particlesA[index].valuePosition.y = targetParticle.infoPosition.infoY.startValue + (targetParticle.infoPosition.infoY.endValue - targetParticle.infoPosition.infoY.startValue) * n;
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoPosition.infoZ.easeType);
+    particlesA[index].valuePosition.z = targetParticle.infoPosition.infoZ.startValue + (targetParticle.infoPosition.infoZ.endValue - targetParticle.infoPosition.infoZ.startValue) * n;
+
+    // scale
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoScale.infoX.easeType);
+    particlesA[index].valueScale.x = targetParticle.infoScale.infoX.startValue + (targetParticle.infoScale.infoX.endValue - targetParticle.infoScale.infoX.startValue) * n;
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoScale.infoY.easeType);
+    particlesA[index].valueScale.y = targetParticle.infoScale.infoY.startValue + (targetParticle.infoScale.infoY.endValue - targetParticle.infoScale.infoY.startValue) * n;
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoScale.infoZ.easeType);
+    particlesA[index].valueScale.z = targetParticle.infoScale.infoZ.startValue + (targetParticle.infoScale.infoZ.endValue - targetParticle.infoScale.infoZ.startValue) * n;
+
+    // alpha
+    n = lifeRatio;
+    n = calEasing(n, targetParticle.infoAlpha.easeType);
+    particlesA[index].infoAlpha.value = targetParticle.infoAlpha.startValue + (targetParticle.infoAlpha.endValue - targetParticle.infoAlpha.startValue) * n;
+  }
+);
+
+static const char* particle_vertex_shader_wgsl = CODE(
+  struct VertexOutput {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) tUV: vec2<f32>,
+    @location(1) vAlpha: f32,
+  };
+
+  @vertex
+  fn main(
+    @location(0) position: vec3<f32>,
+    @location(1) scale: vec3<f32>,
+    @location(2) alpha: f32,
+    @location(3) a_pos: vec4<f32>,
+    @location(4) a_uv: vec2<f32>,
+  ) -> VertexOutput {
+    var output: VertexOutput;
+
+    let ratio: f32 = 976.0 / 1920.0;
+    let scaleMTX: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(scale.x, 0.0, 0.0, 0.0),
+      vec4<f32>(0.0, scale.y, 0.0, 0.0),
+      vec4<f32>(0.0, 0.0, scale.z, 0.0),
+      vec4<f32>(position, 1.0)
+    );
+    output.pos = scaleMTX * vec4<f32>(a_pos.x, a_pos.y / ratio, a_pos.z, 1.0);
+    output.tUV = a_uv;
+    output.vAlpha = alpha;
+
+    return output;
+  }
+);
+
+static const char* particle_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var uSampler: sampler;
+  @group(0) @binding(1) var uTexture: texture_2d<f32>;
+
+  struct FragmentOutput {
+    @location(0) outColor: vec4<f32>,
+  };
+
+  @fragment
+  fn main(
+    @location(0) tUV: vec2<f32>,
+    @location(1) vAlpha: f32,
+  ) -> FragmentOutput {
+    var output: FragmentOutput;
+
+    output.outColor = textureSample(uTexture, uSampler, tUV);
+    output.outColor = vec4<f32>(mix(output.outColor.rgb, vec3<f32>(vAlpha, 0.0, 0.0), 1.0 - vAlpha), output.outColor.a);
+    output.outColor.a *= vAlpha;
+
+    return output;
+  }
+);
+// clang-format on
