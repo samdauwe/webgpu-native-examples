@@ -1,5 +1,6 @@
-#include "example_base.h"
-#include "meshes.h"
+#include "webgpu/wgpu_common.h"
+
+#include <stdio.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Conway's Game of Life
@@ -24,93 +25,94 @@ static const char* vertex_shader_wgsl;
  * Conway's Game of Life example
  * -------------------------------------------------------------------------- */
 
+/* State struct */
 static struct {
-  uint32_t width;
-  uint32_t height;
-  uint32_t timestep;
-  uint32_t workgroup_size;
-} game_options = {
-  .width          = 128,
-  .height         = 128,
-  .timestep       = 4,
-  .workgroup_size = 8,
+  struct {
+    struct {
+      wgpu_buffer_t handle;
+    } square;
+    struct {
+      wgpu_buffer_t handle;
+      uint32_t data[2];
+    } size;
+    struct {
+      wgpu_buffer_t handle;
+      uint32_t* data;
+    } buffer0;
+    struct {
+      wgpu_buffer_t handle;
+    } buffer1;
+  } buffers;
+  struct {
+    WGPUBindGroup uniform;
+    WGPUBindGroup bind_group0;
+    WGPUBindGroup bind_group1;
+  } bind_groups;
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUComputePipeline pipeline;
+  } compute;
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUPipelineLayout pipeline_layout;
+    WGPURenderPipeline pipeline;
+  } graphics;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  uint32_t whole_time;
+  uint32_t loop_times;
+  struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t timestep;
+    uint32_t workgroup_size;
+  } game_options;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+  .game_options = {
+    .width          = 128,
+    .height         = 128,
+    .timestep       = 4,
+    .workgroup_size = 8,
+  },
 };
-
-static struct {
-  struct {
-    wgpu_buffer_t handle;
-  } square;
-  struct {
-    wgpu_buffer_t handle;
-    uint32_t data[2];
-  } size;
-  struct {
-    wgpu_buffer_t handle;
-    uint32_t* data;
-  } buffer0;
-  struct {
-    wgpu_buffer_t handle;
-  } buffer1;
-} buffers = {0};
-
-static struct {
-  WGPUBindGroup uniform;
-  WGPUBindGroup bind_group0;
-  WGPUBindGroup bind_group1;
-} bind_groups = {0};
-
-// Resources for the compute part of the example
-static struct {
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUComputePipeline pipeline;
-} compute = {0};
-
-// Resources for the graphics part of the example
-static struct {
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUPipelineLayout pipeline_layout;
-  WGPURenderPipeline pipeline;
-} graphics = {0};
-
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
-
-// Used during render step
-static uint32_t whole_time = 0, loop_times = 0;
-
-// Other variables
-static const char* example_title = "Conway's Game of Life";
-static bool prepared             = false;
 
 static uint32_t get_cell_count(void)
 {
-  return game_options.width * game_options.height;
+  return state.game_options.width * state.game_options.height;
 }
 
 static void update_size_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // Update the buffer data
-  buffers.size.data[0] = game_options.width;
-  buffers.size.data[1] = game_options.height;
+  /* Update the buffer data */
+  state.buffers.size.data[0] = state.game_options.width;
+  state.buffers.size.data[1] = state.game_options.height;
 
   // Map uniform buffer and update it
-  wgpu_queue_write_buffer(wgpu_context, buffers.size.handle.buffer, 0,
-                          buffers.size.data, buffers.size.handle.size);
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.buffers.size.handle.buffer, 0,
+                       state.buffers.size.data, state.buffers.size.handle.size);
 }
 
-static void prepare_static_buffers(wgpu_context_t* wgpu_context)
+static void init_static_buffers(wgpu_context_t* wgpu_context)
 {
   /* Square vertex buffer */
   {
-    // Setup vertices of the square
+    /* Setup vertices of the square */
     uint32_t square_vertices[8] = {0, 0, 0, 1, 1, 0, 1, 1};
 
-    // Create the vertex buffer
-    buffers.square.handle = wgpu_create_buffer(
+    /* Create the vertex buffer */
+    state.buffers.square.handle = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
                       .label = "Square - Vertex buffer",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -121,70 +123,65 @@ static void prepare_static_buffers(wgpu_context_t* wgpu_context)
 
   /* Size uniform buffer */
   {
-    buffers.size.handle = wgpu_create_buffer(
+    state.buffers.size.handle = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
         .label = "Size - Uniform buffer",
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Uniform
                  | WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-        .size = sizeof(buffers.size.data),
+        .size = sizeof(state.buffers.size.data),
       });
 
     update_size_uniform_buffer(wgpu_context);
   }
 }
 
-static float float_random(float min, float max)
+static void init_storage_buffers(wgpu_context_t* wgpu_context)
 {
-  const float scale = rand() / (float)RAND_MAX; /* [0, 1.0]   */
-  return min + scale * (max - min);             /* [min, max] */
-}
+  wgpu_destroy_buffer(&state.buffers.buffer0.handle);
+  wgpu_destroy_buffer(&state.buffers.buffer1.handle);
 
-static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
-{
-  wgpu_destroy_buffer(&buffers.buffer0.handle);
-  wgpu_destroy_buffer(&buffers.buffer1.handle);
-
-  if (buffers.buffer0.data) {
-    free(buffers.buffer0.data);
-    buffers.buffer0.data = NULL;
+  if (state.buffers.buffer0.data) {
+    free(state.buffers.buffer0.data);
+    state.buffers.buffer0.data = NULL;
   }
 
   /* Update the buffer data */
-  const uint32_t cell_count = get_cell_count();
-  const uint32_t length     = cell_count * sizeof(uint32_t);
-  buffers.buffer0.data      = (uint32_t*)malloc(length);
+  const uint32_t cell_count  = get_cell_count();
+  const uint32_t length      = cell_count * sizeof(uint32_t);
+  state.buffers.buffer0.data = (uint32_t*)malloc(length);
   for (uint32_t i = 0; i < cell_count; ++i) {
-    buffers.buffer0.data[i] = float_random(0.0f, 1.0f) < 0.25f ? 1 : 0;
+    state.buffers.buffer0.data[i]
+      = random_float_min_max(0.0f, 1.0f) < 0.25f ? 1 : 0;
   }
 
   /* Storage buffer 0 */
   {
-    buffers.buffer0.handle = wgpu_create_buffer(
+    state.buffers.buffer0.handle = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
                       .label = "Storage buffer 0",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage
                                | WGPUBufferUsage_Vertex,
                       .size         = length,
-                      .initial.data = buffers.buffer0.data,
+                      .initial.data = state.buffers.buffer0.data,
                     });
-    ASSERT(buffers.buffer0.handle.buffer != NULL);
+    ASSERT(state.buffers.buffer0.handle.buffer != NULL);
   }
 
   /* Storage buffer 1 */
   {
-    buffers.buffer1.handle = wgpu_create_buffer(
+    state.buffers.buffer1.handle = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
                       .label = "Storage buffer 1",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage
                                | WGPUBufferUsage_Vertex,
                       .size = length,
                     });
-    ASSERT(buffers.buffer1.handle.buffer != NULL);
+    ASSERT(state.buffers.buffer1.handle.buffer != NULL);
   }
 }
 
-static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
+static void init_bind_group_layout_compute(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
@@ -193,7 +190,7 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
-        .minBindingSize   = buffers.size.handle.size,
+        .minBindingSize   = state.buffers.size.handle.size,
       },
       .sampler = {0},
     },
@@ -203,7 +200,7 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_ReadOnlyStorage,
-        .minBindingSize   = buffers.buffer0.handle.size,
+        .minBindingSize   = state.buffers.buffer0.handle.size,
       },
       .sampler = {0},
     },
@@ -213,49 +210,49 @@ static void setup_bind_group_layout_compute(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Compute,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Storage,
-        .minBindingSize   = buffers.buffer1.handle.size,
+        .minBindingSize   = state.buffers.buffer1.handle.size,
       },
       .sampler = {0},
     }
   };
-  compute.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.compute.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Compute - Bind group layout",
+                            .label = STRVIEW("Compute - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(compute.bind_group_layout != NULL);
+  ASSERT(state.compute.bind_group_layout != NULL);
 }
 
-static void setup_bind_groups_compute(wgpu_context_t* wgpu_context)
+static void init_bind_groups_compute(wgpu_context_t* wgpu_context)
 {
   /* Bind group 0 */
   {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = buffers.size.handle.buffer,
-        .size    = buffers.size.handle.size,
+        .buffer  = state.buffers.size.handle.buffer,
+        .size    = state.buffers.size.handle.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = buffers.buffer0.handle.buffer,
-        .size    = buffers.buffer0.handle.size,
+        .buffer  = state.buffers.buffer0.handle.buffer,
+        .size    = state.buffers.buffer0.handle.size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer  = buffers.buffer1.handle.buffer,
-        .size    = buffers.buffer1.handle.size,
+        .buffer  = state.buffers.buffer1.handle.buffer,
+        .size    = state.buffers.buffer1.handle.size,
       },
     };
-    bind_groups.bind_group0 = wgpuDeviceCreateBindGroup(
+    state.bind_groups.bind_group0 = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group - Compute 0",
-                              .layout     = compute.bind_group_layout,
+                              .label      = STRVIEW("Bind group - Compute 0"),
+                              .layout     = state.compute.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.bind_group0 != NULL);
+    ASSERT(state.bind_groups.bind_group0 != NULL);
   }
 
   /* Bind group 1 */
@@ -263,81 +260,77 @@ static void setup_bind_groups_compute(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = buffers.size.handle.buffer,
-        .size    = buffers.size.handle.size,
+        .buffer  = state.buffers.size.handle.buffer,
+        .size    = state.buffers.size.handle.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = buffers.buffer1.handle.buffer,
-        .size    = buffers.buffer1.handle.size,
+        .buffer  = state.buffers.buffer1.handle.buffer,
+        .size    = state.buffers.buffer1.handle.size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer  = buffers.buffer0.handle.buffer,
-        .size    = buffers.buffer0.handle.size,
+        .buffer  = state.buffers.buffer0.handle.buffer,
+        .size    = state.buffers.buffer0.handle.size,
       },
     };
-    bind_groups.bind_group1 = wgpuDeviceCreateBindGroup(
+    state.bind_groups.bind_group1 = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group - Compute 1",
-                              .layout     = compute.bind_group_layout,
+                              .label      = STRVIEW("Bind group - Compute 1"),
+                              .layout     = state.compute.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(bind_groups.bind_group1 != NULL);
+    ASSERT(state.bind_groups.bind_group1 != NULL);
   }
 }
 
-static void prepare_pipeline_layout_compute(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout_compute(wgpu_context_t* wgpu_context)
 {
-  compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout - Compute",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &compute.bind_group_layout,
-                          });
-  ASSERT(compute.pipeline_layout != NULL);
+  state.compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Pipeline layout - Compute"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.compute.bind_group_layout,
+    });
+  ASSERT(state.compute.pipeline_layout != NULL);
 }
 
-static void prepare_pipeline_compute(wgpu_context_t* wgpu_context)
+static void init_pipeline_compute(wgpu_context_t* wgpu_context)
 {
   /* Compute shader constants */
   WGPUConstantEntry constant_entries[1] = {
     [0] = (WGPUConstantEntry){
-      .key   = "blockSize",
-      .value = game_options.workgroup_size,
+      .key   = STRVIEW("blockSize"),
+      .value = state.game_options.workgroup_size,
     },
   };
 
   /* Compute shader */
-  wgpu_shader_t compute_shader = wgpu_shader_create(
-    wgpu_context,
-    &(wgpu_shader_desc_t){
-      /* Compute shader WGSL */
-      .label            = "Compute shader WGSL",
-      .wgsl_code.source = compute_shader_wgsl,
-      .entry            = "main",
-      .constants        = {
-        .count   = (uint32_t)ARRAY_SIZE(constant_entries),
-        .entries = constant_entries,
-      },
-    });
+  WGPUShaderModule comp_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, compute_shader_wgsl);
 
-  /* Compute pipeline */
-  compute.pipeline = wgpuDeviceCreateComputePipeline(
+  /* Create compute pipeline */
+  state.compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = "Compute pipeline",
-      .layout  = compute.pipeline_layout,
-      .compute = compute_shader.programmable_stage_descriptor,
+      .label   = STRVIEW("Effect - Compute pipeline"),
+      .layout  = state.compute.pipeline_layout,
+      .compute = {
+        .module        = comp_shader_module,
+        .entryPoint    = STRVIEW("main"),
+        .constantCount = (uint32_t)ARRAY_SIZE(constant_entries),
+        .constants     = constant_entries,
+      },
     });
-  ASSERT(compute.pipeline != NULL);
+  ASSERT(state.compute.pipeline != NULL);
 
-  /* Partial clean-up */
-  wgpu_shader_release(&compute_shader);
+  /* Partial cleanup */
+  wgpuShaderModuleRelease(comp_shader_module);
 }
 
-static void prepare_bind_group_layout_graphics(wgpu_context_t* wgpu_context)
+static void init_bind_group_layout_graphics(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[1] = {
     [0] = (WGPUBindGroupLayoutEntry) {
@@ -346,66 +339,57 @@ static void prepare_bind_group_layout_graphics(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
-        .minBindingSize   = buffers.size.handle.size,
+        .minBindingSize   = state.buffers.size.handle.size,
       },
       .sampler = {0},
     },
   };
-  graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Graphics - Bind group layout",
+                            .label = STRVIEW("Graphics - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(graphics.bind_group_layout != NULL);
+  ASSERT(state.graphics.bind_group_layout != NULL);
 }
 
-static void setup_bind_group_graphics(wgpu_context_t* wgpu_context)
+static void init_bind_group_graphics(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[1] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = buffers.size.handle.buffer,
-      .size    = buffers.size.handle.size,
+      .buffer  = state.buffers.size.handle.buffer,
+      .size    = state.buffers.size.handle.size,
     },
   };
-  bind_groups.uniform = wgpuDeviceCreateBindGroup(
+  state.bind_groups.uniform = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Uniform - Bind group",
-                            .layout     = graphics.bind_group_layout,
+                            .label      = STRVIEW("Uniform - Bind group"),
+                            .layout     = state.graphics.bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
                           });
-  ASSERT(bind_groups.uniform != NULL);
+  ASSERT(state.bind_groups.uniform != NULL);
 }
 
-static void prepare_pipeline_layout_graphics(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout_graphics(wgpu_context_t* wgpu_context)
 {
-  graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = "Graphics - Pipeline layout",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &graphics.bind_group_layout,
-                          });
-  ASSERT(graphics.pipeline_layout != NULL);
+  state.graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Graphics - Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.graphics.bind_group_layout,
+    });
+  ASSERT(state.graphics.pipeline_layout != NULL);
 }
 
-static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
+static void init_pipeline_graphics(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleStrip,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
-
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
   // Vertex buffer layouts
   WGPU_VERTEX_BUFFER_LAYOUT(cell_stride, sizeof(uint32_t),
@@ -418,239 +402,177 @@ static void prepare_pipeline_graphics(wgpu_context_t* wgpu_context)
   WGPUVertexBufferLayout vertex_state_buffers[2]
     = {cell_stride_vertex_buffer_layout, square_stride_vertex_buffer_layout};
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
-                      .label            = "Vertex shader WGSL",
-                      .wgsl_code.source = vertex_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .buffer_count = (uint32_t)ARRAY_SIZE(vertex_state_buffers),
-                    .buffers      = vertex_state_buffers,
-                  });
-
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
-                      .label            = "Fragment shader WGSL",
-                      .wgsl_code.source = fragment_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  graphics.pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Graphics - Render pipeline",
-                            .layout      = graphics.pipeline_layout,
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(graphics.pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
-
-  // Color attachment
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-    .view       = NULL, /* Assigned later */
-    .depthSlice = ~0,
-    .loadOp     = WGPULoadOp_Clear,
-    .storeOp    = WGPUStoreOp_Store,
-    .clearValue = (WGPUColor) {
-      .r = 0.0f,
-      .g = 0.0f,
-      .b = 0.0f,
-      .a = 1.0f,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Graphics - Render pipeline"),
+    .layout = state.graphics.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = (uint32_t)ARRAY_SIZE(vertex_state_buffers),
+      .buffers     = vertex_state_buffers,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    },
+    .multisample = {
+      .count = 1,
+      .mask  = 0xffffffff
     },
   };
 
-  // Render pass descriptor
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                = "Render pass descriptor",
-    .colorAttachmentCount = (uint32_t)ARRAY_SIZE(render_pass.color_attachments),
-    .colorAttachments     = render_pass.color_attachments,
-  };
+  state.graphics.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.graphics.pipeline != NULL);
+
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
-
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Compute pass */
-  {
-    wgpu_context->cpass_enc
-      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
-    wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
-                                      compute.pipeline);
-    wgpuComputePassEncoderSetBindGroup(
-      wgpu_context->cpass_enc, 0,
-      loop_times ? bind_groups.bind_group1 : bind_groups.bind_group0, 0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(
-      wgpu_context->cpass_enc,
-      ceil((float)game_options.width / game_options.workgroup_size),
-      ceil((float)game_options.height / game_options.workgroup_size), 1);
-    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-    WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
-  }
-
-  /* Graphics render pipeline */
-  {
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass.descriptor);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     graphics.pipeline);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         loop_times ?
-                                           buffers.buffer1.handle.buffer :
-                                           buffers.buffer0.handle.buffer,
-                                         0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         buffers.square.handle.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      bind_groups.uniform, 0, NULL);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 4, get_cell_count(), 0,
-                              0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-  }
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
-
-  return EXIT_SUCCESS;
-}
-
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    prepare_static_buffers(context->wgpu_context);
-    prepare_storage_buffers(context->wgpu_context);
+  if (wgpu_context) {
+    init_static_buffers(wgpu_context);
+    init_storage_buffers(wgpu_context);
     /* Compute */
-    setup_bind_group_layout_compute(context->wgpu_context);
-    setup_bind_groups_compute(context->wgpu_context);
-    prepare_pipeline_layout_compute(context->wgpu_context);
-    prepare_pipeline_compute(context->wgpu_context);
+    init_bind_group_layout_compute(wgpu_context);
+    init_bind_groups_compute(wgpu_context);
+    init_pipeline_layout_compute(wgpu_context);
+    init_pipeline_compute(wgpu_context);
     /* Graphics */
-    prepare_bind_group_layout_graphics(context->wgpu_context);
-    setup_bind_group_graphics(context->wgpu_context);
-    prepare_pipeline_layout_graphics(context->wgpu_context);
-    prepare_pipeline_graphics(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+    init_bind_group_layout_graphics(wgpu_context);
+    init_bind_group_graphics(wgpu_context);
+    init_pipeline_layout_graphics(wgpu_context);
+    init_pipeline_graphics(wgpu_context);
+    state.initialized = 1;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
 
-  if (game_options.timestep) {
-    whole_time++;
-    if (whole_time >= game_options.timestep) {
-      example_draw(context);
-      whole_time -= game_options.timestep;
-      loop_times = 1 - loop_times;
+  if (state.game_options.timestep) {
+    state.whole_time++;
+    if (state.whole_time >= state.game_options.timestep) {
+      state.whole_time -= state.game_options.timestep;
+      state.loop_times = 1 - state.loop_times;
     }
   }
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view = wgpu_context->swapchain_view;
+
+  /* Create command encoder */
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+
+  /* Compute pass */
+  {
+    WGPUComputePassEncoder cpass_enc
+      = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
+    wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute.pipeline);
+    wgpuComputePassEncoderSetBindGroup(cpass_enc, 0,
+                                       state.loop_times ?
+                                         state.bind_groups.bind_group1 :
+                                         state.bind_groups.bind_group0,
+                                       0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      cpass_enc,
+      ceil((float)state.game_options.width
+           / (float)state.game_options.workgroup_size),
+      ceil((float)state.game_options.height
+           / (float)state.game_options.workgroup_size),
+      1);
+    wgpuComputePassEncoderEnd(cpass_enc);
+    WGPU_RELEASE_RESOURCE(ComputePassEncoder, cpass_enc)
+  }
+
+  /* Graphics render pipeline */
+  {
+    WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.render_pass_descriptor);
+    wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
+    wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0,
+                                         state.loop_times ?
+                                           state.buffers.buffer1.handle.buffer :
+                                           state.buffers.buffer0.handle.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rpass_enc, 1, state.buffers.square.handle.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_groups.uniform,
+                                      0, NULL);
+    wgpuRenderPassEncoderDraw(rpass_enc, 4, get_cell_count(), 0, 0);
+    wgpuRenderPassEncoderEnd(rpass_enc);
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
+  }
+
+  /* Get command buffer */
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-// Clean up used resources
-static void example_destroy(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
 
-  if (buffers.buffer0.data) {
-    free(buffers.buffer0.data);
-    buffers.buffer0.data = NULL;
+  if (state.buffers.buffer0.data) {
+    free(state.buffers.buffer0.data);
+    state.buffers.buffer0.data = NULL;
   }
 
-  wgpu_destroy_buffer(&buffers.square.handle);
-  wgpu_destroy_buffer(&buffers.size.handle);
-  wgpu_destroy_buffer(&buffers.buffer0.handle);
-  wgpu_destroy_buffer(&buffers.buffer1.handle);
+  wgpu_destroy_buffer(&state.buffers.square.handle);
+  wgpu_destroy_buffer(&state.buffers.size.handle);
+  wgpu_destroy_buffer(&state.buffers.buffer0.handle);
+  wgpu_destroy_buffer(&state.buffers.buffer1.handle);
 
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.uniform)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.bind_group0)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.bind_group1)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.uniform)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.bind_group0)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.bind_group1)
 
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, compute.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, compute.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.compute.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.compute.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
 
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, graphics.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, graphics.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.graphics.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.graphics.pipeline)
 }
 
-void example_game_of_life(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Conway's Game of Life",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
