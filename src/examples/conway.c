@@ -73,7 +73,7 @@ static void update_uniform_buffer(wgpu_context_t* wgpu_context)
   state.uniforms.desc.compute_width  = wgpu_context->width;
   state.uniforms.desc.compute_height = wgpu_context->height;
 
-  // Upload buffer to the GPU
+  /* Upload buffer to the GPU */
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniforms.buffer.buffer, 0,
                        &state.uniforms.desc, state.uniforms.buffer.size);
 }
