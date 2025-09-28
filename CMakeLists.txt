@@ -135,6 +135,7 @@ function(add_example_executable EXAMPLE_NAME)
 endfunction()
 
 # Examples
+add_example_executable(animometer)
 add_example_executable(clear_screen)
 add_example_executable(compute_particles_easing)
 add_example_executable(conway_paletted_blurring)
