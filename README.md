@@ -4,6 +4,8 @@
 :warning: Code refactoring is ongoing, most examples are currently disabled! :warning:
 </p>
 
+- ▓▓░░░░░░░░ 25% (20/80 example updated)
+
 # WebGPU Native Examples and Demos
 
 [WebGPU](https://gpuweb.github.io/gpuweb/) is a new graphics and compute API designed by the [“GPU for the Web”](https://www.w3.org/community/gpu/) W3C community group. It aims to provide modern features such as “GPU compute” as well as lower overhead access to GPU hardware and better, more predictable performance. WebGPU should work with existing platform APIs such as Direct3D 12 from Microsoft, Metal from Apple, and Vulkan from the Khronos Group. 
