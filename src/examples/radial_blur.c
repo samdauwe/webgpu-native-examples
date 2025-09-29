@@ -432,7 +432,7 @@ static void setup_bind_groups(wgpu_context_t* wgpu_context)
     bind_groups.radial_blur = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = "Fullscreen radial blur rendering bind group",
+        .label      = "Fullscreen radial blur rendering - Bind group",
         .layout     = bind_group_layouts.radial_blur,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
