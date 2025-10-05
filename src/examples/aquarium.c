@@ -18,6 +18,12 @@
  * Constants
  * -------------------------------------------------------------------------- */
 
+#define OPTION_DEFINITION_COUNT (8u)
+#define FISH_COUNT_PRESET_COUNT (10u)
+#define VIEW_PRESET_COUNT (6u)
+#define SCENE_DEFINITION_COUNT (28u)
+#define FISH_SPECIES_COUNT (5u)
+
 /* -------------------------------------------------------------------------- *
  * Config
  * -------------------------------------------------------------------------- */
@@ -60,7 +66,7 @@ static globals_t default_globals = {
   .fog_blue      = 1.0f,
 };
 
-static struct {
+typedef struct {
   float fish_height_range;
   float fish_height;
   float fish_speed;
@@ -69,7 +75,9 @@ static struct {
   float fish_yclock;
   float fish_zclock;
   float fish_tail_speed;
-} default_fish = {
+} fish_t;
+
+static fish_t default_fish = {
   .fish_height_range = 1.0f,
   .fish_height       = 25.0f,
   .fish_speed        = 0.124f,
@@ -95,8 +103,8 @@ static inner_const_t default_inner_const = {
 static struct {
   const char* id;
   const char* label;
-  WGPUBool default_value
-} option_definitions[8] = {
+  bool default_value;
+} option_definitions[OPTION_DEFINITION_COUNT] = {
   // clang-format off
   { .id = "normalMaps", .label = "Normal Maps", .default_value = true  },
   { .id = "reflection", .label = "Reflection",  .default_value = true  },
@@ -109,14 +117,14 @@ static struct {
   // clang-format on
 };
 
-static uint32_t fish_count_presets[10]
+static uint32_t fish_count_presets[FISH_COUNT_PRESET_COUNT]
   = {1, 100, 500, 1000, 5000, 10000, 15000, 20000, 25000, 30000};
 
 static struct {
   const char* name;
   globals_t globals;
   inner_const_t inner_const;
-} view_presets[6] = {
+} view_presets[VIEW_PRESET_COUNT] = {
   {
     .name = "Inside (A)",
     .globals = {
@@ -265,6 +273,154 @@ static struct {
       .refraction_fudge = 3.0f,
       .eta              = 1.0f,
       .tank_color_fudge = 1.0f,
+    },
+  },
+};
+
+/* -------------------------------------------------------------------------- *
+ * Scene registry
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  const char* name;
+  const char* program;
+  bool blend;
+  bool fog;
+  bool lasers;
+  const char* group;
+} scene_definitions[SCENE_DEFINITION_COUNT] = {
+  // clang-format off
+  { .name = "SmallFishA",      .program = "fishReflection"                                     },
+  { .name = "MediumFishA",     .program = "fishNormal"                                         },
+  { .name = "MediumFishB",     .program = "fishReflection"                                     },
+  { .name = "BigFishA",        .program = "fishNormal",    .lasers = true                      },
+  { .name = "BigFishB",        .program = "fishNormal",    .lasers = true                      },
+  { .name = "Arch",            .program = "diffuse"                                            },
+  { .name = "Coral",           .program = "diffuse"                                            },
+  { .name = "CoralStoneA",     .program = "diffuse"                                            },
+  { .name = "CoralStoneB",     .program = "diffuse"                                            },
+  { .name = "EnvironmentBox",  .program = "diffuse",       .fog    = false, .group = "outside" },
+  { .name = "FloorBase_Baked", .program = "diffuse"                                            },
+  { .name = "FloorCenter",     .program = "diffuse"                                            },
+  { .name = "GlobeBase",       .program = "diffuse",       .fog    = false                     },
+  { .name = "GlobeInner",      .program = "inner"                                              },
+  { .name = "GlobeOuter",      .program = "outer",         .blend  = true                      },
+  { .name = "RockA",           .program = "diffuse"                                            },
+  { .name = "RockB",           .program = "diffuse"                                            },
+  { .name = "RockC",           .program = "diffuse"                                            },
+  { .name = "RuinColumn",      .program = "diffuse"                                            },
+  { .name = "Skybox",          .program = "diffuse",       .fog    = false, .group = "outside" },
+  { .name = "Stone",           .program = "diffuse"                                            },
+  { .name = "Stones",          .program = "diffuse"                                            },
+  { .name = "SunknShip",       .program = "diffuse"                                            },
+  { .name = "SunknSub",        .program = "diffuse"                                            },
+  { .name = "SupportBeams",    .program = "diffuse",       .fog    = false, .group = "outside" },
+  { .name = "SeaweedA",        .program = "seaweed",       .blend  = true,  .group = "seaweed" },
+  { .name = "SeaweedB",        .program = "seaweed",       .blend  = true,  .group = "seaweed" },
+  { .name = "TreasureChest",   .program = "diffuse"                                            },
+  // clang-format on
+};
+
+static struct {
+  const char* name;
+  float speed;
+  float speed_range;
+  float radius;
+  float radius_range;
+  float tail_speed;
+  float height_offset;
+  float height_range;
+  bool lasers;
+  float laser_rot;
+  float laser_off[3];
+  float laser_scale[3];
+  struct {
+    float fish_length;
+    float fish_wave_length;
+    float fish_bend_amount;
+  } const_uniforms;
+} fish_species[FISH_SPECIES_COUNT] = {
+  {
+    .name          = "SmallFishA",
+    .speed         = 1.0f,
+    .speed_range   = 1.5f,
+    .radius        = 30.0f,
+    .radius_range  = 25.0f,
+    .tail_speed    = 10.0f,
+    .height_offset = 0.0f,
+    .height_range  = 16.0f,
+    .const_uniforms = {
+      .fish_length      = 10.0f,
+      .fish_wave_length = 1.0f,
+      .fish_bend_amount = 2.0f,
+    },
+  },
+  {
+    .name          = "MediumFishA",
+    .speed         = 1.0f,
+    .speed_range   = 2.0f,
+    .radius        = 10.0f,
+    .radius_range  = 20.0f,
+    .tail_speed    = 1.0f,
+    .height_offset = 0.0f,
+    .height_range  = 16.0f,
+    .const_uniforms = {
+      .fish_length      = 10.0f,
+      .fish_wave_length = -2.0f,
+      .fish_bend_amount = 2.0f,
+    },
+  },
+  {
+    .name          = "MediumFishB",
+    .speed         = 0.5f,
+    .speed_range   = 4.0f,
+    .radius        = 10.0f,
+    .radius_range  = 20.0f,
+    .tail_speed    = 3.0f,
+    .height_offset = -8.0f,
+    .height_range  = 5.0f,
+    .const_uniforms = {
+      .fish_length      = 10.0f,
+      .fish_wave_length = -2.0f,
+      .fish_bend_amount = 2.0f,
+    },
+  },
+  {
+    .name          = "BigFishA",
+    .speed         = 0.5f,
+    .speed_range   = 0.5f,
+    .radius        = 50.0f,
+    .radius_range  = 3.0f,
+    .tail_speed    = 1.5f,
+    .height_offset = 0.0f,
+    .height_range  = 16.0f,
+    .lasers        = true,
+    .laser_rot     = 0.04f,
+    .laser_off     = {0.0f, 0.1f, 9.0f},
+    .laser_scale   = {0.3f, 0.3f, 1000.0f},
+    .const_uniforms = {
+      .fish_length      = 10.0f,
+      .fish_wave_length = -1.0f,
+      .fish_bend_amount = 0.5f,
+    },
+  },
+  {
+    .name          = "BigFishB",
+    .speed         = 0.5f,
+    .speed_range   = 0.5f,
+    .radius        = 45.0f,
+    .radius_range  = 3.0f,
+    .tail_speed    = 1.0f,
+    .height_offset = 0.0f,
+    .height_range  = 16.0f,
+    .lasers        = true,
+    .laser_rot     = 0.04f,
+    .laser_off     = {0.0f, -0.3f, 9.0f},
+    .laser_scale   = {0.3f,  0.3f, 1000.0f},
+    .const_uniforms = {
+      .fish_length      = 10.0f,
+      .fish_wave_length = -0.7f,
+      .fish_bend_amount = 0.3f,
     },
   },
 };
@@ -524,9 +680,9 @@ static const char* fish_shader_p1_wgsl = CODE(
   }
 
   struct SpeciesUniforms {
-    fishLength: f32,
-    fishWaveLength: f32,
-    fishBendAmount: f32,
+    .fish_length = f32,
+    .fish_wave_length = f32,
+    .fish_bend_amount = f32,
     useNormalMap: f32,
     useReflectionMap: f32,
     shininess: f32,
@@ -604,13 +760,13 @@ static const char* fish_shader_p2_wgsl = CODE(
       vec4<f32>(instance.worldPosition, 1.0)
     );
 
-    var mult = input.position.z / max(speciesUniforms.fishLength, 0.0001);
+    var mult = input.position.z / max(speciesUniforms..fish_length =, 0.0001);
     if (input.position.z <= 0.0) {
-      mult = (-input.position.z / max(speciesUniforms.fishLength, 0.0001)) * 2.0;
+      mult = (-input.position.z / max(speciesUniforms..fish_length =, 0.0001)) * 2.0;
     }
 
-    let s = sin(instance.time + mult * speciesUniforms.fishWaveLength);
-    let offset = (mult * mult) * s * speciesUniforms.fishBendAmount;
+    let s = sin(instance.time + mult * speciesUniforms..fish_wave_length =);
+    let offset = (mult * mult) * s * speciesUniforms..fish_bend_amount =;
     let bentPosition = vec4<f32>(input.position + vec3<f32>(offset, 0.0, 0.0), 1.0);
 
     let worldPosition = worldMatrix * bentPosition;
