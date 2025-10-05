@@ -755,7 +755,7 @@ static void mat4_inverse(const mat4_t* m, mat4_t* out)
 }
 
 /* -------------------------------------------------------------------------- *
- * Bubble Particle Pipeline
+ * Bubble Particle pipeline
  * Renders billboarded particles with additive blending.
  * -------------------------------------------------------------------------- */
 
@@ -766,23 +766,24 @@ typedef struct {
   WGPUBindGroupLayout bind_group_layout_1;
 } bubble_pipeline_result_t;
 
-static WGPURenderPipeline cached_pipeline             = NULL;
-static WGPUPipelineLayout cached_pipeline_layout      = NULL;
-static WGPUBindGroupLayout cached_bind_group_layout_0 = NULL;
-static WGPUBindGroupLayout cached_bind_group_layout_1 = NULL;
+static WGPURenderPipeline cached_bubble_pipeline             = NULL;
+static WGPUPipelineLayout cached_bubble_pipeline_layout      = NULL;
+static WGPUBindGroupLayout cached_bubble_bind_group_layout_0 = NULL;
+static WGPUBindGroupLayout cached_bubble_bind_group_layout_1 = NULL;
 
 static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
                                                        WGPUTextureFormat format)
 {
-  if (cached_pipeline) {
+  if (cached_bubble_pipeline) {
     return (bubble_pipeline_result_t){
-      .pipeline            = cached_pipeline,
-      .pipeline_layout     = cached_pipeline_layout,
-      .bind_group_layout_0 = cached_bind_group_layout_0,
-      .bind_group_layout_1 = cached_bind_group_layout_1,
+      .pipeline            = cached_bubble_pipeline,
+      .pipeline_layout     = cached_bubble_pipeline_layout,
+      .bind_group_layout_0 = cached_bubble_bind_group_layout_0,
+      .bind_group_layout_1 = cached_bubble_bind_group_layout_1,
     };
   }
 
+  /* Shader module */
   const WGPUShaderModule shader_module
     = load_shader_module(device, "shaders/bubble.wgsl", "bubble-shader");
 
@@ -796,13 +797,13 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
                 .hasDynamicOffset = false,
                 .minBindingSize   = sizeof(float) * 16 // 4x4 matrix
           }}};
-    cached_bind_group_layout_0 = wgpuDeviceCreateBindGroupLayout(
+    cached_bubble_bind_group_layout_0 = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
                 .label      = STRVIEW("Bubble Frame Bind Group Layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                 .entries    = bgl_entries,
               });
-    ASSERT(cached_bind_group_layout_0 != NULL);
+    ASSERT(cached_bubble_bind_group_layout_0 != NULL);
   }
 
   /* Bind group 1: Particle texture and sampler */
@@ -827,29 +828,29 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
         },
       },
     };
-    cached_bind_group_layout_1 = wgpuDeviceCreateBindGroupLayout(
+    cached_bubble_bind_group_layout_1 = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
                 .label      = STRVIEW("Bubble Material Bind Group Layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                 .entries    = bgl_entries,
               });
-    ASSERT(cached_bind_group_layout_1 != NULL);
+    ASSERT(cached_bubble_bind_group_layout_1 != NULL);
   }
 
   /* Pipeline layout */
   {
-    WGPUBindGroupLayout bind_groups_layout_array[2] = {
-      cached_bind_group_layout_0, /* Group 0 */
-      cached_bind_group_layout_1  /* Group 1 */
+    WGPUBindGroupLayout bind_groups_layouts[2] = {
+      cached_bubble_bind_group_layout_0, /* Group 0 */
+      cached_bubble_bind_group_layout_1  /* Group 1 */
     };
-    cached_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    cached_bubble_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = STRVIEW("'Bubble Pipeline Layout"),
-        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layout_array),
-        .bindGroupLayouts     = bind_groups_layout_array,
+        .label                = STRVIEW("Bubble Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
       });
-    ASSERT(cached_pipeline_layout != NULL);
+    ASSERT(cached_bubble_pipeline_layout != NULL);
   }
 
   /* Render pipline */
@@ -911,7 +912,7 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
 
     WGPURenderPipelineDescriptor rp_desc = {
       .label  = STRVIEW("Bubble Particle Pipeline"),
-      .layout = cached_pipeline_layout,
+      .layout = cached_bubble_pipeline_layout,
       .vertex = {
         .module      = shader_module,
         .entryPoint  = STRVIEW("vertexMain"),
@@ -956,17 +957,213 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
       },
     };
 
-    cached_pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
-    ASSERT(cached_pipeline != NULL);
+    cached_bubble_pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(cached_bubble_pipeline != NULL);
 
     wgpuShaderModuleRelease(shader_module);
   }
 
   return (bubble_pipeline_result_t){
-    .pipeline            = cached_pipeline,
-    .pipeline_layout     = cached_pipeline_layout,
-    .bind_group_layout_0 = cached_bind_group_layout_0,
-    .bind_group_layout_1 = cached_bind_group_layout_0,
+    .pipeline            = cached_bubble_pipeline,
+    .pipeline_layout     = cached_bubble_pipeline_layout,
+    .bind_group_layout_0 = cached_bubble_bind_group_layout_0,
+    .bind_group_layout_1 = cached_bubble_bind_group_layout_0,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
+ * Diffuse pipeline
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout model_layout;
+  WGPUBindGroupLayout material_layout;
+  WGPUTextureFormat color_format;
+  WGPUVertexBufferLayout* vertex_buffers;
+  uint32_t vertex_buffer_count;
+} diffuse_pipeline_desc_t;
+
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+} diffuse_pipeline_result_t;
+
+static diffuse_pipeline_result_t
+create_diffuse_pipeline(WGPUDevice device, diffuse_pipeline_desc_t* desc)
+{
+  /* Shader module */
+  const WGPUShaderModule shader_module
+    = load_shader_module(device, "shaders/diffuse.wgsl", "diffuse-vertex");
+
+  /* Pipeline layout */
+  WGPUPipelineLayout pipeline_layout = NULL;
+  {
+    WGPUBindGroupLayout bind_groups_layouts[3] = {
+      desc->frame_layout,    /* Group 0 */
+      desc->model_layout,    /* Group 1 */
+      desc->material_layout, /* Group 2 */
+    };
+    pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Diffuse Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
+      });
+    ASSERT(pipeline_layout != NULL);
+  }
+
+  /* Render pipline */
+  WGPURenderPipeline pipeline;
+  {
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Diffuse Pipeline"),
+      .layout = pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vs_main"),
+        .bufferCount = desc->vertex_buffer_count,
+        .buffers     = desc->vertex_buffers,
+      },
+      .fragment = &(WGPUFragmentState) {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fs_main"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState) {
+          .format = desc->color_format,
+          .blend = &(WGPUBlendState) {
+            .color = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            },
+            .alpha = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            }
+          },
+          .writeMask = WGPUColorWriteMask_All
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_Back,
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .depthStencil = &(WGPUDepthStencilState) {
+        .format            = DEPTH_STENCIL_FORMAT,
+        .depthWriteEnabled = true,
+        .depthCompare      = WGPUCompareFunction_Less,
+      },
+      .multisample = {
+        .count = 1,
+        .mask  = 0xffffffff
+      },
+    };
+
+    pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(pipeline != NULL);
+
+    wgpuShaderModuleRelease(shader_module);
+  }
+
+  return (diffuse_pipeline_result_t){
+    .pipeline        = pipeline,
+    .pipeline_layout = pipeline_layout,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
+ * Inner Tank pipeline
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout model_layout;
+  WGPUBindGroupLayout material_layout;
+  WGPUTextureFormat color_format;
+  WGPUVertexBufferLayout* vertex_buffers;
+  uint32_t vertex_buffer_count;
+} inner_pipeline_desc_t;
+
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+} inner_pipeline_result_t;
+
+static inner_pipeline_result_t
+create_inner_pipeline(WGPUDevice device, inner_pipeline_desc_t* desc)
+{
+  /* Shader module */
+  const WGPUShaderModule shader_module
+    = load_shader_module(device, "shaders/inner.wgsl", "inner-tank");
+
+  /* Pipeline layout */
+  WGPUPipelineLayout pipeline_layout = NULL;
+  {
+    WGPUBindGroupLayout bind_groups_layouts[3] = {
+      desc->frame_layout,    /* Group 0 */
+      desc->model_layout,    /* Group 1 */
+      desc->material_layout, /* Group 2 */
+    };
+    pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Inner Tank Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
+      });
+    ASSERT(pipeline_layout != NULL);
+  }
+
+  /* Render pipline */
+  WGPURenderPipeline pipeline;
+  {
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Inner Tank Pipeline"),
+      .layout = pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vs_main"),
+        .bufferCount = desc->vertex_buffer_count,
+        .buffers     = desc->vertex_buffers,
+      },
+      .fragment = &(WGPUFragmentState) {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fs_main"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState) {
+          .format    = desc->color_format,
+          .writeMask = WGPUColorWriteMask_All
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_None,
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .depthStencil = &(WGPUDepthStencilState) {
+        .format            = DEPTH_STENCIL_FORMAT,
+        .depthWriteEnabled = true,
+        .depthCompare      = WGPUCompareFunction_Less,
+      },
+      .multisample = {
+        .count = 1,
+        .mask  = 0xffffffff
+      },
+    };
+
+    pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(pipeline != NULL);
+
+    wgpuShaderModuleRelease(shader_module);
+  }
+
+  return (inner_pipeline_result_t){
+    .pipeline        = pipeline,
+    .pipeline_layout = pipeline_layout,
   };
 }
 
