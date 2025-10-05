@@ -1,6 +1,8 @@
 #include "webgpu/wgpu_common.h"
 
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Aquarium
@@ -439,6 +441,85 @@ static const char* laser_shader_wgsl;
 static const char* light_ray_shader_wgsl;
 static const char* outer_shader_wgsl;
 static const char* seaweed_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Shader loader
+ * -------------------------------------------------------------------------- */
+
+static char* get_concatenated_shader(const char* s1, const char* s2)
+{
+  size_t len1      = strlen(s1);
+  size_t len2      = strlen(s2);
+  size_t total_len = len1 + len2 + 1; /* +1 for null terminator */
+
+  char* full_shader = malloc(total_len);
+  if (full_shader == NULL) {
+    return NULL; /* Handle allocation failure */
+  }
+
+  snprintf(full_shader, total_len, "%s%s", s1, s2);
+
+  return full_shader;
+}
+
+static WGPUShaderModule load_shader_module(WGPUDevice device, const char* path,
+                                           const char* label)
+{
+  /* Get WGSL shader cpde */
+  const char* wgsl_source_code  = NULL;
+  char* wgsl_source_code_concat = NULL;
+  if (strcmp(path, "shaders/bubble.wgsl") == 0) {
+    wgsl_source_code = bubble_shader_wgsl;
+  }
+  else if (strcmp(path, "shaders/diffuse.wgsl") == 0) {
+    wgsl_source_code = diffuse_shader_wgsl;
+  }
+  else if (strcmp(path, "shaders/fish.wgsl") == 0) {
+    wgsl_source_code_concat
+      = get_concatenated_shader(fish_shader_p1_wgsl, fish_shader_p2_wgsl);
+  }
+  else if (strcmp(path, "shaders/inner.wgsl") == 0) {
+    wgsl_source_code_concat
+      = get_concatenated_shader(inner_shader_p1_wgsl, inner_shader_p2_wgsl);
+  }
+  else if (strcmp(path, "shaders/laser.wgsl") == 0) {
+    wgsl_source_code = laser_shader_wgsl;
+  }
+  else if (strcmp(path, "shaders/light_ray.wgsl") == 0) {
+    wgsl_source_code = light_ray_shader_wgsl;
+  }
+  else if (strcmp(path, "shaders/outer.wgsl") == 0) {
+    wgsl_source_code = outer_shader_wgsl;
+  }
+  else if (strcmp(path, "shaders/seaweed.wgsl") == 0) {
+    wgsl_source_code = seaweed_shader_wgsl;
+  }
+
+  if (wgsl_source_code == NULL && wgsl_source_code_concat == NULL) {
+    fprintf(stderr, "Failed to load shader from %s", path);
+    return NULL;
+  }
+
+  /* Create shader module */
+  WGPUShaderSourceWGSL shader_code_desc
+    = {.chain = {.sType = WGPUSType_ShaderSourceWGSL},
+       .code  = {
+          .data   = (wgsl_source_code != NULL) ? wgsl_source_code :
+                                                 wgsl_source_code_concat,
+          .length = WGPU_STRLEN,
+       }};
+  WGPUShaderModule shader_module = wgpuDeviceCreateShaderModule(
+    device, &(WGPUShaderModuleDescriptor){
+              .nextInChain = &shader_code_desc.chain,
+              .label       = STRVIEW(label),
+            });
+
+  if (wgsl_source_code_concat != NULL) {
+    free(wgsl_source_code_concat);
+  }
+
+  return shader_module;
+}
 
 /* -------------------------------------------------------------------------- *
  * Aquarium example
