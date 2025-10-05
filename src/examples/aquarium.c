@@ -522,6 +522,237 @@ static WGPUShaderModule load_shader_module(WGPUDevice device, const char* path,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Math functions
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  float m[16];
+} mat4_t;
+
+static void mat4_identity(mat4_t* out)
+{
+  memset(out->m, 0, sizeof(out->m));
+  out->m[0] = out->m[5] = out->m[10] = out->m[15] = 1.0f;
+}
+
+static void mat4_perspective_yfov(mat4_t* out, float fovy_rad, float aspect,
+                                  float near, float far)
+{
+  float f         = 1.0f / tanf(fovy_rad / 2.0f);
+  float range_inv = 1.0f / (near - far);
+  memset(out->m, 0, sizeof(out->m));
+  out->m[0]  = f / aspect;
+  out->m[5]  = f;
+  out->m[10] = (near + far) * range_inv;
+  out->m[11] = -1.0f;
+  out->m[14] = near * far * range_inv * 2.0f;
+}
+
+static void vec3_subtract(const float* a, const float* b, float* out)
+{
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+}
+
+static void vec3_add(const float* a, const float* b, float* out)
+{
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+}
+
+static void vec3_scale(const float* v, float s, float* out)
+{
+  out[0] = v[0] * s;
+  out[1] = v[1] * s;
+  out[2] = v[2] * s;
+}
+
+static void vec3_cross(const float* a, const float* b, float* out)
+{
+  out[0] = a[1] * b[2] - a[2] * b[1];
+  out[1] = a[2] * b[0] - a[0] * b[2];
+  out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static float vec3_dot(const float* a, const float* b)
+{
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+static float vec3_length(const float* v)
+{
+  return sqrtf(vec3_dot(v, v));
+}
+
+static void vec3_normalize(const float* v, float* out)
+{
+  float len = vec3_length(v);
+  if (len > 0.0f) {
+    out[0] = v[0] / len;
+    out[1] = v[1] / len;
+    out[2] = v[2] / len;
+  }
+  else {
+    out[0] = out[1] = out[2] = 0.0f;
+  }
+}
+
+static float lerp(float a, float b, float t)
+{
+  return a + (b - a) * t;
+}
+
+static float clamp(float value, float min, float max)
+{
+  return fminf(max, fmaxf(min, value));
+}
+
+static void mat4_lookat(mat4_t* out, const float* eye, const float* target,
+                        const float* up)
+{
+  float z[3], x[3], y[3];
+  vec3_subtract(eye, target, z);
+  vec3_normalize(z, z);
+  vec3_cross(up, z, x);
+  vec3_normalize(x, x);
+  vec3_cross(z, x, y);
+  // Column-major
+  out->m[0]  = x[0];
+  out->m[4]  = x[1];
+  out->m[8]  = x[2];
+  out->m[12] = -vec3_dot(x, eye);
+  out->m[1]  = y[0];
+  out->m[5]  = y[1];
+  out->m[9]  = y[2];
+  out->m[13] = -vec3_dot(y, eye);
+  out->m[2]  = z[0];
+  out->m[6]  = z[1];
+  out->m[10] = z[2];
+  out->m[14] = -vec3_dot(z, eye);
+  out->m[3]  = 0.0f;
+  out->m[7]  = 0.0f;
+  out->m[11] = 0.0f;
+  out->m[15] = 1.0f;
+}
+
+static void mat4_multiply(const mat4_t* a, const mat4_t* b, mat4_t* out)
+{
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      out->m[i + j * 4] = a->m[0 + j * 4] * b->m[i + 0 * 4]
+                          + a->m[1 + j * 4] * b->m[i + 1 * 4]
+                          + a->m[2 + j * 4] * b->m[i + 2 * 4]
+                          + a->m[3 + j * 4] * b->m[i + 3 * 4];
+    }
+  }
+}
+
+static void mat4_translate(const mat4_t* matrix, const float* translation,
+                           mat4_t* out)
+{
+  memcpy(out->m, matrix->m, sizeof(out->m));
+  out->m[12] = matrix->m[0] * translation[0] + matrix->m[4] * translation[1]
+               + matrix->m[8] * translation[2] + matrix->m[12];
+  out->m[13] = matrix->m[1] * translation[0] + matrix->m[5] * translation[1]
+               + matrix->m[9] * translation[2] + matrix->m[13];
+  out->m[14] = matrix->m[2] * translation[0] + matrix->m[6] * translation[1]
+               + matrix->m[10] * translation[2] + matrix->m[14];
+  out->m[15] = matrix->m[3] * translation[0] + matrix->m[7] * translation[1]
+               + matrix->m[11] * translation[2] + matrix->m[15];
+}
+
+static void mat4_scale(const mat4_t* matrix, const float* scale, mat4_t* out)
+{
+  memcpy(out->m, matrix->m, sizeof(out->m));
+  out->m[0] *= scale[0];
+  out->m[1] *= scale[0];
+  out->m[2] *= scale[0];
+  out->m[3] *= scale[0];
+  out->m[4] *= scale[1];
+  out->m[5] *= scale[1];
+  out->m[6] *= scale[1];
+  out->m[7] *= scale[1];
+  out->m[8] *= scale[2];
+  out->m[9] *= scale[2];
+  out->m[10] *= scale[2];
+  out->m[11] *= scale[2];
+}
+
+static void mat4_transpose(const mat4_t* matrix, mat4_t* out)
+{
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      out->m[i * 4 + j] = matrix->m[j * 4 + i];
+    }
+  }
+}
+
+static void mat4_inverse(const mat4_t* m, mat4_t* out)
+{
+  const float* a = m->m;
+  float inv[16], det;
+  int i;
+  inv[0] = a[5] * a[10] * a[15] - a[5] * a[11] * a[14] - a[9] * a[6] * a[15]
+           + a[9] * a[7] * a[14] + a[13] * a[6] * a[11] - a[13] * a[7] * a[10];
+
+  inv[4] = -a[4] * a[10] * a[15] + a[4] * a[11] * a[14] + a[8] * a[6] * a[15]
+           - a[8] * a[7] * a[14] - a[12] * a[6] * a[11] + a[12] * a[7] * a[10];
+
+  inv[8] = a[4] * a[9] * a[15] - a[4] * a[11] * a[13] - a[8] * a[5] * a[15]
+           + a[8] * a[7] * a[13] + a[12] * a[5] * a[11] - a[12] * a[7] * a[9];
+
+  inv[12] = -a[4] * a[9] * a[14] + a[4] * a[10] * a[13] + a[8] * a[5] * a[14]
+            - a[8] * a[6] * a[13] - a[12] * a[5] * a[10] + a[12] * a[6] * a[9];
+
+  inv[1] = -a[1] * a[10] * a[15] + a[1] * a[11] * a[14] + a[9] * a[2] * a[15]
+           - a[9] * a[3] * a[14] - a[13] * a[2] * a[11] + a[13] * a[3] * a[10];
+
+  inv[5] = a[0] * a[10] * a[15] - a[0] * a[11] * a[14] - a[8] * a[2] * a[15]
+           + a[8] * a[3] * a[14] + a[12] * a[2] * a[11] - a[12] * a[3] * a[10];
+
+  inv[9] = -a[0] * a[9] * a[15] + a[0] * a[11] * a[13] + a[8] * a[1] * a[15]
+           - a[8] * a[3] * a[13] - a[12] * a[1] * a[11] + a[12] * a[3] * a[9];
+
+  inv[13] = a[0] * a[9] * a[14] - a[0] * a[10] * a[13] - a[8] * a[1] * a[14]
+            + a[8] * a[2] * a[13] + a[12] * a[1] * a[10] - a[12] * a[2] * a[9];
+
+  inv[2] = a[1] * a[6] * a[15] - a[1] * a[7] * a[14] - a[5] * a[2] * a[15]
+           + a[5] * a[3] * a[14] + a[13] * a[2] * a[7] - a[13] * a[3] * a[6];
+
+  inv[6] = -a[0] * a[6] * a[15] + a[0] * a[7] * a[14] + a[4] * a[2] * a[15]
+           - a[4] * a[3] * a[14] - a[12] * a[2] * a[7] + a[12] * a[3] * a[6];
+
+  inv[10] = a[0] * a[5] * a[15] - a[0] * a[7] * a[13] - a[4] * a[1] * a[15]
+            + a[4] * a[3] * a[13] + a[12] * a[1] * a[7] - a[12] * a[3] * a[5];
+
+  inv[14] = -a[0] * a[5] * a[14] + a[0] * a[6] * a[13] + a[4] * a[1] * a[14]
+            - a[4] * a[2] * a[13] - a[12] * a[1] * a[6] + a[12] * a[2] * a[5];
+
+  inv[3] = -a[1] * a[6] * a[11] + a[1] * a[7] * a[10] + a[5] * a[2] * a[11]
+           - a[5] * a[3] * a[10] - a[9] * a[2] * a[7] + a[9] * a[3] * a[6];
+
+  inv[7] = a[0] * a[6] * a[11] - a[0] * a[7] * a[10] - a[4] * a[2] * a[11]
+           + a[4] * a[3] * a[10] + a[8] * a[2] * a[7] - a[8] * a[3] * a[6];
+
+  inv[11] = -a[0] * a[5] * a[11] + a[0] * a[7] * a[9] + a[4] * a[1] * a[11]
+            - a[4] * a[3] * a[9] - a[8] * a[1] * a[7] + a[8] * a[3] * a[5];
+
+  inv[15] = a[0] * a[5] * a[10] - a[0] * a[6] * a[9] - a[4] * a[1] * a[10]
+            + a[4] * a[2] * a[9] + a[8] * a[1] * a[6] - a[8] * a[2] * a[5];
+
+  det = a[0] * inv[0] + a[1] * inv[4] + a[2] * inv[8] + a[3] * inv[12];
+  if (det == 0) {
+    mat4_identity(out);
+    return;
+  }
+  det = 1.0f / det;
+  for (i = 0; i < 16; i++)
+    out->m[i] = inv[i] * det;
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium example
  * -------------------------------------------------------------------------- */
 
