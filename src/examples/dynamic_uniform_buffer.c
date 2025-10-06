@@ -174,7 +174,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   };
   bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Bind group layout",
+                            .label      = "Render - Bind group layout",
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
