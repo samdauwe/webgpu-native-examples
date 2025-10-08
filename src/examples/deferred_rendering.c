@@ -1236,7 +1236,7 @@ static vec4* glm_vec4_transform_mat4(vec4 v, mat4 m, vec4* dst)
   return dst;
 }
 
-// Rotates the camera around the origin based on time.
+/* Rotates the camera around the origin based on time. */
 static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
 {
   const float rad  = PI * (context->frame.timestamp_millis / 5000.0f);
