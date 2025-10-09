@@ -1,8 +1,23 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Equirectangular Image
@@ -20,61 +35,132 @@
  * http://www.hdrlabs.com/sibl/archive.html
  * -------------------------------------------------------------------------- */
 
-// Uniform buffer block object
-static wgpu_buffer_t uniform_buffer_vs = {0};
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
 
-// Uniform block data - inputs of the shader
-static bool shader_inputs_ubo_update_needed = false;
+static const char* equirectangular_image_vertex_shader_wgsl;
+static const char* equirectangular_image_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Equirectangular Image
+ * -------------------------------------------------------------------------- */
+
+/* State struct */
 static struct {
-  vec2 iResolution; // viewport resolution (in pixels)
-  vec4 iMouse;      // mouse pixel coords. xy: current (if MLB down), zw: click
-  float iHFovDegrees;   // Horizontal field of view in degrees
-  float iVFovDegrees;   // Vertical field of view in degrees
-  bool iVisualizeInput; // Show the unprocessed input image
-  vec4 padding;         // Padding to reach the minimum binding size of 64 bytes
-} shader_inputs_ubo = {
-  .iHFovDegrees = 80.0f,
-  .iVFovDegrees = 50.0f,
+  wgpu_buffer_t uniform_buffer_vs;
+  struct {
+    vec2 iResolution; // viewport resolution (in pixels)
+    vec4 iMouse; // mouse pixel coords. xy: current (if MLB down), zw: click
+    float iHFovDegrees;       // Horizontal field of view in degrees
+    float iVFovDegrees;       // Vertical field of view in degrees
+    uint32_t iVisualizeInput; // Show the unprocessed input image
+    vec4 padding; // Padding to reach the minimum binding size of 64 bytes
+  } shader_inputs_ubo;
+  wgpu_texture_t texture;
+  uint8_t file_buffer[1024 * 1024 * 5];
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline render_pipeline;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  bool initialized;
+} state = {
+  .shader_inputs_ubo = {
+    .iMouse       = {535, 415},
+    .iHFovDegrees = 80.0f,
+    .iVFovDegrees = 50.0f,
+  },
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+  },
 };
 
-// Used for mouse pixel coordinates calculation
-static struct {
-  vec2 initial_mouse_position;
-  vec2 prev_mouse_position;
-  vec2 mouse_drag_distance;
-  bool dragging;
-} mouse_state = {
-  .prev_mouse_position = GLM_VEC2_ZERO_INIT,
-  .mouse_drag_distance = GLM_VEC2_ZERO_INIT,
-  .dragging            = false,
-};
+static void fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
 
-// Texture and sampler
-static texture_t texture = {0};
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+        .extent = (WGPUExtent3D) {
+          .width              = img_width,
+          .height             = img_height,
+          .depthOrArrayLayers = 4,
+      },
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .pixels = {
+          .ptr  = pixels,
+          .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
 
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout = NULL;
+static void init_texture(wgpu_context_t* wgpu_context)
+{
+  /* Dummy texture */
+  state.texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
 
-// Pipeline
-static WGPURenderPipeline pipeline = NULL;
+  /* Start loading the image file */
+  const char* particle_texture_path = "assets/textures/Circus_Backstage_8k.jpg";
+  wgpu_texture_t* texture           = &state.texture;
+  sfetch_send(&(sfetch_request_t){
+    .path      = particle_texture_path,
+    .callback  = fetch_callback,
+    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .user_data = {
+      .ptr  = &texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });
+}
 
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
+{
+  // iResolution: viewport resolution (in pixels)
+  state.shader_inputs_ubo.iResolution[0] = (float)wgpu_context->width;
+  state.shader_inputs_ubo.iResolution[1] = (float)wgpu_context->height;
 
-// The bind group layout
-static WGPUBindGroupLayout bind_group_layout = NULL;
+  /* Update the uniform buffer */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_vs.buffer, 0,
+                       &state.shader_inputs_ubo,
+                       sizeof(state.shader_inputs_ubo));
+}
 
-// The bind group
-static WGPUBindGroup bind_group = NULL;
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
+{
+  state.uniform_buffer_vs = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.shader_inputs_ubo),
+                    .initial.data = &state.shader_inputs_ubo,
+                  });
 
-// Other variables
-static const char* example_title = "Equirectangular Image";
-static bool prepared             = false;
+  update_uniform_buffers(wgpu_context);
+}
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
@@ -109,365 +195,321 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     },
   };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Render - Bind group layout",
+                            .label      = STRVIEW("Render - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL);
+  ASSERT(state.bind_group_layout != NULL);
 
-  // Create the pipeline layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  /* Create the pipeline layout */
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Render - Pipeline layout",
+                            .label = STRVIEW("Render - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
+                            .bindGroupLayouts     = &state.bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_group(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group)
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
       .binding = 0,
-      .buffer  = uniform_buffer_vs.buffer,
+      .buffer  = state.uniform_buffer_vs.buffer,
       .offset  = 0,
-      .size    = uniform_buffer_vs.size,
+      .size    = state.uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
       .binding     = 1,
-      .textureView = texture.view,
+      .textureView = state.texture.view,
     },
     [2] = (WGPUBindGroupEntry) {
       .binding = 2,
-      .sampler = texture.sampler,
+      .sampler = state.texture.sampler,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Bind group",
-    .layout     = bind_group_layout,
+    .label      = STRVIEW("Bind group"),
+    .layout     = state.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL);
+  state.bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_group != NULL);
 }
 
-static void prepare_texture(wgpu_context_t* wgpu_context)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  const char* file = "textures/Circus_Backstage_8k.jpg";
-  texture          = wgpu_create_texture_from_file(wgpu_context, file, NULL);
-}
+  /* Shader modules */
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, equirectangular_image_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, equirectangular_image_fragment_shader_wgsl);
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
 
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Equirectangular image - render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
       },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_Back,
+      .frontFace = WGPUFrontFace_CCW
+    },
+    .multisample = {
+       .count = 1,
+       .mask  = 0xffffffff
+    },
   };
 
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                = "Render pass descriptor",
-    .colorAttachmentCount = 1,
-    .colorAttachments     = render_pass.color_attachments,
-  };
+  state.render_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.render_pipeline != NULL);
+
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static bool window_resized(wgpu_context_t* wgpu_context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  return ((uint32_t)shader_inputs_ubo.iResolution[0]
-          != (uint32_t)wgpu_context->surface.width)
-         || ((uint32_t)shader_inputs_ubo.iResolution[1]
-             != (uint32_t)wgpu_context->surface.height);
-}
-
-static void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  // iResolution: viewport resolution (in pixels)
-  if (window_resized(context->wgpu_context)) {
-    shader_inputs_ubo.iResolution[0]
-      = (float)context->wgpu_context->surface.width;
-    shader_inputs_ubo.iResolution[1]
-      = (float)context->wgpu_context->surface.height;
-    shader_inputs_ubo_update_needed = true;
-  }
-
-  // iMouse: mouse pixel coords. xy: current (if MLB down), zw: click
-  if (!mouse_state.dragging && context->mouse_buttons.left) {
-    glm_vec2_copy(context->mouse_position, mouse_state.prev_mouse_position);
-    mouse_state.dragging = true;
-  }
-  else if (mouse_state.dragging && context->mouse_buttons.left) {
-    glm_vec2_sub(context->mouse_position, mouse_state.prev_mouse_position,
-                 mouse_state.mouse_drag_distance);
-    glm_vec2_add(shader_inputs_ubo.iMouse, mouse_state.mouse_drag_distance,
-                 shader_inputs_ubo.iMouse);
-    glm_vec2_copy(context->mouse_position, mouse_state.prev_mouse_position);
-    shader_inputs_ubo_update_needed
-      = shader_inputs_ubo_update_needed
-        || ((fabs(mouse_state.mouse_drag_distance[0]) > 1.0f)
-            || (fabs(mouse_state.mouse_drag_distance[1]) > 1.0f));
-  }
-  else if (mouse_state.dragging && !context->mouse_buttons.left) {
-    mouse_state.dragging = false;
-  }
-
-  // Map uniform buffer and update when needed
-  if (shader_inputs_ubo_update_needed) {
-    wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                            &shader_inputs_ubo, uniform_buffer_vs.size);
-    shader_inputs_ubo_update_needed = false;
-  }
-}
-
-static void prepare_mouse_state(wgpu_context_t* wgpu_context)
-{
-  glm_vec2_copy(
-    (vec2){wgpu_context->surface.width - (wgpu_context->surface.width / 4.0f),
-           wgpu_context->surface.height / 2.0f},
-    mouse_state.initial_mouse_position);
-  glm_vec2_copy((vec4){mouse_state.initial_mouse_position[0],
-                       mouse_state.initial_mouse_position[1], 0.0f, 0.0f},
-                shader_inputs_ubo.iMouse);
-}
-
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
-{
-  uniform_buffer_vs = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label        = "Uniform buffer",
-      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size         = sizeof(shader_inputs_ubo),
-      .initial.data = &shader_inputs_ubo,
+  if (wgpu_context) {
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+      .logger.func  = slog_func,
     });
-
-  update_uniform_buffers(context);
-}
-
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
-{
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
-  };
-
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
-
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader SPIR-V
-                      .label = "Vertex shader SPIR-V",
-                      .file  = "shaders/equirectangular_image/main.vert.spv",
-                    },
-                    .buffer_count = 0,
-                    .buffers      = NULL,
-                  });
-
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader SPIR-V
-                      .label = "Fragment shader SPIR-V",
-                      .file  = "shaders/equirectangular_image/main.frag.spv",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label  = "Equirectangular image - render pipeline",
-                            .layout = pipeline_layout,
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    prepare_texture(context->wgpu_context);
-    prepare_mouse_state(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+    init_texture(wgpu_context);
+    init_uniform_buffers(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_bind_group(wgpu_context);
+    init_pipeline(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_input_float(
-          context->imgui_overlay, "Horizontal FOV (degrees)",
-          &shader_inputs_ubo.iHFovDegrees, 1.0f, "%.0f")) {
-      shader_inputs_ubo.iHFovDegrees
-        = clamp_float(shader_inputs_ubo.iHFovDegrees, 10, 1000);
-      shader_inputs_ubo_update_needed = true;
-    }
-    if (imgui_overlay_input_float(
-          context->imgui_overlay, "Vertical FOV (degrees)",
-          &shader_inputs_ubo.iVFovDegrees, 1.0f, "%.0f")) {
-      shader_inputs_ubo.iVFovDegrees
-        = clamp_float(shader_inputs_ubo.iVFovDegrees, 10, 1000);
-      shader_inputs_ubo_update_needed = true;
-    }
-    if (imgui_overlay_checkBox(context->imgui_overlay, "Show Input",
-                               &shader_inputs_ubo.iVisualizeInput)) {
-      shader_inputs_ubo_update_needed = true;
-    }
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    update_uniform_buffers(wgpu_context);
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE
+           && input_event->mouse_btn_pressed
+           && input_event->mouse_button == BUTTON_LEFT) {
+    state.shader_inputs_ubo.iMouse[0] += input_event->mouse_dx;
+    state.shader_inputs_ubo.iMouse[1] += input_event->mouse_dy;
+    update_uniform_buffers(wgpu_context);
   }
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  /* Set target frame buffer */
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  sfetch_dowork();
 
-  /* Create render pass encoder for encoding drawing commands */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  /* Recreate texture when pixel data loaded */
+  if (state.texture.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.texture);
+    FREE_TEXTURE_PIXELS(state.texture);
+    /* Upddate the bindgroup */
+    init_bind_group(wgpu_context);
+  }
 
-  /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  /* Set the bind group */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
-                                    0);
+  state.color_attachment.view = wgpu_context->swapchain_view;
 
-  /* Set viewport */
-  wgpuRenderPassEncoderSetViewport(
-    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-    (float)wgpu_context->surface.height, 0.0f, 1.0f);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  /* Set scissor rectangle */
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_group, 0, 0);
+  wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
+                                   (float)wgpu_context->width,
+                                   (float)wgpu_context->height, 0.0f, 1.0f);
+  wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0u, 0u, wgpu_context->width,
+                                      wgpu_context->height);
+  wgpuRenderPassEncoderDraw(rpass_enc, 3, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Draw indexed quad */
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  wgpu_context_t* wgpu_context = context->wgpu_context;
-
-  /* Update the uniform buffers */
-  update_uniform_buffers(context);
-
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
+
+  wgpu_destroy_texture(&state.texture);
+  wgpu_destroy_buffer(&state.uniform_buffer_vs);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  camera_release(context->camera);
-  wgpu_destroy_texture(&texture);
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-}
-
-void example_equirectangular_image(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = example_title,
-     .overlay = true,
-     .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Equirectangular Image",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* equirectangular_image_vertex_shader_wgsl = CODE(
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) frag_pos : vec2<f32>,
+  };
+
+  @vertex
+  fn main(@builtin(vertex_index) vertex_index : u32) -> VertexOutput {
+    var output : VertexOutput;
+    output.frag_pos = vec2<f32>(f32((vertex_index << 1u) & 2u), f32(vertex_index & 2u));
+    output.position = vec4<f32>(output.frag_pos * 2.0 + vec2<f32>(-1.0, -1.0), 0.0, 1.0);
+    return output;
+  }
+);
+
+static const char* equirectangular_image_fragment_shader_wgsl = CODE(
+  // Constants
+  const PI: f32 = 3.14159265;
+  const DEG2RAD: f32 = 0.01745329251994329576923690768489;
+
+  // Uniforms
+  struct ShaderInputs {
+    u_Resolution: vec2<f32>,
+    u_Mouse: vec4<f32>,
+    u_HFovDegrees: f32,
+    u_VFovDegrees: f32,
+    u_VisualizeInput: u32,
+  };
+
+  @group(0) @binding(0)
+  var<uniform> shader_inputs: ShaderInputs;
+
+  @group(0) @binding(1)
+  var iChannel0Texture: texture_2d<f32>;
+  @group(0) @binding(2)
+  var iChannel0TextureSampler: sampler;
+
+  // Input from vertex shader
+  struct FragmentInput {
+      @location(0) frag_pos: vec2<f32>,
+  };
+
+  struct FragmentOutput {
+      @location(0) color: vec4<f32>,
+  };
+
+  // Helper function
+  fn rotateXY(p: vec3<f32>, angle: vec2<f32>) -> vec3<f32> {
+    let c = vec2<f32>(cos(angle.x), cos(angle.y));
+    let s = vec2<f32>(sin(angle.x), sin(angle.y));
+    let p1 = vec3<f32>(p.x, c.x * p.y + s.x * p.z, -s.x * p.y + c.x * p.z);
+    return vec3<f32>(c.y * p1.x + s.y * p1.z, p1.y, -s.y * p1.x + c.y * p1.z);
+  }
+
+  fn mainImage(fragCoord: vec2<f32>) -> vec4<f32> {
+    let iResolution = vec3<f32>(shader_inputs.u_Resolution, 1.0);
+    let iMouseOrig = shader_inputs.u_Mouse;
+    let iHFovDegrees = shader_inputs.u_HFovDegrees;
+    let iVFovDegrees = shader_inputs.u_VFovDegrees;
+    let iVisualizeInput = shader_inputs.u_VisualizeInput;
+
+    // place 0,0 in center from -1 to 1 ndc
+    let uv = (fragCoord * 2.0 / iResolution.xy) - vec2<f32>(1.0, 1.0);
+
+    // Flip x and y
+    let uv_flipped = uv * vec2<f32>(-1.0, -1.0);
+
+    // Compensate for flipped axises
+    let iMouse = vec4<f32>(iMouseOrig.x, iResolution.y - iMouseOrig.y, iMouseOrig.z, iMouseOrig.w);
+
+    // to spherical
+    let camDir = normalize(vec3<f32>(
+      uv_flipped * vec2<f32>(tan(0.5 * iHFovDegrees * DEG2RAD), tan(0.5 * iVFovDegrees * DEG2RAD)),
+      1.0
+    ));
+
+    // camRot is angle vec in rad
+    let camRot = vec3<f32>(
+      ((iMouse.xy / iResolution.xy) - vec2<f32>(0.5, 0.5)) * vec2<f32>(2.0 * PI, PI),
+      0.0
+    );
+
+    // rotate
+    let rd = normalize(rotateXY(camDir, camRot.yx));
+
+    // radial azimuth polar
+    var texCoord: vec2<f32> = vec2<f32>(atan2(rd.z, rd.x) + PI, acos(-rd.y)) / vec2<f32>(2.0 * PI, PI);
+
+    // Input visualization
+    var fragCoordY: f32 = fragCoord.y;
+    if (iVisualizeInput == 1u) {
+      fragCoordY = iResolution.y - fragCoord.y;
+      texCoord = vec2<f32>(fragCoord.x, fragCoordY) / iResolution.xy;
+    }
+
+    return textureSample(iChannel0Texture, iChannel0TextureSampler, texCoord);
+  }
+
+  @fragment
+  fn main(input: FragmentInput) -> FragmentOutput {
+    var output : FragmentOutput;
+    var fragCoord = input.frag_pos;
+    fragCoord = floor(shader_inputs.u_Resolution * fragCoord);
+    output.color = mainImage(fragCoord);
+    return output;
+  }
+);
+// clang-format on
