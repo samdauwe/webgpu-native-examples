@@ -43,7 +43,7 @@ static const char* equirectangular_image_vertex_shader_wgsl;
 static const char* equirectangular_image_fragment_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
- * Equirectangular Image
+ * Equirectangular Image example
  * -------------------------------------------------------------------------- */
 
 /* State struct */
@@ -135,13 +135,8 @@ static void init_texture(wgpu_context_t* wgpu_context)
   });
 }
 
-static void update_uniform_buffers(wgpu_context_t* wgpu_context)
+static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  // iResolution: viewport resolution (in pixels)
-  state.shader_inputs_ubo.iResolution[0] = (float)wgpu_context->width;
-  state.shader_inputs_ubo.iResolution[1] = (float)wgpu_context->height;
-
-  /* Update the uniform buffer */
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_vs.buffer, 0,
                        &state.shader_inputs_ubo,
                        sizeof(state.shader_inputs_ubo));
@@ -157,7 +152,11 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                     .initial.data = &state.shader_inputs_ubo,
                   });
 
-  update_uniform_buffers(wgpu_context);
+  // iResolution: viewport resolution (in pixels)
+  state.shader_inputs_ubo.iResolution[0] = (float)wgpu_context->width;
+  state.shader_inputs_ubo.iResolution[1] = (float)wgpu_context->height;
+
+  update_uniform_buffer(wgpu_context);
 }
 
 static void init_pipeline_layout(wgpu_context_t* wgpu_context)
@@ -314,14 +313,22 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
-    update_uniform_buffers(wgpu_context);
+    state.shader_inputs_ubo.iResolution[0] = (float)input_event->window_width;
+    state.shader_inputs_ubo.iResolution[1] = (float)input_event->window_height;
+    update_uniform_buffer(wgpu_context);
   }
   else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE
            && input_event->mouse_btn_pressed
            && input_event->mouse_button == BUTTON_LEFT) {
     state.shader_inputs_ubo.iMouse[0] += input_event->mouse_dx;
     state.shader_inputs_ubo.iMouse[1] += input_event->mouse_dy;
-    update_uniform_buffers(wgpu_context);
+    update_uniform_buffer(wgpu_context);
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_CHAR
+           && input_event->char_code == (uint32_t)'t') {
+    state.shader_inputs_ubo.iVisualizeInput
+      = state.shader_inputs_ubo.iVisualizeInput == 0 ? 1 : 0;
+    update_uniform_buffer(wgpu_context);
   }
 }
 
@@ -444,11 +451,11 @@ static const char* equirectangular_image_fragment_shader_wgsl = CODE(
 
   // Input from vertex shader
   struct FragmentInput {
-      @location(0) frag_pos: vec2<f32>,
+    @location(0) frag_pos: vec2<f32>,
   };
 
   struct FragmentOutput {
-      @location(0) color: vec4<f32>,
+    @location(0) color: vec4<f32>,
   };
 
   // Helper function
