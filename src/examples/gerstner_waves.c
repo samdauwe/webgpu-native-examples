@@ -454,6 +454,7 @@ static void init_scene_bind_group(wgpu_context_t* wgpu_context)
 /* Bind group for sea color texture */
 static void init_texture_bind_group(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.textures)
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
        /* Binding 0: Sampler */
