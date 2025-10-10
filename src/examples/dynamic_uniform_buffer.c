@@ -1,8 +1,13 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include "core/camera.h"
 
-#include "../webgpu/imgui_overlay.h"
+#include <cglm/cglm.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#include <stdbool.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Dynamic Uniform Buffers
@@ -27,79 +32,85 @@ static const char* fragment_shader_wgsl;
  * Dynamic Uniform Buffers example
  * -------------------------------------------------------------------------- */
 
-#define OBJECT_INSTANCES 125u
-#define ALIGNMENT 256u // 256-byte alignment
+#define OBJECT_INSTANCES (125u)
+#define ALIGNMENT (256u) /* 256-byte alignment */
 
-// Vertex layout for this example
+/* Vertex layout for this example */
 typedef struct {
   vec3 pos;
   vec3 color;
 } vertex_t;
 
-// Vertex buffer and attributes
-static wgpu_buffer_t vertices = {0};
-
-// Index buffer
-static wgpu_buffer_t indices = {0};
-
+/* State struct */
 static struct {
-  struct wgpu_buffer_t view;
+  wgpu_buffer_t vertices;
+  wgpu_buffer_t indices;
   struct {
-    WGPUBuffer buffer;
-    uint64_t buffer_size;
-    uint64_t model_size;
-  } dynamic;
-} uniform_buffers = {0};
+    struct wgpu_buffer_t view;
+    struct {
+      WGPUBuffer buffer;
+      uint64_t buffer_size;
+      uint64_t model_size;
+    } dynamic;
+  } uniform_buffers;
+  struct {
+    mat4 projection_matrix;
+    mat4 view_matrix;
+  } ubo_vs;
+  vec3 rotations[OBJECT_INSTANCES];
+  vec3 rotation_speeds[OBJECT_INSTANCES];
+  struct {
+    mat4 model;
+    uint8_t padding[192];
+  } ubo_data_dynamic[OBJECT_INSTANCES];
+  camera_t camera;
+  WGPUBool view_updated;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+  WGPURenderBundle render_bundle;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  bool render_bundles;
+  float animation_timer;
+  float prev_time;
+  bool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1, 0.2, 0.3, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+   },
+  .depth_stencil_attachment = {
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+    .depthStencilAttachment = &state.depth_stencil_attachment,
+  },
+  .render_bundles  = true,
+  .animation_timer = 0.0f,
+};
 
-static struct {
-  mat4 projection_matrix;
-  mat4 view_matrix;
-} ubo_vs = {0};
-
-// Store random per-object rotations
-static vec3 rotations[OBJECT_INSTANCES]       = {0};
-static vec3 rotation_speeds[OBJECT_INSTANCES] = {0};
-
-// One big uniform buffer that contains all matrices
-static struct {
-  mat4 model;
-  uint8_t padding[192];
-} ubo_data_dynamic[OBJECT_INSTANCES] = {0};
-
-// Pipeline
-static WGPUPipelineLayout pipeline_layout = NULL;
-static WGPURenderPipeline pipeline        = NULL;
-
-// Bindings
-static WGPUBindGroupLayout bind_group_layout = NULL;
-static WGPUBindGroup bind_group              = NULL;
-
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
-
-// Render bundle
-static WGPURenderBundle render_bundle = NULL;
-
-// Render bundle setting & animation timer
-static bool render_bundles   = true;
-static float animation_timer = 0.0f;
-
-// Other variables
-static const char* example_title = "Dynamic Uniform Buffers";
-static bool prepared             = false;
-
-static void setup_camera(wgpu_example_context_t* context)
+static void init_camera(wgpu_context_t* wgpu_context)
 {
-  context->camera       = camera_create();
-  context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){0.0f, 0.0f, -30.0f});
-  camera_set_rotation(context->camera, (vec3){0.0f, 0.0f, 0.0f});
-  camera_set_rotation_speed(context->camera, 0.25f);
-  camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.1f, 256.0f);
+  camera_init(&state.camera);
+  state.camera.type = CameraType_LookAt;
+  camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -30.0f});
+  camera_set_rotation(&state.camera, (vec3){0.0f, 0.0f, 0.0f});
+  camera_set_rotation_speed(&state.camera, 0.25f);
+  camera_set_perspective(
+    &state.camera, 60.0f,
+    (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 }
 
 static void generate_cube(wgpu_context_t* wgpu_context)
@@ -119,7 +130,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
   };
 
   /* Create vertex buffer */
-  vertices = wgpu_create_buffer(
+  state.vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -135,7 +146,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
   };
 
   /* Create index buffer */
-  indices = wgpu_create_buffer(
+  state.indices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Cube - Index buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
@@ -145,7 +156,7 @@ static void generate_cube(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
@@ -156,7 +167,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = uniform_buffers.view.size,
+        .minBindingSize   = state.uniform_buffers.view.size,
       },
       .sampler = {0},
     },
@@ -167,79 +178,72 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = true,
-        .minBindingSize   = (uint64_t)uniform_buffers.dynamic.model_size,
+        .minBindingSize   = (uint64_t)state.uniform_buffers.dynamic.model_size,
       },
       .sampler = {0},
     }
   };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Render - Bind group layout",
+                            .label      = STRVIEW("Render - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(bind_group_layout != NULL);
+  ASSERT(state.bind_group_layout != NULL);
 
   /* Create the pipeline layout */
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Render - Pipeline layout",
+                            .label = STRVIEW("Render - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
+                            .bindGroupLayouts     = &state.bind_group_layout,
                           });
-  ASSERT(pipeline_layout != NULL);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_groups(wgpu_context_t* wgpu_context)
 {
   /* Bind Group */
   WGPUBindGroupEntry bg_entries[2] = {
     [0] = (WGPUBindGroupEntry) {
       /* Binding 0 : Projection/View matrix uniform buffer */
       .binding = 0,
-      .buffer  = uniform_buffers.view.buffer,
+      .buffer  = state.uniform_buffers.view.buffer,
       .offset  = 0,
-      .size    = uniform_buffers.view.size,
+      .size    = state.uniform_buffers.view.size,
     },
     [1] = (WGPUBindGroupEntry) {
       /* Binding 1 : Instance matrix as dynamic uniform buffer */
       .binding = 1,
-      .buffer  = uniform_buffers.dynamic.buffer,
+      .buffer  = state.uniform_buffers.dynamic.buffer,
       .offset  = 0,
-      .size    = uniform_buffers.dynamic.model_size,
+      .size    = state.uniform_buffers.dynamic.model_size,
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Render - Bind group",
-    .layout     = bind_group_layout,
+    .label      = STRVIEW("Render - Bind group"),
+    .layout     = state.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL);
+  state.bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_group != NULL);
 }
 
-static void prepare_pipeline(wgpu_context_t* wgpu_context)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(true);
 
-  /*Depth stencil state */
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
 
@@ -252,90 +256,51 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
                        offsetof(vertex_t, color)))
 
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
-                  .label            = "Dynamic uniform buffer - Vertex shader WGSL",
-                  .wgsl_code.source = vertex_shader_wgsl,
-                  .entry            = "main",
-                },
-                .buffer_count = 1,
-                .buffers      = &dyn_ubo_vertex_buffer_layout,
-              });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  /* Fragment shader WGSL */
-                  .label            = "Dynamic uniform buffer - Fragment shader WGSL",
-                  .wgsl_code.source = fragment_shader_wgsl,
-                  .entry            = "main",
-                },
-                .target_count = 1,
-                .targets      = &color_target_state,
-              });
-
-  /* Multisample state */
-  WGPUMultisampleState multisample_state* /
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  /* Create rendering pipeline using the specified states */
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label = "Dynamic uniform buffer - Render pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  // Color attachment
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Attachment is acquired in render loop */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Dynamic uniform buffer - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &dyn_ubo_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
       },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+       .count = 1,
+       .mask  = 0xffffffff
+    },
   };
 
-  // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
+  state.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
-  // Render pass descriptor
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
 #define RECORD_RENDER_PASS(Type, rpass_enc)                                    \
   if (rpass_enc) {                                                             \
-    wgpu##Type##SetPipeline(rpass_enc, pipeline);                              \
-    wgpu##Type##SetVertexBuffer(rpass_enc, 0, vertices.buffer, 0,              \
+    wgpu##Type##SetPipeline(rpass_enc, state.pipeline);                        \
+    wgpu##Type##SetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,        \
                                 WGPU_WHOLE_SIZE);                              \
-    wgpu##Type##SetIndexBuffer(rpass_enc, indices.buffer,                      \
+    wgpu##Type##SetIndexBuffer(rpass_enc, state.indices.buffer,                \
                                WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);    \
     /* Render multiple objects using different model matrices by dynamically   \
      * offsetting into one uniform buffer */                                   \
@@ -344,49 +309,55 @@ static void setup_render_pass(wgpu_context_t* wgpu_context)
        * containing all model matrices*/                                       \
       uint32_t dynamic_offset = i * ALIGNMENT;                                 \
       /* Bind the bind group for rendering a mesh using the dynamic offset */  \
-      wgpu##Type##SetBindGroup(rpass_enc, 0, bind_group, 1, &dynamic_offset);  \
-      wgpu##Type##DrawIndexed(rpass_enc, indices.count, 1, 0, 0, 0);           \
+      wgpu##Type##SetBindGroup(rpass_enc, 0, state.bind_group, 1,              \
+                               &dynamic_offset);                               \
+      wgpu##Type##DrawIndexed(rpass_enc, state.indices.count, 1, 0, 0, 0);     \
     }                                                                          \
   }
 
-static void prepare_render_bundle_encoder(wgpu_context_t* wgpu_context)
+static void init_render_bundle_encoder(wgpu_context_t* wgpu_context)
 {
-  WGPUTextureFormat color_formats[1] = {wgpu_context->swap_chain.format};
+  WGPUTextureFormat color_formats[1] = {wgpu_context->render_format};
   WGPURenderBundleEncoder render_bundle_encoder
     = wgpuDeviceCreateRenderBundleEncoder(
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
-        .label              = "Dynamic uniform buffer - Render bundle encoder",
+        .label = STRVIEW("Dynamic uniform buffer - Render bundle encoder"),
         .colorFormatCount   = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
-        .depthStencilFormat = WGPUTextureFormat_Depth24PlusStencil8,
+        .depthStencilFormat = wgpu_context->depth_stencil_format,
         .sampleCount        = 1,
       });
   RECORD_RENDER_PASS(RenderBundleEncoder, render_bundle_encoder)
-  render_bundle = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
+  state.render_bundle
+    = wgpuRenderBundleEncoderFinish(render_bundle_encoder, NULL);
+  ASSERT(state.render_bundle != NULL);
 
   WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Fixed ubo with projection and view matrices
-  camera_t* camera = context->camera;
-  glm_mat4_copy(camera->matrices.perspective, ubo_vs.projection_matrix);
-  glm_mat4_copy(camera->matrices.view, ubo_vs.view_matrix);
+  /* Fixed ubo with projection and view matrices */
+  camera_t* camera = &state.camera;
+  glm_mat4_copy(camera->matrices.perspective, state.ubo_vs.projection_matrix);
+  glm_mat4_copy(camera->matrices.view, state.ubo_vs.view_matrix);
 
-  // Map uniform buffer and update it
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.view.buffer, 0,
-                          &ubo_vs, uniform_buffers.view.size);
+  /* Map uniform buffer and update it */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.view.buffer,
+                       0, &state.ubo_vs, state.uniform_buffers.view.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
-static void update_dynamic_uniform_buffer(wgpu_example_context_t* context,
+/* Prepare and initialize uniform buffer containing shader uniforms */
+static void update_dynamic_uniform_buffer(wgpu_context_t* wgpu_context,
                                           bool force)
 {
   // Update at max. 60 fps
-  animation_timer += context->frame_timer;
-  if ((animation_timer <= 1.0f / 60.0f) && (!force)) {
+  const float now        = stm_sec(stm_now());
+  const float frame_time = now - state.prev_time;
+  state.prev_time        = now;
+  state.animation_timer += frame_time;
+  if ((state.animation_timer <= 1.0f / 60.0f) && (!force)) {
     return;
   }
 
@@ -402,12 +373,13 @@ static void update_dynamic_uniform_buffer(wgpu_example_context_t* context,
         uint32_t index = x * dim * dim + y * dim + z;
 
         // Model
-        mat4* modelMat = &ubo_data_dynamic[index].model;
+        mat4* modelMat = &state.ubo_data_dynamic[index].model;
 
         // Update rotations
-        glm_vec3_scale(rotation_speeds[index], animation_timer,
+        glm_vec3_scale(state.rotation_speeds[index], state.animation_timer,
                        rotation_speed_scaled);
-        glm_vec3_add(rotations[index], rotation_speed_scaled, rotations[index]);
+        glm_vec3_add(state.rotations[index], rotation_speed_scaled,
+                     state.rotations[index]);
 
         // Update matrices
         vec3 pos = {
@@ -417,46 +389,53 @@ static void update_dynamic_uniform_buffer(wgpu_example_context_t* context,
         };
         glm_mat4_identity(*modelMat);
         glm_translate(*modelMat, pos);
-        glm_rotate(*modelMat, rotations[index][0], (vec3){1.0f, 1.0f, 0.0f});
-        glm_rotate(*modelMat, rotations[index][1], (vec3){0.0f, 1.0f, 0.0f});
-        glm_rotate(*modelMat, rotations[index][2], (vec3){0.0f, 0.0f, 1.0f});
+        glm_rotate(*modelMat, state.rotations[index][0],
+                   (vec3){1.0f, 1.0f, 0.0f});
+        glm_rotate(*modelMat, state.rotations[index][1],
+                   (vec3){0.0f, 1.0f, 0.0f});
+        glm_rotate(*modelMat, state.rotations[index][2],
+                   (vec3){0.0f, 0.0f, 1.0f});
       }
     }
   }
 
-  animation_timer = 0.0f;
+  state.animation_timer = 0.0f;
 
-  // Update buffer
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffers.dynamic.buffer,
-                          0, &ubo_data_dynamic,
-                          uniform_buffers.dynamic.buffer_size);
+  /* Update buffer */
+  wgpuQueueWriteBuffer(
+    wgpu_context->queue, state.uniform_buffers.dynamic.buffer, 0,
+    &state.ubo_data_dynamic, state.uniform_buffers.dynamic.buffer_size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+static uint64_t calc_constant_buffer_byte_size(uint64_t byte_size)
 {
-  // Vertex shader uniform buffer block
+  return (byte_size + 255) & ~255;
+}
 
-  // Static shared uniform buffer object with projection and view matrix
-  uniform_buffers.view = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = sizeof(ubo_vs),
-    });
+/* Initialize uniform buffer containing shader uniforms */
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
+{
+  /* Vertex shader uniform buffer block */
 
-  // Uniform buffer object with per-object matrices
-  uniform_buffers.dynamic.model_size = sizeof(mat4);
-  uniform_buffers.dynamic.buffer_size
-    = calc_constant_buffer_byte_size(sizeof(ubo_data_dynamic));
-  uniform_buffers.dynamic.buffer = wgpuDeviceCreateBuffer(
-    context->wgpu_context->device,
+  /* Static shared uniform buffer object with projection and view matrix */
+  state.uniform_buffers.view = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(state.ubo_vs),
+                  });
+
+  /* Uniform buffer object with per-object matrices */
+  state.uniform_buffers.dynamic.model_size = sizeof(mat4);
+  state.uniform_buffers.dynamic.buffer_size
+    = calc_constant_buffer_byte_size(sizeof(state.ubo_data_dynamic));
+  state.uniform_buffers.dynamic.buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
     &(WGPUBufferDescriptor){
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = uniform_buffers.dynamic.buffer_size,
+      .size  = state.uniform_buffers.dynamic.buffer_size,
     });
 
-  // Prepare per-object matrices with offsets and random rotations
+  /* Prepare per-object matrices with offsets and random rotations */
   for (uint32_t i = 0; i < OBJECT_INSTANCES; ++i) {
     glm_vec3_copy(
       (vec3){
@@ -464,150 +443,118 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
         random_float_min_max(-1.0f, 1.0f),
         random_float_min_max(-1.0f, 1.0f),
       },
-      rotations[i]);
-    glm_vec3_scale(rotations[i], PI2, rotations[i]);
+      state.rotations[i]);
+    glm_vec3_scale(state.rotations[i], PI2, state.rotations[i]);
     glm_vec3_copy(
       (vec3){
         random_float_min_max(-1.0f, 1.0f),
         random_float_min_max(-1.0f, 1.0f),
         random_float_min_max(-1.0f, 1.0f),
       },
-      rotation_speeds[i]);
+      state.rotation_speeds[i]);
   }
 
-  update_uniform_buffers(context);
-  update_dynamic_uniform_buffer(context, true);
+  update_uniform_buffers(wgpu_context);
+  update_dynamic_uniform_buffer(wgpu_context, true);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    setup_camera(context);
-    generate_cube(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_pipeline(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepare_render_bundle_encoder(context->wgpu_context);
-    prepared = true;
-    return 0;
+  if (wgpu_context) {
+    stm_setup();
+    init_camera(wgpu_context);
+    generate_cube(wgpu_context);
+    init_uniform_buffers(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_bind_groups(wgpu_context);
+    init_render_bundle_encoder(wgpu_context);
+    state.initialized = true;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
-    imgui_overlay_checkBox(context->imgui_overlay, "Render Bundles",
-                           &render_bundles);
+  UNUSED_VAR(wgpu_context);
+
+  camera_on_input_event(&state.camera, input_event);
+  state.view_updated = true;
+}
+
+static int frame(struct wgpu_context_t* wgpu_context)
+{
+  if (!state.initialized) {
+    return EXIT_FAILURE;
   }
-}
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  // Set target frame buffer
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  /* Update uniform buffers */
+  update_dynamic_uniform_buffer(wgpu_context, false);
+  if (state.view_updated) {
+    update_uniform_buffers(wgpu_context);
+    state.view_updated = false;
+  }
 
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  state.color_attachment.view         = wgpu_context->swapchain_view;
+  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
 
-  if (render_bundles) {
-    wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
-                                        &render_bundle);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
+
+  if (state.render_bundles) {
+    wgpuRenderPassEncoderExecuteBundles(rpass_enc, 1, &state.render_bundle);
   }
   else {
-    RECORD_RENDER_PASS(RenderPassEncoder, wgpu_context->rpass_enc)
+    RECORD_RENDER_PASS(RenderPassEncoder, rpass_enc)
   }
 
-  // End render pass
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  // Draw ui overlay
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  // Prepare frame
-  prepare_frame(context);
-
-  // Command buffer to be submitted to the queue
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  // Submit to queue
-  submit_command_buffers(context);
-
-  // Submit frame
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  const int draw_result = example_draw(context);
-  if (!context->paused) {
-    update_dynamic_uniform_buffer(context, false);
-  }
-  return draw_result;
+  UNUSED_VAR(wgpu_context);
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffers.view.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffers.dynamic.buffer)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderBundle, state.render_bundle)
 }
 
-static void example_on_view_changed(wgpu_example_context_t* context)
+int main(void)
 {
-  update_uniform_buffers(context);
-}
-
-static void example_destroy(wgpu_example_context_t* context)
-{
-  camera_release(context->camera);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, indices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.view.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.dynamic.buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
-  WGPU_RELEASE_RESOURCE(RenderBundle, render_bundle)
-}
-
-void example_dynamic_uniform_buffer(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Dynamic Uniform Buffers",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
-}
 
+  return EXIT_SUCCESS;
+}
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
