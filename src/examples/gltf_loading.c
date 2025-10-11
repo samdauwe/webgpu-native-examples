@@ -850,7 +850,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   scene_uniform_buffer = wgpuDeviceCreateBuffer(
     context->wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = "Scene uniform buffer",
+      .label = "Scene - Uniform buffer",
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(ubo_scene),
     });
