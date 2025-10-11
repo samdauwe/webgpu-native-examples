@@ -695,7 +695,7 @@ static void gltf_model_setup_mesh_bind_groups(
     gltf_mesh_t* mesh = &gltf_model->meshes[i];
 
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Mesh bind group",
+      .label      = "Mesh - Bind group",
       .layout     = model_data_bind_group_layout,
       .entryCount = 1,
       .entries = &(WGPUBindGroupEntry) {
