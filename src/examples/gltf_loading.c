@@ -679,7 +679,7 @@ static void gltf_model_setup_material_bind_groups(
     image->bind_group = wgpuDeviceCreateBindGroup(
       gltf_model->wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = "Material bind group",
+        .label      = "Material - Bind group",
         .layout     = texture_bind_group_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
