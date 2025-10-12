@@ -534,7 +534,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
     },
     .depthStencil = &depth_stencil_state,
     .multisample = {
-       .count = SAMPLE_COUNT,
+       .count = state.sample_count,
        .mask  = 0xffffffff
     },
   };
@@ -820,7 +820,7 @@ int main(void)
     .frame_cb       = frame,
     .shutdown_cb    = shutdown,
     .input_event_cb = input_event_cb,
-    .sample_count   = SAMPLE_COUNT,
+    .sample_count   = state.sample_count,
   });
 
   return EXIT_SUCCESS;
