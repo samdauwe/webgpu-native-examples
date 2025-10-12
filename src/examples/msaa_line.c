@@ -1,6 +1,8 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
+
+#include <stdbool.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - MSAA Line
@@ -30,39 +32,41 @@ static const char* fragment_shader_wgsl;
  * MSAA Line example
  * -------------------------------------------------------------------------- */
 
-#define NUMBER_OF_LINES 50u
-static const uint32_t sample_count = 4u;
+#define NUMBER_OF_LINES (50u)
+#define SAMPLE_COUNT (4u)
 
 typedef struct {
   vec2 position;
   vec4 color;
 } vertex_t;
 
-// Vertex buffer
-static wgpu_buffer_t vertices = {0};
+/* State struct */
+static struct {
+  wgpu_buffer_t vertices;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline render_pipeline;
+  WGPURenderBundle render_bundle;
+  WGPUTexture multisampled_texture;
+  WGPUTextureView multisampled_framebuffer;
+  uint32_t sample_count;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  bool initialized;
+} state = {
+  .sample_count = SAMPLE_COUNT,
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+  },
+};
 
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout = NULL;
-
-// Pipeline
-static WGPURenderPipeline pipeline = NULL;
-
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-// Render bundle
-static WGPURenderBundle render_bundle = NULL;
-
-// Multi-sampled texture
-static WGPUTexture multisampled_texture         = NULL;
-static WGPUTextureView multisampled_framebuffer = NULL;
-
-// Other variables
-static const char* example_title = "MSAA Line";
-static bool prepared             = false;
-
-static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
+static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const uint32_t vertex_count = NUMBER_OF_LINES * 2;
   vertex_t vertex_data[vertex_count];
@@ -81,7 +85,7 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
     };
   }
 
-  vertices = wgpu_create_buffer(
+  state.vertices = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
@@ -91,113 +95,83 @@ static void prepare_vertex_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void create_multisampled_framebuffer(wgpu_context_t* wgpu_context)
+static void init_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(Texture, state.multisampled_texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.multisampled_framebuffer)
+
   /* Create the multi-sampled texture */
   WGPUTextureDescriptor multisampled_frame_desc = {
-    .label         = "Multi-sampled - Texture",
+    .label         = STRVIEW("Multi-sampled - Texture"),
     .size          = (WGPUExtent3D){
-      .width               = wgpu_context->surface.width,
-      .height              = wgpu_context->surface.height,
+      .width               = wgpu_context->width,
+      .height              = wgpu_context->height,
       .depthOrArrayLayers  = 1,
      },
     .mipLevelCount = 1,
-    .sampleCount   = sample_count,
+    .sampleCount   = state.sample_count,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = wgpu_context->swap_chain.format,
+    .format        = wgpu_context->render_format,
     .usage         = WGPUTextureUsage_RenderAttachment,
   };
-  multisampled_texture
+  state.multisampled_texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
-  ASSERT(multisampled_texture != NULL);
+  ASSERT(state.multisampled_texture != NULL);
 
   /* Create the multi-sampled texture view */
-  multisampled_framebuffer = wgpuTextureCreateView(
-    multisampled_texture, &(WGPUTextureViewDescriptor){
-                            .label           = "Multi-sampled - Texture view",
-                            .format          = wgpu_context->swap_chain.format,
-                            .dimension       = WGPUTextureViewDimension_2D,
-                            .baseMipLevel    = 0,
-                            .mipLevelCount   = 1,
-                            .baseArrayLayer  = 0,
-                            .arrayLayerCount = 1,
-                          });
-  ASSERT(multisampled_framebuffer != NULL);
+  state.multisampled_framebuffer
+    = wgpuTextureCreateView(state.multisampled_texture,
+                            &(WGPUTextureViewDescriptor){
+                              .label  = STRVIEW("Multi-sampled - Texture view"),
+                              .format = wgpu_context->render_format,
+                              .dimension       = WGPUTextureViewDimension_2D,
+                              .baseMipLevel    = 0,
+                              .mipLevelCount   = 1,
+                              .baseArrayLayer  = 0,
+                              .arrayLayerCount = 1,
+                            });
+  ASSERT(state.multisampled_framebuffer != NULL);
 }
 
-static void setup_render_bundle(wgpu_context_t* wgpu_context)
+static void init_render_bundle(wgpu_context_t* wgpu_context)
 {
   WGPURenderBundleEncoderDescriptor rbe_desc = {
     .colorFormatCount = 1,
-    .colorFormats     = &wgpu_context->swap_chain.format,
-    .sampleCount      = sample_count,
+    .colorFormats     = &wgpu_context->render_format,
+    .sampleCount      = state.sample_count,
   };
   WGPURenderBundleEncoder encoder
     = wgpuDeviceCreateRenderBundleEncoder(wgpu_context->device, &rbe_desc);
-  wgpuRenderBundleEncoderSetPipeline(encoder, pipeline);
-  wgpuRenderBundleEncoderSetVertexBuffer(encoder, 0, vertices.buffer, 0,
+  wgpuRenderBundleEncoderSetPipeline(encoder, state.render_pipeline);
+  wgpuRenderBundleEncoderSetVertexBuffer(encoder, 0, state.vertices.buffer, 0,
                                          WGPU_WHOLE_SIZE);
-  wgpuRenderBundleEncoderDraw(encoder, vertices.count, 1, 0, 0);
-  render_bundle
+  wgpuRenderBundleEncoderDraw(encoder, state.vertices.count, 1, 0, 0);
+  state.render_bundle
     = wgpuRenderBundleEncoderFinish(encoder, &(WGPURenderBundleDescriptor){
-                                               .label = "main",
+                                               .label = STRVIEW("main"),
                                              });
   WGPU_RELEASE_RESOURCE(RenderBundleEncoder, encoder);
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
-
-  /* Color attachment */
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view          = NULL, /* Assigned later */
-      .resolveTarget = NULL,
-      .depthSlice    = ~0,
-      .loadOp        = WGPULoadOp_Clear,
-      .storeOp       = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Render pass descriptor */
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                = "Render pass descriptor",
-    .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
-  };
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {0};
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
-                                                   &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL);
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
+                                                         &pipeline_layout_desc);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_LineList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
-  };
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(true);
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(msaa_line, sizeof(vertex_t),
                             // Attribute location 0: Position
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
@@ -206,165 +180,131 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
                             WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4,
                                                offsetof(vertex_t, color)))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
-                      .label            = "Vertex shader WGSL",
-                      .wgsl_code.source = vertex_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .buffer_count = 1,
-                    .buffers      = &msaa_line_vertex_buffer_layout,
-                  });
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Two cubes - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &msaa_line_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_LineList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_Back,
+    },
+    .multisample = {
+       .count = state.sample_count,
+       .mask  = 0xffffffff
+    },
+  };
 
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
-                      .label            = "Fragment shader WGSL",
-                      .wgsl_code.source = fragment_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
+  state.render_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.render_pipeline != NULL);
 
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = sample_count,
-      });
-
-  // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "MSAA line - Render pipeline",
-                            .layout      = pipeline_layout,
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_vertex_buffer(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    create_multisampled_framebuffer(context->wgpu_context);
-    setup_render_bundle(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    init_vertex_buffer(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_multisampled_framebuffer(wgpu_context);
+    init_render_bundle(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  /* Set target frame buffer */
-  if (sample_count == 1) {
-    rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
-    rp_color_att_descriptors[0].resolveTarget = NULL;
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    init_multisampled_framebuffer(wgpu_context);
   }
-  else {
-    rp_color_att_descriptors[0].view = multisampled_framebuffer;
-    rp_color_att_descriptors[0].resolveTarget
-      = wgpu_context->swap_chain.frame_buffer;
-  }
-
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Create render pass */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
-
-  /* Execute render bundles */
-  wgpuRenderPassEncoderExecuteBundles(wgpu_context->rpass_enc, 1,
-                                      &render_bundle);
-
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
 }
 
-static int example_draw(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  /* Prepare frame */
-  prepare_frame(context);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
+  /* Set target frame buffer */
+  if (state.sample_count == 1) {
+    state.color_attachment.view          = wgpu_context->swapchain_view;
+    state.color_attachment.resolveTarget = NULL;
+  }
+  else {
+    state.color_attachment.view          = state.multisampled_framebuffer;
+    state.color_attachment.resolveTarget = wgpu_context->swapchain_view;
+  }
 
-  /* Submit frame */
-  submit_frame(context);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
+
+  /* Execute bundles. */
+  wgpuRenderPassEncoderExecuteBundles(rpass_enc, 1, &state.render_bundle);
+
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Texture, state.multisampled_texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.multisampled_framebuffer)
+  WGPU_RELEASE_RESOURCE(RenderBundle, state.render_bundle)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-  WGPU_RELEASE_RESOURCE(Buffer, vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Texture, multisampled_texture)
-  WGPU_RELEASE_RESOURCE(TextureView, multisampled_framebuffer)
-  WGPU_RELEASE_RESOURCE(RenderBundle, render_bundle)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-}
-
-void example_msaa_line(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title = example_title,
-      .vsync = true,
-    },
-    .example_window_config = (window_config_t){
-      .width  = 800,
-      .height = 600,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "MSAA Line",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
+    .sample_count   = state.sample_count,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
