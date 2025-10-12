@@ -64,7 +64,7 @@ static struct {
   float prev_time;
   uint64_t frame_index;
   bool initialized;
-} state  ={
+} state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
     .storeOp    = WGPUStoreOp_Store,
