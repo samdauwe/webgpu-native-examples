@@ -890,13 +890,13 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Bind group layouts */
 
-  // Bind group for uniform UBOScene
+  /* Bind group for uniform UBOScene */
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
       .label      = "UBOScene uniform - Bind group layout",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Vertex shader) => UBOScene
+        /* Binding 0: Uniform buffer (Vertex shader) => UBOScene */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -911,11 +911,11 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(ubo_scene_bind_group_layout != NULL);
   }
 
-  // Bind group for uniform UBOScene material texture
+  /* Bind group for uniform UBOScene material texture */
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: texture2D (Fragment shader) => baseColorTexture
+        /* Binding 0: texture2D (Fragment shader) => baseColorTexture */
         .binding    = 0,
         .visibility = WGPUShaderStage_Fragment,
         .texture = (WGPUTextureBindingLayout) {
@@ -926,7 +926,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
         .storageTexture = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: sampler (Fragment shader) => defaultSampler
+        /* Binding 1: sampler (Fragment shader) => defaultSampler */
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = (WGPUSamplerBindingLayout){
@@ -945,13 +945,13 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(texture_bind_group_layout != NULL);
   }
 
-  // Bind group for uniform ModelData
+  /* Bind group for uniform ModelData */
   {
     WGPUBindGroupLayoutDescriptor bgl_desc = {
       .label      = "ModelData - Uniform bind group",
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
-        // Binding 0: Uniform buffer (Vertex shader) => modelData
+        /* Binding 0: Uniform buffer (Vertex shader) => modelData */
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
@@ -966,7 +966,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     ASSERT(model_data_bind_group_layout != NULL);
   }
 
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupDescriptor bg_desc = {
     .label      = "UBO scene - Bind group",
     .layout     = ubo_scene_bind_group_layout,
@@ -982,13 +982,13 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
   ASSERT(ubo_scene_bind_group != NULL);
 
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   WGPUBindGroupLayout bind_group_layouts[3] = {
-    ubo_scene_bind_group_layout,  // set 0
-    texture_bind_group_layout,    // set 1
-    model_data_bind_group_layout, // set 2
+    ubo_scene_bind_group_layout,  /* set 0 */
+    texture_bind_group_layout,    /* set 1 */
+    model_data_bind_group_layout, /* set 2 */
   };
-  // Pipeline layout
+  /* Pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
     .label                = "GLTF Loading - Render pipeline layout",
     .bindGroupLayoutCount = 3,
