@@ -4,7 +4,7 @@
 :warning: Code refactoring is ongoing, most examples are currently disabled! :warning:
 </p>
 
-- ▓▓░░░░░░░░ 25% (20/80 example updated)
+- ▓▓▓░░░░░░░ 32% (26/80 example updated)
 
 # WebGPU Native Examples and Demos
 
