@@ -936,7 +936,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "UBOScene material texture - Uniform bind group layout",
+      .label      = "UBO Scene material texture - Uniform bind group layout",
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
