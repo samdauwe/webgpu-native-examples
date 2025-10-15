@@ -1074,7 +1074,7 @@ static void render_program_prepare_vertex_buffer(wgpu_context_t* wgpu_context)
 
   render_program.vertex_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertex buffer",
+                    .label = "Render program - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
                     .size  = sizeof(vertices),
                     .initial.data = vertices,
