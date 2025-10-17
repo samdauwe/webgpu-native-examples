@@ -1262,7 +1262,7 @@ static void render_program_setup_render_pass(void)
 
   /* Render pass descriptor */
   render_program.render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
+    .label                  = "Fluid simulation - Render pass descriptor",
     .colorAttachmentCount   = 1,
     .colorAttachments       = &render_program.render_pass.color_attachments[0],
     .depthStencilAttachment = NULL,
