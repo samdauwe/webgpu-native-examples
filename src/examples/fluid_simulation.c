@@ -1226,7 +1226,7 @@ static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
   };
 
   WGPUBindGroupDescriptor bg_desc = {
-    .label = "Render bind group",
+    .label = "Fluid simulation - Render bind group",
     .layout
     = wgpuRenderPipelineGetBindGroupLayout(render_program.render_pipeline, 0),
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
