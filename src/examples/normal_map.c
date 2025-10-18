@@ -618,7 +618,7 @@ static void create_3d_render_pipeline(
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Vertex shader WGSL
-                      .label            = "Vertex shader WGSL",
+                      .label            = "Normal map - Vertex shader WGSL",
                       .wgsl_code.source = vertex_shader,
                       .entry            = "vertexMain",
                     },
