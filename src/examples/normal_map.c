@@ -581,7 +581,7 @@ static void create_3d_render_pipeline(
   WGPURenderPipeline* render_pipeline,
   WGPUPipelineLayout* render_pipeline_layout)
 {
-  // Create the pipeline layout
+  /* Create the pipeline layout */
   *render_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
                             .label                = "Render - Pipeline layout",
@@ -590,14 +590,14 @@ static void create_3d_render_pipeline(
                           });
   ASSERT(*render_pipeline_layout != NULL);
 
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = topology,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = cull_mode,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = presentation_format,
@@ -605,7 +605,7 @@ static void create_3d_render_pipeline(
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
@@ -613,11 +613,11 @@ static void create_3d_render_pipeline(
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
+                      /* Vertex shader WGSL */
                       .label            = "Normal map - Vertex shader WGSL",
                       .wgsl_code.source = vertex_shader,
                       .entry            = "vertexMain",
@@ -626,11 +626,11 @@ static void create_3d_render_pipeline(
                     .buffers = vertex_buffer_layouts,
                   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
+                      /* Fragment shader WGSL */
                       .label            = "Normal map - Fragment shader WGSL",
                       .wgsl_code.source = fragment_shader,
                       .entry            = "fragmentMain",
@@ -639,14 +639,14 @@ static void create_3d_render_pipeline(
                     .targets      = &color_target_state,
                   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline descriptor using the specified states
+  /* Create rendering pipeline descriptor using the specified states */
   WGPURenderPipelineDescriptor render_pipeline_descriptor = {
     .label       = label,
     .layout      = *render_pipeline_layout,
@@ -659,12 +659,12 @@ static void create_3d_render_pipeline(
     render_pipeline_descriptor.depthStencil = &depth_stencil_state;
   }
 
-  // Create rendering pipeline using the pipeline descriptor
+  /* Create rendering pipeline using the pipeline descriptor */
   *render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &render_pipeline_descriptor);
   ASSERT(*render_pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
