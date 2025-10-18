@@ -631,7 +631,7 @@ static void create_3d_render_pipeline(
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
                       // Fragment shader WGSL
-                      .label            = "Fragment shader WGSL",
+                      .label            = "Normal map - Fragment shader WGSL",
                       .wgsl_code.source = fragment_shader,
                       .entry            = "fragmentMain",
                     },
