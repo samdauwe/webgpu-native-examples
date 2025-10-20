@@ -658,8 +658,8 @@ static void init_advect_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.dye0,     /* in_quantity */
-    &dynamic_buffers.velocity, /* in_velocity */
+    &dynamic_buffers.dye0,     /* in_quantity  */
+    &dynamic_buffers.velocity, /* in_velocity  */
     &dynamic_buffers.dye,      /* out_quantity */
   };
   uniform_t* program_uniforms[2] = {
@@ -676,8 +676,8 @@ static void init_advect_dye_program(program_t* this,
 static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.velocity0, /* in_quantity */
-    &dynamic_buffers.velocity0, /* in_velocity */
+    &dynamic_buffers.velocity0, /* in_quantity  */
+    &dynamic_buffers.velocity0, /* in_velocity  */
     &dynamic_buffers.velocity,  /* out_quantity */
   };
   uniform_t* program_uniforms[2] = {
@@ -695,7 +695,7 @@ static void init_boundary_div_program(program_t* this,
                                       wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.divergence0, /* in_quantity */
+    &dynamic_buffers.divergence0, /* in_quantity  */
     &dynamic_buffers.divergence,  /* out_quantity */
   };
   uniform_t* program_uniforms[1] = {
@@ -712,7 +712,7 @@ static void init_boundary_pressure_program(program_t* this,
                                            wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.pressure0, /* in_quantity */
+    &dynamic_buffers.pressure0, /* in_quantity  */
     &dynamic_buffers.pressure,  /* out_quantity */
   };
   uniform_t* program_uniforms[1] = {
@@ -728,7 +728,7 @@ static void init_boundary_pressure_program(program_t* this,
 static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity */
+    &dynamic_buffers.velocity,  /* in_quantity  */
     &dynamic_buffers.velocity0, /* out_quantity */
   };
   uniform_t* program_uniforms[2] = {
@@ -746,7 +746,7 @@ static void init_clear_pressure_program(program_t* this,
                                         wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.pressure,  /* in_quantity */
+    &dynamic_buffers.pressure,  /* in_quantity  */
     &dynamic_buffers.pressure0, /* out_quantity */
   };
   uniform_t* program_uniforms[2] = {
@@ -780,7 +780,7 @@ static void init_divergence_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity0,   /* in_velocity */
+    &dynamic_buffers.velocity0,   /* in_velocity    */
     &dynamic_buffers.divergence0, /* out_divergence */
   };
   uniform_t* program_uniforms[1] = {
@@ -797,8 +797,8 @@ static void init_gradient_subtract_program(program_t* this,
                                            wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.pressure,  /* in_pressure */
-    &dynamic_buffers.velocity0, /* in_velocity */
+    &dynamic_buffers.pressure,  /* in_pressure  */
+    &dynamic_buffers.velocity0, /* in_velocity  */
     &dynamic_buffers.velocity,  /* out_velocity */
   };
   uniform_t* program_uniforms[1] = {
@@ -814,9 +814,9 @@ static void init_gradient_subtract_program(program_t* this,
 static void init_pressure_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.pressure,   /* in_pressure */
+    &dynamic_buffers.pressure,   /* in_pressure   */
     &dynamic_buffers.divergence, /* in_divergence */
-    &dynamic_buffers.pressure0,  /* out_pressure */
+    &dynamic_buffers.pressure0,  /* out_pressure  */
   };
   uniform_t* program_uniforms[1] = {
     &uniforms.grid, /* */
@@ -832,7 +832,7 @@ static void init_update_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.dye,  /* in_quantity */
+    &dynamic_buffers.dye,  /* in_quantity  */
     &dynamic_buffers.dye0, /* out_quantity */
   };
   uniform_t* program_uniforms[8] = {
@@ -855,7 +855,7 @@ static void init_update_dye_program(program_t* this,
 static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity */
+    &dynamic_buffers.velocity,  /* in_quantity  */
     &dynamic_buffers.velocity0, /* out_quantity */
   };
   uniform_t* program_uniforms[8] = {
@@ -879,7 +879,7 @@ static void init_vorticity_confinment_program(program_t* this,
                                               wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.velocity,  /* in_velocity */
+    &dynamic_buffers.velocity,  /* in_velocity   */
     &dynamic_buffers.vorticity, /* out_vorticity */
     &dynamic_buffers.velocity0, /* out_vorticity */
   };
@@ -899,7 +899,7 @@ static void init_vorticity_program(program_t* this,
                                    wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_velocity */
+    &dynamic_buffers.velocity,  /* in_velocity   */
     &dynamic_buffers.vorticity, /* out_vorticity */
   };
   uniform_t* program_uniforms[1] = {
