@@ -25,19 +25,19 @@
  * https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples/conservative-raster
  * -------------------------------------------------------------------------- */
 
-// Texture
+/* Texture */
 static texture_t low_res_target_texture = {0};
 
-// Bind group layout
+/* Bind group layout */
 static WGPUBindGroupLayout bind_group_layout_upscale = NULL;
 
-// Bind group
+/* Bind group */
 static WGPUBindGroup bind_group_upscale = NULL;
 
-// Pipeline layout
+/* Pipeline layout */
 static WGPUPipelineLayout pipeline_layout = NULL;
 
-// Render pipelines
+/* Render pipelines */
 static struct {
   WGPURenderPipeline triangle_conservative;
   WGPURenderPipeline triangle_regular;
@@ -45,7 +45,7 @@ static struct {
   WGPURenderPipeline upscale;
 } render_pipelines = {0};
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Conservative-raster";
 static bool prepared             = false;
 
