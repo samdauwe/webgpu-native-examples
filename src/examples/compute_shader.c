@@ -438,7 +438,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupLayoutEntry bgl_entries[2] = {
       [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: Input image (read-only)
+        /* Binding 0: Input image (read-only) */
         .binding    = 0,
         .visibility = WGPUShaderStage_Compute,
         .texture = (WGPUTextureBindingLayout) {
@@ -448,7 +448,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         .sampler = {0},
       },
       [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Output image (write)
+        /* Binding 1: Output image (write) */
         .binding    = 1,
         .visibility = WGPUShaderStage_Compute,
         .storageTexture = (WGPUStorageTextureBindingLayout) {
@@ -485,12 +485,12 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
   {
     WGPUBindGroupEntry bg_entries[2] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0: Input image (read-only)
+        /* Binding 0: Input image (read-only) */
         .binding     = 0,
         .textureView = textures.color_map.view,
       },
       [1] = (WGPUBindGroupEntry) {
-       // Binding 1: Output image (write)
+        /* Binding 1: Output image (write) */
         .binding     = 1,
         .textureView = textures.compute_target.view,
       },
@@ -508,13 +508,13 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
 
   /* One pipeline for each effect */
   for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(compute_shaders); ++i) {
-    // Compute shader
+    /* Compute shader */
     wgpu_shader_t comp_shader
       = wgpu_shader_create(wgpu_context, &(wgpu_shader_desc_t){
-                                           // Compute shader SPIR-V
+                                           /* Compute shader SPIR-V */
                                            .file = compute_shaders[i].location,
                                          });
-    // Compute pipeline
+    /* Compute pipeline */
     compute.pipelines[i] = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
@@ -522,7 +522,7 @@ static void prepare_compute(wgpu_context_t* wgpu_context)
         .layout  = compute.pipeline_layout,
         .compute = comp_shader.programmable_stage_descriptor,
       });
-    // Clean-up
+    /* Clean-up */
     wgpu_shader_release(&comp_shader);
   }
 }
