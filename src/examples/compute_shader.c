@@ -695,7 +695,6 @@ static int example_render(wgpu_example_context_t* context)
 
 static void example_on_view_changed(wgpu_example_context_t* context)
 {
-  // Update the uniform buffer when the view is changed by user input
   update_uniform_buffers(context);
 }
 
