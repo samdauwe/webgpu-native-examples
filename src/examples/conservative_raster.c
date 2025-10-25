@@ -22,7 +22,7 @@
  *
  * Ref:
  * https://github.com/gpuweb/gpuweb/issues/137
- * https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples/conservative-raster
+ * https://github.com/gfx-rs/wgpu/tree/trunk/examples/features/src/conservative_raster
  * -------------------------------------------------------------------------- */
 
 /* Texture */
