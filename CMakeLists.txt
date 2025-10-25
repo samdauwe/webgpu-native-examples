@@ -137,6 +137,7 @@ endfunction()
 # Examples
 add_example_executable(animometer)
 # add_example_executable(aquarium)
+add_example_executable(cameras)
 add_example_executable(clear_screen)
 add_example_executable(compute_boids)
 add_example_executable(compute_particles_easing)
