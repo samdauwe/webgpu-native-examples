@@ -18,7 +18,7 @@
  * *   Vertices and Indices describe the two points that make up a line.
  *
  * Ref:
- * https://github.com/gfx-rs/wgpu-rs/tree/master/examples/msaa-line
+ * https://github.com/gfx-rs/wgpu/tree/trunk/examples/features/src/msaa_line
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
