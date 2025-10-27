@@ -193,7 +193,7 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "Uniform buffer",
+      .label        = "Vertex shader - Uniform buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size         = sizeof(viewport_params),
       .initial.data = &viewport_params,
