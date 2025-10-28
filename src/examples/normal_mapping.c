@@ -1004,14 +1004,14 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
 
 static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -1029,11 +1029,11 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPUVertexBufferLayout normal_map_vertex_buffer_layouts[5] = {0};
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 0 : position attribute
+      /* Shader location 0 : position attribute */
       .shaderLocation = 0,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
@@ -1047,7 +1047,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   }
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 1 : uv attribute
+      /* Shader location 1 : uv attribute */
       .shaderLocation = 1,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x2,
@@ -1061,7 +1061,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   }
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 2 : normal attribute
+      /* Shader location 2 : normal attribute */
       .shaderLocation = 2,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
@@ -1075,7 +1075,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   }
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 3 : tangent attribute
+      /* Shader location 3 : tangent attribute */
       .shaderLocation = 3,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
@@ -1089,7 +1089,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
   }
   {
     WGPUVertexAttribute attribute = {
-      // Shader location 4 : bitangent attribute
+      /* Shader location 4 : bitangent attribute */
       .shaderLocation = 4,
       .offset         = 0,
       .format         = WGPUVertexFormat_Float32x3,
@@ -1102,11 +1102,11 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
     };
   }
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
     wgpu_context, &(wgpu_vertex_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
+                      /* Vertex shader WGSL */
                       .label            = "Normal map - Vertex shader WGSL",
                       .wgsl_code.source = normal_map_vertex_shader_wgsl,
                       .entry            = "main",
@@ -1115,11 +1115,11 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
                     .buffers      = normal_map_vertex_buffer_layouts,
                   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
                     .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
+                      /* Fragment shader WGSL */
                       .label            = "Normal map - Fragment shader WGSL",
                       .wgsl_code.source = normal_map_fragment_shader_wgsl,
                       .entry            = "main",
@@ -1128,14 +1128,14 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
                     .targets      = &color_target_state,
                   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   pipelines.normal_map = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label        = "Normal map - Render pipeline",
@@ -1148,7 +1148,7 @@ static void prepare_normal_map_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(pipelines.normal_map != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
