@@ -436,7 +436,7 @@ static void setup_render_pass(void)
     .depthClearValue = 1.0f,
   };
   render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Our basic canvas render pass",
+    .label                  = "Basic canvas - Render pass",
     .colorAttachmentCount   = 1,
     .colorAttachments       = render_pass.color_attachments,
     .depthStencilAttachment = &render_pass.depth_stencil_attachment,
