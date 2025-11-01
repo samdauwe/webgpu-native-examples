@@ -222,12 +222,12 @@ static void fetch_callback(const sfetch_response_t* response)
                   .width              = img_width,
                   .height             = img_height,
                   .depthOrArrayLayers = 4,
-      },
+                },
                 .format = WGPUTextureFormat_RGBA8Unorm,
                 .pixels = {
                   .ptr  = pixels,
                   .size = img_width * img_height * 4,
-      },
+                },
     };
     texture->desc.is_dirty = true;
   }
