@@ -880,46 +880,60 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
                                    const wgpu_texture_desc_t* desc)
 {
   wgpu_texture_t texture = {0};
-  memcpy(&texture.desc, desc, sizeof(wgpu_texture_desc_t));
+  if (desc) {
+    memcpy(&texture.desc, desc, sizeof(wgpu_texture_desc_t));
+  }
+
+  const uint32_t width  = VALUE_OR_DEFAULT(desc, extent.width, 16);
+  const uint32_t height = VALUE_OR_DEFAULT(desc, extent.height, 16);
+  const uint32_t depth_or_array_layers
+    = VALUE_OR_DEFAULT(desc, extent.depthOrArrayLayers, 1);
+  const WGPUTextureFormat format
+    = VALUE_OR_DEFAULT(desc, format, WGPUTextureFormat_RGBA8Unorm);
+  const uint32_t mip_level_count
+    = MAX(1, VALUE_OR_DEFAULT(desc, mip_level_count, 1));
 
   /* Texture */
   {
+    WGPUTextureUsage usage
+      = (desc && desc->usage) ?
+          desc->usage :
+          WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+
     WGPUTextureDescriptor tdesc = {
-      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-      .dimension = WGPUTextureDimension_2D,
-      .size      = {desc->extent.width, desc->extent.height, 1},
-      .format    = desc->format,
-      .mipLevelCount = 1,
+      .usage         = usage,
+      .dimension     = WGPUTextureDimension_2D,
+      .size          = {width, height, 1},
+      .format        = format,
+      .mipLevelCount = mip_level_count,
       .sampleCount   = 1,
     };
     texture.handle = wgpuDeviceCreateTexture(wgpu_context->device, &tdesc);
   }
 
   /* Texture data */
-  {
-    wgpuQueueWriteTexture(
-      wgpu_context->queue,
-      &(WGPUTexelCopyTextureInfo){
-        .texture = texture.handle,
-        .aspect  = WGPUTextureAspect_All,
-      },
-      desc->pixels.ptr,
-      desc->extent.width * desc->extent.height
-        * desc->extent.depthOrArrayLayers,
-      &(WGPUTexelCopyBufferLayout){
-        .bytesPerRow  = desc->extent.width * desc->extent.depthOrArrayLayers,
-        .rowsPerImage = desc->extent.height,
-      },
-      &(WGPUExtent3D){desc->extent.width, desc->extent.height, 1});
+  if (desc && desc->pixels.ptr) {
+    wgpuQueueWriteTexture(wgpu_context->queue,
+                          &(WGPUTexelCopyTextureInfo){
+                            .texture = texture.handle,
+                            .aspect  = WGPUTextureAspect_All,
+                          },
+                          desc->pixels.ptr,
+                          width * height * depth_or_array_layers,
+                          &(WGPUTexelCopyBufferLayout){
+                            .bytesPerRow  = width * depth_or_array_layers,
+                            .rowsPerImage = height,
+                          },
+                          &(WGPUExtent3D){width, height, 1});
   }
 
   /* Texture view */
   {
     WGPUTextureViewDescriptor view_desc = {
-      .format          = desc->format,
+      .format          = format,
       .dimension       = WGPUTextureViewDimension_2D,
       .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
+      .mipLevelCount   = mip_level_count,
       .baseArrayLayer  = 0,
       .arrayLayerCount = 1,
       .aspect          = WGPUTextureAspect_All,
@@ -970,7 +984,7 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
  */
 wgpu_texture_t
 wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
-                               uint32_t width, uint32_t height)
+                               const wgpu_texture_desc_t* desc)
 {
   typedef struct rgba_t {
     uint8_t r;
@@ -993,8 +1007,8 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
   };
 
   /* Check with and height parameters */
-  width  = MAX(ARRAY_SIZE(BAR_COLOUR), width);
-  height = MAX(1, height);
+  uint32_t width  = MAX(ARRAY_SIZE(BAR_COLOUR), desc ? desc->extent.width : 16);
+  uint32_t height = MAX(1, desc ? desc->extent.height : 16);
 
   /* Allocate frame buffer */
   size_t frame_bytes    = width * height * sizeof(rgba_t);
@@ -1009,6 +1023,13 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
     }
   }
 
+  /* Usage */
+  WGPUTextureUsage usage
+    = (desc && desc->usage) ?
+        desc->usage :
+        WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+
+  /* Texture */
   wgpu_texture_t texture = wgpu_create_texture(wgpu_context, &(wgpu_texture_desc_t){
                                                  .extent = (WGPUExtent3D) {
                                                    .width              = width,
@@ -1016,6 +1037,8 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
                                                    .depthOrArrayLayers = 4,
                                                  },
                                                  .format = WGPUTextureFormat_RGBA8Unorm,
+                                                 .mip_level_count = 1,
+                                                 .usage = usage,
                                                  .pixels = {
                                                    .ptr  = frame,
                                                    .size = frame_bytes,

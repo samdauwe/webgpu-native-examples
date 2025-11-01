@@ -295,32 +295,6 @@ static void init_patch_mesh(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void init_textures(wgpu_context_t* wgpu_context)
-{
-  /* Color texture */
-  state.textures.color = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
-
-  /* Heightmap texture */
-  state.textures.heightmap
-    = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
-
-  /* Linear sampler */
-  WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Color texture - Linear sampler"),
-    .addressModeU  = WGPUAddressMode_Repeat,
-    .addressModeV  = WGPUAddressMode_Repeat,
-    .addressModeW  = WGPUAddressMode_Repeat,
-    .minFilter     = WGPUFilterMode_Linear,
-    .magFilter     = WGPUFilterMode_Nearest,
-    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-    .lodMinClamp   = 0.0f,
-    .lodMaxClamp   = 1.0f,
-    .maxAnisotropy = 1,
-  };
-  state.linear_sampler
-    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-}
-
 /**
  * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
  * or when an error has occurred.
@@ -375,6 +349,34 @@ static void fetch_textures(void)
       .user_data = SFETCH_RANGE(texture),
     });
   }
+}
+
+static void init_textures(wgpu_context_t* wgpu_context)
+{
+  /* Color texture */
+  state.textures.color = wgpu_create_color_bars_texture(wgpu_context, NULL);
+
+  /* Heightmap texture */
+  state.textures.heightmap = wgpu_create_color_bars_texture(wgpu_context, NULL);
+
+  /* Linear sampler */
+  WGPUSamplerDescriptor sampler_desc = {
+    .label         = STRVIEW("Color texture - Linear sampler"),
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
+    .minFilter     = WGPUFilterMode_Linear,
+    .magFilter     = WGPUFilterMode_Nearest,
+    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  state.linear_sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+
+  /* fetch textures */
+  fetch_textures();
 }
 
 static void update_camera_pose(float dt)
@@ -698,7 +700,6 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_patch_mesh(wgpu_context);
     init_uniform_buffer(wgpu_context);
     init_textures(wgpu_context);
-    fetch_textures();
     init_pipeline_layout(wgpu_context);
     init_pipeline(wgpu_context);
     init_bind_groups(wgpu_context);

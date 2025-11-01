@@ -199,11 +199,6 @@ static void fetch_callback(const sfetch_response_t* response)
   }
 }
 
-static void init_texture(wgpu_context_t* wgpu_context)
-{
-  state.texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
-}
-
 static void fetch_texture(void)
 {
   /* Start loading the image file */
@@ -212,6 +207,12 @@ static void fetch_texture(void)
     .callback = fetch_callback,
     .buffer   = SFETCH_RANGE(state.file_buffer),
   });
+}
+
+static void init_texture(wgpu_context_t* wgpu_context)
+{
+  state.texture = wgpu_create_color_bars_texture(wgpu_context, NULL);
+  fetch_texture();
 }
 
 static void init_view_matrices(wgpu_context_t* wgpu_context)
@@ -378,7 +379,6 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_pipeline_layout(wgpu_context);
     init_uniform_buffers(wgpu_context);
     init_texture(wgpu_context);
-    fetch_texture();
     init_bind_group(wgpu_context);
     init_pipelines(wgpu_context);
     state.initialized = true;

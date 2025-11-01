@@ -236,7 +236,7 @@ static void fetch_callback(const sfetch_response_t* response)
 static void init_particle_texture(wgpu_context_t* wgpu_context)
 {
   /* Dummy particle texture */
-  state.particle_texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+  state.particle_texture = wgpu_create_color_bars_texture(wgpu_context, NULL);
 
   /* Start loading the image file */
   const char* particle_texture_path = "assets/textures/particle.png";

@@ -115,6 +115,8 @@ void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
 typedef struct wgpu_texture_desc_t {
   WGPUExtent3D extent;
   WGPUTextureFormat format;
+  uint32_t mip_level_count;
+  WGPUTextureUsage usage;
   struct {
     const void* ptr;
     size_t size;
@@ -135,7 +137,7 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
                                    const wgpu_texture_desc_t* desc);
 wgpu_texture_t
 wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
-                               uint32_t width, uint32_t height);
+                               const wgpu_texture_desc_t* desc);
 void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
                            wgpu_texture_t* texture);
 void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
@@ -206,6 +208,7 @@ float random_float(void);
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 #define VALUE_OR(val, def) ((val == 0) ? def : val)
+#define VALUE_OR_DEFAULT(p, prop, def) ((p) ? (desc)->prop : (def))
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))

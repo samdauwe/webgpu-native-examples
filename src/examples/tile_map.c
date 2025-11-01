@@ -60,7 +60,7 @@ typedef struct {
 static void tile_set_create(tile_set_t* this, wgpu_context_t* wgpu_context,
                             const char* file_path, float tile_size)
 {
-  this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+  this->texture           = wgpu_create_color_bars_texture(wgpu_context, NULL);
   wgpu_texture_t* texture = &this->texture;
   sfetch_send(&(sfetch_request_t){
     .path      = file_path,
@@ -129,7 +129,7 @@ static void tile_map_layer_create(tile_map_layer_t* this,
   }
 
   /* Tile map layer texture */
-  this->texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+  this->texture = wgpu_create_color_bars_texture(wgpu_context, NULL);
 
   /* Start loading the image file */
   wgpu_texture_t* texture = &this->texture;

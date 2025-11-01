@@ -119,7 +119,7 @@ static void fetch_callback(const sfetch_response_t* response)
 static void init_texture(wgpu_context_t* wgpu_context)
 {
   /* Dummy texture */
-  state.texture = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+  state.texture = wgpu_create_color_bars_texture(wgpu_context, NULL);
 
   /* Start loading the image file */
   const char* particle_texture_path = "assets/textures/Circus_Backstage_8k.jpg";

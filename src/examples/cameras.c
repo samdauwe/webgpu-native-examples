@@ -1014,7 +1014,7 @@ static void init_texture(wgpu_context_t* wgpu_context)
 
   /* Cube texture */
   {
-    state.textures.cube = wgpu_create_color_bars_texture(wgpu_context, 16, 16);
+    state.textures.cube = wgpu_create_color_bars_texture(wgpu_context, NULL);
     fetch_texture();
   }
 
