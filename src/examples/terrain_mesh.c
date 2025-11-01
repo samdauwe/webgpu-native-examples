@@ -331,26 +331,6 @@ static void fetch_callback(const sfetch_response_t* response)
   }
 }
 
-static void fetch_textures(void)
-{
-  const char* tex_paths[2] = {
-    "assets/textures/color.png",     /* Color texture */
-    "assets/textures/heightmap.png", /* Heightmap texture */
-  };
-
-  for (uint32_t i = 0; i < ARRAY_SIZE(tex_paths); ++i) {
-    wgpu_texture_t* texture
-      = (i == 0) ? &state.textures.color : &state.textures.heightmap;
-    /* Start loading the image file */
-    sfetch_send(&(sfetch_request_t){
-      .path      = tex_paths[i],
-      .callback  = fetch_callback,
-      .buffer    = SFETCH_RANGE(state.file_buffers[i]),
-      .user_data = SFETCH_RANGE(texture),
-    });
-  }
-}
-
 static void init_textures(wgpu_context_t* wgpu_context)
 {
   /* Color texture */
@@ -376,7 +356,22 @@ static void init_textures(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
 
   /* fetch textures */
-  fetch_textures();
+  const char* tex_paths[2] = {
+    "assets/textures/color.png",     /* Color texture     */
+    "assets/textures/heightmap.png", /* Heightmap texture */
+  };
+
+  for (uint32_t i = 0; i < ARRAY_SIZE(tex_paths); ++i) {
+    wgpu_texture_t* texture
+      = (i == 0) ? &state.textures.color : &state.textures.heightmap;
+    /* Start loading the image file */
+    sfetch_send(&(sfetch_request_t){
+      .path      = tex_paths[i],
+      .callback  = fetch_callback,
+      .buffer    = SFETCH_RANGE(state.file_buffers[i]),
+      .user_data = SFETCH_RANGE(texture),
+    });
+  }
 }
 
 static void update_camera_pose(float dt)
