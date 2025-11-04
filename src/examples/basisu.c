@@ -228,23 +228,23 @@ static void setup_bind_group(wgpu_context_t* wgpu_context)
   texture_t* texture_array[2]       = {&textures.opaque, &textures.alpha};
   WGPUBindGroup* bindgroup_array[2] = {&bind_groups.opaque, &bind_groups.alpha};
 
-  // Bind Group for opaque and alpha texture
+  /* Bind Group for opaque and alpha texture */
   for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(texture_array); ++i) {
     WGPUBindGroupEntry bg_entries[3] = {
       [0] = (WGPUBindGroupEntry) {
-        // Binding 0 : Vertex shader uniform buffer
+        /* Binding 0 : Vertex shader uniform buffer */
         .binding = 0,
         .buffer  = uniform_buffer_vs.buffer,
         .offset  = 0,
         .size    = uniform_buffer_vs.size,
       },
       [1] = (WGPUBindGroupEntry) {
-        // Binding 1 : Fragment shader texture view
+        /* Binding 1 : Fragment shader texture view */
         .binding     = 1,
         .textureView = texture_array[i]->view,
       },
       [2] = (WGPUBindGroupEntry) {
-        // Binding 2: Fragment shader image sampler
+        /* Binding 2: Fragment shader image sampler */
         .binding = 2,
         .sampler = texture_array[i]->sampler,
       },
