@@ -500,7 +500,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
 
     /* Pass descriptor */
     opaque_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Opaque render pass descriptor",
+      .label                = "Opaque - Render pass descriptor",
       .colorAttachmentCount = 1,
       .colorAttachments     = opaque_render_pass.pass_desc.color_attachments,
       .depthStencilAttachment
