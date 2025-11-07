@@ -393,14 +393,14 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
 {
   /* Render pipeline */
   {
-    // Primitive state
+    /* Primitive state */
     WGPUPrimitiveState primitive_state = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_Back,
     };
 
-    // Color target state
+    /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
       .format    = wgpu_context->swap_chain.format,
@@ -408,7 +408,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
       .writeMask = WGPUColorWriteMask_All,
     };
 
-    // Depth stencil state
+    /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
         .format              = depth_texture.format,
@@ -416,17 +416,17 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
       });
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-    // Vertex buffer layout
+    /* Vertex buffer layout */
     WGPU_VERTEX_BUFFER_LAYOUT(
       translucent, 3 * sizeof(float),
-      // Attribute location 0: Position
+      /* Attribute location 0: Position */
       WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
 
-    // Vertex state
+    /* Vertex state */
     WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
+                        /* Vertex shader WGSL */
                         .label            = "Opaque - Vertex shader WGSL",
                         .wgsl_code.source = opaque_shader_wgsl,
                         .entry            = "main_vs",
@@ -435,11 +435,11 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
                       .buffers      = &translucent_vertex_buffer_layout,
                     });
 
-    // Fragment state
+    /* Fragment state */
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
+                        /* Fragment shader WGSL */
                         .label            = "Opaque - Fragment shader WGSL",
                         .wgsl_code.source = opaque_shader_wgsl,
                         .entry            = "main_fs",
@@ -448,14 +448,14 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
                       .targets      = &color_target_state,
                     });
 
-    // Multisample state
+    /* Multisample state */
     WGPUMultisampleState multisample_state
       = wgpu_create_multisample_state_descriptor(
         &(create_multisample_state_desc_t){
           .sample_count = 1,
         });
 
-    // Create rendering pipeline using the specified states
+    /* Create rendering pipeline using the specified states */
     opaque_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
                               .label        = "Opaque - Render pipeline",
@@ -467,7 +467,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
                             });
     ASSERT(opaque_render_pass.pipeline != NULL);
 
-    // Partial cleanup
+    /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
     WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
   }
