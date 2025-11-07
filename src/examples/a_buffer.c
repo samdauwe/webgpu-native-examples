@@ -427,7 +427,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Vertex shader WGSL
-                        .label            = "Opaque vertex shader WGSL",
+                        .label            = "Opaque - Vertex shader WGSL",
                         .wgsl_code.source = opaque_shader_wgsl,
                         .entry            = "main_vs",
                       },
