@@ -673,7 +673,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_vertex_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
                         // Vertex shader WGSL
-                        .label            = "Translucent vertex shader WGSL",
+                        .label            = "Translucent - Vertex shader WGSL",
                         .wgsl_code.source = translucent_shader_wgsl,
                         .entry            = "main_vs",
                       },
