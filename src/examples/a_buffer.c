@@ -685,7 +685,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
       wgpu_context, &(wgpu_fragment_state_t){
                       .shader_desc = (wgpu_shader_desc_t){
-                        // Vertex shader WGSL
+                        // Fragment shader WGSL
                         .label            = "Translucent - Fragment shader WGSL",
                         .wgsl_code.source = translucent_shader_wgsl,
                         .entry            = "main_fs",
