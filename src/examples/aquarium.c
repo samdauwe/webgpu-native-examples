@@ -1272,6 +1272,184 @@ create_inner_pipeline(WGPUDevice device, inner_pipeline_desc_t* desc)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Laser Beam Pipeline
+ * Renders laser beams with additive blending.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUTextureFormat format;
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout model_layout;
+} laser_pipeline_desc_t;
+
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUBindGroupLayout material_bind_group_layout;
+} laser_pipeline_result_t;
+
+static WGPURenderPipeline cached_laser_pipeline                    = NULL;
+static WGPUPipelineLayout cached_laser_pipeline_layout             = NULL;
+static WGPUBindGroupLayout cached_laser_material_bind_group_layout = NULL;
+
+static laser_pipeline_result_t
+create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
+{
+  if (cached_laser_pipeline) {
+    return (laser_pipeline_result_t){
+      .pipeline                   = cached_laser_pipeline,
+      .pipeline_layout            = cached_laser_pipeline_layout,
+      .material_bind_group_layout = cached_laser_material_bind_group_layout,
+    };
+  }
+
+  /* Shader module */
+  const WGPUShaderModule shader_module
+    = load_shader_module(device, "shaders/laser.wgsl", "laser-shader");
+
+  /* Material layout: texture, sampler, color multiplier */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 0: Texture view */
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 1: Sampler */
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout) {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 2: Uniform buffer */
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer     = {
+           .type             = WGPUBufferBindingType_Uniform,
+           .minBindingSize   = sizeof(float) * 16 // 4x4 matrix
+        }
+      }
+    };
+    cached_laser_material_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      device, &(WGPUBindGroupLayoutDescriptor){
+                .label      = STRVIEW("Laser Material Bind Group Layout"),
+                .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                .entries    = bgl_entries,
+              });
+    ASSERT(cached_laser_material_bind_group_layout != NULL);
+  }
+
+  /* Pipeline layout */
+  {
+    WGPUBindGroupLayout bind_groups_layouts[3] = {
+      desc->frame_layout,                     /* Group 0 */
+      desc->model_layout,                     /* Group 1 */
+      cached_laser_material_bind_group_layout /* Group 2 */
+    };
+    cached_laser_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Laser Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
+      });
+    ASSERT(cached_laser_pipeline_layout != NULL);
+  }
+
+  /* Render pipline */
+  {
+    WGPUVertexAttribute vertex_attributes[2] = {
+      [0] = (WGPUVertexAttribute) {
+        /* position */
+        .shaderLocation = 0,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x2,
+      },
+      [1] = (WGPUVertexAttribute) {
+        /* texcoord */
+        .shaderLocation = 1,
+        .offset         = 8,
+        .format         = WGPUVertexFormat_Float32x2,
+      },
+    };
+
+    /* Vertex buffer layout for simple quad */
+    WGPUVertexBufferLayout vertex_buffer_layout = {
+      .arrayStride    = 16, /* 4 floats: position(2) + texcoord(2) */
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = ARRAY_SIZE(vertex_attributes),
+      .attributes     = &vertex_attributes[0],
+    };
+
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Laser Pipeline"),
+      .layout = cached_laser_pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vertexMain"),
+        .bufferCount = 1,
+        .buffers     = &vertex_buffer_layout,
+      },
+      .fragment = &(WGPUFragmentState) {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fragmentMain"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState) {
+          .format = desc->format,
+          .blend = &(WGPUBlendState) {
+            /* Additive blending for laser glow */
+            .color = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_One,
+              .operation = WGPUBlendOperation_Add,
+            },
+            .alpha = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_One,
+              .operation = WGPUBlendOperation_Add,
+            }
+          },
+          .writeMask = WGPUColorWriteMask_All
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_None, /* Visible from both sides */
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .depthStencil = &(WGPUDepthStencilState) {
+        .format            = DEPTH_STENCIL_FORMAT,
+        .depthWriteEnabled = false, /* Particles don't write depth */
+        .depthCompare      = WGPUCompareFunction_Less,
+      },
+      .multisample = {
+         .count = 1,
+         .mask  = 0xffffffff
+      },
+    };
+
+    cached_laser_pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(cached_laser_pipeline != NULL);
+
+    wgpuShaderModuleRelease(shader_module);
+  }
+
+  return (laser_pipeline_result_t){
+    .pipeline                   = cached_laser_pipeline,
+    .pipeline_layout            = cached_laser_pipeline_layout,
+    .material_bind_group_layout = cached_laser_material_bind_group_layout,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium example
  * -------------------------------------------------------------------------- */
 
