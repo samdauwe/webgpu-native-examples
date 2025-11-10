@@ -1076,6 +1076,110 @@ create_diffuse_pipeline(WGPUDevice device, diffuse_pipeline_desc_t* desc)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Fish pipeline
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout instance_layout;
+  WGPUBindGroupLayout material_layout;
+  WGPUTextureFormat color_format;
+  WGPUVertexBufferLayout* vertex_buffers;
+  uint32_t vertex_buffer_count;
+} fish_pipeline_desc_t;
+
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+} fish_pipeline_result_t;
+
+static fish_pipeline_result_t create_fish_pipeline(WGPUDevice device,
+                                                   fish_pipeline_desc_t* desc)
+{
+  /* Shader module */
+  const WGPUShaderModule shader_module
+    = load_shader_module(device, "shaders/fish.wgsl", "fish-shader");
+
+  /* Pipeline layout */
+  WGPUPipelineLayout pipeline_layout = NULL;
+  {
+    WGPUBindGroupLayout bind_groups_layouts[3] = {
+      desc->frame_layout,    /* Group 0 */
+      desc->instance_layout, /* Group 1 */
+      desc->material_layout, /* Group 2 */
+    };
+    pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Fish Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
+      });
+    ASSERT(pipeline_layout != NULL);
+  }
+
+  /* Render pipline */
+  WGPURenderPipeline pipeline;
+  {
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Fish Pipeline"),
+      .layout = pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vs_main"),
+        .bufferCount = desc->vertex_buffer_count,
+        .buffers     = desc->vertex_buffers,
+      },
+      .fragment = &(WGPUFragmentState) {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fs_main"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState) {
+          .format = desc->color_format,
+          .blend = &(WGPUBlendState) {
+            .color = {
+              .srcFactor = WGPUBlendFactor_SrcAlpha,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            },
+            .alpha = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            }
+          },
+          .writeMask = WGPUColorWriteMask_All
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_Back,
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .depthStencil = &(WGPUDepthStencilState) {
+        .format            = DEPTH_STENCIL_FORMAT,
+        .depthWriteEnabled = true,
+        .depthCompare      = WGPUCompareFunction_Less,
+      },
+      .multisample = {
+        .count = 1,
+        .mask  = 0xffffffff
+      },
+    };
+
+    pipeline = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(pipeline != NULL);
+
+    wgpuShaderModuleRelease(shader_module);
+  }
+
+  return (fish_pipeline_result_t){
+    .pipeline        = pipeline,
+    .pipeline_layout = pipeline_layout,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
  * Inner Tank pipeline
  * -------------------------------------------------------------------------- */
 
