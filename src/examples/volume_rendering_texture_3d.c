@@ -1,8 +1,14 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#include <stdbool.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Volume Rendering - Texture 3D
@@ -34,226 +40,211 @@ static const char* volume_shader_wgsl;
  * Volume Rendering - Texture 3D example
  * -------------------------------------------------------------------------- */
 
-#define VOLUME_TEXTURE_WIDTH 180
-#define VOLUME_TEXTURE_HEIGHT 216
-#define VOLUME_TEXTURE_DEPTH 180
+#define VOLUME_TEXTURE_WIDTH (180u)
+#define VOLUME_TEXTURE_HEIGHT (216u)
+#define VOLUME_TEXTURE_DEPTH (180u)
 #define VOLUME_TEXTURE_SIZE                                                    \
   (VOLUME_TEXTURE_WIDTH * VOLUME_TEXTURE_HEIGHT * VOLUME_TEXTURE_DEPTH)
 
-/* GUI parameters */
+/* State struct */
 static struct {
-  bool rotate_camera;
-  float near;
-  float far;
-} params = {
-  .rotate_camera = true,
-  .near          = 2.0f,
-  .far           = 7.0,
-};
-
-static struct {
-  mat4 inverse_model_view_projection_matrix;
-} ubo_vs = {
-  .inverse_model_view_projection_matrix = GLM_MAT4_ZERO_INIT,
-};
-
-// Uniform buffer block object
-static wgpu_buffer_t uniform_buffer_vs = {0};
-
-static struct {
-  mat4 projection;
-  mat4 view;
-} view_matrices = {0};
-
-static float last_frame_ms         = 0.0f;
-static float rotation              = 0.0f;
-static const uint32_t sample_count = 4;
-
-// Contains all WebGPU objects that are required to store and use the 3D texture
-static struct {
+  wgpu_buffer_t uniform_buffer_vs;
   struct {
-    WGPUTexture texture;
-    WGPUTextureView view;
-    WGPUSampler sampler;
-    uint8_t data[VOLUME_TEXTURE_SIZE];
-  } volume;
+    mat4 inverse_model_view_projection_matrix;
+  } ubo_vs;
   struct {
-    WGPUTexture texture;
-    WGPUTextureView framebuffer;
-  } multisampled;
-} textures = {0};
-
-// Pipeline
-static WGPURenderPipeline render_pipeline = NULL;
-
-// Bind groups stores the resources bound to the binding points in a shader
-static WGPUBindGroup uniform_bind_group = NULL;
-
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1] = {0};
-static WGPURenderPassDescriptor render_pass_desc                 = {0};
-
-// Other variables
-static const char* example_title = "Volume Rendering - Texture 3D";
-static bool prepared             = false;
+    mat4 projection;
+    mat4 view;
+  } view_matrices;
+  struct {
+    struct {
+      WGPUTexture texture;
+      WGPUTextureView view;
+      WGPUSampler sampler;
+      uint8_t data[VOLUME_TEXTURE_SIZE];
+      bool is_dirty;
+    } volume;
+    struct {
+      WGPUTexture texture;
+      WGPUTextureView framebuffer;
+    } multisampled;
+  } textures;
+  WGPURenderPipeline render_pipeline;
+  WGPUBindGroup uniform_bind_group;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  struct {
+    bool rotate_camera;
+    float near;
+    float far;
+    WGPUTextureFormat texture_format;
+  } params;
+  float last_frame_ms;
+  float rotation;
+  const uint32_t sample_count;
+  bool initialized;
+} state = {
+  .ubo_vs = {
+    .inverse_model_view_projection_matrix = GLM_MAT4_ZERO_INIT,
+  },
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Discard,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+  },
+  .params = {
+    .rotate_camera  = true,
+    .near           = 4.3f,
+    .far            = 4.4f,
+    .texture_format = WGPUTextureFormat_R8Unorm,
+  },
+  .sample_count = 4,
+};
 
 static void
 get_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context,
                                          float delta_time, mat4* dest)
 {
   /* View matrix */
-  glm_mat4_identity(view_matrices.view);
-  glm_translate(view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
-  if (params.rotate_camera) {
-    rotation += delta_time;
+  glm_mat4_identity(state.view_matrices.view);
+  glm_translate(state.view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
+  if (state.params.rotate_camera) {
+    state.rotation += delta_time;
   }
-  glm_rotate(view_matrices.view, 1.0f,
-             (vec3){sin(rotation), cos(rotation), 0.0f});
+  glm_rotate(state.view_matrices.view, 1.0f,
+             (vec3){sin(state.rotation), cos(state.rotation), 0.0f});
 
   /* Projection matrix */
   const float aspect_ratio
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
-  glm_mat4_identity(view_matrices.projection);
-  glm_perspective(PI2 / 5.0f, aspect_ratio, params.near, params.far,
-                  view_matrices.projection);
-  glm_mat4_mul(view_matrices.projection, view_matrices.view, *dest);
+    = (float)wgpu_context->width / (float)wgpu_context->height;
+  glm_mat4_identity(state.view_matrices.projection);
+  glm_perspective(PI2 / 5.0f, aspect_ratio, state.params.near, state.params.far,
+                  state.view_matrices.projection);
+  glm_mat4_mul(state.view_matrices.projection, state.view_matrices.view, *dest);
   glm_mat4_inv(*dest, *dest);
 }
 
 static void
-update_inverse_model_view_projection_matrix(wgpu_example_context_t* context)
+update_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context)
 {
-  const float now        = context->frame.timestamp_millis;
-  const float delta_time = (now - last_frame_ms) / 1000.0f;
-  last_frame_ms          = now;
+  const float now        = stm_ms(stm_now());
+  const float delta_time = (now - state.last_frame_ms) / 1000.0f;
+  state.last_frame_ms    = now;
 
   get_inverse_model_view_projection_matrix(
-    context->wgpu_context, delta_time,
-    &ubo_vs.inverse_model_view_projection_matrix);
+    wgpu_context, delta_time,
+    &state.ubo_vs.inverse_model_view_projection_matrix);
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  // Update the inverse model-view-projection matrix
-  update_inverse_model_view_projection_matrix(context);
+  /* Update the inverse model-view-projection matrix */
+  update_inverse_model_view_projection_matrix(wgpu_context);
 
-  // Map uniform buffer and update it
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &ubo_vs.inverse_model_view_projection_matrix,
-                          uniform_buffer_vs.size);
+  /* Map uniform buffer and update it */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_vs.buffer, 0,
+                       &state.ubo_vs.inverse_model_view_projection_matrix,
+                       state.uniform_buffer_vs.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
-static void prepare_uniform_buffer(wgpu_example_context_t* context)
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   /* Create vertex shader uniform buffer block */
-  uniform_buffer_vs = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Vertex shader - Uniform buffer block",
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = sizeof(ubo_vs),
-    });
+  state.uniform_buffer_vs = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Vertex shader - Uniform buffer block",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(state.ubo_vs), /* 4x4 matrix */
+                  });
 
   /* Set uniform buffer block data */
-  last_frame_ms = context->frame.timestamp_millis;
-  update_uniform_buffers(context);
+  state.last_frame_ms = stm_ms(stm_now());
+  update_uniform_buffers(wgpu_context);
 }
 
-static void prepare_multisampled_framebuffer(wgpu_context_t* wgpu_context)
+static void init_multisampled_framebuffer(wgpu_context_t* wgpu_context)
 {
   /* Create the multi-sampled texture */
   WGPUTextureDescriptor multisampled_frame_desc = {
-    .label         = "Multi-sampled - Texture",
+    .label         = STRVIEW("Multi-sampled - Texture"),
     .size          = (WGPUExtent3D){
-       .width               = wgpu_context->surface.width,
-       .height              = wgpu_context->surface.height,
-       .depthOrArrayLayers  = 1,
+      .width               = wgpu_context->width,
+      .height              = wgpu_context->height,
+      .depthOrArrayLayers  = 1,
     },
     .mipLevelCount = 1,
-    .sampleCount   = sample_count,
+    .sampleCount   = state.sample_count,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = wgpu_context->swap_chain.format,
+    .format        = wgpu_context->render_format,
     .usage         = WGPUTextureUsage_RenderAttachment,
   };
-  textures.multisampled.texture
+  state.textures.multisampled.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &multisampled_frame_desc);
-  ASSERT(textures.multisampled.texture != NULL);
+  ASSERT(state.textures.multisampled.texture != NULL);
 
   /* Create the multi-sampled texture view */
-  textures.multisampled.framebuffer = wgpuTextureCreateView(
-    textures.multisampled.texture, &(WGPUTextureViewDescriptor){
-                                     .label  = "Multi-sampled - Texture view",
-                                     .format = wgpu_context->swap_chain.format,
-                                     .dimension = WGPUTextureViewDimension_2D,
-                                     .baseMipLevel    = 0,
-                                     .mipLevelCount   = 1,
-                                     .baseArrayLayer  = 0,
-                                     .arrayLayerCount = 1,
-                                   });
-  ASSERT(textures.multisampled.framebuffer != NULL);
+  state.textures.multisampled.framebuffer
+    = wgpuTextureCreateView(state.textures.multisampled.texture,
+                            &(WGPUTextureViewDescriptor){
+                              .label  = STRVIEW("Multi-sampled - Texture view"),
+                              .format = multisampled_frame_desc.format,
+                              .dimension       = WGPUTextureViewDimension_2D,
+                              .baseMipLevel    = 0,
+                              .mipLevelCount   = 1,
+                              .baseArrayLayer  = 0,
+                              .arrayLayerCount = 1,
+                            });
+  ASSERT(state.textures.multisampled.framebuffer != NULL);
 }
 
-static void prepare_volume_texture(wgpu_context_t* wgpu_context)
+/**
+ * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
+ * or when an error has occurred.
+ */
+static void fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  ASSERT(response->data.ptr != NULL)
+  ASSERT(response->data.size == VOLUME_TEXTURE_SIZE)
+  state.textures.volume.is_dirty = true;
+}
+
+static void update_volume_texture_date(wgpu_context_t* wgpu_context)
 {
   const uint32_t width           = VOLUME_TEXTURE_WIDTH;
   const uint32_t height          = VOLUME_TEXTURE_HEIGHT;
   const uint32_t depth           = VOLUME_TEXTURE_DEPTH;
-  const uint32_t mip_levels      = 1;
-  const WGPUTextureFormat format = WGPUTextureFormat_R8Unorm;
   const uint32_t block_length    = 1;
   const uint32_t bytes_per_block = 1;
   const uint32_t blocks_wide     = ceil(width / (float)block_length);
   const uint32_t blocks_high     = ceil(height / (float)block_length);
   const uint32_t bytes_per_row   = blocks_wide * bytes_per_block;
 
-  /* Read volume data from file */
-  {
-    file_read_result_t file_read_result = {0};
-    const char* data_path
-      = "textures/volume/t1_icbm_normal_1mm_pn0_rf0_180x216x180_uint8_1x1.bin";
-    read_file(data_path, &file_read_result, false);
-    if (file_read_result.size == VOLUME_TEXTURE_SIZE) {
-      memcpy(textures.volume.data, file_read_result.data,
-             file_read_result.size);
-    }
-    if (file_read_result.data) {
-      free(file_read_result.data);
-    }
-  }
-
-  /* Create the volume texture */
-  WGPUTextureDescriptor texture_desc = {
-    .label         = "Volume - Texture",
-    .size          =   (WGPUExtent3D) {
-      .width              = width,
-      .height             = height,
-      .depthOrArrayLayers = depth,
-    },
-    .mipLevelCount = mip_levels,
-    .sampleCount   = 1,
-    .dimension     = WGPUTextureDimension_3D,
-    .format        = format,
-    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-  };
-  textures.volume.texture
-    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(textures.volume.texture != NULL);
-
   /* Copy volume data to texture */
   wgpuQueueWriteTexture(wgpu_context->queue,
-                        &(WGPUImageCopyTexture) {
-                          .texture = textures.volume.texture,
+                        &(WGPUTexelCopyTextureInfo) {
+                          .texture = state.textures.volume.texture,
                           .mipLevel = 0,
                           .origin = (WGPUOrigin3D) {
-                              .x = 0,
-                              .y = 0,
-                              .z = 0,
+                            .x = 0,
+                            .y = 0,
+                            .z = 0,
                           },
                           .aspect = WGPUTextureAspect_All,
                         },
-                        textures.volume.data, ARRAY_SIZE(textures.volume.data),
-                        &(WGPUTextureDataLayout){
+                        state.textures.volume.data, ARRAY_SIZE(state.textures.volume.data),
+                        &(WGPUTexelCopyBufferLayout){
                           .offset       = 0,
                           .bytesPerRow  = bytes_per_row,
                           .rowsPerImage = blocks_high,
@@ -263,24 +254,58 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
                           .height             = height,
                           .depthOrArrayLayers = depth,
                         });
+}
+
+static void init_volume_texture(wgpu_context_t* wgpu_context)
+{
+  const uint32_t width      = VOLUME_TEXTURE_WIDTH;
+  const uint32_t height     = VOLUME_TEXTURE_HEIGHT;
+  const uint32_t depth      = VOLUME_TEXTURE_DEPTH;
+  const uint32_t mip_levels = 1;
+
+  /* Read volume data from file */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/volume/"
+                "t1_icbm_normal_1mm_pn0_rf0_180x216x180_uint8_1x1.bin",
+    .callback = fetch_callback,
+    .buffer   = SFETCH_RANGE(state.textures.volume.data),
+  });
+
+  /* Create the volume texture */
+  WGPUTextureDescriptor texture_desc = {
+    .label         = STRVIEW("Volume - Texture"),
+    .size          =   (WGPUExtent3D) {
+      .width              = width,
+      .height             = height,
+      .depthOrArrayLayers = depth,
+    },
+    .mipLevelCount = mip_levels,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_3D,
+    .format        = state.params.texture_format,
+    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+  };
+  state.textures.volume.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(state.textures.volume.texture != NULL);
 
   /* Create a sampler with linear filtering for smooth interpolation. */
-  textures.volume.sampler = wgpuDeviceCreateSampler(
+  state.textures.volume.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Volume - Texture sampler",
-                            .addressModeU  = WGPUAddressMode_ClampToEdge,
-                            .addressModeV  = WGPUAddressMode_ClampToEdge,
-                            .addressModeW  = WGPUAddressMode_ClampToEdge,
-                            .magFilter     = WGPUFilterMode_Linear,
-                            .minFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .label        = STRVIEW("Volume - Texture sampler"),
+                            .addressModeU = WGPUAddressMode_ClampToEdge,
+                            .addressModeV = WGPUAddressMode_ClampToEdge,
+                            .addressModeW = WGPUAddressMode_ClampToEdge,
+                            .magFilter    = WGPUFilterMode_Linear,
+                            .minFilter    = WGPUFilterMode_Linear,
+                            .mipmapFilter = WGPUMipmapFilterMode_Linear,
                             .maxAnisotropy = 16,
                           });
-  ASSERT(textures.volume.sampler != NULL);
+  ASSERT(state.textures.volume.sampler != NULL);
 
   /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Volume - Texture view",
+    .label           = STRVIEW("Volume - Texture view"),
     .dimension       = WGPUTextureViewDimension_3D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -288,268 +313,180 @@ static void prepare_volume_texture(wgpu_context_t* wgpu_context)
     .baseArrayLayer  = 0,
     .arrayLayerCount = 1,
   };
-  textures.volume.view
-    = wgpuTextureCreateView(textures.volume.texture, &texture_view_dec);
-  ASSERT(textures.volume.view != NULL);
+  state.textures.volume.view
+    = wgpuTextureCreateView(state.textures.volume.texture, &texture_view_dec);
+  ASSERT(state.textures.volume.view != NULL);
 }
 
-static void setup_bind_group(wgpu_context_t* wgpu_context)
+static void init_bind_group(wgpu_context_t* wgpu_context)
 {
   /* Bind Group */
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
       /* Binding 0 : Vertex shader uniform buffer */
       .binding = 0,
-      .buffer  = uniform_buffer_vs.buffer,
+      .buffer  = state.uniform_buffer_vs.buffer,
       .offset  = 0,
-      .size    = uniform_buffer_vs.size,
+      .size    = state.uniform_buffer_vs.size,
     },
     [1] = (WGPUBindGroupEntry) {
       /* Binding 1: Fragment shader image sampler */
       .binding = 1,
-      .sampler = textures.volume.sampler,
+      .sampler = state.textures.volume.sampler,
     },
     [2] = (WGPUBindGroupEntry) {
       /* Binding 2 : Fragment shader texture view */
       .binding     = 2,
-      .textureView = textures.volume.view,
+      .textureView = state.textures.volume.view,
     },
   };
 
-  uniform_bind_group = wgpuDeviceCreateBindGroup(
+  state.uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = "Uniform - Bind group",
-      .layout     = wgpuRenderPipelineGetBindGroupLayout(render_pipeline, 0),
+      .label  = STRVIEW("Uniform - Bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.render_pipeline, 0),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
     });
-  ASSERT(uniform_bind_group != NULL);
+  ASSERT(state.uniform_bind_group != NULL);
 }
 
-static void setup_render_pass(void)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  /* Color attachment */
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-    .view          = NULL, /* Assigned later */
-    .resolveTarget = NULL,
-    .depthSlice    = ~0,
-    .loadOp        = WGPULoadOp_Clear,
-    .storeOp       = WGPUStoreOp_Discard,
-    .clearValue    = (WGPUColor) {
-      .r = 0.5f,
-      .g = 0.5f,
-      .b = 0.5f,
-      .a = 1.0f,
+  WGPUShaderModule volume_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, volume_shader_wgsl);
+
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
+
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Volume texture 3d - Render pipeline"),
+    .vertex = {
+      .module      = volume_shader_module,
+      .entryPoint  = STRVIEW("vertex_main"),
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("fragment_main"),
+      .module      = volume_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_Back,
+      .frontFace = WGPUFrontFace_CCW
+    },
+    .multisample = {
+       .count = state.sample_count,
+       .mask  = 0xffffffff
     },
   };
 
-  /* Render pass descriptor */
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                = "Render pass descriptor",
-    .colorAttachmentCount = 1,
-    .colorAttachments     = rp_color_att_descriptors,
-  };
+  state.render_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.render_pipeline != NULL);
+
+  wgpuShaderModuleRelease(volume_shader_module);
 }
 
-/* Create the graphics pipeline */
-static void prepare_pipeline(wgpu_context_t* wgpu_context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
-  };
-
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
-
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      /* Vertex shader WGSL */
-                      .label            = "Volume texture 3d - Vertex shader WGSL",
-                      .wgsl_code.source = volume_shader_wgsl,
-                      .entry            = "vertex_main",
-                    },
-                  });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      /* Fragment shader WGSL */
-                      .label            = "Volume texture 3d - Fragment shader WGSL",
-                      .wgsl_code.source = volume_shader_wgsl,
-                      .entry            = "fragment_main",
-                    },
-                    .target_count = 1,
-                    .targets = &color_target_state,
-                  });
-
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = sample_count,
-      });
-
-  /* Create rendering pipeline using the specified states */
-  render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "Volume texture 3d - Render pipeline",
-                            .primitive = primitive_state,
-                            .vertex    = vertex_state,
-                            .fragment  = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(render_pipeline != NULL);
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    prepare_uniform_buffer(context);
-    prepare_multisampled_framebuffer(context->wgpu_context);
-    prepare_volume_texture(context->wgpu_context);
-    prepare_pipeline(context->wgpu_context);
-    setup_bind_group(context->wgpu_context);
-    setup_render_pass();
-    prepared = true;
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+    });
+    init_uniform_buffer(wgpu_context);
+    init_multisampled_framebuffer(wgpu_context);
+    init_volume_texture(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_bind_group(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Settings")) {
-    if (imgui_overlay_checkBox(context->imgui_overlay, "Rotate Camera",
-                               &params.rotate_camera)) {
-      update_uniform_buffers(context);
-    }
-    if (imgui_overlay_slider_float(context->imgui_overlay, "Near", &params.near,
-                                   2.0f, 7.0f, "%.1f")) {
-      update_uniform_buffers(context);
-    }
-    if (imgui_overlay_slider_float(context->imgui_overlay, "Far", &params.far,
-                                   2.0f, 7.0f, "%.1f")) {
-      update_uniform_buffers(context);
-    }
+  if (!state.initialized) {
+    return EXIT_FAILURE;
   }
-}
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  /* Set target frame buffer */
-  rp_color_att_descriptors[0].view = textures.multisampled.framebuffer;
-  rp_color_att_descriptors[0].resolveTarget
-    = wgpu_context->swap_chain.frame_buffer;
+  sfetch_dowork();
 
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  /* Update texture when pixel data loaded */
+  if (state.textures.volume.is_dirty) {
+    update_volume_texture_date(wgpu_context);
+    state.textures.volume.is_dirty = false;
+  }
 
-  /* Create render pass */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+  /* Update uniform data */
+  update_uniform_buffers(wgpu_context);
 
-  /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, render_pipeline);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  /* Set the bind group */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    uniform_bind_group, 0, 0);
+  state.color_attachment.view = state.textures.multisampled.framebuffer;
+  state.color_attachment.resolveTarget = wgpu_context->swapchain_view;
 
-  /* Draw */
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  /* Record render commands. */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.uniform_bind_group, 0,
+                                    0);
+  wgpuRenderPassEncoderDraw(rpass_enc, 3, 1, 0, 0);
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit and present. */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  if (params.rotate_camera) {
-    update_uniform_buffers(context);
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
+
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.volume.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.volume.view)
+  WGPU_RELEASE_RESOURCE(Sampler, state.textures.volume.sampler)
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.multisampled.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.multisampled.framebuffer)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.uniform_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer_vs.buffer)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-
-  WGPU_RELEASE_RESOURCE(Texture, textures.volume.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, textures.volume.view)
-  WGPU_RELEASE_RESOURCE(Sampler, textures.volume.sampler)
-  WGPU_RELEASE_RESOURCE(Texture, textures.multisampled.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, textures.multisampled.framebuffer)
-  WGPU_RELEASE_RESOURCE(BindGroup, uniform_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, render_pipeline)
-}
-
-void example_volume_rendering_texture_3d(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title       = "Volume Rendering - Texture 3D",
+    .init_cb     = init,
+    .frame_cb    = frame,
+    .shutdown_cb = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
