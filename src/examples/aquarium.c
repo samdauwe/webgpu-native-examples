@@ -1450,6 +1450,177 @@ create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Light Ray (God Ray) Pipeline
+ * Renders volumetric light shafts with alpha blending.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUTextureFormat format;
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout model_layout;
+} light_ray_pipeline_desc_t;
+
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUBindGroupLayout material_bind_group_layout;
+} light_ray_pipeline_result_t;
+
+static WGPURenderPipeline cached_light_ray_pipeline                    = NULL;
+static WGPUPipelineLayout cached_light_ray_pipeline_layout             = NULL;
+static WGPUBindGroupLayout cached_light_ray_material_bind_group_layout = NULL;
+
+static light_ray_pipeline_result_t
+create_light_ray_pipeline(WGPUDevice device, light_ray_pipeline_desc_t* desc)
+{
+  if (cached_light_ray_pipeline) {
+    return (light_ray_pipeline_result_t){
+      .pipeline                   = cached_light_ray_pipeline,
+      .pipeline_layout            = cached_light_ray_pipeline_layout,
+      .material_bind_group_layout = cached_light_ray_material_bind_group_layout,
+    };
+  }
+
+  /* Shader module */
+  const WGPUShaderModule shader_module
+    = load_shader_module(device, "shaders/light_ray.wgsl", "light-ray-shader");
+
+  /* Material layout: texture and sampler only */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 0: Texture view */
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        /* Binding 1: Sampler */
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler = (WGPUSamplerBindingLayout) {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+    };
+    cached_light_ray_material_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(
+        device, &(WGPUBindGroupLayoutDescriptor){
+                  .label      = STRVIEW("Light Ray Material Bind Group Layout"),
+                  .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                  .entries    = bgl_entries,
+                });
+    ASSERT(cached_light_ray_material_bind_group_layout != NULL);
+  }
+
+  /* Pipeline layout */
+  {
+    WGPUBindGroupLayout bind_groups_layouts[3] = {
+      desc->frame_layout,                         /* Group 0 */
+      desc->model_layout,                         /* Group 1 */
+      cached_light_ray_material_bind_group_layout /* Group 2 */
+    };
+    cached_light_ray_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Light Ray Pipeline Layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
+        .bindGroupLayouts     = bind_groups_layouts,
+      });
+    ASSERT(cached_light_ray_pipeline_layout != NULL);
+  }
+
+  /* Render pipline */
+  {
+    WGPUVertexAttribute vertex_attributes[2] = {
+      [0] = (WGPUVertexAttribute) {
+        /* position */
+        .shaderLocation = 0,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x2,
+      },
+      [1] = (WGPUVertexAttribute) {
+        /* texcoord */
+        .shaderLocation = 1,
+        .offset         = 8,
+        .format         = WGPUVertexFormat_Float32x2,
+      },
+    };
+
+    /* Vertex buffer layout for simple quad */
+    WGPUVertexBufferLayout vertex_buffer_layout = {
+      .arrayStride    = 16, /* 4 floats: position(2) + texcoord(2) */
+      .stepMode       = WGPUVertexStepMode_Vertex,
+      .attributeCount = ARRAY_SIZE(vertex_attributes),
+      .attributes     = &vertex_attributes[0],
+    };
+
+    WGPURenderPipelineDescriptor rp_desc = {
+      .label  = STRVIEW("Light Ray Pipeline"),
+      .layout = cached_light_ray_pipeline_layout,
+      .vertex = {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vertexMain"),
+        .bufferCount = 1,
+        .buffers     = &vertex_buffer_layout,
+      },
+      .fragment = &(WGPUFragmentState) {
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fragmentMain"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState) {
+          .format = desc->format,
+          .blend = &(WGPUBlendState) {
+            /* Alpha blending for soft god rays */
+            .color = {
+              .srcFactor = WGPUBlendFactor_SrcAlpha,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            },
+            .alpha = {
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add,
+            }
+          },
+          .writeMask = WGPUColorWriteMask_All
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_None, /* Visible from both sides */
+        .frontFace = WGPUFrontFace_CCW
+      },
+      .depthStencil = &(WGPUDepthStencilState) {
+        .format            = DEPTH_STENCIL_FORMAT,
+        .depthWriteEnabled = false, /* Don't write to depth buffer */
+        .depthCompare      = WGPUCompareFunction_Always, /* Always render, ignore depth */
+      },
+      .multisample = {
+         .count = 1,
+         .mask  = 0xffffffff
+      },
+    };
+
+    cached_light_ray_pipeline
+      = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+    ASSERT(cached_light_ray_pipeline != NULL);
+
+    wgpuShaderModuleRelease(shader_module);
+  }
+
+  return (light_ray_pipeline_result_t){
+    .pipeline                   = cached_light_ray_pipeline,
+    .pipeline_layout            = cached_light_ray_pipeline_layout,
+    .material_bind_group_layout = cached_light_ray_material_bind_group_layout,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium example
  * -------------------------------------------------------------------------- */
 
