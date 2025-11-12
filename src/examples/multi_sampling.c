@@ -108,7 +108,7 @@ static void setup_multisample_target(wgpu_context_t* wgpu_context)
     multi_sample_target.color.view
       = wgpuTextureCreateView(multi_sample_target.color.texture,
                               &(WGPUTextureViewDescriptor){
-                                .label        = "Multi-sampled texture view",
+                                .label        = "Multi-sampled - Texture view",
                                 .format       = wgpu_context->swap_chain.format,
                                 .dimension    = WGPUTextureViewDimension_2D,
                                 .baseMipLevel = 0,
