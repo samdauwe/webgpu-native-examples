@@ -243,31 +243,31 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
 
 static void setup_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Bind Group
+  /* Bind Group */
   WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry) {
-      // Binding 0: Uniform buffer (Vertex shader & Fragment shader)
+      /* Binding 0: Uniform buffer (Vertex shader & Fragment shader) */
       .binding = 0,
       .buffer  = uniform_buffers.ubo_matrices.buffer,
       .offset  = 0,
       .size    = uniform_buffers.ubo_matrices.size,
     },
     [1] = (WGPUBindGroupEntry) {
-      // Binding 1: Uniform buffer (Fragment shader)
+      /* Binding 1: Uniform buffer (Fragment shader) */
       .binding = 1,
       .buffer  = uniform_buffers.ubo_params.buffer,
       .offset  = 0,
       .size    = uniform_buffers.ubo_params.size,
     },
     [2] = (WGPUBindGroupEntry) {
-      // Binding 2: Dynamic uniform buffer (Fragment shader)
+      /* Binding 2: Dynamic uniform buffer (Fragment shader) */
       .binding = 2,
       .buffer  = uniform_buffers.material_params.buffer,
       .offset  = 0,
       .size    = uniform_buffers.material_params.model_size,
     },
     [3] = (WGPUBindGroupEntry) {
-      // Binding 3: Dynamic uniform buffer (Vertex shader)
+      /* Binding 3: Dynamic uniform buffer (Vertex shader) */
       .binding = 3,
       .buffer  = uniform_buffers.object_params.buffer,
       .offset  = 0,
