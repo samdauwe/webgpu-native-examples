@@ -74,9 +74,18 @@ static struct {
 // Arrays used for GUI
 static const char* material_names[11] = {
   // Default materials
-  "Gold", "Copper", "Chromium", "Nickel", "Titanium", "Cobalt", "Platinum", //
+  "Gold",
+  "Copper",
+  "Chromium",
+  "Nickel",
+  "Titanium",
+  "Cobalt",
+  "Platinum", //
   // Testing materials
-  "White", "Red", "Blue", "Black", //
+  "White",
+  "Red",
+  "Blue",
+  "Black", //
 };
 static const char* object_names[4] = {"Sphere", "Teapot", "Torusknot", "Venus"};
 
@@ -225,7 +234,7 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
   /* Create the pipeline layout */
   pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = "Pipeline layout",
+                            .label = "PBR Basic - Pipeline layout",
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &bind_group_layout,
                           });
