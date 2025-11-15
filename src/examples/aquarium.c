@@ -620,22 +620,22 @@ static void mat4_lookat(mat4_t* out, const float* eye, const float* target,
   vec3_cross(up, z, x);
   vec3_normalize(x, x);
   vec3_cross(z, x, y);
-  // Column-major
+
   out->m[0]  = x[0];
-  out->m[4]  = x[1];
-  out->m[8]  = x[2];
-  out->m[12] = -vec3_dot(x, eye);
   out->m[1]  = y[0];
-  out->m[5]  = y[1];
-  out->m[9]  = y[2];
-  out->m[13] = -vec3_dot(y, eye);
   out->m[2]  = z[0];
-  out->m[6]  = z[1];
-  out->m[10] = z[2];
-  out->m[14] = -vec3_dot(z, eye);
   out->m[3]  = 0.0f;
+  out->m[4]  = x[1];
+  out->m[5]  = y[1];
+  out->m[6]  = z[1];
   out->m[7]  = 0.0f;
+  out->m[8]  = x[2];
+  out->m[9]  = y[2];
+  out->m[10] = z[2];
   out->m[11] = 0.0f;
+  out->m[12] = -vec3_dot(x, eye);
+  out->m[13] = -vec3_dot(y, eye);
+  out->m[14] = -vec3_dot(z, eye);
   out->m[15] = 1.0f;
 }
 
@@ -752,6 +752,88 @@ static void mat4_inverse(const mat4_t* m, mat4_t* out)
   det = 1.0f / det;
   for (i = 0; i < 16; i++)
     out->m[i] = inv[i] * det;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Bubbles Animation.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  float timer;
+  float position[3];
+} bubble_emitter_instance_t;
+
+typedef struct {
+  int num_sets;
+  float trigger_interval[2];
+  float radius_range[2];
+  bubble_emitter_instance_t* emitters;
+  int index;
+  void (*trigger_callback)(float pos[3]);
+} bubble_emitter_t;
+
+static float bubble_emitter_random_interval(const bubble_emitter_t* this);
+
+static void bubble_emitter_init(bubble_emitter_t* this, int num_sets,
+                                float trigger_interval[2],
+                                float radius_range[2])
+{
+  memset(this, 0, sizeof(bubble_emitter_t));
+  this->num_sets = num_sets;
+  memcpy(this->trigger_interval, trigger_interval, sizeof(float) * 2);
+  memcpy(this->radius_range, radius_range, sizeof(float) * 2);
+  if (num_sets > 0) {
+    this->emitters = malloc(num_sets * sizeof(bubble_emitter_instance_t));
+    for (int i = 0; i < num_sets; ++i) {
+      bubble_emitter_instance_t* emitter = &this->emitters[i];
+      emitter->timer                     = bubble_emitter_random_interval(this);
+      emitter->position[0] = emitter->position[1] = emitter->position[2] = 0.0f;
+    }
+  }
+}
+
+static void bubble_emitter_destroy(bubble_emitter_t* this)
+{
+  if (this->emitters) {
+    free(this->emitters);
+    this->emitters = NULL;
+  }
+}
+
+static void bubble_random_on_trigger(bubble_emitter_t* this,
+                                     void (*callback)(float pos[3]))
+{
+  this->trigger_callback = callback;
+}
+
+static float bubble_emitter_random_interval(const bubble_emitter_t* this)
+{
+  const float min = this->trigger_interval[0], max = this->trigger_interval[1];
+  return min + ((float)rand() / (float)RAND_MAX) * (max - min);
+}
+
+static void bubble_emitter_update(bubble_emitter_t* this, float delta_seconds,
+                                  globals_t* globals)
+{
+  for (int i = 0; i < this->num_sets; ++i) {
+    bubble_emitter_instance_t* emitter = &this->emitters[i];
+    emitter->timer -= delta_seconds * globals->speed;
+    if (emitter->timer <= 0) {
+      emitter->timer         = bubble_emitter_random_interval(this);
+      const float min_radius = this->radius_range[0],
+                  max_radius = this->radius_range[1];
+      const float radius
+        = min_radius
+          + ((float)rand() / (float)RAND_MAX) * (max_radius - min_radius);
+      const float angle    = ((float)rand() / (float)RAND_MAX) * PI2;
+      emitter->position[0] = sinf(angle) * radius;
+      emitter->position[1] = 0.0f;
+      emitter->position[2] = cosf(angle) * radius;
+      if (this->trigger_callback) {
+        this->trigger_callback(emitter->position);
+      }
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- *
