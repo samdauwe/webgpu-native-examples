@@ -4,6 +4,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Aquarium
  *
@@ -1976,6 +1987,367 @@ create_seaweed_pipeline(WGPUDevice device, diffuse_pipeline_desc_t* desc)
     .pipeline        = pipeline,
     .pipeline_layout = pipeline_layout,
   };
+}
+
+/* -------------------------------------------------------------------------- *
+ * Texture Cache
+ * -------------------------------------------------------------------------- */
+
+#define MAX_TEXTURE_CACHE (64)
+
+typedef struct {
+  WGPUTexture texture;
+  WGPUTextureView view;
+  uint32_t width, height;
+  int mip_levels;
+  WGPUSampler sampler;
+  char url[1024];
+} texture_record_t;
+
+typedef struct {
+  WGPUDevice device;
+  WGPUQueue queue;
+  texture_record_t cache[MAX_TEXTURE_CACHE];
+  int num_textures;
+  WGPUSampler sampler;
+  WGPUSampler linear_sampler;
+  WGPUSampler cube_sampler;
+  bool initialized;
+} texture_cache_t;
+
+static void texture_cache_init(texture_cache_t* this, WGPUDevice device,
+                               WGPUQueue queue)
+{
+  memset(this, 0, sizeof(texture_cache_t));
+  this->device  = device;
+  this->queue   = queue;
+  this->sampler = wgpuDeviceCreateSampler(
+    device, &(WGPUSamplerDescriptor){
+              .addressModeU = WGPUAddressMode_Repeat,
+              .addressModeV = WGPUAddressMode_Repeat,
+              .magFilter    = WGPUFilterMode_Linear,
+              .minFilter    = WGPUFilterMode_Linear,
+              .mipmapFilter = WGPUMipmapFilterMode_Linear,
+            });
+  this->linear_sampler = wgpuDeviceCreateSampler(
+    device, &(WGPUSamplerDescriptor){
+              .addressModeU = WGPUAddressMode_ClampToEdge,
+              .addressModeV = WGPUAddressMode_ClampToEdge,
+              .magFilter    = WGPUFilterMode_Linear,
+              .minFilter    = WGPUFilterMode_Linear,
+            });
+  this->cube_sampler = wgpuDeviceCreateSampler(
+    device, &(WGPUSamplerDescriptor){
+              .addressModeU = WGPUAddressMode_ClampToEdge,
+              .addressModeV = WGPUAddressMode_ClampToEdge,
+              .addressModeW = WGPUAddressMode_ClampToEdge,
+              .magFilter    = WGPUFilterMode_Linear,
+              .minFilter    = WGPUFilterMode_Linear,
+              .mipmapFilter = WGPUMipmapFilterMode_Linear,
+            });
+  this->initialized = true;
+}
+
+static texture_record_t* texture_cache_load_texture(texture_cache_t* this,
+                                                    const char* url,
+                                                    WGPUTextureFormat format)
+{
+  /* Check cache first */
+  for (int32_t i = 0; i < this->num_textures; ++i) {
+    if (strcmp(this->cache[i].url, url) == 0) {
+      return &this->cache[i];
+    }
+  }
+
+  /* Check cache capacity */
+  if (this->num_textures >= MAX_TEXTURE_CACHE) {
+    fprintf(stderr, "Texture cache full");
+    return NULL;
+  }
+
+  /* Load texture data */
+  int32_t img_width = 0, img_height = 0, img_channels = 0, depth = 4,
+          mip_levels = 1;
+  stbi_set_flip_vertically_on_load(true);
+  uint8_t* img_data
+    = stbi_load(url, &img_width, &img_height, &img_channels, depth);
+
+  /* Create the texture */
+  WGPUTextureDescriptor texture_desc = {
+    .size = {
+       .width              = img_width,
+       .height             = img_height,
+       .depthOrArrayLayers = 1,
+    },
+    .format        = format,
+    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+                     | WGPUTextureUsage_RenderAttachment,
+    .mipLevelCount = mip_levels,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+  };
+  WGPUTexture texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
+
+  /* Upload pixel data to texture */
+  wgpuQueueWriteTexture(this->queue,
+                        &(WGPUTexelCopyTextureInfo){
+                          .texture = texture,
+                          .aspect  = WGPUTextureAspect_All,
+                        },
+                        img_data, img_width * img_height * depth,
+                        &(WGPUTexelCopyBufferLayout){
+                          .bytesPerRow  = img_width * depth,
+                          .rowsPerImage = img_height,
+                        },
+                        &(WGPUExtent3D){img_width, img_height, 1});
+
+  /* Create the texture view */
+  WGPUTextureViewDescriptor texture_view_desc = {
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = texture_desc.mipLevelCount,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  WGPUTextureView view = wgpuTextureCreateView(texture, &texture_view_desc);
+
+  /* Create texture record */
+  texture_record_t* record = &this->cache[this->num_textures++];
+  record->texture          = texture;
+  record->view             = view;
+  record->width            = img_width;
+  record->height           = img_height;
+  record->mip_levels       = mip_levels;
+  record->sampler          = this->sampler;
+  strncpy(record->url, url, sizeof(record->url) - 1);
+  record->url[sizeof(record->url) - 1] = '\0';
+
+  if (img_data) {
+    stbi_image_free(img_data);
+  }
+
+  return record;
+}
+
+static texture_record_t*
+texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
+                                WGPUTextureFormat format)
+{
+#define NUM_FACES (6)
+
+  /* Create key*/
+  char key[1024] = "cube:";
+  for (int i = 0; i < NUM_FACES; ++i) {
+    strncat(key, urls[i], sizeof(key) - strlen(key) - 1);
+    if (i < 5) {
+      strncat(key, "|", sizeof(key) - strlen(key) - 1);
+    }
+  }
+
+  /* Check cache first */
+  for (int32_t i = 0; i < this->num_textures; ++i) {
+    if (strcmp(this->cache[i].url, key) == 0) {
+      return &this->cache[i];
+    }
+  }
+
+  /* Check cache capacity */
+  if (this->num_textures >= MAX_TEXTURE_CACHE) {
+    fprintf(stderr, "Texture cache full");
+    return NULL;
+  }
+
+  typedef struct {
+    int32_t width;
+    int32_t height;
+    int32_t channels;
+    int32_t depth;
+    int32_t mip_levels;
+    uint8_t* pixels;
+  } bitmap_t;
+  bitmap_t bitmaps[NUM_FACES] = {0};
+
+  for (uint8_t face = 0; face < NUM_FACES; ++face) {
+    bitmap_t* bitmap    = &bitmaps[face];
+    bitmaps->depth      = 4;
+    bitmaps->mip_levels = 1;
+    stbi_set_flip_vertically_on_load(true);
+    bitmap->pixels = stbi_load(urls[face], &bitmaps->width, &bitmaps->height,
+                               &bitmaps->channels, bitmaps->depth);
+  }
+
+  const int32_t width      = bitmaps[0].width;
+  const int32_t height     = bitmaps[0].height;
+  const int32_t depth      = bitmaps[0].depth;
+  const int32_t mip_levels = bitmaps[0].mip_levels;
+
+  for (uint8_t i = 0; i < NUM_FACES; ++i) {
+    ASSERT(bitmaps[i].width == width);
+    ASSERT(bitmaps[i].height == height);
+    ASSERT(bitmaps[i].depth == depth);
+  }
+
+  /* Create the texture */
+  WGPUTextureDescriptor texture_desc = {
+    .size = {
+      .width              = width,
+      .height             = height,
+      .depthOrArrayLayers = 6,
+    },
+    .format        = format,
+    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+                     | WGPUTextureUsage_RenderAttachment,
+    .mipLevelCount = mip_levels,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+  };
+  WGPUTexture texture = wgpuDeviceCreateTexture(this->device, &texture_desc);
+
+  /* Upload pixel data to texture */
+  {
+    WGPUCommandEncoder cmd_encoder
+      = wgpuDeviceCreateCommandEncoder(this->device, NULL);
+
+    WGPUBuffer staging_buffers[6] = {0};
+    for (uint32_t face = 0; face < NUM_FACES; ++face) {
+      WGPUBufferDescriptor staging_buffer_desc = {
+        .usage            = WGPUBufferUsage_CopySrc | WGPUBufferUsage_MapWrite,
+        .size             = width * height * depth,
+        .mappedAtCreation = true,
+      };
+      staging_buffers[face]
+        = wgpuDeviceCreateBuffer(this->device, &staging_buffer_desc);
+      ASSERT(staging_buffers[face])
+    }
+
+    for (uint32_t face = 0; face < NUM_FACES; ++face) {
+      /* Copy texture data into staging buffer */
+      uint32_t face_num_bytes = width * height * depth;
+      void* mapping
+        = wgpuBufferGetMappedRange(staging_buffers[face], 0, face_num_bytes);
+      ASSERT(mapping)
+      memcpy(mapping, bitmaps[face].pixels, face_num_bytes);
+      wgpuBufferUnmap(staging_buffers[face]);
+
+      /* Upload staging buffer to texture */
+      wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
+          /* Source */
+          &(WGPUTexelCopyBufferInfo) {
+            .buffer = staging_buffers[face],
+            .layout = (WGPUTexelCopyBufferLayout) {
+              .offset       = 0,
+              .bytesPerRow  = width * depth,
+              .rowsPerImage = height,
+            },
+          },
+          /* Destination */
+          &(WGPUTexelCopyTextureInfo){
+            .texture  = texture,
+            .mipLevel = 0,
+            .origin = (WGPUOrigin3D) {
+                .x = 0,
+                .y = 0,
+                .z = face,
+            },
+            .aspect = WGPUTextureAspect_All,
+          },
+          /* Copy size */
+          &(WGPUExtent3D){
+            .width              = width,
+            .height             = height,
+            .depthOrArrayLayers = 1,
+          });
+    }
+
+    WGPUCommandBuffer command_buffer
+      = wgpuCommandEncoderFinish(cmd_encoder, NULL);
+    WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
+
+    /* Sumbit commmand buffer and cleanup */
+    ASSERT(command_buffer != NULL)
+
+    /* Submit to the queue */
+    wgpuQueueSubmit(this->queue, 1, &command_buffer);
+
+    /* Release command buffer */
+    WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
+
+    /* Clean up staging resources and pixel data */
+    for (uint32_t face = 0; face < NUM_FACES; ++face) {
+      WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face]);
+      stbi_image_free(bitmaps[face].pixels);
+    }
+  }
+
+  /* Create the texture view */
+  WGPUTextureViewDescriptor texture_view_desc = {
+    .format          = texture_desc.format,
+    .dimension       = WGPUTextureViewDimension_Cube,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = texture_desc.mipLevelCount,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = NUM_FACES,
+    .aspect          = WGPUTextureAspect_All,
+    .usage           = WGPUTextureUsage_TextureBinding,
+  };
+  WGPUTextureView view = wgpuTextureCreateView(texture, &texture_view_desc);
+
+  /* Create texture record */
+  texture_record_t* record = &this->cache[this->num_textures++];
+  record->texture          = texture;
+  record->view             = view;
+  record->width            = width;
+  record->height           = height;
+  record->mip_levels       = mip_levels;
+  record->sampler          = this->sampler;
+  strncpy(record->url, key, sizeof(record->url) - 1);
+  record->url[sizeof(record->url) - 1] = '\0';
+  return record;
+}
+
+static void texture_cache_destroy(texture_cache_t* this)
+{
+  for (int i = 0; i < this->num_textures; ++i) {
+    WGPU_RELEASE_RESOURCE(Texture, this->cache[i].texture)
+    WGPU_RELEASE_RESOURCE(TextureView, this->cache[i].view)
+    WGPU_RELEASE_RESOURCE(Sampler, this->cache[i].sampler)
+  }
+  this->num_textures = 0;
+
+  WGPU_RELEASE_RESOURCE(Sampler, this->sampler)
+  WGPU_RELEASE_RESOURCE(Sampler, this->linear_sampler)
+  WGPU_RELEASE_RESOURCE(Sampler, this->cube_sampler)
+}
+
+/* -------------------------------------------------------------------------- *
+ * Aquarium model
+ * -------------------------------------------------------------------------- */
+
+typedef enum {
+  ATTRIBUTE_SLOT_POSITION = 0,
+  ATTRIBUTE_SLOT_NORMAL   = 1,
+  ATTRIBUTE_SLOT_TEXCOORD = 2,
+  ATTRIBUTE_SLOT_TANGENT  = 3,
+  ATTRIBUTE_SLOT_BINORMAL = 4,
+} ATTRIBUTE_SLOTS;
+
+static WGPUVertexFormat vertex_format(const char* type, int num_components)
+{
+  if (strcmp(type, "Float32Array") == 0) {
+    switch (num_components) {
+      case 2:
+        return WGPUVertexFormat_Float32x2;
+      case 3:
+        return WGPUVertexFormat_Float32x3;
+      case 4:
+        return WGPUVertexFormat_Float32x4;
+      default:
+        fprintf(stderr, "Unsupported float component count: %d\n",
+                num_components);
+    }
+  }
+  return WGPUVertexFormat_Force32;
 }
 
 /* -------------------------------------------------------------------------- *
