@@ -527,6 +527,11 @@ static WGPUShaderModule load_shader_module(WGPUDevice device, const char* path,
  * Math functions
  * -------------------------------------------------------------------------- */
 
+float math_random(void)
+{
+  return (float)rand() / (float)RAND_MAX;
+}
+
 typedef struct {
   float m[16];
 } mat4_t;
@@ -809,7 +814,7 @@ static void bubble_random_on_trigger(bubble_emitter_t* this,
 static float bubble_emitter_random_interval(const bubble_emitter_t* this)
 {
   const float min = this->trigger_interval[0], max = this->trigger_interval[1];
-  return min + ((float)rand() / (float)RAND_MAX) * (max - min);
+  return min + math_random() * (max - min);
 }
 
 static void bubble_emitter_update(bubble_emitter_t* this, float delta_seconds,
@@ -823,9 +828,8 @@ static void bubble_emitter_update(bubble_emitter_t* this, float delta_seconds,
       const float min_radius = this->radius_range[0],
                   max_radius = this->radius_range[1];
       const float radius
-        = min_radius
-          + ((float)rand() / (float)RAND_MAX) * (max_radius - min_radius);
-      const float angle    = ((float)rand() / (float)RAND_MAX) * PI2;
+        = min_radius + math_random() * (max_radius - min_radius);
+      const float angle    = math_random() * PI2;
       emitter->position[0] = sinf(angle) * radius;
       emitter->position[1] = 0.0f;
       emitter->position[2] = cosf(angle) * radius;
@@ -833,6 +837,70 @@ static void bubble_emitter_update(bubble_emitter_t* this, float delta_seconds,
         this->trigger_callback(emitter->position);
       }
     }
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Light-rays Animation.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  float duration;
+  float timer;
+  float rotation;
+  float x;
+  float y;
+  float intensity;
+} light_ray_t;
+
+typedef struct {
+  int count;
+  float duration_min;
+  float duration_range;
+  float speed;
+  float spread;
+  float pos_range;
+  float rot_range;
+  float rot_lerp;
+  float height;
+  light_ray_t rays[20];
+} light_ray_controller_t;
+
+static void light_ray_controller_init_light_ray(light_ray_controller_t* this,
+                                                light_ray_t* ray)
+{
+  memset(ray, 0, sizeof(light_ray_t));
+  ray->duration  = this->duration_min + math_random() * this->duration_range;
+  ray->timer     = 0;
+  ray->rotation  = math_random() * this->rot_range;
+  ray->x         = (math_random() - 0.5) * this->pos_range;
+  ray->intensity = 1.0f;
+}
+
+static void light_ray_controller_ray_reset(light_ray_controller_t* this,
+                                           light_ray_t* ray)
+{
+  ray->duration = this->duration_min + math_random() * this->duration_range;
+  ray->timer    = ray->duration;
+  ray->rotation = math_random() * this->rot_range;
+  ray->x        = (math_random() - 0.5f) * this->pos_range;
+}
+
+static void light_ray_controller_update(light_ray_controller_t* this,
+                                        float delta_seconds, globals_t* globals)
+{
+  const float rot_lerp = this->rot_lerp, height = this->height;
+  for (int i = 0; i < this->count; ++i) {
+    light_ray_t* ray = &this->rays[i];
+    ray->timer -= delta_seconds * globals->speed;
+    if (ray->timer <= 0) {
+      light_ray_controller_ray_reset(this, ray);
+    }
+    const float t  = fmaxf(0, fminf(1, ray->timer / ray->duration));
+    ray->intensity = sinf(t * PI);
+    ray->rotation
+      = ray->rotation + (math_random() - 0.5f) * rot_lerp * delta_seconds;
+    ray->y = fmaxf(70, fminf(120, height + globals->eye_height));
   }
 }
 
