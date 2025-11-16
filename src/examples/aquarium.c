@@ -2394,8 +2394,22 @@ static WGPUVertexFormat vertex_format(const char* type, int num_components)
  * Aquarium renderer
  * -------------------------------------------------------------------------- */
 
+#define FRAME_UNIFORM_SIZE (256)
+#define MODEL_UNIFORM_SIZE (256)
+#define MATERIAL_UNIFORM_SIZE (32)
+#define FISH_INSTANCE_STRIDE_FLOATS (8)
+#define FISH_INSTANCE_STRIDE_BYTES (FISH_INSTANCE_STRIDE_FLOATS * 4)
+#define FISH_MATERIAL_UNIFORM_SIZE (32)
+#define TANK_MATERIAL_UNIFORM_SIZE (64)
+
 typedef struct {
   WGPUDevice device;
+  /* Uniform buffers */
+  WGPUBuffer frame_uniform_buffer;
+  WGPUBuffer model_uniform_buffer;
+  /* Bind groups */
+  WGPUBindGroup frame_bind_group;
+  WGPUBindGroup model_bind_group;
   /* Bind group layouts */
   WGPUBindGroupLayout frame_layout;
   WGPUBindGroupLayout model_layout;
@@ -2592,6 +2606,47 @@ aquarium_renderer_create_bind_group_layouts(aquarium_renderer_t* this)
       this->device, "tank-material-layout", bgl_entries,
       (uint32_t)ARRAY_SIZE(bgl_entries));
     ASSERT(this->tank_material_layout != NULL);
+  }
+}
+
+static void aquarium_renderer_create_uniform_buffers(aquarium_renderer_t* this)
+{
+  /* Frame uniform buffer */
+  {
+    this->frame_uniform_buffer = create_uniform_buffer(
+      this->device, FRAME_UNIFORM_SIZE, "frame-uniform");
+    ASSERT(this->frame_uniform_buffer != NULL);
+  }
+
+  /* Frame bind group */
+  {
+    WGPUBindGroupEntry bg_entry = {
+      .binding = 0,
+      .buffer  = this->frame_uniform_buffer,
+      .size    = FRAME_UNIFORM_SIZE,
+    };
+    this->frame_bind_group = create_bind_group(
+      this->device, this->frame_layout, &bg_entry, 1, "frame-bind-group");
+    ASSERT(this->frame_bind_group != NULL);
+  }
+
+  /* Model uniform buffer */
+  {
+    this->model_uniform_buffer = create_uniform_buffer(
+      this->device, MODEL_UNIFORM_SIZE, "model-uniform");
+    ASSERT(this->model_uniform_buffer != NULL);
+  }
+
+  /* Model bind group */
+  {
+    WGPUBindGroupEntry bg_entry = {
+      .binding = 0,
+      .buffer  = this->model_uniform_buffer,
+      .size    = MODEL_UNIFORM_SIZE,
+    };
+    this->model_bind_group = create_bind_group(
+      this->device, this->model_layout, &bg_entry, 1, "model-bind-group");
+    ASSERT(this->model_bind_group != NULL);
   }
 }
 
