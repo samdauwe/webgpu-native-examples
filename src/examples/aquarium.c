@@ -535,6 +535,46 @@ static WGPUShaderModule load_shader_module(WGPUDevice device, const char* path,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Bindings
+ * -------------------------------------------------------------------------- */
+
+WGPUBindGroupLayout create_bind_group_layout(WGPUDevice device,
+                                             const char* label,
+                                             WGPUBindGroupLayoutEntry* entries,
+                                             uint32_t entry_count)
+{
+  return wgpuDeviceCreateBindGroupLayout(device,
+                                         &(WGPUBindGroupLayoutDescriptor){
+                                           .label      = STRVIEW(label),
+                                           .entryCount = entry_count,
+                                           .entries    = entries,
+                                         });
+}
+
+WGPUBindGroup create_bind_group(WGPUDevice device, WGPUBindGroupLayout layout,
+                                WGPUBindGroupEntry* entries,
+                                uint32_t entry_count, const char* label)
+{
+  return wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
+                                             .label      = STRVIEW(label),
+                                             .layout     = layout,
+                                             .entryCount = entry_count,
+                                             .entries    = entries,
+                                           });
+}
+
+WGPUBuffer create_uniform_buffer(WGPUDevice device, uint64_t size,
+                                 const char* label)
+{
+  return wgpuDeviceCreateBuffer(
+    device, &(WGPUBufferDescriptor){
+              .label = STRVIEW(label),
+              .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+              .size  = size,
+            });
+}
+
+/* -------------------------------------------------------------------------- *
  * Math functions
  * -------------------------------------------------------------------------- */
 
