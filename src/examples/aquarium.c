@@ -2391,6 +2391,211 @@ static WGPUVertexFormat vertex_format(const char* type, int num_components)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Aquarium renderer
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPUDevice device;
+  /* Bind group layouts */
+  WGPUBindGroupLayout frame_layout;
+  WGPUBindGroupLayout model_layout;
+  WGPUBindGroupLayout diffuse_material_layout;
+  WGPUBindGroupLayout fish_instance_layout;
+  WGPUBindGroupLayout fish_material_layout;
+  WGPUBindGroupLayout tank_material_layout;
+} aquarium_renderer_t;
+
+static void
+aquarium_renderer_create_bind_group_layouts(aquarium_renderer_t* this)
+{
+  const WGPUShaderStage visibility
+    = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+  const WGPUShaderStage Vertex_visibility   = WGPUShaderStage_Vertex;
+  const WGPUShaderStage fragment_visibility = WGPUShaderStage_Fragment;
+
+  /* Frame layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entry = {
+      .binding    = 0,
+      .visibility = visibility,
+      .buffer = {
+        .type = WGPUBufferBindingType_Uniform,
+      },
+    };
+    this->frame_layout
+      = create_bind_group_layout(this->device, "frame-layout", &bgl_entry, 1);
+    ASSERT(this->frame_layout != NULL);
+  }
+
+  /* Model layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entry = {
+      .binding    = 0,
+      .visibility = visibility,
+      .buffer = {
+        .type = WGPUBufferBindingType_Uniform,
+      },
+    };
+    this->model_layout
+      = create_bind_group_layout(this->device, "model-layout", &bgl_entry, 1);
+    ASSERT(this->model_layout != NULL);
+  }
+
+  /* Diffuse material layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = {
+        .binding    = 0,
+        .visibility = visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [1] = {
+        .binding    = 1,
+        .visibility = visibility,
+        .sampler = {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+      [2] = {
+        .binding    = 2,
+        .visibility = visibility,
+        .buffer = {
+          .type = WGPUBufferBindingType_Uniform,
+        },
+      },
+    };
+    this->diffuse_material_layout = create_bind_group_layout(
+      this->device, "diffuse-material-layout", bgl_entries,
+      (uint32_t)ARRAY_SIZE(bgl_entries));
+    ASSERT(this->diffuse_material_layout != NULL);
+  }
+
+  /* Fish instance layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = {
+        .binding    = 0,
+        .visibility = Vertex_visibility,
+        .buffer = {
+          .type = WGPUBufferBindingType_ReadOnlyStorage,
+        },
+      },
+      [1] = {
+        .binding    = 1,
+        .visibility = visibility,
+        .buffer = {
+          .type = WGPUBufferBindingType_Uniform,
+        },
+      },
+    };
+    this->fish_instance_layout = create_bind_group_layout(
+      this->device, "fish-instance-layout", bgl_entries,
+      (uint32_t)ARRAY_SIZE(bgl_entries));
+    ASSERT(this->fish_instance_layout != NULL);
+  }
+
+  /* Fish material layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[4] = {
+      [0] = {
+        .binding    = 0,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [1] = {
+        .binding    = 1,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [2] = {
+        .binding    = 2,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [3] = {
+        .binding    = 3,
+        .visibility = fragment_visibility,
+        .sampler = {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+    };
+    this->fish_material_layout = create_bind_group_layout(
+      this->device, "fish-material-layout", bgl_entries,
+      (uint32_t)ARRAY_SIZE(bgl_entries));
+    ASSERT(this->fish_material_layout != NULL);
+  }
+
+  /* Tank material layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[6] = {
+      [0] = {
+        .binding    = 0,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [1] = {
+        .binding    = 1,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [2] = {
+        .binding    = 2,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+        },
+      },
+      [3] = {
+        .binding    = 3,
+        .visibility = fragment_visibility,
+        .texture = {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_Cube,
+        },
+      },
+      [4] = {
+        .binding    = 4,
+        .visibility = fragment_visibility,
+        .sampler = {
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+      [5] = {
+        .binding    = 5,
+        .visibility = fragment_visibility,
+        .buffer = {
+          .type = WGPUBufferBindingType_Uniform,
+        },
+      },
+    };
+    this->tank_material_layout = create_bind_group_layout(
+      this->device, "tank-material-layout", bgl_entries,
+      (uint32_t)ARRAY_SIZE(bgl_entries));
+    ASSERT(this->tank_material_layout != NULL);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Aquarium example
  * -------------------------------------------------------------------------- */
 
