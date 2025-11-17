@@ -143,7 +143,7 @@ static void prepare_depth_texture(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   ASSERT(depth_texture.texture != NULL);
 
-  // Create the texture view
+  /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
     .label           = "Depth - Texture view",
     .dimension       = WGPUTextureViewDimension_2D,
