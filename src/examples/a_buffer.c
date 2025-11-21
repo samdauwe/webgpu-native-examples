@@ -912,7 +912,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     /* Color attachment */
     composite_render_pass.pass_desc.color_attachments[0]
       = (WGPURenderPassColorAttachment){
-        .view       = NULL, /* view is acquired and set in render loop. */
+        .view       = NULL, /* View is acquired and set in render loop. */
         .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Load,
         .storeOp    = WGPUStoreOp_Store,
