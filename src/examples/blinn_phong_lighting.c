@@ -647,7 +647,7 @@ static void setup_render_pass(void)
     .depthStoreOp    = WGPUStoreOp_Store,
   };
 
-  // Render pass descriptor
+  /* Render pass descriptor */
   render_pass.descriptor = (WGPURenderPassDescriptor){
     .label                  = "Blinn-Phong Lighting - Render pass descriptor",
     .colorAttachmentCount   = 1,
