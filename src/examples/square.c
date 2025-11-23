@@ -65,10 +65,10 @@ static void init_vertex_buffers(wgpu_context_t* wgpu_context)
   //
   // clang-format off
   static const float positions[12] = {
-    -0.5f,  0.5f, 0.0f, // v0
-     0.5f,  0.5f, 0.0f, // v1
-    -0.5f, -0.5f, 0.0f, // v2
-     0.5f, -0.5f, 0.0f, // v3
+    -0.5f,  0.5f, 0.0f, /* v0 */
+     0.5f,  0.5f, 0.0f, /* v1 */
+    -0.5f, -0.5f, 0.0f, /* v2 */
+     0.5f, -0.5f, 0.0f, /* v3 */
   };
   // clang-format on
   state.square.positions = wgpu_create_buffer(
