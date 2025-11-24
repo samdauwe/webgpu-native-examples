@@ -93,17 +93,17 @@ static int32_t current_material_index = 0;
 static int32_t current_object_index   = 0;
 
 static struct {
-  // Object vertex shader uniform buffer
+  /* Object vertex shader uniform buffer */
   wgpu_buffer_t ubo_matrices;
-  // Shared parameter uniform buffer
+  /* Shared parameter uniform buffer */
   wgpu_buffer_t ubo_params;
-  // Material parameter uniform buffer
+  /* Material parameter uniform buffer */
   struct {
     WGPUBuffer buffer;
     uint64_t buffer_size;
     uint64_t model_size;
   } material_params;
-  // Object parameter uniform buffer
+  /* Object parameter uniform buffer */
   struct {
     WGPUBuffer buffer;
     uint64_t buffer_size;
