@@ -27,10 +27,10 @@ static const char* fragment_shader_wgsl;
  * Out-of-bounds Viewport example
  * -------------------------------------------------------------------------- */
 
-// Uniform buffer block object
+/* Uniform buffer block object */
 static wgpu_buffer_t uniform_buffer_vs = {0};
 
-// Uniform block data - inputs of the shader
+/* Uniform block data - inputs of the shader */
 static struct {
   float x;
   float y;
@@ -43,28 +43,28 @@ static struct {
   .height = 1.0f,
 };
 
-// Texture and sampler
+/* Texture and sampler */
 static texture_t texture = {0};
 
-// The pipeline layout
+/* The pipeline layout */
 static WGPUPipelineLayout pipeline_layout = NULL;
 
-// Pipeline
+/* Pipeline */
 static WGPURenderPipeline pipeline = NULL;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass = {0};
 
-// The bind group layout
+/* The bind group layout */
 static WGPUBindGroupLayout bind_group_layout = NULL;
 
-// The bind group
+/* The bind group */
 static WGPUBindGroup bind_group = NULL;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Out-of-bounds Viewport";
 static bool prepared             = false;
 
