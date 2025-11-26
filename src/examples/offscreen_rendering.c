@@ -704,7 +704,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  // Create command encoder
+  /* Create command encoder */
   wgpu_context->cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
@@ -712,29 +712,29 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
    * First render pass: Offscreen rendering
    */
   {
-    // Create render pass encoder for encoding drawing commands
+    /* Create render pass encoder for encoding drawing commands */
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc,
       &offscreen_pass.render_pass.render_pass_descriptor);
 
-    // Set viewport
+    /* Set viewport */
     wgpuRenderPassEncoderSetViewport(wgpu_context->rpass_enc, 0.0f, 0.0f,
                                      (float)offscreen_pass.width,
                                      (float)offscreen_pass.height, 0.0f, 1.0f);
 
-    // Set scissor rectangle
+    /* Set scissor rectangle */
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                         offscreen_pass.width,
                                         offscreen_pass.height);
 
-    // Mirrored scene
+    /* Mirrored scene */
     wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                      pipelines.shaded_offscreen);
     wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                       bind_groups.offscreen, 0, 0);
     wgpu_gltf_model_draw(models.dragon, (wgpu_gltf_model_render_options_t){0});
 
-    // End render pass
+    /* End render pass */
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
@@ -743,25 +743,25 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
    * Second render pass: Scene rendering with applied radial blur
    */
   {
-    // Set target frame buffer
+    /* Set target frame buffer */
     rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
 
-    // Create render pass encoder for encoding drawing commands
+    /* Create render pass encoder for encoding drawing commands */
     wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
       wgpu_context->cmd_enc, &render_pass_desc);
 
-    // Set viewport
+    /* Set viewport */
     wgpuRenderPassEncoderSetViewport(
       wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
       (float)wgpu_context->surface.height, 0.0f, 1.0f);
 
-    // Set scissor rectangle
+    /* Set scissor rectangle */
     wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
                                         wgpu_context->surface.width,
                                         wgpu_context->surface.height);
 
     if (debug_display) {
-      // Display the offscreen render target
+      /* Display the offscreen render target */
       wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                        pipelines.debug);
       wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
@@ -769,14 +769,14 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
       wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
     }
     {
-      // Render the scene
-      // Reflection plane
+      /* Render the scene */
+      /* Reflection plane */
       wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                        pipelines.mirror);
       wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
                                         bind_groups.mirror, 0, 0);
       wgpu_gltf_model_draw(models.plane, (wgpu_gltf_model_render_options_t){0});
-      // Model
+      /* Model */
       wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
                                        pipelines.shaded);
       wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
@@ -785,15 +785,15 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                            (wgpu_gltf_model_render_options_t){0});
     }
 
-    // End render pass
+    /* End render pass */
     wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
   }
 
-  // Draw ui overlay
+  /* Draw ui overlay */
   draw_ui(wgpu_context->context, example_on_update_ui_overlay);
 
-  // Get command buffer
+  /* Get command buffer */
   WGPUCommandBuffer command_buffer
     = wgpu_get_command_buffer(wgpu_context->cmd_enc);
   WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
