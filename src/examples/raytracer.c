@@ -1,4 +1,6 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
+
+#include <cglm/cglm.h>
 
 #include <string.h>
 
@@ -10,6 +12,20 @@
  * Ref:
  * https://github.com/gnikoloff/webgpu-raytracer
  * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* camera_wgsl;
+static const char* color_wgsl;
+static const char* common_wgsl;
+static const char* interval_wgsl;
+static const char* material_wgsl;
+static const char* ray_wgsl;
+static const char* utils_wgsl;
+static const char* vec_wgsl;
+static const char* vertex_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Bounding Volume Hierarchy.
@@ -862,3 +878,522 @@ static void material_init_default(material_t* this, vec4 albedo)
   material_init(this, albedo, MATERIAL_TYPE_LAMBERTIAN_MATERIAL, 0.0f, 1.0f,
                 1.0f);
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* camera_wgsl = CODE(
+  struct Camera {
+    viewportSize: vec2u,
+    imageWidth: f32,
+    imageHeight: f32,
+    pixel00Loc: vec3<f32>,
+    pixelDeltaU: vec3<f32>,
+    pixelDeltaV: vec3<f32>,
+
+    aspectRatio: f32,
+    center: vec3<f32>,
+    vfov: f32,
+
+    lookFrom: vec3f,
+    lookAt: vec3f,
+    vup: vec3f,
+
+    defocusAngle: f32,
+    focusDist: f32,
+
+    defocusDiscU: vec3f,
+    defocusDiscV: vec3f
+  }
+
+  fn initCamera(camera: ptr<function, Camera>) {
+    (*camera).imageHeight = (*camera).imageWidth / (*camera).aspectRatio;
+    (*camera).imageHeight = select((*camera).imageHeight, 1, (*camera).imageHeight < 1);
+
+    (*camera).center = (*camera).lookFrom;
+
+    let theta = radians((*camera).vfov);
+    let h = tan(theta * 0.5);
+    let viewportHeight = 2.0 * h * (*camera).focusDist;
+    let viewportWidth = viewportHeight * ((*camera).imageWidth / (*camera).imageHeight);
+
+    let w = normalize((*camera).lookFrom - (*camera).lookAt);
+    let u = normalize(cross((*camera).vup, w));
+    let v = cross(w, u);
+
+    let viewportU = viewportWidth * u;
+    let viewportV = viewportHeight * -v;
+
+    (*camera).pixelDeltaU = viewportU / (*camera).imageWidth;
+    (*camera).pixelDeltaV = viewportV / (*camera).imageHeight;
+
+    let viewportUpperLeft = (*camera).center - ((*camera).focusDist * w) - viewportU / 2 - viewportV / 2;
+    (*camera).pixel00Loc = viewportUpperLeft + 0.5 * ((*camera).pixelDeltaU + (*camera).pixelDeltaV);
+
+    let defocusRadius = (*camera).focusDist * tan(radians((*camera).defocusAngle * 0.5));
+    (*camera).defocusDiscU = u * defocusRadius;
+    (*camera).defocusDiscV = v * defocusRadius;
+  }
+);
+
+static const char* color_wgsl = CODE(
+  // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
+  @must_use
+  fn aces(x: vec3f) -> vec3f {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return saturate(x * (a * x + b)) / (x * (c * x + d) + e);
+  }
+
+  // Filmic Tonemapping Operators http://filmicworlds.com/blog/filmic-tonemapping-operators/
+  @must_use
+  fn filmic(x: vec3f) -> vec3f {
+    let X = max(vec3f(0.0), x - 0.004);
+    let result = (X * (6.2 * X + 0.5)) / (X * (6.2 * X + 1.7) + 0.06);
+    return pow(result, vec3(2.2));
+  }
+
+  // Lottes 2016, "Advanced Techniques and Optimization of HDR Color Pipelines"
+  @must_use
+  fn lottes(x: vec3f) -> vec3f {
+    let a = vec3f(1.6);
+    let d = vec3f(0.977);
+    let hdrMax = vec3f(8.0);
+    let midIn = vec3f(0.18);
+    let midOut = vec3f(0.267);
+
+    let b =
+        (-pow(midIn, a) + pow(hdrMax, a) * midOut) /
+        ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+    let c =
+        (pow(hdrMax, a * d) * pow(midIn, a) - pow(hdrMax, a) * pow(midIn, a * d) * midOut) /
+        ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+
+    return pow(x, a) / (pow(x, a * d) * b + c);
+  }
+
+  @must_use
+  fn reinhard(x: vec3f) -> vec3f {
+    return x / (1.0 + x);
+  }
+);
+
+static const char* common_wgsl = CODE(
+  struct CommonUniforms {
+    // Random seed for the workgroup
+    seed : vec3u,
+    frameCounter: u32,
+    maxBounces: u32,
+    flatShading: u32,
+    debugNormals: u32
+  }
+
+  struct HitRecord {
+    p: vec3f,
+    normal: vec3f,
+    t: f32,
+    frontFace: bool,
+    materialIdx: u32,
+    meshIdx: i32
+  };
+
+  struct Face {
+    p0: vec3f,
+    p1: vec3f,
+    p2: vec3f,
+
+    n0: vec3f,
+    n1: vec3f,
+    n2: vec3f,
+
+    faceNormal: vec3f,
+    materialIdx: u32
+  }
+
+  struct AABB {
+    min: vec3f,
+    max: vec3f,
+    leftChildIdx: i32,
+    rightChildIdx: i32,
+    faceIdx0: i32,
+    faceIdx1: i32
+  }
+
+  struct Mesh {
+    aabbOffset: i32,
+    faceOffset: i32
+  }
+);
+
+static const char* interval_wgsl = CODE(
+  struct Interval {
+    min: f32,
+    max: f32,
+  };
+
+  @must_use
+  fn intervalContains(interval: Interval, x: f32) -> bool {
+    return interval.min <= x && x <= interval.max;
+  }
+
+  @must_use
+  fn intervalSurrounds(interval: Interval, x: f32) -> bool {
+    return interval.min < x && x < interval.max;
+  }
+
+  @must_use
+  fn intervalClamp(interval: Interval, x: f32) -> f32 {
+    var out = x;
+    if (x < interval.min) {
+      out = interval.min;
+    }
+    if (x > interval.max) {
+      out = interval.max;
+    }
+    return out;
+  }
+
+  const emptyInterval = Interval(f32max, f32min);
+  const universeInterval = Interval(f32min, f32max);
+  const positiveUniverseInterval = Interval(EPSILON, f32max);
+);
+
+static const char* material_wgsl = CODE(
+  struct Material {
+    materialType: u32,
+    reflectionRatio: f32,
+    reflectionGloss: f32,
+    refractionIndex: f32,
+    albedo: vec3f,
+  };
+
+  @must_use
+  fn scatterLambertian(
+    material: ptr<function, Material>,
+    ray: ptr<function, Ray>,
+    scattered: ptr<function, Ray>,
+    hitRec: ptr<function, HitRecord>,
+    attenuation: ptr<function, vec3f>,
+    rngState: ptr<function, u32>
+  ) -> bool {
+    var scatterDirection = (*hitRec).normal + randomUnitVec3(rngState);
+    if (nearZero(scatterDirection)) {
+      scatterDirection = (*hitRec).normal;
+    }
+    (*scattered) = Ray((*hitRec).p, scatterDirection);
+    (*attenuation) = (*material).albedo;
+    return true;
+  }
+
+  @must_use
+  fn scatterMetal(
+    material: ptr<function, Material>,
+    ray: ptr<function, Ray>,
+    scattered: ptr<function, Ray>,
+    hitRec: ptr<function, HitRecord>,
+    attenuation: ptr<function, vec3f>,
+    rngState: ptr<function, u32>
+  ) -> bool {
+    let reflected = reflect(normalize((*ray).direction), (*hitRec).normal);
+    (*scattered) = Ray((*hitRec).p, reflected + (*material).reflectionGloss * randomUnitVec3(rngState));
+    (*attenuation) = (*material).albedo;
+    return (dot((*scattered).direction, (*hitRec).normal) >= 0);
+  }
+
+  @must_use
+  fn scatterDielectric(
+    material: ptr<function, Material>,
+    ray: ptr<function, Ray>,
+    scattered: ptr<function, Ray>,
+    hitRec: ptr<function, HitRecord>,
+    attenuation: ptr<function, vec3f>,
+    rngState: ptr<function, u32>
+  ) -> bool {
+    *attenuation = vec3f(1);
+    let refractRatio = select((*material).refractionIndex, 1.0 / (*material).refractionIndex, (*hitRec).frontFace);
+    let unitDirection = normalize((*ray).direction);
+    let cosTheta = dot(-unitDirection, (*hitRec).normal);
+    let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    let cannotRefract = refractRatio * sinTheta > 1.0;
+    let direction = select(
+      refract(unitDirection, (*hitRec).normal, refractRatio),
+      reflect(unitDirection, (*hitRec).normal),
+      cannotRefract || reflectance(cosTheta, refractRatio) > rngNextFloat(rngState)
+    );
+    (*scattered) = Ray((*hitRec).p, direction);
+    return true;
+  }
+
+  @must_use
+  fn reflectance(cosine: f32, refractionIndex: f32) -> f32 {
+    // Use Schlick's approximation for reflectance.
+    var r0 = (1.0 - refractionIndex) / (1.0 + refractionIndex);
+    r0 *= r0;
+    return r0 + (1.0 - r0) * pow((1.0 - cosine), 5.0);
+  }
+);
+
+static const char* ray_wgsl = CODE(
+  struct Ray {
+    origin: vec3f,
+    direction: vec3f,
+  };
+
+  @must_use
+  fn rayAt(ray: ptr<function, Ray>, t: f32) -> vec3f {
+    return (*ray).origin + (*ray).direction * t;
+  }
+
+  @must_use
+  fn rayIntersectFace(
+    ray: ptr<function, Ray>,
+    face: ptr<function, Face>,
+    rec: ptr<function, HitRecord>,
+    interval: Interval
+  ) -> bool {
+    // Mäller-Trumbore algorithm
+    // https://en.wikipedia.org/wiki/Möller–Trumbore_intersection_algorithm
+
+    // let fnDotRayDir = dot((*face).faceNormal, (*ray).direction);
+    // if (abs(fnDotRayDir) < EPSILON) {
+    //   return false; // ray direction almost parallel
+    // }
+
+    let e1 = (*face).p1 - (*face).p0;
+    let e2 = (*face).p2 - (*face).p0;
+
+    let h = cross((*ray).direction, e2);
+    let det = dot(e1, h);
+
+    if det > -0.00001 && det < 0.00001 {
+      return false;
+    }
+
+    let invDet = 1.0f / det;
+    let s = (*ray).origin - (*face).p0;
+    let u = invDet * dot(s, h);
+
+    if u < 0.0f || u > 1.0f {
+      return false;
+    }
+
+    let q = cross(s, e1);
+    let v = invDet * dot((*ray).direction, q);
+
+    if v < 0.0f || u + v > 1.0f {
+      return false;
+    }
+
+    let t = invDet * dot(e2, q);
+
+    if t > interval.min && t < interval.max {
+      // https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/moller-trumbore-ray-triangle-intersection.html
+
+      let p = (*face).p0 + u * e1 + v * e2;
+      // *hit = TriangleHit(offsetRay(p, n), b, t);
+      (*rec).t = t;
+      (*rec).p = p;
+      (*rec).materialIdx = (*face).materialIdx;
+      if (commonUniforms.flatShading == 1u) {
+        (*rec).normal = (*face).faceNormal;
+      } else {
+        let b = vec3f(1f - u - v, u, v);
+        let n = b[0] * (*face).n0 + b[1] * (*face).n1 + b[2] * (*face).n2;
+        (*rec).normal = n;
+      }
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+
+  @must_use
+  fn rayIntersectBV(ray: ptr<function, Ray>, aabb: ptr<function, AABB>) -> bool {
+    let t0 = ((*aabb).min - (*ray).origin) / (*ray).direction;
+    let t1 = ((*aabb).max - (*ray).origin) / (*ray).direction;
+    let tmin = min(t0, t1);
+    let tmax = max(t0, t1);
+    let maxMinT = max(tmin.x, max(tmin.y, tmin.z));
+    let minMaxT = min(tmax.x, min(tmax.y, tmax.z));
+    return maxMinT < minMaxT;
+  }
+
+  @must_use
+  fn rayIntersectBVH(
+    ray: ptr<function, Ray>,
+    hitRec: ptr<function, HitRecord>,
+    interval: Interval
+  ) -> bool {
+
+    var current: HitRecord;
+    var didIntersect = false;
+    var stack: array<i32, BV_MAX_STACK_DEPTH>;
+
+    (*hitRec).t = f32max;
+
+    var top: i32;
+
+    for (var objIdx = 0u; objIdx < OBJECTS_COUNT_IN_SCENE; objIdx++) {
+      top = 0;
+      stack[0] = 0;
+
+      while (top > -1) {
+        var bvIdx = stack[top];
+        top--;
+        var aabb = AABBs[u32(bvIdx) + objIdx * MAX_BVs_COUNT_PER_MESH];
+
+        if (rayIntersectBV(ray, &aabb)) {
+          if (aabb.leftChildIdx != -1) {
+            top++;
+            stack[top] = aabb.leftChildIdx;
+          }
+          if (aabb.rightChildIdx != -1) {
+            top++;
+            stack[top] = aabb.rightChildIdx;
+          }
+
+          if (aabb.faceIdx0 != -1) {
+            var face = faces[u32(aabb.faceIdx0) + objIdx * MAX_FACES_COUNT_PER_MESH];
+            if (
+              rayIntersectFace(ray, &face, &current, positiveUniverseInterval) &&
+              current.t < (*hitRec).t
+            ) {
+              *hitRec = current;
+              didIntersect = true;
+            }
+          }
+
+          if (aabb.faceIdx1 != -1) {
+            var face = faces[u32(aabb.faceIdx1) + objIdx * MAX_FACES_COUNT_PER_MESH];
+            if (
+              rayIntersectFace(ray, &face, &current, positiveUniverseInterval) &&
+              current.t < (*hitRec).t
+            ) {
+              *hitRec = current;
+              didIntersect = true;
+            }
+          }
+        }
+      }
+    }
+    return didIntersect;
+  }
+
+  @must_use
+  fn getCameraRay(camera: ptr<function, Camera>, i: f32, j: f32, rngState: ptr<function, u32>) -> Ray {
+    let pixelCenter = (*camera).pixel00Loc + (i * (*camera).pixelDeltaU) + (j * (*camera).pixelDeltaV);
+    let pixelSample = pixelCenter + pixelSampleSquare(camera, rngState);
+    let rayOrigin = select(defocusDiskSample(camera, rngState), (*camera).center, (*camera).defocusAngle <= 0);
+    let rayDirection = pixelSample - rayOrigin;
+    return Ray(rayOrigin, rayDirection);
+  }
+
+  @must_use
+  fn defocusDiskSample(camera: ptr<function, Camera>, rngState: ptr<function, u32>) -> vec3f {
+    let p = randomVec3InUnitDisc(rngState);
+    return (*camera).center + (p.x * (*camera).defocusDiscU) + (p.y * (*camera).defocusDiscV);
+  }
+
+  @must_use
+  fn pixelSampleSquare(camera: ptr<function, Camera>, rngState: ptr<function, u32>) -> vec3<f32> {
+    let px = -0.5 + rngNextFloat(rngState);
+    let py = -0.5 + rngNextFloat(rngState);
+    return (px * (*camera).pixelDeltaU) + (py * (*camera).pixelDeltaV);
+  }
+);
+
+static const char* utils_wgsl = CODE(
+  const f32min = 0x1p-126f;
+  const f32max = 0x1.fffffep+127;
+
+  const pi = 3.141592653589793;
+
+  @must_use
+  fn rngNextFloat(state: ptr<function, u32>) -> f32 {
+    rngNextInt(state);
+    return f32(*state) / f32(0xffffffffu);
+  }
+
+  fn rngNextInt(state: ptr<function, u32>) {
+    // PCG random number generator
+    // Based on https://www.shadertoy.com/view/XlGcRh
+
+    let oldState = *state + 747796405u + 2891336453u;
+    let word = ((oldState >> ((oldState >> 28u) + 4u)) ^ oldState) * 277803737u;
+    *state = (word >> 22u) ^ word;
+  }
+
+  @must_use
+  fn randInRange(min: f32, max: f32, state: ptr<function, u32>) -> f32 {
+    return min + rngNextFloat(state) * (max - min);
+  }
+);
+
+static const char* vec_wgsl = CODE(
+  @must_use
+  fn randomVec3(rngState: ptr<function, u32>) -> vec3f {
+    return vec3f(rngNextFloat(rngState), rngNextFloat(rngState), rngNextFloat(rngState));
+  }
+
+  @must_use
+  fn randomVec3InRange(min: f32, max: f32, rngState: ptr<function, u32>) -> vec3f {
+    return vec3f(
+      randInRange(min, max, rngState),
+      randInRange(min, max, rngState),
+      randInRange(min, max, rngState)
+    );
+  }
+
+  fn randomVec3InUnitDisc(state: ptr<function, u32>) -> vec3<f32> {
+    let r = sqrt(rngNextFloat(state));
+    let alpha = 2f * pi * rngNextFloat(state);
+
+    let x = r * cos(alpha);
+    let y = r * sin(alpha);
+
+    return vec3(x, y, 0f);
+  }
+
+  fn randomVec3InUnitSphere(state: ptr<function, u32>) -> vec3<f32> {
+    let r = pow(rngNextFloat(state), 0.33333f);
+    let theta = pi * rngNextFloat(state);
+    let phi = 2f * pi * rngNextFloat(state);
+
+    let x = r * sin(theta) * cos(phi);
+    let y = r * sin(theta) * sin(phi);
+    let z = r * cos(theta);
+
+    return vec3(x, y, z);
+  }
+
+  @must_use
+  fn randomUnitVec3(rngState: ptr<function, u32>) -> vec3f {
+    return normalize(randomVec3InUnitSphere(rngState));
+  }
+
+  @must_use
+  fn randomUnitVec3OnHemisphere(normal: vec3f, rngState: ptr<function, u32>) -> vec3f {
+    let onUnitSphere = randomUnitVec3(rngState);
+    return select(-onUnitSphere, onUnitSphere, dot(onUnitSphere, normal) > 0.0);
+  }
+
+  @must_use
+  fn nearZero(v: vec3f) -> bool {
+    let epsilon = vec3f(1e-8);
+    return any(abs(v) < epsilon);
+  }
+);
+
+static const char* vertex_wgsl = CODE(
+  struct VertexOutput {
+    @builtin(position) Position: vec4f,
+    @location(0) uv: vec2f,
+  }
+);
+// clang-format on
