@@ -276,16 +276,16 @@ static void prepare_uniform_buffers(wgpu_example_context_t* context)
   update_uniform_buffers(context);
 }
 
-// Update the text buffer displayed by the text overlay
+/* Update the text buffer displayed by the text overlay */
 void update_text_overlay(wgpu_example_context_t* context)
 {
-  // Window height
+  /* Window height */
   const float width  = (float)context->wgpu_context->surface.width;
   const float height = (float)context->wgpu_context->surface.height;
 
   text_overlay_begin_text_update(text_overlay.handle);
 
-  // Display example info
+  /* Display example info */
   text_overlay_add_formatted_text(
     text_overlay.handle, 5.0f, 5.0f, TextOverlay_Text_AlignLeft,
     "WebGPU Example - %s", context->example_title);
@@ -296,7 +296,7 @@ void update_text_overlay(wgpu_example_context_t* context)
   text_overlay_add_text(text_overlay.handle, context->adapter_info[0], 5.0f,
                         45.0f, TextOverlay_Text_AlignLeft);
 
-  // Display current model view matrix
+  /* Display current model view matrix */
   text_overlay_add_text(text_overlay.handle, "Model View Matrix", (float)width,
                         5.0f, TextOverlay_Text_AlignRight);
 
@@ -308,12 +308,12 @@ void update_text_overlay(wgpu_example_context_t* context)
       ubo_vs.model_view[3][i]);
   }
 
-  // Display text overlay visibility toggle info
+  /* Display text overlay visibility toggle info */
   text_overlay_add_text(text_overlay.handle,
                         "Press \"space\" to toggle text overlay", 5.0f, 65.0f,
                         TextOverlay_Text_AlignLeft);
 
-  // Display cube dragging related text
+  /* Display cube dragging related text */
   text_overlay_add_text(text_overlay.handle,
                         "Hold middle mouse button and drag to move", 5.0f,
                         85.0f, TextOverlay_Text_AlignLeft);
