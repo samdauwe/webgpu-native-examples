@@ -260,10 +260,10 @@ static void update_uniform_buffers(wgpu_example_context_t* context)
                           &ubo_vs, uniform_buffer_vs.size);
 }
 
-// Prepare and initialize uniform buffer containing shader uniforms
+/* Prepare and initialize uniform buffer containing shader uniforms */
 static void prepare_uniform_buffers(wgpu_example_context_t* context)
 {
-  // Vertex shader uniform buffer block
+  /* Vertex shader uniform buffer block */
   uniform_buffer_vs = wgpu_create_buffer(
     context->wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -411,18 +411,18 @@ static WGPUCommandBuffer build_command_buffer(wgpu_example_context_t* context)
 
 static int example_draw(wgpu_example_context_t* context)
 {
-  // Prepare frame
+  /* Prepare frame */
   prepare_frame(context);
 
-  // Command buffer to be submitted to the queue
+  /* Command buffer to be submitted to the queue */
   wgpu_context_t* wgpu_context                   = context->wgpu_context;
   wgpu_context->submit_info.command_buffer_count = 1;
   wgpu_context->submit_info.command_buffers[0] = build_command_buffer(context);
 
-  // Submit to queue
+  /* Submit to queue */
   submit_command_buffers(context);
 
-  // Submit frame
+  /* Submit frame */
   submit_frame(context);
 
   return EXIT_SUCCESS;
