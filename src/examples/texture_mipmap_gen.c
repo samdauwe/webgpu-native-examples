@@ -32,7 +32,8 @@ static struct texture {
   uint32_t mip_levels;
 } texture;
 
-// To demonstrate mip mapping and filtering this example uses separate samplers
+/* To demonstrate mip mapping and filtering this example uses separate samplers
+ */
 static const char* sampler_names[3]
   = {"No mip maps", "Mip maps (bilinear)", "Mip maps (anisotropic)"};
 static WGPUSampler samplers[3];
@@ -66,7 +67,7 @@ static WGPUPipelineLayout pipeline_layout;
 static WGPUBindGroup bind_group;
 static WGPUBindGroupLayout bind_group_layout;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "Runtime Mip Map Generation";
 static bool prepared             = false;
 
