@@ -226,7 +226,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
     WGPUFragmentState fragment_state = wgpu_create_fragment_state(
           wgpu_context, &(wgpu_fragment_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              // Fragment shader SPIR-V
+              // Fragment shader
               .label = "Toon - Fragment shader SPIR-V",
               .file  = "shaders/stencil_buffer/toon.frag.spv",
             },
