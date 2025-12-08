@@ -27,7 +27,7 @@ static const char* textured_square_wgsl;
  * Sampler Parameters example
  * -------------------------------------------------------------------------- */
 
-#define CANVAS_SIZE 600u
+#define CANVAS_SIZE (600u)
 
 static struct {
   float flange_log_size;
