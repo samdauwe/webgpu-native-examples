@@ -265,7 +265,7 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
 
   /* Checkerboard texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Checkerboard texture view",
+    .label           = "Checkerboard - Texture view",
     .format          = texture_desc.format,
     .dimension       = WGPUTextureViewDimension_2D,
     .baseMipLevel    = 0,
