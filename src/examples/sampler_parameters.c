@@ -373,7 +373,7 @@ static void update_textured_square_bind_group(wgpu_context_t* wgpu_context)
     };
   textured_square_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label  = "Textured square bind group",
+                            .label  = "Textured square - Bind group",
                             .layout = wgpuRenderPipelineGetBindGroupLayout(
                               textured_square_render_pipeline, 0),
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
