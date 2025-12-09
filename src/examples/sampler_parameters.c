@@ -247,7 +247,7 @@ static void initialize_test_texture(wgpu_context_t* wgpu_context)
 
   /* Checkerboard texture */
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Checkerboard texture",
+    .label         = "Checkerboard - Texture",
     .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
     .format        = WGPUTextureFormat_RGBA8Unorm,
     .dimension     = WGPUTextureDimension_2D,
