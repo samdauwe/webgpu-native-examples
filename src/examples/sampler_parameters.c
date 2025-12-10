@@ -443,7 +443,7 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       // Fragment shader WGSL
-      .label            = "Debug view fragment shader WGSL",
+      .label            = "Debug view - Fragment shader WGSL",
       .wgsl_code.source = show_texture_wgsl,
       .entry            = "fmain"
     },
