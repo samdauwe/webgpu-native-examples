@@ -461,7 +461,7 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
   /* Create rendering pipeline using the specified states */
   show_texture_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Show texture render pipeline",
+                            .label       = "Show texture - Render pipeline",
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
                             .fragment    = &fragment_state,
