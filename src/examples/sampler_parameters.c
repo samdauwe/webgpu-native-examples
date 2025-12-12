@@ -482,7 +482,7 @@ static void prepare_show_texture_bind_group(wgpu_context_t* wgpu_context)
   };
   show_texture_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label  = "Show texture bind group",
+                            .label  = "Show texture - Bind group",
                             .layout = wgpuRenderPipelineGetBindGroupLayout(
                               show_texture_render_pipeline, 0),
                             .entryCount = 1,
