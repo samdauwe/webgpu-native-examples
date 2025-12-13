@@ -560,7 +560,7 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
   // Create rendering pipeline using the specified states
   textured_square_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Textured square render pipeline",
+                            .label       = "Textured square - Render pipeline",
                             .primitive   = primitive_state,
                             .vertex      = vertex_state,
                             .fragment    = &fragment_state,
