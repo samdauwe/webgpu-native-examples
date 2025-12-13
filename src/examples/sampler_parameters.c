@@ -718,6 +718,7 @@ void example_sampler_parameters(int argc, char* argv[])
       .example_settings = (wgpu_example_settings_t){
         .title   = example_title,
         .overlay = true,
+        .vsync   = true,
     },
     .example_window_config = (window_config_t){
       .width  = CANVAS_SIZE,
