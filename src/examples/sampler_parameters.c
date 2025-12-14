@@ -497,14 +497,14 @@ static void prepare_show_texture_bind_group(wgpu_context_t* wgpu_context)
 static void
 prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
+  /* Primitive state */
   WGPUPrimitiveState primitive_state = {
     .topology  = WGPUPrimitiveTopology_TriangleList,
     .frontFace = WGPUFrontFace_CCW,
     .cullMode  = WGPUCullMode_None,
   };
 
-  // Color target state
+  /* Color target state */
   WGPUBlendState blend_state              = wgpu_create_blend_state(true);
   WGPUColorTargetState color_target_state = (WGPUColorTargetState){
     .format    = wgpu_context->swap_chain.format,
@@ -512,7 +512,7 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Constants
+  /* Constants */
   WGPUConstantEntry constant_entries[2] = {
     [0] = (WGPUConstantEntry){
       .key   = "kTextureBaseSize",
@@ -524,11 +524,11 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
     },
   };
 
-  // Vertex state
+  /* Vertex state */
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
       wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-      // Vertex shader WGSL
+      /* Vertex shader WGSL */
       .label            = "Textured square - Vertex shader",
       .wgsl_code.source = textured_square_wgsl,
       .entry            = "vmain"
@@ -537,11 +537,11 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
     .constants      = constant_entries,
   });
 
-  // Fragment state
+  /* Fragment state */
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-      // Fragment shader WGSL
+      /* Fragment shader WGSL */
       .label            = "Textured square - Fragment shader",
       .wgsl_code.source = textured_square_wgsl,
       .entry            = "fmain"
@@ -550,14 +550,14 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
     .targets        = &color_target_state,
   });
 
-  // Multisample state
+  /* Multisample state */
   WGPUMultisampleState multisample_state
     = wgpu_create_multisample_state_descriptor(
       &(create_multisample_state_desc_t){
         .sample_count = 1,
       });
 
-  // Create rendering pipeline using the specified states
+  /* Create rendering pipeline using the specified states */
   textured_square_render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
                             .label       = "Textured square - Render pipeline",
@@ -568,7 +568,7 @@ prepare_textured_square_render_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(textured_square_render_pipeline != NULL);
 
-  // Partial cleanup
+  /* Partial cleanup */
   WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
   WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
 }
