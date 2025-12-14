@@ -442,7 +442,7 @@ static void prepare_debug_view_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
     wgpu_context, &(wgpu_fragment_state_t){
     .shader_desc = (wgpu_shader_desc_t){
-      // Fragment shader WGSL
+      // Fragment shader
       .label            = "Debug view - Fragment shader",
       .wgsl_code.source = show_texture_wgsl,
       .entry            = "fmain"
