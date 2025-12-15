@@ -233,7 +233,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
   // this is not needed if you just want to use reversed z to render a scene
   WGPURenderPipelineDescriptor depth_pre_pass_render_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
-      .label        = "depth_pre_pass_render_pipeline",
+      .label        = "Depth pre pass - Render pipeline",
       .layout       = pipline_layouts.depth_prepass_render,
       .primitive    = primitive_state,
       .vertex       = vertex_state,
