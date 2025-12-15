@@ -213,7 +213,7 @@ static void prepare_depth_pre_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
+                  // Vertex shader
                   .label = "Vertex depth pre pass vertex shader",
                   .file  = "shaders/reversed_z/vertexDepthPrePass.wgsl",
                   .entry = "main",
