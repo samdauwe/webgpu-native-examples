@@ -333,7 +333,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
   // depth buffer compared to that directly calcualated in the shader
   WGPURenderPipelineDescriptor precision_pass_render_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
-      .label        = "precision_error_pass_render_pipeline",
+      .label        = "Precision error pass - Render pipeline",
       .layout       = pipline_layouts.precision_pass_render,
       .primitive    = primitive_state,
       .vertex       = vertex_state,
