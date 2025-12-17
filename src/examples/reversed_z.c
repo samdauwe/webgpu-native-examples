@@ -314,7 +314,7 @@ static void prepare_precision_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Fragment shader
-                  .label = "fragment_precision_error_pass_fragment_shader",
+                  .label = "Fragment precision error pass - Fragment shader",
                   .file  = "shaders/reversed_z/fragmentPrecisionErrorPass.wgsl",
                   .entry = "main",
                 },
