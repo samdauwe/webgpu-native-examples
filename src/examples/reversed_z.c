@@ -413,7 +413,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
   WGPUFragmentState fragment_state = wgpu_create_fragment_state(
                 wgpu_context, &(wgpu_fragment_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader WGSL
+                  // Fragment shader
                   .label = "color_pass_fragment_shader",
                   .file  = "shaders/reversed_z/fragment.wgsl",
                   .entry = "main",
