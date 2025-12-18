@@ -401,7 +401,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
                 wgpu_context, &(wgpu_vertex_state_t){
                 .shader_desc = (wgpu_shader_desc_t){
                   // Vertex shader
-                  .label = "color_pass_vertex_shader",
+                  .label = "Color pass - Vertex shader",
                   .file  = "shaders/reversed_z/vertex.wgsl",
                   .entry = "main",
                 },
