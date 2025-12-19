@@ -432,7 +432,7 @@ static void prepare_color_pass_render_pipeline(wgpu_context_t* wgpu_context)
   // colorPass is the regular render pass to render the scene
   WGPURenderPipelineDescriptor color_passRender_pipeline_descriptor_base
     = (WGPURenderPipelineDescriptor){
-      .label        = "color_pass_render_pipeline",
+      .label        = "Color pass - Render pipeline",
       .layout       = pipline_layouts.color_pass_render,
       .primitive    = primitive_state,
       .vertex       = vertex_state,
