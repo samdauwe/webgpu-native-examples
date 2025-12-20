@@ -518,11 +518,11 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
   // depth buffer usage 0.0 will be the furthest and 1.0 will be the closest
   render_pipelines.texture_quad_pass = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "texture_quad_pass_render_pipeline",
-                            .layout      = pipline_layouts.texture_quad_pass,
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
+                            .label     = "Texture quad pass - Render pipeline",
+                            .layout    = pipline_layouts.texture_quad_pass,
+                            .primitive = primitive_state,
+                            .vertex    = vertex_state,
+                            .fragment  = &fragment_state,
                             .multisample = multisample_state,
                           });
 
