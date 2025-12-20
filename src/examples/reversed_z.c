@@ -486,7 +486,7 @@ prepare_texture_quad_pass_render_pipeline(wgpu_context_t* wgpu_context)
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
               // Vertex shader
-              .label = "vertex_texture_quad_vertex_shader",
+              .label = "Vertex texture quad - Vertex shader",
               .file  = "shaders/reversed_z/vertexTextureQuad.wgsl",
               .entry = "main",
             },
