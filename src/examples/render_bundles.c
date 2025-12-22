@@ -537,7 +537,7 @@ static void update_render_bundle(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateRenderBundleEncoder(
       wgpu_context->device,
       &(WGPURenderBundleEncoderDescriptor){
-        .label              = "Scene bundle encoder",
+        .label              = "Scene - Bundle encoder",
         .colorFormatCount   = (uint32_t)ARRAY_SIZE(color_formats),
         .colorFormats       = color_formats,
         .depthStencilFormat = WGPUTextureFormat_Depth24Plus,
