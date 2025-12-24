@@ -241,7 +241,7 @@ static void create_sphere_bind_group(wgpu_context_t* wgpu_context,
   renderables[renderable_id].bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label  = "Bind group",
+      .label  = "Renderables - Bind group",
       .layout = wgpuRenderPipelineGetBindGroupLayout(mesh_render_pipeline, 1),
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
