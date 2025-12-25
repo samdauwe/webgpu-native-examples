@@ -379,7 +379,7 @@ static void prepare_pipeline(wgpu_context_t* wgpu_context)
       wgpu_context, &(wgpu_vertex_state_t){
     .shader_desc = (wgpu_shader_desc_t){
       /* Vertex shader */
-      .label = "Vertex shader",
+      .label = "Render bundles - Vertex shader",
       .file  = "shaders/render_bundles/mesh.wgsl",
       .entry = "vertexMain"
     },
