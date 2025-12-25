@@ -200,7 +200,7 @@ static void create_create_frame_bind_group(wgpu_context_t* wgpu_context)
   frame_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label  = "Frame bind group",
+      .label  = "Frame - Bind group",
       .layout = wgpuRenderPipelineGetBindGroupLayout(mesh_render_pipeline, 0),
       .entryCount = 1,
       .entries    = &bg_entry,
