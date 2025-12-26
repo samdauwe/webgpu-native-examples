@@ -799,7 +799,7 @@ static void example_on_update_ui_overlay(wgpu_example_context_t* context)
   if (imgui_overlay_header("Settings")) {
     imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
     imgui_overlay_checkBox(context->imgui_overlay, "Radial Blur", &blur);
-    imgui_overlay_checkBox(context->imgui_overlay, "Display render target",
+    imgui_overlay_checkBox(context->imgui_overlay, "Display Render Target",
                            &display_texture);
   }
 }
