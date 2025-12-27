@@ -1013,8 +1013,8 @@ static int parse_obj_file(const char* path, obj_model_t** models,
           int v_idx[3] = {0, 0, 0};
           int n_idx[3] = {0, 0, 0};
 
-          char* tok = strtok(buf, " \t\r\n");
-          int vi = 0;
+          char* tok  = strtok(buf, " \t\r\n");
+          int vi     = 0;
           int vcount = 0;
           while (tok && vcount < 3) {
             if (strstr(tok, "//") != NULL) {
@@ -1050,7 +1050,7 @@ static int parse_obj_file(const char* path, obj_model_t** models,
 
           /* Assign parsed indices to face structure (OBJ is 1-indexed) */
           for (int k = 0; k < 3; ++k) {
-            face->vertices[k].vertex_index = v_idx[k];
+            face->vertices[k].vertex_index        = v_idx[k];
             face->vertices[k].vertex_normal_index = n_idx[k];
           }
         }
@@ -1510,13 +1510,7 @@ static void free_mtl_materials(mtl_material_t* materials, uint32_t count)
 }
 
 /* -------------------------------------------------------------------------- *
- * WebGPU Example - GPU Raytracer
- *
- * A GPU raytracer implementation with BVH acceleration.
- * This is a C99 port of the TypeScript WebGPU raytracer project.
- *
- * Ref:
- * https://github.com/gnikoloff/webgpu-raytracer
+ * GPU Raytracer example
  * -------------------------------------------------------------------------- */
 
 /* Compute workgroup sizes */
@@ -2797,6 +2791,7 @@ static const char* ray_shader_chunk = CODE(
     }
   }
 
+
   @must_use
   fn rayIntersectBV(ray: ptr<function, Ray>, aabb: ptr<function, AABB>) -> bool {
     let t0 = ((*aabb).min - (*ray).origin) / (*ray).direction;
@@ -2895,7 +2890,7 @@ static const char* ray_shader_chunk = CODE(
 /* Utility shader chunk */
 static const char* utils_shader_chunk = CODE(
   const f32min = 0x1p-126f;
-  const f32max = 0x1.fffffep+127f;
+  const f32max = 0x1.fffffep+127;
 
   const pi = 3.141592653589793;
 
@@ -2997,13 +2992,158 @@ static char* concat_strings(const char** strings, int count)
   }
 
   char* result = (char*)malloc(total_len + 1);
-  result[0]    = '\0';
-
-  for (int i = 0; i < count; ++i) {
-    strcat(result, strings[i]);
+  if (result == NULL) {
+    return NULL;
   }
 
+  size_t offset = 0;
+  for (int i = 0; i < count; ++i) {
+    size_t len = strlen(strings[i]);
+    if (len > 0) {
+      memcpy(result + offset, strings[i], len);
+      offset += len;
+    }
+  }
+  result[offset] = '\0';
+
   return result;
+}
+
+/* Get the complete debug BVH shader */
+static const char* get_debug_bvh_shader(void)
+{
+  if (debug_bvh_shader_code != NULL) {
+    return debug_bvh_shader_code;
+  }
+
+  const char* debug_bvh_main = CODE(
+    @group(0) @binding(0) var<storage, read> AABBs: array<AABB>;
+    @group(0) @binding(1) var<uniform> viewProjectionMatrix: mat4x4f;
+
+    const EDGES_PER_CUBE = 12u;
+
+    @vertex
+    fn vertexMain(
+      @builtin(instance_index) instanceIndex: u32,
+      @builtin(vertex_index) vertexIndex: u32
+    ) -> @builtin(position) vec4f {
+      let lineInstanceIdx = instanceIndex % EDGES_PER_CUBE;
+      let aabbInstanceIdx = instanceIndex / EDGES_PER_CUBE;
+      let a = AABBs[aabbInstanceIdx];
+      var pos: vec3f;
+      let fVertexIndex = f32(vertexIndex);
+
+      //        a7 _______________ a6
+      //         / |             /|
+      //        /  |            / |
+      //    a4 /   |       a5  /  |
+      //      /____|__________/   |
+      //      |    |__________|___|
+      //      |   / a3        |   / a2
+      //      |  /            |  /
+      //      | /             | /
+      //      |/______________|/
+      //      a0              a1
+
+      let dx = a.max.x - a.min.x;
+      let dy = a.max.y - a.min.y;
+      let dz = a.max.z - a.min.z;
+
+      let a0 = a.min;
+      let a1 = vec3f(a.min.x + dx, a.min.y,      a.min.z     );
+      let a2 = vec3f(a.min.x + dx, a.min.y,      a.min.z + dz);
+      let a3 = vec3f(a.min.x,      a.min.y,      a.min.z + dz);
+      let a4 = vec3f(a.min.x,      a.min.y + dy, a.min.z     );
+      let a5 = vec3f(a.min.x + dx, a.min.y + dy, a.min.z     );
+      let a6 = a.max;
+      let a7 = vec3f(a.min.x,      a.min.y + dy, a.min.z + dz);
+
+      if (lineInstanceIdx == 0) {
+        pos = mix(a0, a1, fVertexIndex);
+      } else if (lineInstanceIdx == 1) {
+        pos = mix(a1, a2, fVertexIndex);
+      } else if (lineInstanceIdx == 2) {
+        pos = mix(a2, a3, fVertexIndex);
+      } else if (lineInstanceIdx == 3) {
+        pos = mix(a0, a3, fVertexIndex);
+      } else if (lineInstanceIdx == 4) {
+        pos = mix(a0, a4, fVertexIndex);
+      } else if (lineInstanceIdx == 5) {
+        pos = mix(a1, a5, fVertexIndex);
+      } else if (lineInstanceIdx == 6) {
+        pos = mix(a2, a6, fVertexIndex);
+      } else if (lineInstanceIdx == 7) {
+        pos = mix(a3, a7, fVertexIndex);
+      } else if (lineInstanceIdx == 8) {
+        pos = mix(a4, a5, fVertexIndex);
+      } else if (lineInstanceIdx == 9) {
+        pos = mix(a5, a6, fVertexIndex);
+      } else if (lineInstanceIdx == 10) {
+        pos = mix(a6, a7, fVertexIndex);
+      } else if (lineInstanceIdx == 11) {
+        pos = mix(a7, a4, fVertexIndex);
+      }
+      return viewProjectionMatrix * vec4(pos, 1);
+    }
+
+    @fragment
+    fn fragmentMain() -> @location(0) vec4f {
+      return vec4f(0.01);
+    }
+  );
+
+  const char* parts[] = {common_shader_chunk, vertex_shader_chunk,
+                         debug_bvh_main};
+
+  debug_bvh_shader_code = concat_strings(parts, 3);
+  return debug_bvh_shader_code;
+}
+
+/* Get the complete present shader */
+static const char* get_present_shader(void)
+{
+  if (present_shader_code != NULL) {
+    return present_shader_code;
+  }
+
+  const char* present_main = CODE(
+    @group(0) @binding(0) var<storage, read_write> raytraceImageBuffer: array<vec3f>;
+    @group(0) @binding(1) var<uniform> cameraUniforms: Camera;
+    @group(0) @binding(2) var<uniform> commonUniforms: CommonUniforms;
+
+    // xy pos + uv
+    const FULLSCREEN_QUAD = array<vec4<f32>, 6>(
+      vec4(-1, 1, 0, 0),
+      vec4(-1, -1, 0, 1),
+      vec4(1, -1, 1, 1),
+      vec4(-1, 1, 0, 0),
+      vec4(1, -1, 1, 1),
+      vec4(1, 1, 1, 0)
+    );
+
+    @vertex
+    fn vertexMain(@builtin(vertex_index) VertexIndex: u32) -> VertexOutput {
+      var output: VertexOutput;
+      output.Position = vec4<f32>(FULLSCREEN_QUAD[VertexIndex].xy, 0.0, 1.0);
+      output.uv = FULLSCREEN_QUAD[VertexIndex].zw;
+      return output;
+    }
+
+    @fragment
+    fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4f {
+      let x = u32(uv.x * f32(cameraUniforms.viewportSize.x));
+      let y = u32(uv.y * f32(cameraUniforms.viewportSize.y));
+      let idx = x + y * cameraUniforms.viewportSize.x;
+      let color = lottes(raytraceImageBuffer[idx] / f32(commonUniforms.frameCounter + 1));
+      return vec4f(color, 1.0);
+    }
+  );
+
+  const char* parts[] = {camera_shader_chunk, color_shader_chunk,
+                         vertex_shader_chunk, common_shader_chunk, present_main};
+
+  present_shader_code = concat_strings(parts, 5);
+  return present_shader_code;
 }
 
 /* Get the complete raytracer shader */
@@ -3147,143 +3287,6 @@ static const char* get_raytracer_shader(void)
 
   raytracer_shader_code = concat_strings(parts, 9);
   return raytracer_shader_code;
-}
-
-/* Get the complete present shader */
-static const char* get_present_shader(void)
-{
-  if (present_shader_code != NULL) {
-    return present_shader_code;
-  }
-
-  const char* present_main = CODE(
-    @group(0) @binding(0) var<storage, read_write> raytraceImageBuffer: array<vec3f>;
-    @group(0) @binding(1) var<uniform> cameraUniforms: Camera;
-    @group(0) @binding(2) var<uniform> commonUniforms: CommonUniforms;
-
-    // xy pos + uv
-    const FULLSCREEN_QUAD = array<vec4<f32>, 6>(
-      vec4(-1, 1, 0, 0),
-      vec4(-1, -1, 0, 1),
-      vec4(1, -1, 1, 1),
-      vec4(-1, 1, 0, 0),
-      vec4(1, -1, 1, 1),
-      vec4(1, 1, 1, 0)
-    );
-
-    @vertex
-    fn vertexMain(@builtin(vertex_index) VertexIndex: u32) -> VertexOutput {
-      var output: VertexOutput;
-      output.Position = vec4<f32>(FULLSCREEN_QUAD[VertexIndex].xy, 0.0, 1.0);
-      output.uv = FULLSCREEN_QUAD[VertexIndex].zw;
-      return output;
-    }
-
-    @fragment
-    fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4f {
-      let x = u32(uv.x * f32(cameraUniforms.viewportSize.x));
-      let y = u32(uv.y * f32(cameraUniforms.viewportSize.y));
-      let idx = x + y * cameraUniforms.viewportSize.x;
-      let color = lottes(raytraceImageBuffer[idx] / f32(commonUniforms.frameCounter + 1));
-      return vec4f(color, 1.0);
-    }
-  );
-
-  const char* parts[] = {camera_shader_chunk, color_shader_chunk,
-                         vertex_shader_chunk, common_shader_chunk, present_main};
-
-  present_shader_code = concat_strings(parts, 5);
-  return present_shader_code;
-}
-
-/* Get the complete debug BVH shader */
-static const char* get_debug_bvh_shader(void)
-{
-  if (debug_bvh_shader_code != NULL) {
-    return debug_bvh_shader_code;
-  }
-
-  const char* debug_bvh_main = CODE(
-    @group(0) @binding(0) var<storage, read> AABBs: array<AABB>;
-    @group(0) @binding(1) var<uniform> viewProjectionMatrix: mat4x4f;
-
-    const EDGES_PER_CUBE = 12u;
-
-    @vertex
-    fn vertexMain(
-      @builtin(instance_index) instanceIndex: u32,
-      @builtin(vertex_index) vertexIndex: u32
-    ) -> @builtin(position) vec4f {
-      let lineInstanceIdx = instanceIndex % EDGES_PER_CUBE;
-      let aabbInstanceIdx = instanceIndex / EDGES_PER_CUBE;
-      let a = AABBs[aabbInstanceIdx];
-      var pos: vec3f;
-      let fVertexIndex = f32(vertexIndex);
-
-      //        a7 _______________ a6
-      //         / |             /|
-      //        /  |            / |
-      //    a4 /   |       a5  /  |
-      //      /____|__________/   |
-      //      |    |__________|___|
-      //      |   / a3        |   / a2
-      //      |  /            |  /
-      //      | /             | /
-      //      |/______________|/
-      //      a0              a1
-
-      let dx = a.max.x - a.min.x;
-      let dy = a.max.y - a.min.y;
-      let dz = a.max.z - a.min.z;
-
-      let a0 = a.min;
-      let a1 = vec3f(a.min.x + dx, a.min.y,      a.min.z     );
-      let a2 = vec3f(a.min.x + dx, a.min.y,      a.min.z + dz);
-      let a3 = vec3f(a.min.x,      a.min.y,      a.min.z + dz);
-      let a4 = vec3f(a.min.x,      a.min.y + dy, a.min.z     );
-      let a5 = vec3f(a.min.x + dx, a.min.y + dy, a.min.z     );
-      let a6 = a.max;
-      let a7 = vec3f(a.min.x,      a.min.y + dy, a.min.z + dz);
-
-      if (lineInstanceIdx == 0) {
-        pos = mix(a0, a1, fVertexIndex);
-      } else if (lineInstanceIdx == 1) {
-        pos = mix(a1, a2, fVertexIndex);
-      } else if (lineInstanceIdx == 2) {
-        pos = mix(a2, a3, fVertexIndex);
-      } else if (lineInstanceIdx == 3) {
-        pos = mix(a0, a3, fVertexIndex);
-      } else if (lineInstanceIdx == 4) {
-        pos = mix(a0, a4, fVertexIndex);
-      } else if (lineInstanceIdx == 5) {
-        pos = mix(a1, a5, fVertexIndex);
-      } else if (lineInstanceIdx == 6) {
-        pos = mix(a2, a6, fVertexIndex);
-      } else if (lineInstanceIdx == 7) {
-        pos = mix(a3, a7, fVertexIndex);
-      } else if (lineInstanceIdx == 8) {
-        pos = mix(a4, a5, fVertexIndex);
-      } else if (lineInstanceIdx == 9) {
-        pos = mix(a5, a6, fVertexIndex);
-      } else if (lineInstanceIdx == 10) {
-        pos = mix(a6, a7, fVertexIndex);
-      } else if (lineInstanceIdx == 11) {
-        pos = mix(a7, a4, fVertexIndex);
-      }
-      return viewProjectionMatrix * vec4(pos, 1);
-    }
-
-    @fragment
-    fn fragmentMain() -> @location(0) vec4f {
-      return vec4f(0.01);
-    }
-  );
-
-  const char* parts[] = {common_shader_chunk, vertex_shader_chunk,
-                         debug_bvh_main};
-
-  debug_bvh_shader_code = concat_strings(parts, 3);
-  return debug_bvh_shader_code;
 }
 
 // clang-format on
