@@ -1112,9 +1112,9 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
                                  uint32_t mtl_count, scene_t* scene)
 {
   /* Allocate scene data */
-  scene->models         = (model_t*)calloc(obj_count, sizeof(model_t));
+  scene->models         = (model_t*)malloc(obj_count * sizeof(model_t));
   scene->model_count    = obj_count;
-  scene->materials      = (material_t*)calloc(mtl_count, sizeof(material_t));
+  scene->materials      = (material_t*)malloc(mtl_count * sizeof(material_t));
   scene->material_count = mtl_count;
 
   /* Convert materials */
@@ -1312,27 +1312,34 @@ static void create_gpu_buffers(scene_t* scene)
       for (uint32_t f = 0; f < model->face_count; ++f) {
         face_t* face = &model->faces[f];
 
-        face_data[idx + 0]      = face->p0[0];
-        face_data[idx + 1]      = face->p0[1];
-        face_data[idx + 2]      = face->p0[2];
-        face_data[idx + 4]      = face->p1[0];
-        face_data[idx + 5]      = face->p1[1];
-        face_data[idx + 6]      = face->p1[2];
-        face_data[idx + 8]      = face->p2[0];
-        face_data[idx + 9]      = face->p2[1];
-        face_data[idx + 10]     = face->p2[2];
-        face_data[idx + 12]     = face->n0[0];
-        face_data[idx + 13]     = face->n0[1];
-        face_data[idx + 14]     = face->n0[2];
-        face_data[idx + 16]     = face->n1[0];
-        face_data[idx + 17]     = face->n1[1];
-        face_data[idx + 18]     = face->n1[2];
-        face_data[idx + 20]     = face->n2[0];
-        face_data[idx + 21]     = face->n2[1];
-        face_data[idx + 22]     = face->n2[2];
-        face_data[idx + 24]     = face->fn[0];
-        face_data[idx + 25]     = face->fn[1];
-        face_data[idx + 26]     = face->fn[2];
+        face_data[idx + 0] = face->p0[0];
+        face_data[idx + 1] = face->p0[1];
+        face_data[idx + 2] = face->p0[2];
+        /* idx + 3 padding */
+        face_data[idx + 4] = face->p1[0];
+        face_data[idx + 5] = face->p1[1];
+        face_data[idx + 6] = face->p1[2];
+        /* idx + 7 padding */
+        face_data[idx + 8]  = face->p2[0];
+        face_data[idx + 9]  = face->p2[1];
+        face_data[idx + 10] = face->p2[2];
+        /* idx + 11 padding */
+        face_data[idx + 12] = face->n0[0];
+        face_data[idx + 13] = face->n0[1];
+        face_data[idx + 14] = face->n0[2];
+        /* idx + 15 padding */
+        face_data[idx + 16] = face->n1[0];
+        face_data[idx + 17] = face->n1[1];
+        face_data[idx + 18] = face->n1[2];
+        /* idx + 19 padding */
+        face_data[idx + 20] = face->n2[0];
+        face_data[idx + 21] = face->n2[1];
+        face_data[idx + 22] = face->n2[2];
+        /* idx + 23 padding */
+        face_data[idx + 24] = face->fn[0];
+        face_data[idx + 25] = face->fn[1];
+        face_data[idx + 26] = face->fn[2];
+
         face_data_u32[idx + 27] = (uint32_t)face->mi;
 
         idx += num_floats_per_face;
@@ -1379,7 +1386,7 @@ static void create_gpu_buffers(scene_t* scene)
         aabb_data_i32[idx + 8]  = aabb->rt;
         aabb_data_i32[idx + 9]  = aabb->fi[0];
         aabb_data_i32[idx + 10] = aabb->fi[1];
-        aabb_data_i32[idx + 11] = 0;
+        aabb_data_i32[idx + 11] = 0; /* padding */
 
         idx += num_floats_per_bv;
       }
@@ -1404,20 +1411,22 @@ static void create_gpu_buffers(scene_t* scene)
 
     void* mapped
       = wgpuBufferGetMappedRange(scene->materials_buffer, 0, buffer_size);
-    float* material_data        = (float*)mapped;
-    uint32_t* material_data_u32 = (uint32_t*)mapped;
+    float* materials_properties = (float*)mapped;
+    uint32_t* materials_types   = (uint32_t*)mapped;
 
     for (uint32_t i = 0; i < scene->material_count; ++i) {
       material_t* mat = &scene->materials[i];
       uint64_t idx    = (uint64_t)i * num_floats_per_material;
 
-      material_data_u32[idx + 0] = (uint32_t)mat->mtl_type;
-      material_data[idx + 1]     = mat->reflection_ratio;
-      material_data[idx + 2]     = mat->reflection_gloss;
-      material_data[idx + 3]     = mat->refraction_index;
-      material_data[idx + 4]     = mat->albedo[0];
-      material_data[idx + 5]     = mat->albedo[1];
-      material_data[idx + 6]     = mat->albedo[2];
+      materials_types[idx + 0] = (uint32_t)mat->mtl_type;
+
+      materials_properties[idx + 1] = mat->reflection_ratio;
+      materials_properties[idx + 2] = mat->reflection_gloss;
+      materials_properties[idx + 3] = mat->refraction_index;
+
+      materials_properties[idx + 4] = mat->albedo[0];
+      materials_properties[idx + 5] = mat->albedo[1];
+      materials_properties[idx + 6] = mat->albedo[2];
     }
 
     wgpuBufferUnmap(scene->materials_buffer);
