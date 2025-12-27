@@ -121,7 +121,8 @@ static int compare_faces_z(const void* a, const void* b)
 
 /* Split BV across the specified axis */
 static void bv_split_across(bv_t* bv, axis_t axis, face_t* faces,
-                            uint32_t face_count, bv_array_t* aabbs);
+                            uint32_t face_count, bv_array_t* aabbs,
+                            face_t* face_base);
 
 /* Initialize a bounding volume */
 static void bv_init(bv_t* bv, vec4 min, vec4 max)
@@ -163,12 +164,15 @@ static void bv_array_free(bv_array_t* array)
 
 /* Subdivide BV recursively */
 static void bv_subdivide(bv_t* bv, face_t* faces, uint32_t face_count,
-                         bv_array_t* aabbs)
+                         bv_array_t* aabbs, face_t* face_base)
 {
   if (face_count <= 2) {
-    /* Base case: assign faces to this BV */
+    /* Base case: assign faces to this BV. Store indices relative to face_base
+     */
     for (uint32_t i = 0; i < face_count && i < 2; ++i) {
-      bv->fi[i] = faces[i].fi;
+      /* compute absolute index within the model->faces array */
+      ptrdiff_t abs_idx = (faces + i) - face_base;
+      bv->fi[i]         = (int32_t)abs_idx;
     }
   }
   else {
@@ -190,13 +194,14 @@ static void bv_subdivide(bv_t* bv, face_t* faces, uint32_t face_count,
       split_axis = AXIS_Z;
     }
 
-    bv_split_across(bv, split_axis, faces, face_count, aabbs);
+    bv_split_across(bv, split_axis, faces, face_count, aabbs, face_base);
   }
 }
 
 /* Split BV across the specified axis */
 static void bv_split_across(bv_t* bv, axis_t axis, face_t* faces,
-                            uint32_t face_count, bv_array_t* aabbs)
+                            uint32_t face_count, bv_array_t* aabbs,
+                            face_t* face_base)
 {
   /* Compute parent index within the dynamic array to avoid using the
      `bv` pointer after `bv_array_push()` may cause `realloc()` and move
@@ -320,18 +325,22 @@ static void bv_split_across(bv_t* bv, axis_t axis, face_t* faces,
     int32_t lit = aabbs->data[parent_index].lt;
     int32_t rit = aabbs->data[parent_index].rt;
     if (lit != -1) {
-      bv_subdivide(&aabbs->data[lit], lt_faces, lt_face_count, aabbs);
+      bv_subdivide(&aabbs->data[lit], lt_faces, lt_face_count, aabbs,
+                   face_base);
     }
     if (rit != -1) {
-      bv_subdivide(&aabbs->data[rit], rt_faces, rt_face_count, aabbs);
+      bv_subdivide(&aabbs->data[rit], rt_faces, rt_face_count, aabbs,
+                   face_base);
     }
   }
   else {
     if (bv->lt != -1) {
-      bv_subdivide(&aabbs->data[bv->lt], lt_faces, lt_face_count, aabbs);
+      bv_subdivide(&aabbs->data[bv->lt], lt_faces, lt_face_count, aabbs,
+                   face_base);
     }
     if (bv->rt != -1) {
-      bv_subdivide(&aabbs->data[bv->rt], rt_faces, rt_face_count, aabbs);
+      bv_subdivide(&aabbs->data[bv->rt], rt_faces, rt_face_count, aabbs,
+                   face_base);
     }
   }
 }
@@ -817,7 +826,7 @@ void material_set_refraction_index(material_t* material, float index)
 #define SCENE_MAX_NORMALS 12000
 #define SCENE_MAX_FACES 23000
 #define SCENE_MAX_MATERIALS 10
-#define SCENE_MAX_MODELS 10
+#define SCENE_MAX_MODELS 16
 
 /* Model structure */
 typedef struct {
@@ -1002,6 +1011,7 @@ static int parse_obj_file(const char* path, obj_model_t** models,
       if (current_model->face_count < SCENE_MAX_FACES) {
         obj_face_t* face = &current_model->faces[current_model->face_count];
         strncpy(face->material, current_material, sizeof(face->material) - 1);
+        face->material[sizeof(face->material) - 1] = '\0';
 
         /* Robust face parser: support "v", "v//vn" and "v/vt/vn" formats */
         {
@@ -1162,6 +1172,7 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
     model_t* model   = &scene->models[m];
 
     strncpy(model->name, obj->name, sizeof(model->name) - 1);
+    model->name[sizeof(model->name) - 1] = '\0';
     model->faces      = (face_t*)malloc(obj->face_count * sizeof(face_t));
     model->face_count = obj->face_count;
 
@@ -1259,8 +1270,10 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
     bv_init(&root_bv, min, max);
     bv_array_push(&aabbs, &root_bv);
 
-    /* Subdivide */
-    bv_subdivide(&aabbs.data[0], model->faces, model->face_count, &aabbs);
+    /* Subdivide (pass face_base so BV stores indices relative to model->faces)
+     */
+    bv_subdivide(&aabbs.data[0], model->faces, model->face_count, &aabbs,
+                 model->faces);
 
     /* Copy AABBs to model */
     model->aabb_count = aabbs.count;
