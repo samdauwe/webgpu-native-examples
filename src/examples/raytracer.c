@@ -1511,6 +1511,9 @@ static void free_mtl_materials(mtl_material_t* materials, uint32_t count)
 
 /* -------------------------------------------------------------------------- *
  * GPU Raytracer example
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-raytracer/blob/main/src/index.ts
  * -------------------------------------------------------------------------- */
 
 /* Compute workgroup sizes */
@@ -1909,11 +1912,8 @@ static void create_render_pipelines(wgpu_context_t* wgpu_context)
     WGPUShaderModule blit_shader_module
       = wgpu_create_shader_module(wgpu_context->device, get_present_shader());
 
-    /* Create render pipeline */
-    WGPUColorTargetState color_target = {
-      .format    = wgpu_context->render_format,
-      .writeMask = WGPUColorWriteMask_All,
-    };
+    /* Color blend state */
+    WGPUBlendState blend_state = wgpu_create_blend_state(true);
 
     state.blit_to_screen_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
@@ -1928,17 +1928,23 @@ static void create_render_pipelines(wgpu_context_t* wgpu_context)
           .module      = blit_shader_module,
           .entryPoint  = STRVIEW("fragmentMain"),
           .targetCount = 1,
-          .targets     = &color_target,
+          .targets = &(WGPUColorTargetState) {
+            .format    = wgpu_context->render_format,
+            .blend     = &blend_state,
+            .writeMask = WGPUColorWriteMask_All,
+          },
         },
         .primitive = {
           .topology  = WGPUPrimitiveTopology_TriangleList,
           .cullMode  = WGPUCullMode_Back,
+          .frontFace = WGPUFrontFace_CCW
         },
         .multisample = {
           .count = 1,
           .mask  = 0xffffffff
         },
       });
+    ASSERT(state.blit_to_screen_pipeline != NULL);
 
     wgpuShaderModuleRelease(blit_shader_module);
   }
@@ -2341,11 +2347,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
                                        state.compute_bind_group_1, 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(
       compute_pass,
-      (wgpu_context->width + COMPUTE_WORKGROUP_SIZE_X - 1)
-        / COMPUTE_WORKGROUP_SIZE_X,
-      (wgpu_context->height + COMPUTE_WORKGROUP_SIZE_Y - 1)
-        / COMPUTE_WORKGROUP_SIZE_Y,
-      1);
+      (uint32_t)ceilf(wgpu_context->width / COMPUTE_WORKGROUP_SIZE_X),
+      (uint32_t)ceilf(wgpu_context->height / COMPUTE_WORKGROUP_SIZE_Y), 1);
     wgpuComputePassEncoderEnd(compute_pass);
     wgpuComputePassEncoderRelease(compute_pass);
   }
