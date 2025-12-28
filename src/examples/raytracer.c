@@ -767,8 +767,8 @@ typedef struct {
 } material_t;
 
 /* Initialize a material with default values */
-void material_init(material_t* material, float r, float g, float b, float a,
-                   material_type_t type)
+static void material_init(material_t* material, float r, float g, float b,
+                          float a, material_type_t type)
 {
   material->albedo[0]        = r;
   material->albedo[1]        = g;
@@ -781,8 +781,8 @@ void material_init(material_t* material, float r, float g, float b, float a,
 }
 
 /* Set material albedo color */
-void material_set_albedo(material_t* material, float r, float g, float b,
-                         float a)
+static void material_set_albedo(material_t* material, float r, float g, float b,
+                                float a)
 {
   material->albedo[0] = r;
   material->albedo[1] = g;
@@ -791,25 +791,25 @@ void material_set_albedo(material_t* material, float r, float g, float b,
 }
 
 /* Set material type */
-void material_set_type(material_t* material, material_type_t type)
+static void material_set_type(material_t* material, material_type_t type)
 {
   material->mtl_type = type;
 }
 
 /* Set reflection ratio */
-void material_set_reflection_ratio(material_t* material, float ratio)
+static void material_set_reflection_ratio(material_t* material, float ratio)
 {
   material->reflection_ratio = ratio;
 }
 
 /* Set reflection glossiness */
-void material_set_reflection_gloss(material_t* material, float gloss)
+static void material_set_reflection_gloss(material_t* material, float gloss)
 {
   material->reflection_gloss = gloss;
 }
 
 /* Set refraction index */
-void material_set_refraction_index(material_t* material, float index)
+static void material_set_refraction_index(material_t* material, float index)
 {
   material->refraction_index = index;
 }
@@ -904,15 +904,15 @@ static void free_obj_models(obj_model_t* models, uint32_t count);
 static void free_mtl_materials(mtl_material_t* materials, uint32_t count);
 
 /* Initialize scene */
-void scene_init(scene_t* scene, WGPUDevice device)
+static void scene_init(scene_t* scene, WGPUDevice device)
 {
   memset(scene, 0, sizeof(scene_t));
   scene->device = device;
 }
 
 /* Load models from OBJ and MTL files */
-int scene_load_models(scene_t* scene, const char* obj_path,
-                      const char* mtl_path)
+static int scene_load_models(scene_t* scene, const char* obj_path,
+                             const char* mtl_path)
 {
   obj_model_t* obj_models       = NULL;
   uint32_t obj_model_count      = 0;
@@ -1242,6 +1242,7 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
     vec4 max = {-FLT_MAX, -FLT_MAX, -FLT_MAX, 1.0f};
 
     for (uint32_t f = 0; f < model->face_count; ++f) {
+      /* Calculate min/max for root AABB bounding volume */
       face_t* face = &model->faces[f];
       min[0]
         = fminf(min[0], fminf(face->p0[0], fminf(face->p1[0], face->p2[0])));
@@ -1258,12 +1259,15 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
     }
 
     /* Ensure minimum delta */
-    if (max[0] - min[0] < BV_MIN_DELTA)
+    if (max[0] - min[0] < BV_MIN_DELTA) {
       max[0] += BV_MIN_DELTA;
-    if (max[1] - min[1] < BV_MIN_DELTA)
+    }
+    if (max[1] - min[1] < BV_MIN_DELTA) {
       max[1] += BV_MIN_DELTA;
-    if (max[2] - min[2] < BV_MIN_DELTA)
+    }
+    if (max[2] - min[2] < BV_MIN_DELTA) {
       max[2] += BV_MIN_DELTA;
+    }
 
     /* Create root BV */
     bv_t root_bv;
@@ -1447,7 +1451,7 @@ static void create_gpu_buffers(scene_t* scene)
 }
 
 /* Set Suzanne material to glass or reflective */
-void scene_set_suzanne_glass(scene_t* scene, bool is_glass)
+static void scene_set_suzanne_glass(scene_t* scene, bool is_glass)
 {
   const uint32_t num_floats_per_material = 8;
   material_t* mtl = &scene->materials[scene->suzanne_material_idx];
@@ -1472,7 +1476,7 @@ void scene_set_suzanne_glass(scene_t* scene, bool is_glass)
 }
 
 /* Cleanup scene */
-void scene_destroy(scene_t* scene)
+static void scene_destroy(scene_t* scene)
 {
   /* Release GPU buffers */
   if (scene->faces_buffer) {
