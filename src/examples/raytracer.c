@@ -2324,7 +2324,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   }
   else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_SCROLL) {
     raytracer_camera_on_mouse_wheel(&state.camera,
-                                    (float)input_event->scroll_y);
+                                    (float)input_event->scroll_y * -1.0f);
     reset_render(wgpu_context);
   }
   else if (input_event->type == INPUT_EVENT_TYPE_CHAR
