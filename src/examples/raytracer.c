@@ -2327,6 +2327,24 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
                                     (float)input_event->scroll_y);
     reset_render(wgpu_context);
   }
+  else if (input_event->type == INPUT_EVENT_TYPE_CHAR
+           && input_event->char_code == (uint32_t)'b') {
+    /* Debug BVH */
+    state.debug_bvh = !state.debug_bvh;
+    reset_render(wgpu_context);
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_CHAR
+           && input_event->char_code == (uint32_t)'n') {
+    /* Debug Normals */
+    state.debug_normals = !state.debug_normals;
+    reset_render(wgpu_context);
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_CHAR
+           && input_event->char_code == (uint32_t)'s') {
+    /* Crystal Suzanne */
+    state.crystal_suzanne = !state.crystal_suzanne;
+    scene_set_suzanne_glass(&state.scene, state.crystal_suzanne);
+  }
 }
 
 /* Frame rendering */
