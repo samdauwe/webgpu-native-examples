@@ -2240,10 +2240,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Initialize scene */
   scene_init(&state.scene, wgpu_context->device);
-  if (scene_load_models(
-        &state.scene,
-        "/home/sdauwe/GitHub/webgpu-raytracer/public/raytraced-scene.obj",
-        "/home/sdauwe/GitHub/webgpu-raytracer/public/raytraced-scene.mtl")
+  if (scene_load_models(&state.scene,
+                        "assets/models/Raytraced/raytraced-scene.obj",
+                        "assets/models/Raytraced/raytraced-scene.mtl")
       != 0) {
     fprintf(stderr, "Failed to load scene models\n");
     return EXIT_FAILURE;
