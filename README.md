@@ -492,6 +492,11 @@ This example demonstrates how to achieve normal mapping in WebGPU. A normal map 
 
 A simple WebGPU implementation of the "Pristine Grid" technique described in [this wonderful little blog post](https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8). The example code has been ported from [this JavaScript implementation](https://github.com/toji/pristine-grid-webgpu) to native code.
 
+#### [Voxel Space](src/examples/voxel_space.c)
+
+This example shows a voxel-based terrain rendering technique using WebGPU compute shaders. The terrain is rendered using a height map and color map, similar to the classic Comanche game. The example code has been ported from [this JavaScript implementation](https://github.com/s-macke/VoxelSpace) to native code.
+
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
