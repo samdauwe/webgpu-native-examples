@@ -496,6 +496,9 @@ A simple WebGPU implementation of the "Pristine Grid" technique described in [th
 
 This example shows a voxel-based terrain rendering technique using WebGPU compute shaders. The terrain is rendered using a height map and color map, similar to the classic Comanche game. The example code has been ported from [this JavaScript implementation](https://github.com/s-macke/VoxelSpace) to native code.
 
+#### [Shadow](src/examples/shadow.c)
+
+This example demonstrates shadow mapping using a depth texture array. Multiple lights cast shadows on a scene with a plane and rotating cubes. The example code has been ported from [this Rust implementation](https://github.com/gfx-rs/wgpu/blob/trunk/examples/features/src/shadow) to native C99 code.
 
 ## Dependencies
 
