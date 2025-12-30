@@ -510,7 +510,7 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
 {
   ASSERT(stanford_dragon_mesh)
 
-  p_ply ply = ply_open("meshes/dragon_vrip_res4.ply", NULL, 0, NULL);
+  p_ply ply = ply_open("assets/meshes/dragon_vrip_res4.ply", NULL, 0, NULL);
   if (!ply) {
     return EXIT_FAILURE;
   }
