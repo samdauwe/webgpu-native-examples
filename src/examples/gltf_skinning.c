@@ -54,13 +54,13 @@ static struct bind_group_t {
 
 static WGPUPipelineLayout pipeline_layout;
 
-// Render pass descriptor for frame buffer writes
+/* Render pass descriptor for frame buffer writes */
 static struct {
   WGPURenderPassColorAttachment color_attachments[1];
   WGPURenderPassDescriptor descriptor;
 } render_pass;
 
-// Other variables
+/* Other variables */
 static const char* example_title = "glTF Vertex Skinning";
 static bool prepared             = false;
 
