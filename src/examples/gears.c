@@ -1,12 +1,14 @@
-#include "example_base.h"
+#include "webgpu/wgpu_common.h"
 
-#include <math.h>
-#include <string.h>
+#include "core/camera.h"
 
 #include <cglm/cglm.h>
 
-#include "../core/macro.h"
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#include <math.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Gears
@@ -401,10 +403,8 @@ static void webgpu_gear_generate(webgpu_gear_t* gear, gear_info_t* gearinfo)
   webgpu_gear_prepare_uniform_buffer(gear);
 }
 
-static void webgpu_gear_draw(webgpu_gear_t* gear)
+static void webgpu_gear_draw(webgpu_gear_t* gear, WGPURenderPassEncoder rpass)
 {
-  WGPURenderPassEncoder rpass = gear->wgpu_context->rpass_enc;
-
   wgpuRenderPassEncoderSetBindGroup(rpass, 0, gear->bind_group, 0, 0);
   wgpuRenderPassEncoderSetVertexBuffer(rpass, 0, gear->vbo.buffer.buffer, 0,
                                        WGPU_WHOLE_SIZE);
@@ -432,8 +432,8 @@ static void webgpu_gear_update_uniform_buffer(webgpu_gear_t* gear,
   ubo->light_pos[0] = sin(glm_rad(timer)) * 8.0f;
   ubo->light_pos[2] = cos(glm_rad(timer)) * 8.0f;
 
-  wgpu_queue_write_buffer(gear->wgpu_context, gear->ubo.buffer.buffer, 0, ubo,
-                          gear->ubo.buffer.size);
+  wgpuQueueWriteBuffer(gear->wgpu_context->queue, gear->ubo.buffer.buffer, 0,
+                       ubo, gear->ubo.buffer.size);
 }
 
 static void webgpu_gear_setup_bind_group(webgpu_gear_t* gear,
@@ -519,12 +519,56 @@ static webgpu_gear_definition_t gear_defs[3] = {
     .rotation_offset = -30.0f,
   },
 };
-static webgpu_gear_t* wgpu_gears[3];
-static const uint32_t wgpu_gears_count = (uint32_t)ARRAY_SIZE(wgpu_gears);
 
-static void prepare_vertices(wgpu_context_t* wgpu_context)
+/* -------------------------------------------------------------------------- *
+ * WebGPU Gears example
+ * -------------------------------------------------------------------------- */
+
+/* State struct */
+static struct {
+  webgpu_gear_t* gears[3];
+  camera_t camera;
+  WGPUBool view_updated;
+  float timer;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline pipeline;
+  WGPUBindGroupLayout bind_group_layout;
+  /* Render pass descriptor for frame buffer writes */
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } render_pass;
+  WGPUBool initialized;
+} state = {
+  .render_pass = {
+    .color_attachment = {
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = {0.0, 0.0, 0.0, 1.0},
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    },
+    .depth_stencil_attachment = {
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .depthClearValue   = 1.0f,
+      .stencilLoadOp     = WGPULoadOp_Clear,
+      .stencilStoreOp    = WGPUStoreOp_Store,
+      .stencilClearValue = 0,
+    },
+    .descriptor = {
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = &state.render_pass.color_attachment,
+      .depthStencilAttachment = &state.render_pass.depth_stencil_attachment,
+    },
+  }
+};
+
+static const uint32_t gears_count = 3;
+
+static void init_vertices(wgpu_context_t* wgpu_context)
 {
-  for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
+  for (uint32_t i = 0; i < gears_count; ++i) {
     const float* gear_color    = gear_defs[i].color;
     const float* gear_position = gear_defs[i].position;
     gear_info_t gear_info      = {
@@ -538,51 +582,31 @@ static void prepare_vertices(wgpu_context_t* wgpu_context)
            .rot_speed    = gear_defs[i].rotation_speed,
            .rot_offset   = gear_defs[i].rotation_offset,
     };
-    wgpu_gears[i] = webgpu_gear_create(wgpu_context);
-    webgpu_gear_generate(wgpu_gears[i], &gear_info);
+    state.gears[i] = webgpu_gear_create(wgpu_context);
+    webgpu_gear_generate(state.gears[i], &gear_info);
   }
 }
 
-/* -------------------------------------------------------------------------- *
- * WebGPU Gears example
- * -------------------------------------------------------------------------- */
-
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout;
-
-// Pipeline
-static WGPURenderPipeline pipeline;
-
-// Render pass descriptor for frame buffer writes
-static WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-static WGPURenderPassDescriptor render_pass_desc;
-
-// The bind group layout
-static WGPUBindGroupLayout bind_group_layout;
-
-// Other variables
-static const char* example_title = "Gears";
-static bool prepared             = false;
-
-static void setup_camera(wgpu_example_context_t* context)
+/* Initialize camera */
+static void init_camera(wgpu_context_t* wgpu_context)
 {
-  context->camera         = camera_create();
-  context->camera->type   = CameraType_LookAt;
-  context->camera->flip_y = true;
-  camera_set_position(context->camera, (vec3){0.0f, 2.5f, -16.0f});
-  camera_set_rotation(context->camera, (vec3){23.75f, 41.25f, 21.0f});
-  camera_set_perspective(context->camera, 60.0f,
-                         context->window_size.aspect_ratio, 0.001f, 256.0f);
-  context->timer_speed *= 0.25f;
+  camera_init(&state.camera);
+  state.camera.type   = CameraType_LookAt;
+  state.camera.flip_y = true;
+  camera_set_position(&state.camera, (vec3){0.0f, 2.5f, -16.0f});
+  camera_set_rotation(&state.camera, (vec3){23.75f, 41.25f, 21.0f});
+  camera_set_perspective(
+    &state.camera, 60.0f,
+    (float)wgpu_context->width / (float)wgpu_context->height, 0.001f, 256.0f);
 }
 
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group layout
+  /* Bind group layout */
   WGPUBindGroupLayoutDescriptor bgl_desc = {
     .entryCount = 1,
     .entries = &(WGPUBindGroupLayoutEntry) {
-      // Binding 0: Vertex shader uniform buffer
+      /* Binding 0: Vertex shader uniform buffer */
       .binding   = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout) {
@@ -593,275 +617,231 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .sampler = {0},
     },
   };
-  bind_group_layout
+  state.bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(bind_group_layout != NULL);
+  ASSERT(state.bind_group_layout != NULL);
 
-  // Create the pipeline layout that is used to generate the rendering pipelines
-  // that are based on this descriptor set layout
+  /* Create the pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
     .bindGroupLayoutCount = 1,
-    .bindGroupLayouts     = &bind_group_layout,
+    .bindGroupLayouts     = &state.bind_group_layout,
   };
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
-                                                   &pipeline_layout_desc);
-  ASSERT(pipeline_layout != NULL);
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
+                                                         &pipeline_layout_desc);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void setup_bind_groups(void)
+static void init_bind_groups(void)
 {
-  for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
-    webgpu_gear_setup_bind_group(wgpu_gears[i], bind_group_layout);
+  for (uint32_t i = 0; i < gears_count; ++i) {
+    webgpu_gear_setup_bind_group(state.gears[i], state.bind_group_layout);
   }
 }
 
-// Create the graphics pipeline
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+/* Create the graphics pipeline */
+static void init_pipelines(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CW,
-    .cullMode  = WGPUCullMode_Back,
-  };
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, gears_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, gears_fragment_shader_wgsl);
 
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
 
-  // Depth stencil state
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     gear, sizeof(vertex_t),
-    // Attribute location 0: Position
+    /* Attribute location 0: Position */
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, offsetof(vertex_t, pos)),
-    // Attribute location 1: Normal
+    /* Attribute location 1: Normal */
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
                        offsetof(vertex_t, normal)),
-    // Attribute location 2: Color
+    /* Attribute location 2: Color */
     WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x3,
                        offsetof(vertex_t, color)))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
-                  .label            = "Gears vertex shader",
-                  .wgsl_code.source = gears_vertex_shader_wgsl,
-                  .entry            = "main",
-                },
-                .buffer_count = 1,
-                .buffers      = &gear_vertex_buffer_layout,
-              });
-
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader WGSL
-                  .label            = "Gears fragment shader",
-                  .wgsl_code.source = gears_fragment_shader_wgsl,
-                  .entry            = "main",
-                },
-                .target_count = 1,
-                .targets      = &color_target_state,
-              });
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "solid_render_pipeline",
-                            .layout       = pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  // Color attachment
-  rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Gears - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &gear_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
       },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .cullMode  = WGPUCullMode_Back,
+      .frontFace = WGPUFrontFace_CW
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+       .count = 1,
+       .mask  = 0xffffffff
+    },
   };
 
-  // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
+  state.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
-  // Render pass descriptor
-  render_pass_desc = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
+static void init_depth_stencil(wgpu_context_t* wgpu_context)
 {
-  for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
+  UNUSED_VAR(wgpu_context);
+  /* Depth stencil is created automatically by wgpu_context */
+}
+
+static void update_uniform_buffers(void)
+{
+  for (uint32_t i = 0; i < gears_count; ++i) {
     webgpu_gear_update_uniform_buffer(
-      wgpu_gears[i], context->camera->matrices.perspective,
-      context->camera->matrices.view, context->timer * 360.0f);
+      state.gears[i], state.camera.matrices.perspective,
+      state.camera.matrices.view, state.timer * 360.0f);
   }
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+/* Initialize the gears example */
+static int init(wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    setup_camera(context);
-    prepare_vertices(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_bind_groups();
-    update_uniform_buffers(context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
-    return 0;
+  if (wgpu_context) {
+    init_camera(wgpu_context);
+    init_vertices(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_pipelines(wgpu_context);
+    init_bind_groups();
+    init_depth_stencil(wgpu_context);
+    update_uniform_buffers();
+    state.initialized = true;
+    return EXIT_SUCCESS;
   }
 
-  return 1;
+  return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+/* Update matrices and uniform buffers */
+static void update_timer(void)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  static uint64_t start_time   = 0;
+  static uint64_t current_time = 0;
+
+  if (start_time == 0) {
+    stm_setup();
+    start_time = stm_now();
   }
+
+  current_time = stm_now();
+  state.timer  = (float)stm_ms(current_time - start_time) / 1000.0f * 0.25f;
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+/* Render frame */
+static int frame(wgpu_context_t* wgpu_context)
 {
-  rp_color_att_descriptors[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  // Create command encoder
-  wgpu_context->cmd_enc
+  /* Update timer */
+  update_timer();
+
+  /* Update uniform buffers */
+  update_uniform_buffers();
+
+  /* Update render pass attachments */
+  state.render_pass.color_attachment.view = wgpu_context->swapchain_view;
+  state.render_pass.depth_stencil_attachment.view
+    = wgpu_context->depth_stencil_view;
+
+  /* Create command encoder */
+  WGPUCommandEncoder cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create render pass encoder for encoding drawing commands
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass_desc);
+  /* Create render pass encoder */
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass.descriptor);
 
-  // Bind the rendering pipeline
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
+  /* Bind the rendering pipeline */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
 
-  // Draw gears
-  for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
-    webgpu_gear_draw(wgpu_gears[i]);
+  /* Draw gears */
+  for (uint32_t i = 0; i < gears_count; ++i) {
+    webgpu_gear_draw(state.gears[i], rpass_enc);
   }
 
-  // End render pass
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  /* End render pass */
+  wgpuRenderPassEncoderEnd(rpass_enc);
 
-  // Draw ui overlay
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Get command buffer */
+  WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  /* Submit command buffer */
+  ASSERT(command_buffer != NULL);
+  wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
 
-  return command_buffer;
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(command_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
+
+  return EXIT_SUCCESS;
 }
 
-static int example_draw(wgpu_example_context_t* context)
+/* Handle input events */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  // Prepare frame
-  prepare_frame(context);
+  UNUSED_VAR(wgpu_context);
 
-  // Command buffer to be submitted to the queue
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  // Submit to queue
-  submit_command_buffers(context);
-
-  // Submit frame
-  submit_frame(context);
-
-  return 0;
+  camera_on_input_event(&state.camera, input_event);
+  state.view_updated = true;
 }
 
-static int example_render(wgpu_example_context_t* context)
+/* Clean up resources */
+static void shutdown(wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return 1;
-  }
-  const int draw_result = example_draw(context);
-  if (!context->paused) {
-    update_uniform_buffers(context);
-  }
-  return draw_result;
-}
+  UNUSED_VAR(wgpu_context);
 
-static void example_on_view_changed(wgpu_example_context_t* context)
-{
-  // update the uniform buffer
-  update_uniform_buffers(context);
-}
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout);
 
-static void example_destroy(wgpu_example_context_t* context)
-{
-  camera_release(context->camera);
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout);
-
-  for (uint32_t i = 0; i < wgpu_gears_count; ++i) {
-    webgpu_gear_destroy(wgpu_gears[i]);
+  for (uint32_t i = 0; i < gears_count; ++i) {
+    webgpu_gear_destroy(state.gears[i]);
   }
 }
 
-void example_gears(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-    },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Gears",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
