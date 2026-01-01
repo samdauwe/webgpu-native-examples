@@ -127,8 +127,8 @@ static struct {
   },
 };
 
-/* Prepare vertex and index buffers for the Stanford dragon mesh */
-static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
+/* Initialize vertex and index buffers for the Stanford dragon mesh */
+static void init_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create the model vertex buffer */
   {
@@ -216,7 +216,7 @@ static void prepare_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
   }
 }
 
-static void prepare_textures(wgpu_context_t* wgpu_context)
+static void init_textures(wgpu_context_t* wgpu_context)
 {
   /* Create the depth texture for rendering/sampling the shadow map */
   {
@@ -289,7 +289,7 @@ static void prepare_textures(wgpu_context_t* wgpu_context)
   }
 }
 
-static void prepare_sampler(wgpu_context_t* wgpu_context)
+static void init_sampler(wgpu_context_t* wgpu_context)
 {
   state.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
@@ -476,7 +476,7 @@ static void setup_render_pass(void)
   }
 }
 
-static void prepare_view_matrices(wgpu_context_t* wgpu_context)
+static void init_view_matrices(wgpu_context_t* wgpu_context)
 {
   const float aspect_ratio
     = (float)wgpu_context->width / (float)wgpu_context->height;
@@ -600,7 +600,7 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
                        *camera_view_proj, sizeof(mat4));
 }
 
-static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Model uniform buffer */
   {
@@ -697,7 +697,7 @@ static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
 }
 
 /* Create the shadow pipeline */
-static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
+static void init_shadow_pipeline(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
   WGPUPrimitiveState primitive_state = {
@@ -769,7 +769,7 @@ static void prepare_shadow_pipeline(wgpu_context_t* wgpu_context)
 }
 
 /* Create the color rendering pipeline */
-static void prepare_color_rendering_pipeline(wgpu_context_t* wgpu_context)
+static void init_color_rendering_pipeline(wgpu_context_t* wgpu_context)
 {
   /* Primitive state */
   WGPUPrimitiveState primitive_state = {
@@ -937,14 +937,14 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
 static int init_cb(wgpu_context_t* wgpu_context)
 {
   stanford_dragon_mesh_init(&state.dragon_mesh);
-  prepare_vertex_and_index_buffers(wgpu_context);
-  prepare_textures(wgpu_context);
-  prepare_sampler(wgpu_context);
+  init_vertex_and_index_buffers(wgpu_context);
+  init_textures(wgpu_context);
+  init_sampler(wgpu_context);
   setup_pipeline_layout(wgpu_context);
-  prepare_shadow_pipeline(wgpu_context);
-  prepare_color_rendering_pipeline(wgpu_context);
-  prepare_uniform_buffers(wgpu_context);
-  prepare_view_matrices(wgpu_context);
+  init_shadow_pipeline(wgpu_context);
+  init_color_rendering_pipeline(wgpu_context);
+  init_uniform_buffers(wgpu_context);
+  init_view_matrices(wgpu_context);
   setup_render_pass();
 
   /* Initialize time tracking */
