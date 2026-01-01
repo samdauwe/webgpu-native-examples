@@ -1,7 +1,15 @@
-#include "example_base.h"
 #include "meshes.h"
+#include "webgpu/wgpu_common.h"
 
-#include "../webgpu/imgui_overlay.h"
+#include <cglm/cglm.h>
+
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#include <cJSON.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - A-Buffer
@@ -26,137 +34,145 @@ static const char* composite_shader_wgsl;
  * A-Buffer example
  * -------------------------------------------------------------------------- */
 
-static utah_teapot_mesh_t utah_teapot_mesh = {0};
-
-static WGPUSupportedLimits device_limits = {0};
-
-static struct {
-  wgpu_buffer_t vertex;
-  wgpu_buffer_t index;
-  wgpu_buffer_t heads;
-  wgpu_buffer_t heads_init;
-  wgpu_buffer_t linked_list;
-  wgpu_buffer_t slice_info;
-  wgpu_buffer_t uniform;
-} buffers = {0};
-
-static struct {
-  vec3 up_vector;
-  vec3 origin;
-  vec3 eye_position;
-  mat4 projection_matrix;
-  mat4 view_proj_matrix;
-} view_matrices = {
-  .up_vector         = {0.0f, 1.0f, 0.0f},
-  .origin            = GLM_VEC3_ZERO_INIT,
-  .eye_position      = {0.0f, 5.0f, -100.0f},
-  .projection_matrix = GLM_MAT4_IDENTITY_INIT,
-  .view_proj_matrix  = GLM_MAT4_IDENTITY_INIT,
-};
-
-static struct {
-  mat4 model_view_projection_matrix;
-  uint32_t max_storable_fragments;
-  uint32_t target_width;
-} ubo_data = {0};
-
-/* Depth texture */
-static struct {
-  WGPUTexture texture;
-  WGPUTextureView view;
-  WGPUTextureFormat format;
-} depth_texture = {0};
-
-/* Render pass to draw the opaque objects */
-static struct {
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-    WGPURenderPassDescriptor descriptor;
-  } pass_desc;
-  WGPURenderPipeline pipeline;
-  WGPUBindGroup bind_group;
-} opaque_render_pass = {0};
-
-/* Render pass to draw the translucent objects */
-static struct {
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDescriptor descriptor;
-  } pass_desc;
-  WGPURenderPipeline pipeline;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-} translucent_render_pass = {0};
-
-/* Render pass to composite the opaque and translucent objects */
-static struct {
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDescriptor descriptor;
-  } pass_desc;
-  WGPURenderPipeline pipeline;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-} composite_render_pass = {0};
-
 /* Determines how much memory is allocated to store linked-list elements */
 static const uint32_t average_layers_per_fragment = 4;
 
-/* Slices info */
-uint32_t num_slices   = 0u;
-uint32_t slice_height = 0u;
+/* State struct */
+static struct {
+  utah_teapot_mesh_t teapot_mesh;
+  uint8_t file_buffer[256 * 1024]; /* 256KB buffer for JSON file */
+  WGPULimits device_limits;
+  struct {
+    wgpu_buffer_t vertex;
+    wgpu_buffer_t index;
+    wgpu_buffer_t heads;
+    wgpu_buffer_t heads_init;
+    wgpu_buffer_t linked_list;
+    wgpu_buffer_t slice_info;
+    wgpu_buffer_t uniform;
+  } buffers;
+  struct {
+    vec3 up_vector;
+    vec3 origin;
+    vec3 eye_position;
+    mat4 projection_matrix;
+    mat4 view_proj_matrix;
+  } view_matrices;
+  struct {
+    mat4 model_view_projection_matrix;
+    uint32_t max_storable_fragments;
+    uint32_t target_width;
+  } ubo_data;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+    WGPUTextureFormat format;
+  } depth_texture;
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+    WGPURenderPipeline pipeline;
+    WGPUBindGroup bind_group;
+  } opaque_pass;
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDescriptor descriptor;
+    WGPURenderPipeline pipeline;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+  } translucent_pass;
+  struct {
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDescriptor descriptor;
+    WGPURenderPipeline pipeline;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+  } composite_pass;
+  uint32_t num_slices;
+  uint32_t slice_height;
+  WGPUBool mesh_loaded;
+  WGPUBool initialized;
+} state = {
+  .view_matrices = {
+    .up_vector         = {0.0f, 1.0f, 0.0f},
+    .origin            = GLM_VEC3_ZERO_INIT,
+    .eye_position      = {0.0f, 5.0f, -100.0f},
+    .projection_matrix = GLM_MAT4_IDENTITY_INIT,
+    .view_proj_matrix  = GLM_MAT4_IDENTITY_INIT,
+  },
+  .depth_texture = {
+    .format = WGPUTextureFormat_Depth32Float,
+  },
+  .mesh_loaded = false,
+  .initialized = false,
+};
 
-/* Other variables */
-static const char* example_title = "A-Buffer";
-static bool prepared             = false;
-
-static void init_device_limits(wgpu_context_t* wgpu_context)
+/* Callback for asynchronously loading the teapot JSON file */
+static void teapot_json_fetch_callback(const sfetch_response_t* response)
 {
-  if (!wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
-    log_error("Could not query WebGPU adapter limits");
+  if (!response->fetched) {
+    fprintf(stderr, "File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* Parse JSON and create teapot mesh */
+  const char* json_data = (const char*)response->data.ptr;
+  if (utah_teapot_mesh_init(&state.teapot_mesh, json_data) == EXIT_SUCCESS) {
+    utah_teapot_mesh_compute_normals(&state.teapot_mesh);
+    state.mesh_loaded = true;
+  }
+  else {
+    fprintf(stderr, "Failed to load Utah teapot mesh\n");
   }
 }
 
-static void prepare_depth_texture(wgpu_context_t* wgpu_context)
+static void init_device_limits(wgpu_context_t* wgpu_context)
 {
-  depth_texture.format = WGPUTextureFormat_Depth32Float;
+  wgpuDeviceGetLimits(wgpu_context->device, &state.device_limits);
+}
+
+static void init_depth_texture(wgpu_context_t* wgpu_context)
+{
+  /* Release previous depth texture if it exists */
+  WGPU_RELEASE_RESOURCE(Texture, state.depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.depth_texture.view)
 
   WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
+    .width              = wgpu_context->width,
+    .height             = wgpu_context->height,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Depth - Texture",
+    .label         = STRVIEW("Depth texture"),
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
     .dimension     = WGPUTextureDimension_2D,
-    .format        = depth_texture.format,
+    .format        = state.depth_texture.format,
     .usage
     = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
   };
-  depth_texture.texture
+  state.depth_texture.texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(depth_texture.texture != NULL);
+  ASSERT(state.depth_texture.texture != NULL);
 
   /* Create the texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Depth - Texture view",
+    .label           = STRVIEW("Depth texture view"),
     .dimension       = WGPUTextureViewDimension_2D,
-    .format          = depth_texture.format,
+    .format          = state.depth_texture.format,
     .baseMipLevel    = 0,
     .mipLevelCount   = 1,
     .baseArrayLayer  = 0,
     .arrayLayerCount = 1,
     .aspect          = WGPUTextureAspect_All,
   };
-  depth_texture.view
-    = wgpuTextureCreateView(depth_texture.texture, &texture_view_dec);
-  ASSERT(depth_texture.view != NULL);
+  state.depth_texture.view
+    = wgpuTextureCreateView(state.depth_texture.texture, &texture_view_dec);
+  ASSERT(state.depth_texture.view != NULL);
 }
 
 static uint32_t round_up(uint32_t n, uint32_t k)
@@ -164,32 +180,31 @@ static uint32_t round_up(uint32_t n, uint32_t k)
   return ceil((float)n / (float)k) * k;
 }
 
-static void prepare_buffers(wgpu_context_t* wgpu_context,
-                            utah_teapot_mesh_t* utah_teapot_mesh)
+static void init_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create the model vertex buffer */
-  buffers.vertex = wgpu_create_buffer(
+  state.buffers.vertex = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "Utah teapot mesh - Vertex buffer",
+      .label        = "Utah teapot - Vertex buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-      .size         = 3 * utah_teapot_mesh->positions.count * sizeof(float),
-      .initial.data = utah_teapot_mesh->positions.data,
+      .size         = 3 * state.teapot_mesh.positions.count * sizeof(float),
+      .initial.data = state.teapot_mesh.positions.data,
     });
 
   /* Create the model index buffer */
-  buffers.index = wgpu_create_buffer(
+  state.buffers.index = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label        = "Utah teapot mesh - Index buffer",
+      .label        = "Utah teapot - Index buffer",
       .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
-      .size         = 3 * utah_teapot_mesh->triangles.count * sizeof(uint16_t),
-      .initial.data = utah_teapot_mesh->triangles.data,
-      .count        = 3 * utah_teapot_mesh->triangles.count,
+      .size         = 3 * state.teapot_mesh.triangles.count * sizeof(uint16_t),
+      .initial.data = state.teapot_mesh.triangles.data,
+      .count        = 3 * state.teapot_mesh.triangles.count,
     });
 
-  const uint32_t canvas_width  = wgpu_context->surface.width;
-  const uint32_t canvas_height = wgpu_context->surface.height;
+  const uint32_t canvas_width  = wgpu_context->width;
+  const uint32_t canvas_height = wgpu_context->height;
 
   // Each element stores
   // * color : vec4<f32>
@@ -205,16 +220,19 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
     const uint32_t bytes_per_line
       = canvas_width * average_layers_per_fragment * linked_list_element_size;
     const uint32_t max_lines_supported = (uint32_t)floorf(
-      device_limits.limits.maxStorageBufferBindingSize / (float)bytes_per_line);
-    num_slices   = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
-    slice_height = (uint32_t)ceilf(canvas_height / (float)num_slices);
-    const uint32_t linked_list_buffer_size = slice_height * bytes_per_line;
-    buffers.linked_list                    = wgpu_create_buffer(
+      state.device_limits.maxStorageBufferBindingSize / (float)bytes_per_line);
+    state.num_slices
+      = (uint32_t)ceilf(canvas_height / (float)max_lines_supported);
+    state.slice_height
+      = (uint32_t)ceilf(canvas_height / (float)state.num_slices);
+    const uint32_t linked_list_buffer_size
+      = state.slice_height * bytes_per_line;
+    state.buffers.linked_list = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
-                           .label = "Linked list - Storage buffer",
-                           .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
-                           .size  = linked_list_buffer_size,
+        .label = "Linked list - Storage buffer",
+        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
+        .size  = linked_list_buffer_size,
       });
   }
 
@@ -222,26 +240,27 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // the slice. We do this using a uniform buffer with a dynamic offset.
   {
     WGPUBufferDescriptor buffer_desc = {
-      .label = "Slice info - uniform buffer",
+      .label = STRVIEW("Slice info - uniform buffer"),
       .usage = WGPUBufferUsage_Uniform,
-      .size = num_slices * device_limits.limits.minUniformBufferOffsetAlignment,
+      .size
+      = state.num_slices * state.device_limits.minUniformBufferOffsetAlignment,
       .mappedAtCreation = true,
     };
-    buffers.slice_info = (wgpu_buffer_t){
+    state.buffers.slice_info = (wgpu_buffer_t){
       .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
       .usage  = buffer_desc.usage,
       .size   = buffer_desc.size,
     };
-    ASSERT(buffers.slice_info.buffer);
+    ASSERT(state.buffers.slice_info.buffer);
     int32_t* mapping = (int32_t*)wgpuBufferGetMappedRange(
-      buffers.slice_info.buffer, 0, buffer_desc.size);
+      state.buffers.slice_info.buffer, 0, buffer_desc.size);
     // This assumes minUniformBufferOffsetAlignment is a multiple of 4
     const int32_t stride
-      = device_limits.limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
-    for (int32_t i = 0; i < (int32_t)num_slices; ++i) {
-      mapping[i * stride] = i * slice_height;
+      = state.device_limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
+    for (int32_t i = 0; i < (int32_t)state.num_slices; ++i) {
+      mapping[i * stride] = i * state.slice_height;
     }
-    wgpuBufferUnmap(buffers.slice_info.buffer);
+    wgpuBufferUnmap(state.buffers.slice_info.buffer);
   }
 
   // `Heads` struct contains the start index of the linked-list of translucent
@@ -249,9 +268,9 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // * numFragments : u32
   // * data : array<u32>
   {
-    const uint32_t buffer_count = 1 + canvas_width * slice_height;
+    const uint32_t buffer_count = 1 + canvas_width * state.slice_height;
 
-    buffers.heads = wgpu_create_buffer(
+    state.buffers.heads = wgpu_create_buffer(
       wgpu_context,
       &(wgpu_buffer_desc_t){
         .label = "Heads struct - storage buffer",
@@ -260,24 +279,24 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
       });
 
     WGPUBufferDescriptor buffer_desc = {
-      .label            = "Heads init - storage buffer",
+      .label            = STRVIEW("Heads init - storage buffer"),
       .usage            = WGPUBufferUsage_CopySrc,
       .size             = buffer_count * sizeof(uint32_t),
       .mappedAtCreation = true,
     };
-    buffers.heads_init = (wgpu_buffer_t){
+    state.buffers.heads_init = (wgpu_buffer_t){
       .buffer = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc),
       .usage  = buffer_desc.usage,
       .size   = buffer_desc.size,
       .count  = buffer_count,
     };
-    ASSERT(buffers.heads_init.buffer);
+    ASSERT(state.buffers.heads_init.buffer);
     uint32_t* buffer = (uint32_t*)wgpuBufferGetMappedRange(
-      buffers.heads_init.buffer, 0, buffer_desc.size);
+      state.buffers.heads_init.buffer, 0, buffer_desc.size);
     for (uint32_t i = 0; i < buffer_count; ++i) {
       buffer[i] = 0xffffffff;
     }
-    wgpuBufferUnmap(buffers.heads_init.buffer);
+    wgpuBufferUnmap(state.buffers.heads_init.buffer);
   }
 
   // Uniforms contains:
@@ -285,9 +304,9 @@ static void prepare_buffers(wgpu_context_t* wgpu_context,
   // * maxStorableFragments: u32
   // * targetWidth: u32
   {
-    const uint32_t uniforms_size = round_up(sizeof(ubo_data), 16);
+    const uint32_t uniforms_size = round_up(sizeof(state.ubo_data), 16);
 
-    buffers.uniform
+    state.buffers.uniform
       = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
                                            .label = "Uniform buffer",
                                            .usage = WGPUBufferUsage_CopyDst
@@ -360,36 +379,7 @@ static vec3* glm_vec3_transform_mat4(vec3 v, mat4 m, vec3* dst)
   return dst;
 }
 
-/* Rotates the camera around the origin based on time. */
-static mat4* get_camera_view_proj_matrix(wgpu_example_context_t* context)
-{
-  const float aspect_ratio = (float)context->wgpu_context->surface.width
-                             / (float)context->wgpu_context->surface.height;
-
-  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.0f, 2000.f,
-                  view_matrices.projection_matrix);
-
-  glm_vec3_copy((vec3){0.0f, 5.0f, -100.0f}, view_matrices.eye_position);
-
-  const float rad = PI * (context->frame.timestamp_millis / 5000.0f);
-  mat4 rotation   = GLM_MAT4_ZERO_INIT;
-  glm_mat4_rotate_y(glm_mat4_translation(view_matrices.origin, &rotation), rad);
-  glm_vec3_transform_mat4(view_matrices.eye_position, rotation,
-                          &view_matrices.eye_position);
-
-  mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
-  glm_lookat(view_matrices.eye_position, /* eye vector    */
-             view_matrices.origin,       /* center vector */
-             view_matrices.up_vector,    /* up vector     */
-             view_matrix                 /* result matrix */
-  );
-
-  glm_mat4_mulN((mat4*[]){&view_matrices.projection_matrix, &view_matrix}, 2,
-                view_matrices.view_proj_matrix);
-  return &view_matrices.view_proj_matrix;
-}
-
-static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
+static void init_opaque_pass(wgpu_context_t* wgpu_context)
 {
   /* Render pipeline */
   {
@@ -403,7 +393,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
+      .format    = wgpu_context->render_format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
@@ -411,61 +401,54 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     /* Depth stencil state */
     WGPUDepthStencilState depth_stencil_state
       = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-        .format              = depth_texture.format,
+        .format              = state.depth_texture.format,
         .depth_write_enabled = true,
       });
     depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
     /* Vertex buffer layout */
     WGPU_VERTEX_BUFFER_LAYOUT(
-      translucent, 3 * sizeof(float),
+      opaque, 3 * sizeof(float),
       /* Attribute location 0: Position */
       WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
 
     /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Vertex shader WGSL */
-                        .label            = "Opaque - Vertex shader WGSL",
-                        .wgsl_code.source = opaque_shader_wgsl,
-                        .entry            = "main_vs",
-                      },
-                      .buffer_count = 1,
-                      .buffers      = &translucent_vertex_buffer_layout,
-                    });
+    WGPUShaderModule vert_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, opaque_shader_wgsl);
+    WGPUVertexState vertex_state = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main_vs"),
+      .bufferCount = 1,
+      .buffers     = &opaque_vertex_buffer_layout,
+    };
 
     /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Fragment shader WGSL */
-                        .label            = "Opaque - Fragment shader WGSL",
-                        .wgsl_code.source = opaque_shader_wgsl,
-                        .entry            = "main_fs",
-                      },
-                      .target_count = 1,
-                      .targets      = &color_target_state,
-                    });
+    WGPUShaderModule frag_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, opaque_shader_wgsl);
+    WGPUFragmentState fragment_state = {
+      .module      = frag_shader_module,
+      .entryPoint  = STRVIEW("main_fs"),
+      .targetCount = 1,
+      .targets     = &color_target_state,
+    };
 
     /* Multisample state */
-    WGPUMultisampleState multisample_state
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
+    WGPUMultisampleState multisample_state = {
+      .count = 1,
+      .mask  = 0xffffffff,
+    };
 
     /* Create rendering pipeline using the specified states */
-    opaque_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+    state.opaque_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "Opaque - Render pipeline",
-                              .primitive    = primitive_state,
-                              .vertex       = vertex_state,
-                              .fragment     = &fragment_state,
+                              .label     = STRVIEW("Opaque - Render pipeline"),
+                              .primitive = primitive_state,
+                              .vertex    = vertex_state,
+                              .fragment  = &fragment_state,
                               .depthStencil = &depth_stencil_state,
                               .multisample  = multisample_state,
                             });
-    ASSERT(opaque_render_pass.pipeline != NULL);
+    ASSERT(state.opaque_pass.pipeline != NULL);
 
     /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -475,7 +458,7 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
   /* Render pass descriptor */
   {
     /* Color attachment */
-    opaque_render_pass.pass_desc.color_attachments[0]
+    state.opaque_pass.color_attachment
       = (WGPURenderPassColorAttachment){
         .view       = NULL, /* view is acquired and set in render loop. */
         .depthSlice = ~0,
@@ -490,21 +473,20 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     };
 
     /* Depth-stencil attachment */
-    opaque_render_pass.pass_desc.depth_stencil_attachment
+    state.opaque_pass.depth_stencil_attachment
       = (WGPURenderPassDepthStencilAttachment){
-        .view            = depth_texture.view,
+        .view            = state.depth_texture.view,
         .depthLoadOp     = WGPULoadOp_Clear,
         .depthStoreOp    = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,
       };
 
     /* Pass descriptor */
-    opaque_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Opaque - Render pass descriptor",
-      .colorAttachmentCount = 1,
-      .colorAttachments     = opaque_render_pass.pass_desc.color_attachments,
-      .depthStencilAttachment
-      = &opaque_render_pass.pass_desc.depth_stencil_attachment,
+    state.opaque_pass.descriptor = (WGPURenderPassDescriptor){
+      .label                  = STRVIEW("Opaque - Render pass descriptor"),
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = &state.opaque_pass.color_attachment,
+      .depthStencilAttachment = &state.opaque_pass.depth_stencil_attachment,
     };
   }
 
@@ -513,23 +495,23 @@ static void prepare_opaque_render_pass(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[1] = {
       [0] = (WGPUBindGroupEntry){
         .binding = 0,
-        .buffer  = buffers.uniform.buffer,
-        .size    = buffers.uniform.size,
+        .buffer  = state.buffers.uniform.buffer,
+        .size    = state.buffers.uniform.size,
       },
     };
-    opaque_render_pass.bind_group = wgpuDeviceCreateBindGroup(
+    state.opaque_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Opaque - Bind group",
+                              .label  = STRVIEW("Opaque - Bind group"),
                               .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                opaque_render_pass.pipeline, 0),
+                                state.opaque_pass.pipeline, 0),
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(opaque_render_pass.bind_group != NULL);
+    ASSERT(state.opaque_pass.bind_group != NULL);
   }
 }
 
-static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
+static void init_translucent_pass(wgpu_context_t* wgpu_context)
 {
   /* Bind group layout */
   {
@@ -540,7 +522,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.uniform.size,
+          .minBindingSize   = state.buffers.uniform.size,
         },
         .sampler = {0},
       },
@@ -550,7 +532,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Storage,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.heads.size,
+          .minBindingSize   = state.buffers.heads.size,
         },
         .sampler = {0},
       },
@@ -560,7 +542,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Storage,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.linked_list.size,
+          .minBindingSize   = state.buffers.linked_list.size,
         },
         .sampler = {0},
       },
@@ -580,30 +562,31 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize   = device_limits.limits.minUniformBufferOffsetAlignment,
+          .minBindingSize   = state.device_limits.minUniformBufferOffsetAlignment,
         },
         .sampler = {0},
       }
     };
-    translucent_render_pass.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Translucent - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(translucent_render_pass.bind_group_layout != NULL);
+    state.translucent_pass.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Translucent - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(state.translucent_pass.bind_group_layout != NULL);
   }
 
   /* Pipeline layout */
   {
-    translucent_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    state.translucent_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "Translucent - Pipeline layout",
+        .label                = STRVIEW("Translucent - Pipeline layout"),
         .bindGroupLayoutCount = 1,
-        .bindGroupLayouts     = &translucent_render_pass.bind_group_layout,
+        .bindGroupLayouts     = &state.translucent_pass.bind_group_layout,
       });
-    ASSERT(translucent_render_pass.pipeline_layout != NULL);
+    ASSERT(state.translucent_pass.pipeline_layout != NULL);
   }
 
   /* Bind group */
@@ -611,38 +594,38 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[5] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = buffers.uniform.buffer,
-        .size    = buffers.uniform.size,
+        .buffer  = state.buffers.uniform.buffer,
+        .size    = state.buffers.uniform.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = buffers.heads.buffer,
-        .size    = buffers.heads.size,
+        .buffer  = state.buffers.heads.buffer,
+        .size    = state.buffers.heads.size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer  = buffers.linked_list.buffer,
-        .size    = buffers.linked_list.size,
+        .buffer  = state.buffers.linked_list.buffer,
+        .size    = state.buffers.linked_list.size,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding     = 3,
-        .textureView = depth_texture.view,
+        .textureView = state.depth_texture.view,
       },
       [4] = (WGPUBindGroupEntry) {
         .binding = 4,
-        .buffer  = buffers.slice_info.buffer,
-        .size    = device_limits.limits.minUniformBufferOffsetAlignment,
+        .buffer  = state.buffers.slice_info.buffer,
+        .size    = state.device_limits.minUniformBufferOffsetAlignment,
       },
     };
-    translucent_render_pass.bind_group = wgpuDeviceCreateBindGroup(
+    state.translucent_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = "Translucent - Bind group",
-        .layout     = translucent_render_pass.bind_group_layout,
+        .label      = STRVIEW("Translucent - Bind group"),
+        .layout     = state.translucent_pass.bind_group_layout,
         .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
         .entries    = bg_entries,
       });
-    ASSERT(translucent_render_pass.bind_group != NULL);
+    ASSERT(state.translucent_pass.bind_group != NULL);
   }
 
   /* Render pipeline */
@@ -657,7 +640,7 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
     /* Color target state */
     WGPUBlendState blend_state              = wgpu_create_blend_state(true);
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
+      .format    = wgpu_context->render_format,
       .blend     = &blend_state,
       .writeMask = 0x0,
     };
@@ -669,49 +652,42 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
       WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0))
 
     /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Vertex shader WGSL */
-                        .label            = "Translucent - Vertex shader WGSL",
-                        .wgsl_code.source = translucent_shader_wgsl,
-                        .entry            = "main_vs",
-                      },
-                      .buffer_count = 1,
-                      .buffers      = &translucent_vertex_buffer_layout,
-                    });
+    WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+      wgpu_context->device, translucent_shader_wgsl);
+    WGPUVertexState vertex_state = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main_vs"),
+      .bufferCount = 1,
+      .buffers     = &translucent_vertex_buffer_layout,
+    };
 
     /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Fragment shader WGSL */
-                        .label            = "Translucent - Fragment shader WGSL",
-                        .wgsl_code.source = translucent_shader_wgsl,
-                        .entry            = "main_fs",
-                      },
-                      .target_count = 1,
-                      .targets      = &color_target_state,
-                    });
+    WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+      wgpu_context->device, translucent_shader_wgsl);
+    WGPUFragmentState fragment_state = {
+      .module      = frag_shader_module,
+      .entryPoint  = STRVIEW("main_fs"),
+      .targetCount = 1,
+      .targets     = &color_target_state,
+    };
 
     /* Multisample state */
-    WGPUMultisampleState multisample_state
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
+    WGPUMultisampleState multisample_state = {
+      .count = 1,
+      .mask  = 0xffffffff,
+    };
 
     /* Create rendering pipeline using the specified states */
-    translucent_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+    state.translucent_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label  = "Translucent - Render pipeline",
-                              .layout = translucent_render_pass.pipeline_layout,
+                              .label = STRVIEW("Translucent - Render pipeline"),
+                              .layout = state.translucent_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
                               .fragment    = &fragment_state,
                               .multisample = multisample_state,
                             });
-    ASSERT(translucent_render_pass.pipeline != NULL);
+    ASSERT(state.translucent_pass.pipeline != NULL);
 
     /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -721,25 +697,24 @@ static void prepare_translucent_render_pass(wgpu_context_t* wgpu_context)
   /* Render pass descriptor */
   {
     /* Color attachment */
-    translucent_render_pass.pass_desc.color_attachments[0]
-      = (WGPURenderPassColorAttachment){
-        .view       = NULL, /* View is acquired and set in render loop. */
-        .depthSlice = ~0,
-        .loadOp     = WGPULoadOp_Load,
-        .storeOp    = WGPUStoreOp_Store,
-      };
+    state.translucent_pass.color_attachment = (WGPURenderPassColorAttachment){
+      .view       = NULL, /* View is acquired and set in render loop. */
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
+    };
 
     /* Pass descriptor */
-    translucent_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Translucent - Render pass descriptor",
-      .colorAttachmentCount = 1,
-      .colorAttachments = translucent_render_pass.pass_desc.color_attachments,
+    state.translucent_pass.descriptor = (WGPURenderPassDescriptor){
+      .label                  = STRVIEW("Translucent - Render pass descriptor"),
+      .colorAttachmentCount   = 1,
+      .colorAttachments       = &state.translucent_pass.color_attachment,
       .depthStencilAttachment = NULL,
     };
   }
 }
 
-static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
+static void init_composite_pass(wgpu_context_t* wgpu_context)
 {
   /* Bind group layout */
   {
@@ -750,7 +725,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.uniform.size,
+          .minBindingSize   = state.buffers.uniform.size,
         },
         .sampler = {0},
       },
@@ -760,7 +735,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Storage,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.heads.size,
+          .minBindingSize   = state.buffers.heads.size,
         },
         .sampler = {0},
       },
@@ -770,7 +745,7 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Storage,
           .hasDynamicOffset = false,
-          .minBindingSize   = buffers.linked_list.size,
+          .minBindingSize   = state.buffers.linked_list.size,
         },
         .sampler = {0},
       },
@@ -780,30 +755,30 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
         .buffer = (WGPUBufferBindingLayout) {
           .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize   = device_limits.limits.minUniformBufferOffsetAlignment,
+          .minBindingSize   = state.device_limits.minUniformBufferOffsetAlignment,
         },
         .sampler = {0},
       }
     };
-    composite_render_pass.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    state.composite_pass.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Composite - Bind group layout",
+                              .label = STRVIEW("Composite - Bind group layout"),
                               .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                               .entries    = bgl_entries,
                             });
-    ASSERT(composite_render_pass.bind_group_layout != NULL);
+    ASSERT(state.composite_pass.bind_group_layout != NULL);
   }
 
   /* Pipeline layout */
   {
-    composite_render_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    state.composite_pass.pipeline_layout = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = "Composite - Pipeline layout",
+        .label                = STRVIEW("Composite - Pipeline layout"),
         .bindGroupLayoutCount = 1,
-        .bindGroupLayouts     = &composite_render_pass.bind_group_layout,
+        .bindGroupLayouts     = &state.composite_pass.bind_group_layout,
       });
-    ASSERT(composite_render_pass.pipeline_layout != NULL);
+    ASSERT(state.composite_pass.pipeline_layout != NULL);
   }
 
   /* Bind group */
@@ -811,33 +786,33 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     WGPUBindGroupEntry bg_entries[4] = {
       [0] = (WGPUBindGroupEntry) {
         .binding = 0,
-        .buffer  = buffers.uniform.buffer,
-        .size    = buffers.uniform.size,
+        .buffer  = state.buffers.uniform.buffer,
+        .size    = state.buffers.uniform.size,
       },
       [1] = (WGPUBindGroupEntry) {
         .binding = 1,
-        .buffer  = buffers.heads.buffer,
-        .size    = buffers.heads.size,
+        .buffer  = state.buffers.heads.buffer,
+        .size    = state.buffers.heads.size,
       },
       [2] = (WGPUBindGroupEntry) {
         .binding = 2,
-        .buffer  = buffers.linked_list.buffer,
-        .size    = buffers.linked_list.size,
+        .buffer  = state.buffers.linked_list.buffer,
+        .size    = state.buffers.linked_list.size,
       },
       [3] = (WGPUBindGroupEntry) {
         .binding = 3,
-        .buffer  = buffers.slice_info.buffer,
-        .size    = device_limits.limits.minUniformBufferOffsetAlignment,
+        .buffer  = state.buffers.slice_info.buffer,
+        .size    = state.device_limits.minUniformBufferOffsetAlignment,
       },
     };
-    composite_render_pass.bind_group = wgpuDeviceCreateBindGroup(
+    state.composite_pass.bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Composite - Bind group",
-                              .layout = composite_render_pass.bind_group_layout,
+                              .label  = STRVIEW("Composite - Bind group"),
+                              .layout = state.composite_pass.bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(composite_render_pass.bind_group != NULL);
+    ASSERT(state.composite_pass.bind_group != NULL);
   }
 
   /* Render pipeline */
@@ -854,53 +829,46 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
     blend_state.color.srcFactor             = WGPUBlendFactor_One;
     blend_state.color.dstFactor             = WGPUBlendFactor_OneMinusSrcAlpha;
     WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
+      .format    = wgpu_context->render_format,
       .blend     = &blend_state,
       .writeMask = WGPUColorWriteMask_All,
     };
 
     /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Vertex shader WGSL */
-                        .label            = "Composite - Vertex shader WGSL",
-                        .wgsl_code.source = composite_shader_wgsl,
-                        .entry            = "main_vs",
-                      },
-                    });
+    WGPUShaderModule vert_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, composite_shader_wgsl);
+    WGPUVertexState vertex_state = {
+      .module     = vert_shader_module,
+      .entryPoint = STRVIEW("main_vs"),
+    };
 
     /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-                      .shader_desc = (wgpu_shader_desc_t){
-                        /* Fragment shader WGSL */
-                        .label            = "Composite - Fragment shader WGSL",
-                        .wgsl_code.source = composite_shader_wgsl,
-                        .entry            = "main_fs",
-                      },
-                      .target_count = 1,
-                      .targets      = &color_target_state,
-                    });
+    WGPUShaderModule frag_shader_module
+      = wgpu_create_shader_module(wgpu_context->device, composite_shader_wgsl);
+    WGPUFragmentState fragment_state = {
+      .module      = frag_shader_module,
+      .entryPoint  = STRVIEW("main_fs"),
+      .targetCount = 1,
+      .targets     = &color_target_state,
+    };
 
     /* Multisample state */
-    WGPUMultisampleState multisample_state
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
+    WGPUMultisampleState multisample_state = {
+      .count = 1,
+      .mask  = 0xffffffff,
+    };
 
     /* Create rendering pipeline using the specified states */
-    composite_render_pass.pipeline = wgpuDeviceCreateRenderPipeline(
+    state.composite_pass.pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label  = "Composite - Render pipeline",
-                              .layout = composite_render_pass.pipeline_layout,
+                              .label  = STRVIEW("Composite - Render pipeline"),
+                              .layout = state.composite_pass.pipeline_layout,
                               .primitive   = primitive_state,
                               .vertex      = vertex_state,
                               .fragment    = &fragment_state,
                               .multisample = multisample_state,
                             });
-    ASSERT(composite_render_pass.pipeline != NULL);
+    ASSERT(state.composite_pass.pipeline != NULL);
 
     /* Partial cleanup */
     WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
@@ -910,110 +878,162 @@ static void prepare_composite_render_pass(wgpu_context_t* wgpu_context)
   /* Render pass descriptor */
   {
     /* Color attachment */
-    composite_render_pass.pass_desc.color_attachments[0]
-      = (WGPURenderPassColorAttachment){
-        .view       = NULL, /* View is acquired and set in render loop. */
-        .depthSlice = ~0,
-        .loadOp     = WGPULoadOp_Load,
-        .storeOp    = WGPUStoreOp_Store,
-      };
+    state.composite_pass.color_attachment = (WGPURenderPassColorAttachment){
+      .view       = NULL, /* View is acquired and set in render loop. */
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Load,
+      .storeOp    = WGPUStoreOp_Store,
+    };
 
     /* Pass descriptor */
-    composite_render_pass.pass_desc.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Composite - Render pass descriptor",
+    state.composite_pass.descriptor = (WGPURenderPassDescriptor){
+      .label                = STRVIEW("Composite - Render pass descriptor"),
       .colorAttachmentCount = 1,
-      .colorAttachments     = composite_render_pass.pass_desc.color_attachments,
+      .colorAttachments     = &state.composite_pass.color_attachment,
     };
   }
 }
 
-static void update_uniform_buffer(wgpu_example_context_t* context)
+static void update_uniform_buffer(wgpu_context_t* wgpu_context,
+                                  float timestamp_millis)
 {
-  wgpu_context_t* wgpu_context = context->wgpu_context;
+  const float aspect_ratio
+    = (float)wgpu_context->width / (float)wgpu_context->height;
 
-  glm_mat4_copy(*get_camera_view_proj_matrix(context),
-                ubo_data.model_view_projection_matrix);
-  ubo_data.max_storable_fragments
-    = average_layers_per_fragment * wgpu_context->surface.width * slice_height;
-  ubo_data.target_width = wgpu_context->surface.width;
+  glm_perspective((2.0f * PI) / 5.0f, aspect_ratio, 1.0f, 2000.f,
+                  state.view_matrices.projection_matrix);
 
-  wgpuQueueWriteBuffer(wgpu_context->queue, buffers.uniform.buffer, 0,
-                       &ubo_data, sizeof(ubo_data));
+  glm_vec3_copy((vec3){0.0f, 5.0f, -100.0f}, state.view_matrices.eye_position);
+
+  const float rad = PI * (timestamp_millis / 5000.0f);
+  mat4 rotation   = GLM_MAT4_ZERO_INIT;
+  glm_mat4_rotate_y(glm_mat4_translation(state.view_matrices.origin, &rotation),
+                    rad);
+  glm_vec3_transform_mat4(state.view_matrices.eye_position, rotation,
+                          &state.view_matrices.eye_position);
+
+  mat4 view_matrix = GLM_MAT4_IDENTITY_INIT;
+  glm_lookat(state.view_matrices.eye_position, /* eye vector    */
+             state.view_matrices.origin,       /* center vector */
+             state.view_matrices.up_vector,    /* up vector     */
+             view_matrix                       /* result matrix */
+  );
+
+  glm_mat4_mulN((mat4*[]){&state.view_matrices.projection_matrix, &view_matrix},
+                2, state.view_matrices.view_proj_matrix);
+
+  glm_mat4_copy(state.view_matrices.view_proj_matrix,
+                state.ubo_data.model_view_projection_matrix);
+  state.ubo_data.max_storable_fragments
+    = average_layers_per_fragment * wgpu_context->width * state.slice_height;
+  state.ubo_data.target_width = wgpu_context->width;
+
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.buffers.uniform.buffer, 0,
+                       &state.ubo_data, sizeof(state.ubo_data));
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    init_device_limits(context->wgpu_context);
-    utah_teapot_mesh_init(&utah_teapot_mesh);
-    prepare_depth_texture(context->wgpu_context);
-    prepare_buffers(context->wgpu_context, &utah_teapot_mesh);
-    prepare_opaque_render_pass(context->wgpu_context);
-    prepare_translucent_render_pass(context->wgpu_context);
-    prepare_composite_render_pass(context->wgpu_context);
-    prepared = true;
-    return EXIT_SUCCESS;
+  if (!wgpu_context) {
+    return EXIT_FAILURE;
   }
 
-  return EXIT_FAILURE;
+  /* Initialize sokol-fetch */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+  });
+
+  /* Initialize sokol-time */
+  stm_setup();
+
+  /* Get device limits */
+  init_device_limits(wgpu_context);
+
+  /* Start async loading of teapot JSON */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/meshes/teapot.json",
+    .callback = teapot_json_fetch_callback,
+    .buffer   = SFETCH_RANGE(state.file_buffer),
+  });
+
+  /* Initialize depth texture */
+  init_depth_texture(wgpu_context);
+
+  state.initialized = true;
+  return EXIT_SUCCESS;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Paused", &context->paused);
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    /* Recreate depth texture with new dimensions */
+    init_depth_texture(wgpu_context);
+    /* Recreate buffers that depend on canvas size */
+    if (state.mesh_loaded) {
+      wgpu_destroy_buffer(&state.buffers.heads);
+      wgpu_destroy_buffer(&state.buffers.heads_init);
+      wgpu_destroy_buffer(&state.buffers.linked_list);
+      wgpu_destroy_buffer(&state.buffers.slice_info);
+      init_buffers(wgpu_context);
+      /* Recreate bind groups with new buffers */
+      init_translucent_pass(wgpu_context);
+      init_composite_pass(wgpu_context);
+    }
   }
 }
 
 static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 {
-  const uint32_t canvas_width  = wgpu_context->surface.width;
-  const uint32_t canvas_height = wgpu_context->surface.height;
+  const uint32_t canvas_width  = wgpu_context->width;
+  const uint32_t canvas_height = wgpu_context->height;
 
-  wgpu_context->cmd_enc
+  WGPUCommandEncoder cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-  WGPUTextureView texture_view = wgpu_context->swap_chain.frame_buffer;
+  WGPUTextureView texture_view = wgpu_context->swapchain_view;
 
   /* Draw the opaque objects */
   {
-    opaque_render_pass.pass_desc.color_attachments[0].view = texture_view;
+    state.opaque_pass.color_attachment.view = texture_view;
     WGPURenderPassEncoder opaque_pass_encoder
-      = wgpuCommandEncoderBeginRenderPass(
-        wgpu_context->cmd_enc, &opaque_render_pass.pass_desc.descriptor);
+      = wgpuCommandEncoderBeginRenderPass(cmd_enc,
+                                          &state.opaque_pass.descriptor);
     wgpuRenderPassEncoderSetPipeline(opaque_pass_encoder,
-                                     opaque_render_pass.pipeline);
+                                     state.opaque_pass.pipeline);
     wgpuRenderPassEncoderSetBindGroup(opaque_pass_encoder, 0,
-                                      opaque_render_pass.bind_group, 0, 0);
+                                      state.opaque_pass.bind_group, 0, 0);
     wgpuRenderPassEncoderSetVertexBuffer(
-      opaque_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
+      opaque_pass_encoder, 0, state.buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(
-      opaque_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16, 0,
-      WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(opaque_pass_encoder, buffers.index.count,
-                                     8, 0, 0, 0);
+      opaque_pass_encoder, state.buffers.index.buffer, WGPUIndexFormat_Uint16,
+      0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(opaque_pass_encoder,
+                                     state.buffers.index.count, 8, 0, 0, 0);
     wgpuRenderPassEncoderEnd(opaque_pass_encoder);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, opaque_pass_encoder)
   }
 
-  for (uint32_t slice = 0; slice < num_slices; ++slice) {
+  for (uint32_t slice = 0; slice < state.num_slices; ++slice) {
     /* Initialize the heads buffer */
     wgpuCommandEncoderCopyBufferToBuffer(
-      wgpu_context->cmd_enc, buffers.heads_init.buffer, 0, buffers.heads.buffer,
-      0, buffers.heads_init.size);
+      cmd_enc, state.buffers.heads_init.buffer, 0, state.buffers.heads.buffer,
+      0, state.buffers.heads_init.size);
 
     const uint32_t scissor_x     = 0;
-    const uint32_t scissor_y     = slice * slice_height;
+    const uint32_t scissor_y     = slice * state.slice_height;
     const uint32_t scissor_width = canvas_width;
     const uint32_t scissor_height
-      = MIN((slice + 1) * slice_height, canvas_height) - slice * slice_height;
+      = MIN((slice + 1) * state.slice_height, canvas_height)
+        - slice * state.slice_height;
 
     /* Draw the translucent objects */
     {
-      translucent_render_pass.pass_desc.color_attachments[0].view
-        = texture_view;
+      state.translucent_pass.color_attachment.view = texture_view;
       WGPURenderPassEncoder translucent_pass_encoder
-        = wgpuCommandEncoderBeginRenderPass(
-          wgpu_context->cmd_enc, &translucent_render_pass.pass_desc.descriptor);
+        = wgpuCommandEncoderBeginRenderPass(cmd_enc,
+                                            &state.translucent_pass.descriptor);
 
       /* Set the scissor to only process a horizontal slice of the frame */
       wgpuRenderPassEncoderSetScissorRect(translucent_pass_encoder, scissor_x,
@@ -1021,29 +1041,30 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                           scissor_height);
 
       wgpuRenderPassEncoderSetPipeline(translucent_pass_encoder,
-                                       translucent_render_pass.pipeline);
+                                       state.translucent_pass.pipeline);
       const uint32_t dynamic_offsets[1]
-        = {slice * device_limits.limits.minUniformBufferOffsetAlignment};
+        = {slice * state.device_limits.minUniformBufferOffsetAlignment};
       wgpuRenderPassEncoderSetBindGroup(translucent_pass_encoder, 0,
-                                        translucent_render_pass.bind_group, 1,
+                                        state.translucent_pass.bind_group, 1,
                                         dynamic_offsets);
-      wgpuRenderPassEncoderSetVertexBuffer(
-        translucent_pass_encoder, 0, buffers.vertex.buffer, 0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderSetVertexBuffer(translucent_pass_encoder, 0,
+                                           state.buffers.vertex.buffer, 0,
+                                           WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderSetIndexBuffer(
-        translucent_pass_encoder, buffers.index.buffer, WGPUIndexFormat_Uint16,
-        0, WGPU_WHOLE_SIZE);
+        translucent_pass_encoder, state.buffers.index.buffer,
+        WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
       wgpuRenderPassEncoderDrawIndexed(translucent_pass_encoder,
-                                       buffers.index.count, 8, 0, 0, 0);
+                                       state.buffers.index.count, 8, 0, 0, 0);
       wgpuRenderPassEncoderEnd(translucent_pass_encoder);
       WGPU_RELEASE_RESOURCE(RenderPassEncoder, translucent_pass_encoder)
     }
 
     /* Composite the opaque and translucent objects */
     {
-      composite_render_pass.pass_desc.color_attachments[0].view = texture_view;
+      state.composite_pass.color_attachment.view = texture_view;
       WGPURenderPassEncoder composite_pass_encoder
-        = wgpuCommandEncoderBeginRenderPass(
-          wgpu_context->cmd_enc, &composite_render_pass.pass_desc.descriptor);
+        = wgpuCommandEncoderBeginRenderPass(cmd_enc,
+                                            &state.composite_pass.descriptor);
 
       /* Set the scissor to only process a horizontal slice of the frame */
       wgpuRenderPassEncoderSetScissorRect(composite_pass_encoder, scissor_x,
@@ -1051,11 +1072,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
                                           scissor_height);
 
       wgpuRenderPassEncoderSetPipeline(composite_pass_encoder,
-                                       composite_render_pass.pipeline);
+                                       state.composite_pass.pipeline);
       const uint32_t dynamic_offsets[1]
-        = {slice * device_limits.limits.minUniformBufferOffsetAlignment};
+        = {slice * state.device_limits.minUniformBufferOffsetAlignment};
       wgpuRenderPassEncoderSetBindGroup(composite_pass_encoder, 0,
-                                        composite_render_pass.bind_group, 1,
+                                        state.composite_pass.bind_group, 1,
                                         dynamic_offsets);
       wgpuRenderPassEncoderDraw(composite_pass_encoder, 6, 1, 0, 0);
       wgpuRenderPassEncoderEnd(composite_pass_encoder);
@@ -1063,89 +1084,91 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
   /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
+  WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
   ASSERT(command_buffer != NULL);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_enc)
 
   return command_buffer;
 }
 
-static int example_draw(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  /* Prepare frame */
-  prepare_frame(context);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
 
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
+  /* Process async file loading */
+  sfetch_dowork();
 
-  /* Submit to queue */
-  submit_command_buffers(context);
+  /* Initialize pipelines once mesh is loaded */
+  if (state.mesh_loaded && state.buffers.vertex.buffer == NULL) {
+    init_buffers(wgpu_context);
+    init_opaque_pass(wgpu_context);
+    init_translucent_pass(wgpu_context);
+    init_composite_pass(wgpu_context);
+  }
 
-  /* Submit frame */
-  submit_frame(context);
+  /* Only render if mesh and pipelines are ready */
+  if (!state.mesh_loaded || state.buffers.vertex.buffer == NULL) {
+    return EXIT_SUCCESS;
+  }
+
+  /* Update uniform buffer */
+  update_uniform_buffer(wgpu_context, (float)stm_ms(stm_now()));
+
+  WGPUQueue queue = wgpu_context->queue;
+
+  WGPUCommandBuffer cmd_buffer = build_command_buffer(wgpu_context);
+
+  /* Submit and present */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuCommandBufferRelease(cmd_buffer);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  if (!context->paused) {
-    update_uniform_buffer(context);
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
+
+  wgpu_destroy_buffer(&state.buffers.vertex);
+  wgpu_destroy_buffer(&state.buffers.index);
+  wgpu_destroy_buffer(&state.buffers.heads);
+  wgpu_destroy_buffer(&state.buffers.heads_init);
+  wgpu_destroy_buffer(&state.buffers.linked_list);
+  wgpu_destroy_buffer(&state.buffers.slice_info);
+  wgpu_destroy_buffer(&state.buffers.uniform);
+  WGPU_RELEASE_RESOURCE(Texture, state.depth_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, state.depth_texture.view)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.opaque_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.opaque_pass.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.translucent_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.translucent_pass.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.translucent_pass.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.translucent_pass.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.composite_pass.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.composite_pass.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.composite_pass.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.composite_pass.bind_group)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-  wgpu_destroy_buffer(&buffers.vertex);
-  wgpu_destroy_buffer(&buffers.index);
-  wgpu_destroy_buffer(&buffers.heads);
-  wgpu_destroy_buffer(&buffers.heads_init);
-  wgpu_destroy_buffer(&buffers.linked_list);
-  wgpu_destroy_buffer(&buffers.slice_info);
-  wgpu_destroy_buffer(&buffers.uniform);
-  WGPU_RELEASE_RESOURCE(Texture, depth_texture.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, depth_texture.view)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, opaque_render_pass.pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroup, opaque_render_pass.bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, translucent_render_pass.pipeline)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, translucent_render_pass.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout,
-                        translucent_render_pass.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, translucent_render_pass.bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, composite_render_pass.pipeline)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, composite_render_pass.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout,
-                        composite_render_pass.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, composite_render_pass.bind_group)
-}
-
-void example_a_buffer(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "A-Buffer",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *

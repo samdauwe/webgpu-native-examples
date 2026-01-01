@@ -557,8 +557,8 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
 void stanford_dragon_mesh_compute_normals(
   stanford_dragon_mesh_t* stanford_dragon_mesh)
 {
-  float(*positions)[3]          = stanford_dragon_mesh->positions.data;
-  float(*normals)[3]            = stanford_dragon_mesh->normals.data;
+  float (*positions)[3]         = stanford_dragon_mesh->positions.data;
+  float (*normals)[3]           = stanford_dragon_mesh->normals.data;
   const uint64_t triangle_count = stanford_dragon_mesh->triangles.count;
   uint16_t* triangle            = NULL;
   vec3 *p0 = NULL, *p1 = NULL, *p2 = NULL;
@@ -603,7 +603,7 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
   projected_plane_enum projected_plane)
 {
   const uint32_t* idxs = projected_plane2_ids[(uint32_t)projected_plane];
-  float(*uvs)[2]       = stanford_dragon_mesh->uvs.data;
+  float (*uvs)[2]      = stanford_dragon_mesh->uvs.data;
   float extent_min[2]  = {FLT_MAX, FLT_MAX};
   float extent_max[2]  = {FLT_MIN, FLT_MIN};
   vec3* pos            = NULL;
@@ -626,27 +626,22 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
   }
 }
 
-#if __UTAH_TEAPOT__
-
 /* -------------------------------------------------------------------------- *
  * Utah teapot
  * -------------------------------------------------------------------------- */
 
-int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh)
+int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh,
+                          const char* const utah_teapot_json)
 {
   ASSERT(utah_teapot_mesh);
 
   int res = EXIT_FAILURE;
 
-  file_read_result_t file_read_result = {0};
-  read_file("meshes/teapot.json", &file_read_result, true);
-  const char* const json_data = (const char* const)file_read_result.data;
-
   const cJSON* position_array = NULL;
   const cJSON* position_item  = NULL;
   const cJSON* cell_array     = NULL;
   const cJSON* cell_item      = NULL;
-  cJSON* model_json           = cJSON_Parse(json_data);
+  cJSON* model_json           = cJSON_Parse(utah_teapot_json);
   if (model_json == NULL) {
     const char* error_ptr = cJSON_GetErrorPtr();
     if (error_ptr != NULL) {
@@ -720,15 +715,14 @@ int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh)
 
 load_json_end:
   cJSON_Delete(model_json);
-  free(file_read_result.data);
 
   return res;
 }
 
 void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
 {
-  float(*positions)[3]          = utah_teapot_mesh->positions.data;
-  float(*normals)[3]            = utah_teapot_mesh->normals.data;
+  float (*positions)[3]         = utah_teapot_mesh->positions.data;
+  float (*normals)[3]           = utah_teapot_mesh->normals.data;
   const uint64_t triangle_count = utah_teapot_mesh->triangles.count;
   uint16_t* triangle            = NULL;
   vec3 *p0 = NULL, *p1 = NULL, *p2 = NULL;
@@ -761,5 +755,3 @@ void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
     glm_vec3_normalize(normals[i]);
   }
 }
-
-#endif /*__UTAH_TEAPOT__ */

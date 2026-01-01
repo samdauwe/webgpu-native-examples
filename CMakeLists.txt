@@ -135,6 +135,7 @@ function(add_example_executable EXAMPLE_NAME)
 endfunction()
 
 # Examples
+add_example_executable(a_buffer)
 add_example_executable(animometer)
 # add_example_executable(aquarium)
 add_example_executable(cameras)
