@@ -1042,7 +1042,7 @@ static void prepare_pipelines(wgpu_context_t* wgpu_context)
   WGPUVertexState vertex_state = wgpu_create_vertex_state(
             wgpu_context, &(wgpu_vertex_state_t){
             .shader_desc = (wgpu_shader_desc_t){
-              /* Vertex shader SPIR-V */
+              /* Vertex shader */
               .label = "Solid mesh - Vertex shader SPIR-V",
               .file  = "shaders/gltf_loading/mesh.vert.spv",
             },
