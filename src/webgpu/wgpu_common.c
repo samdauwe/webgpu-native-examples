@@ -913,15 +913,17 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
 
   /* Texture data */
   if (desc && desc->pixels.ptr) {
+    /* Calculate bytes per pixel based on format */
+    uint32_t bytes_per_pixel = 4; /* RGBA8Unorm = 4 bytes */
+
     wgpuQueueWriteTexture(wgpu_context->queue,
                           &(WGPUTexelCopyTextureInfo){
                             .texture = texture.handle,
                             .aspect  = WGPUTextureAspect_All,
                           },
-                          desc->pixels.ptr,
-                          width * height * depth_or_array_layers,
+                          desc->pixels.ptr, desc->pixels.size,
                           &(WGPUTexelCopyBufferLayout){
-                            .bytesPerRow  = width * depth_or_array_layers,
+                            .bytesPerRow  = width * bytes_per_pixel,
                             .rowsPerImage = height,
                           },
                           &(WGPUExtent3D){width, height, 1});

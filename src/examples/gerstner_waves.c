@@ -284,7 +284,7 @@ static void fetch_callback(const sfetch_response_t* response)
         .extent = (WGPUExtent3D) {
           .width              = img_width,
           .height             = img_height,
-          .depthOrArrayLayers = 4,
+          .depthOrArrayLayers = 1,
         },
         .format = WGPUTextureFormat_RGBA8Unorm,
         .pixels = {
