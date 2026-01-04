@@ -14,11 +14,16 @@
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Primitive Picking
  *
- * This example demonstrates use of the primitive_index WGSL builtin.
- * It is used to render a unique ID for each primitive to a buffer, which is
- * then read at the current cursor/touch location to determine which primitive
- * has been selected. That primitive is then highlighted when rendering the
- * next frame.
+ * This example demonstrates primitive picking by computing a primitive ID from
+ * vertex_index (since primitive_id builtin requires experimental extensions).
+ * Each primitive's unique ID is rendered to a texture, which is then read at
+ * the current cursor/touch location to determine which primitive has been
+ * selected. That primitive is highlighted in yellow when rendering the next
+ * frame.
+ *
+ * The teapot mesh is loaded asynchronously and converted from indexed to
+ * non-indexed geometry to ensure sequential vertex indices for correct
+ * primitive ID calculation (primitive_id = vertex_index / 3).
  *
  * Ref:
  * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/primitivePicking
@@ -82,6 +87,12 @@ static struct {
     float x;
     float y;
   } pick_coord;
+  WGPURenderPassColorAttachment forward_color_attachments[2];
+  WGPURenderPassDepthStencilAttachment forward_depth_attachment;
+  WGPURenderPassDescriptor forward_render_pass;
+  WGPURenderPassColorAttachment debug_color_attachment;
+  WGPURenderPassDescriptor debug_render_pass;
+  WGPUComputePassDescriptor pick_compute_pass;
   float rad;
   WGPUBool mesh_loaded;
   WGPUBool initialized;
@@ -98,6 +109,44 @@ static struct {
   .pick_coord = {
     .x = 0.0f,
     .y = 0.0f,
+  },
+  .forward_color_attachments = {
+    [0] = {
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = {0.0f, 0.0f, 1.0f, 1.0f},
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    },
+    [1] = {
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    },
+  },
+  .forward_depth_attachment = {
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+    .depthClearValue = 1.0f,
+  },
+  .forward_render_pass = {
+    .label                  = STRVIEW("Forward rendering pass"),
+    .colorAttachmentCount   = 2,
+    .colorAttachments       = state.forward_color_attachments,
+    .depthStencilAttachment = &state.forward_depth_attachment,
+  },
+  .debug_color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .debug_render_pass = {
+    .label                = STRVIEW("Primitive index debug view pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.debug_color_attachment,
+  },
+  .pick_compute_pass = {
+    .label = STRVIEW("Pick compute pass"),
   },
   .rad           = 0.0f,
   .mesh_loaded   = false,
@@ -576,8 +625,52 @@ static int init(struct wgpu_context_t* wgpu_context)
   return EXIT_FAILURE;
 }
 
-static void get_camera_view_proj_matrix(mat4 dest)
+static void update_transformation_matrix(void)
 {
+  if (state.settings.rotate) {
+    state.rad = PI * (stm_sec(stm_now()) / 10.0f);
+  }
+
+  /* Update model matrix with rotation */
+  mat4 rotation;
+  glm_mat4_identity(rotation);
+  glm_translate(rotation, state.view_matrices.origin);
+  glm_rotate_y(rotation, state.rad, rotation);
+
+  vec3 rotated_eye_position;
+  glm_mat4_mulv3(rotation, state.view_matrices.eye_position, 1.0f,
+                 rotated_eye_position);
+
+  /* Update view matrix */
+  mat4 view_matrix;
+  glm_lookat(rotated_eye_position, state.view_matrices.origin,
+             state.view_matrices.up_vector, view_matrix);
+
+  /* Update model matrix */
+  glm_mat4_identity(state.view_matrices.model_matrix);
+
+  /* Update normal model matrix */
+  glm_mat4_copy(state.view_matrices.model_matrix,
+                state.view_matrices.normal_model_matrix);
+  glm_mat4_inv(state.view_matrices.normal_model_matrix,
+               state.view_matrices.normal_model_matrix);
+  glm_mat4_transpose(state.view_matrices.normal_model_matrix);
+}
+
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
+{
+  /* Update transformation matrices */
+  update_transformation_matrix();
+
+  /* Update model uniform buffer */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.model, 0,
+                       state.view_matrices.model_matrix, sizeof(mat4));
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.model,
+                       sizeof(mat4), state.view_matrices.normal_model_matrix,
+                       sizeof(mat4));
+
+  /* Update frame uniform buffer */
+  mat4 camera_view_proj, camera_inv_view_proj;
   if (state.settings.rotate) {
     state.rad = PI * (stm_sec(stm_now()) / 10.0f);
   }
@@ -595,19 +688,12 @@ static void get_camera_view_proj_matrix(mat4 dest)
   glm_lookat(rotated_eye_position, state.view_matrices.origin,
              state.view_matrices.up_vector, view_matrix);
 
-  glm_mat4_mul(state.view_matrices.projection_matrix, view_matrix, dest);
-}
+  glm_mat4_mul(state.view_matrices.projection_matrix, view_matrix,
+               camera_view_proj);
+  glm_mat4_inv(camera_view_proj, camera_inv_view_proj);
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  /* Update frame uniforms */
-  mat4 camera_view_proj;
-  get_camera_view_proj_matrix(camera_view_proj);
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.frame, 0,
                        camera_view_proj, sizeof(mat4));
-
-  mat4 camera_inv_view_proj;
-  glm_mat4_inv(camera_view_proj, camera_inv_view_proj);
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.frame,
                        sizeof(mat4), camera_inv_view_proj, sizeof(mat4));
 
@@ -615,46 +701,23 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   float pick_data[2] = {state.pick_coord.x, state.pick_coord.y};
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.frame,
                        2 * sizeof(mat4), pick_data, 2 * sizeof(float));
+}
 
+static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+{
   WGPUCommandEncoder cmd_encoder
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
   /* Forward rendering pass */
   {
-    WGPURenderPassColorAttachment color_attachments[2] = {
-      [0] =
-        (WGPURenderPassColorAttachment){
-          .view       = wgpu_context->swapchain_view,
-          .loadOp     = WGPULoadOp_Clear,
-          .storeOp    = WGPUStoreOp_Store,
-          .clearValue = (WGPUColor){0.0f, 0.0f, 1.0f, 1.0f},
-          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-        },
-      [1] =
-        (WGPURenderPassColorAttachment){
-          .view       = state.textures.primitive_index_view,
-          .loadOp     = WGPULoadOp_Clear,
-          .storeOp    = WGPUStoreOp_Store,
-          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-        },
-    };
+    /* Update attachment views */
+    state.forward_color_attachments[0].view = wgpu_context->swapchain_view;
+    state.forward_color_attachments[1].view
+      = state.textures.primitive_index_view;
+    state.forward_depth_attachment.view = state.textures.depth_view;
 
-    WGPURenderPassDepthStencilAttachment depth_stencil_attachment = {
-      .view            = state.textures.depth_view,
-      .depthLoadOp     = WGPULoadOp_Clear,
-      .depthStoreOp    = WGPUStoreOp_Store,
-      .depthClearValue = 1.0f,
-    };
-
-    WGPURenderPassDescriptor render_pass_desc = {
-      .label                  = STRVIEW("Forward rendering pass"),
-      .colorAttachmentCount   = 2,
-      .colorAttachments       = color_attachments,
-      .depthStencilAttachment = &depth_stencil_attachment,
-    };
-
-    WGPURenderPassEncoder render_pass
-      = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass_desc);
+    WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+      cmd_encoder, &state.forward_render_pass);
     wgpuRenderPassEncoderSetPipeline(render_pass,
                                      state.pipelines.forward_rendering);
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
@@ -669,22 +732,11 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   /* Primitive index debug view pass (optional) */
   if (state.settings.show_primitive_indexes) {
-    WGPURenderPassColorAttachment color_attachment = {
-      .view       = wgpu_context->swapchain_view,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor){0.0f, 0.0f, 0.0f, 1.0f},
-      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-    };
+    /* Update attachment view */
+    state.debug_color_attachment.view = wgpu_context->swapchain_view;
 
-    WGPURenderPassDescriptor render_pass_desc = {
-      .label                = STRVIEW("Primitive index debug view pass"),
-      .colorAttachmentCount = 1,
-      .colorAttachments     = &color_attachment,
-    };
-
-    WGPURenderPassEncoder render_pass
-      = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass_desc);
+    WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+      cmd_encoder, &state.debug_render_pass);
     wgpuRenderPassEncoderSetPipeline(render_pass,
                                      state.pipelines.primitives_debug_view);
     wgpuRenderPassEncoderSetBindGroup(
@@ -696,12 +748,8 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 
   /* Pick compute pass */
   {
-    WGPUComputePassDescriptor compute_pass_desc = {
-      .label = STRVIEW("Pick compute pass"),
-    };
-
-    WGPUComputePassEncoder compute_pass
-      = wgpuCommandEncoderBeginComputePass(cmd_encoder, &compute_pass_desc);
+    WGPUComputePassEncoder compute_pass = wgpuCommandEncoderBeginComputePass(
+      cmd_encoder, &state.pick_compute_pass);
     wgpuComputePassEncoderSetPipeline(compute_pass, state.pipelines.pick);
     wgpuComputePassEncoderSetBindGroup(compute_pass, 0, state.bind_groups.pick,
                                        0, NULL);
@@ -733,10 +781,13 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_SUCCESS;
   }
 
+  /* Update uniform buffers */
+  update_uniform_buffers(wgpu_context);
+
+  /* Build and submit command buffer */
   WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
   ASSERT(command_buffer != NULL);
 
-  /* Submit command buffer */
   wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
   WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
 
@@ -877,7 +928,7 @@ static const char* fragment_forward_rendering_wgsl = CODE(
     pickCoord : vec2f,
     pickedPrimitive : u32,
   }
-  
+
   @group(0) @binding(1) var<uniform> frame : Frame;
 
   struct PassOutput {
