@@ -310,6 +310,10 @@ Generating a complete mip-chain at runtime instead of loading it from a file, by
 
 This example shows how to capture an image by rendering a scene to a texture, copying the texture to a buffer, and retrieving the image from the buffer so that it can be stored into a png image. Two render pipelines are used in this example: one for rendering the scene in a window and another pipeline for offscreen rendering. Note that a single offscreen render pipeline would be sufficient for "taking a screenshot," with the added benefit that this method would not require a window to be created.
 
+#### [Primitive Picking](src/examples/primitive_picking.c)
+
+This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)
