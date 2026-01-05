@@ -800,7 +800,7 @@ static int frame(wgpu_context_t* wgpu_context)
 
     /* Create new texture */
     WGPUTextureDescriptor tex_desc = {
-      .label = STRVIEW("Color map texture"),
+      .label = STRVIEW("Color map - Texture"),
       .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
       .dimension = WGPUTextureDimension_2D,
       .size = (WGPUExtent3D){
