@@ -971,14 +971,41 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     /* Recreate depth texture with new dimensions */
     init_depth_texture(wgpu_context);
+
     /* Recreate buffers that depend on canvas size */
     if (state.mesh_loaded) {
+      /* Update depth stencil attachment to use the new depth texture view */
+      state.opaque_pass.depth_stencil_attachment.view
+        = state.depth_texture.view;
+
+      /* Destroy size-dependent and uniform buffers before recreating */
+      wgpu_destroy_buffer(&state.buffers.uniform);
       wgpu_destroy_buffer(&state.buffers.heads);
       wgpu_destroy_buffer(&state.buffers.heads_init);
       wgpu_destroy_buffer(&state.buffers.linked_list);
       wgpu_destroy_buffer(&state.buffers.slice_info);
       init_buffers(wgpu_context);
-      /* Recreate bind groups with new buffers */
+
+      /* Recreate opaque pass bind group with new uniform buffer */
+      WGPU_RELEASE_RESOURCE(BindGroup, state.opaque_pass.bind_group)
+      WGPUBindGroupEntry bg_entries[1] = {
+        [0] = (WGPUBindGroupEntry){
+          .binding = 0,
+          .buffer  = state.buffers.uniform.buffer,
+          .size    = state.buffers.uniform.size,
+        },
+      };
+      state.opaque_pass.bind_group = wgpuDeviceCreateBindGroup(
+        wgpu_context->device, &(WGPUBindGroupDescriptor){
+                                .label  = STRVIEW("Opaque - Bind group"),
+                                .layout = wgpuRenderPipelineGetBindGroupLayout(
+                                  state.opaque_pass.pipeline, 0),
+                                .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                                .entries    = bg_entries,
+                              });
+      ASSERT(state.opaque_pass.bind_group != NULL);
+
+      /* Recreate bind groups for translucent and composite passes */
       init_translucent_pass(wgpu_context);
       init_composite_pass(wgpu_context);
     }
