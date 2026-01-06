@@ -180,7 +180,7 @@ static uint32_t round_up(uint32_t n, uint32_t k)
   return ceil((float)n / (float)k) * k;
 }
 
-static void init_buffers(wgpu_context_t* wgpu_context)
+static void init_mesh_buffers(wgpu_context_t* wgpu_context)
 {
   /* Create the model vertex buffer */
   state.buffers.vertex = wgpu_create_buffer(
@@ -202,7 +202,10 @@ static void init_buffers(wgpu_context_t* wgpu_context)
       .initial.data = state.teapot_mesh.triangles.data,
       .count        = 3 * state.teapot_mesh.triangles.count,
     });
+}
 
+static void init_size_dependent_buffers(wgpu_context_t* wgpu_context)
+{
   const uint32_t canvas_width  = wgpu_context->width;
   const uint32_t canvas_height = wgpu_context->height;
 
@@ -973,7 +976,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
     init_depth_texture(wgpu_context);
 
     /* Recreate buffers that depend on canvas size */
-    if (state.mesh_loaded) {
+    if (state.mesh_loaded && state.buffers.vertex.buffer != NULL) {
       /* Update depth stencil attachment to use the new depth texture view */
       state.opaque_pass.depth_stencil_attachment.view
         = state.depth_texture.view;
@@ -984,7 +987,9 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
       wgpu_destroy_buffer(&state.buffers.heads_init);
       wgpu_destroy_buffer(&state.buffers.linked_list);
       wgpu_destroy_buffer(&state.buffers.slice_info);
-      init_buffers(wgpu_context);
+
+      /* Recreate size-dependent buffers */
+      init_size_dependent_buffers(wgpu_context);
 
       /* Recreate opaque pass bind group with new uniform buffer */
       WGPU_RELEASE_RESOURCE(BindGroup, state.opaque_pass.bind_group)
@@ -1012,14 +1017,40 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   }
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
+
+  /* Process async file loading */
+  sfetch_dowork();
+
+  /* Initialize pipelines once mesh is loaded */
+  if (state.mesh_loaded && state.buffers.vertex.buffer == NULL) {
+    init_mesh_buffers(wgpu_context);
+    init_size_dependent_buffers(wgpu_context);
+    init_opaque_pass(wgpu_context);
+    init_translucent_pass(wgpu_context);
+    init_composite_pass(wgpu_context);
+  }
+
+  /* Only render if mesh and pipelines are ready */
+  if (!state.mesh_loaded || state.buffers.vertex.buffer == NULL) {
+    return EXIT_SUCCESS;
+  }
+
+  /* Update uniform buffer */
+  update_uniform_buffer(wgpu_context, (float)stm_ms(stm_now()));
+
   const uint32_t canvas_width  = wgpu_context->width;
   const uint32_t canvas_height = wgpu_context->height;
-
-  WGPUCommandEncoder cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUDevice device            = wgpu_context->device;
+  WGPUQueue queue              = wgpu_context->queue;
   WGPUTextureView texture_view = wgpu_context->swapchain_view;
+
+  /* Create command encoder */
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
   /* Draw the opaque objects */
   {
@@ -1042,6 +1073,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, opaque_pass_encoder)
   }
 
+  /* Process each slice */
   for (uint32_t slice = 0; slice < state.num_slices; ++slice) {
     /* Initialize the heads buffer */
     wgpuCommandEncoderCopyBufferToBuffer(
@@ -1111,48 +1143,16 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
-  ASSERT(command_buffer != NULL);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_enc)
-
-  return command_buffer;
-}
-
-static int frame(struct wgpu_context_t* wgpu_context)
-{
-  if (!state.initialized) {
-    return EXIT_FAILURE;
-  }
-
-  /* Process async file loading */
-  sfetch_dowork();
-
-  /* Initialize pipelines once mesh is loaded */
-  if (state.mesh_loaded && state.buffers.vertex.buffer == NULL) {
-    init_buffers(wgpu_context);
-    init_opaque_pass(wgpu_context);
-    init_translucent_pass(wgpu_context);
-    init_composite_pass(wgpu_context);
-  }
-
-  /* Only render if mesh and pipelines are ready */
-  if (!state.mesh_loaded || state.buffers.vertex.buffer == NULL) {
-    return EXIT_SUCCESS;
-  }
-
-  /* Update uniform buffer */
-  update_uniform_buffer(wgpu_context, (float)stm_ms(stm_now()));
-
-  WGPUQueue queue = wgpu_context->queue;
-
-  WGPUCommandBuffer cmd_buffer = build_command_buffer(wgpu_context);
+  /* Finish command buffer */
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+  ASSERT(cmd_buffer != NULL);
 
   /* Submit and present */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
   /* Cleanup */
-  wgpuCommandBufferRelease(cmd_buffer);
+  WGPU_RELEASE_RESOURCE(CommandBuffer, cmd_buffer)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_enc)
 
   return EXIT_SUCCESS;
 }
