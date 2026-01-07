@@ -257,7 +257,7 @@ static void init_size_dependent_buffers(wgpu_context_t* wgpu_context)
     ASSERT(state.buffers.slice_info.buffer);
     int32_t* mapping = (int32_t*)wgpuBufferGetMappedRange(
       state.buffers.slice_info.buffer, 0, buffer_desc.size);
-    // This assumes minUniformBufferOffsetAlignment is a multiple of 4
+    /* This assumes minUniformBufferOffsetAlignment is a multiple of 4 */
     const int32_t stride
       = state.device_limits.minUniformBufferOffsetAlignment / sizeof(int32_t);
     for (int32_t i = 0; i < (int32_t)state.num_slices; ++i) {
