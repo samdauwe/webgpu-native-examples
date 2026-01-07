@@ -301,33 +301,14 @@ static void input_handler_init(input_handler_t* this)
 static void update_mouse_state(input_handler_t* this,
                                struct wgpu_context_t* wgpu_context)
 {
-#if 0
-  vec2 mouse_position = {
-    context->mouse_position[0],
-    wgpu_context->surface.height - context->mouse_position[1],
-  };
-
-  /* Mouse move */
-  if (!this->analog.touching && context->mouse_buttons.left) {
-    glm_vec2_copy(mouse_position, this->analog.prev_position);
-    this->analog.touching = true;
-  }
-  else if (this->analog.touching && context->mouse_buttons.left) {
-    glm_vec2_sub(mouse_position, this->analog.prev_position,
-                 this->analog.drag_distance);
-    glm_vec2_add(this->analog.current_position, this->analog.drag_distance,
-                 this->analog.current_position);
-    glm_vec2_copy(mouse_position, this->analog.prev_position);
-  }
-  else if (this->analog.touching && !context->mouse_buttons.left) {
-    this->analog.touching = false;
-  }
-#endif
+  UNUSED_VAR(wgpu_context);
+  UNUSED_VAR(this);
 }
 
-static void reset_mouse_state(input_handler_t* this)
+static void reset_analog_input(input_handler_t* this)
 {
-  memset(&this->digital, 0, sizeof(this->digital));
+  glm_vec2_zero(this->analog.current_position);
+  this->analog.zoom = 0.0f;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -520,14 +501,14 @@ static void wasd_camera_init(wasd_camera_t* this,
   wasd_camera_init_virtual_method_table(this);
 
   if ((iposition != NULL) || (itarget != NULL)) {
-    vec3 position, target, forward;
+    vec3 position, target, back;
     glm_vec3_copy((iposition == NULL) ? (vec3){0.0f, 0.0f, -5.0f} : *iposition,
                   position);
     glm_vec3_copy((itarget == NULL) ? (vec3){0.0f, 0.0f, 0.0f} : *itarget,
                   target);
-    glm_vec3_sub(target, position, forward);
-    glm_vec3_normalize(forward);
-    wasd_camera_recalculate_angles(this, forward);
+    glm_vec3_sub(position, target, back);
+    glm_vec3_normalize(back);
+    wasd_camera_recalculate_angles(this, back);
     camera_base_set_position(&this->super, position);
   }
 }
@@ -969,6 +950,9 @@ static void init_texture(wgpu_context_t* wgpu_context)
 {
   /* Create a depth/stencil texture for the color rendering pipeline */
   {
+    /* Release old depth texture if exists */
+    wgpu_destroy_texture(&state.textures.depth);
+
     WGPUExtent3D texture_extent = {
       .width              = wgpu_context->width,
       .height             = wgpu_context->height,
@@ -980,7 +964,7 @@ static void init_texture(wgpu_context_t* wgpu_context)
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = WGPUTextureFormat_Depth24Plus,
+      .format        = wgpu_context->depth_stencil_format,
       .usage         = WGPUTextureUsage_RenderAttachment,
     };
     state.textures.depth.handle
@@ -1004,7 +988,7 @@ static void init_texture(wgpu_context_t* wgpu_context)
   }
 
   /* Cube texture */
-  {
+  if (!state.textures.cube.handle) {
     state.textures.cube = wgpu_create_color_bars_texture(wgpu_context, NULL);
     wgpu_texture_t* texture = &state.textures.cube;
     sfetch_send(&(sfetch_request_t){
@@ -1019,7 +1003,7 @@ static void init_texture(wgpu_context_t* wgpu_context)
   }
 
   /* Create a sampler with linear filtering for smooth interpolation. */
-  {
+  if (!state.textures.sampler) {
     state.textures.sampler = wgpuDeviceCreateSampler(
       wgpu_context->device, &(WGPUSamplerDescriptor){
                               .label         = STRVIEW("Texture - Sampler"),
@@ -1285,13 +1269,13 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Update camera */
   update_mouse_state(&state.input_handler, wgpu_context);
   update_model_view_projection_matrix(wgpu_context);
-  reset_mouse_state(&state.input_handler);
+  reset_analog_input(&state.input_handler);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
 
   state.color_attachment.view         = wgpu_context->swapchain_view;
-  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
+  state.depth_stencil_attachment.view = state.textures.depth.view;
 
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
   WGPURenderPassEncoder rpass_enc
@@ -1341,11 +1325,71 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
         state.input_handler.digital.up = 1;
         break;
       case KEY_C:
+      case KEY_LEFT_CONTROL:
+      case KEY_LEFT_SHIFT:
         state.input_handler.digital.down = 1;
         break;
       default:
         break;
     }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_KEY_UP) {
+    switch (input_event->key_code) {
+      case KEY_W:
+        state.input_handler.digital.forward = 0;
+        break;
+      case KEY_S:
+        state.input_handler.digital.backward = 0;
+        break;
+      case KEY_A:
+        state.input_handler.digital.left = 0;
+        break;
+      case KEY_D:
+        state.input_handler.digital.right = 0;
+        break;
+      case KEY_SPACE:
+        state.input_handler.digital.up = 0;
+        break;
+      case KEY_C:
+      case KEY_LEFT_CONTROL:
+      case KEY_LEFT_SHIFT:
+        state.input_handler.digital.down = 0;
+        break;
+      default:
+        break;
+    }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN) {
+    if (input_event->mouse_button == BUTTON_LEFT) {
+      state.input_handler.analog.touching = true;
+    }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_UP) {
+    if (input_event->mouse_button == BUTTON_LEFT) {
+      state.input_handler.analog.touching = false;
+    }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
+    if (state.input_handler.analog.touching) {
+      state.input_handler.analog.current_position[0] += input_event->mouse_dx;
+      state.input_handler.analog.current_position[1] += input_event->mouse_dy;
+    }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_SCROLL) {
+    if (state.input_handler.analog.touching) {
+      /* The scroll value varies substantially between user agents / browsers.
+       * Just use the sign. */
+      state.input_handler.analog.zoom
+        += (input_event->scroll_y > 0) ?
+             1.0f :
+             ((input_event->scroll_y < 0) ? -1.0f : 0.0f);
+    }
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    /* Recreate depth texture on window resize */
+    init_texture(wgpu_context);
+    /* Update view matrices with new aspect ratio */
+    init_view_matrices(wgpu_context);
   }
 }
 
@@ -1369,7 +1413,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title          = "Caneras",
+    .title          = "Cameras",
     .init_cb        = init,
     .frame_cb       = frame,
     .shutdown_cb    = shutdown,
