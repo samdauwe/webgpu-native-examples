@@ -7,84 +7,6 @@
 #include "webgpu/wgpu_common.h"
 
 /* -------------------------------------------------------------------------- *
- * Plane mesh
- * -------------------------------------------------------------------------- */
-
-void plane_mesh_generate_vertices(plane_mesh_t* plane_mesh)
-{
-  plane_mesh->vertex_count = 0;
-  const float row_height   = plane_mesh->height / (float)plane_mesh->rows;
-  const float col_width    = plane_mesh->width / (float)plane_mesh->columns;
-  float x = 0.0f, y = 0.0f;
-  for (uint32_t row = 0; row <= plane_mesh->rows; ++row) {
-    y = row * row_height;
-
-    for (uint32_t col = 0; col <= plane_mesh->columns; ++col) {
-      x = col * col_width;
-
-      plane_vertex_t* vertex = &plane_mesh->vertices[plane_mesh->vertex_count];
-      {
-        // Vertex position
-        vertex->position[0] = x;
-        vertex->position[1] = y;
-        vertex->position[2] = 0.0f;
-
-        // Vertex normal
-        vertex->normal[0] = 0.0f;
-        vertex->normal[1] = 0.0f;
-        vertex->normal[2] = 1.0f;
-
-        // Vertex uv
-        vertex->uv[0] = col / plane_mesh->columns;
-        vertex->uv[1] = 1 - row / plane_mesh->rows;
-      }
-      ++plane_mesh->vertex_count;
-    }
-  }
-}
-
-void plane_mesh_generate_indices(plane_mesh_t* plane_mesh)
-{
-  plane_mesh->index_count       = 0;
-  const uint32_t columns_offset = plane_mesh->columns + 1;
-  uint32_t left_bottom = 0, right_bottom = 0, left_up = 0, right_up = 0;
-  for (uint32_t row = 0; row < plane_mesh->rows; ++row) {
-    for (uint32_t col = 0; col < plane_mesh->columns; ++col) {
-      left_bottom  = columns_offset * row + col;
-      right_bottom = columns_offset * row + (col + 1);
-      left_up      = columns_offset * (row + 1) + col;
-      right_up     = columns_offset * (row + 1) + (col + 1);
-
-      // CCW frontface
-      plane_mesh->indices[plane_mesh->index_count++] = left_up;
-      plane_mesh->indices[plane_mesh->index_count++] = left_bottom;
-      plane_mesh->indices[plane_mesh->index_count++] = right_bottom;
-
-      plane_mesh->indices[plane_mesh->index_count++] = right_up;
-      plane_mesh->indices[plane_mesh->index_count++] = left_up;
-      plane_mesh->indices[plane_mesh->index_count++] = right_bottom;
-    }
-  }
-}
-
-void plane_mesh_init(plane_mesh_t* plane_mesh,
-                     plane_mesh_init_options_t* options)
-{
-  // Initialize dimensions
-  plane_mesh->width   = options ? options->width : 1.0f;
-  plane_mesh->height  = options ? options->height : 1.0f;
-  plane_mesh->rows    = options ? options->rows : 1;
-  plane_mesh->columns = options ? options->columns : 1;
-
-  ASSERT((plane_mesh->rows + 1) * (plane_mesh->columns + 1)
-         < MAX_PLANE_VERTEX_COUNT)
-
-  // Generate vertices and indices
-  plane_mesh_generate_vertices(plane_mesh);
-  plane_mesh_generate_indices(plane_mesh);
-}
-
-/* -------------------------------------------------------------------------- *
  * Box mesh
  * -------------------------------------------------------------------------- */
 
@@ -280,6 +202,224 @@ void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh)
     colors[4 * i + 2] = 255 * (z + 1) / 2;
     colors[4 * i + 3] = 255;
   }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Generic mesh functions
+ * -------------------------------------------------------------------------- */
+
+void mesh_create_renderable(WGPUDevice device, const mesh_t* mesh,
+                            bool store_vertices, bool store_indices,
+                            mesh_renderable_t* renderable)
+{
+  ASSERT(device != NULL);
+  ASSERT(mesh != NULL);
+  ASSERT(renderable != NULL);
+  ASSERT(mesh->vertices != NULL);
+  ASSERT(mesh->indices != NULL);
+
+  // Define buffer usage
+  WGPUBufferUsage vertex_buffer_usage
+    = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
+  if (store_vertices) {
+    vertex_buffer_usage |= WGPUBufferUsage_Storage;
+  }
+
+  WGPUBufferUsage index_buffer_usage
+    = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst;
+  if (store_indices) {
+    index_buffer_usage |= WGPUBufferUsage_Storage;
+  }
+
+  // Create vertex buffer
+  WGPUBufferDescriptor vertex_buffer_desc = {
+    .label            = "Mesh vertex buffer",
+    .usage            = vertex_buffer_usage,
+    .size             = mesh->vertices_size,
+    .mappedAtCreation = true,
+  };
+  renderable->vertex_buffer
+    = wgpuDeviceCreateBuffer(device, &vertex_buffer_desc);
+  ASSERT(renderable->vertex_buffer != NULL);
+
+  // Copy vertex data to buffer
+  void* vertex_mapping = wgpuBufferGetMappedRange(renderable->vertex_buffer, 0,
+                                                  mesh->vertices_size);
+  ASSERT(vertex_mapping != NULL);
+  memcpy(vertex_mapping, mesh->vertices, mesh->vertices_size);
+  wgpuBufferUnmap(renderable->vertex_buffer);
+
+  // Create index buffer
+  WGPUBufferDescriptor index_buffer_desc = {
+    .label            = "Mesh index buffer",
+    .usage            = index_buffer_usage,
+    .size             = mesh->indices_size,
+    .mappedAtCreation = true,
+  };
+  renderable->index_buffer = wgpuDeviceCreateBuffer(device, &index_buffer_desc);
+  ASSERT(renderable->index_buffer != NULL);
+
+  // Copy index data to buffer
+  void* index_mapping
+    = wgpuBufferGetMappedRange(renderable->index_buffer, 0, mesh->indices_size);
+  ASSERT(index_mapping != NULL);
+  memcpy(index_mapping, mesh->indices, mesh->indices_size);
+  wgpuBufferUnmap(renderable->index_buffer);
+
+  // Set metadata
+  renderable->index_count = mesh->indices_count;
+  renderable->bind_group  = NULL;
+}
+
+void mesh_renderable_destroy(mesh_renderable_t* renderable)
+{
+  if (renderable == NULL) {
+    return;
+  }
+
+  if (renderable->vertex_buffer != NULL) {
+    wgpuBufferRelease(renderable->vertex_buffer);
+    renderable->vertex_buffer = NULL;
+  }
+
+  if (renderable->index_buffer != NULL) {
+    wgpuBufferRelease(renderable->index_buffer);
+    renderable->index_buffer = NULL;
+  }
+
+  if (renderable->bind_group != NULL) {
+    wgpuBindGroupRelease(renderable->bind_group);
+    renderable->bind_group = NULL;
+  }
+
+  renderable->index_count = 0;
+}
+
+void mesh_get_position_at_index(const mesh_t* mesh, uint64_t index,
+                                float out_pos[3])
+{
+  ASSERT(mesh != NULL);
+  ASSERT(mesh->vertices != NULL);
+  ASSERT(out_pos != NULL);
+
+  // Position is at offset 0 in the vertex data
+  const uint64_t byte_offset = index * mesh->vertex_stride;
+  const float* vertex_data
+    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
+
+  out_pos[0] = vertex_data[0];
+  out_pos[1] = vertex_data[1];
+  out_pos[2] = vertex_data[2];
+}
+
+void mesh_get_normal_at_index(const mesh_t* mesh, uint64_t index,
+                              float out_normal[3])
+{
+  ASSERT(mesh != NULL);
+  ASSERT(mesh->vertices != NULL);
+  ASSERT(out_normal != NULL);
+
+  // Normal is at offset 3 * sizeof(float) in the vertex data
+  const uint64_t byte_offset = index * mesh->vertex_stride + 3 * sizeof(float);
+  const float* vertex_data
+    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
+
+  out_normal[0] = vertex_data[0];
+  out_normal[1] = vertex_data[1];
+  out_normal[2] = vertex_data[2];
+}
+
+void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2])
+{
+  ASSERT(mesh != NULL);
+  ASSERT(mesh->vertices != NULL);
+  ASSERT(out_uv != NULL);
+
+  // UV is at offset 6 * sizeof(float) in the vertex data
+  const uint64_t byte_offset = index * mesh->vertex_stride + 6 * sizeof(float);
+  const float* vertex_data
+    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
+
+  out_uv[0] = vertex_data[0];
+  out_uv[1] = vertex_data[1];
+}
+
+/* -------------------------------------------------------------------------- *
+ * Plane mesh
+ * -------------------------------------------------------------------------- */
+
+void plane_mesh_generate_vertices(plane_mesh_t* plane_mesh)
+{
+  plane_mesh->vertex_count = 0;
+  const float row_height   = plane_mesh->height / (float)plane_mesh->rows;
+  const float col_width    = plane_mesh->width / (float)plane_mesh->columns;
+  float x = 0.0f, y = 0.0f;
+  for (uint32_t row = 0; row <= plane_mesh->rows; ++row) {
+    y = row * row_height;
+
+    for (uint32_t col = 0; col <= plane_mesh->columns; ++col) {
+      x = col * col_width;
+
+      plane_vertex_t* vertex = &plane_mesh->vertices[plane_mesh->vertex_count];
+      {
+        // Vertex position
+        vertex->position[0] = x;
+        vertex->position[1] = y;
+        vertex->position[2] = 0.0f;
+
+        // Vertex normal
+        vertex->normal[0] = 0.0f;
+        vertex->normal[1] = 0.0f;
+        vertex->normal[2] = 1.0f;
+
+        // Vertex uv
+        vertex->uv[0] = col / plane_mesh->columns;
+        vertex->uv[1] = 1 - row / plane_mesh->rows;
+      }
+      ++plane_mesh->vertex_count;
+    }
+  }
+}
+
+void plane_mesh_generate_indices(plane_mesh_t* plane_mesh)
+{
+  plane_mesh->index_count       = 0;
+  const uint32_t columns_offset = plane_mesh->columns + 1;
+  uint32_t left_bottom = 0, right_bottom = 0, left_up = 0, right_up = 0;
+  for (uint32_t row = 0; row < plane_mesh->rows; ++row) {
+    for (uint32_t col = 0; col < plane_mesh->columns; ++col) {
+      left_bottom  = columns_offset * row + col;
+      right_bottom = columns_offset * row + (col + 1);
+      left_up      = columns_offset * (row + 1) + col;
+      right_up     = columns_offset * (row + 1) + (col + 1);
+
+      // CCW frontface
+      plane_mesh->indices[plane_mesh->index_count++] = left_up;
+      plane_mesh->indices[plane_mesh->index_count++] = left_bottom;
+      plane_mesh->indices[plane_mesh->index_count++] = right_bottom;
+
+      plane_mesh->indices[plane_mesh->index_count++] = right_up;
+      plane_mesh->indices[plane_mesh->index_count++] = left_up;
+      plane_mesh->indices[plane_mesh->index_count++] = right_bottom;
+    }
+  }
+}
+
+void plane_mesh_init(plane_mesh_t* plane_mesh,
+                     plane_mesh_init_options_t* options)
+{
+  // Initialize dimensions
+  plane_mesh->width   = options ? options->width : 1.0f;
+  plane_mesh->height  = options ? options->height : 1.0f;
+  plane_mesh->rows    = options ? options->rows : 1;
+  plane_mesh->columns = options ? options->columns : 1;
+
+  ASSERT((plane_mesh->rows + 1) * (plane_mesh->columns + 1)
+         < MAX_PLANE_VERTEX_COUNT)
+
+  // Generate vertices and indices
+  plane_mesh_generate_vertices(plane_mesh);
+  plane_mesh_generate_indices(plane_mesh);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -754,144 +894,4 @@ void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
   for (uint16_t i = 0; i < utah_teapot_mesh->normals.count; ++i) {
     glm_vec3_normalize(normals[i]);
   }
-}
-
-/* -------------------------------------------------------------------------- *
- * Generic mesh functions
- * -------------------------------------------------------------------------- */
-
-void mesh_create_renderable(WGPUDevice device, const mesh_t* mesh,
-                            bool store_vertices, bool store_indices,
-                            mesh_renderable_t* renderable)
-{
-  ASSERT(device != NULL);
-  ASSERT(mesh != NULL);
-  ASSERT(renderable != NULL);
-  ASSERT(mesh->vertices != NULL);
-  ASSERT(mesh->indices != NULL);
-
-  // Define buffer usage
-  WGPUBufferUsage vertex_buffer_usage
-    = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
-  if (store_vertices) {
-    vertex_buffer_usage |= WGPUBufferUsage_Storage;
-  }
-
-  WGPUBufferUsage index_buffer_usage
-    = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst;
-  if (store_indices) {
-    index_buffer_usage |= WGPUBufferUsage_Storage;
-  }
-
-  // Create vertex buffer
-  WGPUBufferDescriptor vertex_buffer_desc = {
-    .label            = "Mesh vertex buffer",
-    .usage            = vertex_buffer_usage,
-    .size             = mesh->vertices_size,
-    .mappedAtCreation = true,
-  };
-  renderable->vertex_buffer
-    = wgpuDeviceCreateBuffer(device, &vertex_buffer_desc);
-  ASSERT(renderable->vertex_buffer != NULL);
-
-  // Copy vertex data to buffer
-  void* vertex_mapping = wgpuBufferGetMappedRange(renderable->vertex_buffer, 0,
-                                                  mesh->vertices_size);
-  ASSERT(vertex_mapping != NULL);
-  memcpy(vertex_mapping, mesh->vertices, mesh->vertices_size);
-  wgpuBufferUnmap(renderable->vertex_buffer);
-
-  // Create index buffer
-  WGPUBufferDescriptor index_buffer_desc = {
-    .label            = "Mesh index buffer",
-    .usage            = index_buffer_usage,
-    .size             = mesh->indices_size,
-    .mappedAtCreation = true,
-  };
-  renderable->index_buffer = wgpuDeviceCreateBuffer(device, &index_buffer_desc);
-  ASSERT(renderable->index_buffer != NULL);
-
-  // Copy index data to buffer
-  void* index_mapping
-    = wgpuBufferGetMappedRange(renderable->index_buffer, 0, mesh->indices_size);
-  ASSERT(index_mapping != NULL);
-  memcpy(index_mapping, mesh->indices, mesh->indices_size);
-  wgpuBufferUnmap(renderable->index_buffer);
-
-  // Set metadata
-  renderable->index_count = mesh->indices_count;
-  renderable->bind_group  = NULL;
-}
-
-void mesh_renderable_destroy(mesh_renderable_t* renderable)
-{
-  if (renderable == NULL) {
-    return;
-  }
-
-  if (renderable->vertex_buffer != NULL) {
-    wgpuBufferRelease(renderable->vertex_buffer);
-    renderable->vertex_buffer = NULL;
-  }
-
-  if (renderable->index_buffer != NULL) {
-    wgpuBufferRelease(renderable->index_buffer);
-    renderable->index_buffer = NULL;
-  }
-
-  if (renderable->bind_group != NULL) {
-    wgpuBindGroupRelease(renderable->bind_group);
-    renderable->bind_group = NULL;
-  }
-
-  renderable->index_count = 0;
-}
-
-void mesh_get_position_at_index(const mesh_t* mesh, uint64_t index,
-                                float out_pos[3])
-{
-  ASSERT(mesh != NULL);
-  ASSERT(mesh->vertices != NULL);
-  ASSERT(out_pos != NULL);
-
-  // Position is at offset 0 in the vertex data
-  const uint64_t byte_offset = index * mesh->vertex_stride;
-  const float* vertex_data
-    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
-
-  out_pos[0] = vertex_data[0];
-  out_pos[1] = vertex_data[1];
-  out_pos[2] = vertex_data[2];
-}
-
-void mesh_get_normal_at_index(const mesh_t* mesh, uint64_t index,
-                              float out_normal[3])
-{
-  ASSERT(mesh != NULL);
-  ASSERT(mesh->vertices != NULL);
-  ASSERT(out_normal != NULL);
-
-  // Normal is at offset 3 * sizeof(float) in the vertex data
-  const uint64_t byte_offset = index * mesh->vertex_stride + 3 * sizeof(float);
-  const float* vertex_data
-    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
-
-  out_normal[0] = vertex_data[0];
-  out_normal[1] = vertex_data[1];
-  out_normal[2] = vertex_data[2];
-}
-
-void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2])
-{
-  ASSERT(mesh != NULL);
-  ASSERT(mesh->vertices != NULL);
-  ASSERT(out_uv != NULL);
-
-  // UV is at offset 6 * sizeof(float) in the vertex data
-  const uint64_t byte_offset = index * mesh->vertex_stride + 6 * sizeof(float);
-  const float* vertex_data
-    = (const float*)((const uint8_t*)mesh->vertices + byte_offset);
-
-  out_uv[0] = vertex_data[0];
-  out_uv[1] = vertex_data[1];
 }

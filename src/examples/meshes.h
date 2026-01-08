@@ -6,6 +6,76 @@
 #include <webgpu/webgpu.h>
 
 /* -------------------------------------------------------------------------- *
+ * Box mesh
+ * -------------------------------------------------------------------------- */
+
+#define BOX_MESH_FACES_COUNT (6)
+#define BOX_MESH_VERTICES_PER_SIDE (4)
+#define BOX_MESH_INDICES_PER_SIZE (6)
+#define BOX_MESH_F32S_PER_VERTEX                                               \
+  (14) // position : vec3f, tangent : vec3f, bitangent : vec3f, normal : vec3f,
+       // uv :vec2f
+#define BOX_MESH_VERTEX_STRIDE (BOX_MESH_F32S_PER_VERTEX * 4)
+#define BOX_MESH_VERTICES_COUNT                                                \
+  (BOX_MESH_FACES_COUNT * BOX_MESH_VERTICES_PER_SIDE * BOX_MESH_F32S_PER_VERTEX)
+#define BOX_MESH_INDICES_COUNT                                                 \
+  (BOX_MESH_FACES_COUNT * BOX_MESH_INDICES_PER_SIZE)
+
+typedef struct box_mesh_t {
+  uint64_t vertex_count;
+  uint64_t index_count;
+  float vertex_array[BOX_MESH_VERTICES_COUNT];
+  uint16_t index_array[BOX_MESH_INDICES_COUNT];
+  uint32_t vertex_stride;
+} box_mesh_t;
+
+/**
+ * @brief Constructs a box mesh with the given dimensions.
+ * The vertex buffer will have the following vertex fields (in the given order):
+ *   position  : float32x3
+ *   normal    : float32x3
+ *   uv        : float32x2
+ *   tangent   : float32x3
+ *   bitangent : float32x3
+ * @param width the width of the box
+ * @param height the height of the box
+ * @param depth the depth of the box
+ * @returns the box mesh with tangent and bitangents.
+ */
+void box_mesh_create_with_tangents(box_mesh_t* box_mesh, float width,
+                                   float height, float depth);
+
+/* -------------------------------------------------------------------------- *
+ * Cube mesh
+ * -------------------------------------------------------------------------- */
+
+typedef struct cube_mesh_t {
+  uint64_t vertex_size; /* Byte size of one cube vertex. */
+  uint64_t position_offset;
+  uint64_t color_offset; /* Byte offset of cube vertex color attribute. */
+  uint64_t uv_offset;
+  uint64_t vertex_count;
+  float vertex_array[360];
+} cube_mesh_t;
+
+void cube_mesh_init(cube_mesh_t* cube_mesh);
+
+/* -------------------------------------------------------------------------- *
+ * Indexed cube mesh
+ * -------------------------------------------------------------------------- */
+
+typedef struct indexed_cube_mesh_t {
+  uint64_t vertex_count;
+  uint64_t index_count;
+  uint64_t color_count;
+  float vertex_array[3 * 8];
+  uint32_t index_array[2 * 3 * 6];
+  uint8_t color_array[4 * 8];
+} indexed_cube_mesh_t;
+
+void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh);
+
+/* -------------------------------------------------------------------------- *
  * Generic mesh structures and functions
  * -------------------------------------------------------------------------- */
 
@@ -110,76 +180,6 @@ typedef struct plane_mesh_init_options_t {
 
 void plane_mesh_init(plane_mesh_t* plane_mesh,
                      plane_mesh_init_options_t* options);
-
-/* -------------------------------------------------------------------------- *
- * Box mesh
- * -------------------------------------------------------------------------- */
-
-#define BOX_MESH_FACES_COUNT (6)
-#define BOX_MESH_VERTICES_PER_SIDE (4)
-#define BOX_MESH_INDICES_PER_SIZE (6)
-#define BOX_MESH_F32S_PER_VERTEX                                               \
-  (14) // position : vec3f, tangent : vec3f, bitangent : vec3f, normal : vec3f,
-       // uv :vec2f
-#define BOX_MESH_VERTEX_STRIDE (BOX_MESH_F32S_PER_VERTEX * 4)
-#define BOX_MESH_VERTICES_COUNT                                                \
-  (BOX_MESH_FACES_COUNT * BOX_MESH_VERTICES_PER_SIDE * BOX_MESH_F32S_PER_VERTEX)
-#define BOX_MESH_INDICES_COUNT                                                 \
-  (BOX_MESH_FACES_COUNT * BOX_MESH_INDICES_PER_SIZE)
-
-typedef struct box_mesh_t {
-  uint64_t vertex_count;
-  uint64_t index_count;
-  float vertex_array[BOX_MESH_VERTICES_COUNT];
-  uint16_t index_array[BOX_MESH_INDICES_COUNT];
-  uint32_t vertex_stride;
-} box_mesh_t;
-
-/**
- * @brief Constructs a box mesh with the given dimensions.
- * The vertex buffer will have the following vertex fields (in the given order):
- *   position  : float32x3
- *   normal    : float32x3
- *   uv        : float32x2
- *   tangent   : float32x3
- *   bitangent : float32x3
- * @param width the width of the box
- * @param height the height of the box
- * @param depth the depth of the box
- * @returns the box mesh with tangent and bitangents.
- */
-void box_mesh_create_with_tangents(box_mesh_t* box_mesh, float width,
-                                   float height, float depth);
-
-/* -------------------------------------------------------------------------- *
- * Cube mesh
- * -------------------------------------------------------------------------- */
-
-typedef struct cube_mesh_t {
-  uint64_t vertex_size; /* Byte size of one cube vertex. */
-  uint64_t position_offset;
-  uint64_t color_offset; /* Byte offset of cube vertex color attribute. */
-  uint64_t uv_offset;
-  uint64_t vertex_count;
-  float vertex_array[360];
-} cube_mesh_t;
-
-void cube_mesh_init(cube_mesh_t* cube_mesh);
-
-/* -------------------------------------------------------------------------- *
- * Indexed cube mesh
- * -------------------------------------------------------------------------- */
-
-typedef struct indexed_cube_mesh_t {
-  uint64_t vertex_count;
-  uint64_t index_count;
-  uint64_t color_count;
-  float vertex_array[3 * 8];
-  uint32_t index_array[2 * 3 * 6];
-  uint8_t color_array[4 * 8];
-} indexed_cube_mesh_t;
-
-void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh);
 
 /* -------------------------------------------------------------------------- *
  * Sphere mesh
