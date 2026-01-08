@@ -276,8 +276,6 @@ void stanford_dragon_mesh_compute_projected_plane_uvs(
   stanford_dragon_mesh_t* stanford_dragon_mesh,
   projected_plane_enum projected_plane);
 
-#endif /* MESHES_H */
-
 /* -------------------------------------------------------------------------- *
  * Utah teapot
  * -------------------------------------------------------------------------- */
@@ -312,3 +310,71 @@ int utah_teapot_mesh_init(utah_teapot_mesh_t* utah_teapot_mesh,
  * @param utah_teapot_mesh mesh object
  */
 void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh);
+
+/* -------------------------------------------------------------------------- *
+ * Generic mesh utility functions
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Computes surface normals for a generic mesh
+ * @param positions Array of position vectors [x, y, z]
+ * @param position_count Number of positions
+ * @param triangles Array of triangle indices [i0, i1, i2]
+ * @param triangle_count Number of triangles
+ * @param out_normals Output array for computed normals (must be pre-allocated)
+ */
+void compute_surface_normals(const float (*positions)[3],
+                             uint64_t position_count,
+                             const uint16_t (*triangles)[3],
+                             uint64_t triangle_count, float (*out_normals)[3]);
+
+/**
+ * @brief Computes projected plane UVs for a generic mesh
+ * @param positions Array of position vectors [x, y, z]
+ * @param position_count Number of positions
+ * @param projected_plane Plane to project onto (XY, XZ, or YZ)
+ * @param out_uvs Output array for computed UVs (must be pre-allocated)
+ */
+void compute_projected_plane_uvs(const float (*positions)[3],
+                                 uint64_t position_count,
+                                 projected_plane_enum projected_plane,
+                                 float (*out_uvs)[2]);
+
+/**
+ * @brief Result structure for generate_normals function
+ */
+typedef struct generate_normals_result_t {
+  float* positions;        /* Newly generated positions array */
+  float* normals;          /* Newly generated normals array */
+  uint16_t* triangles;     /* Newly generated triangle indices */
+  uint64_t position_count; /* Number of positions/normals */
+  uint64_t triangle_count; /* Number of triangles */
+} generate_normals_result_t;
+
+/**
+ * @brief Generates normals with smooth shading based on max angle
+ * This function creates new vertices where needed to achieve proper shading
+ * Only faces within max_angle of each other will share smoothed normals
+ * @param max_angle Maximum angle in radians for normal smoothing
+ * @param positions Input array of position vectors [x, y, z]
+ * @param position_count Number of input positions
+ * @param triangles Input array of triangle indices [i0, i1, i2]
+ * @param triangle_count Number of input triangles
+ * @param out_result Output structure with newly allocated data (caller must
+ * free)
+ * @return 0 on success, non-zero on failure
+ */
+int generate_normals_with_max_angle(float max_angle,
+                                    const float (*positions)[3],
+                                    uint64_t position_count,
+                                    const uint16_t (*triangles)[3],
+                                    uint64_t triangle_count,
+                                    generate_normals_result_t* out_result);
+
+/**
+ * @brief Frees memory allocated by generate_normals_with_max_angle
+ * @param result Result structure to free
+ */
+void generate_normals_result_destroy(generate_normals_result_t* result);
+
+#endif /* MESHES_H */
