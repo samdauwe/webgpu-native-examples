@@ -1,7 +1,82 @@
 #ifndef MESHES_H
 #define MESHES_H
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <webgpu/webgpu.h>
+
+/* -------------------------------------------------------------------------- *
+ * Generic mesh structures and functions
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Generic mesh structure containing vertices, indices, and vertex stride
+ * Matches the TypeScript Mesh interface
+ */
+typedef struct mesh_t {
+  float* vertices;        /* Pointer to vertex data array */
+  void* indices;          /* Pointer to index data (uint16 or uint32) */
+  uint64_t vertices_size; /* Size of vertex data in bytes */
+  uint64_t indices_size;  /* Size of index data in bytes */
+  uint64_t indices_count; /* Number of indices */
+  uint32_t vertex_stride; /* Number of bytes per vertex */
+  bool indices_uint32;    /* true if indices are uint32, false for uint16 */
+} mesh_t;
+
+/**
+ * @brief Renderable structure containing GPU buffers and metadata
+ * Matches the TypeScript Renderable interface
+ */
+typedef struct mesh_renderable_t {
+  WGPUBuffer vertex_buffer;
+  WGPUBuffer index_buffer;
+  uint64_t index_count;
+  WGPUBindGroup bind_group; /* Optional bind group */
+} mesh_renderable_t;
+
+/**
+ * @brief Creates a mesh renderable from a mesh structure
+ * @param device A valid GPUDevice
+ * @param mesh An indexed triangle-list mesh
+ * @param store_vertices Flag to allow vertex buffer as storage buffer
+ * @param store_indices Flag to allow index buffer as storage buffer
+ * @param renderable Output renderable structure
+ */
+void mesh_create_renderable(WGPUDevice device, const mesh_t* mesh,
+                            bool store_vertices, bool store_indices,
+                            mesh_renderable_t* renderable);
+
+/**
+ * @brief Destroys a mesh renderable and releases GPU resources
+ * @param renderable The renderable to destroy
+ */
+void mesh_renderable_destroy(mesh_renderable_t* renderable);
+
+/**
+ * @brief Gets the position vector at a specific vertex index
+ * @param mesh The mesh structure
+ * @param index Vertex index
+ * @param out_pos Output position vector [x, y, z]
+ */
+void mesh_get_position_at_index(const mesh_t* mesh, uint64_t index,
+                                float out_pos[3]);
+
+/**
+ * @brief Gets the normal vector at a specific vertex index
+ * @param mesh The mesh structure
+ * @param index Vertex index
+ * @param out_normal Output normal vector [x, y, z]
+ */
+void mesh_get_normal_at_index(const mesh_t* mesh, uint64_t index,
+                              float out_normal[3]);
+
+/**
+ * @brief Gets the UV coordinates at a specific vertex index
+ * @param mesh The mesh structure
+ * @param index Vertex index
+ * @param out_uv Output UV coordinates [u, v]
+ */
+void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2]);
 
 /* -------------------------------------------------------------------------- *
  * Plane mesh
