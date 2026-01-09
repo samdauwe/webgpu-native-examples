@@ -93,20 +93,16 @@ function(add_example_executable EXAMPLE_NAME)
     # ==============================================================================
     # Include directories
     # ==============================================================================
-    if(WIN32)
-        # nothing to do for now
-    elseif(APPLE)
-        # nothing to do for now
-    else()
-        target_include_directories(${EXAMPLE_NAME}
-            PRIVATE ${PROJECT_SOURCE_DIR}/src
-            PRIVATE external/cglm/include
-            PRIVATE external/cJSON
-            PRIVATE external/rply
-            PRIVATE external/sokol
-            PRIVATE external/stb
-        )
-    endif()
+    target_include_directories(${EXAMPLE_NAME}
+        PRIVATE ${PROJECT_SOURCE_DIR}/src
+    )
+    target_include_directories(${EXAMPLE_NAME} SYSTEM
+        PRIVATE external/cglm/include
+        PRIVATE external/cJSON
+        PRIVATE external/rply
+        PRIVATE external/sokol
+        PRIVATE external/stb
+    )
     # ==============================================================================
     # Link libraries
     # ==============================================================================

@@ -1,14 +1,7 @@
 ﻿#include "meshes.h"
 #include "webgpu/wgpu_common.h"
 
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnan-infinity-disabled"
-#endif
 #include <cglm/cglm.h>
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>

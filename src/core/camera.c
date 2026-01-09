@@ -384,6 +384,10 @@ mat4* perspective_zo(mat4* out, float fovy, float aspect, float near,
   (*out)[3][0]  = 0.0f;
   (*out)[3][1]  = 0.0f;
   (*out)[3][3]  = 0.0f;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnan-infinity-disabled"
+#endif
   if (far != NULL && *far != INFINITY) {
     const float nf = 1.0f / (near - *far);
     (*out)[2][2]   = *far * nf;
@@ -393,5 +397,8 @@ mat4* perspective_zo(mat4* out, float fovy, float aspect, float near,
     (*out)[2][2] = -1.0f;
     (*out)[3][2] = -near;
   }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   return out;
 }

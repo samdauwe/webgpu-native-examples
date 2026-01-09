@@ -888,6 +888,8 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
   const uint32_t height = VALUE_OR_DEFAULT(desc, extent.height, 16);
   const uint32_t depth_or_array_layers
     = VALUE_OR_DEFAULT(desc, extent.depthOrArrayLayers, 1);
+  (void)depth_or_array_layers; /* Currently unused, texture depth is hardcoded
+                                  to 1 */
   const WGPUTextureFormat format
     = VALUE_OR_DEFAULT(desc, format, WGPUTextureFormat_RGBA8Unorm);
   const uint32_t mip_level_count
