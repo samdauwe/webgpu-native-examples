@@ -352,6 +352,626 @@ void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2])
 }
 
 /* -------------------------------------------------------------------------- *
+ * Primitive mesh functions
+ * -------------------------------------------------------------------------- */
+
+void primitive_vertex_data_init(primitive_vertex_data_t* data,
+                                uint64_t vertex_count, uint64_t index_count)
+{
+  ASSERT(data != NULL);
+  data->vertex_count = vertex_count;
+  data->index_count  = index_count;
+  data->vertices
+    = (float*)malloc(vertex_count * PRIMITIVE_VERTEX_SIZE * sizeof(float));
+  data->indices = (uint16_t*)malloc(index_count * sizeof(uint16_t));
+  ASSERT(data->vertices != NULL);
+  ASSERT(data->indices != NULL);
+}
+
+void primitive_vertex_data_destroy(primitive_vertex_data_t* data)
+{
+  if (data == NULL) {
+    return;
+  }
+  if (data->vertices != NULL) {
+    free(data->vertices);
+    data->vertices = NULL;
+  }
+  if (data->indices != NULL) {
+    free(data->indices);
+    data->indices = NULL;
+  }
+  data->vertex_count = 0;
+  data->index_count  = 0;
+}
+
+void primitive_to_mesh(const primitive_vertex_data_t* data, mesh_t* mesh)
+{
+  ASSERT(data != NULL);
+  ASSERT(mesh != NULL);
+
+  mesh->vertices       = data->vertices;
+  mesh->indices        = data->indices;
+  mesh->vertices_size  = data->vertex_count * PRIMITIVE_VERTEX_STRIDE;
+  mesh->indices_size   = data->index_count * sizeof(uint16_t);
+  mesh->indices_count  = data->index_count;
+  mesh->vertex_stride  = PRIMITIVE_VERTEX_STRIDE;
+  mesh->indices_uint32 = false;
+}
+
+/* --- Plane primitive --- */
+
+void primitive_create_plane(const primitive_plane_options_t* options,
+                            primitive_vertex_data_t* data)
+{
+  /* Default values */
+  float width             = (options != NULL) ? options->width : 1.0f;
+  float depth             = (options != NULL) ? options->depth : 1.0f;
+  uint32_t subdivisions_w = (options != NULL) ? options->subdivisions_width : 1;
+  uint32_t subdivisions_d = (options != NULL) ? options->subdivisions_depth : 1;
+
+  uint64_t num_vertices = (subdivisions_w + 1) * (subdivisions_d + 1);
+  uint64_t num_indices  = subdivisions_w * subdivisions_d * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  /* Generate vertices */
+  uint64_t cursor = 0;
+  for (uint32_t z = 0; z <= subdivisions_d; z++) {
+    for (uint32_t x = 0; x <= subdivisions_w; x++) {
+      float u = (float)x / (float)subdivisions_w;
+      float v = (float)z / (float)subdivisions_d;
+
+      /* Position */
+      data->vertices[cursor++] = width * u - width * 0.5f;
+      data->vertices[cursor++] = 0.0f;
+      data->vertices[cursor++] = depth * v - depth * 0.5f;
+      /* Normal */
+      data->vertices[cursor++] = 0.0f;
+      data->vertices[cursor++] = 1.0f;
+      data->vertices[cursor++] = 0.0f;
+      /* UV */
+      data->vertices[cursor++] = u;
+      data->vertices[cursor++] = v;
+    }
+  }
+
+  /* Generate indices */
+  uint32_t num_verts_across = subdivisions_w + 1;
+  cursor                    = 0;
+  for (uint32_t z = 0; z < subdivisions_d; z++) {
+    for (uint32_t x = 0; x < subdivisions_w; x++) {
+      /* Triangle 1 */
+      data->indices[cursor++] = (z + 0) * num_verts_across + x;
+      data->indices[cursor++] = (z + 1) * num_verts_across + x;
+      data->indices[cursor++] = (z + 0) * num_verts_across + x + 1;
+      /* Triangle 2 */
+      data->indices[cursor++] = (z + 1) * num_verts_across + x;
+      data->indices[cursor++] = (z + 1) * num_verts_across + x + 1;
+      data->indices[cursor++] = (z + 0) * num_verts_across + x + 1;
+    }
+  }
+}
+
+/* --- Sphere primitive --- */
+
+void primitive_create_sphere(const primitive_sphere_options_t* options,
+                             primitive_vertex_data_t* data)
+{
+  /* Default values */
+  float radius         = (options != NULL) ? options->radius : 1.0f;
+  uint32_t subdiv_axis = (options != NULL) ? options->subdivisions_axis : 24;
+  uint32_t subdiv_height
+    = (options != NULL) ? options->subdivisions_height : 12;
+  float start_lat  = (options != NULL) ? options->start_latitude : 0.0f;
+  float end_lat    = (options != NULL) ? options->end_latitude : GLM_PI;
+  float start_long = (options != NULL) ? options->start_longitude : 0.0f;
+  float end_long   = (options != NULL) ? options->end_longitude : GLM_PI * 2.0f;
+
+  ASSERT(subdiv_axis > 0 && subdiv_height > 0);
+
+  float lat_range  = end_lat - start_lat;
+  float long_range = end_long - start_long;
+
+  uint64_t num_vertices = (subdiv_axis + 1) * (subdiv_height + 1);
+  uint64_t num_indices  = subdiv_axis * subdiv_height * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  /* Generate vertices */
+  uint64_t cursor = 0;
+  for (uint32_t y = 0; y <= subdiv_height; y++) {
+    for (uint32_t x = 0; x <= subdiv_axis; x++) {
+      float u     = (float)x / (float)subdiv_axis;
+      float v     = (float)y / (float)subdiv_height;
+      float theta = long_range * u + start_long;
+      float phi   = lat_range * v + start_lat;
+
+      float sin_theta = sinf(theta);
+      float cos_theta = cosf(theta);
+      float sin_phi   = sinf(phi);
+      float cos_phi   = cosf(phi);
+
+      float ux = cos_theta * sin_phi;
+      float uy = cos_phi;
+      float uz = sin_theta * sin_phi;
+
+      /* Position */
+      data->vertices[cursor++] = radius * ux;
+      data->vertices[cursor++] = radius * uy;
+      data->vertices[cursor++] = radius * uz;
+      /* Normal */
+      data->vertices[cursor++] = ux;
+      data->vertices[cursor++] = uy;
+      data->vertices[cursor++] = uz;
+      /* UV */
+      data->vertices[cursor++] = 1.0f - u;
+      data->vertices[cursor++] = v;
+    }
+  }
+
+  /* Generate indices */
+  uint32_t num_verts_around = subdiv_axis + 1;
+  cursor                    = 0;
+  for (uint32_t x = 0; x < subdiv_axis; x++) {
+    for (uint32_t y = 0; y < subdiv_height; y++) {
+      /* Triangle 1 */
+      data->indices[cursor++] = (y + 0) * num_verts_around + x;
+      data->indices[cursor++] = (y + 0) * num_verts_around + x + 1;
+      data->indices[cursor++] = (y + 1) * num_verts_around + x;
+      /* Triangle 2 */
+      data->indices[cursor++] = (y + 1) * num_verts_around + x;
+      data->indices[cursor++] = (y + 0) * num_verts_around + x + 1;
+      data->indices[cursor++] = (y + 1) * num_verts_around + x + 1;
+    }
+  }
+}
+
+/* --- Cube primitive --- */
+
+static const int32_t CUBE_FACE_INDICES[6][4] = {
+  {3, 7, 5, 1}, /* right  */
+  {6, 2, 0, 4}, /* left   */
+  {6, 7, 3, 2}, /* top    */
+  {0, 1, 5, 4}, /* bottom */
+  {7, 6, 4, 5}, /* front  */
+  {2, 3, 1, 0}, /* back   */
+};
+
+void primitive_create_cube(const primitive_cube_options_t* options,
+                           primitive_vertex_data_t* data)
+{
+  float size = (options != NULL) ? options->size : 1.0f;
+  float k    = size / 2.0f;
+
+  float corner_vertices[8][3] = {
+    {-k, -k, -k}, {+k, -k, -k}, {-k, +k, -k}, {+k, +k, -k},
+    {-k, -k, +k}, {+k, -k, +k}, {-k, +k, +k}, {+k, +k, +k},
+  };
+
+  float face_normals[6][3] = {
+    {+1, 0, 0}, {-1, 0, 0}, {0, +1, 0}, {0, -1, 0}, {0, 0, +1}, {0, 0, -1},
+  };
+
+  float uv_coords[4][2] = {
+    {1, 0},
+    {0, 0},
+    {0, 1},
+    {1, 1},
+  };
+
+  uint64_t num_vertices = 6 * 4;
+  uint64_t num_indices  = 6 * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  uint64_t v_cursor = 0;
+  uint64_t i_cursor = 0;
+
+  for (int f = 0; f < 6; ++f) {
+    const int32_t* face_idx = CUBE_FACE_INDICES[f];
+    for (int v = 0; v < 4; ++v) {
+      float* pos    = corner_vertices[face_idx[v]];
+      float* normal = face_normals[f];
+      float* uv     = uv_coords[v];
+
+      /* Position */
+      data->vertices[v_cursor++] = pos[0];
+      data->vertices[v_cursor++] = pos[1];
+      data->vertices[v_cursor++] = pos[2];
+      /* Normal */
+      data->vertices[v_cursor++] = normal[0];
+      data->vertices[v_cursor++] = normal[1];
+      data->vertices[v_cursor++] = normal[2];
+      /* UV */
+      data->vertices[v_cursor++] = uv[0];
+      data->vertices[v_cursor++] = uv[1];
+    }
+
+    uint16_t offset           = 4 * f;
+    data->indices[i_cursor++] = offset + 0;
+    data->indices[i_cursor++] = offset + 1;
+    data->indices[i_cursor++] = offset + 2;
+    data->indices[i_cursor++] = offset + 0;
+    data->indices[i_cursor++] = offset + 2;
+    data->indices[i_cursor++] = offset + 3;
+  }
+}
+
+/* --- Truncated Cone primitive --- */
+
+void primitive_create_truncated_cone(
+  const primitive_truncated_cone_options_t* options,
+  primitive_vertex_data_t* data)
+{
+  /* Default values */
+  float bottom_radius = (options != NULL) ? options->bottom_radius : 1.0f;
+  float top_radius    = (options != NULL) ? options->top_radius : 0.0f;
+  float height        = (options != NULL) ? options->height : 1.0f;
+  uint32_t radial_sub = (options != NULL) ? options->radial_subdivisions : 24;
+  uint32_t vert_sub   = (options != NULL) ? options->vertical_subdivisions : 1;
+  bool top_cap        = (options != NULL) ? options->top_cap : true;
+  bool bottom_cap     = (options != NULL) ? options->bottom_cap : true;
+
+  ASSERT(radial_sub >= 3);
+  ASSERT(vert_sub >= 1);
+
+  int32_t extra         = (top_cap ? 2 : 0) + (bottom_cap ? 2 : 0);
+  uint64_t num_vertices = (radial_sub + 1) * (vert_sub + 1 + extra);
+  uint64_t num_indices  = radial_sub * (vert_sub + extra / 2) * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  uint32_t verts_around_edge = radial_sub + 1;
+  float slant                = atan2f(bottom_radius - top_radius, height);
+  float cos_slant            = cosf(slant);
+  float sin_slant            = sinf(slant);
+
+  int32_t start = top_cap ? -2 : 0;
+  int32_t end   = (int32_t)vert_sub + (bottom_cap ? 2 : 0);
+
+  uint64_t cursor = 0;
+  for (int32_t yy = start; yy <= end; ++yy) {
+    float v           = (float)yy / (float)vert_sub;
+    float y           = height * v;
+    float ring_radius = 0.0f;
+
+    if (yy < 0) {
+      y           = 0.0f;
+      v           = 1.0f;
+      ring_radius = bottom_radius;
+    }
+    else if (yy > (int32_t)vert_sub) {
+      y           = height;
+      v           = 1.0f;
+      ring_radius = top_radius;
+    }
+    else {
+      ring_radius
+        = bottom_radius
+          + (top_radius - bottom_radius) * ((float)yy / (float)vert_sub);
+    }
+
+    if (yy == -2 || yy == (int32_t)vert_sub + 2) {
+      ring_radius = 0.0f;
+      v           = 0.0f;
+    }
+
+    y -= height / 2.0f;
+
+    for (uint32_t ii = 0; ii < verts_around_edge; ++ii) {
+      float angle = (float)ii * GLM_PI * 2.0f / (float)radial_sub;
+      float sin_a = sinf(angle);
+      float cos_a = cosf(angle);
+
+      /* Position */
+      data->vertices[cursor++] = sin_a * ring_radius;
+      data->vertices[cursor++] = y;
+      data->vertices[cursor++] = cos_a * ring_radius;
+
+      /* Normal */
+      if (yy < 0) {
+        data->vertices[cursor++] = 0.0f;
+        data->vertices[cursor++] = -1.0f;
+        data->vertices[cursor++] = 0.0f;
+      }
+      else if (yy > (int32_t)vert_sub) {
+        data->vertices[cursor++] = 0.0f;
+        data->vertices[cursor++] = 1.0f;
+        data->vertices[cursor++] = 0.0f;
+      }
+      else if (ring_radius == 0.0f) {
+        data->vertices[cursor++] = 0.0f;
+        data->vertices[cursor++] = 0.0f;
+        data->vertices[cursor++] = 0.0f;
+      }
+      else {
+        data->vertices[cursor++] = sin_a * cos_slant;
+        data->vertices[cursor++] = sin_slant;
+        data->vertices[cursor++] = cos_a * cos_slant;
+      }
+
+      /* UV */
+      data->vertices[cursor++] = (float)ii / (float)radial_sub;
+      data->vertices[cursor++] = 1.0f - v;
+    }
+  }
+
+  /* Generate indices */
+  cursor = 0;
+  for (int32_t yy = 0; yy < (int32_t)vert_sub + extra; ++yy) {
+    if ((yy == 1 && top_cap)
+        || (yy == (int32_t)vert_sub + extra - 2 && bottom_cap)) {
+      continue;
+    }
+    for (uint32_t ii = 0; ii < radial_sub; ++ii) {
+      data->indices[cursor++] = verts_around_edge * (yy + 0) + ii;
+      data->indices[cursor++] = verts_around_edge * (yy + 0) + ii + 1;
+      data->indices[cursor++] = verts_around_edge * (yy + 1) + ii + 1;
+
+      data->indices[cursor++] = verts_around_edge * (yy + 0) + ii;
+      data->indices[cursor++] = verts_around_edge * (yy + 1) + ii + 1;
+      data->indices[cursor++] = verts_around_edge * (yy + 1) + ii;
+    }
+  }
+}
+
+/* --- Cylinder primitive --- */
+
+void primitive_create_cylinder(const primitive_cylinder_options_t* options,
+                               primitive_vertex_data_t* data)
+{
+  primitive_truncated_cone_options_t cone_opts = {
+    .bottom_radius = (options != NULL) ? options->radius : 1.0f,
+    .top_radius    = (options != NULL) ? options->radius : 1.0f,
+    .height        = (options != NULL) ? options->height : 1.0f,
+    .radial_subdivisions
+    = (options != NULL) ? options->radial_subdivisions : 24,
+    .vertical_subdivisions
+    = (options != NULL) ? options->vertical_subdivisions : 1,
+    .top_cap    = (options != NULL) ? options->top_cap : true,
+    .bottom_cap = (options != NULL) ? options->bottom_cap : true,
+  };
+  primitive_create_truncated_cone(&cone_opts, data);
+}
+
+/* --- Torus primitive --- */
+
+void primitive_create_torus(const primitive_torus_options_t* options,
+                            primitive_vertex_data_t* data)
+{
+  /* Default values */
+  float radius        = (options != NULL) ? options->radius : 1.0f;
+  float thickness     = (options != NULL) ? options->thickness : 0.24f;
+  uint32_t radial_sub = (options != NULL) ? options->radial_subdivisions : 24;
+  uint32_t body_sub   = (options != NULL) ? options->body_subdivisions : 12;
+  float start_angle   = (options != NULL) ? options->start_angle : 0.0f;
+  float end_angle     = (options != NULL) ? options->end_angle : GLM_PI * 2.0f;
+
+  ASSERT(radial_sub >= 3);
+  ASSERT(body_sub >= 3);
+
+  float range           = end_angle - start_angle;
+  uint32_t radial_parts = radial_sub + 1;
+  uint32_t body_parts   = body_sub + 1;
+  uint64_t num_vertices = radial_parts * body_parts;
+  uint64_t num_indices  = radial_sub * body_sub * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  /* Generate vertices */
+  uint64_t cursor = 0;
+  for (uint32_t slice = 0; slice < body_parts; ++slice) {
+    float v           = (float)slice / (float)body_sub;
+    float slice_angle = v * GLM_PI * 2.0f;
+    float slice_sin   = sinf(slice_angle);
+    float ring_radius = radius + slice_sin * thickness;
+    float ny          = cosf(slice_angle);
+    float y           = ny * thickness;
+
+    for (uint32_t ring = 0; ring < radial_parts; ++ring) {
+      float u          = (float)ring / (float)radial_sub;
+      float ring_angle = start_angle + u * range;
+      float x_sin      = sinf(ring_angle);
+      float z_cos      = cosf(ring_angle);
+      float x          = x_sin * ring_radius;
+      float z          = z_cos * ring_radius;
+      float nx         = x_sin * slice_sin;
+      float nz         = z_cos * slice_sin;
+
+      /* Position */
+      data->vertices[cursor++] = x;
+      data->vertices[cursor++] = y;
+      data->vertices[cursor++] = z;
+      /* Normal */
+      data->vertices[cursor++] = nx;
+      data->vertices[cursor++] = ny;
+      data->vertices[cursor++] = nz;
+      /* UV */
+      data->vertices[cursor++] = u;
+      data->vertices[cursor++] = 1.0f - v;
+    }
+  }
+
+  /* Generate indices */
+  cursor = 0;
+  for (uint32_t slice = 0; slice < body_sub; ++slice) {
+    for (uint32_t ring = 0; ring < radial_sub; ++ring) {
+      uint32_t next_ring  = ring + 1;
+      uint32_t next_slice = slice + 1;
+
+      data->indices[cursor++] = radial_parts * slice + ring;
+      data->indices[cursor++] = radial_parts * next_slice + ring;
+      data->indices[cursor++] = radial_parts * slice + next_ring;
+
+      data->indices[cursor++] = radial_parts * next_slice + ring;
+      data->indices[cursor++] = radial_parts * next_slice + next_ring;
+      data->indices[cursor++] = radial_parts * slice + next_ring;
+    }
+  }
+}
+
+/* --- Disc primitive --- */
+
+void primitive_create_disc(const primitive_disc_options_t* options,
+                           primitive_vertex_data_t* data)
+{
+  /* Default values */
+  float radius       = (options != NULL) ? options->radius : 1.0f;
+  uint32_t divisions = (options != NULL) ? options->divisions : 24;
+  uint32_t stacks    = (options != NULL) ? options->stacks : 1;
+  float inner_radius = (options != NULL) ? options->inner_radius : 0.0f;
+  float stack_power  = (options != NULL) ? options->stack_power : 1.0f;
+
+  ASSERT(divisions >= 3);
+
+  uint64_t num_vertices = (divisions + 1) * (stacks + 1);
+  uint64_t num_indices  = stacks * divisions * 6;
+
+  primitive_vertex_data_init(data, num_vertices, num_indices);
+
+  uint32_t first_index      = 0;
+  float radius_span         = radius - inner_radius;
+  uint32_t points_per_stack = divisions + 1;
+
+  uint64_t v_cursor = 0;
+  uint64_t i_cursor = 0;
+
+  for (uint32_t stack = 0; stack <= stacks; ++stack) {
+    float stack_radius
+      = inner_radius
+        + radius_span * powf((float)stack / (float)stacks, stack_power);
+
+    for (uint32_t i = 0; i <= divisions; ++i) {
+      float theta = (2.0f * GLM_PI * (float)i) / (float)divisions;
+      float x     = stack_radius * cosf(theta);
+      float z     = stack_radius * sinf(theta);
+
+      /* Position */
+      data->vertices[v_cursor++] = x;
+      data->vertices[v_cursor++] = 0.0f;
+      data->vertices[v_cursor++] = z;
+      /* Normal */
+      data->vertices[v_cursor++] = 0.0f;
+      data->vertices[v_cursor++] = 1.0f;
+      data->vertices[v_cursor++] = 0.0f;
+      /* UV */
+      data->vertices[v_cursor++] = 1.0f - (float)i / (float)divisions;
+      data->vertices[v_cursor++] = (float)stack / (float)stacks;
+
+      if (stack > 0 && i != divisions) {
+        uint16_t a = first_index + (i + 1);
+        uint16_t b = first_index + i;
+        uint16_t c = first_index + i - points_per_stack;
+        uint16_t d = first_index + (i + 1) - points_per_stack;
+
+        data->indices[i_cursor++] = a;
+        data->indices[i_cursor++] = b;
+        data->indices[i_cursor++] = c;
+
+        data->indices[i_cursor++] = a;
+        data->indices[i_cursor++] = c;
+        data->indices[i_cursor++] = d;
+      }
+    }
+    first_index += divisions + 1;
+  }
+}
+
+/* --- Utility functions --- */
+
+void primitive_deindex(const primitive_vertex_data_t* src,
+                       primitive_vertex_data_t* dst)
+{
+  ASSERT(src != NULL);
+  ASSERT(dst != NULL);
+
+  uint64_t num_elements = src->index_count;
+  primitive_vertex_data_init(dst, num_elements, num_elements);
+
+  for (uint64_t i = 0; i < num_elements; ++i) {
+    uint64_t src_off = src->indices[i] * PRIMITIVE_VERTEX_SIZE;
+    uint64_t dst_off = i * PRIMITIVE_VERTEX_SIZE;
+    for (uint32_t j = 0; j < PRIMITIVE_VERTEX_SIZE; ++j) {
+      dst->vertices[dst_off + j] = src->vertices[src_off + j];
+    }
+    dst->indices[i] = (uint16_t)i;
+  }
+}
+
+void primitive_generate_triangle_normals(primitive_vertex_data_t* data)
+{
+  ASSERT(data != NULL);
+
+  for (uint64_t ii = 0; ii < data->vertex_count; ii += 3) {
+    float* v0 = &data->vertices[ii * PRIMITIVE_VERTEX_SIZE];
+    float* v1 = &data->vertices[(ii + 1) * PRIMITIVE_VERTEX_SIZE];
+    float* v2 = &data->vertices[(ii + 2) * PRIMITIVE_VERTEX_SIZE];
+
+    /* Position vectors */
+    vec3 p0 = {v0[0], v0[1], v0[2]};
+    vec3 p1 = {v1[0], v1[1], v1[2]};
+    vec3 p2 = {v2[0], v2[1], v2[2]};
+
+    vec3 e0, e1, n;
+    glm_vec3_sub(p0, p1, e0);
+    glm_vec3_sub(p0, p2, e1);
+    glm_vec3_normalize(e0);
+    glm_vec3_normalize(e1);
+    glm_vec3_cross(e0, e1, n);
+
+    /* Set normals for all 3 vertices */
+    v0[3] = n[0];
+    v0[4] = n[1];
+    v0[5] = n[2];
+    v1[3] = n[0];
+    v1[4] = n[1];
+    v1[5] = n[2];
+    v2[3] = n[0];
+    v2[4] = n[1];
+    v2[5] = n[2];
+  }
+}
+
+void primitive_facet(const primitive_vertex_data_t* src,
+                     primitive_vertex_data_t* dst)
+{
+  ASSERT(src != NULL);
+  ASSERT(dst != NULL);
+
+  primitive_deindex(src, dst);
+  primitive_generate_triangle_normals(dst);
+}
+
+void primitive_reorient(primitive_vertex_data_t* data, const float* matrix)
+{
+  ASSERT(data != NULL);
+  ASSERT(matrix != NULL);
+
+  for (uint64_t i = 0; i < data->vertex_count; ++i) {
+    float* v = &data->vertices[i * PRIMITIVE_VERTEX_SIZE];
+
+    /* Transform position */
+    vec4 pos = {v[0], v[1], v[2], 1.0f};
+    vec4 result;
+    glm_mat4_mulv((vec4*)matrix, pos, result);
+    v[0] = result[0];
+    v[1] = result[1];
+    v[2] = result[2];
+
+    /* Transform normal (upper 3x3 only) */
+    vec3 norm = {v[3], v[4], v[5]};
+    vec3 norm_result;
+    mat3 upper;
+    glm_mat4_pick3((vec4*)matrix, upper);
+    glm_mat3_mulv(upper, norm, norm_result);
+    v[3] = norm_result[0];
+    v[4] = norm_result[1];
+    v[5] = norm_result[2];
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Plane mesh
  * -------------------------------------------------------------------------- */
 
@@ -930,7 +1550,7 @@ void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
 }
 
 /* -------------------------------------------------------------------------- *
- * Generic mesh utility functions (ported from TypeScript utils.ts)
+ * Generic mesh utility functions
  * -------------------------------------------------------------------------- */
 
 void compute_surface_normals(const float (*positions)[3],
@@ -1018,7 +1638,7 @@ void compute_projected_plane_uvs(const float (*positions)[3],
 }
 
 /* -------------------------------------------------------------------------- *
- * Generate normals with max angle (ported from TypeScript utils.ts)
+ * Generate normals with max angle
  * -------------------------------------------------------------------------- */
 
 /* Helper structure for vertex deduplication */

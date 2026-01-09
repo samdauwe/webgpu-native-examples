@@ -149,6 +149,212 @@ void mesh_get_normal_at_index(const mesh_t* mesh, uint64_t index,
 void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2]);
 
 /* -------------------------------------------------------------------------- *
+ * Primitive mesh structures and functions
+ * Vertex format: position[3], normal[3], uv[2] = 8 floats per vertex
+ * -------------------------------------------------------------------------- */
+
+#define PRIMITIVE_VERTEX_SIZE 8 /* floats per vertex */
+#define PRIMITIVE_VERTEX_STRIDE (PRIMITIVE_VERTEX_SIZE * sizeof(float))
+
+/**
+ * @brief Primitive vertex data structure
+ * Contains dynamically allocated vertices and indices
+ */
+typedef struct primitive_vertex_data_t {
+  float* vertices;       /* Vertex data array */
+  uint16_t* indices;     /* Index data array (uint16) */
+  uint64_t vertex_count; /* Number of vertices */
+  uint64_t index_count;  /* Number of indices */
+} primitive_vertex_data_t;
+
+/**
+ * @brief Initialize primitive vertex data structure
+ * Allocates memory for the specified number of vertices and indices
+ * @param data Output data structure
+ * @param vertex_count Number of vertices to allocate
+ * @param index_count Number of indices to allocate
+ */
+void primitive_vertex_data_init(primitive_vertex_data_t* data,
+                                uint64_t vertex_count, uint64_t index_count);
+
+/**
+ * @brief Destroy primitive vertex data structure
+ * Frees all allocated memory
+ * @param data Data structure to destroy
+ */
+void primitive_vertex_data_destroy(primitive_vertex_data_t* data);
+
+/**
+ * @brief Create a mesh_t from primitive vertex data
+ * @param data Source primitive vertex data
+ * @param mesh Output mesh structure
+ */
+void primitive_to_mesh(const primitive_vertex_data_t* data, mesh_t* mesh);
+
+/* --- Plane primitive --- */
+
+typedef struct primitive_plane_options_t {
+  float width;
+  float depth;
+  uint32_t subdivisions_width;
+  uint32_t subdivisions_depth;
+} primitive_plane_options_t;
+
+/**
+ * @brief Creates XZ plane vertices with position, normal, and texcoord
+ * @param options Plane creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_plane(const primitive_plane_options_t* options,
+                            primitive_vertex_data_t* data);
+
+/* --- Sphere primitive --- */
+
+typedef struct primitive_sphere_options_t {
+  float radius;
+  uint32_t subdivisions_axis;
+  uint32_t subdivisions_height;
+  float start_latitude;  /* radians */
+  float end_latitude;    /* radians */
+  float start_longitude; /* radians */
+  float end_longitude;   /* radians */
+} primitive_sphere_options_t;
+
+/**
+ * @brief Creates sphere vertices with position, normal, and texcoord
+ * @param options Sphere creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_sphere(const primitive_sphere_options_t* options,
+                             primitive_vertex_data_t* data);
+
+/* --- Cube primitive --- */
+
+typedef struct primitive_cube_options_t {
+  float size;
+} primitive_cube_options_t;
+
+/**
+ * @brief Creates cube vertices centered at origin with position, normal,
+ * texcoord
+ * @param options Cube creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_cube(const primitive_cube_options_t* options,
+                           primitive_vertex_data_t* data);
+
+/* --- Truncated Cone primitive --- */
+
+typedef struct primitive_truncated_cone_options_t {
+  float bottom_radius;
+  float top_radius;
+  float height;
+  uint32_t radial_subdivisions;
+  uint32_t vertical_subdivisions;
+  bool top_cap;
+  bool bottom_cap;
+} primitive_truncated_cone_options_t;
+
+/**
+ * @brief Creates truncated cone vertices (cylinder with different top/bottom
+ * radii)
+ * @param options Truncated cone creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_truncated_cone(
+  const primitive_truncated_cone_options_t* options,
+  primitive_vertex_data_t* data);
+
+/* --- Cylinder primitive --- */
+
+typedef struct primitive_cylinder_options_t {
+  float radius;
+  float height;
+  uint32_t radial_subdivisions;
+  uint32_t vertical_subdivisions;
+  bool top_cap;
+  bool bottom_cap;
+} primitive_cylinder_options_t;
+
+/**
+ * @brief Creates cylinder vertices along y-axis centered at origin
+ * @param options Cylinder creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_cylinder(const primitive_cylinder_options_t* options,
+                               primitive_vertex_data_t* data);
+
+/* --- Torus primitive --- */
+
+typedef struct primitive_torus_options_t {
+  float radius;
+  float thickness;
+  uint32_t radial_subdivisions;
+  uint32_t body_subdivisions;
+  float start_angle; /* radians */
+  float end_angle;   /* radians */
+} primitive_torus_options_t;
+
+/**
+ * @brief Creates torus vertices
+ * @param options Torus creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_torus(const primitive_torus_options_t* options,
+                            primitive_vertex_data_t* data);
+
+/* --- Disc primitive --- */
+
+typedef struct primitive_disc_options_t {
+  float radius;
+  uint32_t divisions;
+  uint32_t stacks;
+  float inner_radius;
+  float stack_power;
+} primitive_disc_options_t;
+
+/**
+ * @brief Creates disc vertices in XZ plane centered at origin
+ * @param options Disc creation options (NULL for defaults)
+ * @param data Output vertex data
+ */
+void primitive_create_disc(const primitive_disc_options_t* options,
+                           primitive_vertex_data_t* data);
+
+/* --- Utility functions --- */
+
+/**
+ * @brief Deindexes vertex data - expands vertices by index
+ * @param src Source indexed vertex data
+ * @param dst Output deindexed vertex data
+ */
+void primitive_deindex(const primitive_vertex_data_t* src,
+                       primitive_vertex_data_t* dst);
+
+/**
+ * @brief Generate triangle normals in place
+ * Assumes every 3 vertices form a triangle (use after deindex)
+ * @param data Vertex data to modify
+ */
+void primitive_generate_triangle_normals(primitive_vertex_data_t* data);
+
+/**
+ * @brief Facet mesh - deindex and generate flat triangle normals
+ * @param src Source vertex data
+ * @param dst Output faceted vertex data
+ */
+void primitive_facet(const primitive_vertex_data_t* src,
+                     primitive_vertex_data_t* dst);
+
+/**
+ * @brief Reorient vertex data by a 4x4 matrix
+ * Transforms positions and normals in place
+ * @param data Vertex data to modify
+ * @param matrix 4x4 transformation matrix (column-major)
+ */
+void primitive_reorient(primitive_vertex_data_t* data, const float* matrix);
+
+/* -------------------------------------------------------------------------- *
  * Plane mesh
  * -------------------------------------------------------------------------- */
 
