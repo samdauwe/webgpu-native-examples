@@ -447,15 +447,22 @@ void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
                       uint32_t width_segments, uint32_t height_segments,
                       float randomness)
 {
-  width_segments  = MAX(3u, floor(width_segments));
-  height_segments = MAX(2u, floor(height_segments));
+  width_segments  = MAX(3u, (uint32_t)floor(width_segments));
+  height_segments = MAX(2u, (uint32_t)floor(height_segments));
 
-  uint32_t vertices_count
-    = (width_segments + 1) * (height_segments + 1) * (3 + 3 + 2);
-  float* vertices = (float*)malloc(vertices_count * sizeof(float));
+  /* Each vertex has: position(3) + normal(3) + uv(2) = 8 floats */
+  uint32_t vertices_count = (width_segments + 1) * (height_segments + 1) * 8;
+  float* vertices         = (float*)malloc(vertices_count * sizeof(float));
+  if (!vertices) {
+    return;
+  }
 
   uint32_t indices_count = width_segments * height_segments * 6;
   uint16_t* indices      = (uint16_t*)malloc(indices_count * sizeof(uint16_t));
+  if (!indices) {
+    free(vertices);
+    return;
+  }
 
   vec3 first_vertex = GLM_VEC3_ZERO_INIT;
   vec3 vertex       = GLM_VEC3_ZERO_INIT;
@@ -464,12 +471,27 @@ void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
   uint32_t index      = 0;
   uint32_t grid_count = height_segments + 1;
   uint16_t** grid     = (uint16_t**)malloc(grid_count * sizeof(uint16_t*));
+  if (!grid) {
+    free(vertices);
+    free(indices);
+    return;
+  }
 
   /* Generate vertices, normals and uvs */
   uint32_t vc = 0, ic = 0, gc = 0;
   for (uint32_t iy = 0; iy <= height_segments; ++iy) {
     uint16_t* vertices_row
       = (uint16_t*)malloc((width_segments + 1) * sizeof(uint16_t));
+    if (!vertices_row) {
+      /* Cleanup on allocation failure */
+      for (uint32_t gci = 0; gci < gc; ++gci) {
+        free(grid[gci]);
+      }
+      free(grid);
+      free(vertices);
+      free(indices);
+      return;
+    }
     uint32_t vri  = 0;
     const float v = iy / (float)height_segments;
 
@@ -560,6 +582,10 @@ void sphere_mesh_init(sphere_mesh_t* sphere_mesh, float radius,
 
 void sphere_mesh_destroy(sphere_mesh_t* sphere_mesh)
 {
+  if (!sphere_mesh) {
+    return;
+  }
+
   if (sphere_mesh->vertices.data) {
     free(sphere_mesh->vertices.data);
   }
