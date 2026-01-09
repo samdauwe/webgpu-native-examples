@@ -1380,7 +1380,7 @@ void stanford_dragon_mesh_compute_normals(
     glm_vec3_add(normals[i2], norm, normals[i2]);
   }
   // Normalize accumulated normals.
-  for (uint16_t i = 0; i < stanford_dragon_mesh->normals.count; ++i) {
+  for (uint64_t i = 0; i < stanford_dragon_mesh->normals.count; ++i) {
     glm_vec3_normalize(normals[i]);
   }
 }
@@ -1544,7 +1544,7 @@ void utah_teapot_mesh_compute_normals(utah_teapot_mesh_t* utah_teapot_mesh)
     glm_vec3_add(normals[i2], norm, normals[i2]);
   }
   // Normalize accumulated normals.
-  for (uint16_t i = 0; i < utah_teapot_mesh->normals.count; ++i) {
+  for (uint64_t i = 0; i < utah_teapot_mesh->normals.count; ++i) {
     glm_vec3_normalize(normals[i]);
   }
 }
