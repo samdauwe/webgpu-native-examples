@@ -34,7 +34,7 @@
  * Lighting using WebGPU.
  *
  * Ref:
- * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/pbr
+ * https://github.com/tchayen/pbr-webgpu
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
@@ -157,96 +157,92 @@ typedef struct {
 /**
  * @brief Initialize camera with default values
  */
-static void camera_init(camera_t* camera, float pitch, float yaw,
-                        float distance)
+static void camera_init(camera_t* this, float pitch, float yaw, float distance)
 {
-  memset(camera, 0, sizeof(camera_t));
+  memset(this, 0, sizeof(camera_t));
 
-  glm_vec3_zero(camera->target);
-  camera->pitch            = pitch;
-  camera->yaw              = yaw;
-  camera->distance         = distance > 0.0f ? distance : 10.0f;
-  camera->scroll_direction = 0;
-  camera->last_x           = 0.0f;
-  camera->last_y           = 0.0f;
-  camera->is_dragging      = false;
+  glm_vec3_zero(this->target);
+  this->pitch            = pitch;
+  this->yaw              = yaw;
+  this->distance         = distance > 0.0f ? distance : 10.0f;
+  this->scroll_direction = 0;
+  this->last_x           = 0.0f;
+  this->last_y           = 0.0f;
+  this->is_dragging      = false;
 }
 
 /**
  * @brief Handle mouse wheel event for zooming
  */
-__attribute__((unused)) static void camera_handle_mouse_wheel(camera_t* camera,
-                                                              float delta)
+static void camera_handle_mouse_wheel(camera_t* this, float delta)
 {
-  camera->scroll_direction = (delta > 0.0f) ? 1 : ((delta < 0.0f) ? -1 : 0);
+  this->scroll_direction = (delta > 0.0f) ? 1 : ((delta < 0.0f) ? -1 : 0);
 
   const float zoom_speed = 0.5f;
-  camera->distance -= camera->scroll_direction * zoom_speed;
+  this->distance -= this->scroll_direction * zoom_speed;
 
   const float min_distance = 1.0f;
-  camera->distance         = fmaxf(camera->distance, min_distance);
+  this->distance           = fmaxf(this->distance, min_distance);
 }
 
 /**
  * @brief Handle mouse button down event
  */
-__attribute__((unused)) static void camera_handle_mouse_down(camera_t* camera,
-                                                             float x, float y)
+static void camera_handle_mouse_down(camera_t* this, float x, float y)
 {
-  camera->is_dragging = true;
-  camera->last_x      = x;
-  camera->last_y      = y;
+  this->is_dragging = true;
+  this->last_x      = x;
+  this->last_y      = y;
 }
 
 /**
  * @brief Handle mouse move event
  */
-__attribute__((unused)) static void camera_handle_mouse_move(camera_t* camera,
-                                                             float x, float y)
+static void camera_handle_mouse_move(camera_t* this, float x, float y)
 {
-  if (!camera->is_dragging) {
+  if (!this->is_dragging) {
     return;
   }
 
-  const float dx = x - camera->last_x;
-  const float dy = y - camera->last_y;
+  const float dx = x - this->last_x;
+  const float dy = y - this->last_y;
 
-  camera->last_x = x;
-  camera->last_y = y;
+  this->last_x = x;
+  this->last_y = y;
 
-  camera->pitch -= dy * 0.003f;
-  camera->yaw -= dx * 0.003f;
+  this->pitch -= dy * 0.003f;
+  this->yaw -= dx * 0.003f;
 }
 
 /**
  * @brief Handle mouse button up event
  */
-__attribute__((unused)) static void camera_handle_mouse_up(camera_t* camera)
+static void camera_handle_mouse_up(camera_t* this)
 {
-  camera->is_dragging = false;
+  this->is_dragging = false;
 }
 
 /**
  * @brief Get camera position in world space
  */
-static void camera_get_position(camera_t* camera, vec3 position)
+static void camera_get_position(camera_t* this, vec3 position)
 {
-  position[0] = cosf(camera->pitch) * cosf(camera->yaw);
-  position[1] = sinf(camera->pitch);
-  position[2] = cosf(camera->pitch) * sinf(camera->yaw);
+  position[0] = cosf(this->pitch) * cosf(this->yaw);
+  position[1] = sinf(this->pitch);
+  position[2] = cosf(this->pitch) * sinf(this->yaw);
 
-  glm_vec3_scale(position, camera->distance, position);
-  glm_vec3_add(position, camera->target, position);
+  glm_vec3_scale(position, this->distance, position);
+  glm_vec3_add(position, this->target, position);
 }
 
 /**
  * @brief Get camera view matrix
  */
-static void camera_get_view(camera_t* camera, mat4 view)
+static void camera_get_view(camera_t* this, mat4 view)
 {
   vec3 position, up = {0.0f, 1.0f, 0.0f};
-  camera_get_position(camera, position);
-  glm_lookat(position, camera->target, up, view);
+  camera_get_position(this, position);
+  glm_lookat(position, this->target, up, view);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -353,7 +349,7 @@ static const float cube_vertex_array[] = {
 /**
  * @brief Initialize cubemap view matrices
  */
-__attribute__((unused)) static void init_cubemap_view_matrices(void)
+static void init_cubemap_view_matrices(void)
 {
   vec3 center = {0.0f, 0.0f, 0.0f};
   vec3 target, up;
@@ -561,13 +557,13 @@ static const char* importance_sample_ggx_wgsl
     });
 
 /* Tone mapping - Reinhard */
-__attribute__((unused)) static const char* tone_mapping_reinhard_wgsl
+static const char* tone_mapping_reinhard_wgsl
   = CODE(fn toneMapping(color : vec3f)->vec3f {
       return color / (color + vec3f(1.0));
     });
 
 /* Tone mapping - Uncharted 2 */
-__attribute__((unused)) static const char* tone_mapping_uncharted2_wgsl = CODE(
+static const char* tone_mapping_uncharted2_wgsl = CODE(
   fn uncharted2Helper(x : vec3f)
     ->vec3f {
       let a = 0.15;
@@ -618,11 +614,34 @@ static const char* tone_mapping_lottes_wgsl
 
       return pow(color, a) / (pow(color, a * d) * b + c);
     });
+
 /* -------------------------------------------------------------------------- *
  * GLTF Type Definitions and Enums
  * -------------------------------------------------------------------------- */
 
-/* Shader attribute locations */
+/*
+ * Note: This implementation uses cgltf library for complete GLTF type support.
+ * The following enums map to TypeScript gltfTypes.ts definitions:
+ *
+ * - shader_location_t      → ShaderLocations
+ * - gltf_component_type_t  → ComponentType
+ * - gltf_accessor_type_t   → GLTFAccessorDescriptor.type
+ * - gltf_alpha_mode_t      → GLTFMaterialDescriptor.alphaMode
+ *
+ * Complex types (Mesh, Material, Node, etc.) are handled by cgltf library:
+ * - cgltf_mesh             → GLTFMeshDescriptor
+ * - cgltf_buffer_view      → GLTFBufferViewDescriptor
+ * - cgltf_material         → GLTFMaterialDescriptor
+ * - cgltf_accessor         → GLTFAccessorDescriptor
+ * - cgltf_sampler          → GLTFSamplerDescriptor
+ * - cgltf_image            → GLTFImageDescriptor
+ * - cgltf_texture          → GLTFTextureDescriptor
+ * - cgltf_primitive        → GLTFPrimitiveDescriptor
+ * - cgltf_node             → GLTFNodeDescriptor
+ * - cgltf_data             → GLTFDescriptor
+ */
+
+/* Shader attribute locations (maps to ShaderLocations in gltfTypes.ts) */
 typedef enum shader_location_t {
   SHADER_LOCATION_POSITION   = 0,
   SHADER_LOCATION_NORMAL     = 1,
@@ -630,7 +649,7 @@ typedef enum shader_location_t {
   SHADER_LOCATION_TANGENT    = 3,
 } shader_location_t;
 
-/* GLTF Component types */
+/* GLTF Component types (maps to ComponentType enum in gltfTypes.ts) */
 typedef enum gltf_component_type_t {
   GLTF_COMPONENT_TYPE_BYTE           = 5120,
   GLTF_COMPONENT_TYPE_UNSIGNED_BYTE  = 5121,
@@ -640,7 +659,7 @@ typedef enum gltf_component_type_t {
   GLTF_COMPONENT_TYPE_FLOAT          = 5126,
 } gltf_component_type_t;
 
-/* GLTF Accessor types */
+/* GLTF Accessor types (maps to accessor type strings in gltfTypes.ts) */
 typedef enum gltf_accessor_type_t {
   GLTF_ACCESSOR_TYPE_SCALAR,
   GLTF_ACCESSOR_TYPE_VEC2,
@@ -648,7 +667,7 @@ typedef enum gltf_accessor_type_t {
   GLTF_ACCESSOR_TYPE_VEC4,
 } gltf_accessor_type_t;
 
-/* Alpha mode */
+/* Alpha mode (maps to alphaMode strings in GLTFMaterialDescriptor) */
 typedef enum gltf_alpha_mode_t {
   GLTF_ALPHA_MODE_OPAQUE,
   GLTF_ALPHA_MODE_MASK,
@@ -681,8 +700,7 @@ static uint32_t get_num_components_for_type(gltf_accessor_type_t type)
 /**
  * @brief Get component type size in bytes
  */
-__attribute__((unused)) static uint32_t
-get_component_type_size(gltf_component_type_t component_type)
+static uint32_t get_component_type_size(gltf_component_type_t component_type)
 {
   switch (component_type) {
     case GLTF_COMPONENT_TYPE_BYTE:
@@ -702,7 +720,7 @@ get_component_type_size(gltf_component_type_t component_type)
 /**
  * @brief Get GPU vertex format for accessor
  */
-__attribute__((unused)) static WGPUVertexFormat
+static WGPUVertexFormat
 get_gpu_vertex_format(gltf_component_type_t component_type,
                       gltf_accessor_type_t type, bool normalized)
 {
@@ -713,31 +731,31 @@ get_gpu_vertex_format(gltf_component_type_t component_type,
       if (normalized) {
         return (count == 2) ? WGPUVertexFormat_Snorm8x2 :
                (count == 4) ? WGPUVertexFormat_Snorm8x4 :
-                              WGPUVertexFormat_Uint8x2;
+                              WGPUVertexFormat_Sint8x2; /* Fallback */
       }
       return (count == 2) ? WGPUVertexFormat_Sint8x2 :
              (count == 4) ? WGPUVertexFormat_Sint8x4 :
-                            WGPUVertexFormat_Uint8x2;
+                            WGPUVertexFormat_Sint8x2; /* Fallback */
 
     case GLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
       if (normalized) {
         return (count == 2) ? WGPUVertexFormat_Unorm8x2 :
                (count == 4) ? WGPUVertexFormat_Unorm8x4 :
-                              WGPUVertexFormat_Uint8x2;
+                              WGPUVertexFormat_Uint8x2; /* Fallback */
       }
       return (count == 2) ? WGPUVertexFormat_Uint8x2 :
              (count == 4) ? WGPUVertexFormat_Uint8x4 :
-                            WGPUVertexFormat_Uint8x2;
+                            WGPUVertexFormat_Uint8x2; /* Fallback */
 
     case GLTF_COMPONENT_TYPE_SHORT:
       if (normalized) {
         return (count == 2) ? WGPUVertexFormat_Snorm16x2 :
                (count == 4) ? WGPUVertexFormat_Snorm16x4 :
-                              WGPUVertexFormat_Uint8x2;
+                              WGPUVertexFormat_Sint16x2; /* Fallback */
       }
       return (count == 2) ? WGPUVertexFormat_Sint16x2 :
              (count == 4) ? WGPUVertexFormat_Sint16x4 :
-                            WGPUVertexFormat_Uint8x2;
+                            WGPUVertexFormat_Sint16x2; /* Fallback */
 
     case GLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
       if (normalized) {
@@ -954,7 +972,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   WGPUTextureView depth_view = wgpuTextureCreateView(depth_texture, NULL);
 
   /* Fragment shader for irradiance convolution */
-  const char* fragment_shader = CODE(
+  const char* fragment_shader_wgsl = CODE(
     @group(0) @binding(1) var environmentMap : texture_cube<f32>;
     @group(0) @binding(2) var ourSampler : sampler;
 
@@ -991,27 +1009,10 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
     });
 
   /* Create shaders */
-  WGPUShaderModule vertex_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("irradiance vertex shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = cubemap_vertex_shader_wgsl,
-      },
-    }
-  );
-
-  WGPUShaderModule frag_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("irradiance fragment shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = fragment_shader,
-      },
-    }
-  );
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, cubemap_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
   /* Create vertex buffer */
   WGPUBuffer vertex_buffer = create_buffer_with_data(
@@ -1039,11 +1040,10 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label = STRVIEW("irradiance map pipeline"),
-      .layout = NULL,
+      .label  = STRVIEW("irradiance map pipeline"),
       .vertex = (WGPUVertexState){
-        .module = vertex_shader,
-        .entryPoint = "main",
+        .module = vert_shader_module,
+        .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
           .arrayStride = 4 * sizeof(float),
@@ -1071,7 +1071,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
         .mask = ~0u,
       },
       .fragment = &(WGPUFragmentState){
-        .module = frag_shader,
+        .module = frag_shader_module,
         .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
@@ -1125,16 +1125,16 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
                             .arrayLayerCount = 1,
                           });
 
-    WGPUCommandEncoder encoder
+    WGPUCommandEncoder command_encoder
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-      encoder,
+    WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
+      command_encoder,
       &(WGPURenderPassDescriptor){
         .label = STRVIEW("irradiance render pass"),
         .colorAttachmentCount = 1,
         .colorAttachments = &(WGPURenderPassColorAttachment){
           .view = face_view,
-          .loadOp = WGPULoadOp_Clear,
+          .loadOp = WGPULoadOp_Load,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
         },
@@ -1147,19 +1147,20 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
       }
     );
 
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, vertex_buffer, 0,
+    wgpuRenderPassEncoderSetPipeline(pass_encoder, pipeline);
+    wgpuRenderPassEncoderSetViewport(pass_encoder, 0, 0, size, size, 0, 1);
+    wgpuRenderPassEncoderSetVertexBuffer(pass_encoder, 0, vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(pass, 36, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0, bind_group, 0, NULL);
+    wgpuRenderPassEncoderDraw(pass_encoder, 36, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass_encoder);
 
-    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+    WGPUCommandBuffer command = wgpuCommandEncoderFinish(command_encoder, NULL);
     wgpuQueueSubmit(wgpu_context->queue, 1, &command);
 
     WGPU_RELEASE_RESOURCE(CommandBuffer, command)
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass)
-    WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
+    WGPU_RELEASE_RESOURCE(CommandEncoder, command_encoder)
     WGPU_RELEASE_RESOURCE(TextureView, face_view)
   }
 
@@ -1170,8 +1171,8 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
   WGPU_RELEASE_RESOURCE(Sampler, sampler)
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
-  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_shader)
+  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
   WGPU_RELEASE_RESOURCE(TextureView, depth_view)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
 
@@ -1228,7 +1229,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
     = wgpuDeviceCreateTexture(wgpu_context->device, &depth_desc);
 
   /* Vertex shader with roughness uniform */
-  const char* vertex_shader = CODE(
+  const char* vertex_shader_wgsl = CODE(
     struct VSOut {
       @builtin(position) position: vec4f,
       @location(0) worldPosition: vec4f,
@@ -1251,8 +1252,8 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   );
 
   /* Fragment shader for prefiltered environment map */
-  char fragment_shader[16384];
-  snprintf(fragment_shader, sizeof(fragment_shader), CODE(
+  char fragment_shader_wgsl[16384];
+  snprintf(fragment_shader_wgsl, sizeof(fragment_shader_wgsl), CODE(
     struct Uniforms {
       modelViewProjectionMatrix: mat4x4f,
       roughness: f32,
@@ -1314,27 +1315,10 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   ), distribution_ggx_wgsl, radical_inverse_vdc_wgsl, hammersley_wgsl, importance_sample_ggx_wgsl, size);
 
   /* Create shaders */
-  WGPUShaderModule vert_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("prefilter vertex shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = vertex_shader,
-      },
-    }
-  );
-
-  WGPUShaderModule frag_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("prefilter fragment shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = fragment_shader,
-      },
-    }
-  );
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
   /* Create vertex buffer */
   WGPUBuffer vertex_buffer = create_buffer_with_data(
@@ -1362,11 +1346,10 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label = STRVIEW("prefilter map pipeline"),
-      .layout = NULL,
+      .label  = STRVIEW("prefilter map pipeline"),
       .vertex = (WGPUVertexState){
-        .module = vert_shader,
-        .entryPoint = "main",
+        .module = vert_shader_module,
+        .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
           .arrayStride = 4 * sizeof(float),
@@ -1394,7 +1377,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
         .mask = ~0u,
       },
       .fragment = &(WGPUFragmentState){
-        .module = frag_shader,
+        .module = frag_shader_module,
         .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
@@ -1521,8 +1504,8 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
   WGPU_RELEASE_RESOURCE(Sampler, sampler)
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
-  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader)
+  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
 
   return prefilter_texture;
@@ -1642,6 +1625,11 @@ static WGPUTexture
 convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
                                    hdr_image_t* hdr, uint32_t size)
 {
+  /* Create vertex buffer */
+  WGPUBuffer cubemap_vertices_buffer = create_buffer_with_data(
+    wgpu_context, cube_vertex_array, sizeof(cube_vertex_array),
+    WGPUBufferUsage_Vertex);
+
   /* Create cubemap texture */
   WGPUTextureDescriptor cubemap_desc = {
     .label = STRVIEW("cubemap from equirectangular"),
@@ -1721,7 +1709,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   WGPUTextureView depth_view = wgpuTextureCreateView(depth_texture, NULL);
 
   /* Fragment shader for equirectangular sampling */
-  const char* fragment_shader = CODE(
+  const char* fragment_shader_wgsl = CODE(
     @group(0) @binding(1) var ourTexture: texture_2d<f32>;
     @group(0) @binding(2) var ourSampler: sampler;
 
@@ -1743,45 +1731,18 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   );
 
   /* Create shaders */
-  WGPUShaderModule vertex_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("cubemap vertex shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain = (WGPUChainedStruct){
-          .sType = WGPUSType_ShaderSourceWGSL,
-        },
-        .code = cubemap_vertex_shader_wgsl,
-      },
-    }
-  );
-
-  WGPUShaderModule frag_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("equirect fragment shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain = (WGPUChainedStruct){
-          .sType = WGPUSType_ShaderSourceWGSL,
-        },
-        .code = fragment_shader,
-      },
-    }
-  );
-
-  /* Create vertex buffer */
-  WGPUBuffer vertex_buffer = create_buffer_with_data(
-    wgpu_context, cube_vertex_array, sizeof(cube_vertex_array),
-    WGPUBufferUsage_Vertex);
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, cubemap_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
   /* Create pipeline - continuing in next chunk to avoid length limit */
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
       .label = STRVIEW("renderToCubemap"),
-      .layout = NULL,
       .vertex = (WGPUVertexState){
-        .module = vertex_shader,
+        .module = vert_shader_module,
         .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
@@ -1810,7 +1771,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
         .mask = ~0u,
       },
       .fragment = &(WGPUFragmentState){
-        .module = frag_shader,
+        .module = frag_shader_module,
         .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
@@ -1847,26 +1808,26 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
 
   WGPUTextureView equirect_view = wgpuTextureCreateView(equirect_texture, NULL);
 
+  WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+     .label = STRVIEW("equirect bind group"),
+     .layout = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
+     .entryCount = 3,
+     .entries = (WGPUBindGroupEntry[]){
+       {.binding = 0, .buffer = uniform_buffer, .offset = 0, .size = sizeof(mat4)},
+       {.binding = 1, .textureView = equirect_view},
+       {.binding = 2, .sampler = sampler},
+       },
+     }
+    );
+
   /* Render each cubemap face */
   for (uint32_t face = 0; face < 6; face++) {
     mat4 mvp;
     glm_mat4_mul(projection, cubemap_view_matrices[face], mvp);
     wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffer, 0, mvp,
                          sizeof(mat4));
-
-    WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .label = STRVIEW("equirect bind group"),
-        .layout = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
-        .entryCount = 3,
-        .entries = (WGPUBindGroupEntry[]){
-          {.binding = 0, .buffer = uniform_buffer, .offset = 0, .size = sizeof(mat4)},
-          {.binding = 1, .textureView = equirect_view},
-          {.binding = 2, .sampler = sampler},
-        },
-      }
-    );
 
     WGPUTextureView face_view = wgpuTextureCreateView(
       cubemap_texture, &(WGPUTextureViewDescriptor){
@@ -1879,16 +1840,16 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
                          .arrayLayerCount = 1,
                        });
 
-    WGPUCommandEncoder encoder
+    WGPUCommandEncoder command_Encoder
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-      encoder,
+    WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
+      command_Encoder,
       &(WGPURenderPassDescriptor){
         .label = STRVIEW("cubemap render pass"),
         .colorAttachmentCount = 1,
         .colorAttachments = &(WGPURenderPassColorAttachment){
           .view = face_view,
-          .loadOp = WGPULoadOp_Clear,
+          .loadOp = WGPULoadOp_Load,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
         },
@@ -1901,19 +1862,20 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
       }
     );
 
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, vertex_buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(pass, 36, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderSetPipeline(pass_encoder, pipeline);
+    wgpuRenderPassEncoderSetViewport(pass_encoder, 0, 0, size, size, 0, 1);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      pass_encoder, 0, cubemap_vertices_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0, bind_group, 0, NULL);
+    wgpuRenderPassEncoderDraw(pass_encoder, 36, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass_encoder);
 
-    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+    WGPUCommandBuffer command = wgpuCommandEncoderFinish(command_Encoder, NULL);
     wgpuQueueSubmit(wgpu_context->queue, 1, &command);
 
     WGPU_RELEASE_RESOURCE(CommandBuffer, command)
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass)
-    WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
+    WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
+    WGPU_RELEASE_RESOURCE(CommandEncoder, command_Encoder)
     WGPU_RELEASE_RESOURCE(TextureView, face_view)
     WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
   }
@@ -1923,9 +1885,9 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
   WGPU_RELEASE_RESOURCE(Sampler, sampler)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_shader)
-  WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
+  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
+  WGPU_RELEASE_RESOURCE(Buffer, cubemap_vertices_buffer)
   WGPU_RELEASE_RESOURCE(TextureView, depth_view)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
   WGPU_RELEASE_RESOURCE(Texture, equirect_texture)
@@ -1949,8 +1911,9 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
   static char shader_source[MAX_SHADER_SOURCE_SIZE];
   static char temp_buffer[MAX_SHADER_SOURCE_SIZE];
 
-  /* Build the shader template */
-  const char* shader_template = CODE(
+  /* Build the shader template in chunks to avoid ISO C99 string length limit */
+  // clang-format off
+  const char* shader_part1 = CODE(
     struct Scene {
       cameraProjection: mat4x4f,
       cameraView: mat4x4f,
@@ -2047,7 +2010,9 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
 
     const MAX_REFLECTION_LOD = 4.0;
     const PI = 3.14159265359;
+  );
 
+  const char* shader_part2 = CODE(
     fn calculateShadows(shadowPosition: vec3f) -> f32 {
       var visibility = 0.0;
       let oneOverShadowDepthTextureSize = 1.0 / SHADOW_MAP_SIZE;
@@ -2105,6 +2070,9 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
       let f0 = mix(vec3f(0.04), albedo, metallic);
 
       var lo = vec3f(0.0);
+  );
+
+  const char* shader_part3 = CODE(
       {
         let l = normalize(scene.lightPosition - input.worldPosition);
         let h = normalize(v + l);
@@ -2148,9 +2116,11 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
       return vec4f(color, 1.0);
     }
   );
+  // clang-format on
 
-  /* Copy template to working buffer */
-  snprintf(shader_source, sizeof(shader_source), "%s", shader_template);
+  /* Combine shader parts into one buffer */
+  snprintf(shader_source, sizeof(shader_source), "%s%s%s", shader_part1,
+           shader_part2, shader_part3);
 
   /* Replace shader location constants */
   char location_str[32];
@@ -2386,66 +2356,19 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
   WGPUTexture texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
-  /* Create depth texture */
-  WGPUTextureDescriptor depth_texture_desc = {
-    .label = STRVIEW("BRDF LUT depth"),
-    .usage = WGPUTextureUsage_RenderAttachment,
-    .dimension = WGPUTextureDimension_2D,
-    .size = (WGPUExtent3D){
-      .width  = size,
-      .height = size,
-      .depthOrArrayLayers = 1,
-    },
-    .format = WGPUTextureFormat_Depth24Plus,
-    .mipLevelCount = 1,
-    .sampleCount = 1,
-  };
-
-  WGPUTexture depth_texture
-    = wgpuDeviceCreateTexture(wgpu_context->device, &depth_texture_desc);
-  WGPUTextureView depth_texture_view
-    = wgpuTextureCreateView(depth_texture, NULL);
-
-  /* Create vertex buffer */
-  WGPUBuffer vertex_buffer = create_buffer_with_data(
-    wgpu_context, brdf_quad_vertices, sizeof(brdf_quad_vertices),
-    WGPUBufferUsage_Vertex);
-
   /* Create shaders */
-  WGPUShaderModule vertex_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("BRDF LUT vertex shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain = (WGPUChainedStruct){
-          .sType = WGPUSType_ShaderSourceWGSL,
-        },
-        .code = brdf_lut_vertex_shader_wgsl,
-      },
-    }
-  );
-
-  WGPUShaderModule fragment_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("BRDF LUT fragment shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain = (WGPUChainedStruct){
-          .sType = WGPUSType_ShaderSourceWGSL,
-        },
-        .code = brdf_lut_fragment_shader_wgsl,
-      },
-    }
-  );
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, brdf_lut_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, brdf_lut_fragment_shader_wgsl);
 
   /* Create render pipeline */
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label = STRVIEW("BRDF convolution pipeline"),
-      .layout = NULL,
+      .label  = STRVIEW("BRDF convolution pipeline"),
       .vertex = (WGPUVertexState){
-        .module = vertex_shader,
+        .module = vert_shader_module,
         .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
@@ -2481,7 +2404,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
         .mask = ~0u,
       },
       .fragment = &(WGPUFragmentState){
-        .module = fragment_shader,
+        .module = frag_shader_module,
         .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
@@ -2491,6 +2414,31 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
       },
     }
   );
+
+  /* Create depth texture */
+  WGPUTextureDescriptor depth_texture_desc = {
+    .label = STRVIEW("BRDF LUT depth"),
+    .usage = WGPUTextureUsage_RenderAttachment,
+    .dimension = WGPUTextureDimension_2D,
+    .size = (WGPUExtent3D){
+     .width  = size,
+     .height = size,
+     .depthOrArrayLayers = 1,
+    },
+    .format = WGPUTextureFormat_Depth24Plus,
+    .mipLevelCount = 1,
+    .sampleCount = 1,
+  };
+
+  WGPUTexture depth_texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &depth_texture_desc);
+  WGPUTextureView depth_texture_view
+    = wgpuTextureCreateView(depth_texture, NULL);
+
+  /* Create vertex buffer */
+  WGPUBuffer vertex_buffer = create_buffer_with_data(
+    wgpu_context, brdf_quad_vertices, sizeof(brdf_quad_vertices),
+    WGPUBufferUsage_Vertex);
 
   /* Render the BRDF LUT */
   WGPUTextureView texture_view = wgpuTextureCreateView(texture, NULL);
@@ -2535,8 +2483,8 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
   WGPU_RELEASE_RESOURCE(TextureView, texture_view)
   WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_shader)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_shader)
+  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
   WGPU_RELEASE_RESOURCE(Buffer, vertex_buffer)
   WGPU_RELEASE_RESOURCE(TextureView, depth_texture_view)
   WGPU_RELEASE_RESOURCE(Texture, depth_texture)
@@ -2719,46 +2667,44 @@ static void init_mipmap_generator(wgpu_context_t* wgpu_context)
                           });
 
   /* Shader module for mipmap generation */
-  const char* mipmap_shader = CODE(
+  // clang-format off
+  const char* mipmap_shader_wgsl = CODE(
     struct VSOutput {
-      @builtin(position) position : vec4f, @location(0) uv : vec2f,
+      @builtin(position) position: vec4f,
+      @location(0) uv: vec2f,
     };
 
-    @vertex fn vs(@builtin(vertex_index) vertexIndex : u32)
-      ->VSOutput {
-        var pos = array<vec2f, 6>(vec2f(0.0, 0.0), // center
-                                  vec2f(1.0, 0.0), // right, center
-                                  vec2f(0.0, 1.0), // center, top
+    @vertex fn vs(
+      @builtin(vertex_index) vertexIndex: u32
+    ) -> VSOutput {
+      var pos = array<vec2f, 6>(
+        vec2f(0.0,  0.0), // center
+        vec2f(1.0,  0.0), // right, center
+        vec2f(0.0,  1.0), // center, top
 
-                                  vec2f(0.0, 1.0), // center, top
-                                  vec2f(1.0, 0.0), // right, center
-                                  vec2f(1.0, 1.0), // right, top
-        );
+        vec2f(0.0,  1.0), // center, top
+        vec2f(1.0,  0.0), // right, center
+        vec2f(1.0,  1.0), // right, top
+      );
 
-        var vsOutput : VSOutput;
-        let xy            = pos[vertexIndex];
-        vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
-        vsOutput.uv       = vec2f(xy.x, 1.0 - xy.y);
-        return vsOutput;
-      }
+      var vsOutput: VSOutput;
+      let xy = pos[vertexIndex];
+      vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
+      vsOutput.uv = vec2f(xy.x, 1.0 - xy.y);
+      return vsOutput;
+    }
 
-    @group(0) @binding(0) var ourSampler : sampler;
-    @group(0) @binding(1) var ourTexture : texture_2d<f32>;
+    @group(0) @binding(0) var ourSampler: sampler;
+    @group(0) @binding(1) var ourTexture: texture_2d<f32>;
 
-    @fragment fn fs(fsInput : VSOutput)
-      ->@location(0)
-        vec4f { return textureSample(ourTexture, ourSampler, fsInput.uv); });
-
-  WGPUShaderModule shader_module = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("mip generator shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = mipmap_shader,
-      },
+    @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
+      return textureSample(ourTexture, ourSampler, fsInput.uv);
     }
   );
+  // clang-format on
+
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, mipmap_shader_wgsl);
 
   /* Create pipeline */
   mipmap_gen.pipeline = wgpuDeviceCreateRenderPipeline(
@@ -2768,11 +2714,11 @@ static void init_mipmap_generator(wgpu_context_t* wgpu_context)
       .layout = NULL,
       .vertex = (WGPUVertexState){
         .module = shader_module,
-        .entryPoint = "vs",
+        .entryPoint = STRVIEW("vs"),
       },
       .fragment = &(WGPUFragmentState){
         .module = shader_module,
-        .entryPoint = "fs",
+        .entryPoint = STRVIEW("fs"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = WGPUTextureFormat_RGBA8Unorm,
@@ -2781,6 +2727,10 @@ static void init_mipmap_generator(wgpu_context_t* wgpu_context)
       },
       .primitive = (WGPUPrimitiveState){
         .topology = WGPUPrimitiveTopology_TriangleList,
+      },
+      .multisample = (WGPUMultisampleState){
+        .count = 1,
+        .mask = ~0u,
       },
     }
   );
@@ -3161,7 +3111,7 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   );
 
   /* Create simple vertex shader */
-  const char* vertex_shader = CODE(
+  const char* vertex_shader_wgsl = CODE(
     struct Uniforms {
       projection: mat4x4f,
       view: mat4x4f,
@@ -3192,7 +3142,7 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   );
 
   /* Create simple fragment shader */
-  const char* fragment_shader
+  const char* fragment_shader_wgsl
     = CODE(@fragment fn main(@location(0) normal : vec3f,
                              @location(1) texcoord : vec2f)
              ->@location(0) vec4f {
@@ -3201,27 +3151,10 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
                return vec4f(vec3f(0.5) * light + vec3f(0.2), 1.0);
              });
 
-  WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("vertex shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = vertex_shader,
-      },
-    }
-  );
-
-  WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
-    wgpu_context->device,
-    &(WGPUShaderModuleDescriptor){
-      .label = STRVIEW("fragment shader"),
-      .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
-        .chain.sType = WGPUSType_ShaderSourceWGSL,
-        .code = fragment_shader,
-      },
-    }
-  );
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
 
   /* Create pipeline */
   WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -3236,8 +3169,8 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
       .label = STRVIEW("render pipeline"),
       .layout = pipeline_layout,
       .vertex = (WGPUVertexState){
-        .module = vs_module,
-        .entryPoint = "main",
+        .module = vert_shader_module,
+        .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
           .arrayStride = 8 * sizeof(float),
@@ -3265,8 +3198,8 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
         .mask = ~0u,
       },
       .fragment = &(WGPUFragmentState){
-        .module = fs_module,
-        .entryPoint = "main",
+        .module = frag_shader_module,
+        .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = wgpu_context->render_format,
@@ -3292,8 +3225,8 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   );
 
   WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ShaderModule, fs_module)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vs_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
 }
 
 /* -------------------------------------------------------------------------- *
@@ -3515,154 +3448,155 @@ int main(void)
  * WGSL Shader Code Implementations
  * -------------------------------------------------------------------------- */
 
+// clang-format off
 /* Distribution GGX */
-static const char* distribution_ggx_code
-  = CODE(fn distributionGGX(N : vec3f, H : vec3f, roughness : f32)->f32 {
-      let a      = roughness * roughness;
-      let a2     = a * a;
-      let NdotH  = max(dot(N, H), 0.0);
-      let NdotH2 = NdotH * NdotH;
-
-      let nom   = a2;
-      var denom = (NdotH2 * (a2 - 1.0) + 1.0);
-      denom     = PI * denom * denom;
-
-      return nom / denom;
-    });
+static const char* distribution_ggx_code = CODE(
+  fn distributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {
+    let a = roughness * roughness;
+    let a2 = a * a;
+    let nDotH = max(dot(n, h), 0.0);
+    let nDotH2 = nDotH * nDotH;
+    var denom = (nDotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    return a2 / denom;
+  }
+);
 
 /* Geometry Schlick GGX */
-static const char* geometry_schlick_ggx_code
-  = CODE(fn geometrySchlickGGX(NdotV : f32, roughness : f32)->f32 {
-      let r = (roughness + 1.0);
-      let k = (r * r) / 8.0;
-
-      let nom   = NdotV;
-      let denom = NdotV * (1.0 - k) + k;
-
-      return nom / denom;
-    });
+static const char* geometry_schlick_ggx_code = CODE(
+  fn geometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {
+    let r = (roughness + 1.0);
+    let k = (r * r) / 8.0;
+    return nDotV / (nDotV * (1.0 - k) + k);
+  }
+);
 
 /* Geometry Smith */
 static const char* geometry_smith_code = CODE(
-  fn geometrySmith(N : vec3f, V : vec3f, L : vec3f, roughness : f32)->f32 {
-    let NdotV = max(dot(N, V), 0.0);
-    let NdotL = max(dot(N, L), 0.0);
-    let ggx2  = geometrySchlickGGX(NdotV, roughness);
-    let ggx1  = geometrySchlickGGX(NdotL, roughness);
-
+  fn geometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {
+    let nDotV = max(dot(n, v), 0.0);
+    let nDotL = max(dot(n, l), 0.0);
+    let ggx2 = geometrySchlickGGX(nDotV, roughness);
+    let ggx1 = geometrySchlickGGX(nDotL, roughness);
     return ggx1 * ggx2;
-  });
+  }
+);
 
 /* Fresnel Schlick */
-static const char* fresnel_schlick_code
-  = CODE(fn fresnelSchlick(cosTheta : f32, F0 : vec3f)->vec3f {
-      return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-    });
+static const char* fresnel_schlick_code = CODE(
+  fn fresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {
+    return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  }
+);
 
 /* Fresnel Schlick Roughness */
-static const char* fresnel_schlick_roughness_code
-  = CODE(fn fresnelSchlickRoughness(cosTheta : f32, F0 : vec3f, roughness : f32)
-           ->vec3f {
-             return F0
-                    + (max(vec3f(1.0 - roughness), F0) - F0)
-                        * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-           });
+static const char* fresnel_schlick_roughness_code = CODE(
+  fn fresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
+    return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  }
+);
 
 /* Radical Inverse VdC */
-static const char* radical_inverse_vdc_code
-  = CODE(fn radicalInverseVdC(inputBits : u32)->f32 {
-      var bits = inputBits;
-      bits     = (bits << 16u) | (bits >> 16u);
-      bits     = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-      bits     = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-      bits     = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-      bits     = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-      return f32(bits) * 2.3283064365386963e-10; // / 0x100000000
-    });
+static const char* radical_inverse_vdc_code = CODE(
+  // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+  // efficient VanDerCorpus calculation.
+  fn radicalInverseVdC(bits: u32) -> f32 {
+    var result = bits;
+    result = (bits << 16u) | (bits >> 16u);
+    result = ((result & 0x55555555u) << 1u) | ((result & 0xAAAAAAAAu) >> 1u);
+    result = ((result & 0x33333333u) << 2u) | ((result & 0xCCCCCCCCu) >> 2u);
+    result = ((result & 0x0F0F0F0Fu) << 4u) | ((result & 0xF0F0F0F0u) >> 4u);
+    result = ((result & 0x00FF00FFu) << 8u) | ((result & 0xFF00FF00u) >> 8u);
+    return f32(result) * 2.3283064365386963e-10;
+  }
+);
 
 /* Hammersley */
-static const char* hammersley_code
-  = CODE(fn hammersley(i : u32, N : u32)->vec2f {
-      return vec2f(f32(i) / f32(N), radicalInverseVdC(i));
-    });
+static const char* hammersley_code = CODE(
+  fn hammersley(i: u32, n: u32) -> vec2f {
+    return vec2f(f32(i) / f32(n), radicalInverseVdC(i));
+  }
+);
 
 /* Importance Sample GGX */
-static const char* importance_sample_ggx_code
-  = CODE(fn importanceSampleGGX(Xi : vec2f, N : vec3f, roughness : f32)->vec3f {
-      let a = roughness * roughness;
+static const char* importance_sample_ggx_code = CODE(
+  fn importanceSampleGGX(xi: vec2f, n: vec3f, roughness: f32) -> vec3f {
+    let a = roughness * roughness;
 
-      let phi      = 2.0 * PI * Xi.x;
-      let cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
-      let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    let phi = 2.0 * PI * xi.x;
+    let cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+    let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
-      // from spherical coordinates to cartesian coordinates
-      let H = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    // from spherical coordinates to cartesian coordinates - halfway vector
+    let h = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 
-      // from tangent-space vector to world-space sample vector
-      let up
-        = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), abs(N.z) < 0.999);
-      let tangent   = normalize(cross(up, N));
-      let bitangent = cross(N, tangent);
+    // from tangent-space H vector to world-space sample vector
+    let up: vec3f = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), abs(n.z) < 0.999);
+    let tangent = normalize(cross(up, n));
+    let bitangent = cross(n, tangent);
 
-      let sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
-      return normalize(sampleVec);
-    });
+    let sampleVec = tangent * h.x + bitangent * h.y + n * h.z;
+    return normalize(sampleVec);
+  }
+);
 
 /* Tone Mapping - ACES */
-static const char* tone_mapping_aces_code
-  = CODE(fn toneMapACES(color : vec3f)->vec3f {
-      let a = 2.51;
-      let b = 0.03;
-      let c = 2.43;
-      let d = 0.59;
-      let e = 0.14;
-      return clamp((color * (a * color + b)) / (color * (c * color + d) + e),
-                   vec3f(0.0), vec3f(1.0));
-    });
+static const char* tone_mapping_aces_code = CODE(
+  fn toneMapping(color: vec3f) -> vec3f {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+
+    return (color * (a * color + b)) / (color * (c * color + d) + e);
+  }
+);
 
 /* Tone Mapping - Reinhard */
-static const char* tone_mapping_reinhard_code
-  = CODE(fn toneMapReinhard(color : vec3f)->vec3f {
-      return color / (color + vec3f(1.0));
-    });
+static const char* tone_mapping_reinhard_code = CODE(
+  fn toneMapping(color: vec3f) -> vec3f {
+    return color / (color + vec3f(1.0));
+  }
+);
 
 /* Tone Mapping - Uncharted 2 */
 static const char* tone_mapping_uncharted2_code = CODE(
-  fn uncharted2Tonemap(x : vec3f)
-    ->vec3f {
-      let A = 0.15;
-      let B = 0.50;
-      let C = 0.10;
-      let D = 0.20;
-      let E = 0.02;
-      let F = 0.30;
-      return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F))
-             - E / F;
-    }
+  fn uncharted2Helper(x: vec3f) -> vec3f {
+    let a = 0.15;
+    let b = 0.50;
+    let c = 0.10;
+    let d = 0.20;
+    let e = 0.02;
+    let f = 0.30;
 
-  fn toneMapUncharted2(color : vec3f)
-    ->vec3f {
-      let W            = vec3f(11.2);
-      let exposureBias = 2.0;
-      let curr         = uncharted2Tonemap(exposureBias * color);
-      let whiteScale   = vec3f(1.0) / uncharted2Tonemap(W);
-      return curr * whiteScale;
-    });
+    return (x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f) - e / f;
+  }
+
+  fn toneMapping(color: vec3f) -> vec3f {
+    let w = 11.2;
+    let exposureBias = 2.0;
+    let current = uncharted2Helper(exposureBias * color);
+    let whiteScale = 1 / uncharted2Helper(vec3f(w));
+    return current * whiteScale;
+  }
+);
 
 /* Tone Mapping - Lottes */
-static const char* tone_mapping_lottes_code
-  = CODE(fn toneMapLottes(color : vec3f)->vec3f {
-      let a      = vec3f(1.6);
-      let d      = vec3f(0.977);
-      let hdrMax = 8.0;
-      let midIn  = 0.18;
-      let midOut = 0.267;
+static const char* tone_mapping_lottes_code = CODE(
+  fn toneMapping(color: vec3f) -> vec3f {
+    let a = vec3f(1.6);
+    let d = vec3f(0.977);
+    let hdrMax = vec3f(8.0);
+    let midIn = vec3f(0.18);
+    let midOut = vec3f(0.267);
 
-      let b = (-pow(midIn, a) + pow(hdrMax, a) * midOut)
-              / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
-      let c = (pow(hdrMax, a * d) * pow(midIn, a)
-               - pow(hdrMax, a) * pow(midIn, a * d) * midOut)
-              / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+    let b = (-pow(midIn, a) + pow(hdrMax, a) * midOut) / ((pow(hdrMax, a * d)
+            - pow(midIn, a * d)) * midOut);
+    let c = (pow(hdrMax, a * d) * pow(midIn, a) - pow(hdrMax, a) * pow(midIn, a * d) * midOut)
+            / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
 
-      return pow(color, a) / (pow(color, a * d) * b + c);
-    });
+    return pow(color, a) / (pow(color, a * d) * b + c);
+  }
+);
+// clang-format on
