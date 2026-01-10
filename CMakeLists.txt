@@ -39,6 +39,16 @@ set(RPLY_SOURCES
     external/rply/rply.c
 )
 
+# Suppress warnings for external libraries
+if(NOT MSVC)
+  set_source_files_properties(
+    ${RPLY_SOURCES}
+    ${CJSON_SOURCES}
+    PROPERTIES
+    COMPILE_FLAGS "-w"
+  )
+endif()
+
 # ==============================================================================
 # Common headers and sources
 # ==============================================================================
@@ -98,6 +108,7 @@ function(add_example_executable EXAMPLE_NAME)
     )
     target_include_directories(${EXAMPLE_NAME} SYSTEM
         PRIVATE external/cglm/include
+        PRIVATE external/cgltf
         PRIVATE external/cJSON
         PRIVATE external/rply
         PRIVATE external/sokol
@@ -149,6 +160,7 @@ add_example_executable(equirectangular_image)
 add_example_executable(game_of_life)
 add_example_executable(gears)
 add_example_executable(gerstner_waves)
+add_example_executable(gltf_pbr_ibl)
 add_example_executable(hello_triangle)
 add_example_executable(image_blur)
 add_example_executable(instanced_cube)
