@@ -65,6 +65,9 @@ static const char* hammersley_wgsl;
 /* Importance Sample GGX function */
 static const char* importance_sample_ggx_wgsl;
 
+/* Cubemap vertex shader */
+static const char* cubemap_vertex_shader_wgsl;
+
 /* Tone mapping functions */
 static const char* tone_mapping_aces_wgsl;
 static const char* tone_mapping_reinhard_wgsl;
@@ -740,28 +743,28 @@ get_gpu_vertex_format(gltf_component_type_t component_type,
       if (normalized) {
         return (count == 2) ? WGPUVertexFormat_Unorm16x2 :
                (count == 4) ? WGPUVertexFormat_Unorm16x4 :
-                              WGPUVertexFormat_Undefined;
+                              WGPUVertexFormat_Uint8x2;
       }
       return (count == 2) ? WGPUVertexFormat_Uint16x2 :
              (count == 4) ? WGPUVertexFormat_Uint16x4 :
-                            WGPUVertexFormat_Undefined;
+                            WGPUVertexFormat_Uint8x2;
 
     case GLTF_COMPONENT_TYPE_UNSIGNED_INT:
       return (count == 1) ? WGPUVertexFormat_Uint32 :
              (count == 2) ? WGPUVertexFormat_Uint32x2 :
              (count == 3) ? WGPUVertexFormat_Uint32x3 :
              (count == 4) ? WGPUVertexFormat_Uint32x4 :
-                            WGPUVertexFormat_Undefined;
+                            WGPUVertexFormat_Uint8x2;
 
     case GLTF_COMPONENT_TYPE_FLOAT:
       return (count == 1) ? WGPUVertexFormat_Float32 :
              (count == 2) ? WGPUVertexFormat_Float32x2 :
              (count == 3) ? WGPUVertexFormat_Float32x3 :
              (count == 4) ? WGPUVertexFormat_Float32x4 :
-                            WGPUVertexFormat_Undefined;
+                            WGPUVertexFormat_Uint8x2;
 
     default:
-      return WGPUVertexFormat_Undefined;
+      return WGPUVertexFormat_Uint8x2;
   }
 }
 
@@ -844,7 +847,7 @@ static WGPUSampler create_sampler_from_gltf(wgpu_context_t* wgpu_context,
 static WGPUSampler create_default_sampler(wgpu_context_t* wgpu_context)
 {
   WGPUSamplerDescriptor sampler_desc = {
-    .label        = "Default sampler",
+    .label        = STRVIEW("Default sampler"),
     .addressModeU = WGPUAddressMode_Repeat,
     .addressModeV = WGPUAddressMode_Repeat,
     .addressModeW = WGPUAddressMode_Repeat,
@@ -882,20 +885,19 @@ static WGPUTexture create_solid_color_texture(wgpu_context_t* wgpu_context,
   WGPUTexture texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
-  WGPUImageCopyTexture destination = {
-    .texture  = texture,
-    .mipLevel = 0,
-    .origin   = (WGPUOrigin3D){0, 0, 0},
-    .aspect   = WGPUTextureAspect_All,
-  };
-
-  WGPUTextureDataLayout layout = {
-    .offset       = 0,
-    .bytesPerRow  = 4,
-    .rowsPerImage = 1,
-  };
-
-  wgpuQueueWriteTexture(wgpu_context->queue, &destination, data, 4, &layout,
+  wgpuQueueWriteTexture(wgpu_context->queue,
+                        &(WGPUTexelCopyTextureInfo){
+                          .texture  = texture,
+                          .mipLevel = 0,
+                          .origin   = (WGPUOrigin3D){0, 0, 0},
+                          .aspect   = WGPUTextureAspect_All,
+                        },
+                        data, 4,
+                        &(WGPUTexelCopyBufferLayout){
+                          .offset       = 0,
+                          .bytesPerRow  = 4,
+                          .rowsPerImage = 1,
+                        },
                         &texture_desc.size);
 
   return texture;
@@ -915,7 +917,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   /* Create irradiance texture */
   WGPUTextureDescriptor irradiance_desc = {
     .label = STRVIEW("irradiance map"),
-    .usage = WGPUTextureUsage_TextureBinding 
+    .usage = WGPUTextureUsage_TextureBinding
            | WGPUTextureUsage_CopyDst
            | WGPUTextureUsage_RenderAttachment,
     .dimension = WGPUTextureDimension_2D,
@@ -1070,7 +1072,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
       },
       .fragment = &(WGPUFragmentState){
         .module = frag_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = WGPUTextureFormat_RGBA8Unorm,
@@ -1190,7 +1192,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   /* Create prefilter texture with mipmaps */
   WGPUTextureDescriptor prefilter_desc = {
     .label = STRVIEW("prefilter map"),
-    .usage = WGPUTextureUsage_TextureBinding 
+    .usage = WGPUTextureUsage_TextureBinding
            | WGPUTextureUsage_CopyDst
            | WGPUTextureUsage_RenderAttachment,
     .dimension = WGPUTextureDimension_2D,
@@ -1309,7 +1311,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
       prefilteredColor = prefilteredColor / totalWeight;
       return vec4f(prefilteredColor, 1.0);
     }
-  ), distribution_ggx_code, radical_inverse_vdc_code, hammersley_code, importance_sample_ggx_code, size);
+  ), distribution_ggx_wgsl, radical_inverse_vdc_wgsl, hammersley_wgsl, importance_sample_ggx_wgsl, size);
 
   /* Create shaders */
   WGPUShaderModule vert_shader = wgpuDeviceCreateShaderModule(
@@ -1393,7 +1395,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
       },
       .fragment = &(WGPUFragmentState){
         .module = frag_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = WGPUTextureFormat_RGBA8Unorm,
@@ -1555,18 +1557,7 @@ static uint32_t hash_string(const char* value)
  * HDR Image Loading using stb_image
  * -------------------------------------------------------------------------- */
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#pragma clang diagnostic ignored "-Wsign-conversion"
-#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+/* stb_image already included at top of file - removed duplicate include */
 
 /* HDR image data structure */
 typedef struct {
@@ -1578,18 +1569,21 @@ typedef struct {
 } hdr_image_t;
 
 /**
- * @brief Load HDR image from file
+ * @brief Load HDR image from memory buffer
  */
-static bool load_hdr_image(const char* filename, hdr_image_t* out_image)
+static bool load_hdr_image(const void* buffer, size_t buffer_size,
+                           hdr_image_t* out_image)
 {
-  if (!filename || !out_image) {
+  if (!buffer || !out_image) {
     return false;
   }
 
   memset(out_image, 0, sizeof(hdr_image_t));
 
   int width, height, channels;
-  float* data = stbi_loadf(filename, &width, &height, &channels, 4);
+  float* data
+    = stbi_loadf_from_memory((const unsigned char*)buffer, (int)buffer_size,
+                             &width, &height, &channels, 4);
 
   if (!data) {
     return false;
@@ -1651,7 +1645,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   /* Create cubemap texture */
   WGPUTextureDescriptor cubemap_desc = {
     .label = STRVIEW("cubemap from equirectangular"),
-    .usage = WGPUTextureUsage_TextureBinding 
+    .usage = WGPUTextureUsage_TextureBinding
            | WGPUTextureUsage_CopyDst
            | WGPUTextureUsage_RenderAttachment,
     .dimension = WGPUTextureDimension_2D,
@@ -1691,23 +1685,21 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
     = wgpuDeviceCreateTexture(wgpu_context->device, &equirect_desc);
 
   /* Upload HDR data to equirectangular texture */
-  WGPUImageCopyTexture dest = {
-    .texture  = equirect_texture,
-    .mipLevel = 0,
-    .origin   = (WGPUOrigin3D){0, 0, 0},
-    .aspect   = WGPUTextureAspect_All,
-  };
-
-  WGPUTextureDataLayout data_layout = {
-    .offset       = 0,
-    .bytesPerRow  = 8 * hdr->width, /* 4 channels * 2 bytes (float16) */
-    .rowsPerImage = hdr->height,
-  };
-
-  /* Convert float32 to float16 for upload - simplified version */
   const size_t data_size = hdr->width * hdr->height * 4 * sizeof(float);
-  wgpuQueueWriteTexture(wgpu_context->queue, &dest, hdr->data, data_size,
-                        &data_layout, &equirect_desc.size);
+  wgpuQueueWriteTexture(wgpu_context->queue,
+                        &(WGPUTexelCopyTextureInfo){
+                          .texture  = equirect_texture,
+                          .mipLevel = 0,
+                          .origin   = (WGPUOrigin3D){0, 0, 0},
+                          .aspect   = WGPUTextureAspect_All,
+                        },
+                        hdr->data, data_size,
+                        &(WGPUTexelCopyBufferLayout){
+                          .offset       = 0,
+                          .bytesPerRow  = 8 * hdr->width,
+                          .rowsPerImage = hdr->height,
+                        },
+                        &equirect_desc.size);
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_desc = {
@@ -1790,7 +1782,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
       .layout = NULL,
       .vertex = (WGPUVertexState){
         .module = vertex_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
           .arrayStride = 4 * sizeof(float),
@@ -1819,7 +1811,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
       },
       .fragment = &(WGPUFragmentState){
         .module = frag_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = WGPUTextureFormat_RGBA8Unorm,
@@ -2376,8 +2368,8 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
 {
   /* Create the BRDF LUT texture */
   WGPUTextureDescriptor texture_desc = {
-    .label = "BRDF LUT",
-    .usage = WGPUTextureUsage_RenderAttachment 
+    .label = STRVIEW("BRDF LUT"),
+    .usage = WGPUTextureUsage_RenderAttachment
            | WGPUTextureUsage_TextureBinding
            | WGPUTextureUsage_CopyDst,
     .dimension = WGPUTextureDimension_2D,
@@ -2396,7 +2388,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_texture_desc = {
-    .label = "BRDF LUT depth",
+    .label = STRVIEW("BRDF LUT depth"),
     .usage = WGPUTextureUsage_RenderAttachment,
     .dimension = WGPUTextureDimension_2D,
     .size = (WGPUExtent3D){
@@ -2423,7 +2415,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
   WGPUShaderModule vertex_shader = wgpuDeviceCreateShaderModule(
     wgpu_context->device,
     &(WGPUShaderModuleDescriptor){
-      .label = "BRDF LUT vertex shader",
+      .label = STRVIEW("BRDF LUT vertex shader"),
       .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
         .chain = (WGPUChainedStruct){
           .sType = WGPUSType_ShaderSourceWGSL,
@@ -2436,7 +2428,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
   WGPUShaderModule fragment_shader = wgpuDeviceCreateShaderModule(
     wgpu_context->device,
     &(WGPUShaderModuleDescriptor){
-      .label = "BRDF LUT fragment shader",
+      .label = STRVIEW("BRDF LUT fragment shader"),
       .nextInChain = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
         .chain = (WGPUChainedStruct){
           .sType = WGPUSType_ShaderSourceWGSL,
@@ -2450,11 +2442,11 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label = "BRDF convolution pipeline",
+      .label = STRVIEW("BRDF convolution pipeline"),
       .layout = NULL,
       .vertex = (WGPUVertexState){
         .module = vertex_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .bufferCount = 1,
         .buffers = &(WGPUVertexBufferLayout){
           .arrayStride = 5 * sizeof(float),
@@ -2490,7 +2482,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
       },
       .fragment = &(WGPUFragmentState){
         .module = fragment_shader,
-        .entryPoint = "main",
+        .entryPoint = STRVIEW("main"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = WGPUTextureFormat_RG16Float,
@@ -2505,13 +2497,13 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
 
   WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
     wgpu_context->device, &(WGPUCommandEncoderDescriptor){
-                            .label = "BRDF LUT command encoder",
+                            .label = STRVIEW("BRDF LUT command encoder"),
                           });
 
   WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
     encoder,
     &(WGPURenderPassDescriptor){
-      .label = "BRDF convolution",
+      .label = STRVIEW("BRDF convolution"),
       .colorAttachmentCount = 1,
       .colorAttachments = &(WGPURenderPassColorAttachment){
         .view = texture_view,
@@ -2578,20 +2570,19 @@ create_roughness_metallic_texture(wgpu_context_t* wgpu_context, float roughness,
   WGPUTexture texture
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
 
-  WGPUImageCopyTexture destination = {
-    .texture  = texture,
-    .mipLevel = 0,
-    .origin   = (WGPUOrigin3D){0, 0, 0},
-    .aspect   = WGPUTextureAspect_All,
-  };
-
-  WGPUTextureDataLayout layout = {
-    .offset       = 0,
-    .bytesPerRow  = 4,
-    .rowsPerImage = 1,
-  };
-
-  wgpuQueueWriteTexture(wgpu_context->queue, &destination, data, 4, &layout,
+  wgpuQueueWriteTexture(wgpu_context->queue,
+                        &(WGPUTexelCopyTextureInfo){
+                          .texture  = texture,
+                          .mipLevel = 0,
+                          .origin   = (WGPUOrigin3D){0, 0, 0},
+                          .aspect   = WGPUTextureAspect_All,
+                        },
+                        data, 4,
+                        &(WGPUTexelCopyBufferLayout){
+                          .offset       = 0,
+                          .bytesPerRow  = 4,
+                          .rowsPerImage = 1,
+                        },
                         &texture_desc.size);
 
   return texture;
@@ -2691,18 +2682,6 @@ static struct {
     .colorAttachments       = &state.color_attachment,
     .depthStencilAttachment = &state.depth_stencil_attachment,
   },
-  .settings = {
-    .cubemap_size = 512,
-    .irradiance_map_size = 32,
-    .prefilter_map_size = 128,
-    uint32_t roughness_levels;
-uint32_t brdf_lut_size;
-}
-settings;
-
-WGPUBool initialized;
-}
-state = {
   .settings = {
     .cubemap_size = 512,
     .irradiance_map_size = 32,
@@ -3029,8 +3008,8 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
 
         /* Create texture */
         WGPUTextureDescriptor tex_desc = {
-          .usage = WGPUTextureUsage_TextureBinding 
-                 | WGPUTextureUsage_CopyDst 
+          .usage = WGPUTextureUsage_TextureBinding
+                 | WGPUTextureUsage_CopyDst
                  | WGPUTextureUsage_RenderAttachment,
           .dimension = WGPUTextureDimension_2D,
           .size = (WGPUExtent3D){
@@ -3047,21 +3026,20 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
           = wgpuDeviceCreateTexture(wgpu_context->device, &tex_desc);
 
         /* Upload texture data */
-        WGPUImageCopyTexture destination = {
-          .texture  = state.gltf_textures[i],
-          .mipLevel = 0,
-          .origin   = (WGPUOrigin3D){0, 0, 0},
-          .aspect   = WGPUTextureAspect_All,
-        };
-
-        WGPUTextureDataLayout layout = {
-          .offset       = 0,
-          .bytesPerRow  = width * 4,
-          .rowsPerImage = (uint32_t)height,
-        };
-
-        wgpuQueueWriteTexture(wgpu_context->queue, &destination, pixels,
-                              width * height * 4, &layout, &tex_desc.size);
+        wgpuQueueWriteTexture(wgpu_context->queue,
+                              &(WGPUTexelCopyTextureInfo){
+                                .texture  = state.gltf_textures[i],
+                                .mipLevel = 0,
+                                .origin   = (WGPUOrigin3D){0, 0, 0},
+                                .aspect   = WGPUTextureAspect_All,
+                              },
+                              pixels, width * height * 4,
+                              &(WGPUTexelCopyBufferLayout){
+                                .offset       = 0,
+                                .bytesPerRow  = width * 4,
+                                .rowsPerImage = (uint32_t)height,
+                              },
+                              &tex_desc.size);
 
         /* Generate mipmaps */
         if (mip_levels > 1) {
@@ -3085,8 +3063,8 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
   }
 
   /* Load HDR image */
-  hdr_image_t hdr = load_hdr_image(state.hdr_buffer, state.hdr_buffer_size);
-  if (!hdr.data) {
+  hdr_image_t hdr;
+  if (!load_hdr_image(state.hdr_buffer, state.hdr_buffer_size, &hdr)) {
     return;
   }
 
@@ -3188,21 +3166,21 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
       projection: mat4x4f,
       view: mat4x4f,
     };
-    
+
     @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-    
+
     struct VertexInput {
       @location(0) position: vec3f,
       @location(1) normal: vec3f,
       @location(2) texcoord: vec2f,
     };
-    
+
     struct VertexOutput {
       @builtin(position) position: vec4f,
       @location(0) normal: vec3f,
       @location(1) texcoord: vec2f,
     };
-    
+
     @vertex
     fn main(input: VertexInput) -> VertexOutput {
       var output: VertexOutput;
@@ -3357,9 +3335,6 @@ static int init(wgpu_context_t* wgpu_context)
     .num_lanes    = 4,
   });
 
-  /* Initialize cubemap shared data */
-  init_cubemap_shared_data();
-
   /* Initialize mipmap generator */
   init_mipmap_generator(wgpu_context);
 
@@ -3395,18 +3370,18 @@ static int init(wgpu_context_t* wgpu_context)
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Update camera view matrix */
-  camera_update_view_matrix(&state.camera);
+  mat4 view_matrix;
+  camera_get_view(&state.camera, view_matrix);
 
   /* Update projection matrix based on window size */
   mat4 projection;
-  float aspect
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+  float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
   glm_perspective(GLM_PI_4f, aspect, 0.1f, 100.0f, projection);
 
   /* Write matrices to uniform buffer */
   float matrices[32]; /* 2 mat4s */
   memcpy(matrices, projection, sizeof(mat4));
-  memcpy(matrices + 16, state.camera.view_matrix, sizeof(mat4));
+  memcpy(matrices + 16, view_matrix, sizeof(mat4));
 
   wgpuQueueWriteBuffer(wgpu_context->queue, state.camera_uniform_buffer, 0,
                        matrices, sizeof(matrices));
