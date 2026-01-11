@@ -1001,7 +1001,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   /* Create sampler */
   WGPUSampler sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("irradiance sampler"),
+                            .label         = STRVIEW("Irradiance - Sampler"),
                             .magFilter     = WGPUFilterMode_Linear,
                             .minFilter     = WGPUFilterMode_Linear,
                             .maxAnisotropy = 1,
