@@ -363,7 +363,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = -1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[0]);
+  glm_mat4_inv(temp, cubemap_view_matrices[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -373,7 +373,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = -1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[1]);
+  glm_mat4_inv(temp, cubemap_view_matrices[1]);
 
   /* +Y face */
   target[0] = 0.0f;
@@ -383,7 +383,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = -1.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[2]);
+  glm_mat4_inv(temp, cubemap_view_matrices[2]);
 
   /* -Y face */
   target[0] = 0.0f;
@@ -393,7 +393,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = 1.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[3]);
+  glm_mat4_inv(temp, cubemap_view_matrices[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -403,7 +403,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = -1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[4]);
+  glm_mat4_inv(temp, cubemap_view_matrices[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -413,7 +413,7 @@ static void init_cubemap_view_matrices(void)
   up[1]     = -1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, (mat4*)cubemap_view_matrices[5]);
+  glm_mat4_inv(temp, cubemap_view_matrices[5]);
 
   /* Initialize inverted matrices */
   target[0] = 1.0f;
@@ -422,7 +422,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[0]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[0]);
 
   target[0] = -1.0f;
   target[1] = 0.0f;
@@ -430,7 +430,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[1]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[1]);
 
   target[0] = 0.0f;
   target[1] = 1.0f;
@@ -438,7 +438,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = -1.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[2]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[2]);
 
   target[0] = 0.0f;
   target[1] = -1.0f;
@@ -446,7 +446,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = 1.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[3]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[3]);
 
   target[0] = 0.0f;
   target[1] = 0.0f;
@@ -454,7 +454,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[4]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[4]);
 
   target[0] = 0.0f;
   target[1] = 0.0f;
@@ -462,7 +462,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, (mat4*)cubemap_view_matrices_inverted[5]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[5]);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -510,7 +510,7 @@ static const char* fresnel_schlick_roughness_wgsl
   = CODE(fn fresnelSchlickRoughness(cosTheta : f32, f0 : vec3f, roughness : f32)
            ->vec3f {
              return f0
-                    + (max(vec3(1.0 - roughness), f0) - f0)
+                    + (max(vec3f(1.0 - roughness), f0) - f0)
                         * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
            });
 
@@ -843,13 +843,14 @@ static WGPUSampler create_sampler_from_gltf(wgpu_context_t* wgpu_context,
 static WGPUSampler create_default_sampler(wgpu_context_t* wgpu_context)
 {
   WGPUSamplerDescriptor sampler_desc = {
-    .label        = STRVIEW("Default sampler"),
-    .addressModeU = WGPUAddressMode_Repeat,
-    .addressModeV = WGPUAddressMode_Repeat,
-    .addressModeW = WGPUAddressMode_Repeat,
-    .magFilter    = WGPUFilterMode_Linear,
-    .minFilter    = WGPUFilterMode_Linear,
-    .mipmapFilter = WGPUMipmapFilterMode_Linear,
+    .label         = STRVIEW("Default sampler"),
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
+    .magFilter     = WGPUFilterMode_Linear,
+    .minFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+    .maxAnisotropy = 1,
   };
 
   return wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
@@ -940,7 +941,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
       .height = size,
       .depthOrArrayLayers = 1,
     },
-    .format = WGPUTextureFormat_Depth24Plus,
+    .format = wgpu_context->depth_stencil_format,
     .mipLevelCount = 1,
     .sampleCount = 1,
   };
@@ -1000,9 +1001,10 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   /* Create sampler */
   WGPUSampler sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label     = STRVIEW("irradiance sampler"),
-                            .magFilter = WGPUFilterMode_Linear,
-                            .minFilter = WGPUFilterMode_Linear,
+                            .label         = STRVIEW("irradiance sampler"),
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
                           });
 
   /* Create uniform buffer */
@@ -1040,7 +1042,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
         .cullMode = WGPUCullMode_None,
       },
       .depthStencil = &(WGPUDepthStencilState){
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = wgpu_context->depth_stencil_format,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Less,
       },
@@ -1115,12 +1117,16 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
           .loadOp = WGPULoadOp_Load,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
+          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         },
         .depthStencilAttachment = &(WGPURenderPassDepthStencilAttachment){
           .view = depth_view,
           .depthLoadOp = WGPULoadOp_Clear,
           .depthStoreOp = WGPUStoreOp_Store,
           .depthClearValue = 1.0f,
+          .stencilLoadOp = WGPULoadOp_Clear,
+          .stencilStoreOp = WGPUStoreOp_Store,
+          .stencilClearValue = 0,
         },
       }
     );
@@ -1198,7 +1204,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
       .height = size,
       .depthOrArrayLayers = 1,
     },
-    .format = WGPUTextureFormat_Depth24Plus,
+    .format = wgpu_context->depth_stencil_format,
     .mipLevelCount = levels,
     .sampleCount = 1,
   };
@@ -1306,9 +1312,10 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
   /* Create sampler */
   WGPUSampler sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label     = STRVIEW("prefilter sampler"),
-                            .magFilter = WGPUFilterMode_Linear,
-                            .minFilter = WGPUFilterMode_Linear,
+                            .label         = STRVIEW("prefilter sampler"),
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
                           });
 
   /* Create uniform buffer (mat4x4 + roughness + padding) */
@@ -1346,7 +1353,7 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
         .cullMode = WGPUCullMode_None,
       },
       .depthStencil = &(WGPUDepthStencilState){
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = wgpu_context->depth_stencil_format,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Less,
       },
@@ -1445,12 +1452,16 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
             .loadOp = WGPULoadOp_Load,
             .storeOp = WGPUStoreOp_Store,
             .clearValue = (WGPUColor){0.3, 0.3, 0.3, 1.0},
+            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
           },
           .depthStencilAttachment = &(WGPURenderPassDepthStencilAttachment){
             .view = depth_view,
             .depthLoadOp = WGPULoadOp_Clear,
             .depthStoreOp = WGPUStoreOp_Store,
             .depthClearValue = 1.0f,
+            .stencilLoadOp = WGPULoadOp_Clear,
+            .stencilStoreOp = WGPUStoreOp_Store,
+            .stencilClearValue = 0,
           },
         }
       );
@@ -1677,7 +1688,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
       .height = size,
       .depthOrArrayLayers = 1,
     },
-    .format = WGPUTextureFormat_Depth24Plus,
+    .format = wgpu_context->depth_stencil_format,
     .mipLevelCount = 1,
     .sampleCount = 1,
   };
@@ -1740,7 +1751,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
         .cullMode = WGPUCullMode_None,
       },
       .depthStencil = &(WGPUDepthStencilState){
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = wgpu_context->depth_stencil_format,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Less,
       },
@@ -1763,13 +1774,14 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   /* Create sampler and uniform buffer */
   WGPUSampler sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label        = STRVIEW("equirect sampler"),
-                            .addressModeU = WGPUAddressMode_ClampToEdge,
-                            .addressModeV = WGPUAddressMode_ClampToEdge,
-                            .addressModeW = WGPUAddressMode_ClampToEdge,
-                            .magFilter    = WGPUFilterMode_Linear,
-                            .minFilter    = WGPUFilterMode_Linear,
-                            .mipmapFilter = WGPUMipmapFilterMode_Linear,
+                            .label         = STRVIEW("equirect sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .maxAnisotropy = 1,
                           });
 
   WGPUBuffer uniform_buffer = wgpuDeviceCreateBuffer(
@@ -1789,16 +1801,16 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-     .label = STRVIEW("equirect bind group"),
-     .layout = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
-     .entryCount = 3,
-     .entries = (WGPUBindGroupEntry[]){
-       {.binding = 0, .buffer = uniform_buffer, .offset = 0, .size = sizeof(mat4)},
-       {.binding = 1, .textureView = equirect_view},
-       {.binding = 2, .sampler = sampler},
-       },
-     }
-    );
+      .label = STRVIEW("equirect bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0),
+      .entryCount = 3,
+      .entries = (WGPUBindGroupEntry[]){
+        {.binding = 0, .buffer = uniform_buffer, .offset = 0, .size = sizeof(mat4)},
+        {.binding = 1, .textureView = equirect_view},
+        {.binding = 2, .sampler = sampler},
+      },
+    }
+  );
 
   /* Render each cubemap face */
   for (uint32_t face = 0; face < 6; face++) {
@@ -1830,12 +1842,16 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
           .loadOp = WGPULoadOp_Load,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
+          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         },
         .depthStencilAttachment = &(WGPURenderPassDepthStencilAttachment){
           .view = depth_view,
           .depthLoadOp = WGPULoadOp_Clear,
           .depthStoreOp = WGPUStoreOp_Store,
           .depthClearValue = 1.0f,
+          .stencilLoadOp = WGPULoadOp_Clear,
+          .stencilStoreOp = WGPUStoreOp_Store,
+          .stencilClearValue = 0,
         },
       }
     );
@@ -1855,10 +1871,10 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass_encoder)
     WGPU_RELEASE_RESOURCE(CommandEncoder, command_Encoder)
     WGPU_RELEASE_RESOURCE(TextureView, face_view)
-    WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
   }
 
   /* Cleanup */
+  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
   WGPU_RELEASE_RESOURCE(TextureView, equirect_view)
   WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer)
   WGPU_RELEASE_RESOURCE(Sampler, sampler)
@@ -1888,6 +1904,123 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
 {
   static char shader_source[MAX_SHADER_SOURCE_SIZE];
   static char temp_buffer[MAX_SHADER_SOURCE_SIZE];
+
+  /* Build vertex input struct based on mesh attributes */
+  char vertex_input_struct[512];
+  if (has_uvs && has_tangents) {
+    snprintf(vertex_input_struct, sizeof(vertex_input_struct),
+             "struct VertexInput {\n"
+             "  @location(%d) position: vec3f,\n"
+             "  @location(%d) normal: vec3f,\n"
+             "  @location(%d) uv: vec2f,\n"
+             "  @location(%d) tangent: vec4f,\n"
+             "}\n",
+             SHADER_LOCATION_POSITION, SHADER_LOCATION_NORMAL,
+             SHADER_LOCATION_TEXCOORD_0, SHADER_LOCATION_TANGENT);
+  }
+  else if (has_uvs) {
+    snprintf(vertex_input_struct, sizeof(vertex_input_struct),
+             "struct VertexInput {\n"
+             "  @location(%d) position: vec3f,\n"
+             "  @location(%d) normal: vec3f,\n"
+             "  @location(%d) uv: vec2f,\n"
+             "}\n",
+             SHADER_LOCATION_POSITION, SHADER_LOCATION_NORMAL,
+             SHADER_LOCATION_TEXCOORD_0);
+  }
+  else if (has_tangents) {
+    snprintf(vertex_input_struct, sizeof(vertex_input_struct),
+             "struct VertexInput {\n"
+             "  @location(%d) position: vec3f,\n"
+             "  @location(%d) normal: vec3f,\n"
+             "  @location(%d) tangent: vec4f,\n"
+             "}\n",
+             SHADER_LOCATION_POSITION, SHADER_LOCATION_NORMAL,
+             SHADER_LOCATION_TANGENT);
+  }
+  else {
+    snprintf(vertex_input_struct, sizeof(vertex_input_struct),
+             "struct VertexInput {\n"
+             "  @location(%d) position: vec3f,\n"
+             "  @location(%d) normal: vec3f,\n"
+             "}\n",
+             SHADER_LOCATION_POSITION, SHADER_LOCATION_NORMAL);
+  }
+
+  /* Build vertex output struct */
+  char vertex_output_struct[512];
+  if (has_tangents) {
+    snprintf(vertex_output_struct, sizeof(vertex_output_struct),
+             "struct VertexOutput {\n"
+             "  @builtin(position) position: vec4f,\n"
+             "  @location(0) normal: vec3f,\n"
+             "  @location(1) uv: vec2f,\n"
+             "  @location(2) worldPosition: vec3f,\n"
+             "  @location(3) shadowPosition: vec3f,\n"
+             "  @location(4) tangent: vec4f,\n"
+             "}\n");
+  }
+  else {
+    snprintf(vertex_output_struct, sizeof(vertex_output_struct),
+             "struct VertexOutput {\n"
+             "  @builtin(position) position: vec4f,\n"
+             "  @location(0) normal: vec3f,\n"
+             "  @location(1) uv: vec2f,\n"
+             "  @location(2) worldPosition: vec3f,\n"
+             "  @location(3) shadowPosition: vec3f,\n"
+             "}\n");
+  }
+
+  /* Build UV assignment in vertex shader */
+  char uv_assignment[128];
+  if (has_uvs) {
+    snprintf(uv_assignment, sizeof(uv_assignment), "output.uv = input.uv;");
+  }
+  else {
+    snprintf(uv_assignment, sizeof(uv_assignment), "output.uv = vec2f(0.0);");
+  }
+
+  /* Build tangent assignment in vertex shader */
+  char tangent_assignment[256];
+  if (has_tangents) {
+    snprintf(tangent_assignment, sizeof(tangent_assignment),
+             "output.tangent = vec4f((models[instance] * "
+             "vec4f(input.tangent.xyz, 0.0)).xyz, input.tangent.w);");
+  }
+  else {
+    snprintf(tangent_assignment, sizeof(tangent_assignment), "");
+  }
+
+  /* Build normal calculation in fragment shader */
+  char normal_calc[512];
+  if (has_tangents) {
+    snprintf(normal_calc, sizeof(normal_calc),
+             "var normalSample = textureSample(normalTexture, normalSampler, "
+             "input.uv).rgb;\n"
+             "  normalSample = normalize(normalSample * 2.0 - 1.0);\n"
+             "  var n = normalize(input.normal);\n"
+             "  let t = normalize(input.tangent.xyz);\n"
+             "  let b = cross(n, t) * input.tangent.w;\n"
+             "  let tbn = mat3x3f(t, b, n);\n"
+             "  n = normalize(tbn * normalSample);\n");
+  }
+  else {
+    snprintf(normal_calc, sizeof(normal_calc),
+             "var normalSample = textureSample(normalTexture, normalSampler, "
+             "input.uv).rgb;\n"
+             "  normalSample = normalize(normalSample * 2.0 - 1.0);\n"
+             "  let n = normalize(input.normal);\n");
+  }
+
+  /* Build alpha cutoff code */
+  char alpha_cutoff_code[256];
+  if (use_alpha_cutoff) {
+    snprintf(alpha_cutoff_code, sizeof(alpha_cutoff_code),
+             "if (baseColor.a < material.alphaCutoff) { discard; }");
+  }
+  else {
+    snprintf(alpha_cutoff_code, sizeof(alpha_cutoff_code), "");
+  }
 
   /* Build the shader template in chunks to avoid ISO C99 string length limit */
   // clang-format off
@@ -1931,50 +2064,25 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
     @group(3) @binding(5) var shadowMap: texture_depth_2d;
     @group(3) @binding(6) var shadowSampler: sampler_comparison;
 
-    struct VertexInput {
-      @location(SHADER_LOCATION_POSITION) position: vec4f,
-      @location(SHADER_LOCATION_NORMAL) normal: vec3f,
-#if HAS_UVS
-      @location(SHADER_LOCATION_TEXCOORD_0) uv: vec2f,
-#endif
-#if HAS_TANGENTS
-      @location(SHADER_LOCATION_TANGENT) tangent: vec4f,
-#endif
-    }
+    VERTEX_INPUT_STRUCT
 
-    struct VertexOutput {
-      @builtin(position) position: vec4f,
-      @location(0) normal: vec3f,
-      @location(1) uv: vec2f,
-      @location(2) worldPosition: vec3f,
-      @location(3) shadowPosition: vec3f,
-#if HAS_TANGENTS
-      @location(4) tangent: vec4f,
-#endif
-    };
+    VERTEX_OUTPUT_STRUCT
 
     @vertex
     fn vertexMain(input: VertexInput, @builtin(instance_index) instance: u32) -> VertexOutput {
-      let positionFromLight = scene.lightViewProjection * models[instance] * input.position;
+      let positionFromLight = scene.lightViewProjection * models[instance] * vec4f(input.position, 1.0);
 
       var output: VertexOutput;
-      output.position = scene.cameraProjection * scene.cameraView * models[instance] * input.position;
+      output.position = scene.cameraProjection * scene.cameraView * models[instance] * vec4f(input.position, 1.0);
       output.normal = normalize((models[instance] * vec4f(input.normal, 0.0)).xyz);
-      output.worldPosition = (models[instance] * input.position).xyz;
+      output.worldPosition = (models[instance] * vec4f(input.position, 1.0)).xyz;
       output.shadowPosition = vec3f(
         positionFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5),
         positionFromLight.z
       );
 
-#if HAS_UVS
-      output.uv = input.uv;
-#else
-      output.uv = vec2f(0);
-#endif
-
-#if HAS_TANGENTS
-      output.tangent = models[instance] * input.tangent;
-#endif
+      UV_ASSIGNMENT
+      TANGENT_ASSIGNMENT
 
       return output;
     }
@@ -2016,11 +2124,7 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
 
       let baseColor = textureSample(albedoTexture, albedoSampler, input.uv) * material.baseColorFactor;
 
-#if USE_ALPHA_CUTOFF
-      if (baseColor.a < material.alphaCutoff) {
-        discard;
-      }
-#endif
+      ALPHA_CUTOFF_CODE
 
       let ao = textureSample(aoTexture, aoSampler, input.uv).r;
       let albedo = baseColor.rgb;
@@ -2030,18 +2134,7 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
       let roughness = roughnessMetallic.g;
       let emissive = textureSample(emissiveTexture, emissiveSampler, input.uv).rgb;
 
-      var normal = textureSample(normalTexture, normalSampler, input.uv).rgb;
-      normal = normalize(normal * 2.0 - 1.0);
-
-#if HAS_TANGENTS
-      var n = normalize(input.normal);
-      let t = normalize(input.tangent.xyz);
-      let b = cross(n, t) * input.tangent.w;
-      let tbn = mat3x3f(t, b, n);
-      n = normalize(tbn * normal);
-#else
-      let n = normalize(input.normal);
-#endif
+      NORMAL_CALC
 
       let v = normalize(scene.cameraPosition - input.worldPosition);
       let r = reflect(-v, n);
@@ -2123,18 +2216,30 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
                   temp_buffer, sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
-  /* Replace conditional compilation flags */
-  str_replace_all(shader_source, "HAS_UVS", has_uvs ? "1" : "0", temp_buffer,
-                  sizeof(temp_buffer));
-  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
-
-  str_replace_all(shader_source, "HAS_TANGENTS", has_tangents ? "1" : "0",
+  /* Replace struct definitions */
+  str_replace_all(shader_source, "VERTEX_INPUT_STRUCT", vertex_input_struct,
                   temp_buffer, sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
-  str_replace_all(shader_source, "USE_ALPHA_CUTOFF",
-                  use_alpha_cutoff ? "1" : "0", temp_buffer,
+  str_replace_all(shader_source, "VERTEX_OUTPUT_STRUCT", vertex_output_struct,
+                  temp_buffer, sizeof(temp_buffer));
+  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
+
+  /* Replace code blocks */
+  str_replace_all(shader_source, "UV_ASSIGNMENT", uv_assignment, temp_buffer,
                   sizeof(temp_buffer));
+  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
+
+  str_replace_all(shader_source, "TANGENT_ASSIGNMENT", tangent_assignment,
+                  temp_buffer, sizeof(temp_buffer));
+  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
+
+  str_replace_all(shader_source, "NORMAL_CALC", normal_calc, temp_buffer,
+                  sizeof(temp_buffer));
+  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
+
+  str_replace_all(shader_source, "ALPHA_CUTOFF_CODE", alpha_cutoff_code,
+                  temp_buffer, sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
   /* Replace shadow map size */
@@ -2144,8 +2249,13 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
                   sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
-  /* Replace PBR shader functions */
-  str_replace_all(shader_source, "DISTRIBUTION_GGX", distribution_ggx_wgsl,
+  /* Replace PBR shader functions - IMPORTANT: Replace longer names first! */
+  str_replace_all(shader_source, "FRESNEL_SCHLICK_ROUGHNESS",
+                  fresnel_schlick_roughness_wgsl, temp_buffer,
+                  sizeof(temp_buffer));
+  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
+
+  str_replace_all(shader_source, "FRESNEL_SCHLICK", fresnel_schlick_wgsl,
                   temp_buffer, sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
@@ -2157,13 +2267,8 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
                   temp_buffer, sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
-  str_replace_all(shader_source, "FRESNEL_SCHLICK", fresnel_schlick_wgsl,
+  str_replace_all(shader_source, "DISTRIBUTION_GGX", distribution_ggx_wgsl,
                   temp_buffer, sizeof(temp_buffer));
-  snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
-
-  str_replace_all(shader_source, "FRESNEL_SCHLICK_ROUGHNESS",
-                  fresnel_schlick_roughness_wgsl, temp_buffer,
-                  sizeof(temp_buffer));
   snprintf(shader_source, sizeof(shader_source), "%s", temp_buffer);
 
   str_replace_all(shader_source, "TONE_MAPPING", tone_mapping_aces_wgsl,
@@ -2373,7 +2478,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
         .cullMode = WGPUCullMode_None,
       },
       .depthStencil = &(WGPUDepthStencilState){
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = wgpu_context->depth_stencil_format,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Less,
       },
@@ -2403,7 +2508,7 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
      .height = size,
      .depthOrArrayLayers = 1,
     },
-    .format = WGPUTextureFormat_Depth24Plus,
+    .format = wgpu_context->depth_stencil_format,
     .mipLevelCount = 1,
     .sampleCount = 1,
   };
@@ -2436,12 +2541,16 @@ static WGPUTexture generate_brdf_lut(wgpu_context_t* wgpu_context,
         .loadOp = WGPULoadOp_Clear,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
       },
       .depthStencilAttachment = &(WGPURenderPassDepthStencilAttachment){
         .view = depth_texture_view,
         .depthLoadOp = WGPULoadOp_Clear,
         .depthStoreOp = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,
+        .stencilLoadOp = WGPULoadOp_Clear,
+        .stencilStoreOp = WGPUStoreOp_Store,
+        .stencilClearValue = 0,
       },
     }
   );
@@ -2534,6 +2643,52 @@ static uint32_t align_to(uint32_t value, uint32_t multiple)
  * -------------------------------------------------------------------------- */
 
 /* State struct to hold all application data */
+/* -------------------------------------------------------------------------- *
+ * GLTF Rendering Structures
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Material data for PBR rendering
+ */
+typedef struct {
+  WGPUBindGroup bind_group;
+  WGPUBuffer uniform_buffer;
+  vec4 base_color_factor;
+  float alpha_cutoff;
+  bool has_alpha_cutoff;
+} gltf_material_t;
+
+/**
+ * @brief Primitive rendering data
+ */
+typedef struct {
+  WGPURenderPipeline pipeline;
+  WGPUBuffer vertex_buffer;
+  WGPUBuffer index_buffer;
+  uint32_t index_count;
+  WGPUIndexFormat index_format;
+  gltf_material_t* material;
+  uint32_t instance_count;
+  uint32_t instance_offset;
+  /* Pipeline creation parameters (for deferred creation) */
+  bool has_uvs;
+  bool has_tangents;
+  bool use_alpha_cutoff;
+  bool pipeline_created;
+} gltf_primitive_t;
+
+/**
+ * @brief Mesh data containing multiple primitives
+ */
+typedef struct {
+  gltf_primitive_t* primitives;
+  uint32_t primitive_count;
+} gltf_mesh_t;
+
+/* -------------------------------------------------------------------------- *
+ * Main State Structure
+ * -------------------------------------------------------------------------- */
+
 static struct {
   /* Camera */
   camera_t camera;
@@ -2542,6 +2697,14 @@ static struct {
   cgltf_data* gltf_data;
   uint8_t* gltf_buffer;
   size_t gltf_buffer_size;
+
+  /* GLTF rendering data */
+  gltf_mesh_t* meshes;
+  uint32_t mesh_count;
+  gltf_material_t* materials;
+  uint32_t material_count;
+  WGPUBuffer instance_buffer;
+  uint32_t total_instances;
 
   /* Textures */
   WGPUTexture cubemap_texture;
@@ -2559,12 +2722,25 @@ static struct {
 
   /* Rendering pipeline */
   WGPURenderPipeline render_pipeline;
-  WGPUBindGroupLayout camera_bind_group_layout;
+  WGPUBindGroupLayout scene_bind_group_layout;
+  WGPUBindGroupLayout instance_bind_group_layout;
   WGPUBindGroupLayout material_bind_group_layout;
-  WGPUBindGroup camera_bind_group;
-  WGPUBuffer camera_uniform_buffer;
+  WGPUBindGroupLayout pbr_bind_group_layout;
+  WGPUBindGroup scene_bind_group;
+  WGPUBindGroup instance_bind_group;
+  WGPUBindGroup pbr_bind_group;
+  WGPUBuffer scene_uniform_buffer;
   WGPUBuffer vertex_buffer;
   uint32_t vertex_count;
+
+  /* PBR samplers */
+  WGPUSampler brdf_sampler;
+
+  /* Temporary test renderer (TODO: remove when full PBR pipeline is
+   * implemented) */
+  WGPUBindGroupLayout camera_bind_group_layout;
+  WGPUBindGroup camera_bind_group;
+  WGPUBuffer camera_uniform_buffer;
 
   /* Default textures */
   WGPUTexture default_white_texture;
@@ -2614,11 +2790,22 @@ static struct {
     .prefilter_map_size = 128,
     .roughness_levels = 5,
     .brdf_lut_size = 512,
-    .sample_count = 4,
+    .sample_count = 1,
     .shadow_map_size = 4096,
   },
   .initialized = false,
 };
+
+/* -------------------------------------------------------------------------- *
+ * Forward Declarations
+ * -------------------------------------------------------------------------- */
+
+static void init_pbr_bind_group(wgpu_context_t* wgpu_context);
+static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
+                                              bool has_uvs, bool has_tangents,
+                                              bool use_alpha_cutoff);
+static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
+                                                  cgltf_material* material);
 
 /* -------------------------------------------------------------------------- *
  * Mipmap Generation
@@ -2640,8 +2827,9 @@ static void init_mipmap_generator(wgpu_context_t* wgpu_context)
   /* Create sampler */
   mipmap_gen.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label     = STRVIEW("mip generator sampler"),
-                            .minFilter = WGPUFilterMode_Linear,
+                            .label         = STRVIEW("mip generator sampler"),
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
                           });
 
   /* Shader module for mipmap generation */
@@ -2740,14 +2928,16 @@ static void generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
 
     WGPUTextureView src_view
       = wgpuTextureCreateView(texture, &(WGPUTextureViewDescriptor){
-                                         .baseMipLevel  = current_mip - 1,
-                                         .mipLevelCount = 1,
+                                         .baseMipLevel    = current_mip - 1,
+                                         .mipLevelCount   = 1,
+                                         .arrayLayerCount = 1,
                                        });
 
     WGPUTextureView dst_view
       = wgpuTextureCreateView(texture, &(WGPUTextureViewDescriptor){
-                                         .baseMipLevel  = current_mip,
-                                         .mipLevelCount = 1,
+                                         .baseMipLevel    = current_mip,
+                                         .mipLevelCount   = 1,
+                                         .arrayLayerCount = 1,
                                        });
 
     WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
@@ -2772,6 +2962,7 @@ static void generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
           .loadOp = WGPULoadOp_Clear,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 0.0},
+          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         },
       }
     );
@@ -2823,6 +3014,41 @@ static uint32_t calculate_mip_levels(uint32_t width, uint32_t height)
     levels++;
   }
   return levels;
+}
+
+/**
+ * @brief Load a file into memory synchronously
+ */
+static bool load_file_sync(const char* path, uint8_t** buffer, size_t* size)
+{
+  FILE* file = fopen(path, "rb");
+  if (!file) {
+    printf("Failed to open file: %s\n", path);
+    return false;
+  }
+
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  *buffer = (uint8_t*)malloc(file_size);
+  if (!*buffer) {
+    fclose(file);
+    return false;
+  }
+
+  size_t read_size = fread(*buffer, 1, file_size, file);
+  fclose(file);
+
+  if (read_size != (size_t)file_size) {
+    free(*buffer);
+    *buffer = NULL;
+    return false;
+  }
+
+  *size = file_size;
+  printf("Loaded file: %s (%zu bytes)\n", path, *size);
+  return true;
 }
 
 /**
@@ -2888,8 +3114,8 @@ static void load_hdr_environment(const char* path)
  */
 static void process_gltf_data(wgpu_context_t* wgpu_context)
 {
-  if (!state.gltf_buffer || state.gltf_data) {
-    return;
+  if (!state.gltf_buffer || state.gltf_data || state.meshes) {
+    return; /* Already processed or not loaded yet */
   }
 
   /* Parse GLTF data */
@@ -2923,7 +3149,6 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
       uint8_t* pixels = NULL;
 
       if (image->buffer_view) {
-        /* Image data is in buffer view */
         cgltf_buffer_view* view = image->buffer_view;
         uint8_t* data           = (uint8_t*)view->buffer->data + view->offset;
         pixels = stbi_load_from_memory(data, (int)view->size, &width, &height,
@@ -2933,11 +3158,9 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
       if (pixels) {
         /* Calculate mip levels */
         uint32_t mip_levels = calculate_mip_levels(width, height);
-
         /* Create texture */
         WGPUTextureDescriptor tex_desc = {
-          .usage = WGPUTextureUsage_TextureBinding
-                 | WGPUTextureUsage_CopyDst
+          .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                  | WGPUTextureUsage_RenderAttachment,
           .dimension = WGPUTextureDimension_2D,
           .size = (WGPUExtent3D){
@@ -2974,8 +3197,196 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
           generate_mipmaps(wgpu_context, state.gltf_textures[i], width, height,
                            mip_levels);
         }
-
         stbi_image_free(pixels);
+      }
+    }
+  }
+
+  /* Create materials */
+  if (state.gltf_data->materials_count > 0) {
+    state.material_count = (uint32_t)state.gltf_data->materials_count;
+    state.materials
+      = (gltf_material_t*)calloc(state.material_count, sizeof(gltf_material_t));
+    for (size_t i = 0; i < state.gltf_data->materials_count; i++) {
+      state.materials[i] = create_material_bind_group(
+        wgpu_context, &state.gltf_data->materials[i]);
+    }
+  }
+
+  /* Count total instances needed (one per mesh for now) */
+  state.total_instances = (uint32_t)state.gltf_data->meshes_count;
+
+  /* Create instance buffer with identity matrices for now */
+  if (state.total_instances > 0) {
+    size_t instance_data_size = state.total_instances * sizeof(mat4);
+    mat4* instance_matrices
+      = (mat4*)calloc(state.total_instances, sizeof(mat4));
+
+    for (uint32_t i = 0; i < state.total_instances; i++) {
+      glm_mat4_identity(instance_matrices[i]);
+    }
+
+    state.instance_buffer = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+        .label            = STRVIEW("instance buffer"),
+        .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+        .size             = instance_data_size,
+        .mappedAtCreation = false,
+      });
+
+    wgpuQueueWriteBuffer(wgpu_context->queue, state.instance_buffer, 0,
+                         instance_matrices, instance_data_size);
+    free(instance_matrices);
+  }
+
+  /* Create meshes and primitives */
+  if (state.gltf_data->meshes_count > 0) {
+    state.mesh_count = (uint32_t)state.gltf_data->meshes_count;
+    state.meshes = (gltf_mesh_t*)calloc(state.mesh_count, sizeof(gltf_mesh_t));
+
+    for (size_t mesh_idx = 0; mesh_idx < state.gltf_data->meshes_count;
+         mesh_idx++) {
+      cgltf_mesh* mesh = &state.gltf_data->meshes[mesh_idx];
+      state.meshes[mesh_idx].primitive_count = (uint32_t)mesh->primitives_count;
+      state.meshes[mesh_idx].primitives      = (gltf_primitive_t*)calloc(
+        mesh->primitives_count, sizeof(gltf_primitive_t));
+
+      for (size_t prim_idx = 0; prim_idx < mesh->primitives_count; prim_idx++) {
+        cgltf_primitive* primitive = &mesh->primitives[prim_idx];
+        gltf_primitive_t* gpu_prim
+          = &state.meshes[mesh_idx].primitives[prim_idx];
+
+        /* Check what attributes we have */
+        bool has_uvs = false, has_tangents = false;
+        cgltf_accessor *pos_accessor = NULL, *norm_accessor = NULL;
+        cgltf_accessor *uv_accessor = NULL, *tan_accessor = NULL;
+
+        for (size_t attr_idx = 0; attr_idx < primitive->attributes_count;
+             attr_idx++) {
+          cgltf_attribute* attr = &primitive->attributes[attr_idx];
+          if (attr->type == cgltf_attribute_type_position)
+            pos_accessor = attr->data;
+          else if (attr->type == cgltf_attribute_type_normal)
+            norm_accessor = attr->data;
+          else if (attr->type == cgltf_attribute_type_texcoord) {
+            uv_accessor = attr->data;
+            has_uvs     = true;
+          }
+          else if (attr->type == cgltf_attribute_type_tangent) {
+            tan_accessor = attr->data;
+            has_tangents = true;
+          }
+        }
+
+        if (!pos_accessor || !norm_accessor) {
+          continue; /* Skip invalid primitive */
+        }
+
+        /* Build interleaved vertex buffer */
+        size_t vertex_count  = pos_accessor->count;
+        size_t vertex_stride = 3 + 3; /* pos + normal */
+        if (has_uvs)
+          vertex_stride += 2;
+        if (has_tangents)
+          vertex_stride += 4;
+
+        float* vertices
+          = (float*)calloc(vertex_count * vertex_stride, sizeof(float));
+
+        for (size_t v = 0; v < vertex_count; v++) {
+          size_t offset = 0;
+
+          /* Position */
+          float pos[3];
+          cgltf_accessor_read_float(pos_accessor, v, pos, 3);
+          memcpy(&vertices[v * vertex_stride + offset], pos, 3 * sizeof(float));
+          offset += 3;
+
+          /* Normal */
+          float norm[3];
+          cgltf_accessor_read_float(norm_accessor, v, norm, 3);
+          memcpy(&vertices[v * vertex_stride + offset], norm,
+                 3 * sizeof(float));
+          offset += 3;
+
+          /* UV */
+          if (has_uvs) {
+            float uv[2];
+            cgltf_accessor_read_float(uv_accessor, v, uv, 2);
+            memcpy(&vertices[v * vertex_stride + offset], uv,
+                   2 * sizeof(float));
+            offset += 2;
+          }
+
+          /* Tangent */
+          if (has_tangents) {
+            float tan[4];
+            cgltf_accessor_read_float(tan_accessor, v, tan, 4);
+            memcpy(&vertices[v * vertex_stride + offset], tan,
+                   4 * sizeof(float));
+            offset += 4;
+          }
+        }
+
+        /* Create vertex buffer */
+        size_t vertex_buffer_size
+          = vertex_count * vertex_stride * sizeof(float);
+        gpu_prim->vertex_buffer = create_buffer_with_data(
+          wgpu_context, vertices, vertex_buffer_size, WGPUBufferUsage_Vertex);
+        free(vertices);
+
+        /* Create index buffer */
+        if (primitive->indices) {
+          cgltf_accessor* indices = primitive->indices;
+          gpu_prim->index_count   = (uint32_t)indices->count;
+
+          if (indices->component_type == cgltf_component_type_r_16u) {
+            gpu_prim->index_format = WGPUIndexFormat_Uint16;
+            uint16_t* index_data
+              = (uint16_t*)calloc(indices->count, sizeof(uint16_t));
+            for (size_t i = 0; i < indices->count; i++) {
+              index_data[i] = (uint16_t)cgltf_accessor_read_index(indices, i);
+            }
+            gpu_prim->index_buffer = create_buffer_with_data(
+              wgpu_context, index_data, indices->count * sizeof(uint16_t),
+              WGPUBufferUsage_Index);
+            free(index_data);
+          }
+          else {
+            gpu_prim->index_format = WGPUIndexFormat_Uint32;
+            uint32_t* index_data
+              = (uint32_t*)calloc(indices->count, sizeof(uint32_t));
+            for (size_t i = 0; i < indices->count; i++) {
+              index_data[i] = (uint32_t)cgltf_accessor_read_index(indices, i);
+            }
+            gpu_prim->index_buffer = create_buffer_with_data(
+              wgpu_context, index_data, indices->count * sizeof(uint32_t),
+              WGPUBufferUsage_Index);
+            free(index_data);
+          }
+        }
+
+        /* Assign material */
+        if (primitive->material && state.materials) {
+          size_t mat_idx = primitive->material - state.gltf_data->materials;
+          if (mat_idx < state.material_count) {
+            gpu_prim->material = &state.materials[mat_idx];
+          }
+        }
+
+        /* Store pipeline creation parameters for later */
+        gpu_prim->has_uvs      = has_uvs;
+        gpu_prim->has_tangents = has_tangents;
+        gpu_prim->use_alpha_cutoff
+          = primitive->material
+            && primitive->material->alpha_mode == cgltf_alpha_mode_mask;
+        gpu_prim->pipeline_created = false;
+        gpu_prim->pipeline         = NULL; /* Will be created later */
+
+        /* Set instance data */
+        gpu_prim->instance_count  = 1;
+        gpu_prim->instance_offset = (uint32_t)mesh_idx;
       }
     }
   }
@@ -3011,6 +3422,26 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
 
   /* Free HDR data */
   free_hdr_image(&hdr);
+
+  /* Initialize PBR bind group now that all IBL textures are ready */
+  init_pbr_bind_group(wgpu_context);
+
+  /* Create pipelines for GLTF primitives now that IBL textures exist */
+  if (state.meshes) {
+    for (uint32_t mesh_idx = 0; mesh_idx < state.mesh_count; mesh_idx++) {
+      gltf_mesh_t* mesh = &state.meshes[mesh_idx];
+      for (uint32_t prim_idx = 0; prim_idx < mesh->primitive_count;
+           prim_idx++) {
+        gltf_primitive_t* prim = &mesh->primitives[prim_idx];
+        if (!prim->pipeline_created) {
+          prim->pipeline
+            = create_pbr_pipeline(wgpu_context, prim->has_uvs,
+                                  prim->has_tangents, prim->use_alpha_cutoff);
+          prim->pipeline_created = true;
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -3018,17 +3449,311 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
  */
 static void init_cube_geometry(wgpu_context_t* wgpu_context)
 {
-  /* Simple cube vertices (position + normal + texcoord) */
+  /* Complete cube vertices (position + normal + texcoord) */
+  /* Each face: 2 triangles = 6 vertices */
   static const float cube_vertices[] = {
-    /* Front face */
-    -1.0f, -1.0f, 1.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f,
-    0.0f,  1.0f,  1.0f, 0.0f, 1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 1.0f,  1.0f, 1.0f,
-    -1.0f, -1.0f, 1.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 0.0f,
-    0.0f,  1.0f,  1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,  0.0f, 1.0f,
-    /* Add other faces similarly... for now just front face */
+    /* Front face (+Z) */
+    -1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    0.0f, /*  0 */
+    1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f,
+    0.0f, /*  1 */
+    1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f,
+    1.0f, /*  2 */
+    -1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    0.0f, /*  3 */
+    1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f,
+    1.0f, /*  4 */
+    -1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    1.0f, /*  5 */
+
+    /* Back face (-Z) */
+    1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    0.0f, /*  6 */
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    1.0f,
+    0.0f, /*  7 */
+    -1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    1.0f,
+    1.0f, /*  8 */
+    1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    0.0f, /*  9 */
+    -1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    1.0f,
+    1.0f, /* 10 */
+    1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    1.0f, /* 11 */
+
+    /* Right face (+X) */
+    1.0f,
+    -1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 12 */
+    1.0f,
+    -1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    0.0f, /* 13 */
+    1.0f,
+    1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 14 */
+    1.0f,
+    -1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 15 */
+    1.0f,
+    1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 16 */
+    1.0f,
+    1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    1.0f, /* 17 */
+
+    /* Left face (-X) */
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 18 */
+    -1.0f,
+    -1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    0.0f, /* 19 */
+    -1.0f,
+    1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 20 */
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 21 */
+    -1.0f,
+    1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 22 */
+    -1.0f,
+    1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    1.0f, /* 23 */
+
+    /* Top face (+Y) */
+    -1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 24 */
+    1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    0.0f, /* 25 */
+    1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 26 */
+    -1.0f,
+    1.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 27 */
+    1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 28 */
+    -1.0f,
+    1.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    1.0f, /* 29 */
+
+    /* Bottom face (-Y) */
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 30 */
+    1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    0.0f, /* 31 */
+    1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 32 */
+    -1.0f,
+    -1.0f,
+    -1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    0.0f, /* 33 */
+    1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    1.0f,
+    1.0f, /* 34 */
+    -1.0f,
+    -1.0f,
+    1.0f,
+    0.0f,
+    -1.0f,
+    0.0f,
+    0.0f,
+    1.0f, /* 35 */
   };
 
-  state.vertex_count = 6;
+  state.vertex_count = 36; /* 6 faces * 6 vertices */
 
   state.vertex_buffer = create_buffer_with_data(
     wgpu_context, cube_vertices, sizeof(cube_vertices), WGPUBufferUsage_Vertex);
@@ -3049,40 +3774,383 @@ static void init_default_textures(wgpu_context_t* wgpu_context)
 
   /* Create default sampler */
   state.default_sampler = create_default_sampler(wgpu_context);
+
+  /* Create BRDF LUT sampler */
+  state.brdf_sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("BRDF LUT sampler"),
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .maxAnisotropy = 1,
+                          });
 }
 
 /**
- * @brief Initialize camera uniform buffer
+ * @brief Initialize bind group layouts for PBR rendering
+ */
+static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
+{
+  /* Scene bind group layout (camera and lighting uniforms) */
+  state.scene_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label = STRVIEW("scene bind group layout"),
+      .entryCount = 1,
+      .entries = &(WGPUBindGroupLayoutEntry){
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout){
+          .type = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(float) * (16 + 16 + 4 + 4 + 4 + 16),
+        },
+      },
+    }
+  );
+
+  /* Instance bind group layout (for instanced rendering) */
+  state.instance_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label = STRVIEW("instance bind group layout"),
+      .entryCount = 1,
+      .entries = &(WGPUBindGroupLayoutEntry){
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex,
+        .buffer = (WGPUBufferBindingLayout){
+          .type = WGPUBufferBindingType_ReadOnlyStorage,
+        },
+      },
+    }
+  );
+
+  /* Material bind group layout (PBR textures per material) */
+  state.material_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label = STRVIEW("material bind group layout"),
+      .entryCount = 11,
+      .entries = (WGPUBindGroupLayoutEntry[]){
+        /* Material uniforms */
+        {
+          .binding = 0,
+          .visibility = WGPUShaderStage_Fragment,
+          .buffer = (WGPUBufferBindingLayout){
+            .type = WGPUBufferBindingType_Uniform,
+          },
+        },
+        /* Albedo sampler + texture */
+        {
+          .binding = 1,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 2,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* Normal sampler + texture */
+        {
+          .binding = 3,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 4,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* Roughness/Metallic sampler + texture */
+        {
+          .binding = 5,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 6,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* AO sampler + texture */
+        {
+          .binding = 7,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 8,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* Emissive sampler + texture */
+        {
+          .binding = 9,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 10,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+      },
+    }
+  );
+
+  /* PBR bind group layout (IBL textures) */
+  state.pbr_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label = STRVIEW("PBR bind group layout"),
+      .entryCount = 5,
+      .entries = (WGPUBindGroupLayoutEntry[]){
+        /* Default sampler */
+        {
+          .binding = 0,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        /* BRDF LUT sampler */
+        {
+          .binding = 1,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        /* BRDF LUT texture */
+        {
+          .binding = 2,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* Irradiance map cubemap */
+        {
+          .binding = 3,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_Cube,
+          },
+        },
+        /* Prefilter map cubemap */
+        {
+          .binding = 4,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_Cube,
+          },
+        },
+      },
+    }
+  );
+}
+
+/**
+ * @brief Initialize scene uniform buffer and bind group
+ */
+static void init_scene_uniforms(wgpu_context_t* wgpu_context)
+{
+  /* Scene uniforms: projection, view, camera position, light direction, light
+   * color, light matrix */
+  state.scene_uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("scene uniform buffer"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = sizeof(float) * (16 + 16 + 4 + 4 + 4 + 16),
+    });
+
+  /* Create scene bind group */
+  state.scene_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label = STRVIEW("scene bind group"),
+      .layout = state.scene_bind_group_layout,
+      .entryCount = 1,
+      .entries = &(WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer = state.scene_uniform_buffer,
+        .size = sizeof(float) * (16 + 16 + 4 + 4 + 4 + 16),
+      },
+    }
+  );
+}
+
+/**
+ * @brief Initialize PBR bind group with IBL textures
+ */
+static void init_pbr_bind_group(wgpu_context_t* wgpu_context)
+{
+  /* Wait until IBL textures are generated */
+  if (!state.brdf_lut || !state.irradiance_map || !state.prefilter_map) {
+    return;
+  }
+
+  /* Create texture views */
+  WGPUTextureView brdf_view = wgpuTextureCreateView(
+    state.brdf_lut, &(WGPUTextureViewDescriptor){
+                      .label           = STRVIEW("BRDF LUT view"),
+                      .format          = WGPUTextureFormat_RG16Float,
+                      .dimension       = WGPUTextureViewDimension_2D,
+                      .mipLevelCount   = 1,
+                      .arrayLayerCount = 1,
+                    });
+
+  WGPUTextureView irradiance_view = wgpuTextureCreateView(
+    state.irradiance_map, &(WGPUTextureViewDescriptor){
+                            .label           = STRVIEW("irradiance map view"),
+                            .format          = WGPUTextureFormat_RGBA16Float,
+                            .dimension       = WGPUTextureViewDimension_Cube,
+                            .mipLevelCount   = 1,
+                            .arrayLayerCount = 6,
+                          });
+
+  WGPUTextureView prefilter_view = wgpuTextureCreateView(
+    state.prefilter_map, &(WGPUTextureViewDescriptor){
+                           .label           = STRVIEW("prefilter map view"),
+                           .format          = WGPUTextureFormat_RGBA16Float,
+                           .dimension       = WGPUTextureViewDimension_Cube,
+                           .mipLevelCount   = state.settings.roughness_levels,
+                           .arrayLayerCount = 6,
+                         });
+
+  /* Create PBR bind group */
+  state.pbr_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label = STRVIEW("PBR bind group"),
+      .layout = state.pbr_bind_group_layout,
+      .entryCount = 5,
+      .entries = (WGPUBindGroupEntry[]){
+        {
+          .binding = 0,
+          .sampler = state.default_sampler,
+        },
+        {
+          .binding = 1,
+          .sampler = state.brdf_sampler,
+        },
+        {
+          .binding = 2,
+          .textureView = brdf_view,
+        },
+        {
+          .binding = 3,
+          .textureView = irradiance_view,
+        },
+        {
+          .binding = 4,
+          .textureView = prefilter_view,
+        },
+      },
+    }
+  );
+
+  /* Note: views are owned by bind group, don't release them separately */
+}
+
+/**
+ * @brief Initialize instance bind group
+ */
+static void init_instance_bind_group(wgpu_context_t* wgpu_context)
+{
+  /* Wait until instance buffer is created */
+  if (!state.instance_buffer) {
+    return;
+  }
+
+  /* Create instance bind group */
+  state.instance_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label = STRVIEW("instance bind group"),
+      .layout = state.instance_bind_group_layout,
+      .entryCount = 1,
+      .entries = &(WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer = state.instance_buffer,
+        .size = state.total_instances * sizeof(mat4),
+      },
+    }
+  );
+}
+
+/**
+ * @brief Initialize camera uniform buffer (legacy, use init_scene_uniforms
+ * instead)
  */
 static void init_camera_uniforms(wgpu_context_t* wgpu_context)
 {
-  /* Camera uniforms: projection + view matrices */
-  state.camera_uniform_buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .label = STRVIEW("camera uniforms"),
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = sizeof(mat4) * 2, /* projection + view */
-    });
+  /* This function is kept for backward compatibility but scene_uniforms should
+   * be used */
+  UNUSED_VAR(wgpu_context);
+  /* Camera uniforms are now part of scene_uniform_buffer */
+  /* See init_scene_uniforms() */
 }
 
 /**
- * @brief Initialize render pipeline
+ * @brief Initialize render pipeline (TEMPORARY - Simple test renderer)
+ * TODO: Replace with full PBR pipeline using create_pbr_shader()
  */
 static void init_render_pipeline(wgpu_context_t* wgpu_context)
 {
-  /* Create bind group layouts */
+  /* TEMPORARY: This is a simple test pipeline, not the full PBR renderer */
+
+  /* Create temporary uniform buffer for testing */
+  state.camera_uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("temp camera uniforms"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = sizeof(float) * 32, /* 2 mat4s */
+    });
+
+  /* Create temporary bind group layout for testing */
   state.camera_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label = STRVIEW("camera bind group layout"),
+      .label = STRVIEW("temp camera bind group layout"),
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry){
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex,
         .buffer = (WGPUBufferBindingLayout){
           .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(mat4) * 2,
+          .minBindingSize = sizeof(float) * 32, /* 2 mat4s */
         },
       },
     }
@@ -3119,15 +4187,17 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
     }
   );
 
-  /* Create simple fragment shader */
-  const char* fragment_shader_wgsl
-    = CODE(@fragment fn main(@location(0) normal : vec3f,
-                             @location(1) texcoord : vec2f)
-             ->@location(0) vec4f {
-               let n     = normalize(normal);
-               let light = max(dot(n, normalize(vec3f(1.0, 1.0, 1.0))), 0.0);
-               return vec4f(vec3f(0.5) * light + vec3f(0.2), 1.0);
-             });
+  /* Create simple fragment shader - bright color for visibility */
+  const char* fragment_shader_wgsl = CODE(
+    @fragment fn main(@location(0) normal : vec3f,
+                      @location(1) texcoord : vec2f)
+      ->@location(0) vec4f {
+        /* Bright colors for debugging visibility */
+        let n     = normalize(normal);
+        let light = max(dot(n, normalize(vec3f(1.0, 1.0, 1.0))), 0.2);
+        /* Mix of red and lighting for clear visibility */
+        return vec4f(vec3f(1.0, 0.2, 0.2) * light + vec3f(0.3, 0.0, 0.0), 1.0);
+      });
 
   WGPUShaderModule vert_shader_module
     = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
@@ -3164,10 +4234,10 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
       .primitive = (WGPUPrimitiveState){
         .topology = WGPUPrimitiveTopology_TriangleList,
         .frontFace = WGPUFrontFace_CCW,
-        .cullMode = WGPUCullMode_Back,
+        .cullMode = WGPUCullMode_None,  /* Disable culling for debugging */
       },
       .depthStencil = &(WGPUDepthStencilState){
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = wgpu_context->depth_stencil_format,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Less,
       },
@@ -3207,6 +4277,256 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
 }
 
+/**
+ * @brief Create a PBR render pipeline
+ * @param wgpu_context WebGPU context
+ * @param has_uvs Whether the mesh has UV coordinates
+ * @param has_tangents Whether the mesh has tangent vectors
+ * @param use_alpha_cutoff Whether to use alpha cutoff for transparency
+ * @return Created render pipeline
+ */
+static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
+                                              bool has_uvs, bool has_tangents,
+                                              bool use_alpha_cutoff)
+{
+  /* Generate PBR shader code */
+  char* shader_code = create_pbr_shader(has_uvs, has_tangents, use_alpha_cutoff,
+                                        state.settings.shadow_map_size);
+
+  /* Create shader module */
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, shader_code);
+
+  if (!shader_module) {
+    return NULL;
+  }
+
+  /* Create pipeline layout with all bind group layouts */
+  WGPUBindGroupLayout layouts[4] = {
+    state.scene_bind_group_layout,
+    state.instance_bind_group_layout,
+    state.material_bind_group_layout,
+    state.pbr_bind_group_layout,
+  };
+
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("PBR pipeline layout"),
+                            .bindGroupLayoutCount = 4,
+                            .bindGroupLayouts     = layouts,
+                          });
+
+  /* Define vertex attributes based on what the mesh has */
+  WGPUVertexAttribute attributes[4];
+  uint32_t attr_count = 0;
+  uint64_t offset     = 0;
+
+  /* Position (always present) */
+  attributes[attr_count++] = (WGPUVertexAttribute){
+    .shaderLocation = SHADER_LOCATION_POSITION,
+    .offset         = offset,
+    .format         = WGPUVertexFormat_Float32x3,
+  };
+  offset += 3 * sizeof(float);
+
+  /* Normal (always present) */
+  attributes[attr_count++] = (WGPUVertexAttribute){
+    .shaderLocation = SHADER_LOCATION_NORMAL,
+    .offset         = offset,
+    .format         = WGPUVertexFormat_Float32x3,
+  };
+  offset += 3 * sizeof(float);
+
+  /* UV coordinates (if present) */
+  if (has_uvs) {
+    attributes[attr_count++] = (WGPUVertexAttribute){
+      .shaderLocation = SHADER_LOCATION_TEXCOORD_0,
+      .offset         = offset,
+      .format         = WGPUVertexFormat_Float32x2,
+    };
+    offset += 2 * sizeof(float);
+  }
+
+  /* Tangent (if present) */
+  if (has_tangents) {
+    attributes[attr_count++] = (WGPUVertexAttribute){
+      .shaderLocation = SHADER_LOCATION_TANGENT,
+      .offset         = offset,
+      .format         = WGPUVertexFormat_Float32x4,
+    };
+    offset += 4 * sizeof(float);
+  }
+
+  WGPUVertexBufferLayout vertex_buffer_layout = {
+    .arrayStride    = offset,
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = attr_count,
+    .attributes     = attributes,
+  };
+
+  /* Create render pipeline */
+  WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("PBR render pipeline"),
+      .layout = pipeline_layout,
+      .vertex = (WGPUVertexState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vertexMain"),
+        .bufferCount = 1,
+        .buffers     = &vertex_buffer_layout,
+      },
+      .primitive = (WGPUPrimitiveState){
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .frontFace = WGPUFrontFace_CCW,
+        .cullMode  = use_alpha_cutoff ? WGPUCullMode_None : WGPUCullMode_Back,
+      },
+      .depthStencil = &(WGPUDepthStencilState){
+        .format            = wgpu_context->depth_stencil_format,
+        .depthWriteEnabled = true,
+        .depthCompare      = WGPUCompareFunction_Less,
+      },
+      .multisample = (WGPUMultisampleState){
+        .count = state.settings.sample_count,
+        .mask  = ~0u,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fragmentMain"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format    = wgpu_context->render_format,
+          .writeMask = WGPUColorWriteMask_All,
+          .blend = use_alpha_cutoff ? NULL : &(WGPUBlendState){
+            .color = (WGPUBlendComponent){
+              .operation = WGPUBlendOperation_Add,
+              .srcFactor = WGPUBlendFactor_SrcAlpha,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+            },
+            .alpha = (WGPUBlendComponent){
+              .operation = WGPUBlendOperation_Add,
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+            },
+          },
+        },
+      },
+    });
+
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ShaderModule, shader_module)
+
+  return pipeline;
+}
+
+/**
+ * @brief Create a material bind group
+ * @param wgpu_context WebGPU context
+ * @param material CGLTF material data
+ * @return Created material structure
+ */
+static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
+                                                  cgltf_material* material)
+{
+  gltf_material_t mat = {0};
+
+  /* Set base color factor */
+  if (material && material->has_pbr_metallic_roughness) {
+    memcpy(mat.base_color_factor,
+           material->pbr_metallic_roughness.base_color_factor, sizeof(vec4));
+  }
+  else {
+    mat.base_color_factor[0] = 1.0f;
+    mat.base_color_factor[1] = 1.0f;
+    mat.base_color_factor[2] = 1.0f;
+    mat.base_color_factor[3] = 1.0f;
+  }
+
+  /* Set alpha cutoff */
+  if (material && material->alpha_mode == cgltf_alpha_mode_mask) {
+    mat.has_alpha_cutoff = true;
+    mat.alpha_cutoff     = material->alpha_cutoff;
+  }
+  else {
+    mat.has_alpha_cutoff = false;
+    mat.alpha_cutoff     = 0.5f;
+  }
+
+  /* Create material uniform buffer */
+  struct {
+    vec4 base_color_factor;
+    float alpha_cutoff;
+    float padding[3];
+  } material_uniforms;
+
+  memcpy(material_uniforms.base_color_factor, mat.base_color_factor,
+         sizeof(vec4));
+  material_uniforms.alpha_cutoff = mat.alpha_cutoff;
+
+  mat.uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label            = STRVIEW("material uniform buffer"),
+      .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size             = sizeof(material_uniforms),
+      .mappedAtCreation = false,
+    });
+
+  wgpuQueueWriteBuffer(wgpu_context->queue, mat.uniform_buffer, 0,
+                       &material_uniforms, sizeof(material_uniforms));
+
+  /* Get textures (using defaults if not present) */
+  WGPUTextureView albedo_view = wgpuTextureCreateView(
+    state.default_white_texture, &(WGPUTextureViewDescriptor){
+                                   .label     = STRVIEW("default albedo view"),
+                                   .format    = WGPUTextureFormat_RGBA8Unorm,
+                                   .dimension = WGPUTextureViewDimension_2D,
+                                   .arrayLayerCount = 1,
+                                   .mipLevelCount   = 1,
+                                 });
+
+  WGPUTextureView normal_view = wgpuTextureCreateView(
+    state.default_normal_texture, &(WGPUTextureViewDescriptor){
+                                    .label     = STRVIEW("default normal view"),
+                                    .format    = WGPUTextureFormat_RGBA8Unorm,
+                                    .dimension = WGPUTextureViewDimension_2D,
+                                    .arrayLayerCount = 1,
+                                    .mipLevelCount   = 1,
+                                  });
+
+  /* Create material bind group */
+  mat.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label      = STRVIEW("material bind group"),
+      .layout     = state.material_bind_group_layout,
+      .entryCount = 11,
+      .entries = (WGPUBindGroupEntry[]){
+        /* Material uniforms */
+        {.binding = 0, .buffer = mat.uniform_buffer, .size = sizeof(material_uniforms)},
+        /* Albedo sampler + texture */
+        {.binding = 1, .sampler = state.default_sampler},
+        {.binding = 2, .textureView = albedo_view},
+        /* Normal sampler + texture */
+        {.binding = 3, .sampler = state.default_sampler},
+        {.binding = 4, .textureView = normal_view},
+        /* Roughness/Metallic sampler + texture */
+        {.binding = 5, .sampler = state.default_sampler},
+        {.binding = 6, .textureView = albedo_view}, /* Use albedo as fallback */
+        /* AO sampler + texture */
+        {.binding = 7, .sampler = state.default_sampler},
+        {.binding = 8, .textureView = albedo_view},
+        /* Emissive sampler + texture */
+        {.binding = 9, .sampler = state.default_sampler},
+        {.binding = 10, .textureView = albedo_view},
+      },
+    });
+
+  /* Note: views are owned by bind group */
+
+  return mat;
+}
+
 /* -------------------------------------------------------------------------- *
  * Initialization Functions
  * -------------------------------------------------------------------------- */
@@ -3217,7 +4537,10 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
 static void init_ibl_textures(wgpu_context_t* wgpu_context)
 {
   /* Initialize camera */
-  camera_init(&state.camera, 0.0f, 0.0f, 5.0f);
+  /* Initialize camera (pitch, yaw, distance) */
+  /* Pitch 0.3 radians (~17°) for slight top-down view */
+  /* Yaw PI/4 (~45°) for angled view */
+  camera_init(&state.camera, 0.3f, GLM_PI_4f, 8.0f);
 
   /* Generate BRDF LUT first (doesn't depend on other textures) */
   state.brdf_lut
@@ -3235,7 +4558,10 @@ static void init_ibl_textures(wgpu_context_t* wgpu_context)
  */
 static int init(wgpu_context_t* wgpu_context)
 {
+  printf("init() called\n");
+
   if (state.initialized) {
+    printf("Already initialized, returning\n");
     return EXIT_SUCCESS;
   }
 
@@ -3246,6 +4572,8 @@ static int init(wgpu_context_t* wgpu_context)
     .num_lanes    = 4,
   });
 
+  printf("sokol_fetch initialized\n");
+
   /* Initialize mipmap generator */
   init_mipmap_generator(wgpu_context);
 
@@ -3255,31 +4583,54 @@ static int init(wgpu_context_t* wgpu_context)
   /* Initialize default textures */
   init_default_textures(wgpu_context);
 
+  /* Initialize bind group layouts */
+  init_bind_group_layouts(wgpu_context);
+
+  /* Initialize scene uniforms */
+  init_scene_uniforms(wgpu_context);
+
   /* Initialize cube geometry */
   init_cube_geometry(wgpu_context);
 
-  /* Initialize camera uniforms */
-  init_camera_uniforms(wgpu_context);
+  printf("Cube initialized: vertex_count=%d, vertex_buffer=%p\n",
+         state.vertex_count, (void*)state.vertex_buffer);
+
+  /* Note: init_camera_uniforms is now deprecated, using init_scene_uniforms */
 
   /* Initialize render pipeline */
   init_render_pipeline(wgpu_context);
 
-  /* Start loading GLTF model */
-  load_gltf_model("assets/helmet-flipped.glb");
+  printf("Render pipeline initialized: pipeline=%p\n",
+         (void*)state.render_pipeline);
 
-  /* Start loading HDR environment */
-  load_hdr_environment("assets/venice_sunset_1k.hdr");
+  /* Load GLTF model synchronously */
+  const char* gltf_path
+    = "../../src/examples/pbr-webgpu/public/assets/helmet-flipped.glb";
+  if (load_file_sync(gltf_path, &state.gltf_buffer, &state.gltf_buffer_size)) {
+    printf("GLTF file loaded, will process in first frame\n");
+  }
+
+  /* Load HDR environment synchronously */
+  const char* hdr_path
+    = "../../src/examples/pbr-webgpu/public/assets/venice_sunset_1k.hdr";
+  if (load_file_sync(hdr_path, &state.hdr_buffer, &state.hdr_buffer_size)) {
+    printf("HDR file loaded, will process in first frame\n");
+  }
 
   state.initialized = true;
+
+  printf("init() completed successfully\n");
 
   return EXIT_SUCCESS;
 }
 
 /**
- * @brief Update uniform buffers (camera matrices, etc.)
+ * @brief Update uniform buffers (camera matrices, lighting, etc.)
  */
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
+  static int call_count = 0;
+
   /* Update camera view matrix */
   mat4 view_matrix;
   camera_get_view(&state.camera, view_matrix);
@@ -3289,13 +4640,72 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
   glm_perspective(GLM_PI_4f, aspect, 0.1f, 100.0f, projection);
 
-  /* Write matrices to uniform buffer */
-  float matrices[32]; /* 2 mat4s */
-  memcpy(matrices, projection, sizeof(mat4));
-  memcpy(matrices + 16, view_matrix, sizeof(mat4));
+  /* Get camera position */
+  vec3 camera_position;
+  camera_get_position(&state.camera, camera_position);
 
-  wgpuQueueWriteBuffer(wgpu_context->queue, state.camera_uniform_buffer, 0,
-                       matrices, sizeof(matrices));
+  if (call_count == 0) {
+    printf("update_uniform_buffers() first call\n");
+    printf("Camera position: (%.2f, %.2f, %.2f)\n", camera_position[0],
+           camera_position[1], camera_position[2]);
+    printf("Window size: %dx%d, aspect: %.2f\n", wgpu_context->width,
+           wgpu_context->height, aspect);
+  }
+  call_count++;
+
+  /* Scene uniforms structure:
+   * mat4 projection (16 floats)
+   * mat4 view (16 floats)
+   * vec3 cameraPosition + padding (4 floats)
+   * vec3 lightDirection + padding (4 floats)
+   * vec3 lightColor + padding (4 floats)
+   * mat4 lightMatrix (16 floats)
+   * Total: 60 floats
+   */
+  float scene_uniforms[60];
+
+  /* Copy projection matrix */
+  memcpy(&scene_uniforms[0], projection, sizeof(mat4));
+
+  /* Copy view matrix */
+  memcpy(&scene_uniforms[16], view_matrix, sizeof(mat4));
+
+  /* Camera position */
+  scene_uniforms[32] = camera_position[0];
+  scene_uniforms[33] = camera_position[1];
+  scene_uniforms[34] = camera_position[2];
+  scene_uniforms[35] = 0.0f; /* padding */
+
+  /* Light direction (normalized) */
+  vec3 light_dir = {1.0f, 1.0f, 1.0f};
+  glm_normalize(light_dir);
+  scene_uniforms[36] = light_dir[0];
+  scene_uniforms[37] = light_dir[1];
+  scene_uniforms[38] = light_dir[2];
+  scene_uniforms[39] = 0.0f; /* padding */
+
+  /* Light color */
+  scene_uniforms[40] = 1.0f; /* R */
+  scene_uniforms[41] = 1.0f; /* G */
+  scene_uniforms[42] = 1.0f; /* B */
+  scene_uniforms[43] = 1.0f; /* padding/intensity */
+
+  /* Light matrix (identity for now, used for shadow mapping) */
+  mat4 light_matrix = GLM_MAT4_IDENTITY_INIT;
+  memcpy(&scene_uniforms[44], light_matrix, sizeof(mat4));
+
+  /* Write to scene uniform buffer */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.scene_uniform_buffer, 0,
+                       scene_uniforms, sizeof(scene_uniforms));
+
+  /* TEMPORARY: Also write to camera uniform buffer for test renderer */
+  if (state.camera_uniform_buffer) {
+    float camera_uniforms[32]; /* 2 mat4s */
+    memcpy(camera_uniforms, projection, sizeof(mat4));
+    memcpy(camera_uniforms + 16, view_matrix, sizeof(mat4));
+    wgpuQueueWriteBuffer(wgpu_context->queue, state.camera_uniform_buffer, 0,
+                         camera_uniforms, sizeof(camera_uniforms));
+  }
 }
 
 /**
@@ -3307,6 +4717,9 @@ static int frame(wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+  static int frame_count    = 0;
+  static bool debug_printed = false;
+
   /* Process async file loading */
   sfetch_dowork();
 
@@ -3315,6 +4728,11 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* Process loaded HDR data */
   process_hdr_data(wgpu_context);
+
+  /* Initialize instance bind group after GLTF is loaded */
+  if (state.instance_buffer && !state.instance_bind_group) {
+    init_instance_bind_group(wgpu_context);
+  }
 
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context);
@@ -3329,7 +4747,55 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder pass
     = wgpuCommandEncoderBeginRenderPass(encoder, &state.render_pass_descriptor);
 
-  if (state.render_pipeline && state.vertex_buffer) {
+  /* Render GLTF models if loaded AND IBL textures are ready */
+  if (state.meshes && state.scene_bind_group && state.instance_bind_group
+      && state.pbr_bind_group && state.cubemap_texture && state.irradiance_map
+      && state.prefilter_map && state.brdf_lut) {
+    if (!debug_printed) {
+      printf("Rendering GLTF model: %u meshes\n", state.mesh_count);
+      debug_printed = true;
+    }
+    for (uint32_t mesh_idx = 0; mesh_idx < state.mesh_count; mesh_idx++) {
+      gltf_mesh_t* mesh = &state.meshes[mesh_idx];
+      for (uint32_t prim_idx = 0; prim_idx < mesh->primitive_count;
+           prim_idx++) {
+        gltf_primitive_t* prim = &mesh->primitives[prim_idx];
+
+        if (!prim->pipeline || !prim->vertex_buffer || !prim->index_buffer) {
+          continue;
+        }
+
+        /* Set pipeline and bind groups */
+        wgpuRenderPassEncoderSetPipeline(pass, prim->pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, state.scene_bind_group, 0,
+                                          NULL);
+        wgpuRenderPassEncoderSetBindGroup(pass, 1, state.instance_bind_group, 0,
+                                          NULL);
+        if (prim->material && prim->material->bind_group) {
+          wgpuRenderPassEncoderSetBindGroup(pass, 2, prim->material->bind_group,
+                                            0, NULL);
+        }
+        wgpuRenderPassEncoderSetBindGroup(pass, 3, state.pbr_bind_group, 0,
+                                          NULL);
+
+        /* Set vertex and index buffers */
+        wgpuRenderPassEncoderSetVertexBuffer(pass, 0, prim->vertex_buffer, 0,
+                                             WGPU_WHOLE_SIZE);
+        wgpuRenderPassEncoderSetIndexBuffer(
+          pass, prim->index_buffer, prim->index_format, 0, WGPU_WHOLE_SIZE);
+
+        /* Draw indexed with instances */
+        wgpuRenderPassEncoderDrawIndexed(pass, prim->index_count,
+                                         prim->instance_count, 0, 0,
+                                         prim->instance_offset);
+      }
+    }
+  }
+  /* Fallback: render test cube if GLTF not loaded yet */
+  else if (state.render_pipeline && state.vertex_buffer) {
+    if (frame_count % 60 == 0 && !debug_printed) {
+      printf("Rendering fallback cube (frame %d)\n", frame_count);
+    }
     wgpuRenderPassEncoderSetPipeline(pass, state.render_pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, state.camera_bind_group, 0,
                                       NULL);
@@ -3337,6 +4803,15 @@ static int frame(wgpu_context_t* wgpu_context)
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(pass, state.vertex_count, 1, 0, 0);
   }
+  else {
+    if (frame_count % 60 == 0) {
+      printf(
+        "Nothing to render (frame %d): render_pipeline=%p, vertex_buffer=%p\n",
+        frame_count, (void*)state.render_pipeline, (void*)state.vertex_buffer);
+    }
+  }
+
+  frame_count++;
 
   wgpuRenderPassEncoderEnd(pass);
   WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
@@ -3347,6 +4822,39 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
 
   return EXIT_SUCCESS;
+}
+
+/**
+ * @brief Input event callback for camera control
+ */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
+{
+  UNUSED_VAR(wgpu_context);
+
+  switch (event->type) {
+    case INPUT_EVENT_TYPE_MOUSE_SCROLL:
+      camera_handle_mouse_wheel(&state.camera, event->scroll_y);
+      break;
+    case INPUT_EVENT_TYPE_MOUSE_DOWN:
+      if (event->mouse_button == BUTTON_LEFT) {
+        camera_handle_mouse_down(&state.camera, event->mouse_x, event->mouse_y);
+      }
+      break;
+    case INPUT_EVENT_TYPE_MOUSE_UP:
+      if (event->mouse_button == BUTTON_LEFT) {
+        camera_handle_mouse_up(&state.camera);
+      }
+      break;
+    case INPUT_EVENT_TYPE_MOUSE_MOVE:
+      camera_handle_mouse_move(&state.camera, event->mouse_x, event->mouse_y);
+      break;
+    case INPUT_EVENT_TYPE_RESIZED:
+      /* Window resize handled automatically by framework */
+      break;
+    default:
+      break;
+  }
 }
 
 /**
@@ -3375,6 +4883,38 @@ static void shutdown(wgpu_context_t* wgpu_context)
     state.hdr_buffer = NULL;
   }
 
+  /* Free GLTF meshes and primitives */
+  if (state.meshes) {
+    for (uint32_t i = 0; i < state.mesh_count; i++) {
+      if (state.meshes[i].primitives) {
+        for (uint32_t j = 0; j < state.meshes[i].primitive_count; j++) {
+          WGPU_RELEASE_RESOURCE(RenderPipeline,
+                                state.meshes[i].primitives[j].pipeline)
+          WGPU_RELEASE_RESOURCE(Buffer,
+                                state.meshes[i].primitives[j].vertex_buffer)
+          WGPU_RELEASE_RESOURCE(Buffer,
+                                state.meshes[i].primitives[j].index_buffer)
+        }
+        free(state.meshes[i].primitives);
+      }
+    }
+    free(state.meshes);
+    state.meshes = NULL;
+  }
+
+  /* Free GLTF materials */
+  if (state.materials) {
+    for (uint32_t i = 0; i < state.material_count; i++) {
+      WGPU_RELEASE_RESOURCE(BindGroup, state.materials[i].bind_group)
+      WGPU_RELEASE_RESOURCE(Buffer, state.materials[i].uniform_buffer)
+    }
+    free(state.materials);
+    state.materials = NULL;
+  }
+
+  /* Release instance buffer */
+  WGPU_RELEASE_RESOURCE(Buffer, state.instance_buffer)
+
   /* Release GLTF textures */
   if (state.gltf_textures) {
     for (uint32_t i = 0; i < state.gltf_texture_count; i++) {
@@ -3385,12 +4925,22 @@ static void shutdown(wgpu_context_t* wgpu_context)
   }
 
   /* Release rendering resources */
-  WGPU_RELEASE_RESOURCE(BindGroup, state.camera_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, state.camera_uniform_buffer)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.scene_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.instance_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.pbr_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.scene_uniform_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.camera_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.scene_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.instance_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.material_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.pbr_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(Sampler, state.brdf_sampler)
+
+  /* Release temporary test renderer resources */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.camera_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.camera_uniform_buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.camera_bind_group_layout)
 
   /* Release default textures */
   WGPU_RELEASE_RESOURCE(Texture, state.default_white_texture)
@@ -3412,11 +4962,18 @@ static void shutdown(wgpu_context_t* wgpu_context)
  */
 int main(void)
 {
+  /* Ensure stdout is not buffered so printf appears immediately */
+  setvbuf(stdout, NULL, _IONBF, 0);
+
+  printf("=== GLTF PBR IBL Example Starting ===\n");
+  fflush(stdout);
+
   wgpu_start(&(wgpu_desc_t){
-    .title       = "GLTF PBR with IBL",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "GLTF PBR with IBL",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;
