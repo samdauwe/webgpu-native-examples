@@ -619,29 +619,7 @@ static const char* tone_mapping_lottes_wgsl
  * GLTF Type Definitions and Enums
  * -------------------------------------------------------------------------- */
 
-/*
- * Note: This implementation uses cgltf library for complete GLTF type support.
- * The following enums map to TypeScript gltfTypes.ts definitions:
- *
- * - shader_location_t      → ShaderLocations
- * - gltf_component_type_t  → ComponentType
- * - gltf_accessor_type_t   → GLTFAccessorDescriptor.type
- * - gltf_alpha_mode_t      → GLTFMaterialDescriptor.alphaMode
- *
- * Complex types (Mesh, Material, Node, etc.) are handled by cgltf library:
- * - cgltf_mesh             → GLTFMeshDescriptor
- * - cgltf_buffer_view      → GLTFBufferViewDescriptor
- * - cgltf_material         → GLTFMaterialDescriptor
- * - cgltf_accessor         → GLTFAccessorDescriptor
- * - cgltf_sampler          → GLTFSamplerDescriptor
- * - cgltf_image            → GLTFImageDescriptor
- * - cgltf_texture          → GLTFTextureDescriptor
- * - cgltf_primitive        → GLTFPrimitiveDescriptor
- * - cgltf_node             → GLTFNodeDescriptor
- * - cgltf_data             → GLTFDescriptor
- */
-
-/* Shader attribute locations (maps to ShaderLocations in gltfTypes.ts) */
+/* Shader attribute locations */
 typedef enum shader_location_t {
   SHADER_LOCATION_POSITION   = 0,
   SHADER_LOCATION_NORMAL     = 1,
@@ -649,7 +627,7 @@ typedef enum shader_location_t {
   SHADER_LOCATION_TANGENT    = 3,
 } shader_location_t;
 
-/* GLTF Component types (maps to ComponentType enum in gltfTypes.ts) */
+/* GLTF Component types */
 typedef enum gltf_component_type_t {
   GLTF_COMPONENT_TYPE_BYTE           = 5120,
   GLTF_COMPONENT_TYPE_UNSIGNED_BYTE  = 5121,
@@ -659,7 +637,7 @@ typedef enum gltf_component_type_t {
   GLTF_COMPONENT_TYPE_FLOAT          = 5126,
 } gltf_component_type_t;
 
-/* GLTF Accessor types (maps to accessor type strings in gltfTypes.ts) */
+/* GLTF Accessor types */
 typedef enum gltf_accessor_type_t {
   GLTF_ACCESSOR_TYPE_SCALAR,
   GLTF_ACCESSOR_TYPE_VEC2,
@@ -667,7 +645,7 @@ typedef enum gltf_accessor_type_t {
   GLTF_ACCESSOR_TYPE_VEC4,
 } gltf_accessor_type_t;
 
-/* Alpha mode (maps to alphaMode strings in GLTFMaterialDescriptor) */
+/* Alpha mode */
 typedef enum gltf_alpha_mode_t {
   GLTF_ALPHA_MODE_OPAQUE,
   GLTF_ALPHA_MODE_MASK,
