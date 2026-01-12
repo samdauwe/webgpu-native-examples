@@ -4558,10 +4558,7 @@ static void init_ibl_textures(wgpu_context_t* wgpu_context)
  */
 static int init(wgpu_context_t* wgpu_context)
 {
-  printf("init() called\n");
-
   if (state.initialized) {
-    printf("Already initialized, returning\n");
     return EXIT_SUCCESS;
   }
 
@@ -4571,8 +4568,6 @@ static int init(wgpu_context_t* wgpu_context)
     .num_channels = 2,
     .num_lanes    = 4,
   });
-
-  printf("sokol_fetch initialized\n");
 
   /* Initialize mipmap generator */
   init_mipmap_generator(wgpu_context);
@@ -4592,23 +4587,13 @@ static int init(wgpu_context_t* wgpu_context)
   /* Initialize cube geometry */
   init_cube_geometry(wgpu_context);
 
-  printf("Cube initialized: vertex_count=%d, vertex_buffer=%p\n",
-         state.vertex_count, (void*)state.vertex_buffer);
-
-  /* Note: init_camera_uniforms is now deprecated, using init_scene_uniforms */
-
   /* Initialize render pipeline */
   init_render_pipeline(wgpu_context);
-
-  printf("Render pipeline initialized: pipeline=%p\n",
-         (void*)state.render_pipeline);
 
   /* Load GLTF model synchronously */
   const char* gltf_path
     = "../../src/examples/pbr-webgpu/public/assets/helmet-flipped.glb";
-  if (load_file_sync(gltf_path, &state.gltf_buffer, &state.gltf_buffer_size)) {
-    printf("GLTF file loaded, will process in first frame\n");
-  }
+  load_file_sync(gltf_path, &state.gltf_buffer, &state.gltf_buffer_size);
 
   /* Load HDR environment synchronously */
   const char* hdr_path
@@ -4619,8 +4604,6 @@ static int init(wgpu_context_t* wgpu_context)
 
   state.initialized = true;
 
-  printf("init() completed successfully\n");
-
   return EXIT_SUCCESS;
 }
 
@@ -4629,8 +4612,6 @@ static int init(wgpu_context_t* wgpu_context)
  */
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  static int call_count = 0;
-
   /* Update camera view matrix */
   mat4 view_matrix;
   camera_get_view(&state.camera, view_matrix);
@@ -4643,15 +4624,6 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Get camera position */
   vec3 camera_position;
   camera_get_position(&state.camera, camera_position);
-
-  if (call_count == 0) {
-    printf("update_uniform_buffers() first call\n");
-    printf("Camera position: (%.2f, %.2f, %.2f)\n", camera_position[0],
-           camera_position[1], camera_position[2]);
-    printf("Window size: %dx%d, aspect: %.2f\n", wgpu_context->width,
-           wgpu_context->height, aspect);
-  }
-  call_count++;
 
   /* Scene uniforms structure:
    * mat4 projection (16 floats)
@@ -4717,8 +4689,7 @@ static int frame(wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
-  static int frame_count    = 0;
-  static bool debug_printed = false;
+  static int frame_count = 0;
 
   /* Process async file loading */
   sfetch_dowork();
@@ -4751,10 +4722,6 @@ static int frame(wgpu_context_t* wgpu_context)
   if (state.meshes && state.scene_bind_group && state.instance_bind_group
       && state.pbr_bind_group && state.cubemap_texture && state.irradiance_map
       && state.prefilter_map && state.brdf_lut) {
-    if (!debug_printed) {
-      printf("Rendering GLTF model: %u meshes\n", state.mesh_count);
-      debug_printed = true;
-    }
     for (uint32_t mesh_idx = 0; mesh_idx < state.mesh_count; mesh_idx++) {
       gltf_mesh_t* mesh = &state.meshes[mesh_idx];
       for (uint32_t prim_idx = 0; prim_idx < mesh->primitive_count;
@@ -4793,22 +4760,12 @@ static int frame(wgpu_context_t* wgpu_context)
   }
   /* Fallback: render test cube if GLTF not loaded yet */
   else if (state.render_pipeline && state.vertex_buffer) {
-    if (frame_count % 60 == 0 && !debug_printed) {
-      printf("Rendering fallback cube (frame %d)\n", frame_count);
-    }
     wgpuRenderPassEncoderSetPipeline(pass, state.render_pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, state.camera_bind_group, 0,
                                       NULL);
     wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.vertex_buffer, 0,
                                          WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(pass, state.vertex_count, 1, 0, 0);
-  }
-  else {
-    if (frame_count % 60 == 0) {
-      printf(
-        "Nothing to render (frame %d): render_pipeline=%p, vertex_buffer=%p\n",
-        frame_count, (void*)state.render_pipeline, (void*)state.vertex_buffer);
-    }
   }
 
   frame_count++;
@@ -4978,160 +4935,3 @@ int main(void)
 
   return EXIT_SUCCESS;
 }
-
-/* -------------------------------------------------------------------------- *
- * WGSL Shader Code Implementations
- * -------------------------------------------------------------------------- */
-
-// clang-format off
-/* Distribution GGX */
-static const char* distribution_ggx_code = CODE(
-  fn distributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {
-    let a = roughness * roughness;
-    let a2 = a * a;
-    let nDotH = max(dot(n, h), 0.0);
-    let nDotH2 = nDotH * nDotH;
-    var denom = (nDotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-    return a2 / denom;
-  }
-);
-
-/* Geometry Schlick GGX */
-static const char* geometry_schlick_ggx_code = CODE(
-  fn geometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {
-    let r = (roughness + 1.0);
-    let k = (r * r) / 8.0;
-    return nDotV / (nDotV * (1.0 - k) + k);
-  }
-);
-
-/* Geometry Smith */
-static const char* geometry_smith_code = CODE(
-  fn geometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {
-    let nDotV = max(dot(n, v), 0.0);
-    let nDotL = max(dot(n, l), 0.0);
-    let ggx2 = geometrySchlickGGX(nDotV, roughness);
-    let ggx1 = geometrySchlickGGX(nDotL, roughness);
-    return ggx1 * ggx2;
-  }
-);
-
-/* Fresnel Schlick */
-static const char* fresnel_schlick_code = CODE(
-  fn fresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {
-    return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-  }
-);
-
-/* Fresnel Schlick Roughness */
-static const char* fresnel_schlick_roughness_code = CODE(
-  fn fresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
-    return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-  }
-);
-
-/* Radical Inverse VdC */
-static const char* radical_inverse_vdc_code = CODE(
-  // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-  // efficient VanDerCorpus calculation.
-  fn radicalInverseVdC(bits: u32) -> f32 {
-    var result = bits;
-    result = (bits << 16u) | (bits >> 16u);
-    result = ((result & 0x55555555u) << 1u) | ((result & 0xAAAAAAAAu) >> 1u);
-    result = ((result & 0x33333333u) << 2u) | ((result & 0xCCCCCCCCu) >> 2u);
-    result = ((result & 0x0F0F0F0Fu) << 4u) | ((result & 0xF0F0F0F0u) >> 4u);
-    result = ((result & 0x00FF00FFu) << 8u) | ((result & 0xFF00FF00u) >> 8u);
-    return f32(result) * 2.3283064365386963e-10;
-  }
-);
-
-/* Hammersley */
-static const char* hammersley_code = CODE(
-  fn hammersley(i: u32, n: u32) -> vec2f {
-    return vec2f(f32(i) / f32(n), radicalInverseVdC(i));
-  }
-);
-
-/* Importance Sample GGX */
-static const char* importance_sample_ggx_code = CODE(
-  fn importanceSampleGGX(xi: vec2f, n: vec3f, roughness: f32) -> vec3f {
-    let a = roughness * roughness;
-
-    let phi = 2.0 * PI * xi.x;
-    let cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
-    let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-
-    // from spherical coordinates to cartesian coordinates - halfway vector
-    let h = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-
-    // from tangent-space H vector to world-space sample vector
-    let up: vec3f = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), abs(n.z) < 0.999);
-    let tangent = normalize(cross(up, n));
-    let bitangent = cross(n, tangent);
-
-    let sampleVec = tangent * h.x + bitangent * h.y + n * h.z;
-    return normalize(sampleVec);
-  }
-);
-
-/* Tone Mapping - ACES */
-static const char* tone_mapping_aces_code = CODE(
-  fn toneMapping(color: vec3f) -> vec3f {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-
-    return (color * (a * color + b)) / (color * (c * color + d) + e);
-  }
-);
-
-/* Tone Mapping - Reinhard */
-static const char* tone_mapping_reinhard_code = CODE(
-  fn toneMapping(color: vec3f) -> vec3f {
-    return color / (color + vec3f(1.0));
-  }
-);
-
-/* Tone Mapping - Uncharted 2 */
-static const char* tone_mapping_uncharted2_code = CODE(
-  fn uncharted2Helper(x: vec3f) -> vec3f {
-    let a = 0.15;
-    let b = 0.50;
-    let c = 0.10;
-    let d = 0.20;
-    let e = 0.02;
-    let f = 0.30;
-
-    return (x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f) - e / f;
-  }
-
-  fn toneMapping(color: vec3f) -> vec3f {
-    let w = 11.2;
-    let exposureBias = 2.0;
-    let current = uncharted2Helper(exposureBias * color);
-    let whiteScale = 1 / uncharted2Helper(vec3f(w));
-    return current * whiteScale;
-  }
-);
-
-/* Tone Mapping - Lottes */
-static const char* tone_mapping_lottes_code = CODE(
-  fn toneMapping(color: vec3f) -> vec3f {
-    let a = vec3f(1.6);
-    let d = vec3f(0.977);
-    let hdrMax = vec3f(8.0);
-    let midIn = vec3f(0.18);
-    let midOut = vec3f(0.267);
-
-    let b = (-pow(midIn, a) + pow(hdrMax, a) * midOut) / ((pow(hdrMax, a * d)
-            - pow(midIn, a * d)) * midOut);
-    let c = (pow(hdrMax, a * d) * pow(midIn, a) - pow(hdrMax, a) * pow(midIn, a * d) * midOut)
-            / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
-
-    return pow(color, a) / (pow(color, a * d) * b + c);
-  }
-);
-// clang-format on
