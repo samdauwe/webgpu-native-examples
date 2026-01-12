@@ -1123,7 +1123,7 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
         .colorAttachmentCount = 1,
         .colorAttachments = &(WGPURenderPassColorAttachment){
           .view = face_view,
-          .loadOp = WGPULoadOp_Load,
+          .loadOp = WGPULoadOp_Clear,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
           .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
@@ -1461,9 +1461,9 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
           .colorAttachmentCount = 1,
           .colorAttachments = &(WGPURenderPassColorAttachment){
             .view = face_view,
-            .loadOp = WGPULoadOp_Load,
+            .loadOp = WGPULoadOp_Clear,
             .storeOp = WGPUStoreOp_Store,
-            .clearValue = (WGPUColor){0.3, 0.3, 0.3, 1.0},
+            .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
           },
           .depthStencilAttachment = &(WGPURenderPassDepthStencilAttachment){
@@ -1851,7 +1851,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
         .colorAttachmentCount = 1,
         .colorAttachments = &(WGPURenderPassColorAttachment){
           .view = face_view,
-          .loadOp = WGPULoadOp_Load,
+          .loadOp = WGPULoadOp_Clear,
           .storeOp = WGPUStoreOp_Store,
           .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
           .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
@@ -2758,8 +2758,16 @@ static struct {
   /* Default textures */
   WGPUTexture default_white_texture;
   WGPUTexture default_normal_texture;
+  WGPUTexture default_roughness_metallic_texture;
   WGPUTexture placeholder_shadow_map;
   WGPUSampler default_sampler;
+
+  /* Skybox rendering */
+  WGPURenderPipeline skybox_pipeline;
+  WGPUBindGroupLayout skybox_bind_group_layout;
+  WGPUBindGroup skybox_bind_group;
+  WGPUBuffer skybox_uniform_buffer;
+  WGPUBuffer skybox_vertex_buffer;
 
   /* Render pass descriptors */
   WGPURenderPassColorAttachment color_attachment;
@@ -2815,6 +2823,7 @@ static struct {
  * -------------------------------------------------------------------------- */
 
 static void init_pbr_bind_group(wgpu_context_t* wgpu_context);
+static void init_skybox(wgpu_context_t* wgpu_context);
 static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
                                               bool has_uvs, bool has_tangents,
                                               bool use_alpha_cutoff);
@@ -3422,20 +3431,34 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
   }
 
   /* Convert to cubemap */
+  printf("Converting HDR to cubemap (size: %d)...\n",
+         state.settings.cubemap_size);
   state.cubemap_texture = convert_equirectangular_to_cubemap(
     wgpu_context, &hdr, state.settings.cubemap_size);
+  printf("Cubemap created: %p\n", (void*)state.cubemap_texture);
 
   /* Generate irradiance map */
+  printf("Generating irradiance map (size: %d)...\n",
+         state.settings.irradiance_map_size);
   state.irradiance_map = generate_irradiance_map(
     wgpu_context, state.cubemap_texture, state.settings.irradiance_map_size);
+  printf("Irradiance map created: %p\n", (void*)state.irradiance_map);
 
   /* Generate prefilter map */
+  printf("Generating prefilter map (size: %d, levels: %d)...\n",
+         state.settings.prefilter_map_size, state.settings.roughness_levels);
   state.prefilter_map = generate_prefilter_map(
     wgpu_context, state.cubemap_texture, state.settings.prefilter_map_size,
     state.settings.roughness_levels);
+  printf("Prefilter map created: %p\n", (void*)state.prefilter_map);
 
   /* Free HDR data */
   free_hdr_image(&hdr);
+
+  /* Initialize skybox rendering now that cubemap is ready */
+  printf("Initializing skybox...\n");
+  init_skybox(wgpu_context);
+  printf("Skybox initialized\n");
 
   /* Initialize PBR bind group now that all IBL textures are ready */
   init_pbr_bind_group(wgpu_context);
@@ -3806,6 +3829,40 @@ static void init_default_textures(wgpu_context_t* wgpu_context)
       .dimension = WGPUTextureDimension_2D,
     }
   );
+
+  /* Create default roughness/metallic texture */
+  /* Format: R=unused, G=roughness(0.5), B=metallic(0.0), A=unused */
+  /* This makes materials appear as dielectric with medium roughness */
+  uint8_t roughness_metallic_data[4]     = {0, 128, 0, 255}; /* G=0.5, B=0.0 */
+  WGPUTexture roughness_metallic_texture = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Default roughness/metallic texture"),
+      .size  = (WGPUExtent3D){.width = 1, .height = 1, .depthOrArrayLayers = 1},
+      .format = WGPUTextureFormat_RGBA8Unorm,
+      .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+    });
+  wgpuQueueWriteTexture(
+    wgpu_context->queue,
+    &(WGPUTexelCopyTextureInfo){
+      .texture  = roughness_metallic_texture,
+      .mipLevel = 0,
+      .origin   = (WGPUOrigin3D){0, 0, 0},
+      .aspect   = WGPUTextureAspect_All,
+    },
+    roughness_metallic_data, sizeof(roughness_metallic_data),
+    &(WGPUTexelCopyBufferLayout){
+      .offset       = 0,
+      .bytesPerRow  = 4,
+      .rowsPerImage = 1,
+    },
+    &(WGPUExtent3D){.width = 1, .height = 1, .depthOrArrayLayers = 1});
+
+  /* Store the default roughness/metallic texture in state */
+  state.default_roughness_metallic_texture = roughness_metallic_texture;
 
   /* Create BRDF LUT sampler */
   state.brdf_sampler = wgpuDeviceCreateSampler(
@@ -4577,6 +4634,16 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
                                     .mipLevelCount   = 1,
                                   });
 
+  WGPUTextureView roughness_metallic_view = wgpuTextureCreateView(
+    state.default_roughness_metallic_texture,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("default roughness metallic view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
+      .dimension       = WGPUTextureViewDimension_2D,
+      .arrayLayerCount = 1,
+      .mipLevelCount   = 1,
+    });
+
   /* Create material bind group */
   mat.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
@@ -4595,7 +4662,7 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
         {.binding = 4, .textureView = normal_view},
         /* Roughness/Metallic sampler + texture */
         {.binding = 5, .sampler = state.default_sampler},
-        {.binding = 6, .textureView = albedo_view}, /* Use albedo as fallback */
+        {.binding = 6, .textureView = roughness_metallic_view},
         /* AO sampler + texture */
         {.binding = 7, .sampler = state.default_sampler},
         {.binding = 8, .textureView = albedo_view},
@@ -4619,6 +4686,9 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
  */
 static void init_ibl_textures(wgpu_context_t* wgpu_context)
 {
+  /* Initialize cubemap view matrices (needed for IBL texture generation) */
+  init_cubemap_view_matrices();
+
   /* Initialize camera */
   /* Initialize camera (pitch, yaw, distance) */
   /* Pitch 0.3 radians (~17°) for slight top-down view */
@@ -4634,6 +4704,225 @@ static void init_ibl_textures(wgpu_context_t* wgpu_context)
    * process_hdr_data() when the HDR file finishes loading.
    * See: load_hdr_environment() -> hdr_fetch_callback() -> process_hdr_data()
    */
+}
+
+/**
+ * @brief Initialize skybox rendering pipeline
+ */
+static void init_skybox(wgpu_context_t* wgpu_context)
+{
+  if (!state.cubemap_texture) {
+    return; /* Wait until cubemap is loaded */
+  }
+
+  /* Create skybox vertex buffer (cube vertices) */
+  static const float cube_vertices[]
+    = {/* positions */
+       -1.0f, 1.0f,  -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f,
+       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+       1.0f,  1.0f,  -1.0f, 1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
+
+       -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, -1.0f, -1.0f, 1.0f,
+       -1.0f, 1.0f,  -1.0f, 1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
+       -1.0f, 1.0f,  1.0f,  1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
+
+       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,
+       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+       1.0f,  1.0f,  -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+
+       -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, 1.0f,  1.0f,  1.0f,
+       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+       1.0f,  -1.0f, 1.0f,  1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
+
+       -1.0f, 1.0f,  -1.0f, 1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,
+       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+       -1.0f, 1.0f,  1.0f,  1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
+
+       -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
+       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+       -1.0f, -1.0f, 1.0f,  1.0f, 1.0f,  -1.0f, 1.0f,  1.0f};
+
+  state.skybox_vertex_buffer = create_buffer_with_data(
+    wgpu_context, cube_vertices, sizeof(cube_vertices), WGPUBufferUsage_Vertex);
+
+  /* Create skybox uniform buffer (view + projection matrices) */
+  state.skybox_uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("skybox uniform buffer"),
+      .size  = 64 * sizeof(float), /* 2 * mat4 */
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+    });
+
+  /* Create skybox bind group layout */
+  state.skybox_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label = STRVIEW("skybox bind group layout"),
+      .entryCount = 3,
+      .entries = (WGPUBindGroupLayoutEntry[]){
+        {
+          .binding = 0,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_Cube,
+          },
+        },
+        {
+          .binding = 1,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Filtering,
+          },
+        },
+        {
+          .binding = 2,
+          .visibility = WGPUShaderStage_Vertex,
+          .buffer = (WGPUBufferBindingLayout){
+            .type = WGPUBufferBindingType_Uniform,
+          },
+        },
+      },
+    }
+  );
+
+  /* Create cubemap view */
+  WGPUTextureView cubemap_view = wgpuTextureCreateView(
+    state.cubemap_texture, &(WGPUTextureViewDescriptor){
+                             .dimension       = WGPUTextureViewDimension_Cube,
+                             .mipLevelCount   = 1,
+                             .arrayLayerCount = 6,
+                           });
+
+  /* Create skybox bind group */
+  state.skybox_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label = STRVIEW("skybox bind group"),
+      .layout = state.skybox_bind_group_layout,
+      .entryCount = 3,
+      .entries = (WGPUBindGroupEntry[]){
+        {
+          .binding = 0,
+          .textureView = cubemap_view,
+        },
+        {
+          .binding = 1,
+          .sampler = state.default_sampler,
+        },
+        {
+          .binding = 2,
+          .buffer = state.skybox_uniform_buffer,
+          .size = 64 * sizeof(float),
+        },
+      },
+    }
+  );
+
+  /* Create skybox shader */
+  const char* skybox_shader_wgsl = CODE(
+    struct Uniforms {
+      view: mat4x4f,
+      projection: mat4x4f,
+    }
+
+    @group(0) @binding(0) var skyboxTexture: texture_cube<f32>;
+    @group(0) @binding(1) var skyboxSampler: sampler;
+    @group(0) @binding(2) var<uniform> uniforms: Uniforms;
+
+    struct VertexOutput {
+      @builtin(position) position: vec4f,
+      @location(0) texCoord: vec3f,
+    }
+
+    @vertex
+    fn vertexMain(@location(0) position: vec4f) -> VertexOutput {
+      var output: VertexOutput;
+      var copy = uniforms.view;
+      /* Reset translation to keep skybox centered */
+      copy[3][0] = 0.0;
+      copy[3][1] = 0.0;
+      copy[3][2] = 0.0;
+      output.position = (uniforms.projection * copy * position).xyww;
+      output.texCoord = position.xyz;
+      return output;
+    }
+
+    /* ACES tone mapping */
+    fn toneMapping(color: vec3f) -> vec3f {
+      let a = 2.51;
+      let b = 0.03;
+      let c = 2.43;
+      let d = 0.59;
+      let e = 0.14;
+      return clamp((color * (a * color + b)) / (color * (c * color + d) + e), vec3f(0.0), vec3f(1.0));
+    }
+
+    @fragment
+    fn fragmentMain(@location(0) texCoord: vec3f) -> @location(0) vec4f {
+      var color = textureSample(skyboxTexture, skyboxSampler, texCoord).rgb;
+      color = toneMapping(color);
+      color = pow(color, vec3f(1.0 / 2.2));
+      return vec4f(color, 1);
+    }
+  );
+
+  WGPUShaderModule skybox_shader
+    = wgpu_create_shader_module(wgpu_context->device, skybox_shader_wgsl);
+
+  /* Create skybox pipeline */
+  state.skybox_pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label = STRVIEW("skybox pipeline"),
+      .layout = wgpuDeviceCreatePipelineLayout(
+        wgpu_context->device,
+        &(WGPUPipelineLayoutDescriptor){
+          .bindGroupLayoutCount = 1,
+          .bindGroupLayouts = &state.skybox_bind_group_layout,
+        }
+      ),
+      .vertex = (WGPUVertexState){
+        .module = skybox_shader,
+        .entryPoint = STRVIEW("vertexMain"),
+        .bufferCount = 1,
+        .buffers = &(WGPUVertexBufferLayout){
+          .arrayStride = 4 * sizeof(float),
+          .attributeCount = 1,
+          .attributes = &(WGPUVertexAttribute){
+            .shaderLocation = 0,
+            .offset = 0,
+            .format = WGPUVertexFormat_Float32x4,
+          },
+        },
+      },
+      .primitive = (WGPUPrimitiveState){
+        .topology = WGPUPrimitiveTopology_TriangleList,
+        .cullMode = WGPUCullMode_None,
+      },
+      .depthStencil = &(WGPUDepthStencilState){
+        .format = wgpu_context->depth_stencil_format,
+        .depthWriteEnabled = false,  /* Don't write depth for skybox */
+        .depthCompare = WGPUCompareFunction_LessEqual,
+      },
+      .multisample = (WGPUMultisampleState){
+        .count = 1,
+        .mask = ~0u,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module = skybox_shader,
+        .entryPoint = STRVIEW("fragmentMain"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format = wgpu_context->render_format,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+    }
+  );
+
+  WGPU_RELEASE_RESOURCE(ShaderModule, skybox_shader)
 }
 
 /**
@@ -4851,6 +5140,44 @@ static int frame(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderDraw(pass, state.vertex_count, 1, 0, 0);
   }
 
+  /* Render skybox if available */
+  if (state.skybox_pipeline && state.skybox_bind_group) {
+    static int skybox_render_count = 0;
+    if (skybox_render_count == 0) {
+      printf(
+        "First skybox render: pipeline=%p, bind_group=%p, vertex_buffer=%p\n",
+        (void*)state.skybox_pipeline, (void*)state.skybox_bind_group,
+        (void*)state.skybox_vertex_buffer);
+    }
+    skybox_render_count++;
+
+    /* Update skybox uniforms */
+    mat4 view_matrix;
+    camera_get_view(&state.camera, view_matrix);
+
+    mat4 projection;
+    float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
+    glm_perspective(GLM_PI_4f, aspect, 0.1f, 100.0f, projection);
+
+    float skybox_uniforms[32]; /* 2 mat4s */
+    memcpy(&skybox_uniforms[0], view_matrix, sizeof(mat4));
+    memcpy(&skybox_uniforms[16], projection, sizeof(mat4));
+    wgpuQueueWriteBuffer(wgpu_context->queue, state.skybox_uniform_buffer, 0,
+                         skybox_uniforms, sizeof(skybox_uniforms));
+
+    wgpuRenderPassEncoderSetPipeline(pass, state.skybox_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, state.skybox_bind_group, 0,
+                                      NULL);
+    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.skybox_vertex_buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDraw(pass, 36, 1, 0, 0);
+  }
+  else if (frame_count < 5) {
+    printf("Frame %d: Skybox not rendering - pipeline=%p, bind_group=%p\n",
+           frame_count, (void*)state.skybox_pipeline,
+           (void*)state.skybox_bind_group);
+  }
+
   frame_count++;
   (void)frame_count; /* Track frame count for future use */
 
@@ -4987,8 +5314,16 @@ static void shutdown(wgpu_context_t* wgpu_context)
   /* Release default textures */
   WGPU_RELEASE_RESOURCE(Texture, state.default_white_texture)
   WGPU_RELEASE_RESOURCE(Texture, state.default_normal_texture)
+  WGPU_RELEASE_RESOURCE(Texture, state.default_roughness_metallic_texture)
   WGPU_RELEASE_RESOURCE(Texture, state.placeholder_shadow_map)
   WGPU_RELEASE_RESOURCE(Sampler, state.default_sampler)
+
+  /* Release skybox resources */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.skybox_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.skybox_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.skybox_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.skybox_uniform_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.skybox_vertex_buffer)
 
   /* Release textures */
   WGPU_RELEASE_RESOURCE(Texture, state.cubemap_texture)
