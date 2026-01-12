@@ -70,12 +70,13 @@ static const char* cubemap_vertex_shader_wgsl;
 
 /* Tone mapping functions */
 static const char* tone_mapping_aces_wgsl;
-static const char* tone_mapping_reinhard_wgsl;
-static const char* tone_mapping_uncharted2_wgsl;
-static const char* tone_mapping_lottes_wgsl;
+/* static const char* tone_mapping_reinhard_wgsl; */   /* Currently unused */
+/* static const char* tone_mapping_uncharted2_wgsl; */ /* Currently unused */
+/* static const char* tone_mapping_lottes_wgsl; */     /* Currently unused */
 
 /* Full PBR shader */
-static const char* pbr_shader_wgsl;
+/* static const char* pbr_shader_wgsl; */ /* Currently unused - shader built
+                                             dynamically */
 
 /* -------------------------------------------------------------------------- *
  * String Utility - String Replacement Function
@@ -280,7 +281,7 @@ static WGPUBuffer create_buffer_with_data(wgpu_context_t* wgpu_context,
  * -------------------------------------------------------------------------- */
 
 /* Cubemap view matrices for rendering to each face */
-static const mat4 cubemap_view_matrices[6] = {
+static mat4 cubemap_view_matrices[6] = {
   /* +X */ GLM_MAT4_IDENTITY_INIT,
   /* -X */ GLM_MAT4_IDENTITY_INIT,
   /* +Y */ GLM_MAT4_IDENTITY_INIT,
@@ -290,7 +291,7 @@ static const mat4 cubemap_view_matrices[6] = {
 };
 
 /* Inverted cubemap view matrices */
-static const mat4 cubemap_view_matrices_inverted[6] = {
+static mat4 cubemap_view_matrices_inverted[6] = {
   /* +X */ GLM_MAT4_IDENTITY_INIT,
   /* -X */ GLM_MAT4_IDENTITY_INIT,
   /* +Y */ GLM_MAT4_IDENTITY_INIT,
@@ -556,13 +557,16 @@ static const char* importance_sample_ggx_wgsl
       return normalize(sampleVec);
     });
 
-/* Tone mapping - Reinhard */
+/* Tone mapping - Reinhard (currently unused, ACES is used by default) */
+/*
 static const char* tone_mapping_reinhard_wgsl
   = CODE(fn toneMapping(color : vec3f)->vec3f {
       return color / (color + vec3f(1.0));
     });
+*/
 
-/* Tone mapping - Uncharted 2 */
+/* Tone mapping - Uncharted 2 (currently unused) */
+/*
 static const char* tone_mapping_uncharted2_wgsl = CODE(
   fn uncharted2Helper(x : vec3f)
     ->vec3f {
@@ -584,6 +588,7 @@ static const char* tone_mapping_uncharted2_wgsl = CODE(
       let whiteScale   = 1 / uncharted2Helper(vec3f(w));
       return current * whiteScale;
     });
+*/
 
 /* Tone mapping - ACES */
 static const char* tone_mapping_aces_wgsl
@@ -597,7 +602,8 @@ static const char* tone_mapping_aces_wgsl
       return (color * (a * color + b)) / (color * (c * color + d) + e);
     });
 
-/* Tone mapping - Lottes */
+/* Tone mapping - Lottes (currently unused) */
+/*
 static const char* tone_mapping_lottes_wgsl
   = CODE(fn toneMapping(color : vec3f)->vec3f {
       let a      = vec3f(1.6);
@@ -614,6 +620,7 @@ static const char* tone_mapping_lottes_wgsl
 
       return pow(color, a) / (pow(color, a * d) * b + c);
     });
+*/
 
 /* -------------------------------------------------------------------------- *
  * GLTF Type Definitions and Enums
@@ -1065,7 +1072,9 @@ static WGPUTexture generate_irradiance_map(wgpu_context_t* wgpu_context,
   /* Create cubemap view */
   WGPUTextureView cubemap_view = wgpuTextureCreateView(
     cubemap_texture, &(WGPUTextureViewDescriptor){
-                       .dimension = WGPUTextureViewDimension_Cube,
+                       .dimension       = WGPUTextureViewDimension_Cube,
+                       .mipLevelCount   = 1,
+                       .arrayLayerCount = 6,
                      });
 
   /* Create bind group */
@@ -1373,10 +1382,12 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
     }
   );
 
-  /* Create cubemap view */
+  /* Create cubemap view (source cubemap only has 1 mip level) */
   WGPUTextureView cubemap_view = wgpuTextureCreateView(
     cubemap_texture, &(WGPUTextureViewDescriptor){
-                       .dimension = WGPUTextureViewDimension_Cube,
+                       .dimension       = WGPUTextureViewDimension_Cube,
+                       .mipLevelCount   = 1,
+                       .arrayLayerCount = 6,
                      });
 
   /* Setup projection matrix */
@@ -1407,8 +1418,9 @@ static WGPUTexture generate_prefilter_map(wgpu_context_t* wgpu_context,
     /* Create depth view for this mip level */
     WGPUTextureView depth_view
       = wgpuTextureCreateView(depth_texture, &(WGPUTextureViewDescriptor){
-                                               .baseMipLevel  = mip,
-                                               .mipLevelCount = 1,
+                                               .baseMipLevel    = mip,
+                                               .mipLevelCount   = 1,
+                                               .arrayLayerCount = 1,
                                              });
 
     /* Render each cubemap face */
@@ -1519,7 +1531,7 @@ static uint32_t hash_string(const char* value)
   for (size_t i = 0; value[i] != '\0'; i++) {
     uint8_t ch = (uint8_t)value[i];
     hash       = ((hash << 5) - hash) + ch;
-    hash &= hash; /* Convert to 32bit integer */
+    /* hash is already 32-bit (uint32_t) */
   }
 
   return hash;
@@ -2735,6 +2747,7 @@ static struct {
 
   /* PBR samplers */
   WGPUSampler brdf_sampler;
+  WGPUSampler shadow_sampler;
 
   /* Temporary test renderer (TODO: remove when full PBR pipeline is
    * implemented) */
@@ -2745,6 +2758,7 @@ static struct {
   /* Default textures */
   WGPUTexture default_white_texture;
   WGPUTexture default_normal_texture;
+  WGPUTexture placeholder_shadow_map;
   WGPUSampler default_sampler;
 
   /* Render pass descriptors */
@@ -3775,6 +3789,24 @@ static void init_default_textures(wgpu_context_t* wgpu_context)
   /* Create default sampler */
   state.default_sampler = create_default_sampler(wgpu_context);
 
+  /* Create placeholder shadow map (1x1 depth texture for now) */
+  state.placeholder_shadow_map = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Placeholder shadow map"),
+      .size = (WGPUExtent3D){
+        .width = 1,
+        .height = 1,
+        .depthOrArrayLayers = 1,
+      },
+      .format = WGPUTextureFormat_Depth32Float,
+      .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment,
+      .mipLevelCount = 1,
+      .sampleCount = 1,
+      .dimension = WGPUTextureDimension_2D,
+    }
+  );
+
   /* Create BRDF LUT sampler */
   state.brdf_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
@@ -3783,6 +3815,18 @@ static void init_default_textures(wgpu_context_t* wgpu_context)
                             .minFilter     = WGPUFilterMode_Linear,
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .maxAnisotropy = 1,
+                          });
+
+  /* Create shadow comparison sampler */
+  state.shadow_sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Shadow sampler"),
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .compare       = WGPUCompareFunction_LessEqual,
                             .maxAnisotropy = 1,
                           });
 }
@@ -3929,7 +3973,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
       .label = STRVIEW("PBR bind group layout"),
-      .entryCount = 5,
+      .entryCount = 7,
       .entries = (WGPUBindGroupLayoutEntry[]){
         /* Default sampler */
         {
@@ -3972,6 +4016,23 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
           .texture = (WGPUTextureBindingLayout){
             .sampleType = WGPUTextureSampleType_Float,
             .viewDimension = WGPUTextureViewDimension_Cube,
+          },
+        },
+        /* Shadow map depth texture */
+        {
+          .binding = 5,
+          .visibility = WGPUShaderStage_Fragment,
+          .texture = (WGPUTextureBindingLayout){
+            .sampleType = WGPUTextureSampleType_Depth,
+            .viewDimension = WGPUTextureViewDimension_2D,
+          },
+        },
+        /* Shadow sampler comparison */
+        {
+          .binding = 6,
+          .visibility = WGPUShaderStage_Fragment,
+          .sampler = (WGPUSamplerBindingLayout){
+            .type = WGPUSamplerBindingType_Comparison,
           },
         },
       },
@@ -4033,7 +4094,7 @@ static void init_pbr_bind_group(wgpu_context_t* wgpu_context)
   WGPUTextureView irradiance_view = wgpuTextureCreateView(
     state.irradiance_map, &(WGPUTextureViewDescriptor){
                             .label           = STRVIEW("irradiance map view"),
-                            .format          = WGPUTextureFormat_RGBA16Float,
+                            .format          = WGPUTextureFormat_RGBA8Unorm,
                             .dimension       = WGPUTextureViewDimension_Cube,
                             .mipLevelCount   = 1,
                             .arrayLayerCount = 6,
@@ -4042,19 +4103,33 @@ static void init_pbr_bind_group(wgpu_context_t* wgpu_context)
   WGPUTextureView prefilter_view = wgpuTextureCreateView(
     state.prefilter_map, &(WGPUTextureViewDescriptor){
                            .label           = STRVIEW("prefilter map view"),
-                           .format          = WGPUTextureFormat_RGBA16Float,
+                           .format          = WGPUTextureFormat_RGBA8Unorm,
                            .dimension       = WGPUTextureViewDimension_Cube,
                            .mipLevelCount   = state.settings.roughness_levels,
                            .arrayLayerCount = 6,
                          });
 
   /* Create PBR bind group */
+  /* Create depth-only view for placeholder shadow map */
+  WGPUTextureView shadow_map_view
+    = wgpuTextureCreateView(state.placeholder_shadow_map,
+                            &(WGPUTextureViewDescriptor){
+                              .label  = STRVIEW("Placeholder shadow map view"),
+                              .format = WGPUTextureFormat_Depth32Float,
+                              .dimension       = WGPUTextureViewDimension_2D,
+                              .aspect          = WGPUTextureAspect_DepthOnly,
+                              .baseMipLevel    = 0,
+                              .mipLevelCount   = 1,
+                              .baseArrayLayer  = 0,
+                              .arrayLayerCount = 1,
+                            });
+
   state.pbr_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
       .label = STRVIEW("PBR bind group"),
       .layout = state.pbr_bind_group_layout,
-      .entryCount = 5,
+      .entryCount = 7,
       .entries = (WGPUBindGroupEntry[]){
         {
           .binding = 0,
@@ -4075,6 +4150,14 @@ static void init_pbr_bind_group(wgpu_context_t* wgpu_context)
         {
           .binding = 4,
           .textureView = prefilter_view,
+        },
+        {
+          .binding = 5,
+          .textureView = shadow_map_view,
+        },
+        {
+          .binding = 6,
+          .sampler = state.shadow_sampler,
         },
       },
     }
@@ -4769,6 +4852,7 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   frame_count++;
+  (void)frame_count; /* Track frame count for future use */
 
   wgpuRenderPassEncoderEnd(pass);
   WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
@@ -4893,6 +4977,7 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.material_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.pbr_bind_group_layout)
   WGPU_RELEASE_RESOURCE(Sampler, state.brdf_sampler)
+  WGPU_RELEASE_RESOURCE(Sampler, state.shadow_sampler)
 
   /* Release temporary test renderer resources */
   WGPU_RELEASE_RESOURCE(BindGroup, state.camera_bind_group)
@@ -4902,6 +4987,7 @@ static void shutdown(wgpu_context_t* wgpu_context)
   /* Release default textures */
   WGPU_RELEASE_RESOURCE(Texture, state.default_white_texture)
   WGPU_RELEASE_RESOURCE(Texture, state.default_normal_texture)
+  WGPU_RELEASE_RESOURCE(Texture, state.placeholder_shadow_map)
   WGPU_RELEASE_RESOURCE(Sampler, state.default_sampler)
 
   /* Release textures */
