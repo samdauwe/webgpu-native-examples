@@ -4425,7 +4425,7 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   state.render_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label = STRVIEW("render pipeline"),
+      .label = STRVIEW("Render pipeline"),
       .layout = pipeline_layout,
       .vertex = (WGPUVertexState){
         .module = vert_shader_module,
