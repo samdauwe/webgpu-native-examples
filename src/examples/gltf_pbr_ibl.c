@@ -22,9 +22,45 @@
 #endif
 #undef STB_IMAGE_IMPLEMENTATION
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* -------------------------------------------------------------------------- *
+ * Float16 Conversion Helpers
+ * -------------------------------------------------------------------------- */
+
+/* Convert float32 to float16 (IEEE 754 binary16) */
+static uint16_t float32_to_float16(float value)
+{
+  union {
+    float f;
+    uint32_t i;
+  } v;
+  v.f        = value;
+  uint32_t i = v.i;
+
+  uint32_t sign     = (i >> 16) & 0x8000;
+  int32_t exponent  = ((i >> 23) & 0xFF) - 127 + 15;
+  uint32_t mantissa = i & 0x007FFFFF;
+
+  /* Handle special cases */
+  if (exponent <= 0) {
+    /* Underflow or zero */
+    if (exponent < -10)
+      return sign; /* Too small, flush to zero */
+    mantissa = (mantissa | 0x00800000) >> (1 - exponent);
+    return sign | (mantissa >> 13);
+  }
+  else if (exponent >= 0x1F) {
+    /* Overflow or infinity */
+    return sign | 0x7C00 | (mantissa ? 0x0200 : 0);
+  }
+
+  /* Normalized value */
+  return sign | (exponent << 10) | (mantissa >> 13);
+}
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - PBR with IBL (Physically Based Rendering with Image Based
@@ -376,23 +412,23 @@ static void init_cubemap_view_matrices(void)
   glm_lookat(center, target, up, temp);
   glm_mat4_inv(temp, cubemap_view_matrices[1]);
 
-  /* +Y face */
+  /* +Y face - looking DOWN (swap with -Y to fix inversion) */
   target[0] = 0.0f;
-  target[1] = -1.0f;
+  target[1] = -1.0f; /* Look DOWN for +Y */
   target[2] = 0.0f;
   up[0]     = 0.0f;
   up[1]     = 0.0f;
-  up[2]     = -1.0f;
+  up[2]     = -1.0f; /* -Z is up when looking down */
   glm_lookat(center, target, up, temp);
   glm_mat4_inv(temp, cubemap_view_matrices[2]);
 
-  /* -Y face */
+  /* -Y face - looking UP (swap with +Y to fix inversion) */
   target[0] = 0.0f;
-  target[1] = 1.0f;
+  target[1] = 1.0f; /* Look UP for -Y */
   target[2] = 0.0f;
   up[0]     = 0.0f;
   up[1]     = 0.0f;
-  up[2]     = 1.0f;
+  up[2]     = 1.0f; /* +Z is up when looking up */
   glm_lookat(center, target, up, temp);
   glm_mat4_inv(temp, cubemap_view_matrices[3]);
 
@@ -1674,21 +1710,42 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
     = wgpuDeviceCreateTexture(wgpu_context->device, &equirect_desc);
 
   /* Upload HDR data to equirectangular texture */
-  const size_t data_size = hdr->width * hdr->height * 4 * sizeof(float);
-  wgpuQueueWriteTexture(wgpu_context->queue,
-                        &(WGPUTexelCopyTextureInfo){
-                          .texture  = equirect_texture,
-                          .mipLevel = 0,
-                          .origin   = (WGPUOrigin3D){0, 0, 0},
-                          .aspect   = WGPUTextureAspect_All,
-                        },
-                        hdr->data, data_size,
-                        &(WGPUTexelCopyBufferLayout){
-                          .offset       = 0,
-                          .bytesPerRow  = 8 * hdr->width,
-                          .rowsPerImage = hdr->height,
-                        },
-                        &equirect_desc.size);
+  /* Convert float32 HDR data to float16 for texture upload */
+  const size_t pixel_count  = hdr->width * hdr->height * 4;
+  const size_t float16_size = pixel_count * sizeof(uint16_t);
+  uint16_t* float16_data    = (uint16_t*)malloc(float16_size);
+
+  float* hdr_floats = (float*)hdr->data;
+  float max_val     = 0.0f;
+  for (size_t i = 0; i < pixel_count; i++) {
+    float16_data[i] = float32_to_float16(hdr_floats[i]);
+    if (hdr_floats[i] > max_val)
+      max_val = hdr_floats[i];
+  }
+
+  printf(
+    "Uploading HDR data to equirect texture: %dx%d, float16_size=%zu bytes\n",
+    hdr->width, hdr->height, float16_size);
+  printf("HDR max value: %.2f (should be > 1.0 for HDR)\n", max_val);
+
+  wgpuQueueWriteTexture(
+    wgpu_context->queue,
+    &(WGPUTexelCopyTextureInfo){
+      .texture  = equirect_texture,
+      .mipLevel = 0,
+      .origin   = (WGPUOrigin3D){0, 0, 0},
+      .aspect   = WGPUTextureAspect_All,
+    },
+    float16_data, float16_size,
+    &(WGPUTexelCopyBufferLayout){
+      .offset = 0,
+      .bytesPerRow
+      = 8 * hdr->width, /* RGBA16Float = 4 channels * 2 bytes = 8 bytes/pixel */
+      .rowsPerImage = hdr->height,
+    },
+    &equirect_desc.size);
+
+  free(float16_data);
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_desc = {
@@ -1825,11 +1882,19 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   );
 
   /* Render each cubemap face */
+  printf("Rendering %d cubemap faces...\n", 6);
   for (uint32_t face = 0; face < 6; face++) {
     mat4 mvp;
     glm_mat4_mul(projection, cubemap_view_matrices[face], mvp);
     wgpuQueueWriteBuffer(wgpu_context->queue, uniform_buffer, 0, mvp,
                          sizeof(mat4));
+
+    if (face == 0) {
+      printf("Face 0 MVP matrix first row: [%.2f, %.2f, %.2f, %.2f]\n",
+             mvp[0][0], mvp[0][1], mvp[0][2], mvp[0][3]);
+      printf("Equirect texture: %p, Sampler: %p\n", (void*)equirect_texture,
+             (void*)sampler);
+    }
 
     WGPUTextureView face_view = wgpuTextureCreateView(
       cubemap_texture, &(WGPUTextureViewDescriptor){
@@ -1884,6 +1949,12 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
     WGPU_RELEASE_RESOURCE(CommandEncoder, command_Encoder)
     WGPU_RELEASE_RESOURCE(TextureView, face_view)
   }
+
+  printf("Cubemap conversion complete\n");
+
+  /* Wait for all commands to complete */
+  wgpuDeviceTick(wgpu_context->device);
+  printf("Device tick complete - cubemap should be ready\n");
 
   /* Cleanup */
   WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
@@ -4787,11 +4858,16 @@ static void init_skybox(wgpu_context_t* wgpu_context)
     }
   );
 
-  /* Create cubemap view */
+  /* Create cubemap view for skybox - use full resolution cubemap, not
+   * irradiance */
+  printf("Creating skybox with cubemap texture: %p (512x512 RGBA8Unorm)\n",
+         (void*)state.cubemap_texture);
   WGPUTextureView cubemap_view = wgpuTextureCreateView(
     state.cubemap_texture, &(WGPUTextureViewDescriptor){
                              .dimension       = WGPUTextureViewDimension_Cube,
+                             .baseMipLevel    = 0,
                              .mipLevelCount   = 1,
+                             .baseArrayLayer  = 0,
                              .arrayLayerCount = 6,
                            });
 
@@ -4845,6 +4921,7 @@ static void init_skybox(wgpu_context_t* wgpu_context)
       copy[3][1] = 0.0;
       copy[3][2] = 0.0;
       output.position = (uniforms.projection * copy * position).xyww;
+      /* Use position directly as cubemap direction */
       output.texCoord = position.xyz;
       return output;
     }
@@ -4861,7 +4938,9 @@ static void init_skybox(wgpu_context_t* wgpu_context)
 
     @fragment
     fn fragmentMain(@location(0) texCoord: vec3f) -> @location(0) vec4f {
+      /* Sample cubemap directly with texCoord from vertex shader */
       var color = textureSample(skyboxTexture, skyboxSampler, texCoord).rgb;
+      
       color = toneMapping(color);
       color = pow(color, vec3f(1.0 / 2.2));
       return vec4f(color, 1);
@@ -4899,11 +4978,11 @@ static void init_skybox(wgpu_context_t* wgpu_context)
       },
       .primitive = (WGPUPrimitiveState){
         .topology = WGPUPrimitiveTopology_TriangleList,
-        .cullMode = WGPUCullMode_None,
+        .cullMode = WGPUCullMode_None,  /* No culling like TypeScript reference */
       },
       .depthStencil = &(WGPUDepthStencilState){
         .format = wgpu_context->depth_stencil_format,
-        .depthWriteEnabled = false,  /* Don't write depth for skybox */
+        .depthWriteEnabled = true,  /* Enable depth write like TypeScript reference */
         .depthCompare = WGPUCompareFunction_LessEqual,
       },
       .multisample = (WGPUMultisampleState){
@@ -5090,6 +5169,7 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder pass
     = wgpuCommandEncoderBeginRenderPass(encoder, &state.render_pass_descriptor);
 
+  /* Re-enable model rendering to test if IBL textures work */
   /* Render GLTF models if loaded AND IBL textures are ready */
   if (state.meshes && state.scene_bind_group && state.instance_bind_group
       && state.pbr_bind_group && state.cubemap_texture && state.irradiance_map
