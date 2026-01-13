@@ -4472,7 +4472,7 @@ static void init_render_pipeline(wgpu_context_t* wgpu_context)
   state.camera_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label = STRVIEW("camera bind group"),
+      .label = STRVIEW("Camera - Bind group"),
       .layout = state.camera_bind_group_layout,
       .entryCount = 1,
       .entries = &(WGPUBindGroupEntry){
