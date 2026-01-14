@@ -4579,7 +4579,7 @@ static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("PBR render pipeline"),
+      .label  = STRVIEW("PBR - Render pipeline"),
       .layout = pipeline_layout,
       .vertex = (WGPUVertexState){
         .module      = shader_module,
