@@ -4522,7 +4522,7 @@ static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
 
   WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = STRVIEW("PBR pipeline layout"),
+                            .label = STRVIEW("PBR - Pipeline layout"),
                             .bindGroupLayoutCount = 4,
                             .bindGroupLayouts     = layouts,
                           });
