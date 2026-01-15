@@ -4696,14 +4696,15 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
                                    .mipLevelCount   = 1,
                                  });
 
-  WGPUTextureView normal_view = wgpuTextureCreateView(
-    state.default_normal_texture, &(WGPUTextureViewDescriptor){
-                                    .label     = STRVIEW("default normal view"),
-                                    .format    = WGPUTextureFormat_RGBA8Unorm,
-                                    .dimension = WGPUTextureViewDimension_2D,
-                                    .arrayLayerCount = 1,
-                                    .mipLevelCount   = 1,
-                                  });
+  WGPUTextureView normal_view
+    = wgpuTextureCreateView(state.default_normal_texture,
+                            &(WGPUTextureViewDescriptor){
+                              .label = STRVIEW("Default normal - Texture view"),
+                              .format          = WGPUTextureFormat_RGBA8Unorm,
+                              .dimension       = WGPUTextureViewDimension_2D,
+                              .arrayLayerCount = 1,
+                              .mipLevelCount   = 1,
+                            });
 
   WGPUTextureView roughness_metallic_view = wgpuTextureCreateView(
     state.default_roughness_metallic_texture,
