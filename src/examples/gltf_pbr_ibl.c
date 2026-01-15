@@ -4677,7 +4677,7 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
   mat.uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("material uniform buffer"),
+      .label            = STRVIEW("Material - Uniform buffer"),
       .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size             = sizeof(material_uniforms),
       .mappedAtCreation = false,
