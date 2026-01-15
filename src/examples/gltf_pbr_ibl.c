@@ -4709,7 +4709,7 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
   WGPUTextureView roughness_metallic_view = wgpuTextureCreateView(
     state.default_roughness_metallic_texture,
     &(WGPUTextureViewDescriptor){
-      .label           = STRVIEW("default roughness metallic view"),
+      .label           = STRVIEW("Default roughness metallic - Texture view"),
       .format          = WGPUTextureFormat_RGBA8Unorm,
       .dimension       = WGPUTextureViewDimension_2D,
       .arrayLayerCount = 1,
