@@ -4720,7 +4720,7 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
   mat.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("material bind group"),
+      .label      = STRVIEW("Material - Bind group"),
       .layout     = state.material_bind_group_layout,
       .entryCount = 11,
       .entries = (WGPUBindGroupEntry[]){
