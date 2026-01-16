@@ -4830,7 +4830,7 @@ static void init_skybox(wgpu_context_t* wgpu_context)
   state.skybox_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label = STRVIEW("skybox bind group layout"),
+      .label = STRVIEW("Skybox - Bind group layout"),
       .entryCount = 3,
       .entries = (WGPUBindGroupLayoutEntry[]){
         {
