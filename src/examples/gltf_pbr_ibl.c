@@ -4821,7 +4821,7 @@ static void init_skybox(wgpu_context_t* wgpu_context)
   state.skybox_uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("skybox uniform buffer"),
+      .label = STRVIEW("Skybox - Uniform buffer"),
       .size  = 64 * sizeof(float), /* 2 * mat4 */
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     });
