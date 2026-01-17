@@ -611,7 +611,7 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Create command encoder */
   WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
     wgpu_context->device, &(WGPUCommandEncoderDescriptor){
-                            .label = STRVIEW("ImGui command encoder"),
+                            .label = STRVIEW("ImGui - Command encoder"),
                           });
 
   /* Render pass */
