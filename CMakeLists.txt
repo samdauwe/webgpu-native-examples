@@ -34,6 +34,10 @@ set(DAWN_FETCH_DEPENDENCIES ON)
 set(DAWN_BUILD_MONOLITHIC_LIBRARY SHARED)
 add_subdirectory(external/dawn EXCLUDE_FROM_ALL)
 
+# cimgui: C wrapper for Dear ImGui
+set(IMGUI_STATIC ON CACHE BOOL "Build cimgui as static library")
+add_subdirectory(external/cimgui EXCLUDE_FROM_ALL)
+
 # rply
 set(RPLY_SOURCES
     external/rply/rply.c
@@ -71,6 +75,8 @@ set(COMMON_SOURCES
 # Function to add example executables
 # ==============================================================================
 function(add_example_executable EXAMPLE_NAME)
+    # Parse optional arguments
+    cmake_parse_arguments(ARG "USE_CIMGUI" "" "" ${ARGN})
     set(EXAMPLE_SOURCE "src/examples/${EXAMPLE_NAME}.c")
     add_executable(${EXAMPLE_NAME}
         ${COMMON_HEADERS}
@@ -106,6 +112,13 @@ function(add_example_executable EXAMPLE_NAME)
     target_include_directories(${EXAMPLE_NAME}
         PRIVATE ${PROJECT_SOURCE_DIR}/src
     )
+    # Add cimgui includes if requested
+    if(ARG_USE_CIMGUI)
+        target_include_directories(${EXAMPLE_NAME}
+            PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui
+            PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui/imgui
+        )
+    endif()
     target_include_directories(${EXAMPLE_NAME} SYSTEM
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
@@ -126,6 +139,10 @@ function(add_example_executable EXAMPLE_NAME)
           webgpu_glfw
           glfw
         )
+        # Link cimgui if requested
+        if(ARG_USE_CIMGUI)
+            target_link_libraries(${EXAMPLE_NAME} PRIVATE cimgui)
+        endif()
     endif()
     # ==============================================================================
     # Target properties
@@ -163,6 +180,7 @@ add_example_executable(gerstner_waves)
 add_example_executable(gltf_pbr_ibl)
 add_example_executable(hello_triangle)
 add_example_executable(image_blur)
+add_example_executable(imgui_overlay USE_CIMGUI)
 add_example_executable(instanced_cube)
 add_example_executable(minimal)
 add_example_executable(msaa_line)
