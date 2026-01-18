@@ -388,7 +388,7 @@ static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
     state.vertex_buffer      = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
-             .label = STRVIEW("ImGui vertex buffer"),
+             .label = STRVIEW("ImGui - Vertex buffer"),
              .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
              .size  = state.vertex_buffer_size,
       });
