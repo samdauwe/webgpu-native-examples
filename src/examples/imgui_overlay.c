@@ -514,7 +514,7 @@ static int init(wgpu_context_t* wgpu_context)
   };
 
   state.render_pass_descriptor = (WGPURenderPassDescriptor){
-    .label                = STRVIEW("ImGui render pass"),
+    .label                = STRVIEW("ImGui - Render pass"),
     .colorAttachmentCount = 1,
     .colorAttachments     = &state.color_attachment,
   };
