@@ -404,7 +404,7 @@ static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
     state.index_buffer      = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
-             .label = STRVIEW("ImGui index buffer"),
+             .label = STRVIEW("ImGui - Index buffer"),
              .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
              .size  = state.index_buffer_size,
       });
