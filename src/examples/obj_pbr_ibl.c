@@ -497,8 +497,8 @@ static struct {
     .depthLoadOp       = WGPULoadOp_Clear,
     .depthStoreOp      = WGPUStoreOp_Store,
     .depthClearValue   = 1.0f,
-    .stencilLoadOp     = WGPULoadOp_Clear,
-    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilLoadOp     = WGPULoadOp_Undefined,
+    .stencilStoreOp    = WGPUStoreOp_Undefined,
     .stencilClearValue = 0,
   },
   .render_pass_descriptor = {
@@ -962,8 +962,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[0]);
+  /* glm_lookat already returns inverted matrix, no need to invert again */
+  glm_lookat(center, target, up, cubemap_view_matrices[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -972,8 +972,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[1]);
+  glm_lookat(center, target, up, cubemap_view_matrices[1]);
 
   /* +Y face */
   target[0] = 0.0f;
@@ -982,8 +981,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = -1.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[2]);
+  glm_lookat(center, target, up, cubemap_view_matrices[2]);
 
   /* -Y face */
   target[0] = 0.0f;
@@ -992,8 +990,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = 1.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[3]);
+  glm_lookat(center, target, up, cubemap_view_matrices[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -1002,8 +999,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[4]);
+  glm_lookat(center, target, up, cubemap_view_matrices[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -1012,10 +1008,11 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[5]);
+  glm_lookat(center, target, up, cubemap_view_matrices[5]);
 
   /* Inverted matrices for irradiance and prefilter maps */
+  /* TypeScript cubemapViewMatricesInverted uses lookAt WITHOUT .invert() */
+  /* Since glm_lookat auto-inverts, we need to invert it to match TypeScript */
   /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
@@ -1023,7 +1020,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[0]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -1032,7 +1030,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[1]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[1]);
 
   /* +Y face */
   target[0] = 0.0f;
@@ -1041,7 +1040,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = -1.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[2]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[2]);
 
   /* -Y face */
   target[0] = 0.0f;
@@ -1050,7 +1050,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = 1.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[3]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -1059,7 +1060,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[4]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -1068,7 +1070,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, cubemap_view_matrices_inverted[5]);
+  glm_lookat(center, target, up, temp);
+  glm_mat4_inv(temp, cubemap_view_matrices_inverted[5]);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1175,7 +1178,7 @@ static void init_file_loading(void)
 
   /* Start loading HDR file */
   sfetch_send(&(sfetch_request_t){
-    .path     = "assets/dikhololo_night_1k.hdr",
+    .path     = "assets/venice_sunset_1k.hdr",
     .callback = hdr_fetch_callback,
     .buffer   = SFETCH_RANGE(state.hdr_file_buffer),
   });
@@ -1295,6 +1298,15 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
     wgpu_context->device,
     &(WGPUBufferDescriptor){
       .label = STRVIEW("PBR - Cubemap uniform buffer"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = sizeof(mat4) * 2, /* view + projection */
+    });
+
+  /* Skybox uniform buffer (for rendering the skybox in main scene) */
+  state.skybox_uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("Skybox - Uniform buffer"),
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size  = sizeof(mat4) * 2, /* view + projection */
     });
@@ -1860,6 +1872,7 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
           .loadOp     = WGPULoadOp_Clear,
           .storeOp    = WGPUStoreOp_Store,
           .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         },
       });
 
@@ -2081,7 +2094,7 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
                             });
 
     wgpuQueueWriteBuffer(wgpu_context->queue, state.cubemap_uniform_buffer, 0,
-                         state.cubemap_view_matrices[face], sizeof(mat4));
+                         cubemap_view_matrices_inverted[face], sizeof(mat4));
 
     WGPUCommandEncoder encoder
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -2093,6 +2106,7 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
           .loadOp     = WGPULoadOp_Clear,
           .storeOp    = WGPUStoreOp_Store,
           .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         },
       });
 
@@ -2222,7 +2236,7 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
 
             let n_dot_l = max(dot(n, l), 0.0);
             if (n_dot_l > 0.0) {
-              prefiltered_color += textureSample(environment_map, environment_sampler, l).rgb * n_dot_l;
+              prefiltered_color += textureSampleLevel(environment_map, environment_sampler, l, 0.0).rgb * n_dot_l;
               total_weight += n_dot_l;
             }
           }
@@ -2351,7 +2365,7 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
                              });
 
       wgpuQueueWriteBuffer(wgpu_context->queue, state.cubemap_uniform_buffer, 0,
-                           state.cubemap_view_matrices[face], sizeof(mat4));
+                           cubemap_view_matrices_inverted[face], sizeof(mat4));
 
       WGPUCommandEncoder encoder
         = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -2363,6 +2377,7 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
             .loadOp     = WGPULoadOp_Clear,
             .storeOp    = WGPUStoreOp_Store,
             .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
           },
         });
 
@@ -2561,6 +2576,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
       },
     });
 
@@ -2587,6 +2603,14 @@ static int init(wgpu_context_t* wgpu_context)
   init_samplers(wgpu_context);
   init_uniform_buffers(wgpu_context);
   init_render_textures(wgpu_context);
+
+  /* Initialize sokol fetch for async file loading */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 8,
+    .num_channels = 2,
+    .num_lanes    = 4,
+  });
+
   init_file_loading();
   state.initialized = true;
   return EXIT_SUCCESS;
