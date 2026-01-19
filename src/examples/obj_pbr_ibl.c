@@ -412,6 +412,16 @@ static light_t lights[LIGHT_COUNT] = {
 };
 
 /* -------------------------------------------------------------------------- *
+ * HDR Image Structure
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  uint32_t width;
+  uint32_t height;
+  uint16_t* data; /* Float16 data (RGBA) */
+} hdr_image_t;
+
+/* -------------------------------------------------------------------------- *
  * Main state structure
  * -------------------------------------------------------------------------- */
 
@@ -465,6 +475,10 @@ static struct {
   /* Samplers */
   WGPUSampler sampler;
   WGPUSampler sampler_brdf;
+  WGPUSampler main_sampler;
+
+  /* Cubemap view matrices */
+  mat4 cubemap_view_matrices[6];
 
   /* Render pass */
   WGPURenderPassColorAttachment color_attachment;
@@ -495,31 +509,23 @@ static struct {
 };
 
 /* Placeholder main functions - will be implemented */
-static void init(wgpu_context_t* wgpu_context);
-static void frame(wgpu_context_t* wgpu_context);
-static void cleanup(wgpu_context_t* wgpu_context);
+static int init(wgpu_context_t* wgpu_context);
+static int frame(wgpu_context_t* wgpu_context);
+static void shutdown(wgpu_context_t* wgpu_context);
 static void input_event_cb(wgpu_context_t* wgpu_context,
                            const input_event_t* input_event);
 
-int main(int argc, char* argv[])
+int main(void)
 {
-  UNUSED_VAR(argc);
-  UNUSED_VAR(argv);
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "OBJ PBR with IBL",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
+  });
 
-  wgpu_app_context_t app_context = {
-    .user_data        = NULL,
-    .init_func        = init,
-    .frame_func       = frame,
-    .cleanup_func     = cleanup,
-    .input_event_func = input_event_cb,
-    .window_title     = "OBJ PBR with IBL",
-    .width            = 1280,
-    .height           = 720,
-    .enable_msaa      = true, /* Enable MSAA for better quality */
-    .enable_depth     = true,
-  };
-
-  return wgpu_run(&app_context);
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1069,12 +1075,6 @@ static void init_cubemap_view_matrices(void)
  * HDR File Parsing Using stb_image
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  uint32_t width;
-  uint32_t height;
-  uint16_t* data; /* Float16 data (RGBA) */
-} hdr_image_t;
-
 /**
  * @brief Load HDR file using stb_image and convert to float16
  */
@@ -1225,6 +1225,9 @@ static void init_samplers(wgpu_context_t* wgpu_context)
                             .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
+
+  /* Copy main sampler for compatibility */
+  state.main_sampler = state.sampler;
 
   /* BRDF sampler */
   state.sampler_brdf = wgpuDeviceCreateSampler(
@@ -1608,15 +1611,6 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
 
   wgpuBindGroupLayoutRelease(skybox_layout0);
 }
-.entries = skybox_group1_entries,
-});
-
-/* Store skybox group 0 in state (reusing existing field) */
-/* Note: We'll use skybox_bind_group0 directly in rendering */
-wgpuBindGroupRelease(skybox_bind_group0); /* Release since we don't store it */
-
-wgpuBindGroupLayoutRelease(skybox_layout0);
-}
 
 /* ---------------------------------------------------------------------------
  * IBL Processing - Convert HDR to cubemap and generate IBL textures
@@ -1626,6 +1620,33 @@ wgpuBindGroupLayoutRelease(skybox_layout0);
 /* Convert equirectangular HDR to cubemap */
 static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
 {
+  /* Initialize cubemap view matrices for 6 faces */
+  vec3 target_positions[6] = {
+    {1.0f, 0.0f, 0.0f},  /* +X */
+    {-1.0f, 0.0f, 0.0f}, /* -X */
+    {0.0f, 1.0f, 0.0f},  /* +Y */
+    {0.0f, -1.0f, 0.0f}, /* -Y */
+    {0.0f, 0.0f, 1.0f},  /* +Z */
+    {0.0f, 0.0f, -1.0f}, /* -Z */
+  };
+  vec3 up_vectors[6] = {
+    {0.0f, -1.0f, 0.0f}, /* +X */
+    {0.0f, -1.0f, 0.0f}, /* -X */
+    {0.0f, 0.0f, 1.0f},  /* +Y */
+    {0.0f, 0.0f, -1.0f}, /* -Y */
+    {0.0f, -1.0f, 0.0f}, /* +Z */
+    {0.0f, -1.0f, 0.0f}, /* -Z */
+  };
+
+  mat4 projection, view;
+  glm_perspective(GLM_PI_2f, 1.0f, 0.1f, 10.0f, projection);
+
+  vec3 center = {0.0f, 0.0f, 0.0f};
+  for (uint32_t i = 0; i < 6; ++i) {
+    glm_lookat(center, target_positions[i], up_vectors[i], view);
+    glm_mat4_mul(projection, view, state.cubemap_view_matrices[i]);
+  }
+
   /* Create cubemap texture */
   state.cubemap_texture = wgpuDeviceCreateTexture(
     wgpu_context->device, &(WGPUTextureDescriptor){
@@ -1670,14 +1691,14 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
   /* Upload HDR data to texture */
   wgpuQueueWriteTexture(
     wgpu_context->queue,
-    &(WGPUImageCopyTexture){
+    &(WGPUTexelCopyTextureInfo){
       .texture  = hdr_texture,
       .mipLevel = 0,
-      .origin   = {0, 0, 0},
+      .origin   = (WGPUOrigin3D){0, 0, 0},
       .aspect   = WGPUTextureAspect_All,
     },
     state.hdr.data, state.hdr.width * state.hdr.height * 4 * sizeof(uint16_t),
-    &(WGPUTextureDataLayout){
+    &(WGPUTexelCopyBufferLayout){
       .offset       = 0,
       .bytesPerRow  = state.hdr.width * 4 * sizeof(uint16_t),
       .rowsPerImage = state.hdr.height,
@@ -1689,10 +1710,8 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
   WGPUTextureView hdr_view = wgpuTextureCreateView(hdr_texture, NULL);
 
   /* Create shader for conversion */
-  WGPUShaderModule conversion_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device, &(WGPUShaderModuleDescriptor) {
-      .label = STRVIEW("Equirectangular to cubemap shader"),
-      .code = CODE(
+  WGPUShaderModule conversion_shader = wgpu_create_shader_module(
+    wgpu_context->device, CODE(
         @group(0) @binding(0) var equirectangular_sampler : sampler;
         @group(0) @binding(1) var equirectangular_texture : texture_2d<f32>;
         @group(0) @binding(2) var<uniform> view_projection : mat4x4<f32>;
@@ -1723,8 +1742,7 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
           let uv = sample_spherical_map(normalize(input.local_pos));
           return textureSample(equirectangular_texture, equirectangular_sampler, uv);
         }
-      ),
-    });
+      ));
 
   /* Create bind group layout */
   WGPUBindGroupLayout conversion_bind_layout = wgpuDeviceCreateBindGroupLayout(
@@ -1901,10 +1919,8 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
                           });
 
   /* Create shader for irradiance convolution */
-  WGPUShaderModule irradiance_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device, &(WGPUShaderModuleDescriptor) {
-      .label = STRVIEW("Irradiance convolution shader"),
-      .code = CODE(
+  WGPUShaderModule irradiance_shader = wgpu_create_shader_module(
+    wgpu_context->device, CODE(
         @group(0) @binding(0) var environment_sampler : sampler;
         @group(0) @binding(1) var environment_map : texture_cube<f32>;
         @group(0) @binding(2) var<uniform> view_projection : mat4x4<f32>;
@@ -1960,8 +1976,7 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
           irradiance = PI * irradiance / num_samples;
           return vec4<f32>(irradiance, 1.0);
         }
-      ),
-    });
+      ));
 
   /* Create bind group layout */
   WGPUBindGroupLayout irradiance_bind_layout = wgpuDeviceCreateBindGroupLayout(
@@ -2135,10 +2150,8 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
                          });
 
   /* Create shader for prefilter convolution */
-  WGPUShaderModule prefilter_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device, &(WGPUShaderModuleDescriptor) {
-      .label = STRVIEW("Prefilter convolution shader"),
-      .code = CODE(
+  WGPUShaderModule prefilter_shader = wgpu_create_shader_module(
+    wgpu_context->device, CODE(
         @group(0) @binding(0) var environment_sampler : sampler;
         @group(0) @binding(1) var environment_map : texture_cube<f32>;
         @group(0) @binding(2) var<uniform> view_projection : mat4x4<f32>;
@@ -2217,8 +2230,7 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
           prefiltered_color = prefiltered_color / total_weight;
           return vec4<f32>(prefiltered_color, 1.0);
         }
-      ),
-    });
+      ));
 
   /* Create bind group layout */
   WGPUBindGroupLayout prefilter_bind_layout = wgpuDeviceCreateBindGroupLayout(
@@ -2403,114 +2415,112 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
   state.brdf_lookup_view = wgpuTextureCreateView(state.brdf_lookup, NULL);
 
   /* Create shader for BRDF convolution */
-  WGPUShaderModule brdf_shader = wgpuDeviceCreateShaderModule(
-    wgpu_context->device, &(WGPUShaderModuleDescriptor) {
-      .label = STRVIEW("BRDF convolution shader"),
-      .code  = CODE(
-        struct VertexOutput {
-          @builtin(position) position : vec4<f32>, @location(0) uv : vec2<f32>,
+  WGPUShaderModule brdf_shader = wgpu_create_shader_module(
+    wgpu_context->device,
+    CODE(
+      struct VertexOutput {
+        @builtin(position) position : vec4<f32>, @location(0) uv : vec2<f32>,
+      }
+
+      @vertex fn vs_main(@builtin(vertex_index) vertex_index : u32)
+        ->VertexOutput {
+          var output : VertexOutput;
+          let x           = f32((vertex_index << 1u) & 2u);
+          let y           = f32(vertex_index & 2u);
+          output.position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
+          output.uv       = vec2<f32>(x, 1.0 - y);
+          return output;
         }
 
-        @vertex fn vs_main(@builtin(vertex_index) vertex_index : u32)
-          ->VertexOutput {
-            var output : VertexOutput;
-            let x           = f32((vertex_index << 1u) & 2u);
-            let y           = f32(vertex_index & 2u);
-            output.position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-            output.uv       = vec2<f32>(x, 1.0 - y);
-            return output;
-          }
+      const PI : f32
+      = 3.1415926535897932384626433832795;
 
-        const PI : f32
-        = 3.1415926535897932384626433832795;
+      fn radical_inverse_vdc(bits_in : u32)
+        ->f32 {
+          var bits = bits_in;
+          bits     = (bits << 16u) | (bits >> 16u);
+          bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+          bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+          bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+          bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+          return f32(bits) * 2.3283064365386963e-10;
+        }
 
-        fn radical_inverse_vdc(bits_in : u32)
-          ->f32 {
-            var bits = bits_in;
-            bits     = (bits << 16u) | (bits >> 16u);
-            bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-            bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-            bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-            bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-            return f32(bits) * 2.3283064365386963e-10;
-          }
+      fn hammersley(i : u32, n : u32)
+        ->vec2<f32> {
+          return vec2<f32>(f32(i) / f32(n), radical_inverse_vdc(i));
+        }
 
-        fn hammersley(i : u32, n : u32)
-          ->vec2<f32> {
-            return vec2<f32>(f32(i) / f32(n), radical_inverse_vdc(i));
-          }
+      fn importance_sample_ggx(xi : vec2<f32>, n : vec3<f32>, roughness : f32)
+        ->vec3<f32> {
+          let a         = roughness * roughness;
+          let phi       = 2.0 * PI * xi.x;
+          let cos_theta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+          let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
-        fn importance_sample_ggx(xi : vec2<f32>, n : vec3<f32>, roughness : f32)
-          ->vec3<f32> {
-            let a         = roughness * roughness;
-            let phi       = 2.0 * PI * xi.x;
-            let cos_theta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
-            let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+          let h
+            = vec3<f32>(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
 
-            let h = vec3<f32>(cos(phi) * sin_theta, sin(phi) * sin_theta,
-                               cos_theta);
+          let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0),
+                          abs(n.z) < 0.999);
+          let tangent   = normalize(cross(up, n));
+          let bitangent = cross(n, tangent);
 
-            let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0),
-                             abs(n.z) < 0.999);
-            let tangent   = normalize(cross(up, n));
-            let bitangent = cross(n, tangent);
+          return normalize(tangent * h.x + bitangent * h.y + n * h.z);
+        }
 
-            return normalize(tangent * h.x + bitangent * h.y + n * h.z);
-          }
+      fn geometry_schlick_ggx(n_dot_v : f32, roughness : f32)
+        ->f32 {
+          let a = roughness;
+          let k = (a * a) / 2.0;
+          return n_dot_v / (n_dot_v * (1.0 - k) + k);
+        }
 
-        fn geometry_schlick_ggx(n_dot_v : f32, roughness : f32)
-          ->f32 {
-            let a = roughness;
-            let k = (a * a) / 2.0;
-            return n_dot_v / (n_dot_v * (1.0 - k) + k);
-          }
+      fn geometry_smith(n : vec3<f32>, v : vec3<f32>, l : vec3<f32>,
+                        roughness : f32)
+        ->f32 {
+          let n_dot_v = max(dot(n, v), 0.0);
+          let n_dot_l = max(dot(n, l), 0.0);
+          let ggx2    = geometry_schlick_ggx(n_dot_v, roughness);
+          let ggx1    = geometry_schlick_ggx(n_dot_l, roughness);
+          return ggx1 * ggx2;
+        }
 
-        fn geometry_smith(n : vec3<f32>, v : vec3<f32>, l : vec3<f32>,
-                           roughness : f32)
-          ->f32 {
-            let n_dot_v = max(dot(n, v), 0.0);
-            let n_dot_l = max(dot(n, l), 0.0);
-            let ggx2    = geometry_schlick_ggx(n_dot_v, roughness);
-            let ggx1    = geometry_schlick_ggx(n_dot_l, roughness);
-            return ggx1 * ggx2;
-          }
+      fn integrate_brdf(n_dot_v : f32, roughness : f32)
+        ->vec2<f32> {
+          let v = vec3<f32>(sqrt(1.0 - n_dot_v * n_dot_v), 0.0, n_dot_v);
+          var a = 0.0;
+          var b = 0.0;
+          let n = vec3<f32>(0.0, 0.0, 1.0);
 
-        fn integrate_brdf(n_dot_v : f32, roughness : f32)
-          ->vec2<f32> {
-            let v = vec3<f32>(sqrt(1.0 - n_dot_v * n_dot_v), 0.0, n_dot_v);
-            var a = 0.0;
-            var b = 0.0;
-            let n = vec3<f32>(0.0, 0.0, 1.0);
+          const SAMPLE_COUNT = 1024u;
+          for (var i = 0u; i < SAMPLE_COUNT; i++) {
+            let xi = hammersley(i, SAMPLE_COUNT);
+            let h  = importance_sample_ggx(xi, n, roughness);
+            let l  = normalize(2.0 * dot(v, h) * h - v);
 
-            const SAMPLE_COUNT = 1024u;
-            for (var i = 0u; i < SAMPLE_COUNT; i++) {
-              let xi = hammersley(i, SAMPLE_COUNT);
-              let h  = importance_sample_ggx(xi, n, roughness);
-              let l  = normalize(2.0 * dot(v, h) * h - v);
+            let n_dot_l = max(l.z, 0.0);
+            let n_dot_h = max(h.z, 0.0);
+            let v_dot_h = max(dot(v, h), 0.0);
 
-              let n_dot_l = max(l.z, 0.0);
-              let n_dot_h = max(h.z, 0.0);
-              let v_dot_h = max(dot(v, h), 0.0);
+            if (n_dot_l > 0.0) {
+              let g     = geometry_smith(n, v, l, roughness);
+              let g_vis = (g * v_dot_h) / (n_dot_h * n_dot_v);
+              let fc    = pow(1.0 - v_dot_h, 5.0);
 
-              if (n_dot_l > 0.0) {
-                let g     = geometry_smith(n, v, l, roughness);
-                let g_vis = (g * v_dot_h) / (n_dot_h * n_dot_v);
-                let fc    = pow(1.0 - v_dot_h, 5.0);
-
-                a += (1.0 - fc) * g_vis;
-                b += fc * g_vis;
-              }
+              a += (1.0 - fc) * g_vis;
+              b += fc * g_vis;
             }
-
-            return vec2<f32>(a / f32(SAMPLE_COUNT), b / f32(SAMPLE_COUNT));
           }
 
-        @fragment fn fs_main(input : VertexOutput)
-          ->@location(0) vec4<f32> {
-            let integrated_brdf = integrate_brdf(input.uv.x, input.uv.y);
-            return vec4<f32>(integrated_brdf, 0.0, 0.0);
-          }),
-    });
+          return vec2<f32>(a / f32(SAMPLE_COUNT), b / f32(SAMPLE_COUNT));
+        }
+
+      @fragment fn fs_main(input : VertexOutput)
+        ->@location(0) vec4<f32> {
+          let integrated_brdf = integrate_brdf(input.uv.x, input.uv.y);
+          return vec4<f32>(integrated_brdf, 0.0, 0.0);
+        }));
 
   /* Create pipeline */
   WGPURenderPipeline brdf_pipeline = wgpuDeviceCreateRenderPipeline(
@@ -2570,7 +2580,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
 }
 
 /* Stub implementations */
-static void init(wgpu_context_t* wgpu_context)
+static int init(wgpu_context_t* wgpu_context)
 {
   camera_init(&state.camera, 0.0f, glm_rad(90.0f), 20.0f);
   init_cubemap_view_matrices();
@@ -2579,6 +2589,7 @@ static void init(wgpu_context_t* wgpu_context)
   init_render_textures(wgpu_context);
   init_file_loading();
   state.initialized = true;
+  return EXIT_SUCCESS;
 }
 
 /**
@@ -2613,12 +2624,12 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
   }
 }
 
-static void frame(wgpu_context_t* wgpu_context)
+static int frame(wgpu_context_t* wgpu_context)
 {
   sfetch_dowork();
 
   if (!state.obj_loaded || !state.hdr_loaded) {
-    return;
+    return EXIT_SUCCESS;
   }
 
   /* Create pipelines and IBL textures after files are loaded */
@@ -2634,7 +2645,7 @@ static void frame(wgpu_context_t* wgpu_context)
   }
 
   if (!state.pipelines_created) {
-    return;
+    return EXIT_SUCCESS;
   }
 
   /* Update camera and matrices */
@@ -2686,7 +2697,7 @@ static void frame(wgpu_context_t* wgpu_context)
 
   /* Begin render pass */
   state.color_attachment.view          = state.color_texture_view;
-  state.color_attachment.resolveTarget = wgpu_context->swapchain.frame_buffer;
+  state.color_attachment.resolveTarget = wgpu_context->swapchain_view;
   state.depth_stencil_attachment.view  = state.depth_texture_view;
 
   WGPUCommandEncoder encoder
@@ -2721,9 +2732,11 @@ static void frame(wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(command_buffer);
   wgpuRenderPassEncoderRelease(pass);
   wgpuCommandEncoderRelease(encoder);
+
+  return EXIT_SUCCESS;
 }
 
-static void cleanup(wgpu_context_t* wgpu_context)
+static void shutdown(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
