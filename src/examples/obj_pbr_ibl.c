@@ -1510,7 +1510,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
   state.matrix_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("PBR matrix bind group"),
+      .label      = STRVIEW("PBR - Matrix bind group"),
       .layout     = wgpuRenderPipelineGetBindGroupLayout(state.pipeline, 1),
       .entryCount = 2,
       .entries    = pbr_group1_entries,
