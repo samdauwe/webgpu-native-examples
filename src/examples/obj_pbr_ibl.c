@@ -101,10 +101,6 @@ static const char* geometry_schlick_ggx_wgsl;
 static const char* geometry_smith_wgsl;
 static const char* fresnel_schlick_wgsl;
 static const char* fresnel_schlick_roughness_wgsl;
-static const char* radical_inverse_vdc_wgsl;
-static const char* hammersley_wgsl;
-static const char* importance_sample_ggx_wgsl;
-static const char* cubemap_vertex_shader_wgsl;
 static const char* tone_mapping_lottes_wgsl;
 
 /* -------------------------------------------------------------------------- *
@@ -577,44 +573,6 @@ static const char* fresnel_schlick_roughness_wgsl
                         * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
            });
 
-/* Radical Inverse Van Der Corpus function */
-static const char* radical_inverse_vdc_wgsl
-  = CODE(fn radicalInverseVdC(bits : u32)->f32 {
-      var result = bits;
-      result     = (bits << 16u) | (bits >> 16u);
-      result = ((result & 0x55555555u) << 1u) | ((result & 0xAAAAAAAAu) >> 1u);
-      result = ((result & 0x33333333u) << 2u) | ((result & 0xCCCCCCCCu) >> 2u);
-      result = ((result & 0x0F0F0F0Fu) << 4u) | ((result & 0xF0F0F0F0u) >> 4u);
-      result = ((result & 0x00FF00FFu) << 8u) | ((result & 0xFF00FF00u) >> 8u);
-      return f32(result) * 2.3283064365386963e-10;
-    });
-
-/* Hammersley function */
-static const char* hammersley_wgsl
-  = CODE(fn hammersley(i : u32, n : u32)->vec2f {
-      return vec2f(f32(i) / f32(n), radicalInverseVdC(i));
-    });
-
-/* Importance Sample GGX function */
-static const char* importance_sample_ggx_wgsl
-  = CODE(fn importanceSampleGGX(xi : vec2f, n : vec3f, roughness : f32)->vec3f {
-      let a = roughness * roughness;
-
-      let phi      = 2.0 * PI * xi.x;
-      let cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
-      let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-
-      let h = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-
-      let up : vec3f = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0),
-                              abs(n.z) < 0.999);
-      let tangent    = normalize(cross(up, n));
-      let bitangent  = cross(n, tangent);
-
-      let sampleVec = tangent * h.x + bitangent * h.y + n * h.z;
-      return normalize(sampleVec);
-    });
-
 /* Tone mapping - Lottes */
 static const char* tone_mapping_lottes_wgsl
   = CODE(fn toneMapping(color : vec3f)->vec3f {
@@ -857,28 +815,6 @@ static const char* skybox_fragment_shader_wgsl = CODE(
   }
 );
 
-/* Cubemap vertex shader */
-static const char* cubemap_vertex_shader_wgsl = CODE(
-  struct VSOut {
-    @builtin(position) Position: vec4f,
-    @location(0) worldPosition: vec4f,
-  };
-
-  struct Uniforms {
-    modelViewProjectionMatrix: mat4x4f,
-  };
-
-  @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
-  @vertex
-  fn main(@location(0) position: vec4f) -> VSOut {
-    var output: VSOut;
-    output.Position = uniforms.modelViewProjectionMatrix * position;
-    output.worldPosition = position;
-    return output;
-  }
-);
-
 /* Cube vertex array for cubemap rendering */
 static const float cube_vertex_array[] = {
   /* clang-format off */
@@ -948,13 +884,26 @@ static mat4 cubemap_view_matrices_inverted[6] = {
 
 /**
  * @brief Initialize cubemap view matrices
+ * 
+ * Note on matrix conventions:
+ * TypeScript Mat4.lookAt(pos, target, up) creates a matrix with orientation + position,
+ * NOT a standard view matrix. Calling .invert() on it gives the view matrix.
+ * 
+ * CGLM glm_lookat(eye, center, up) returns the standard view matrix directly.
+ * 
+ * cubemapViewMatrices (TypeScript): lookAt().invert() = view matrix
+ * cubemapViewMatricesInverted (TypeScript): lookAt() = inverse of view matrix
+ * 
+ * So for C99:
+ * - cubemap_view_matrices = glm_lookat result (already the view matrix)
+ * - cubemap_view_matrices_inverted = inverse of glm_lookat result
  */
 static void init_cubemap_view_matrices(void)
 {
   vec3 center = {0.0f, 0.0f, 0.0f};
   vec3 target, up;
-  mat4 temp;
 
+  /* TypeScript cubemapViewMatrices - used for equirectangular to cubemap conversion */
   /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
@@ -962,7 +911,6 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  /* glm_lookat already returns inverted matrix, no need to invert again */
   glm_lookat(center, target, up, cubemap_view_matrices[0]);
 
   /* -X face */
@@ -1010,9 +958,8 @@ static void init_cubemap_view_matrices(void)
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices[5]);
 
-  /* Inverted matrices for irradiance and prefilter maps */
-  /* TypeScript cubemapViewMatricesInverted uses lookAt WITHOUT .invert() */
-  /* Since glm_lookat auto-inverts, we need to invert it to match TypeScript */
+  /* TypeScript cubemapViewMatricesInverted - used for irradiance and prefilter maps */
+  /* These are the inverses of glm_lookat (i.e., inverse of view matrix) */
   /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
@@ -1020,8 +967,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[0]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[0]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[0], cubemap_view_matrices_inverted[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -1030,8 +977,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[1]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[1]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[1], cubemap_view_matrices_inverted[1]);
 
   /* +Y face */
   target[0] = 0.0f;
@@ -1040,8 +987,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = -1.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[2]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[2]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[2], cubemap_view_matrices_inverted[2]);
 
   /* -Y face */
   target[0] = 0.0f;
@@ -1050,8 +997,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 0.0f;
   up[2]     = 1.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[3]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[3]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[3], cubemap_view_matrices_inverted[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -1060,8 +1007,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[4]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[4]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[4], cubemap_view_matrices_inverted[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -1070,8 +1017,8 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = 1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices_inverted[5]);
+  glm_lookat(center, target, up, cubemap_view_matrices_inverted[5]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[5], cubemap_view_matrices_inverted[5]);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1606,9 +1553,9 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
                             .entries    = skybox_group0_entries,
                           });
 
-  /* Skybox Bind Group 1: Cubemap texture + sampler */
+  /* Skybox Bind Group 1: Cubemap texture + sampler (use irradiance map like TypeScript) */
   WGPUBindGroupEntry skybox_group1_entries[2] = {
-    {.binding = 0, .textureView = state.cubemap_texture_view},
+    {.binding = 0, .textureView = state.irradiance_map_view},
     {.binding = 1, .sampler = state.sampler},
   };
 
@@ -1632,31 +1579,16 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
 /* Convert equirectangular HDR to cubemap */
 static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
 {
-  /* Initialize cubemap view matrices for 6 faces */
-  vec3 target_positions[6] = {
-    {1.0f, 0.0f, 0.0f},  /* +X */
-    {-1.0f, 0.0f, 0.0f}, /* -X */
-    {0.0f, 1.0f, 0.0f},  /* +Y */
-    {0.0f, -1.0f, 0.0f}, /* -Y */
-    {0.0f, 0.0f, 1.0f},  /* +Z */
-    {0.0f, 0.0f, -1.0f}, /* -Z */
-  };
-  vec3 up_vectors[6] = {
-    {0.0f, -1.0f, 0.0f}, /* +X */
-    {0.0f, -1.0f, 0.0f}, /* -X */
-    {0.0f, 0.0f, 1.0f},  /* +Y */
-    {0.0f, 0.0f, -1.0f}, /* -Y */
-    {0.0f, -1.0f, 0.0f}, /* +Z */
-    {0.0f, -1.0f, 0.0f}, /* -Z */
-  };
-
-  mat4 projection, view;
+  /* Compute view-projection matrices for each cubemap face */
+  mat4 projection;
   glm_perspective(GLM_PI_2f, 1.0f, 0.1f, 10.0f, projection);
 
-  vec3 center = {0.0f, 0.0f, 0.0f};
+  /* Pre-compute view*projection for each face (stored separately for rendering) */
+  mat4 cubemap_mvp_matrices[6];
   for (uint32_t i = 0; i < 6; ++i) {
-    glm_lookat(center, target_positions[i], up_vectors[i], view);
-    glm_mat4_mul(projection, view, state.cubemap_view_matrices[i]);
+    /* TypeScript: view.multiply(projection) which is view * projection in row-major */
+    /* CGLM column-major: projection * view gives the same result for shader consumption */
+    glm_mat4_mul(projection, cubemap_view_matrices[i], cubemap_mvp_matrices[i]);
   }
 
   /* Create cubemap texture */
@@ -1860,7 +1792,7 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
                              });
 
     wgpuQueueWriteBuffer(wgpu_context->queue, state.cubemap_uniform_buffer, 0,
-                         state.cubemap_view_matrices[face], sizeof(mat4));
+                         cubemap_mvp_matrices[face], sizeof(mat4));
 
     WGPUCommandEncoder encoder
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -1905,6 +1837,15 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
 /* Generate irradiance map from cubemap */
 static void generate_irradiance_map(wgpu_context_t* wgpu_context)
 {
+  /* Compute view-projection matrices for each face using inverted matrices */
+  mat4 projection;
+  glm_perspective(GLM_PI_2f, 1.0f, 0.1f, 10.0f, projection);
+
+  mat4 irradiance_mvp_matrices[6];
+  for (uint32_t i = 0; i < 6; ++i) {
+    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i], irradiance_mvp_matrices[i]);
+  }
+
   /* Create irradiance map texture */
   state.irradiance_map = wgpuDeviceCreateTexture(
     wgpu_context->device, &(WGPUTextureDescriptor){
@@ -2094,7 +2035,7 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
                             });
 
     wgpuQueueWriteBuffer(wgpu_context->queue, state.cubemap_uniform_buffer, 0,
-                         cubemap_view_matrices_inverted[face], sizeof(mat4));
+                         irradiance_mvp_matrices[face], sizeof(mat4));
 
     WGPUCommandEncoder encoder
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -2137,6 +2078,15 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
 /* Generate prefiltered environment map */
 static void generate_prefilter_map(wgpu_context_t* wgpu_context)
 {
+  /* Compute view-projection matrices for each face using inverted matrices */
+  mat4 projection;
+  glm_perspective(GLM_PI_2f, 1.0f, 0.1f, 10.0f, projection);
+
+  mat4 prefilter_mvp_matrices[6];
+  for (uint32_t i = 0; i < 6; ++i) {
+    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i], prefilter_mvp_matrices[i]);
+  }
+
   /* Create prefilter map texture with mipmaps */
   state.prefilter_map = wgpuDeviceCreateTexture(
     wgpu_context->device, &(WGPUTextureDescriptor){
@@ -2365,7 +2315,7 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
                              });
 
       wgpuQueueWriteBuffer(wgpu_context->queue, state.cubemap_uniform_buffer, 0,
-                           cubemap_view_matrices_inverted[face], sizeof(mat4));
+                           prefilter_mvp_matrices[face], sizeof(mat4));
 
       WGPUCommandEncoder encoder
         = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
@@ -2533,7 +2483,7 @@ static void generate_brdf_lut(wgpu_context_t* wgpu_context)
 
       @fragment fn fs_main(input : VertexOutput)
         ->@location(0) vec4<f32> {
-          let integrated_brdf = integrate_brdf(input.uv.x, input.uv.y);
+          let integrated_brdf = integrate_brdf(input.uv.x, 1.0 - input.uv.y);
           return vec4<f32>(integrated_brdf, 0.0, 0.0);
         }));
 
@@ -2678,12 +2628,16 @@ static int frame(wgpu_context_t* wgpu_context)
 
   mat4 view, projection;
   camera_get_view(&state.camera, view);
+  /* Note: glm_lookat already returns the view matrix (inverse of camera matrix)
+   * TypeScript Mat4.lookAt returns the camera matrix, then inverts it.
+   * So no inversion needed here. */
 
   const float aspect_ratio
     = (float)wgpu_context->width / (float)wgpu_context->height;
   glm_perspective(glm_rad(45.0f), aspect_ratio, 0.1f, 100.0f, projection);
 
   mat4 view_projection;
+  /* CGLM is column-major: VP = projection * view */
   glm_mat4_mul(projection, view, view_projection);
 
   /* Update PBR uniforms */
