@@ -884,16 +884,16 @@ static mat4 cubemap_view_matrices_inverted[6] = {
 
 /**
  * @brief Initialize cubemap view matrices
- * 
+ *
  * Note on matrix conventions:
  * TypeScript Mat4.lookAt(pos, target, up) creates a matrix with orientation + position,
  * NOT a standard view matrix. Calling .invert() on it gives the view matrix.
- * 
+ *
  * CGLM glm_lookat(eye, center, up) returns the standard view matrix directly.
- * 
+ *
  * cubemapViewMatrices (TypeScript): lookAt().invert() = view matrix
  * cubemapViewMatricesInverted (TypeScript): lookAt() = inverse of view matrix
- * 
+ *
  * So for C99:
  * - cubemap_view_matrices = glm_lookat result (already the view matrix)
  * - cubemap_view_matrices_inverted = inverse of glm_lookat result
@@ -1491,7 +1491,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
   state.uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("PBR uniform bind group"),
+      .label      = STRVIEW("PBR - Uniform bind group"),
       .layout     = wgpuRenderPipelineGetBindGroupLayout(state.pipeline, 0),
       .entryCount = 2,
       .entries    = pbr_group0_entries,
