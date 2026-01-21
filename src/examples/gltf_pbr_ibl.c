@@ -390,8 +390,8 @@ static void init_cubemap_view_matrices(void)
 {
   vec3 center = {0.0f, 0.0f, 0.0f};
   vec3 target, up;
-  mat4 temp;
 
+  /* Cubemap view matrices - matching obj_pbr_ibl.c (direct lookat result) */
   /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
@@ -399,8 +399,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[0]);
+  glm_lookat(center, target, up, cubemap_view_matrices[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -409,28 +408,25 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[1]);
+  glm_lookat(center, target, up, cubemap_view_matrices[1]);
 
-  /* +Y face - looking DOWN (swap with -Y to fix inversion) */
+  /* +Y face */
   target[0] = 0.0f;
-  target[1] = -1.0f; /* Look DOWN for +Y */
+  target[1] = -1.0f;
   target[2] = 0.0f;
   up[0]     = 0.0f;
   up[1]     = 0.0f;
-  up[2]     = -1.0f; /* -Z is up when looking down */
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[2]);
+  up[2]     = -1.0f;
+  glm_lookat(center, target, up, cubemap_view_matrices[2]);
 
-  /* -Y face - looking UP (swap with +Y to fix inversion) */
+  /* -Y face */
   target[0] = 0.0f;
-  target[1] = 1.0f; /* Look UP for -Y */
+  target[1] = 1.0f;
   target[2] = 0.0f;
   up[0]     = 0.0f;
   up[1]     = 0.0f;
-  up[2]     = 1.0f; /* +Z is up when looking up */
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[3]);
+  up[2]     = 1.0f;
+  glm_lookat(center, target, up, cubemap_view_matrices[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -439,8 +435,7 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[4]);
+  glm_lookat(center, target, up, cubemap_view_matrices[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -449,10 +444,10 @@ static void init_cubemap_view_matrices(void)
   up[0]     = 0.0f;
   up[1]     = -1.0f;
   up[2]     = 0.0f;
-  glm_lookat(center, target, up, temp);
-  glm_mat4_inv(temp, cubemap_view_matrices[5]);
+  glm_lookat(center, target, up, cubemap_view_matrices[5]);
 
-  /* Initialize inverted matrices */
+  /* Inverted matrices - for irradiance and prefilter maps */
+  /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
   target[2] = 0.0f;
@@ -460,7 +455,10 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[0]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[0],
+               cubemap_view_matrices_inverted[0]);
 
+  /* -X face */
   target[0] = -1.0f;
   target[1] = 0.0f;
   target[2] = 0.0f;
@@ -468,7 +466,10 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[1]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[1],
+               cubemap_view_matrices_inverted[1]);
 
+  /* +Y face */
   target[0] = 0.0f;
   target[1] = 1.0f;
   target[2] = 0.0f;
@@ -476,7 +477,10 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = -1.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[2]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[2],
+               cubemap_view_matrices_inverted[2]);
 
+  /* -Y face */
   target[0] = 0.0f;
   target[1] = -1.0f;
   target[2] = 0.0f;
@@ -484,7 +488,10 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = 1.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[3]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[3],
+               cubemap_view_matrices_inverted[3]);
 
+  /* +Z face */
   target[0] = 0.0f;
   target[1] = 0.0f;
   target[2] = 1.0f;
@@ -492,7 +499,10 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[4]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[4],
+               cubemap_view_matrices_inverted[4]);
 
+  /* -Z face */
   target[0] = 0.0f;
   target[1] = 0.0f;
   target[2] = -1.0f;
@@ -500,6 +510,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[5]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[5],
+               cubemap_view_matrices_inverted[5]);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2776,6 +2788,12 @@ static struct {
   /* Camera */
   camera_t camera;
 
+  /* Model bounds for camera positioning */
+  vec3 model_bounds_min;
+  vec3 model_bounds_max;
+  vec3 model_center;
+  float model_radius;
+
   /* GLTF data */
   cgltf_data* gltf_data;
   uint8_t* gltf_buffer;
@@ -2804,7 +2822,8 @@ static struct {
   size_t hdr_buffer_size;
 
   /* Rendering pipeline */
-  WGPURenderPipeline render_pipeline;
+  /* Note: render_pipeline, vertex_buffer, vertex_count removed (fallback cube)
+   */
   WGPUBindGroupLayout scene_bind_group_layout;
   WGPUBindGroupLayout instance_bind_group_layout;
   WGPUBindGroupLayout material_bind_group_layout;
@@ -2813,18 +2832,13 @@ static struct {
   WGPUBindGroup instance_bind_group;
   WGPUBindGroup pbr_bind_group;
   WGPUBuffer scene_uniform_buffer;
-  WGPUBuffer vertex_buffer;
-  uint32_t vertex_count;
 
   /* PBR samplers */
   WGPUSampler brdf_sampler;
   WGPUSampler shadow_sampler;
 
-  /* Temporary test renderer (TODO: remove when full PBR pipeline is
-   * implemented) */
-  WGPUBindGroupLayout camera_bind_group_layout;
-  WGPUBindGroup camera_bind_group;
-  WGPUBuffer camera_uniform_buffer;
+  /* Note: camera_bind_group_layout, camera_bind_group, camera_uniform_buffer
+   * removed (fallback cube) */
 
   /* Default textures */
   WGPUTexture default_white_texture;
@@ -2878,12 +2892,12 @@ static struct {
     .depthStencilAttachment = &state.depth_stencil_attachment,
   },
   .settings = {
-    .cubemap_size = 512,
+    .cubemap_size = 1024,
     .irradiance_map_size = 32,
-    .prefilter_map_size = 128,
+    .prefilter_map_size = 256,
     .roughness_levels = 5,
     .brdf_lut_size = 512,
-    .sample_count = 1,
+    .sample_count = 1, /* MSAA disabled - would require resolveTarget setup */
     .shadow_map_size = 4096,
   },
   .initialized = false,
@@ -3307,10 +3321,61 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
     }
   }
 
+  /* Calculate model bounds from all mesh positions */
+  glm_vec3_fill(state.model_bounds_min, FLT_MAX);
+  glm_vec3_fill(state.model_bounds_max, -FLT_MAX);
+
+  for (size_t mesh_idx = 0; mesh_idx < state.gltf_data->meshes_count;
+       mesh_idx++) {
+    cgltf_mesh* mesh = &state.gltf_data->meshes[mesh_idx];
+    for (size_t prim_idx = 0; prim_idx < mesh->primitives_count; prim_idx++) {
+      cgltf_primitive* prim = &mesh->primitives[prim_idx];
+      for (size_t attr_idx = 0; attr_idx < prim->attributes_count; attr_idx++) {
+        if (prim->attributes[attr_idx].type == cgltf_attribute_type_position) {
+          cgltf_accessor* pos = prim->attributes[attr_idx].data;
+          for (size_t v = 0; v < pos->count; v++) {
+            float position[3];
+            cgltf_accessor_read_float(pos, v, position, 3);
+            for (int j = 0; j < 3; j++) {
+              if (position[j] < state.model_bounds_min[j])
+                state.model_bounds_min[j] = position[j];
+              if (position[j] > state.model_bounds_max[j])
+                state.model_bounds_max[j] = position[j];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* Calculate model center and radius */
+  glm_vec3_add(state.model_bounds_min, state.model_bounds_max,
+               state.model_center);
+  glm_vec3_scale(state.model_center, 0.5f, state.model_center);
+
+  vec3 extent;
+  glm_vec3_sub(state.model_bounds_max, state.model_bounds_min, extent);
+  state.model_radius = glm_vec3_norm(extent) * 0.5f;
+
+  printf("Model bounds: min(%.2f, %.2f, %.2f) max(%.2f, %.2f, %.2f)\n",
+         state.model_bounds_min[0], state.model_bounds_min[1],
+         state.model_bounds_min[2], state.model_bounds_max[0],
+         state.model_bounds_max[1], state.model_bounds_max[2]);
+  printf("Model center: (%.2f, %.2f, %.2f), radius: %.2f\n",
+         state.model_center[0], state.model_center[1], state.model_center[2],
+         state.model_radius);
+
+  /* Update camera distance based on model size */
+  if (state.model_radius > 0.0f) {
+    float camera_distance = state.model_radius * 2.5f;
+    state.camera.distance = camera_distance;
+    printf("Camera distance set to: %.2f\n", camera_distance);
+  }
+
   /* Count total instances needed (one per mesh for now) */
   state.total_instances = (uint32_t)state.gltf_data->meshes_count;
 
-  /* Create instance buffer with identity matrices for now */
+  /* Create instance buffer with model transform (rotation + centering) */
   if (state.total_instances > 0) {
     size_t instance_data_size = state.total_instances * sizeof(mat4);
     mat4* instance_matrices
@@ -3318,6 +3383,21 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
 
     for (uint32_t i = 0; i < state.total_instances; i++) {
       glm_mat4_identity(instance_matrices[i]);
+
+      /* Translate to center the model at origin first */
+      vec3 neg_center;
+      glm_vec3_negate_to(state.model_center, neg_center);
+      glm_translate(instance_matrices[i], neg_center);
+
+      /* GLTF standard uses Y-up right-handed coordinate system.
+       * Some GLTF models (especially those converted from other formats or
+       * pre-processed like helmet-flipped.glb) may need orientation correction.
+       *
+       * User feedback indicates:
+       * - No rotation: model appears 180° flipped (upside down)
+       * - PI (180°) rotation: model appears -90° rotated
+       * - Therefore try PI/2 (90°) rotation to correct */
+      glm_rotate_x(instance_matrices[i], GLM_PI_2f, instance_matrices[i]);
     }
 
     state.instance_buffer = wgpuDeviceCreateBuffer(
@@ -3552,320 +3632,7 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
   }
 }
 
-/**
- * @brief Create simple cube geometry for testing
- */
-static void init_cube_geometry(wgpu_context_t* wgpu_context)
-{
-  /* Complete cube vertices (position + normal + texcoord) */
-  /* Each face: 2 triangles = 6 vertices */
-  static const float cube_vertices[] = {
-    /* Front face (+Z) */
-    -1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    0.0f, /*  0 */
-    1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f,
-    0.0f, /*  1 */
-    1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f,
-    1.0f, /*  2 */
-    -1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    0.0f, /*  3 */
-    1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f,
-    1.0f, /*  4 */
-    -1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    1.0f, /*  5 */
-
-    /* Back face (-Z) */
-    1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    0.0f, /*  6 */
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    1.0f,
-    0.0f, /*  7 */
-    -1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    1.0f,
-    1.0f, /*  8 */
-    1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    0.0f, /*  9 */
-    -1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    1.0f,
-    1.0f, /* 10 */
-    1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    1.0f, /* 11 */
-
-    /* Right face (+X) */
-    1.0f,
-    -1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 12 */
-    1.0f,
-    -1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    0.0f, /* 13 */
-    1.0f,
-    1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 14 */
-    1.0f,
-    -1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 15 */
-    1.0f,
-    1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 16 */
-    1.0f,
-    1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    1.0f, /* 17 */
-
-    /* Left face (-X) */
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 18 */
-    -1.0f,
-    -1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    0.0f, /* 19 */
-    -1.0f,
-    1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 20 */
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 21 */
-    -1.0f,
-    1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 22 */
-    -1.0f,
-    1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    0.0f,
-    1.0f, /* 23 */
-
-    /* Top face (+Y) */
-    -1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 24 */
-    1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    0.0f, /* 25 */
-    1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 26 */
-    -1.0f,
-    1.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 27 */
-    1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 28 */
-    -1.0f,
-    1.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    0.0f,
-    0.0f,
-    1.0f, /* 29 */
-
-    /* Bottom face (-Y) */
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 30 */
-    1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    0.0f, /* 31 */
-    1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 32 */
-    -1.0f,
-    -1.0f,
-    -1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    0.0f, /* 33 */
-    1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    1.0f,
-    1.0f, /* 34 */
-    -1.0f,
-    -1.0f,
-    1.0f,
-    0.0f,
-    -1.0f,
-    0.0f,
-    0.0f,
-    1.0f, /* 35 */
-  };
-
-  state.vertex_count = 36; /* 6 faces * 6 vertices */
-
-  state.vertex_buffer = create_buffer_with_data(
-    wgpu_context, cube_vertices, sizeof(cube_vertices), WGPUBufferUsage_Vertex);
-}
+/* Note: init_cube_geometry function removed - fallback cube no longer needed */
 
 /**
  * @brief Initialize default textures and sampler
@@ -4333,160 +4100,8 @@ static void init_camera_uniforms(wgpu_context_t* wgpu_context)
   /* See init_scene_uniforms() */
 }
 
-/**
- * @brief Initialize render pipeline (TEMPORARY - Simple test renderer)
- * TODO: Replace with full PBR pipeline using create_pbr_shader()
+/* Note: init_render_pipeline function removed - fallback cube no longer needed
  */
-static void init_render_pipeline(wgpu_context_t* wgpu_context)
-{
-  /* TEMPORARY: This is a simple test pipeline, not the full PBR renderer */
-
-  /* Create temporary uniform buffer for testing */
-  state.camera_uniform_buffer = wgpuDeviceCreateBuffer(
-    wgpu_context->device,
-    &(WGPUBufferDescriptor){
-      .label = STRVIEW("temp camera uniforms"),
-      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size  = sizeof(float) * 32, /* 2 mat4s */
-    });
-
-  /* Create temporary bind group layout for testing */
-  state.camera_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device,
-    &(WGPUBindGroupLayoutDescriptor){
-      .label = STRVIEW("temp camera bind group layout"),
-      .entryCount = 1,
-      .entries = &(WGPUBindGroupLayoutEntry){
-        .binding = 0,
-        .visibility = WGPUShaderStage_Vertex,
-        .buffer = (WGPUBufferBindingLayout){
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize = sizeof(float) * 32, /* 2 mat4s */
-        },
-      },
-    }
-  );
-
-  /* Create simple vertex shader */
-  const char* vertex_shader_wgsl = CODE(
-    struct Uniforms {
-      projection: mat4x4f,
-      view: mat4x4f,
-    };
-
-    @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
-    struct VertexInput {
-      @location(0) position: vec3f,
-      @location(1) normal: vec3f,
-      @location(2) texcoord: vec2f,
-    };
-
-    struct VertexOutput {
-      @builtin(position) position: vec4f,
-      @location(0) normal: vec3f,
-      @location(1) texcoord: vec2f,
-    };
-
-    @vertex
-    fn main(input: VertexInput) -> VertexOutput {
-      var output: VertexOutput;
-      output.position = uniforms.projection * uniforms.view * vec4f(input.position, 1.0);
-      output.normal = input.normal;
-      output.texcoord = input.texcoord;
-      return output;
-    }
-  );
-
-  /* Create simple fragment shader - bright color for visibility */
-  const char* fragment_shader_wgsl = CODE(
-    @fragment fn main(@location(0) normal : vec3f,
-                      @location(1) texcoord : vec2f)
-      ->@location(0) vec4f {
-        /* Bright colors for debugging visibility */
-        let n     = normalize(normal);
-        let light = max(dot(n, normalize(vec3f(1.0, 1.0, 1.0))), 0.2);
-        /* Mix of red and lighting for clear visibility */
-        return vec4f(vec3f(1.0, 0.2, 0.2) * light + vec3f(0.3, 0.0, 0.0), 1.0);
-      });
-
-  WGPUShaderModule vert_shader_module
-    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_wgsl);
-  WGPUShaderModule frag_shader_module
-    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_wgsl);
-
-  /* Create pipeline */
-  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts = &state.camera_bind_group_layout,
-                          });
-
-  state.render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device,
-    &(WGPURenderPipelineDescriptor){
-      .label = STRVIEW("Render - Pipeline"),
-      .layout = pipeline_layout,
-      .vertex = (WGPUVertexState){
-        .module = vert_shader_module,
-        .entryPoint = STRVIEW("main"),
-        .bufferCount = 1,
-        .buffers = &(WGPUVertexBufferLayout){
-          .arrayStride = 8 * sizeof(float),
-          .stepMode = WGPUVertexStepMode_Vertex,
-          .attributeCount = 3,
-          .attributes = (WGPUVertexAttribute[]){
-            {.shaderLocation = 0, .offset = 0, .format = WGPUVertexFormat_Float32x3},
-            {.shaderLocation = 1, .offset = 3 * sizeof(float), .format = WGPUVertexFormat_Float32x3},
-            {.shaderLocation = 2, .offset = 6 * sizeof(float), .format = WGPUVertexFormat_Float32x2},
-          },
-        },
-      },
-      .primitive = (WGPUPrimitiveState){
-        .topology = WGPUPrimitiveTopology_TriangleList,
-        .frontFace = WGPUFrontFace_CCW,
-        .cullMode = WGPUCullMode_None,  /* Disable culling for debugging */
-      },
-      .depthStencil = &(WGPUDepthStencilState){
-        .format = wgpu_context->depth_stencil_format,
-        .depthWriteEnabled = true,
-        .depthCompare = WGPUCompareFunction_Less,
-      },
-      .multisample = (WGPUMultisampleState){
-        .count = 1,
-        .mask = ~0u,
-      },
-      .fragment = &(WGPUFragmentState){
-        .module = frag_shader_module,
-        .entryPoint = STRVIEW("main"),
-        .targetCount = 1,
-        .targets = &(WGPUColorTargetState){
-          .format = wgpu_context->render_format,
-          .writeMask = WGPUColorWriteMask_All,
-        },
-      },
-    }
-  );
-
-  /* Create bind group */
-  state.camera_bind_group = wgpuDeviceCreateBindGroup(
-    wgpu_context->device,
-    &(WGPUBindGroupDescriptor){
-      .label = STRVIEW("Camera - Bind group"),
-      .layout = state.camera_bind_group_layout,
-      .entryCount = 1,
-      .entries = &(WGPUBindGroupEntry){
-        .binding = 0,
-        .buffer = state.camera_uniform_buffer,
-        .size = sizeof(mat4) * 2,
-      },
-    }
-  );
-
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ShaderModule, frag_shader_module)
-  WGPU_RELEASE_RESOURCE(ShaderModule, vert_shader_module)
-}
 
 /**
  * @brief Create a PBR render pipeline
@@ -4686,35 +4301,114 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
   wgpuQueueWriteBuffer(wgpu_context->queue, mat.uniform_buffer, 0,
                        &material_uniforms, sizeof(material_uniforms));
 
-  /* Get textures (using defaults if not present) */
-  WGPUTextureView albedo_view = wgpuTextureCreateView(
-    state.default_white_texture, &(WGPUTextureViewDescriptor){
-                                   .label     = STRVIEW("default albedo view"),
-                                   .format    = WGPUTextureFormat_RGBA8Unorm,
-                                   .dimension = WGPUTextureViewDimension_2D,
-                                   .arrayLayerCount = 1,
-                                   .mipLevelCount   = 1,
-                                 });
+  /* Helper: Get texture from GLTF texture reference or default */
+  WGPUTexture albedo_texture = state.default_white_texture;
+  WGPUTexture normal_texture = state.default_normal_texture;
+  WGPUTexture roughness_metallic_texture
+    = state.default_roughness_metallic_texture;
+  WGPUTexture ao_texture       = state.default_white_texture;
+  WGPUTexture emissive_texture = state.default_white_texture;
 
-  WGPUTextureView normal_view
-    = wgpuTextureCreateView(state.default_normal_texture,
-                            &(WGPUTextureViewDescriptor){
-                              .label = STRVIEW("Default normal - Texture view"),
-                              .format          = WGPUTextureFormat_RGBA8Unorm,
-                              .dimension       = WGPUTextureViewDimension_2D,
-                              .arrayLayerCount = 1,
-                              .mipLevelCount   = 1,
-                            });
+  if (material && material->has_pbr_metallic_roughness) {
+    cgltf_pbr_metallic_roughness* pbr = &material->pbr_metallic_roughness;
+
+    /* Base color / albedo texture */
+    if (pbr->base_color_texture.texture
+        && pbr->base_color_texture.texture->image) {
+      size_t idx
+        = pbr->base_color_texture.texture->image - state.gltf_data->images;
+      if (idx < state.gltf_texture_count && state.gltf_textures[idx]) {
+        albedo_texture = state.gltf_textures[idx];
+      }
+    }
+
+    /* Metallic-roughness texture */
+    if (pbr->metallic_roughness_texture.texture
+        && pbr->metallic_roughness_texture.texture->image) {
+      size_t idx = pbr->metallic_roughness_texture.texture->image
+                   - state.gltf_data->images;
+      if (idx < state.gltf_texture_count && state.gltf_textures[idx]) {
+        roughness_metallic_texture = state.gltf_textures[idx];
+      }
+    }
+  }
+
+  /* Normal texture */
+  if (material && material->normal_texture.texture
+      && material->normal_texture.texture->image) {
+    size_t idx
+      = material->normal_texture.texture->image - state.gltf_data->images;
+    if (idx < state.gltf_texture_count && state.gltf_textures[idx]) {
+      normal_texture = state.gltf_textures[idx];
+    }
+  }
+
+  /* Occlusion (AO) texture */
+  if (material && material->occlusion_texture.texture
+      && material->occlusion_texture.texture->image) {
+    size_t idx
+      = material->occlusion_texture.texture->image - state.gltf_data->images;
+    if (idx < state.gltf_texture_count && state.gltf_textures[idx]) {
+      ao_texture = state.gltf_textures[idx];
+    }
+  }
+
+  /* Emissive texture */
+  if (material && material->emissive_texture.texture
+      && material->emissive_texture.texture->image) {
+    size_t idx
+      = material->emissive_texture.texture->image - state.gltf_data->images;
+    if (idx < state.gltf_texture_count && state.gltf_textures[idx]) {
+      emissive_texture = state.gltf_textures[idx];
+    }
+  }
+
+  /* Calculate mip level count for each texture */
+  WGPUTextureView albedo_view = wgpuTextureCreateView(
+    albedo_texture, &(WGPUTextureViewDescriptor){
+                      .label           = STRVIEW("Albedo - Texture view"),
+                      .format          = WGPUTextureFormat_RGBA8Unorm,
+                      .dimension       = WGPUTextureViewDimension_2D,
+                      .arrayLayerCount = 1,
+                      .mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED,
+                    });
+
+  WGPUTextureView normal_view = wgpuTextureCreateView(
+    normal_texture, &(WGPUTextureViewDescriptor){
+                      .label           = STRVIEW("Normal - Texture view"),
+                      .format          = WGPUTextureFormat_RGBA8Unorm,
+                      .dimension       = WGPUTextureViewDimension_2D,
+                      .arrayLayerCount = 1,
+                      .mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED,
+                    });
 
   WGPUTextureView roughness_metallic_view = wgpuTextureCreateView(
-    state.default_roughness_metallic_texture,
+    roughness_metallic_texture,
     &(WGPUTextureViewDescriptor){
-      .label           = STRVIEW("Default roughness metallic - Texture view"),
+      .label           = STRVIEW("Roughness metallic - Texture view"),
       .format          = WGPUTextureFormat_RGBA8Unorm,
       .dimension       = WGPUTextureViewDimension_2D,
       .arrayLayerCount = 1,
-      .mipLevelCount   = 1,
+      .mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED,
     });
+
+  WGPUTextureView ao_view = wgpuTextureCreateView(
+    ao_texture, &(WGPUTextureViewDescriptor){
+                  .label           = STRVIEW("AO - Texture view"),
+                  .format          = WGPUTextureFormat_RGBA8Unorm,
+                  .dimension       = WGPUTextureViewDimension_2D,
+                  .arrayLayerCount = 1,
+                  .mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED,
+                });
+
+  WGPUTextureView emissive_view = wgpuTextureCreateView(
+    emissive_texture, &(WGPUTextureViewDescriptor){
+                        .label           = STRVIEW("Emissive - Texture view"),
+                        .format          = WGPUTextureFormat_RGBA8Unorm,
+                        .dimension       = WGPUTextureViewDimension_2D,
+                        .arrayLayerCount = 1,
+                        .mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED,
+                      });
 
   /* Create material bind group */
   mat.bind_group = wgpuDeviceCreateBindGroup(
@@ -4737,10 +4431,10 @@ static gltf_material_t create_material_bind_group(wgpu_context_t* wgpu_context,
         {.binding = 6, .textureView = roughness_metallic_view},
         /* AO sampler + texture */
         {.binding = 7, .sampler = state.default_sampler},
-        {.binding = 8, .textureView = albedo_view},
+        {.binding = 8, .textureView = ao_view},
         /* Emissive sampler + texture */
         {.binding = 9, .sampler = state.default_sampler},
-        {.binding = 10, .textureView = albedo_view},
+        {.binding = 10, .textureView = emissive_view},
       },
     });
 
@@ -4765,7 +4459,7 @@ static void init_ibl_textures(wgpu_context_t* wgpu_context)
   /* Initialize camera (pitch, yaw, distance) */
   /* Pitch 0.3 radians (~17°) for slight top-down view */
   /* Yaw PI/4 (~45°) for angled view */
-  camera_init(&state.camera, 0.3f, GLM_PI_4f, 8.0f);
+  camera_init(&state.camera, 0.5f, 1.6f, 10.0f);
 
   /* Generate BRDF LUT first (doesn't depend on other textures) */
   state.brdf_lut
@@ -4787,32 +4481,52 @@ static void init_skybox(wgpu_context_t* wgpu_context)
     return; /* Wait until cubemap is loaded */
   }
 
-  /* Create skybox vertex buffer (cube vertices) */
-  static const float cube_vertices[]
-    = {/* positions */
-       -1.0f, 1.0f,  -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f,
-       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
-       1.0f,  1.0f,  -1.0f, 1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
+  /* Create skybox vertex buffer - cube vertices matching obj_pbr_ibl.c */
+  static const float cube_vertices[] = {
+    /* clang-format off */
+     1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f, -1.0f, 1.0f,
+     1.0f, -1.0f, -1.0f, 1.0f,
+     1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f, -1.0f, 1.0f,
 
-       -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, -1.0f, -1.0f, 1.0f,
-       -1.0f, 1.0f,  -1.0f, 1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
-       -1.0f, 1.0f,  1.0f,  1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f, 1.0f,
+     1.0f, -1.0f,  1.0f, 1.0f,
+     1.0f, -1.0f, -1.0f, 1.0f,
+     1.0f,  1.0f, -1.0f, 1.0f,
+     1.0f,  1.0f,  1.0f, 1.0f,
+     1.0f, -1.0f, -1.0f, 1.0f,
 
-       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,
-       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
-       1.0f,  1.0f,  -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+    -1.0f,  1.0f,  1.0f, 1.0f,
+     1.0f,  1.0f,  1.0f, 1.0f,
+     1.0f,  1.0f, -1.0f, 1.0f,
+    -1.0f,  1.0f, -1.0f, 1.0f,
+    -1.0f,  1.0f,  1.0f, 1.0f,
+     1.0f,  1.0f, -1.0f, 1.0f,
 
-       -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, 1.0f,  1.0f,  1.0f,
-       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
-       1.0f,  -1.0f, 1.0f,  1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
+    -1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f,  1.0f,  1.0f, 1.0f,
+    -1.0f,  1.0f, -1.0f, 1.0f,
+    -1.0f, -1.0f, -1.0f, 1.0f,
+    -1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f,  1.0f, -1.0f, 1.0f,
 
-       -1.0f, 1.0f,  -1.0f, 1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,
-       1.0f,  1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
-       -1.0f, 1.0f,  1.0f,  1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,
+     1.0f,  1.0f,  1.0f, 1.0f,
+    -1.0f,  1.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f,  1.0f, 1.0f,
+    -1.0f, -1.0f,  1.0f, 1.0f,
+     1.0f, -1.0f,  1.0f, 1.0f,
+     1.0f,  1.0f,  1.0f, 1.0f,
 
-       -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f,  1.0f,
-       1.0f,  -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
-       -1.0f, -1.0f, 1.0f,  1.0f, 1.0f,  -1.0f, 1.0f,  1.0f};
+     1.0f, -1.0f, -1.0f, 1.0f,
+    -1.0f, -1.0f, -1.0f, 1.0f,
+    -1.0f,  1.0f, -1.0f, 1.0f,
+     1.0f,  1.0f, -1.0f, 1.0f,
+     1.0f, -1.0f, -1.0f, 1.0f,
+    -1.0f,  1.0f, -1.0f, 1.0f,
+    /* clang-format on */
+  };
 
   state.skybox_vertex_buffer = create_buffer_with_data(
     wgpu_context, cube_vertices, sizeof(cube_vertices), WGPUBufferUsage_Vertex);
@@ -4897,7 +4611,7 @@ static void init_skybox(wgpu_context_t* wgpu_context)
     }
   );
 
-  /* Create skybox shader */
+  /* Create skybox shader - matching working obj_pbr_ibl.c approach */
   const char* skybox_shader_wgsl = CODE(
     struct Uniforms {
       view: mat4x4f,
@@ -4909,8 +4623,8 @@ static void init_skybox(wgpu_context_t* wgpu_context)
     @group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
     struct VertexOutput {
-      @builtin(position) position: vec4f,
-      @location(0) texCoord: vec3f,
+      @builtin(position) Position: vec4f,
+      @location(0) fragmentPosition: vec4f,
     }
 
     @vertex
@@ -4921,27 +4635,35 @@ static void init_skybox(wgpu_context_t* wgpu_context)
       copy[3][0] = 0.0;
       copy[3][1] = 0.0;
       copy[3][2] = 0.0;
-      output.position = (uniforms.projection * copy * position).xyww;
-      /* Use position directly as cubemap direction */
-      output.texCoord = position.xyz;
+      output.Position = (uniforms.projection * copy * position).xyww;
+      /* Transform position to 0-1 range for correct cubemap lookup */
+      output.fragmentPosition = 0.5 * (position + vec4(1.0, 1.0, 1.0, 1.0));
       return output;
     }
 
-    /* ACES tone mapping */
+    /* Tone mapping matching obj_pbr_ibl.c */
     fn toneMapping(color: vec3f) -> vec3f {
-      let a = 2.51;
-      let b = 0.03;
-      let c = 2.43;
-      let d = 0.59;
-      let e = 0.14;
-      return clamp((color * (a * color + b)) / (color * (c * color + d) + e), vec3f(0.0), vec3f(1.0));
+      let a      = vec3f(1.6);
+      let d      = vec3f(0.977);
+      let hdrMax = vec3f(8.0);
+      let midIn  = vec3f(0.18);
+      let midOut = vec3f(0.267);
+
+      let b = (-pow(midIn, a) + pow(hdrMax, a) * midOut)
+              / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+      let c = (pow(hdrMax, a * d) * pow(midIn, a)
+               - pow(hdrMax, a) * pow(midIn, a * d) * midOut)
+              / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+
+      return pow(color, a) / (pow(color, a * d) * b + c);
     }
 
     @fragment
-    fn fragmentMain(@location(0) texCoord: vec3f) -> @location(0) vec4f {
-      /* Sample cubemap directly with texCoord from vertex shader */
-      var color = textureSample(skyboxTexture, skyboxSampler, texCoord).rgb;
-      
+    fn fragmentMain(@location(0) fragmentPosition: vec4f) -> @location(0) vec4f {
+      /* Compute cubemap direction from transformed fragment position */
+      var cubemapVec = fragmentPosition.xyz - vec3(0.5);
+      var color = textureSample(skyboxTexture, skyboxSampler, cubemapVec).rgb;
+
       color = toneMapping(color);
       color = pow(color, vec3f(1.0 / 2.2));
       return vec4f(color, 1);
@@ -5036,20 +4758,15 @@ static int init(wgpu_context_t* wgpu_context)
   /* Initialize scene uniforms */
   init_scene_uniforms(wgpu_context);
 
-  /* Initialize cube geometry */
-  init_cube_geometry(wgpu_context);
-
-  /* Initialize render pipeline */
-  init_render_pipeline(wgpu_context);
+  /* Note: Removed init_cube_geometry and init_render_pipeline
+   * (fallback cube rendering is no longer needed) */
 
   /* Load GLTF model synchronously */
-  const char* gltf_path
-    = "../../src/examples/pbr-webgpu/public/assets/helmet-flipped.glb";
+  const char* gltf_path = "assets/DamagedHelmet.glb";
   load_file_sync(gltf_path, &state.gltf_buffer, &state.gltf_buffer_size);
 
   /* Load HDR environment synchronously */
-  const char* hdr_path
-    = "../../src/examples/pbr-webgpu/public/assets/venice_sunset_1k.hdr";
+  const char* hdr_path = "assets/venice_sunset_1k.hdr";
   if (load_file_sync(hdr_path, &state.hdr_buffer, &state.hdr_buffer_size)) {
     printf("HDR file loaded, will process in first frame\n");
   }
@@ -5071,7 +4788,7 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Update projection matrix based on window size */
   mat4 projection;
   float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
-  glm_perspective(GLM_PI_4f, aspect, 0.1f, 100.0f, projection);
+  glm_perspective(GLM_PI_2f, aspect, 0.1f, 1000.0f, projection);
 
   /* Get camera position */
   vec3 camera_position;
@@ -5100,36 +4817,39 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   scene_uniforms[34] = camera_position[2];
   scene_uniforms[35] = 0.0f; /* padding */
 
-  /* Light direction (normalized) */
-  vec3 light_dir = {1.0f, 1.0f, 1.0f};
-  glm_normalize(light_dir);
-  scene_uniforms[36] = light_dir[0];
-  scene_uniforms[37] = light_dir[1];
-  scene_uniforms[38] = light_dir[2];
-  scene_uniforms[39] = 0.0f; /* padding */
+  /* Light position (NOT direction, this is used in shader for point light
+   * calculations) */
+  vec3 light_position = {0.25f, 0.5f, 1.0f};
+  scene_uniforms[36]  = light_position[0];
+  scene_uniforms[37]  = light_position[1];
+  scene_uniforms[38]  = light_position[2];
+  scene_uniforms[39]  = 0.0f; /* padding */
 
   /* Light color */
   scene_uniforms[40] = 1.0f; /* R */
   scene_uniforms[41] = 1.0f; /* G */
   scene_uniforms[42] = 1.0f; /* B */
-  scene_uniforms[43] = 1.0f; /* padding/intensity */
+  scene_uniforms[43] = 0.0f; /* padding */
 
-  /* Light matrix (identity for now, used for shadow mapping) */
-  mat4 light_matrix = GLM_MAT4_IDENTITY_INIT;
-  memcpy(&scene_uniforms[44], light_matrix, sizeof(mat4));
+  /* Compute light view projection matrix for shadow mapping */
+  mat4 light_projection;
+  glm_ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.0f, 100.0f, light_projection);
+
+  vec3 light_target = {0.0f, 0.0f, 0.0f};
+  vec3 light_up     = {0.0f, 1.0f, 0.0f};
+  mat4 light_view;
+  glm_lookat(light_position, light_target, light_up, light_view);
+
+  mat4 light_view_projection;
+  glm_mat4_mul(light_projection, light_view, light_view_projection);
+  memcpy(&scene_uniforms[44], light_view_projection, sizeof(mat4));
 
   /* Write to scene uniform buffer */
   wgpuQueueWriteBuffer(wgpu_context->queue, state.scene_uniform_buffer, 0,
                        scene_uniforms, sizeof(scene_uniforms));
 
-  /* TEMPORARY: Also write to camera uniform buffer for test renderer */
-  if (state.camera_uniform_buffer) {
-    float camera_uniforms[32]; /* 2 mat4s */
-    memcpy(camera_uniforms, projection, sizeof(mat4));
-    memcpy(camera_uniforms + 16, view_matrix, sizeof(mat4));
-    wgpuQueueWriteBuffer(wgpu_context->queue, state.camera_uniform_buffer, 0,
-                         camera_uniforms, sizeof(camera_uniforms));
-  }
+  /* Note: Removed temporary camera_uniform_buffer write (fallback cube removed)
+   */
 }
 
 /**
@@ -5211,15 +4931,7 @@ static int frame(wgpu_context_t* wgpu_context)
       }
     }
   }
-  /* Fallback: render test cube if GLTF not loaded yet */
-  else if (state.render_pipeline && state.vertex_buffer) {
-    wgpuRenderPassEncoderSetPipeline(pass, state.render_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, state.camera_bind_group, 0,
-                                      NULL);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.vertex_buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(pass, state.vertex_count, 1, 0, 0);
-  }
+  /* Note: Removed fallback cube rendering - only render when GLTF is loaded */
 
   /* Render skybox if available */
   if (state.skybox_pipeline && state.skybox_bind_group) {
@@ -5238,7 +4950,7 @@ static int frame(wgpu_context_t* wgpu_context)
 
     mat4 projection;
     float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
-    glm_perspective(GLM_PI_4f, aspect, 0.1f, 100.0f, projection);
+    glm_perspective(GLM_PI_2f, aspect, 0.1f, 1000.0f, projection);
 
     float skybox_uniforms[32]; /* 2 mat4s */
     memcpy(&skybox_uniforms[0], view_matrix, sizeof(mat4));
@@ -5378,8 +5090,7 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(BindGroup, state.instance_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroup, state.pbr_bind_group)
   WGPU_RELEASE_RESOURCE(Buffer, state.scene_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, state.render_pipeline)
+  /* Note: state.vertex_buffer, state.render_pipeline removed (fallback cube) */
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.scene_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.instance_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.material_bind_group_layout)
@@ -5387,10 +5098,8 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Sampler, state.brdf_sampler)
   WGPU_RELEASE_RESOURCE(Sampler, state.shadow_sampler)
 
-  /* Release temporary test renderer resources */
-  WGPU_RELEASE_RESOURCE(BindGroup, state.camera_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, state.camera_uniform_buffer)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.camera_bind_group_layout)
+  /* Note: camera_bind_group, camera_uniform_buffer, camera_bind_group_layout
+   * removed (fallback cube) */
 
   /* Release default textures */
   WGPU_RELEASE_RESOURCE(Texture, state.default_white_texture)
