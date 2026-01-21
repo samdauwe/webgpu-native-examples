@@ -886,8 +886,9 @@ static mat4 cubemap_view_matrices_inverted[6] = {
  * @brief Initialize cubemap view matrices
  *
  * Note on matrix conventions:
- * TypeScript Mat4.lookAt(pos, target, up) creates a matrix with orientation + position,
- * NOT a standard view matrix. Calling .invert() on it gives the view matrix.
+ * TypeScript Mat4.lookAt(pos, target, up) creates a matrix with orientation +
+ * position, NOT a standard view matrix. Calling .invert() on it gives the view
+ * matrix.
  *
  * CGLM glm_lookat(eye, center, up) returns the standard view matrix directly.
  *
@@ -903,7 +904,8 @@ static void init_cubemap_view_matrices(void)
   vec3 center = {0.0f, 0.0f, 0.0f};
   vec3 target, up;
 
-  /* TypeScript cubemapViewMatrices - used for equirectangular to cubemap conversion */
+  /* TypeScript cubemapViewMatrices - used for equirectangular to cubemap
+   * conversion */
   /* +X face */
   target[0] = 1.0f;
   target[1] = 0.0f;
@@ -958,7 +960,8 @@ static void init_cubemap_view_matrices(void)
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices[5]);
 
-  /* TypeScript cubemapViewMatricesInverted - used for irradiance and prefilter maps */
+  /* TypeScript cubemapViewMatricesInverted - used for irradiance and prefilter
+   * maps */
   /* These are the inverses of glm_lookat (i.e., inverse of view matrix) */
   /* +X face */
   target[0] = 1.0f;
@@ -968,7 +971,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[0]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[0], cubemap_view_matrices_inverted[0]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[0],
+               cubemap_view_matrices_inverted[0]);
 
   /* -X face */
   target[0] = -1.0f;
@@ -978,7 +982,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[1]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[1], cubemap_view_matrices_inverted[1]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[1],
+               cubemap_view_matrices_inverted[1]);
 
   /* +Y face */
   target[0] = 0.0f;
@@ -988,7 +993,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = -1.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[2]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[2], cubemap_view_matrices_inverted[2]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[2],
+               cubemap_view_matrices_inverted[2]);
 
   /* -Y face */
   target[0] = 0.0f;
@@ -998,7 +1004,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 0.0f;
   up[2]     = 1.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[3]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[3], cubemap_view_matrices_inverted[3]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[3],
+               cubemap_view_matrices_inverted[3]);
 
   /* +Z face */
   target[0] = 0.0f;
@@ -1008,7 +1015,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[4]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[4], cubemap_view_matrices_inverted[4]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[4],
+               cubemap_view_matrices_inverted[4]);
 
   /* -Z face */
   target[0] = 0.0f;
@@ -1018,7 +1026,8 @@ static void init_cubemap_view_matrices(void)
   up[1]     = 1.0f;
   up[2]     = 0.0f;
   glm_lookat(center, target, up, cubemap_view_matrices_inverted[5]);
-  glm_mat4_inv(cubemap_view_matrices_inverted[5], cubemap_view_matrices_inverted[5]);
+  glm_mat4_inv(cubemap_view_matrices_inverted[5],
+               cubemap_view_matrices_inverted[5]);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1553,7 +1562,8 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
                             .entries    = skybox_group0_entries,
                           });
 
-  /* Skybox Bind Group 1: Cubemap texture + sampler (use irradiance map like TypeScript) */
+  /* Skybox Bind Group 1: Cubemap texture + sampler (use irradiance map like
+   * TypeScript) */
   WGPUBindGroupEntry skybox_group1_entries[2] = {
     {.binding = 0, .textureView = state.irradiance_map_view},
     {.binding = 1, .sampler = state.sampler},
@@ -1583,11 +1593,14 @@ static void convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context)
   mat4 projection;
   glm_perspective(GLM_PI_2f, 1.0f, 0.1f, 10.0f, projection);
 
-  /* Pre-compute view*projection for each face (stored separately for rendering) */
+  /* Pre-compute view*projection for each face (stored separately for rendering)
+   */
   mat4 cubemap_mvp_matrices[6];
   for (uint32_t i = 0; i < 6; ++i) {
-    /* TypeScript: view.multiply(projection) which is view * projection in row-major */
-    /* CGLM column-major: projection * view gives the same result for shader consumption */
+    /* TypeScript: view.multiply(projection) which is view * projection in
+     * row-major */
+    /* CGLM column-major: projection * view gives the same result for shader
+     * consumption */
     glm_mat4_mul(projection, cubemap_view_matrices[i], cubemap_mvp_matrices[i]);
   }
 
@@ -1843,7 +1856,8 @@ static void generate_irradiance_map(wgpu_context_t* wgpu_context)
 
   mat4 irradiance_mvp_matrices[6];
   for (uint32_t i = 0; i < 6; ++i) {
-    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i], irradiance_mvp_matrices[i]);
+    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i],
+                 irradiance_mvp_matrices[i]);
   }
 
   /* Create irradiance map texture */
@@ -2084,7 +2098,8 @@ static void generate_prefilter_map(wgpu_context_t* wgpu_context)
 
   mat4 prefilter_mvp_matrices[6];
   for (uint32_t i = 0; i < 6; ++i) {
-    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i], prefilter_mvp_matrices[i]);
+    glm_mat4_mul(projection, cubemap_view_matrices_inverted[i],
+                 prefilter_mvp_matrices[i]);
   }
 
   /* Create prefilter map texture with mipmaps */
