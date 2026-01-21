@@ -3051,7 +3051,7 @@ static void generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
     WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label = STRVIEW("mipmap generator"),
+        .label = STRVIEW("Mipmap generator"),
         .layout = mipmap_gen.bind_group_layout,
         .entryCount = 2,
         .entries = (WGPUBindGroupEntry[]){
