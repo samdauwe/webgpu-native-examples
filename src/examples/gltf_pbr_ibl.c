@@ -1761,7 +1761,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_desc = {
-    .label = STRVIEW("cubemap depth texture"),
+    .label = STRVIEW("Cubemap - Depth texture"),
     .usage = WGPUTextureUsage_RenderAttachment,
     .dimension = WGPUTextureDimension_2D,
     .size = (WGPUExtent3D){
