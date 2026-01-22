@@ -1855,7 +1855,7 @@ convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
   /* Create sampler and uniform buffer */
   WGPUSampler sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("equirect sampler"),
+                            .label         = STRVIEW("Equirect - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
