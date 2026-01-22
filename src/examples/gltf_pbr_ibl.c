@@ -2267,10 +2267,13 @@ static char* create_pbr_shader(bool has_uvs, bool has_tangents,
       var kD = vec3f(1.0) - kS;
       kD *= 1.0 - metallic;
 
-      let irradiance = textureSample(irradianceMap, samplerGeneral, n).rgb;
+      // Negate X component for correct cubemap reflection orientation
+      let nFlipped = vec3f(-n.x, n.y, n.z);
+      let rFlipped = vec3f(-r.x, r.y, r.z);
+      let irradiance = textureSample(irradianceMap, samplerGeneral, nFlipped).rgb;
       let diffuse = irradiance * albedo;
 
-      let prefilteredColor = textureSampleLevel(prefilterMap, samplerGeneral, r, roughness * MAX_REFLECTION_LOD).rgb;
+      let prefilteredColor = textureSampleLevel(prefilterMap, samplerGeneral, rFlipped, roughness * MAX_REFLECTION_LOD).rgb;
       let brdf = textureSample(brdfLUT, samplerBRDF, vec2f(max(dot(n, v), 0.0), roughness)).rg;
       let specular = prefilteredColor * (f * brdf.x + brdf.y);
 
