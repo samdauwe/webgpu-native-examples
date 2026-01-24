@@ -41,6 +41,8 @@ typedef struct {
   wgpu_frame_func frame_cb;
   wgpu_shutdown_func shutdown_cb;
   wgpu_input_event_func input_event_cb;
+  const WGPUFeatureName* required_features;
+  uint32_t required_feature_count;
 } wgpu_desc_t;
 
 struct wgpu_context_t {

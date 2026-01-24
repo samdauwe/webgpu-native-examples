@@ -397,15 +397,48 @@ static void request_adapter(wgpu_context_t* wgpu_context)
 
 static void request_device(wgpu_context_t* wgpu_context)
 {
-  WGPUFeatureName required_features[1] = {WGPUFeatureName_Depth32FloatStencil8};
+  /* Always include Depth32FloatStencil8 feature */
+  WGPUFeatureName default_features[] = {WGPUFeatureName_Depth32FloatStencil8};
+  uint32_t default_feature_count     = 1;
+
+  /* Combine default features with user-requested features */
+  uint32_t total_feature_count
+    = default_feature_count + wgpu_context->desc.required_feature_count;
+  WGPUFeatureName* all_features
+    = (WGPUFeatureName*)malloc(total_feature_count * sizeof(WGPUFeatureName));
+
+  /* Copy default features */
+  for (uint32_t i = 0; i < default_feature_count; ++i) {
+    all_features[i] = default_features[i];
+  }
+
+  /* Copy user-requested features (avoid duplicates) */
+  uint32_t actual_count = default_feature_count;
+  for (uint32_t i = 0; i < wgpu_context->desc.required_feature_count; ++i) {
+    WGPUFeatureName feature = wgpu_context->desc.required_features[i];
+    /* Check if feature is not already in the list */
+    WGPUBool is_duplicate = 0;
+    for (uint32_t j = 0; j < actual_count; ++j) {
+      if (all_features[j] == feature) {
+        is_duplicate = 1;
+        break;
+      }
+    }
+    if (!is_duplicate) {
+      all_features[actual_count++] = feature;
+    }
+  }
+
   WGPUDeviceDescriptor dev_desc = {
-    .requiredFeatureCount = 1,
-    .requiredFeatures = required_features,
-    .deviceLostCallbackInfo = {
-      .mode = WGPUCallbackMode_AllowProcessEvents,
+    .requiredFeatureCount = actual_count,
+    .requiredFeatures     = all_features,
+    .deviceLostCallbackInfo
+    = {
+      .mode     = WGPUCallbackMode_AllowProcessEvents,
       .callback = device_lost_cb,
     },
-    .uncapturedErrorCallbackInfo = {
+    .uncapturedErrorCallbackInfo
+    = {
       .callback = uncaptured_error_cb,
     },
   };
@@ -421,6 +454,9 @@ static void request_device(wgpu_context_t* wgpu_context)
     = wgpuInstanceWaitAny(wgpu_context->instance, 1, &future_info, UINT64_MAX);
   assert(res == WGPUWaitStatus_Success);
   assert(wgpu_context->device);
+
+  /* Free the combined features array */
+  free(all_features);
 }
 
 static void update_input_event(input_event_t* input_event, uint64_t frame_count)
