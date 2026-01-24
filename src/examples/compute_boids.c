@@ -1,9 +1,23 @@
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Compute Boids
@@ -76,6 +90,23 @@ static struct {
     float* param_ref;
   } sim_params_mappings[SIM_PARAMS_COUNT];
   bool initialized;
+  /* Timing for ImGui */
+  uint64_t last_frame_time;
+  bool sim_params_changed;
+  /* Timestamp query support for performance measurement */
+  bool has_timestamp_query;
+  WGPUQuerySet query_set;
+  WGPUBuffer resolve_buffer;
+  /* Pool of spare buffers for reading back timestamps */
+  WGPUBuffer spare_result_buffers[8];
+  uint32_t spare_buffer_count;
+  /* Performance statistics */
+  double compute_pass_duration_sum;
+  double render_pass_duration_sum;
+  uint32_t timer_samples;
+  /* Averaged performance stats for display */
+  uint32_t avg_compute_microseconds;
+  uint32_t avg_render_microseconds;
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -261,7 +292,64 @@ static void update_sim_params(wgpu_context_t* wgpu_context)
   wgpuQueueWriteBuffer(wgpu_context->queue, state.sim_param_buffer, 0,
                        &state.sim_param_data, sizeof(state.sim_param_data));
 }
+/* Callback for processing timestamp query results */
+static void on_buffer_mapped(WGPUMapAsyncStatus status, WGPUStringView message,
+                             void* userdata1, void* userdata2)
+{
+  UNUSED_VAR(message);
+  UNUSED_VAR(userdata2);
 
+  if (status != WGPUMapAsyncStatus_Success) {
+    return;
+  }
+
+  WGPUBuffer result_buffer = (WGPUBuffer)userdata1;
+  const int64_t* times     = (const int64_t*)wgpuBufferGetConstMappedRange(
+    result_buffer, 0, 4 * sizeof(int64_t));
+  if (!times) {
+    return;
+  }
+
+  /* Calculate pass durations in nanoseconds */
+  int64_t compute_pass_duration = times[1] - times[0];
+  int64_t render_pass_duration  = times[3] - times[2];
+
+  /* In some cases timestamps may wrap around and produce negative values */
+  /* These can safely be ignored */
+  if (compute_pass_duration > 0 && render_pass_duration > 0) {
+    state.compute_pass_duration_sum += (double)compute_pass_duration;
+    state.render_pass_duration_sum += (double)render_pass_duration;
+    state.timer_samples++;
+  }
+
+  wgpuBufferUnmap(result_buffer);
+
+  /* Update display periodically (every 100 samples) */
+  const uint32_t kNumTimerSamplesPerUpdate = 100;
+  if (state.timer_samples >= kNumTimerSamplesPerUpdate) {
+    /* Convert from nanoseconds to microseconds and calculate average */
+    state.avg_compute_microseconds
+      = (uint32_t)((state.compute_pass_duration_sum / state.timer_samples)
+                   / 1000.0);
+    state.avg_render_microseconds
+      = (uint32_t)((state.render_pass_duration_sum / state.timer_samples)
+                   / 1000.0);
+
+    /* Reset accumulators */
+    state.compute_pass_duration_sum = 0.0;
+    state.render_pass_duration_sum  = 0.0;
+    state.timer_samples             = 0;
+  }
+
+  /* Return buffer to spare pool */
+  if (state.spare_buffer_count < 8) {
+    state.spare_result_buffers[state.spare_buffer_count++] = result_buffer;
+  }
+  else {
+    /* Pool is full, release the buffer */
+    wgpuBufferRelease(result_buffer);
+  }
+}
 /* Create the compute & graphics pipelines */
 static void init_pipelines(wgpu_context_t* wgpu_context)
 {
@@ -373,24 +461,144 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
 
 static int init(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_FUNCTION(update_sim_params);
-
   if (wgpu_context) {
+    /* Initialize sokol_time */
+    stm_setup();
+
+    /* Check for timestamp query support */
+    state.has_timestamp_query
+      = wgpuAdapterHasFeature(wgpu_context->adapter,
+                              WGPUFeatureName_TimestampQuery)
+        && wgpuDeviceHasFeature(wgpu_context->device,
+                                WGPUFeatureName_TimestampQuery);
+
+    if (state.has_timestamp_query) {
+      /* Create query set for timestamps (4 queries: compute begin/end,
+       * render begin/end) */
+      state.query_set = wgpuDeviceCreateQuerySet(
+        wgpu_context->device, &(WGPUQuerySetDescriptor){
+                                .label = STRVIEW("Timestamp query set"),
+                                .type  = WGPUQueryType_Timestamp,
+                                .count = 4,
+                              });
+
+      /* Create resolve buffer for timestamp results */
+      state.resolve_buffer = wgpuDeviceCreateBuffer(
+        wgpu_context->device,
+        &(WGPUBufferDescriptor){
+          .label = STRVIEW("Timestamp resolve buffer"),
+          .size  = 4 * sizeof(int64_t),
+          .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
+        });
+    }
+
     init_vertices(wgpu_context);
     init_pipeline_layout(wgpu_context);
     init_uniform_buffers(wgpu_context);
     init_pipelines(wgpu_context);
+
+    /* Initialize ImGui overlay */
+    imgui_overlay_init(wgpu_context);
+
     state.initialized = 1;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
+
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size with content-aware padding */
+  igSetNextWindowSize((ImVec2){320.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  /* Build GUI - similar to TypeScript version's dat.gui */
+  /* Use AlwaysAutoResize flag to adapt to content size dynamically */
+  igBegin("Boid Simulation Parameters", NULL,
+          ImGuiWindowFlags_AlwaysAutoResize);
+
+  state.sim_params_changed = false;
+
+  if (imgui_overlay_slider_float("deltaT", &state.sim_param_data.delta_t, 0.0f,
+                                 0.1f, "%.4f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float("rule1Distance",
+                                 &state.sim_param_data.rule1_distance, 0.0f,
+                                 0.5f, "%.3f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float("rule2Distance",
+                                 &state.sim_param_data.rule2_distance, 0.0f,
+                                 0.1f, "%.3f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float("rule3Distance",
+                                 &state.sim_param_data.rule3_distance, 0.0f,
+                                 0.1f, "%.3f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float(
+        "rule1Scale", &state.sim_param_data.rule1_scale, 0.0f, 0.1f, "%.4f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float(
+        "rule2Scale", &state.sim_param_data.rule2_scale, 0.0f, 0.2f, "%.4f")) {
+    state.sim_params_changed = true;
+  }
+  if (imgui_overlay_slider_float(
+        "rule3Scale", &state.sim_param_data.rule3_scale, 0.0f, 0.1f, "%.4f")) {
+    state.sim_params_changed = true;
+  }
+
+  /* Separator for performance statistics section */
+  igSeparator();
+  igSpacing();
+  igText("Performance Statistics");
+  igSeparator();
+
+  /* Display performance stats if timestamp queries are supported */
+  if (state.has_timestamp_query) {
+    igText("avg compute pass duration: %u µs", state.avg_compute_microseconds);
+    igText("avg render pass duration:  %u µs", state.avg_render_microseconds);
+    igText("spare readback buffers:    %u", state.spare_buffer_count);
+  }
+  else {
+    igTextDisabled("Timestamp queries not supported");
+  }
+
+  igEnd();
+
+  /* Update simulation parameters if changed */
+  if (state.sim_params_changed) {
+    update_sim_params(wgpu_context);
+  }
+}
+
 static int frame(struct wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
@@ -402,8 +610,21 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Compute pass */
   {
+    WGPUComputePassDescriptor compute_pass_desc = {
+      .label = STRVIEW("Compute pass"),
+    };
+
+    /* Add timestamp writes if supported */
+    WGPUPassTimestampWrites timestamp_writes = {0};
+    if (state.has_timestamp_query) {
+      timestamp_writes.querySet                  = state.query_set;
+      timestamp_writes.beginningOfPassWriteIndex = 0;
+      timestamp_writes.endOfPassWriteIndex       = 1;
+      compute_pass_desc.timestampWrites          = &timestamp_writes;
+    }
+
     WGPUComputePassEncoder cpass_enc
-      = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
+      = wgpuCommandEncoderBeginComputePass(cmd_enc, &compute_pass_desc);
     wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute.pipeline);
     wgpuComputePassEncoderSetBindGroup(
       cpass_enc, 0, state.particle_bind_groups[state.frame_index % 2], 0, NULL);
@@ -415,6 +636,15 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Render pass */
   {
+    /* Add timestamp writes if supported */
+    WGPUPassTimestampWrites timestamp_writes = {0};
+    if (state.has_timestamp_query) {
+      timestamp_writes.querySet                    = state.query_set;
+      timestamp_writes.beginningOfPassWriteIndex   = 2;
+      timestamp_writes.endOfPassWriteIndex         = 3;
+      state.render_pass_descriptor.timestampWrites = &timestamp_writes;
+    }
+
     WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
       cmd_enc, &state.render_pass_descriptor);
     wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
@@ -430,15 +660,51 @@ static int frame(struct wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
   }
 
+  /* Resolve timestamp queries if supported */
+  WGPUBuffer result_buffer = NULL;
+  if (state.has_timestamp_query) {
+    /* Get a spare buffer from the pool or create a new one */
+    if (state.spare_buffer_count > 0) {
+      result_buffer = state.spare_result_buffers[--state.spare_buffer_count];
+    }
+    else {
+      result_buffer = wgpuDeviceCreateBuffer(
+        device, &(WGPUBufferDescriptor){
+                  .label = STRVIEW("Timestamp result buffer"),
+                  .size  = 4 * sizeof(int64_t),
+                  .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
+                });
+    }
+
+    /* Resolve query results into resolve buffer, then copy to result buffer */
+    wgpuCommandEncoderResolveQuerySet(cmd_enc, state.query_set, 0, 4,
+                                      state.resolve_buffer, 0);
+    wgpuCommandEncoderCopyBufferToBuffer(cmd_enc, state.resolve_buffer, 0,
+                                         result_buffer, 0, 4 * sizeof(int64_t));
+  }
+
   /* Get command buffer */
   WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
   /* Submit and present. */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Map the result buffer for reading back timestamps */
+  if (state.has_timestamp_query && result_buffer) {
+    wgpuBufferMapAsync(result_buffer, WGPUMapMode_Read, 0, 4 * sizeof(int64_t),
+                       (WGPUBufferMapCallbackInfo){
+                         .mode      = WGPUCallbackMode_AllowProcessEvents,
+                         .callback  = on_buffer_mapped,
+                         .userdata1 = result_buffer,
+                       });
+  }
+
   /* Cleanup */
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
+
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
 
   /* Update frame count */
   ++state.frame_index;
@@ -448,6 +714,18 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  /* Shutdown ImGui overlay */
+  imgui_overlay_shutdown();
+
+  /* Clean up timestamp query resources */
+  if (state.has_timestamp_query) {
+    WGPU_RELEASE_RESOURCE(QuerySet, state.query_set)
+    WGPU_RELEASE_RESOURCE(Buffer, state.resolve_buffer)
+    for (uint32_t i = 0; i < state.spare_buffer_count; ++i) {
+      WGPU_RELEASE_RESOURCE(Buffer, state.spare_result_buffers[i])
+    }
+  }
 
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.compute.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
@@ -462,13 +740,29 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
 }
 
+/**
+ * @brief Input event callback for ImGui interaction
+ */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
+{
+  imgui_overlay_handle_input(wgpu_context, event);
+}
+
 int main(void)
 {
+  /* Request timestamp query feature for performance measurement */
+  static const WGPUFeatureName required_features[1]
+    = {WGPUFeatureName_TimestampQuery};
+
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Compute Boids",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title                  = "Compute Boids",
+    .init_cb                = init,
+    .frame_cb               = frame,
+    .input_event_cb         = input_event_cb,
+    .shutdown_cb            = shutdown,
+    .required_features      = required_features,
+    .required_feature_count = 1,
   });
 
   return EXIT_SUCCESS;

@@ -78,13 +78,25 @@ function(add_example_executable EXAMPLE_NAME)
     # Parse optional arguments
     cmake_parse_arguments(ARG "USE_CIMGUI" "" "" ${ARGN})
     set(EXAMPLE_SOURCE "src/examples/${EXAMPLE_NAME}.c")
-    add_executable(${EXAMPLE_NAME}
+
+    # Prepare source list
+    set(EXAMPLE_SOURCES
         ${COMMON_HEADERS}
         ${COMMON_SOURCES}
         ${EXAMPLE_SOURCE}
         ${CJSON_SOURCES}
         ${RPLY_SOURCES}
     )
+
+    # Add imgui_overlay sources if using cimgui
+    if(ARG_USE_CIMGUI)
+        list(APPEND EXAMPLE_SOURCES
+            src/webgpu/imgui_overlay.h
+            src/webgpu/imgui_overlay.c
+        )
+    endif()
+
+    add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCES})
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR}
         C_STANDARD 99
@@ -164,7 +176,7 @@ add_example_executable(animometer)
 # add_example_executable(aquarium)
 add_example_executable(cameras)
 add_example_executable(clear_screen)
-add_example_executable(compute_boids)
+add_example_executable(compute_boids USE_CIMGUI)
 add_example_executable(compute_particles_easing)
 add_example_executable(compute_particles_webgpu_logo)
 add_example_executable(conway_paletted_blurring)
