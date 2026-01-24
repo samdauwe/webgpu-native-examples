@@ -1,4 +1,5 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -11,6 +12,16 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #if defined(__clang__)
@@ -180,6 +191,7 @@ static struct {
   } settings;
   const char* texture_atlas_str[TEXTURE_ATLAS_COUNT];
   const char* bump_modes_str[BUMP_MODE_COUNT];
+  uint64_t last_frame_time;
   WGPUBool initialized;
 } state = {
   // clang-format off
@@ -767,6 +779,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_frame_bg_bind_group(wgpu_context);
     init_surface_bg_bind_groups(wgpu_context);
     init_pipelines(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -782,9 +795,71 @@ static void reset_light(void)
   state.settings.light_intensity = 5.0f;
 }
 
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size with content-aware padding */
+  igSetNextWindowSize((ImVec2){320.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  /* Build GUI - similar to TypeScript version's dat.gui */
+  /* Use AlwaysAutoResize flag to adapt to content size dynamically */
+  igBegin("Normal Mapping Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Bump Mode selector */
+  int bump_mode = (int)state.settings.bump_mode;
+  if (imgui_overlay_combo_box("Bump Mode", &bump_mode, state.bump_modes_str,
+                              BUMP_MODE_COUNT)) {
+    state.settings.bump_mode = (bump_mode_t)bump_mode;
+  }
+
+  /* Texture selector */
+  int texture = (int)state.settings.texture;
+  if (imgui_overlay_combo_box("Texture", &texture, state.texture_atlas_str,
+                              TEXTURE_ATLAS_COUNT)) {
+    state.settings.texture           = (texture_atlas_t)texture;
+    state.current_surface_bind_group = texture;
+  }
+
+  /* Light controls */
+  if (igCollapsingHeaderBoolPtr("Light", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    /* Reset Light button */
+    if (igButton("Reset Light", (ImVec2){0, 0})) {
+      reset_light();
+    }
+
+    imgui_overlay_slider_float("lightPosX", &state.settings.light_pos_x, -5.0f,
+                               5.0f, "%.1f");
+    imgui_overlay_slider_float("lightPosY", &state.settings.light_pos_y, -5.0f,
+                               5.0f, "%.1f");
+    imgui_overlay_slider_float("lightPosZ", &state.settings.light_pos_z, -5.0f,
+                               5.0f, "%.1f");
+    imgui_overlay_slider_float(
+      "lightIntensity", &state.settings.light_intensity, 0.0f, 10.0f, "%.1f");
+  }
+
+  /* Depth controls */
+  if (igCollapsingHeaderBoolPtr("Depth", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    imgui_overlay_slider_float("depthScale", &state.settings.depth_scale, 0.0f,
+                               0.1f, "%.2f");
+    imgui_overlay_slider_int("depthLayers", &state.settings.depth_layers, 1,
+                             32);
+  }
+
+  igEnd();
+}
+
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     init_depth_textures(wgpu_context);
   }
@@ -844,6 +919,21 @@ static int frame(struct wgpu_context_t* wgpu_context)
     update_uniform_buffers(wgpu_context);
   }
 
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
+
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
 
@@ -881,12 +971,17 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  imgui_overlay_shutdown();
 
   sfetch_shutdown();
 
