@@ -430,11 +430,10 @@ WebGPU interpretation of [glxgears](https://linuxreviews.org/Glxgears). Procedur
 
 #### [Video uploading](src/examples/video_uploading.c)
 
-This example shows how to upload video frames to WebGPU. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding. **Note**: Requires FFmpeg support to be enabled (`-DENABLE_FFMPEG=ON`).
+This example shows how to upload video frame to WebGPU.
 
-#### [Immersive video](src/examples/immersive_video.c)
-
-This example shows how to display a 360-degree video where the viewer has control of the viewing direction. Uses [FFmpeg](https://www.ffmpeg.org/) for the video decoding. **Note**: Requires FFmpeg support to be enabled (`-DENABLE_FFMPEG=ON`).
+giraffe by [Taryn Elliott](https://www.pexels.com/video/giraffe-walking-in-the-forest-5214261/).
+lake by [Fabio Casati](https://commons.wikimedia.org/wiki/File:Video_360%C2%B0._Timelapse._Bled_Lake_in_Slovenia..webm), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0)
 
 #### [Shadertoy](src/examples/video_uploading.c)
 
