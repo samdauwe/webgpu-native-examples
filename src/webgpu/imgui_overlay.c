@@ -1,5 +1,14 @@
+/**
+ * @file imgui_overlay.c
+ * @brief Modular ImGui overlay implementation for WebGPU examples
+ *
+ * A clean, efficient, and modular ImGui overlay that can be easily integrated
+ * into any WebGPU example.
+ */
+
 #include "imgui_overlay.h"
 
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,796 +21,773 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
-#define ImDrawCallback_ResetRenderState (ImDrawCallback)(-1)
 
-#include "../core/macro.h"
-#include "shader.h"
+/* -------------------------------------------------------------------------- *
+ * WGSL Shader Code
+ * -------------------------------------------------------------------------- */
 
-#define _IMGUI_MAX_VERTEX_DATA_SIZE_DEFAULT 40000
-#define _IMGUI_MAX_INDEX_DATA_SIZE_DEFAULT 10000
+static const char* imgui_vertex_shader_wgsl;
+static const char* imgui_fragment_shader_wgsl;
 
-// Vertex buffer and attributes
-typedef struct vertex_uniform_buffer_t {
-  float mvp[4][4];
-} vertex_uniform_buffer_t;
+/* -------------------------------------------------------------------------- *
+ * Internal State
+ * -------------------------------------------------------------------------- */
 
-/**
- * @brief ImGui overlay class
- */
-typedef struct imgui_overlay {
-  wgpu_context_t* wgpu_context;
-  struct {
-    bool enable_alpha_blending;
-    uint32_t msaa_sample_count;
-    float scale;
-    bool enable_scissor;
-  } settings;
-  struct {
-    WGPUTexture texture;
-    WGPUTextureView texture_view;
-    WGPUSampler sampler;
-  } font;
-  WGPUTextureFormat depth_stencil_format;
+static struct {
+  /* ImGui context */
+  struct ImGuiContext* imgui_context;
+  bool initialized;
+
+  /* Font texture */
+  WGPUTexture font_texture;
+  WGPUTextureView font_texture_view;
+  WGPUSampler font_sampler;
+
+  /* Render pipeline */
   WGPURenderPipeline pipeline;
   WGPUPipelineLayout pipeline_layout;
-  wgpu_buffer_t uniform_buffer;
-  wgpu_buffer_t vertex_buffer;
-  wgpu_buffer_t index_buffer;
-  WGPUBindGroup bind_group;
   WGPUBindGroupLayout bind_group_layout;
-  // Render pass descriptor for frame buffer writes
-  WGPURenderPassColorAttachment rp_color_att_descriptors[1];
-  WGPURenderPassDescriptor render_pass_desc;
-  struct {
-    struct {
-      ImDrawVert data[_IMGUI_MAX_VERTEX_DATA_SIZE_DEFAULT];
-      int32_t size;
-    } vertex;
-    struct {
-      ImDrawIdx data[_IMGUI_MAX_INDEX_DATA_SIZE_DEFAULT];
-      int32_t size;
-    } index;
-  } draw_buffers;
-  bool visible;
-  bool updated;
-  float scale;
-} imgui_overlay;
+  WGPUBindGroup bind_group;
 
-// Initialize styles, keys, etc.
-static void imgui_overlay_init(imgui_overlay_t* imgui_overlay,
-                               wgpu_context_t* wgpu_context,
-                               WGPUTextureFormat format)
+  /* Buffers */
+  WGPUBuffer vertex_buffer;
+  uint64_t vertex_buffer_size;
+  WGPUBuffer index_buffer;
+  uint64_t index_buffer_size;
+  WGPUBuffer uniform_buffer;
+
+  /* Render pass descriptor (pre-allocated for performance) */
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+} overlay_state = {0};
+
+/* -------------------------------------------------------------------------- *
+ * Internal Helper Functions
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Create font texture from ImGui font atlas
+ */
+static void create_font_texture(wgpu_context_t* wgpu_context)
 {
-  // Configure ImGUI overlay settings
-  imgui_overlay->wgpu_context = wgpu_context;
-
-  imgui_overlay->depth_stencil_format = format;
-  imgui_overlay->vertex_buffer.size   = 0;
-  imgui_overlay->index_buffer.size    = 0;
-
-  imgui_overlay->draw_buffers.index.size        = 3000;
-  imgui_overlay->draw_buffers.vertex.size       = 3000;
-  imgui_overlay->settings.enable_alpha_blending = true;
-  imgui_overlay->settings.msaa_sample_count     = 1;
-  imgui_overlay->settings.scale                 = 1.0f;
-  imgui_overlay->settings.enable_scissor        = false;
-
-  imgui_overlay->visible = true;
-  imgui_overlay->updated = false;
-  imgui_overlay->scale   = imgui_overlay->settings.scale;
-
-  // Setup Dear ImGui context
-  igCreateContext(NULL);
-
-  // Setup Dear ImGui style
-  igStyleColorsDark(igGetStyle());
-
-  // Setup back-end capabilities flags
   ImGuiIO* io = igGetIO();
-  ImFontAtlas_AddFontDefault(io->Fonts, NULL);
-  io->BackendRendererName = "imgui_overlay";
-  io->Fonts->TexID        = 0;
-  io->FontGlobalScale     = imgui_overlay->settings.scale;
-  io->BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
-  io->DisplaySize.x             = (float)wgpu_context->surface.width;
-  io->DisplaySize.y             = (float)wgpu_context->surface.height;
-  io->DisplayFramebufferScale.x = 1.0f;
-  io->DisplayFramebufferScale.y = 1.0f;
-}
 
-static void imgui_overlay_setup_render_state(imgui_overlay_t* imgui_overlay)
-{
-  WGPURenderPassEncoder rpass_enc = imgui_overlay->wgpu_context->rpass_enc;
-  wgpuRenderPassEncoderSetPipeline(rpass_enc, imgui_overlay->pipeline);
-  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, imgui_overlay->bind_group, 0,
-                                    NULL);
-  wgpuRenderPassEncoderSetVertexBuffer(
-    rpass_enc, 0, imgui_overlay->vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetIndexBuffer(
-    rpass_enc, imgui_overlay->index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
-    WGPU_WHOLE_SIZE);
-}
-
-static void imgui_overlay_create_fonts_texture(imgui_overlay_t* imgui_overlay)
-{
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
-
-  // Build texture atlas
-  ImGuiIO* io = igGetIO();
+  /* Build texture atlas */
   unsigned char* font_pixels;
-  int font_width;
-  int font_height;
-  int bytes_per_pixel;
+  int font_width, font_height, bytes_per_pixel;
   ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &font_pixels, &font_width,
                                  &font_height, &bytes_per_pixel);
-  const uint32_t pixels_size_bytes = font_width * font_height * bytes_per_pixel;
+  uint32_t pixels_size_bytes
+    = (uint32_t)(font_width * font_height * bytes_per_pixel);
 
-  // Upload texture to graphics system
-  {
-    WGPUExtent3D texture_size = {
-      .width              = font_width,
-      .height             = font_height,
+  /* Create texture */
+  WGPUTextureDescriptor texture_desc = {
+    .label         = STRVIEW("ImGui font texture"),
+    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+    .dimension     = WGPUTextureDimension_2D,
+    .size          = (WGPUExtent3D){
+      .width              = (uint32_t)font_width,
+      .height             = (uint32_t)font_height,
       .depthOrArrayLayers = 1,
-    };
-    WGPUTextureDescriptor texture_desc = {
-      .label     = "imgui-font-texture",
-      .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
-      .dimension = WGPUTextureDimension_2D,
-      .size      = texture_size,
-      .format    = WGPUTextureFormat_RGBA8Unorm,
-      .mipLevelCount = 1,
-      .sampleCount   = 1,
-    };
-    imgui_overlay->font.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(imgui_overlay->font.texture);
+    },
+    .format        = WGPUTextureFormat_RGBA8Unorm,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+  };
+  overlay_state.font_texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(overlay_state.font_texture);
 
-    wgpu_buffer_t gpu_buffer = wgpu_create_buffer(
-      wgpu_context, &(wgpu_buffer_desc_t){.usage   = WGPUBufferUsage_CopySrc,
-                                          .size    = pixels_size_bytes,
-                                          .initial = {
-                                            .data = font_pixels,
-                                            .size = pixels_size_bytes,
-                                          }});
-
-    WGPUImageCopyBuffer buffer_copy_view
-      = {.buffer = gpu_buffer.buffer,
-         .layout = (WGPUTextureDataLayout){
-           .offset       = 0,
-           .bytesPerRow  = font_width * bytes_per_pixel,
-           .rowsPerImage = font_height,
-         }};
-
-    WGPUImageCopyTexture texture_copy_view = {
-      .texture = imgui_overlay->font.texture,
+  /* Upload texture data */
+  wgpuQueueWriteTexture(
+    wgpu_context->queue,
+    &(WGPUTexelCopyTextureInfo){
+      .texture  = overlay_state.font_texture,
       .mipLevel = 0,
-      .origin = (WGPUOrigin3D){
-          .x=0u,
-          .y=0u,
-          .z=0u,
-        },
-      .aspect = WGPUTextureAspect_All,
-    };
+      .origin   = (WGPUOrigin3D){0, 0, 0},
+      .aspect   = WGPUTextureAspect_All,
+    },
+    font_pixels, pixels_size_bytes,
+    &(WGPUTexelCopyBufferLayout){
+      .offset       = 0,
+      .bytesPerRow  = (uint32_t)(font_width * bytes_per_pixel),
+      .rowsPerImage = (uint32_t)font_height,
+    },
+    &(WGPUExtent3D){
+      .width              = (uint32_t)font_width,
+      .height             = (uint32_t)font_height,
+      .depthOrArrayLayers = 1,
+    });
 
-    WGPUCommandBuffer copy_command = wgpu_copy_buffer_to_texture(
-      wgpu_context, &buffer_copy_view, &texture_copy_view, &texture_size);
-    // Submit to the queue
-    wgpuQueueSubmit(wgpu_context->queue, 1, &copy_command);
+  /* Create texture view */
+  overlay_state.font_texture_view = wgpuTextureCreateView(
+    overlay_state.font_texture, &(WGPUTextureViewDescriptor){
+                                  .label  = STRVIEW("ImGui font texture view"),
+                                  .format = WGPUTextureFormat_RGBA8Unorm,
+                                  .dimension      = WGPUTextureViewDimension_2D,
+                                  .baseMipLevel   = 0,
+                                  .mipLevelCount  = 1,
+                                  .baseArrayLayer = 0,
+                                  .arrayLayerCount = 1,
+                                  .aspect          = WGPUTextureAspect_All,
+                                });
+  ASSERT(overlay_state.font_texture_view);
 
-    // Release command buffer and staging buffer
-    WGPU_RELEASE_RESOURCE(CommandBuffer, copy_command)
-    wgpu_destroy_buffer(&gpu_buffer);
-
-    // Create texture view
-    WGPUTextureViewDescriptor texture_view_desc = {
-      .label           = "imgui-texture-view",
-      .format          = WGPUTextureFormat_RGBA8Unorm,
-      .dimension       = WGPUTextureViewDimension_2D,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
-      .aspect          = WGPUTextureAspect_All,
-    };
-
-    imgui_overlay->font.texture_view
-      = wgpuTextureCreateView(imgui_overlay->font.texture, &texture_view_desc);
-    ASSERT(imgui_overlay->font.texture_view);
-
-    // Create the sampler
-    WGPUSamplerDescriptor sampler_desc = {
-      .label         = "imgui-font-sampler",
-      .addressModeU  = WGPUAddressMode_Repeat,
-      .addressModeV  = WGPUAddressMode_Repeat,
-      .addressModeW  = WGPUAddressMode_Repeat,
-      .magFilter     = WGPUFilterMode_Linear,
-      .minFilter     = WGPUFilterMode_Linear,
-      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-      .lodMinClamp   = 0.0f,
-      .lodMaxClamp   = 1.0f,
-      .maxAnisotropy = 1,
-      .compare       = WGPUCompareFunction_Undefined,
-    };
-
-    imgui_overlay->font.sampler
-      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-    ASSERT(imgui_overlay->font.sampler);
-  }
-
-  io->Fonts->TexID = (ImTextureID)imgui_overlay->font.texture_view;
-}
-
-static void imgui_overlay_setup_render_pass(imgui_overlay_t* imgui_overlay)
-{
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
-
-  // Color attachment
-  imgui_overlay->rp_color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL,
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Load,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
-
-  // Depth attachment
-  wgpu_setup_deph_stencil(wgpu_context,
-                          &(deph_stencil_texture_creation_options){
-                            .format = imgui_overlay->depth_stencil_format,
+  /* Create sampler */
+  overlay_state.font_sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("ImGui font sampler"),
+                            .addressModeU  = WGPUAddressMode_Repeat,
+                            .addressModeV  = WGPUAddressMode_Repeat,
+                            .addressModeW  = WGPUAddressMode_Repeat,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
+                            .maxAnisotropy = 1,
                           });
+  ASSERT(overlay_state.font_sampler);
 
-  // Render pass descriptor
-  imgui_overlay->render_pass_desc = (WGPURenderPassDescriptor){
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = imgui_overlay->rp_color_att_descriptors,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
+  /* Store texture ID in ImGui */
+  io->Fonts->TexID = (ImTextureID)(intptr_t)overlay_state.font_texture_view;
 }
 
-static void imgui_overlay_setup_pipeline_layout(imgui_overlay_t* imgui_overlay)
+/**
+ * @brief Create ImGui render pipeline
+ */
+static void create_render_pipeline(wgpu_context_t* wgpu_context)
 {
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
-
-  // Create bind group layout
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[3]
-      = {
-      [0] = (WGPUBindGroupLayoutEntry){
-        // Binding 0: Uniform buffer (Vertex shader)
-        .binding              = 0,
-        .visibility           = WGPUShaderStage_Vertex,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .hasDynamicOffset = false,
-          .minBindingSize = 16 * 4,
-        },
-        .sampler = {0},
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout){
+        .type             = WGPUBufferBindingType_Uniform,
+        .hasDynamicOffset = false,
+        .minBindingSize   = 64,
       },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: Sampler (Fragment shader)
-        .binding = 1,
-        .visibility = WGPUShaderStage_Fragment,
-        .sampler = (WGPUSamplerBindingLayout){
-          .type=WGPUSamplerBindingType_Filtering,
-        },
-        .texture = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
       },
-      [2] = (WGPUBindGroupLayoutEntry) {
-        // Binding 2: Texture view (Fragment shader)
-        .binding = 2,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled = false,
-        },
-        .storageTexture = {0},
-      }
-    };
-    WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-      .entries    = bgl_entries,
-    };
-    imgui_overlay->bind_group_layout
-      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(imgui_overlay->bind_group_layout)
-  }
+    },
+    [2] = (WGPUBindGroupLayoutEntry){
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+    },
+  };
 
-  // Create the pipeline layout that is used to generate the rendering pipelines
-  // that are based on this bind group layout
-  {
-    WGPUBindGroupLayout bgls[1] = {imgui_overlay->bind_group_layout};
-    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+  overlay_state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("ImGui bind group layout"),
+                            .entryCount = 3,
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(overlay_state.bind_group_layout);
+
+  /* Create pipeline layout */
+  overlay_state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("ImGui pipeline layout"),
       .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = bgls,
-    };
-    imgui_overlay->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &pipeline_layout_desc);
-    ASSERT(imgui_overlay->pipeline_layout)
-  }
-}
+      .bindGroupLayouts     = &overlay_state.bind_group_layout,
+    });
+  ASSERT(overlay_state.pipeline_layout);
 
-static void imgui_overlay_prepare_pipeline(imgui_overlay_t* imgui_overlay)
-{
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
-
-  // Primitive state
-  WGPUPrimitiveState primitive_state_desc = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
+  /* Vertex state */
+  WGPUVertexAttribute vertex_attributes[3] = {
+    [0] = (WGPUVertexAttribute){
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = offsetof(ImDrawVert, pos),
+      .shaderLocation = 0,
+    },
+    [1] = (WGPUVertexAttribute){
+      .format         = WGPUVertexFormat_Float32x2,
+      .offset         = offsetof(ImDrawVert, uv),
+      .shaderLocation = 1,
+    },
+    [2] = (WGPUVertexAttribute){
+      .format         = WGPUVertexFormat_Unorm8x4,
+      .offset         = offsetof(ImDrawVert, col),
+      .shaderLocation = 2,
+    },
   };
 
-  // Color target state
-  WGPUBlendState blend_state
-    = wgpu_create_blend_state(imgui_overlay->settings.enable_alpha_blending);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
+  WGPUVertexBufferLayout vertex_buffer_layout = {
+    .arrayStride    = sizeof(ImDrawVert),
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = 3,
+    .attributes     = vertex_attributes,
+  };
+
+  /* Create shader modules */
+  WGPUShaderModule vs_module
+    = wgpu_create_shader_module(wgpu_context->device, imgui_vertex_shader_wgsl);
+  ASSERT(vs_module);
+
+  WGPUShaderModule fs_module = wgpu_create_shader_module(
+    wgpu_context->device, imgui_fragment_shader_wgsl);
+  ASSERT(fs_module);
+
+  /* Color target state with blending */
+  WGPUBlendState blend_state = {
+    .color = (WGPUBlendComponent){
+      .operation = WGPUBlendOperation_Add,
+      .srcFactor = WGPUBlendFactor_SrcAlpha,
+      .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+    },
+    .alpha = (WGPUBlendComponent){
+      .operation = WGPUBlendOperation_Add,
+      .srcFactor = WGPUBlendFactor_One,
+      .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+    },
+  };
+
+  WGPUColorTargetState color_target_state = {
+    .format    = wgpu_context->render_format,
     .blend     = &blend_state,
     .writeMask = WGPUColorWriteMask_All,
   };
 
-  // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state_desc
-    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = imgui_overlay->depth_stencil_format,
-      .depth_write_enabled = false,
+  /* Create render pipeline */
+  overlay_state.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("ImGui render pipeline"),
+      .layout = overlay_state.pipeline_layout,
+      .vertex = (WGPUVertexState){
+        .module      = vs_module,
+        .entryPoint  = STRVIEW("main"),
+        .bufferCount = 1,
+        .buffers     = &vertex_buffer_layout,
+      },
+      .primitive = (WGPUPrimitiveState){
+        .topology         = WGPUPrimitiveTopology_TriangleList,
+        .stripIndexFormat = WGPUIndexFormat_Undefined,
+        .frontFace        = WGPUFrontFace_CW,
+        .cullMode         = WGPUCullMode_None,
+      },
+      .multisample = (WGPUMultisampleState){
+        .count                  = 1,
+        .mask                   = 0xFFFFFFFF,
+        .alphaToCoverageEnabled = false,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = fs_module,
+        .entryPoint  = STRVIEW("main"),
+        .targetCount = 1,
+        .targets     = &color_target_state,
+      },
     });
+  ASSERT(overlay_state.pipeline);
 
-  // Vertex buffer layout
-  WGPU_VERTEX_BUFFER_LAYOUT(
-    imgui, sizeof(ImDrawVert),
-    // Attribute location 0: Position
-    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
-                       offsetof(ImDrawVert, pos)),
-    // Attribute location 1: UV
-    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, offsetof(ImDrawVert, uv)),
-    // Attribute location 2: Color
-    WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Unorm8x4, offsetof(ImDrawVert, col)))
+  /* Release shader modules */
+  WGPU_RELEASE_RESOURCE(ShaderModule, vs_module)
+  WGPU_RELEASE_RESOURCE(ShaderModule, fs_module)
+}
 
-  // Vertex state
-  WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .file = "shaders/imgui_overlay/imgui.vert.spv",
-                },
-                .buffer_count = 1,
-                .buffers = &imgui_vertex_buffer_layout,
-              });
+/**
+ * @brief Create uniform buffer for projection matrix
+ */
+static void create_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  overlay_state.uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("ImGui uniform buffer"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = 64,
+    });
+  ASSERT(overlay_state.uniform_buffer);
+}
 
-  // Fragment state
-  WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .file = "shaders/imgui_overlay/imgui.frag.spv",
-                },
-                .target_count = 1,
-                .targets = &color_target_state_desc,
-              });
+/**
+ * @brief Create bind group
+ */
+static void create_bind_group(wgpu_context_t* wgpu_context)
+{
+  WGPUBindGroupEntry bg_entries[3] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding = 0,
+      .buffer  = overlay_state.uniform_buffer,
+      .size    = 64,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = overlay_state.font_sampler,
+    },
+    [2] = (WGPUBindGroupEntry){
+      .binding     = 2,
+      .textureView = overlay_state.font_texture_view,
+    },
+  };
 
-  // Multisample state
-  WGPUMultisampleState multisample_state_desc
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = imgui_overlay->settings.msaa_sample_count,
-      });
-
-  // Create rendering pipeline using the specified states
-  imgui_overlay->pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "imgui_render_pipeline",
-                            .layout       = imgui_overlay->pipeline_layout,
-                            .primitive    = primitive_state_desc,
-                            .vertex       = vertex_state_desc,
-                            .fragment     = &fragment_state_desc,
-                            .depthStencil = &depth_stencil_state_desc,
-                            .multisample  = multisample_state_desc,
+  overlay_state.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("ImGui bind group"),
+                            .layout     = overlay_state.bind_group_layout,
+                            .entryCount = 3,
+                            .entries    = bg_entries,
                           });
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
+  ASSERT(overlay_state.bind_group);
 }
 
-static void imgui_overlay_prepare_uniform_buffer(imgui_overlay_t* imgui_overlay)
+/**
+ * @brief Update vertex and index buffers
+ */
+static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
 {
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
+  uint64_t vertex_size
+    = (uint64_t)draw_data->TotalVtxCount * sizeof(ImDrawVert);
+  uint64_t index_size = (uint64_t)draw_data->TotalIdxCount * sizeof(ImDrawIdx);
 
-  // Create uniform buffer
-  {
-    imgui_overlay->uniform_buffer = wgpu_create_buffer(
-      wgpu_context,
-      &(wgpu_buffer_desc_t){
-        .label = "imgui-uniform-buffer",
-        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-        .size  = sizeof(vertex_uniform_buffer_t),
+  /* Create or resize vertex buffer */
+  if (!overlay_state.vertex_buffer
+      || overlay_state.vertex_buffer_size < vertex_size) {
+    if (overlay_state.vertex_buffer) {
+      WGPU_RELEASE_RESOURCE(Buffer, overlay_state.vertex_buffer)
+    }
+    overlay_state.vertex_buffer_size = vertex_size + 5000 * sizeof(ImDrawVert);
+    overlay_state.vertex_buffer      = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+             .label = STRVIEW("ImGui vertex buffer"),
+             .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+             .size  = overlay_state.vertex_buffer_size,
       });
+    ASSERT(overlay_state.vertex_buffer);
   }
 
-  // Create uniform bind group
-  {
-    WGPUBindGroupEntry bg_entries[3]= {
-       [0] = (WGPUBindGroupEntry) {
-         .binding = 0,
-         .offset  = 0,
-         .size    = imgui_overlay->uniform_buffer.size,
-         .buffer  = imgui_overlay->uniform_buffer.buffer,
-       },
-       [1] = (WGPUBindGroupEntry) {
-         .binding = 1,
-         .sampler = imgui_overlay->font.sampler,
-       },
-       [2] = (WGPUBindGroupEntry) {
-         .binding = 2,
-         .textureView = imgui_overlay->font.texture_view,
-       },
-    };
-
-    WGPUBindGroupDescriptor bg_desc = {
-      .layout     = imgui_overlay->bind_group_layout,
-      .entryCount = ARRAY_SIZE(bg_entries),
-      .entries    = bg_entries,
-    };
-
-    imgui_overlay->bind_group
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(imgui_overlay->bind_group);
+  /* Create or resize index buffer */
+  if (!overlay_state.index_buffer
+      || overlay_state.index_buffer_size < index_size) {
+    if (overlay_state.index_buffer) {
+      WGPU_RELEASE_RESOURCE(Buffer, overlay_state.index_buffer)
+    }
+    overlay_state.index_buffer_size = index_size + 10000 * sizeof(ImDrawIdx);
+    overlay_state.index_buffer      = wgpuDeviceCreateBuffer(
+      wgpu_context->device,
+      &(WGPUBufferDescriptor){
+             .label = STRVIEW("ImGui index buffer"),
+             .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+             .size  = overlay_state.index_buffer_size,
+      });
+    ASSERT(overlay_state.index_buffer);
   }
+
+  /* Upload data using staging buffers */
+  ImDrawVert* vtx_staging = (ImDrawVert*)malloc(vertex_size);
+  ImDrawIdx* idx_staging  = (ImDrawIdx*)malloc(index_size);
+
+  ImDrawVert* vtx_dst = vtx_staging;
+  ImDrawIdx* idx_dst  = idx_staging;
+
+  for (int n = 0; n < draw_data->CmdListsCount; n++) {
+    const ImDrawList* cmd_list = draw_data->CmdLists[n];
+    memcpy(vtx_dst, cmd_list->VtxBuffer.Data,
+           (size_t)cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+    memcpy(idx_dst, cmd_list->IdxBuffer.Data,
+           (size_t)cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+    vtx_dst += cmd_list->VtxBuffer.Size;
+    idx_dst += cmd_list->IdxBuffer.Size;
+  }
+
+  /* Calculate actual data size and align to 4 bytes */
+  uint64_t vtx_data_size
+    = (uint64_t)(vtx_dst - vtx_staging) * sizeof(ImDrawVert);
+  uint64_t idx_data_size
+    = (uint64_t)(idx_dst - idx_staging) * sizeof(ImDrawIdx);
+  uint64_t vtx_size_aligned = (vtx_data_size + 3) & ~(uint64_t)3;
+  uint64_t idx_size_aligned = (idx_data_size + 3) & ~(uint64_t)3;
+
+  /* Upload to GPU */
+  if (vtx_data_size > 0 && idx_data_size > 0) {
+    wgpuQueueWriteBuffer(wgpu_context->queue, overlay_state.vertex_buffer, 0,
+                         vtx_staging, vtx_size_aligned);
+    wgpuQueueWriteBuffer(wgpu_context->queue, overlay_state.index_buffer, 0,
+                         idx_staging, idx_size_aligned);
+  }
+
+  free(vtx_staging);
+  free(idx_staging);
 }
 
-imgui_overlay_t* imgui_overlay_create(wgpu_context_t* wgpu_context,
-                                      WGPUTextureFormat format)
+/* -------------------------------------------------------------------------- *
+ * Public API Implementation
+ * -------------------------------------------------------------------------- */
+
+int imgui_overlay_init(wgpu_context_t* wgpu_context)
 {
-  imgui_overlay_t* imgui_overlay
-    = (imgui_overlay_t*)malloc(sizeof(imgui_overlay_t));
+  if (overlay_state.initialized) {
+    return EXIT_SUCCESS;
+  }
 
-  // Prepare ImGui overlay
-  imgui_overlay_init(imgui_overlay, wgpu_context, format);
-  // Create the pipeline layout that is used to generate the rendering
-  // pipelines
-  imgui_overlay_setup_pipeline_layout(imgui_overlay);
-  // Create the fonts texture
-  imgui_overlay_create_fonts_texture(imgui_overlay);
-  // Prepare and initialize a uniform buffer block containing shader uniforms
-  imgui_overlay_prepare_uniform_buffer(imgui_overlay);
-  // Create the graphics pipeline
-  imgui_overlay_prepare_pipeline(imgui_overlay);
-  // Setup render pass
-  imgui_overlay_setup_render_pass(imgui_overlay);
+  /* Create ImGui context */
+  overlay_state.imgui_context = igCreateContext(NULL);
+  igSetCurrentContext(overlay_state.imgui_context);
 
-  return imgui_overlay;
+  /* Setup ImGui IO */
+  ImGuiIO* io                   = igGetIO();
+  io->BackendRendererName       = "imgui_impl_webgpu";
+  io->DisplaySize.x             = (float)wgpu_context->width;
+  io->DisplaySize.y             = (float)wgpu_context->height;
+  io->DisplayFramebufferScale.x = 1.0f;
+  io->DisplayFramebufferScale.y = 1.0f;
+
+  /* Setup keyboard mapping */
+  io->KeyMap[ImGuiKey_Tab]        = KEY_TAB;
+  io->KeyMap[ImGuiKey_LeftArrow]  = KEY_LEFT;
+  io->KeyMap[ImGuiKey_RightArrow] = KEY_RIGHT;
+  io->KeyMap[ImGuiKey_UpArrow]    = KEY_UP;
+  io->KeyMap[ImGuiKey_DownArrow]  = KEY_DOWN;
+  io->KeyMap[ImGuiKey_PageUp]     = KEY_PAGE_UP;
+  io->KeyMap[ImGuiKey_PageDown]   = KEY_PAGE_DOWN;
+  io->KeyMap[ImGuiKey_Home]       = KEY_HOME;
+  io->KeyMap[ImGuiKey_End]        = KEY_END;
+  io->KeyMap[ImGuiKey_Insert]     = KEY_INSERT;
+  io->KeyMap[ImGuiKey_Delete]     = KEY_DELETE;
+  io->KeyMap[ImGuiKey_Backspace]  = KEY_BACKSPACE;
+  io->KeyMap[ImGuiKey_Space]      = KEY_SPACE;
+  io->KeyMap[ImGuiKey_Enter]      = KEY_ENTER;
+  io->KeyMap[ImGuiKey_Escape]     = KEY_ESCAPE;
+  io->KeyMap[ImGuiKey_A]          = KEY_A;
+  io->KeyMap[ImGuiKey_C]          = KEY_C;
+  io->KeyMap[ImGuiKey_V]          = KEY_V;
+  io->KeyMap[ImGuiKey_X]          = KEY_X;
+  io->KeyMap[ImGuiKey_Y]          = KEY_Y;
+  io->KeyMap[ImGuiKey_Z]          = KEY_Z;
+
+  /* Add default font */
+  ImFontAtlas_AddFontDefault(io->Fonts, NULL);
+
+  /* Create resources */
+  create_font_texture(wgpu_context);
+  create_render_pipeline(wgpu_context);
+  create_uniform_buffer(wgpu_context);
+  create_bind_group(wgpu_context);
+
+  /* Initialize render pass descriptor */
+  overlay_state.color_attachment = (WGPURenderPassColorAttachment){
+    .view       = NULL,
+    .loadOp     = WGPULoadOp_Load,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = (WGPUColor){0.0f, 0.0f, 0.0f, 0.0f},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  };
+
+  overlay_state.render_pass_descriptor = (WGPURenderPassDescriptor){
+    .label                = STRVIEW("ImGui render pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &overlay_state.color_attachment,
+  };
+
+  overlay_state.initialized = true;
+  return EXIT_SUCCESS;
 }
 
-void imgui_overlay_release(imgui_overlay_t* imgui_overlay)
+void imgui_overlay_new_frame(wgpu_context_t* wgpu_context, float delta_time)
 {
-  WGPU_RELEASE_RESOURCE(RenderPipeline, imgui_overlay->pipeline);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, imgui_overlay->pipeline_layout);
-  WGPU_RELEASE_RESOURCE(BindGroup, imgui_overlay->bind_group);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, imgui_overlay->bind_group_layout);
+  if (!overlay_state.initialized) {
+    return;
+  }
 
-  WGPU_RELEASE_RESOURCE(Buffer, imgui_overlay->index_buffer.buffer);
-  WGPU_RELEASE_RESOURCE(Buffer, imgui_overlay->vertex_buffer.buffer);
-  WGPU_RELEASE_RESOURCE(Texture, imgui_overlay->font.texture);
-  WGPU_RELEASE_RESOURCE(TextureView, imgui_overlay->font.texture_view);
-  WGPU_RELEASE_RESOURCE(Sampler, imgui_overlay->font.sampler);
-  WGPU_RELEASE_RESOURCE(Buffer, imgui_overlay->uniform_buffer.buffer);
-
-  free(imgui_overlay);
-}
-
-float imgui_overlay_get_scale(imgui_overlay_t* imgui_overlay)
-{
-  return imgui_overlay->scale;
-}
-
-// Starts a new imGui frame
-void imgui_overlay_new_frame(imgui_overlay_t* imgui_overlay,
-                             wgpu_example_context_t* context)
-{
-  ImGuiIO* io = igGetIO();
-
-  io->DisplaySize.x = (float)imgui_overlay->wgpu_context->surface.width;
-  io->DisplaySize.y = (float)imgui_overlay->wgpu_context->surface.height;
-  io->DeltaTime     = context->frame_timer;
-
-  io->MousePos.x   = context->mouse_position[0];
-  io->MousePos.y   = context->mouse_position[1];
-  io->MouseDown[0] = context->mouse_buttons.left;
-  io->MouseDown[1] = context->mouse_buttons.right;
+  ImGuiIO* io       = igGetIO();
+  io->DisplaySize.x = (float)wgpu_context->width;
+  io->DisplaySize.y = (float)wgpu_context->height;
+  io->DeltaTime     = delta_time > 0.0f ? delta_time : (1.0f / 60.0f);
 
   igNewFrame();
 }
 
-// UI scale and translate
-static void imgui_overlay_update_uniform_buffers(imgui_overlay_t* imgui_overlay,
-                                                 ImDrawData* draw_data)
+void imgui_overlay_render(wgpu_context_t* wgpu_context)
 {
-  // Setup orthographic projection matrix into our constant buffer
-  // Our visible imgui space lies from draw_data->DisplayPos (top left) to
-  // draw_data->DisplayPos+data_data->DisplaySize (bottom right).
-  vertex_uniform_buffer_t vertex_constant_buffer = {0};
-  {
-    const float L         = draw_data->DisplayPos.x;
-    const float R         = draw_data->DisplayPos.x + draw_data->DisplaySize.x;
-    const float T         = draw_data->DisplayPos.y;
-    const float B         = draw_data->DisplayPos.y + draw_data->DisplaySize.y;
-    const float mvp[4][4] = {
-      {2.0f / (R - L), 0.0f, 0.0f, 0.0f},                 //
-      {0.0f, 2.0f / (T - B), 0.0f, 0.0f},                 //
-      {0.0f, 0.0f, 0.5f, 0.0f},                           //
-      {(R + L) / (L - R), (T + B) / (B - T), 0.5f, 1.0f}, //
-    };
-    memcpy(&vertex_constant_buffer.mvp, mvp, sizeof(mvp));
-  }
-
-  wgpu_record_copy_data_to_buffer(
-    imgui_overlay->wgpu_context, &imgui_overlay->uniform_buffer, 0,
-    sizeof(vertex_uniform_buffer_t), &vertex_constant_buffer.mvp,
-    sizeof(vertex_uniform_buffer_t));
-}
-
-// Draw current imGui frame into a command buffer
-void imgui_overlay_draw_frame(imgui_overlay_t* imgui_overlay,
-                              WGPUTextureView view)
-{
-  ImDrawData* draw_data = igGetDrawData();
-
-  // Check if there is content to tbe rendered
-  if (!draw_data || draw_data->CmdListsCount == 0) {
+  if (!overlay_state.initialized) {
     return;
   }
 
-  // UI scale and translate
-  imgui_overlay_update_uniform_buffers(imgui_overlay, draw_data);
+  /* Render ImGui */
+  igRender();
+  ImDrawData* draw_data = igGetDrawData();
 
-  // Set texture view
-  imgui_overlay->rp_color_att_descriptors[0].view = view;
-  imgui_overlay->wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    imgui_overlay->wgpu_context->cmd_enc, &imgui_overlay->render_pass_desc);
-  WGPURenderPassEncoder rpass_enc = imgui_overlay->wgpu_context->rpass_enc;
+  if (draw_data->TotalVtxCount == 0) {
+    return;
+  }
 
-  // Setup desired Dawn state
-  imgui_overlay_setup_render_state(imgui_overlay);
+  /* Update buffers */
+  update_buffers(wgpu_context, draw_data);
 
-  // Render pass
-  // (Because we merged all buffers into a single one, we maintain our own
-  // offset into them)
+  /* Update uniform buffer (projection matrix) */
+  {
+    float L         = draw_data->DisplayPos.x;
+    float R         = draw_data->DisplayPos.x + draw_data->DisplaySize.x;
+    float T         = draw_data->DisplayPos.y;
+    float B         = draw_data->DisplayPos.y + draw_data->DisplaySize.y;
+    float mvp[4][4] = {
+      {2.0f / (R - L), 0.0f, 0.0f, 0.0f},
+      {0.0f, 2.0f / (T - B), 0.0f, 0.0f},
+      {0.0f, 0.0f, 0.5f, 0.0f},
+      {(R + L) / (L - R), (T + B) / (B - T), 0.5f, 1.0f},
+    };
+    wgpuQueueWriteBuffer(wgpu_context->queue, overlay_state.uniform_buffer, 0,
+                         mvp, sizeof(mvp));
+  }
+
+  /* Create command encoder */
+  WGPUCommandEncoder encoder
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+
+  /* Render pass */
+  overlay_state.color_attachment.view = wgpu_context->swapchain_view;
+  WGPURenderPassEncoder pass          = wgpuCommandEncoderBeginRenderPass(
+    encoder, &overlay_state.render_pass_descriptor);
+
+  /* Render ImGui draw data */
+  wgpuRenderPassEncoderSetPipeline(pass, overlay_state.pipeline);
+  wgpuRenderPassEncoderSetBindGroup(pass, 0, overlay_state.bind_group, 0, NULL);
+  wgpuRenderPassEncoderSetVertexBuffer(pass, 0, overlay_state.vertex_buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    pass, overlay_state.index_buffer,
+    sizeof(ImDrawIdx) == 2 ? WGPUIndexFormat_Uint16 : WGPUIndexFormat_Uint32, 0,
+    WGPU_WHOLE_SIZE);
+
+  /* Render command lists */
   int global_vtx_offset = 0;
   int global_idx_offset = 0;
   ImVec2 clip_off       = draw_data->DisplayPos;
-  ImVec2 clip_scale     = draw_data->FramebufferScale;
   for (int n = 0; n < draw_data->CmdListsCount; n++) {
     const ImDrawList* cmd_list = draw_data->CmdLists[n];
-    for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; ++cmd_i) {
+    for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
       const ImDrawCmd* pcmd = &cmd_list->CmdBuffer.Data[cmd_i];
-      if (pcmd->UserCallback != NULL) {
-        // User callback, registered via ImDrawList::AddCallback()
-        // (ImDrawCallback_ResetRenderState is a special callback value used by
-        // the user to request the renderer to reset render state.)
-        if (pcmd->UserCallback == ImDrawCallback_ResetRenderState) {
-          imgui_overlay_setup_render_state(imgui_overlay);
-        }
-        else {
-          pcmd->UserCallback(cmd_list, pcmd);
-        }
+      if (pcmd->UserCallback) {
+        pcmd->UserCallback(cmd_list, pcmd);
       }
       else {
-        // Apply Scissor, Bind texture, Draw
-        if (imgui_overlay->settings.enable_scissor) {
-          ImVec4 clip_rect;
-          clip_rect.x = (pcmd->ClipRect.x - clip_off.x) * clip_scale.x;
-          clip_rect.y = (pcmd->ClipRect.y - clip_off.y) * clip_scale.y;
-          clip_rect.z = (pcmd->ClipRect.z - clip_off.x) * clip_scale.x;
-          clip_rect.w = (pcmd->ClipRect.w - clip_off.y) * clip_scale.y;
-          wgpuRenderPassEncoderSetScissorRect(
-            rpass_enc, (uint32_t)clip_rect.x, (uint32_t)clip_rect.y,
-            (uint32_t)clip_rect.z, (uint32_t)clip_rect.w);
+        /* Set scissor rectangle */
+        ImVec2 clip_min
+          = {pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y};
+        ImVec2 clip_max
+          = {pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y};
+        if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y) {
+          continue;
         }
-        wgpuRenderPassEncoderDrawIndexed(
-          rpass_enc, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset,
-          pcmd->VtxOffset + global_vtx_offset, 0);
+
+        wgpuRenderPassEncoderSetScissorRect(
+          pass, (uint32_t)clip_min.x, (uint32_t)clip_min.y,
+          (uint32_t)(clip_max.x - clip_min.x),
+          (uint32_t)(clip_max.y - clip_min.y));
+
+        /* Draw */
+        wgpuRenderPassEncoderDrawIndexed(pass, pcmd->ElemCount, 1,
+                                         (uint32_t)global_idx_offset,
+                                         global_vtx_offset, 0);
       }
+      global_idx_offset += (int)pcmd->ElemCount;
     }
-    global_idx_offset += cmd_list->IdxBuffer.Size;
     global_vtx_offset += cmd_list->VtxBuffer.Size;
   }
 
-  wgpuRenderPassEncoderEnd(rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, rpass_enc)
+  wgpuRenderPassEncoderEnd(pass);
+
+  /* Submit */
+  WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+  wgpuQueueSubmit(wgpu_context->queue, 1, &command);
+
+  /* Cleanup */
+  WGPU_RELEASE_RESOURCE(CommandBuffer, command)
+  WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass)
+  WGPU_RELEASE_RESOURCE(CommandEncoder, encoder)
 }
 
-// Update vertex and index buffer containing the imGui elements when required
-static void imgui_overlay_update_buffers(imgui_overlay_t* imgui_overlay)
+void imgui_overlay_handle_input(wgpu_context_t* wgpu_context,
+                                const input_event_t* event)
 {
-  ImDrawData* draw_data = igGetDrawData();
+  UNUSED_VAR(wgpu_context);
 
-  // Check if there is content to tbe rendered
-  if (!draw_data || draw_data->CmdListsCount == 0) {
+  if (!overlay_state.initialized) {
     return;
   }
 
-  // Avoid rendering when minimized
-  if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f) {
-    return;
-  }
+  ImGuiIO* io = igGetIO();
 
-  wgpu_context_t* wgpu_context = imgui_overlay->wgpu_context;
+  switch (event->type) {
+    case INPUT_EVENT_TYPE_KEY_DOWN:
+      if (event->key_code < KEY_NUM) {
+        io->KeysDown[event->key_code] = true;
+      }
+      io->KeyCtrl  = (event->key_code == KEY_LEFT_CONTROL
+                     || event->key_code == KEY_RIGHT_CONTROL);
+      io->KeyShift = (event->key_code == KEY_LEFT_SHIFT
+                      || event->key_code == KEY_RIGHT_SHIFT);
+      io->KeyAlt
+        = (event->key_code == KEY_LEFT_ALT || event->key_code == KEY_RIGHT_ALT);
+      io->KeySuper = (event->key_code == KEY_LEFT_SUPER
+                      || event->key_code == KEY_RIGHT_SUPER);
+      break;
 
-  // Update buffers only if vertex or index count has been changed compared to
-  // current buffer size
+    case INPUT_EVENT_TYPE_KEY_UP:
+      if (event->key_code < KEY_NUM) {
+        io->KeysDown[event->key_code] = false;
+      }
+      io->KeyCtrl  = false;
+      io->KeyShift = false;
+      io->KeyAlt   = false;
+      io->KeySuper = false;
+      break;
 
-  // Create and grow index buffers if needed
-  int32_t vertex_buffer_size = imgui_overlay->draw_buffers.vertex.size;
-  if (imgui_overlay->vertex_buffer.size == 0
-      || vertex_buffer_size < draw_data->TotalVtxCount) {
-    vertex_buffer_size = draw_data->TotalVtxCount + 5000;
-    vertex_buffer_size = vertex_buffer_size % 4 == 0 ?
-                           vertex_buffer_size :
-                           vertex_buffer_size + 4 - vertex_buffer_size % 4;
+    case INPUT_EVENT_TYPE_CHAR:
+      if (event->char_code > 0 && event->char_code < 0x10000) {
+        ImGuiIO_AddInputCharacter(io, (unsigned short)event->char_code);
+      }
+      break;
 
-    if (imgui_overlay->vertex_buffer.size > 0) {
-      wgpu_destroy_buffer(&imgui_overlay->vertex_buffer);
-    }
+    case INPUT_EVENT_TYPE_MOUSE_DOWN:
+      if (event->mouse_button == BUTTON_LEFT) {
+        io->MouseDown[0] = true;
+      }
+      else if (event->mouse_button == BUTTON_RIGHT) {
+        io->MouseDown[1] = true;
+      }
+      else if (event->mouse_button == BUTTON_MIDDLE) {
+        io->MouseDown[2] = true;
+      }
+      break;
 
-    imgui_overlay->vertex_buffer = wgpu_create_buffer(
-      wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "imgui-vertex-buffer",
-                      .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-                      .size  = vertex_buffer_size * sizeof(ImDrawVert),
-                    });
-    imgui_overlay->draw_buffers.vertex.size = vertex_buffer_size;
-  }
+    case INPUT_EVENT_TYPE_MOUSE_UP:
+      if (event->mouse_button == BUTTON_LEFT) {
+        io->MouseDown[0] = false;
+      }
+      else if (event->mouse_button == BUTTON_RIGHT) {
+        io->MouseDown[1] = false;
+      }
+      else if (event->mouse_button == BUTTON_MIDDLE) {
+        io->MouseDown[2] = false;
+      }
+      break;
 
-  // Create and grow index buffers if needed
-  int32_t indexBuffer_size = imgui_overlay->draw_buffers.index.size;
-  if (imgui_overlay->index_buffer.size == 0
-      || indexBuffer_size < draw_data->TotalIdxCount) {
-    indexBuffer_size = draw_data->TotalIdxCount + 10000;
-    indexBuffer_size = indexBuffer_size % 4 == 0 ?
-                         indexBuffer_size :
-                         indexBuffer_size + 4 - indexBuffer_size % 4;
+    case INPUT_EVENT_TYPE_MOUSE_MOVE:
+      io->MousePos.x = event->mouse_x;
+      io->MousePos.y = event->mouse_y;
+      break;
 
-    if (imgui_overlay->index_buffer.size > 0) {
-      wgpu_destroy_buffer(&imgui_overlay->index_buffer);
-    }
+    case INPUT_EVENT_TYPE_MOUSE_SCROLL:
+      io->MouseWheelH += event->scroll_x;
+      io->MouseWheel += event->scroll_y;
+      break;
 
-    imgui_overlay->index_buffer = wgpu_create_buffer(
-      wgpu_context, &(wgpu_buffer_desc_t){
-                      .label = "imgui-index-buffer",
-                      .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
-                      .size  = indexBuffer_size * sizeof(ImDrawIdx),
-                    });
-    imgui_overlay->draw_buffers.index.size = indexBuffer_size;
-  }
+    case INPUT_EVENT_TYPE_RESIZED:
+      io->DisplaySize.x = (float)event->window_width;
+      io->DisplaySize.y = (float)event->window_height;
+      break;
 
-  // Upload vertex/index data into a single contiguous GPU buffer
-  uint32_t vtx_dst    = 0;
-  uint32_t idx_dst    = 0;
-  ImDrawVert* pVertex = imgui_overlay->draw_buffers.vertex.data;
-  ImDrawIdx* pIndex   = imgui_overlay->draw_buffers.index.data;
-  for (int n = 0; n < draw_data->CmdListsCount; ++n) {
-    const ImDrawList* cmd_list = draw_data->CmdLists[n];
-    memcpy(pVertex, cmd_list->VtxBuffer.Data,
-           cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-    memcpy(pIndex, cmd_list->IdxBuffer.Data,
-           cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-
-    pVertex += cmd_list->VtxBuffer.Size;
-    pIndex += cmd_list->IdxBuffer.Size;
-    vtx_dst += cmd_list->VtxBuffer.Size * sizeof(ImDrawVert);
-    idx_dst += cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx);
-  }
-  vtx_dst = vtx_dst % 4 == 0 ? vtx_dst : vtx_dst + 4 - vtx_dst % 4;
-  idx_dst = idx_dst % 4 == 0 ? idx_dst : idx_dst + 4 - idx_dst % 4;
-
-  if (vtx_dst != 0 && idx_dst != 0) {
-    wgpu_record_copy_data_to_buffer(
-      wgpu_context, &imgui_overlay->vertex_buffer, 0, vtx_dst,
-      imgui_overlay->draw_buffers.vertex.data,
-      (pVertex - imgui_overlay->draw_buffers.vertex.data) * sizeof(ImDrawVert));
-    wgpu_record_copy_data_to_buffer(
-      wgpu_context, &imgui_overlay->index_buffer, 0, idx_dst,
-      imgui_overlay->draw_buffers.index.data,
-      (pIndex - imgui_overlay->draw_buffers.index.data) * sizeof(ImDrawIdx));
+    default:
+      break;
   }
 }
 
-// Render function
-// (this used to be set in io.RenderDrawListsFn and called by ImGui::Render(),
-// but you can now call this directly from your main loop)
-void imgui_overlay_render(imgui_overlay_t* imgui_overlay)
+void imgui_overlay_shutdown(void)
 {
-  // Render to generate draw buffers
-  igRender();
+  if (!overlay_state.initialized) {
+    return;
+  }
 
-  // Update vertex and index buffer containing the imGui elements when required
-  imgui_overlay_update_buffers(imgui_overlay);
+  /* Release buffers */
+  WGPU_RELEASE_RESOURCE(Buffer, overlay_state.vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, overlay_state.index_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, overlay_state.uniform_buffer)
+
+  /* Release pipeline resources */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, overlay_state.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, overlay_state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, overlay_state.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, overlay_state.bind_group)
+
+  /* Release font resources */
+  WGPU_RELEASE_RESOURCE(Sampler, overlay_state.font_sampler)
+  WGPU_RELEASE_RESOURCE(TextureView, overlay_state.font_texture_view)
+  WGPU_RELEASE_RESOURCE(Texture, overlay_state.font_texture)
+
+  /* Destroy ImGui context */
+  if (overlay_state.imgui_context) {
+    igDestroyContext(overlay_state.imgui_context);
+    overlay_state.imgui_context = NULL;
+  }
+
+  overlay_state.initialized = false;
 }
 
 bool imgui_overlay_want_capture_mouse(void)
 {
-  ImGuiIO* io = igGetIO();
-  return io->WantCaptureMouse;
+  if (!overlay_state.initialized) {
+    return false;
+  }
+  return igGetIO()->WantCaptureMouse;
 }
+
+bool imgui_overlay_want_capture_keyboard(void)
+{
+  if (!overlay_state.initialized) {
+    return false;
+  }
+  return igGetIO()->WantCaptureKeyboard;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Convenience Widget Functions
+ * -------------------------------------------------------------------------- */
 
 bool imgui_overlay_header(const char* caption)
 {
-  return igCollapsingHeader_TreeNodeFlags(caption,
-                                          ImGuiTreeNodeFlags_DefaultOpen);
+  return igCollapsingHeader(caption, ImGuiTreeNodeFlags_DefaultOpen);
 }
 
-bool imgui_overlay_checkBox(imgui_overlay_t* imgui_overlay, const char* caption,
-                            bool* value)
+bool imgui_overlay_checkbox(const char* caption, bool* value)
 {
-  bool res = igCheckbox(caption, value);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igCheckbox(caption, value);
 }
 
-bool imgui_overlay_input_float(imgui_overlay_t* imgui_overlay,
-                               const char* caption, float* value, float step,
-                               const char* format)
-{
-  bool res = igInputFloat(caption, value, step, step * 10.0f, format, 0);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
-}
-
-bool imgui_overlay_slider_float(imgui_overlay_t* imgui_overlay,
-                                const char* caption, float* value, float min,
+bool imgui_overlay_slider_float(const char* caption, float* value, float min,
                                 float max, const char* format)
 {
-  bool res = igSliderFloat(caption, value, min, max, format, 0);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igSliderFloat(caption, value, min, max, format ? format : "%.3f", 0);
 }
 
-bool imgui_overlay_slider_int(imgui_overlay_t* imgui_overlay,
-                              const char* caption, int32_t* value, int32_t min,
+bool imgui_overlay_slider_int(const char* caption, int32_t* value, int32_t min,
                               int32_t max)
 {
-  bool res = igSliderInt(caption, value, min, max, "%d", 0);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igSliderInt(caption, value, min, max, "%d");
 }
 
-bool imgui_overlay_combo_box(imgui_overlay_t* imgui_overlay,
-                             const char* caption, int32_t* item_index,
+bool imgui_overlay_input_float(const char* caption, float* value, float step,
+                               const char* format)
+{
+  return igInputFloat(caption, value, step, step * 10.0f,
+                      format ? format : "%.3f", 0);
+}
+
+bool imgui_overlay_combo_box(const char* caption, int32_t* item_index,
                              const char** items, uint32_t item_count)
 {
   if (item_count == 0) {
     return false;
   }
-  bool res
-    = igCombo_Str_arr(caption, item_index, &items[0], item_count, item_count);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igCombo(caption, item_index, items, (int)item_count, (int)item_count);
 }
 
-bool imgui_overlay_button(imgui_overlay_t* imgui_overlay, const char* caption)
+bool imgui_overlay_button(const char* caption)
 {
-  bool res = igSmallButton(caption);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igSmallButton(caption);
 }
 
 void imgui_overlay_text(const char* format_str, ...)
@@ -812,12 +798,53 @@ void imgui_overlay_text(const char* format_str, ...)
   va_end(args);
 }
 
-bool imgui_overlay_color_edit4(imgui_overlay_t* imgui_overlay,
-                               const char* caption, float color[4])
+bool imgui_overlay_color_edit4(const char* caption, float color[4])
 {
-  bool res = igColorEdit4(caption, color, ImGuiColorEditFlags_Float);
-  if (res) {
-    imgui_overlay->updated = true;
-  };
-  return res;
+  return igColorEdit4(caption, color, ImGuiColorEditFlags_Float);
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* imgui_vertex_shader_wgsl = CODE(
+  struct VertexInput {
+    @location(0) position : vec2f,
+    @location(1) uv : vec2f,
+    @location(2) color : vec4f,
+  };
+
+  struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) uv : vec2f,
+    @location(1) color : vec4f,
+  };
+
+  struct Uniforms { projection_matrix : mat4x4f, };
+
+  @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+  @vertex fn main(in : VertexInput) -> VertexOutput {
+    var out : VertexOutput;
+    out.position = uniforms.projection_matrix * vec4f(in.position, 0.0, 1.0);
+    out.uv       = in.uv;
+    out.color    = in.color;
+    return out;
+  }
+);
+
+static const char* imgui_fragment_shader_wgsl = CODE(
+  struct FragmentInput {
+    @location(0) uv : vec2f,
+    @location(1) color : vec4f,
+  };
+
+  @group(0) @binding(1) var texture_sampler : sampler;
+  @group(0) @binding(2) var texture_view : texture_2d<f32>;
+
+  @fragment fn main(in : FragmentInput) -> @location(0) vec4f {
+    return in.color * textureSample(texture_view, texture_sampler, in.uv);
+  }
+);
+// clang-format on
