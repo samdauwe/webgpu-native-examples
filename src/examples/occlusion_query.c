@@ -1,9 +1,20 @@
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Occlusion Query
@@ -123,6 +134,7 @@ static struct {
   struct {
     bool animate;
   } settings;
+  uint64_t last_frame_time;
   WGPUBool initialized;
 } state = {
   .cube_positions = {
@@ -460,6 +472,62 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
   ASSERT(state.depth_texture.view != NULL);
 }
 
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size to prevent resizing */
+  igSetNextWindowSize((ImVec2){220.0f, 80.0f}, ImGuiCond_Always);
+
+  /* Build GUI - similar to TypeScript version */
+  igBegin("Occlusion Query", NULL,
+          ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+
+  /* Display visible cubes with colored squares */
+  igText("Visible:");
+
+  /* Cube colors and labels matching the TypeScript version */
+  const char* cube_labels[CUBE_ID_COUNT] = {
+    "Red",    /* CUBE_ID_RED */
+    "Yellow", /* CUBE_ID_YELLOW */
+    "Green",  /* CUBE_ID_GREEN */
+    "Orange", /* CUBE_ID_ORANGE */
+    "Blue",   /* CUBE_ID_BLUE */
+    "Purple", /* CUBE_ID_PURPLE */
+  };
+
+  /* Display colored squares horizontally for all visible cubes */
+  bool first_visible = true;
+  for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
+    if (state.cubes[i].is_visible) {
+      /* Get cube color */
+      vec4 color;
+      glm_vec4_copy(state.cube_positions[i].color, color);
+
+      /* Place on same line as previous square (except first) */
+      if (!first_visible) {
+        igSameLine(0.0f, 3.0f);
+      }
+      first_visible = false;
+
+      /* Draw colored square button (non-interactive) */
+      ImVec4 col = {color[0], color[1], color[2], color[3]};
+      igPushIDInt((int)i);
+      igColorButton(cube_labels[i], col,
+                    ImGuiColorEditFlags_NoTooltip
+                      | ImGuiColorEditFlags_NoPicker,
+                    (ImVec2){20.0f, 20.0f});
+      igPopID();
+    }
+  }
+
+  igEnd();
+}
+
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
@@ -469,6 +537,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_occlusion_query_set(wgpu_context);
     init_occlusion_query_set_buffers(wgpu_context);
     init_vertex_and_index_buffers(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -515,6 +584,21 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
 
   /* Update unform data */
   update_cubes_unform_buffer(wgpu_context);
@@ -578,6 +662,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   /* Map and read results buffer */
   get_occlusion_query_results();
 
@@ -587,6 +674,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  imgui_overlay_shutdown();
 
   for (uint32_t i = 0; i < CUBE_ID_COUNT; ++i) {
     wgpu_destroy_buffer(&state.cubes[i].uniform_buffer);
@@ -605,13 +694,23 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   wgpu_destroy_texture(&state.depth_texture);
 }
 
+/**
+ * @brief Input event callback for ImGui interaction
+ */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
+{
+  imgui_overlay_handle_input(wgpu_context, event);
+}
+
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Occlusion Query",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Occlusion Query",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;
