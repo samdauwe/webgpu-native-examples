@@ -760,7 +760,8 @@ bool imgui_overlay_checkbox(const char* caption, bool* value)
 bool imgui_overlay_slider_float(const char* caption, float* value, float min,
                                 float max, const char* format)
 {
-  return igSliderFloat(caption, value, min, max, format ? format : "%.3f", 0);
+  return igSliderFloat(caption, value, min, max, format ? format : "%.3f",
+                       1.0f);
 }
 
 bool imgui_overlay_slider_int(const char* caption, int32_t* value, int32_t min,
