@@ -280,6 +280,10 @@ Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosG
 
 Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The sample uses the glTF model loading functions, and adds data structures, functions and shaders required to render a more complex scene using [Crytek's Sponza model](https://casual-effects.com/data/) with per-material pipelines and normal mapping.
 
+#### [Skinned mesh (GLTF skinning)](src/examples/skinned_mesh.c)
+
+Demonstrates basic GLTF loading and mesh skinning, ported from [webgl-skinning](https://webgl2fundamentals.org/webgl/lessons/webgl-skinning.html). Mesh data, per-vertex attributes, and skin inverseBindMatrices are taken from the JSON parsed from the binary output of the .glb file. Animations are generated programmatically, with animated joint matrices updated and passed to shaders per frame via uniform buffers.
+
 ### Advanced
 
 #### [MSAA line](src/examples/msaa_line.c)
