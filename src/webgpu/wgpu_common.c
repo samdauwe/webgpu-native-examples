@@ -969,6 +969,11 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
 
   /* Texture view */
   {
+    WGPUTextureUsage usage
+      = (desc && desc->usage) ?
+          desc->usage :
+          WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+
     WGPUTextureViewDescriptor view_desc = {
       .format          = format,
       .dimension       = WGPUTextureViewDimension_2D,
@@ -977,7 +982,7 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
       .baseArrayLayer  = 0,
       .arrayLayerCount = 1,
       .aspect          = WGPUTextureAspect_All,
-      .usage           = WGPUTextureUsage_TextureBinding,
+      .usage           = usage,
     };
     texture.view = wgpuTextureCreateView(texture.handle, &view_desc);
   }
