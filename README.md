@@ -546,15 +546,13 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 
 ## Roadmap
 
-### June 2024 - ...
+### June 2026 - ...
 
 The list given below summarizes possible examples or functionality that will be added in the future.
 
-* [ ] Make wgpu_native lib compatible with latest Dawn version
-* [ ] Extend command-line options
+* [x] Make wgpu_native lib compatible with latest Dawn version
 * [ ] [Aquarium](https://github.com/webatintel/aquarium)
 * [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
-* [ ] [glTF vertex skinning](https://github.com/SaschaWillems/Vulkan/tree/master/examples/gltfskinning)
 * [ ] [Physically-Based Rendering using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
 * [ ] Building for Web with Emscripten / WebAssembly
 
