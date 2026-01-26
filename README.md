@@ -507,6 +507,11 @@ This example shows a voxel-based terrain rendering technique using WebGPU comput
 
 This example demonstrates shadow mapping using a depth texture array. Multiple lights cast shadows on a scene with a plane and rotating cubes. The example code has been ported from [this Rust implementation](https://github.com/gfx-rs/wgpu/blob/trunk/examples/features/src/shadow) to native C99 code.
 
+
+#### [Water Simulation](src/examples/water_simulation.c)
+
+A real-time interactive water simulation using WebGPU. Simulates realistic water physics, reflections, refractions, and caustics in a tiled pool scene. Features include interactive ripples, a draggable floating sphere, dynamic lighting, and camera controls. Based on [Evan Wallace's WebGL Water demo](https://madebyevan.com/webgl-water/).
+
 ## Dependencies
 
 Just like all software, WebGPU Native Examples and Demos are built on the shoulders of incredible people! Here's a list of the used libraries.
