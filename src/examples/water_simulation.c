@@ -62,15 +62,21 @@
  * WGSL Shaders - Forward declarations
  * -------------------------------------------------------------------------- */
 
+/* Shader generation functions */
+static const char* get_water_surface_above_shader(void);
+static const char* get_water_surface_under_shader(void);
+
 static const char* drop_shader_wgsl;
 static const char* update_shader_wgsl;
 static const char* normal_shader_wgsl;
 static const char* sphere_move_shader_wgsl;
 static const char* caustics_shader_wgsl;
-static const char* water_surface_above_shader_wgsl;
-static const char* water_surface_under_shader_wgsl;
 static const char* pool_shader_wgsl;
 static const char* sphere_shader_wgsl;
+
+/* Dynamically generated shaders */
+static char* water_surface_above_shader_code = NULL;
+static char* water_surface_under_shader_code = NULL;
 
 /* -------------------------------------------------------------------------- *
  * Constants and Enums
@@ -124,6 +130,16 @@ typedef struct water_t {
 
   /* Current active texture (A or B) */
   bool use_texture_a;
+
+  /* Pending drop for smooth ripples (only one drop per frame, like TypeScript)
+   */
+  struct {
+    float x;
+    float y;
+    float radius;
+    float strength;
+    bool pending;
+  } pending_drop;
 } water_t;
 
 typedef struct pool_t {
@@ -144,6 +160,10 @@ static struct {
   /* Core WebGPU resources */
   wgpu_texture_t tiles_texture;
   WGPUSampler tile_sampler;
+
+  /* Skybox cubemap for reflections */
+  wgpu_texture_t skybox_texture;
+  WGPUSampler skybox_sampler;
 
   /* Water simulation */
   water_t water;
@@ -195,6 +215,11 @@ static struct {
     uint8_t file_buffer[512 * 512 * 4];
     size_t loaded_data_size;
     WGPUBool tiles_loaded;
+    /* Skybox face buffers (6 faces) */
+    uint8_t skybox_buffers[6][512 * 512 * 4];
+    size_t skybox_sizes[6];
+    int skybox_loaded_count;
+    WGPUBool skybox_ready;
   } file_loading;
 
   /* GUI settings */
@@ -271,6 +296,8 @@ static void cleanup_pool(void);
 static void cleanup_sphere(void);
 static void water_add_drop(wgpu_context_t* wgpu_context, float x, float y,
                            float radius, float strength);
+static void water_queue_drop(float x, float y, float radius, float strength);
+static void water_process_queued_drops(wgpu_context_t* wgpu_context);
 static void water_step_simulation(wgpu_context_t* wgpu_context);
 static void water_update_normals(wgpu_context_t* wgpu_context);
 static void water_move_sphere(wgpu_context_t* wgpu_context, vec3 old_center,
@@ -283,6 +310,80 @@ static void update_shadow_uniforms(wgpu_context_t* wgpu_context);
 /* -------------------------------------------------------------------------- *
  * Helper functions
  * -------------------------------------------------------------------------- */
+
+/* Raytracing helper: unproject screen coordinates to world space */
+static void unproject(float win_x, float win_y, float win_z,
+                      uint32_t viewport_w, uint32_t viewport_h,
+                      mat4 inv_view_proj, vec3 out)
+{
+  /* Convert screen coordinates to NDC [-1, 1] */
+  float x = (win_x / (float)viewport_w) * 2.0f - 1.0f;
+  float y = 1.0f - (win_y / (float)viewport_h) * 2.0f; /* Flip Y */
+  float z = win_z;
+
+  /* Transform from NDC to world space */
+  vec4 ndc = {x, y, z, 1.0f};
+  vec4 world;
+  glm_mat4_mulv(inv_view_proj, ndc, world);
+  if (fabsf(world[3]) > 1e-10f) {
+    out[0] = world[0] / world[3];
+    out[1] = world[1] / world[3];
+    out[2] = world[2] / world[3];
+  }
+  else {
+    glm_vec3_zero(out);
+  }
+}
+
+/* Raytracing helper: get ray direction for a screen pixel */
+static void get_ray_for_pixel(wgpu_context_t* wgpu_context, float x, float y,
+                              vec3 eye_out, vec3 ray_out)
+{
+  /* Calculate view-projection and its inverse */
+  mat4 view_projection;
+  glm_mat4_mul(state.camera.projection, state.camera.view, view_projection);
+  mat4 inv_view_proj;
+  glm_mat4_inv(view_projection, inv_view_proj);
+
+  /* Get eye position */
+  mat4 inv_view;
+  glm_mat4_inv(state.camera.view, inv_view);
+  glm_vec3_copy((vec3){inv_view[3][0], inv_view[3][1], inv_view[3][2]},
+                eye_out);
+
+  /* Unproject at far plane */
+  vec3 far_point;
+  unproject(x, y, 1.0f, wgpu_context->width, wgpu_context->height,
+            inv_view_proj, far_point);
+
+  /* Ray = far_point - eye, normalized */
+  glm_vec3_sub(far_point, eye_out, ray_out);
+  glm_vec3_normalize(ray_out);
+}
+
+/* Raytracing helper: test sphere intersection */
+static bool hit_test_sphere(vec3 origin, vec3 ray, vec3 center, float radius,
+                            float* t_out, vec3 hit_out)
+{
+  vec3 offset;
+  glm_vec3_sub(origin, center, offset);
+  float a            = glm_vec3_dot(ray, ray);
+  float b            = 2.0f * glm_vec3_dot(offset, ray);
+  float c            = glm_vec3_dot(offset, offset) - radius * radius;
+  float discriminant = b * b - 4.0f * a * c;
+
+  if (discriminant > 0.0f) {
+    float t = (-b - sqrtf(discriminant)) / (2.0f * a);
+    if (t > 0.0f) {
+      *t_out     = t;
+      hit_out[0] = origin[0] + ray[0] * t;
+      hit_out[1] = origin[1] + ray[1] * t;
+      hit_out[2] = origin[2] + ray[2] * t;
+      return true;
+    }
+  }
+  return false;
+}
 
 static void update_camera_matrices(wgpu_context_t* wgpu_context)
 {
@@ -433,6 +534,30 @@ static void tiles_texture_loaded(const sfetch_response_t* response)
   }
 }
 
+/* Skybox face loading callbacks (user_data = face index: 0-5) */
+static void skybox_face_loaded(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    /* Extract face index from user_data */
+    int face_idx = 0;
+    if (response->user_data) {
+      face_idx = *(const int*)response->user_data;
+    }
+    if (face_idx >= 0 && face_idx < 6) {
+      if (response->data.size
+          <= sizeof(state.file_loading.skybox_buffers[face_idx])) {
+        memcpy(state.file_loading.skybox_buffers[face_idx], response->data.ptr,
+               response->data.size);
+        state.file_loading.skybox_sizes[face_idx] = response->data.size;
+        state.file_loading.skybox_loaded_count++;
+        if (state.file_loading.skybox_loaded_count == 6) {
+          state.file_loading.skybox_ready = true;
+        }
+      }
+    }
+  }
+}
+
 /* -------------------------------------------------------------------------- *
  * Main functions
  * -------------------------------------------------------------------------- */
@@ -471,6 +596,26 @@ static int example_init(wgpu_context_t* wgpu_context)
     .buffer   = SFETCH_RANGE(state.file_loading.file_buffer),
   });
 
+  /* Start loading skybox faces */
+  static const char* skybox_faces[6] = {
+    "assets/textures/cubemaps/clouds_cube_px.jpg", /* X+ */
+    "assets/textures/cubemaps/clouds_cube_nx.jpg", /* X- */
+    "assets/textures/cubemaps/clouds_cube_py.jpg", /* Y+ */
+    "assets/textures/cubemaps/clouds_cube_ny.jpg", /* Y- */
+    "assets/textures/cubemaps/clouds_cube_pz.jpg", /* Z+ */
+    "assets/textures/cubemaps/clouds_cube_nz.jpg", /* Z- */
+  };
+  static int face_indices[6] = {0, 1, 2, 3, 4, 5};
+  for (int i = 0; i < 6; i++) {
+    sfetch_send(&(sfetch_request_t){
+      .path      = skybox_faces[i],
+      .callback  = skybox_face_loaded,
+      .buffer    = {.ptr  = state.file_loading.skybox_buffers[i],
+                    .size = sizeof(state.file_loading.skybox_buffers[i])},
+      .user_data = SFETCH_RANGE(face_indices[i]),
+    });
+  }
+
   state.last_frame_time = stm_now();
   state.initialized     = true;
 
@@ -502,9 +647,21 @@ static void example_cleanup(wgpu_context_t* wgpu_context)
 
   /* Cleanup textures */
   wgpu_destroy_texture(&state.tiles_texture);
+  wgpu_destroy_texture(&state.skybox_texture);
 
   /* Cleanup samplers */
   WGPU_RELEASE_RESOURCE(Sampler, state.tile_sampler);
+  WGPU_RELEASE_RESOURCE(Sampler, state.skybox_sampler);
+
+  /* Cleanup shader strings */
+  if (water_surface_above_shader_code) {
+    free(water_surface_above_shader_code);
+    water_surface_above_shader_code = NULL;
+  }
+  if (water_surface_under_shader_code) {
+    free(water_surface_under_shader_code);
+    water_surface_under_shader_code = NULL;
+  }
 }
 
 static int example_frame(wgpu_context_t* wgpu_context)
@@ -566,8 +723,106 @@ static int example_frame(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Initialize scene objects after texture is ready */
-  if (!state.resources_ready && state.tiles_texture.handle) {
+  /* Create skybox cubemap texture when all faces are loaded */
+  if (state.file_loading.skybox_ready && !state.skybox_texture.handle) {
+    /* Decode all 6 faces and determine dimensions */
+    int width = 0, height = 0;
+    stbi_uc* face_pixels[6] = {NULL};
+    bool all_loaded         = true;
+
+    for (int i = 0; i < 6 && all_loaded; i++) {
+      int w, h, channels;
+      face_pixels[i]
+        = stbi_load_from_memory(state.file_loading.skybox_buffers[i],
+                                (int)state.file_loading.skybox_sizes[i], &w, &h,
+                                &channels, STBI_rgb_alpha);
+      if (face_pixels[i]) {
+        if (width == 0) {
+          width  = w;
+          height = h;
+        }
+        else if (w != width || h != height) {
+          all_loaded = false; /* Mismatched dimensions */
+        }
+      }
+      else {
+        all_loaded = false;
+      }
+    }
+
+    if (all_loaded && width > 0) {
+      /* Create cubemap texture */
+      WGPUTexture cubemap_texture = wgpuDeviceCreateTexture(
+        wgpu_context->device,
+        &(WGPUTextureDescriptor){
+          .label  = STRVIEW("Skybox cubemap"),
+          .size   = {(uint32_t)width, (uint32_t)height, 6},
+          .format = WGPUTextureFormat_RGBA8Unorm,
+          .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+          .mipLevelCount = 1,
+          .sampleCount   = 1,
+          .dimension     = WGPUTextureDimension_2D,
+        });
+
+      /* Upload each face (with Y flip to match WebGPU coordinate system) */
+      for (int i = 0; i < 6; i++) {
+        /* Flip Y axis to match TypeScript version */
+        uint8_t* flipped = malloc(width * height * 4);
+        for (int y = 0; y < height; y++) {
+          memcpy(&flipped[y * width * 4],
+                 &face_pixels[i][(height - 1 - y) * width * 4], width * 4);
+        }
+
+        wgpuQueueWriteTexture(
+          wgpu_context->queue,
+          &(WGPUTexelCopyTextureInfo){
+            .texture  = cubemap_texture,
+            .mipLevel = 0,
+            .origin   = {0, 0, (uint32_t)i},
+            .aspect   = WGPUTextureAspect_All,
+          },
+          flipped, width * height * 4,
+          &(WGPUTexelCopyBufferLayout){
+            .bytesPerRow  = (uint32_t)(width * 4),
+            .rowsPerImage = (uint32_t)height,
+          },
+          &(WGPUExtent3D){(uint32_t)width, (uint32_t)height, 1});
+
+        free(flipped);
+      }
+
+      state.skybox_texture.handle = cubemap_texture;
+      state.skybox_texture.view   = wgpuTextureCreateView(
+        cubemap_texture, &(WGPUTextureViewDescriptor){
+                             .label           = STRVIEW("Skybox cubemap view"),
+                             .format          = WGPUTextureFormat_RGBA8Unorm,
+                             .dimension       = WGPUTextureViewDimension_Cube,
+                             .baseMipLevel    = 0,
+                             .mipLevelCount   = 1,
+                             .baseArrayLayer  = 0,
+                             .arrayLayerCount = 6,
+                         });
+
+      state.skybox_sampler = wgpuDeviceCreateSampler(
+        wgpu_context->device, &(WGPUSamplerDescriptor){
+                                .label         = STRVIEW("Skybox sampler"),
+                                .magFilter     = WGPUFilterMode_Linear,
+                                .minFilter     = WGPUFilterMode_Linear,
+                                .maxAnisotropy = 1,
+                              });
+    }
+
+    /* Free face pixels */
+    for (int i = 0; i < 6; i++) {
+      if (face_pixels[i]) {
+        stbi_image_free(face_pixels[i]);
+      }
+    }
+  }
+
+  /* Initialize scene objects after textures are ready */
+  if (!state.resources_ready && state.tiles_texture.handle
+      && state.skybox_texture.handle) {
     init_water(wgpu_context);
     init_pool(wgpu_context);
     init_sphere(wgpu_context);
@@ -670,6 +925,9 @@ static int example_frame(wgpu_context_t* wgpu_context)
                         state.sphere_physics.radius);
     }
     glm_vec3_copy(state.sphere_physics.center, state.sphere_physics.old_center);
+
+    /* Process queued drops (from mouse input) before simulation */
+    water_process_queued_drops(wgpu_context);
 
     /* Run water simulation (twice per frame for smoother waves) */
     water_step_simulation(wgpu_context);
@@ -774,7 +1032,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
       &(WGPUBindGroupDescriptor){
         .label      = STRVIEW("Water surface bind group"),
         .layout     = wgpuRenderPipelineGetBindGroupLayout(state.water.surface_above_pipeline, 0),
-        .entryCount = 9,
+        .entryCount = 11,
         .entries = (WGPUBindGroupEntry[]){
           {.binding = 0, .buffer = state.uniform_buffer.buffer, .size = 80},
           {.binding = 1, .buffer = state.light_uniform_buffer.buffer, .size = 16},
@@ -785,6 +1043,8 @@ static int example_frame(wgpu_context_t* wgpu_context)
           {.binding = 6, .textureView = water_view},
           {.binding = 7, .textureView = state.water.caustics_texture.view},
           {.binding = 8, .buffer = state.shadow_uniform_buffer.buffer, .size = 16},
+          {.binding = 9, .sampler = state.skybox_sampler},
+          {.binding = 10, .textureView = state.skybox_texture.view},
         },
       });
 
@@ -808,7 +1068,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
         &(WGPUBindGroupDescriptor){
           .label      = STRVIEW("Water surface under bind group"),
           .layout     = wgpuRenderPipelineGetBindGroupLayout(state.water.surface_under_pipeline, 0),
-          .entryCount = 9,
+          .entryCount = 11,
           .entries = (WGPUBindGroupEntry[]){
             {.binding = 0, .buffer = state.uniform_buffer.buffer, .size = 80},
             {.binding = 1, .buffer = state.light_uniform_buffer.buffer, .size = 16},
@@ -819,6 +1079,8 @@ static int example_frame(wgpu_context_t* wgpu_context)
             {.binding = 6, .textureView = water_view},
             {.binding = 7, .textureView = state.water.caustics_texture.view},
             {.binding = 8, .buffer = state.shadow_uniform_buffer.buffer, .size = 16},
+            {.binding = 9, .sampler = state.skybox_sampler},
+            {.binding = 10, .textureView = state.skybox_texture.view},
           },
         });
 
@@ -868,8 +1130,8 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Water Simulation Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   /* Rendering settings */
-  if (igCollapsingHeader_TreeNodeFlags("Rendering",
-                                       ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeaderBoolPtr("Rendering", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Show Sphere", &state.settings.show_sphere)) {
       /* Update shadow buffer when sphere visibility changes */
       update_shadow_uniforms(wgpu_context);
@@ -878,8 +1140,8 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Physics settings */
-  if (igCollapsingHeader_TreeNodeFlags("Physics",
-                                       ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeaderBoolPtr("Physics", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Enable Gravity", &state.settings.gravity_enabled)) {
       state.sphere_physics.physics_enabled = state.settings.gravity_enabled;
     }
@@ -887,7 +1149,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Controls help */
-  if (igCollapsingHeader_TreeNodeFlags("Controls", ImGuiTreeNodeFlags_None)) {
+  if (igCollapsingHeaderBoolPtr("Controls", NULL, ImGuiTreeNodeFlags_None)) {
     igText("Mouse drag on water: Add ripples");
     igText("Mouse drag elsewhere: Orbit camera");
     igText("G key: Toggle gravity");
@@ -895,8 +1157,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Camera info */
-  if (igCollapsingHeader_TreeNodeFlags("Camera Info",
-                                       ImGuiTreeNodeFlags_None)) {
+  if (igCollapsingHeaderBoolPtr("Camera Info", NULL, ImGuiTreeNodeFlags_None)) {
     igText("Pitch: %.1f", state.camera.angle_x);
     igText("Yaw: %.1f", state.camera.angle_y);
   }
@@ -947,19 +1208,48 @@ static void example_on_input_event(wgpu_context_t* wgpu_context,
       state.interaction.old_x      = event->mouse_x;
       state.interaction.old_y      = event->mouse_y;
 
-      /* Determine interaction mode based on where user clicked */
-      /* For now, default to orbit camera - sphere/water detection can be added
-       */
+      /* Get ray for current mouse position */
+      vec3 eye, ray;
+      get_ray_for_pixel(wgpu_context, event->mouse_x, event->mouse_y, eye, ray);
+
+      /* Default to orbit camera mode */
       state.interaction.mode = INTERACTION_MODE_ORBIT_CAMERA;
 
-      /* Check if clicking on water surface (simple check) */
-      /* If y coordinate is in lower part of screen, assume water click */
-      if (event->mouse_y > (float)wgpu_context->height * 0.3f) {
-        state.interaction.mode = INTERACTION_MODE_ADD_DROPS;
-        /* Convert screen coords to water coords */
-        float x = (event->mouse_x / (float)wgpu_context->width) * 2.0f - 1.0f;
-        float y = (event->mouse_y / (float)wgpu_context->height) * 2.0f - 1.0f;
-        water_add_drop(wgpu_context, x, y, 0.03f, 0.01f);
+      /* Check if clicking on sphere (only if visible) */
+      if (state.settings.show_sphere) {
+        float t;
+        vec3 hit;
+        if (hit_test_sphere(eye, ray, state.sphere_physics.center,
+                            state.sphere_physics.radius, &t, hit)) {
+          state.interaction.mode = INTERACTION_MODE_MOVE_SPHERE;
+          glm_vec3_copy(hit, state.interaction.prev_hit);
+          /* Use camera forward direction as drag plane normal */
+          vec3 center_ray;
+          get_ray_for_pixel(wgpu_context, (float)wgpu_context->width / 2.0f,
+                            (float)wgpu_context->height / 2.0f, eye,
+                            center_ray);
+          glm_vec3_negate_to(center_ray, state.interaction.plane_normal);
+          return;
+        }
+      }
+
+      /* Check if clicking on water surface (y=0 plane) */
+      if (fabsf(ray[1]) > 1e-6f) {
+        float t_plane = -eye[1] / ray[1];
+        if (t_plane > 0.0f) {
+          vec3 point_on_plane;
+          point_on_plane[0] = eye[0] + ray[0] * t_plane;
+          point_on_plane[1] = 0.0f;
+          point_on_plane[2] = eye[2] + ray[2] * t_plane;
+
+          if (fabsf(point_on_plane[0]) < 1.0f
+              && fabsf(point_on_plane[2]) < 1.0f) {
+            state.interaction.mode = INTERACTION_MODE_ADD_DROPS;
+            water_queue_drop(point_on_plane[0], point_on_plane[2], 0.03f,
+                             0.01f);
+            return;
+          }
+        }
       }
     }
   }
@@ -978,12 +1268,62 @@ static void example_on_input_event(wgpu_context_t* wgpu_context,
         state.camera.angle_x
           = fmaxf(-89.999f, fminf(89.999f, state.camera.angle_x));
       }
+      else if (state.interaction.mode == INTERACTION_MODE_MOVE_SPHERE) {
+        /* Move sphere along drag plane */
+        vec3 eye, ray;
+        get_ray_for_pixel(wgpu_context, event->mouse_x, event->mouse_y, eye,
+                          ray);
+
+        /* Intersect ray with drag plane */
+        vec3 plane_to_eye;
+        glm_vec3_sub(eye, state.interaction.prev_hit, plane_to_eye);
+        float denom = glm_vec3_dot(state.interaction.plane_normal, ray);
+        if (fabsf(denom) > 1e-6f) {
+          float t = -glm_vec3_dot(state.interaction.plane_normal, plane_to_eye)
+                    / denom;
+          vec3 next_hit;
+          next_hit[0] = eye[0] + ray[0] * t;
+          next_hit[1] = eye[1] + ray[1] * t;
+          next_hit[2] = eye[2] + ray[2] * t;
+
+          /* Update sphere position */
+          vec3 delta;
+          glm_vec3_sub(next_hit, state.interaction.prev_hit, delta);
+          glm_vec3_add(state.sphere_physics.center, delta,
+                       state.sphere_physics.center);
+
+          /* Clamp to bounds */
+          float r = state.sphere_physics.radius;
+          state.sphere_physics.center[0]
+            = fmaxf(r - 1.0f, fminf(1.0f - r, state.sphere_physics.center[0]));
+          state.sphere_physics.center[1]
+            = fmaxf(r - 1.0f, fminf(10.0f, state.sphere_physics.center[1]));
+          state.sphere_physics.center[2]
+            = fmaxf(r - 1.0f, fminf(1.0f - r, state.sphere_physics.center[2]));
+
+          update_sphere_uniforms(wgpu_context);
+          glm_vec3_copy(next_hit, state.interaction.prev_hit);
+        }
+      }
       else if (state.interaction.mode == INTERACTION_MODE_ADD_DROPS) {
-        /* Add ripples while dragging */
-        float x = (event->mouse_x / (float)wgpu_context->width) * 2.0f - 1.0f;
-        float y = (event->mouse_y / (float)wgpu_context->height) * 2.0f - 1.0f;
-        if (fabsf(x) < 1.0f && fabsf(y) < 1.0f) {
-          water_add_drop(wgpu_context, x, y, 0.03f, 0.01f);
+        /* Add ripples while dragging using raycasting */
+        vec3 eye, ray;
+        get_ray_for_pixel(wgpu_context, event->mouse_x, event->mouse_y, eye,
+                          ray);
+
+        if (fabsf(ray[1]) > 1e-6f) {
+          float t_plane = -eye[1] / ray[1];
+          if (t_plane > 0.0f) {
+            vec3 point_on_plane;
+            point_on_plane[0] = eye[0] + ray[0] * t_plane;
+            point_on_plane[2] = eye[2] + ray[2] * t_plane;
+
+            if (fabsf(point_on_plane[0]) < 1.0f
+                && fabsf(point_on_plane[2]) < 1.0f) {
+              water_queue_drop(point_on_plane[0], point_on_plane[2], 0.03f,
+                               0.01f);
+            }
+          }
         }
       }
     }
@@ -1274,7 +1614,7 @@ static void create_water_surface_pipelines(wgpu_context_t* wgpu_context)
 
   /* Water surface above pipeline */
   WGPUShaderModule surface_above_module = wgpu_create_shader_module(
-    wgpu_context->device, water_surface_above_shader_wgsl);
+    wgpu_context->device, get_water_surface_above_shader());
 
   state.water.surface_above_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
@@ -1324,7 +1664,7 @@ static void create_water_surface_pipelines(wgpu_context_t* wgpu_context)
 
   /* Water surface under pipeline */
   WGPUShaderModule surface_under_module = wgpu_create_shader_module(
-    wgpu_context->device, water_surface_under_shader_wgsl);
+    wgpu_context->device, get_water_surface_under_shader());
 
   state.water.surface_under_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
@@ -1494,6 +1834,27 @@ static void run_simulation_pass(wgpu_context_t* wgpu_context,
   wgpuBindGroupRelease(bind_group);
 
   swap_water_textures();
+}
+
+/* Set pending drop for this frame (only last position used, like TypeScript) */
+static void water_queue_drop(float x, float y, float radius, float strength)
+{
+  state.water.pending_drop.x        = x;
+  state.water.pending_drop.y        = y;
+  state.water.pending_drop.radius   = radius;
+  state.water.pending_drop.strength = strength;
+  state.water.pending_drop.pending  = true;
+}
+
+/* Process pending drop (call once per frame before simulation step) */
+static void water_process_queued_drops(wgpu_context_t* wgpu_context)
+{
+  if (state.water.pending_drop.pending) {
+    water_add_drop(wgpu_context, state.water.pending_drop.x,
+                   state.water.pending_drop.y, state.water.pending_drop.radius,
+                   state.water.pending_drop.strength);
+    state.water.pending_drop.pending = false;
+  }
 }
 
 static void water_add_drop(wgpu_context_t* wgpu_context, float x, float y,
@@ -2273,8 +2634,8 @@ static const char* caustics_shader_wgsl = CODE(
   }
 );
 
-/* --------------------- Water Surface Above Shader ------------------------- */
-static const char* water_surface_above_shader_wgsl = CODE(
+/* --------------------- Water Surface Common Shader Chunk ------------------ */
+static const char* water_surface_common_chunk = CODE(
   struct CameraUniforms {
     viewProjectionMatrix : mat4x4f,
     eyePosition : vec3f,
@@ -2303,29 +2664,21 @@ static const char* water_surface_above_shader_wgsl = CODE(
   @group(0) @binding(6) var waterTexture : texture_2d<f32>;
   @group(0) @binding(7) var causticTexture : texture_2d<f32>;
   @group(0) @binding(8) var<uniform> shadows : ShadowUniforms;
+  @group(0) @binding(9) var skySampler : sampler;
+  @group(0) @binding(10) var skyTexture : texture_cube<f32>;
 
   const IOR_AIR : f32 = 1.0;
   const IOR_WATER : f32 = 1.333;
   const poolHeight : f32 = 1.0;
-  const aboveWaterColor : vec3f = vec3f(0.25, 1.0, 1.25);
 
   struct VertexOutput {
     @builtin(position) position : vec4f,
     @location(0) worldPos : vec3f,
   }
+);
 
-  @vertex
-  fn vs_main(@location(0) position : vec3f) -> VertexOutput {
-    var out : VertexOutput;
-    let uv = position.xy * 0.5 + 0.5;
-    let info = textureSampleLevel(waterTexture, waterSampler, uv, 0.0);
-    var pos = position.xzy;
-    pos.y = info.r;
-    out.worldPos = pos;
-    out.position = commonUniforms.viewProjectionMatrix * vec4f(pos, 1.0);
-    return out;
-  }
-
+/* --------------------- Water Surface Helpers Chunk ------------------------ */
+static const char* water_surface_helpers_chunk = CODE(
   fn intersectCube(origin: vec3f, ray: vec3f, cubeMin: vec3f, cubeMax: vec3f) -> vec2f {
     let tMin = (cubeMin - origin) / ray;
     let tMax = (cubeMax - origin) / ray;
@@ -2397,7 +2750,10 @@ static const char* water_surface_above_shader_wgsl = CODE(
     }
     return wallColor * scale;
   }
+);
 
+/* --------------------- Water Surface Raycast Chunk ------------------------ */
+static const char* water_surface_raycast_chunk = CODE(
   fn getSurfaceRayColor(origin: vec3f, ray: vec3f, waterColor: vec3f) -> vec3f {
     var color : vec3f;
     var q = 1.0e6;
@@ -2415,14 +2771,35 @@ static const char* water_surface_above_shader_wgsl = CODE(
       if (hit.y < 2.0 / 12.0) {
         color = getWallColor(hit);
       } else {
-        // Black background instead of skybox
-        color = vec3f(0.0);
+        // Sample skybox for rays going upward
+        color = textureSampleLevel(skyTexture, skySampler, ray, 0.0).rgb;
+        // Add sun specular highlight
+        let sunDir = normalize(light.direction);
+        let spec = pow(max(0.0, dot(sunDir, ray)), 5000.0);
+        color += vec3f(spec) * vec3f(10.0, 8.0, 6.0);
       }
     }
     if (ray.y < 0.0) {
       color *= waterColor;
     }
     return color;
+  }
+);
+
+/* --------------------- Water Surface Above Vertex/Fragment Chunk ---------- */
+static const char* water_surface_above_main_chunk = CODE(
+  const aboveWaterColor : vec3f = vec3f(0.25, 1.0, 1.25);
+
+  @vertex
+  fn vs_main(@location(0) position : vec3f) -> VertexOutput {
+    var out : VertexOutput;
+    let uv = position.xy * 0.5 + 0.5;
+    let info = textureSampleLevel(waterTexture, waterSampler, uv, 0.0);
+    var pos = position.xzy;
+    pos.y = info.r;
+    out.worldPos = pos;
+    out.position = commonUniforms.viewProjectionMatrix * vec4f(pos, 1.0);
+    return out;
   }
 
   @fragment
@@ -2446,46 +2823,9 @@ static const char* water_surface_above_shader_wgsl = CODE(
   }
 );
 
-/* --------------------- Water Surface Under Shader ------------------------- */
-static const char* water_surface_under_shader_wgsl = CODE(
-  struct CameraUniforms {
-    viewProjectionMatrix : mat4x4f,
-    eyePosition : vec3f,
-    _pad : f32,
-  }
-  struct LightUniforms {
-    direction : vec3f,
-    _pad : f32,
-  }
-  struct SphereUniforms {
-    center : vec3f,
-    radius : f32,
-  }
-  struct ShadowUniforms {
-    rim : f32,
-    sphere : f32,
-    ao : f32,
-    _pad : f32,
-  }
-  @group(0) @binding(0) var<uniform> commonUniforms : CameraUniforms;
-  @group(0) @binding(1) var<uniform> light : LightUniforms;
-  @group(0) @binding(2) var<uniform> sphere : SphereUniforms;
-  @group(0) @binding(3) var tileSampler : sampler;
-  @group(0) @binding(4) var tileTexture : texture_2d<f32>;
-  @group(0) @binding(5) var waterSampler : sampler;
-  @group(0) @binding(6) var waterTexture : texture_2d<f32>;
-  @group(0) @binding(7) var causticTexture : texture_2d<f32>;
-  @group(0) @binding(8) var<uniform> shadows : ShadowUniforms;
-
-  const IOR_AIR : f32 = 1.0;
-  const IOR_WATER : f32 = 1.333;
-  const poolHeight : f32 = 1.0;
+/* --------------------- Water Surface Under Vertex/Fragment Chunk ---------- */
+static const char* water_surface_under_main_chunk = CODE(
   const underWaterColor : vec3f = vec3f(0.4, 0.9, 1.0);
-
-  struct VertexOutput {
-    @builtin(position) position : vec4f,
-    @location(0) worldPos : vec3f,
-  }
 
   @vertex
   fn vs_main(@location(0) position : vec3f) -> VertexOutput {
@@ -2499,104 +2839,6 @@ static const char* water_surface_under_shader_wgsl = CODE(
     return out;
   }
 
-  fn intersectCube(origin: vec3f, ray: vec3f, cubeMin: vec3f, cubeMax: vec3f) -> vec2f {
-    let tMin = (cubeMin - origin) / ray;
-    let tMax = (cubeMax - origin) / ray;
-    let t1 = min(tMin, tMax);
-    let t2 = max(tMin, tMax);
-    let tNear = max(max(t1.x, t1.y), t1.z);
-    let tFar = min(min(t2.x, t2.y), t2.z);
-    return vec2f(tNear, tFar);
-  }
-
-  fn intersectSphere(origin: vec3f, ray: vec3f, sphereCenter: vec3f, sphereRadius: f32) -> f32 {
-    let toSphere = origin - sphereCenter;
-    let a = dot(ray, ray);
-    let b = 2.0 * dot(toSphere, ray);
-    let c = dot(toSphere, toSphere) - sphereRadius * sphereRadius;
-    let discriminant = b*b - 4.0*a*c;
-    if (discriminant > 0.0) {
-      let t = (-b - sqrt(discriminant)) / (2.0 * a);
-      if (t > 0.0) { return t; }
-    }
-    return 1.0e6;
-  }
-
-  fn getSphereColor(point: vec3f) -> vec3f {
-    var color = vec3f(0.5);
-    let sphereRadius = sphere.radius;
-    color *= 1.0 - 0.9 / pow((1.0 + sphereRadius - abs(point.x)) / sphereRadius, 3.0);
-    color *= 1.0 - 0.9 / pow((1.0 + sphereRadius - abs(point.z)) / sphereRadius, 3.0);
-    color *= 1.0 - 0.9 / pow((point.y + 1.0 + sphereRadius) / sphereRadius, 3.0);
-    let sphereNormal = (point - sphere.center) / sphereRadius;
-    let refractedLight = refract(-light.direction, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
-    var diffuse = max(0.0, dot(-refractedLight, sphereNormal)) * 0.5;
-    let info = textureSampleLevel(waterTexture, waterSampler, point.xz * 0.5 + 0.5, 0.0);
-    if (point.y < info.r) {
-      let causticUV = 0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y) * 0.5 + 0.5;
-      let caustic = textureSampleLevel(causticTexture, waterSampler, causticUV, 0.0);
-      diffuse *= caustic.r * 4.0;
-    }
-    color += diffuse;
-    return color;
-  }
-
-  fn getWallColor(point: vec3f) -> vec3f {
-    var wallColor : vec3f;
-    var normal = vec3f(0.0, 1.0, 0.0);
-    if (abs(point.x) > 0.999) {
-      wallColor = textureSampleLevel(tileTexture, tileSampler, point.yz * 0.5 + vec2f(1.0, 0.5), 0.0).rgb;
-      normal = vec3f(-point.x, 0.0, 0.0);
-    } else if (abs(point.z) > 0.999) {
-      wallColor = textureSampleLevel(tileTexture, tileSampler, point.yx * 0.5 + vec2f(1.0, 0.5), 0.0).rgb;
-      normal = vec3f(0.0, 0.0, -point.z);
-    } else {
-      wallColor = textureSampleLevel(tileTexture, tileSampler, point.xz * 0.5 + 0.5, 0.0).rgb;
-    }
-    var scale = 0.5;
-    scale /= length(point);
-    scale *= mix(1.0, 1.0 - 0.9 / pow(length(point - sphere.center) / sphere.radius, 4.0), shadows.sphere);
-    let refractedLight = -refract(-light.direction, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
-    var diffuse = max(0.0, dot(refractedLight, normal));
-    let info = textureSampleLevel(waterTexture, waterSampler, point.xz * 0.5 + 0.5, 0.0);
-    if (point.y < info.r) {
-      let causticUV = 0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y) * 0.5 + 0.5;
-      let caustic = textureSampleLevel(causticTexture, waterSampler, causticUV, 0.0);
-      scale += diffuse * caustic.r * 2.0 * caustic.g;
-    } else {
-      let t = intersectCube(point, refractedLight, vec3f(-1.0, -poolHeight, -1.0), vec3f(1.0, 2.0, 1.0));
-      diffuse *= 1.0 / (1.0 + exp(-200.0 / (1.0 + 10.0 * (t.y - t.x)) * (point.y + refractedLight.y * t.y - 2.0 / 12.0)));
-      scale += diffuse * 0.5;
-    }
-    return wallColor * scale;
-  }
-
-  fn getSurfaceRayColor(origin: vec3f, ray: vec3f, waterColor: vec3f) -> vec3f {
-    var color : vec3f;
-    var q = 1.0e6;
-    if (shadows.sphere > 0.5) {
-      q = intersectSphere(origin, ray, sphere.center, sphere.radius);
-    }
-    if (q < 1.0e6) {
-      color = getSphereColor(origin + ray * q);
-    } else if (ray.y < 0.0) {
-      let t = intersectCube(origin, ray, vec3f(-1.0, -poolHeight, -1.0), vec3f(1.0, 2.0, 1.0));
-      color = getWallColor(origin + ray * t.y);
-    } else {
-      let t = intersectCube(origin, ray, vec3f(-1.0, -poolHeight, -1.0), vec3f(1.0, 2.0, 1.0));
-      let hit = origin + ray * t.y;
-      if (hit.y < 2.0 / 12.0) {
-        color = getWallColor(hit);
-      } else {
-        color = vec3f(0.0);
-      }
-    }
-    if (ray.y < 0.0) {
-      color *= waterColor;
-    }
-    return color;
-  }
-
   @fragment
   fn fs_main(@location(0) worldPos : vec3f) -> @location(0) vec4f {
     var uv = worldPos.xz * 0.5 + 0.5;
@@ -2607,8 +2849,7 @@ static const char* water_surface_under_shader_wgsl = CODE(
     }
     let ba = vec2f(info.b, info.a);
     var normal = vec3f(info.b, sqrt(max(0.0, 1.0 - dot(ba, ba))), info.a);
-    // UNDERWATER VIEW: Looking up at water surface
-    normal = -normal; // Flip normal for underwater
+    normal = -normal;
     let incomingRay = normalize(worldPos - commonUniforms.eyePosition);
     let reflectedRay = reflect(incomingRay, normal);
     let refractedRay = refract(incomingRay, normal, IOR_WATER / IOR_AIR);
@@ -2619,6 +2860,61 @@ static const char* water_surface_under_shader_wgsl = CODE(
     return vec4f(finalColor, 1.0);
   }
 );
+
+/* -------------------------------------------------------------------------- *
+ * Shader string concatenation helper
+ * -------------------------------------------------------------------------- */
+
+static char* concat_shader_strings(const char** strings, int count)
+{
+  size_t total_len = 0;
+  for (int i = 0; i < count; ++i) {
+    total_len += strlen(strings[i]);
+  }
+
+  char* result = (char*)malloc(total_len + 1);
+  if (result == NULL) {
+    return NULL;
+  }
+
+  size_t offset = 0;
+  for (int i = 0; i < count; ++i) {
+    size_t len = strlen(strings[i]);
+    if (len > 0) {
+      memcpy(result + offset, strings[i], len);
+      offset += len;
+    }
+  }
+  result[offset] = '\0';
+
+  return result;
+}
+
+static const char* get_water_surface_above_shader(void)
+{
+  if (water_surface_above_shader_code != NULL) {
+    return water_surface_above_shader_code;
+  }
+
+  const char* parts[] = {water_surface_common_chunk, water_surface_helpers_chunk,
+                         water_surface_raycast_chunk, water_surface_above_main_chunk};
+
+  water_surface_above_shader_code = concat_shader_strings(parts, 4);
+  return water_surface_above_shader_code;
+}
+
+static const char* get_water_surface_under_shader(void)
+{
+  if (water_surface_under_shader_code != NULL) {
+    return water_surface_under_shader_code;
+  }
+
+  const char* parts[] = {water_surface_common_chunk, water_surface_helpers_chunk,
+                         water_surface_raycast_chunk, water_surface_under_main_chunk};
+
+  water_surface_under_shader_code = concat_shader_strings(parts, 4);
+  return water_surface_under_shader_code;
+}
 
 /* ----------------------------- Pool Shader -------------------------------- */
 static const char* pool_shader_wgsl = CODE(
@@ -2722,7 +3018,15 @@ static const char* pool_shader_wgsl = CODE(
       scale += diffuse * 0.5;
     }
 
-    return vec4f(wallColor * scale, 1.0);
+    var finalColor = wallColor * scale;
+
+    // Apply underwater color tint (matches TypeScript version)
+    if (point.y < info.r) {
+      let underwaterColor = vec3f(0.4, 0.9, 1.0);
+      finalColor *= underwaterColor * 1.2;
+    }
+
+    return vec4f(finalColor, 1.0);
   }
 );
 
