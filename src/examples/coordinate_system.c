@@ -1,14 +1,43 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Coordinate System
  *
- * Illustrates the coordinate systems used in WebGPU. WebGPU’s coordinate
- * systems match DirectX and Metal’s coordinate systems in a graphics pipeline.
+ * Illustrates the coordinate systems used in WebGPU. WebGPU's coordinate
+ * systems match DirectX and Metal's coordinate systems in a graphics pipeline.
  * Y-axis is up in normalized device coordinate (NDC): point(-1.0, -1.0) in NDC
  * is located at the bottom-left corner of NDC. This example has several options
  * for changing relevant pipeline state, and displaying meshes with WebGPU or
@@ -31,72 +60,175 @@ static const char* quad_fragment_shader_wgsl;
  * Coordinate System example
  * -------------------------------------------------------------------------- */
 
-// Settings
+#define TEXTURE_COUNT (2u)
+
+/* Winding order options */
+typedef enum winding_order_t {
+  WINDING_ORDER_CW  = 0,
+  WINDING_ORDER_CCW = 1,
+} winding_order_t;
+
+/* Quad type options */
+typedef enum quad_type_t {
+  QUAD_TYPE_VK_Y_DOWN   = 0, /* Vulkan style (y points downwards) */
+  QUAD_TYPE_WEBGPU_Y_UP = 1, /* WebGPU style (y points upwards) */
+} quad_type_t;
+
+/* Vertex structure */
+typedef struct vertex_t {
+  vec3 pos;
+  vec2 uv;
+} vertex_t;
+
+/* State struct */
 static struct {
-  int32_t winding_order;
-  int32_t cull_mode;
-  int32_t quad_type;
-} settings = {
-  .winding_order = 1,
-  .cull_mode     = (int32_t)WGPUCullMode_Back,
-  .quad_type     = 1,
+  /* Textures */
+  struct {
+    wgpu_texture_t cw;
+    wgpu_texture_t ccw;
+  } textures;
+  struct {
+    const char* file;
+    wgpu_texture_t* texture;
+  } texture_mappings[TEXTURE_COUNT];
+  uint8_t file_buffer[512 * 512 * 4];
+  /* Quad buffers */
+  struct {
+    wgpu_buffer_t vertices_y_up;
+    wgpu_buffer_t vertices_y_down;
+    wgpu_buffer_t indices_ccw;
+    wgpu_buffer_t indices_cw;
+  } quad;
+  /* Bind groups */
+  struct {
+    WGPUBindGroup cw;
+    WGPUBindGroup ccw;
+  } bind_groups;
+  WGPUBindGroupLayout bind_group_layout;
+  /* Pipeline */
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline pipeline;
+  /* Render pass descriptor */
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  /* GUI settings */
+  struct {
+    int32_t winding_order;
+    int32_t cull_mode;
+    int32_t quad_type;
+  } settings;
+  const char* winding_order_str[2];
+  const char* cull_mode_str[3];
+  const char* quad_type_str[2];
+  /* State flags */
+  bool pipeline_needs_rebuild;
+  uint64_t last_frame_time;
+  WGPUBool initialized;
+} state = {
+  .texture_mappings = {
+    { .file = "assets/textures/texture_orientation_cw_rgba.png",  .texture = &state.textures.cw  },
+    { .file = "assets/textures/texture_orientation_ccw_rgba.png", .texture = &state.textures.ccw },
+  },
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+  .settings = {
+    .winding_order = WINDING_ORDER_CCW,
+    .cull_mode     = 2, /* Index into cull_mode_str: 0=None, 1=Front, 2=Back */
+    .quad_type     = QUAD_TYPE_WEBGPU_Y_UP,
+  },
+  .winding_order_str = {
+    "Clock Wise",
+    "Counter Clock Wise",
+  },
+  .cull_mode_str = {
+    "None",
+    "Front Face",
+    "Back Face",
+  },
+  .quad_type_str = {
+    "VK (Y Negative)",
+    "WebGPU (Y Positive)",
+  },
+  .pipeline_needs_rebuild = false,
 };
 
-// The pipeline layout
-static WGPUPipelineLayout pipeline_layout = NULL;
-
-// Pipeline
-static WGPURenderPipeline pipeline = NULL;
-
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
-
-// The bind group layout
-static WGPUBindGroupLayout bind_group_layout;
-
-static struct {
-  WGPUBindGroup cw;
-  WGPUBindGroup ccw;
-} bind_groups = {0};
-
-static struct {
-  texture_t cw;
-  texture_t ccw;
-} textures = {0};
-
-static struct {
-  wgpu_buffer_t vertices_y_up;
-  wgpu_buffer_t vertices_y_down;
-  wgpu_buffer_t indices_ccw;
-  wgpu_buffer_t indices_cw;
-} quad = {0};
-
-// Other variables
-static const char* example_title = "Coordinate System";
-static bool prepared             = false;
-
-static void load_assets(wgpu_context_t* wgpu_context)
+/**
+ * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
+ * or when an error has occurred.
+ */
+static void fetch_callback(const sfetch_response_t* response)
 {
-  textures.cw = wgpu_create_texture_from_file(
-    wgpu_context, "textures/texture_orientation_cw_rgba.png", NULL);
-  textures.ccw = wgpu_create_texture_from_file(
-    wgpu_context, "textures/texture_orientation_ccw_rgba.png", NULL);
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
 
-  // Create two quads with different Y orientations
-  struct vertex_t {
-    vec3 pos;
-    vec2 uv;
-  };
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+      .extent = (WGPUExtent3D) {
+        .width              = img_width,
+        .height             = img_height,
+        .depthOrArrayLayers = 1,
+      },
+      .format = WGPUTextureFormat_RGBA8Unorm,
+      .pixels = {
+        .ptr  = pixels,
+        .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
 
-  const float ar
-    = (float)wgpu_context->surface.height / (float)wgpu_context->surface.width;
+static void init_textures(wgpu_context_t* wgpu_context)
+{
+  /* Fetch the images and upload them into GPUTextures */
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(state.texture_mappings); ++i) {
+    wgpu_texture_t* texture = state.texture_mappings[i].texture;
+    /* Create dummy texture */
+    *(texture) = wgpu_create_color_bars_texture(
+      wgpu_context,
+      &(wgpu_texture_desc_t){
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+                 | WGPUTextureUsage_RenderAttachment,
+      });
+    /* Start loading the image file */
+    sfetch_send(&(sfetch_request_t){
+      .path      = state.texture_mappings[i].file,
+      .callback  = fetch_callback,
+      .buffer    = SFETCH_RANGE(state.file_buffer),
+      .user_data = {
+        .ptr  = &texture,
+        .size = sizeof(wgpu_texture_t*),
+      },
+    });
+  }
+}
 
-  // WebGPU style (y points upwards)
+static void init_quad_buffers(wgpu_context_t* wgpu_context)
+{
+  const float ar = (float)wgpu_context->height / (float)wgpu_context->width;
+
+  /* WebGPU style (y points upwards) */
   // clang-format off
-  struct vertex_t vertices_y_pos[4] = {
+  vertex_t vertices_y_pos[4] = {
     {.pos = {-1.0f * ar, -1.0f, 1.0f}, .uv = {0.0f, 1.0f}},
     {.pos = {-1.0f * ar,  1.0f, 1.0f}, .uv = {0.0f, 0.0f}},
     {.pos = { 1.0f * ar,  1.0f, 1.0f}, .uv = {1.0f, 0.0f}},
@@ -104,9 +236,9 @@ static void load_assets(wgpu_context_t* wgpu_context)
   };
   // clang-format on
 
-  // Vulkan style (y points downwards)
+  /* Vulkan style (y points downwards) */
   // clang-format off
-  struct vertex_t vertices_y_neg[4] = {
+  vertex_t vertices_y_neg[4] = {
     {.pos = {-1.0f * ar,  1.0f, 1.0f}, .uv = {0.0f, 1.0f}},
     {.pos = {-1.0f * ar, -1.0f, 1.0f}, .uv = {0.0f, 0.0f}},
     {.pos = { 1.0f * ar, -1.0f, 1.0f}, .uv = {1.0f, 0.0f}},
@@ -114,28 +246,28 @@ static void load_assets(wgpu_context_t* wgpu_context)
   };
   // clang-format on
 
-  quad.vertices_y_up = wgpu_create_buffer(
+  state.quad.vertices_y_up = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad vertices buffer - Y up",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(struct vertex_t) * 4,
+                    .size  = sizeof(vertex_t) * 4,
                     .initial.data = vertices_y_pos,
                   });
-  quad.vertices_y_down = wgpu_create_buffer(
+
+  state.quad.vertices_y_down = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad vertices buffer - Y down",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(struct vertex_t) * 4,
+                    .size  = sizeof(vertex_t) * 4,
                     .initial.data = vertices_y_neg,
                   });
 
-  // Create two set of indices, one for counter clock wise, and one for clock
-  // wise rendering
+  /* Counter clock wise indices */
   static uint32_t indices_ccw[6] = {
     2, 1, 0, //
     0, 3, 2, //
   };
-  quad.indices_ccw = wgpu_create_buffer(
+  state.quad.indices_ccw = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad indices buffer - CCW",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
@@ -143,11 +275,13 @@ static void load_assets(wgpu_context_t* wgpu_context)
                     .count = (uint32_t)ARRAY_SIZE(indices_ccw),
                     .initial.data = indices_ccw,
                   });
+
+  /* Clock wise indices */
   static uint32_t indices_cw[6] = {
     0, 1, 2, //
     2, 3, 0, //
   };
-  quad.indices_cw = wgpu_create_buffer(
+  state.quad.indices_cw = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Quad indices buffer - CW",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
@@ -157,60 +291,8 @@ static void load_assets(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_group_layout(wgpu_context_t* wgpu_context)
 {
-  // Bind group CW
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0 : Fragment shader texture view */
-        .binding     = 0,
-        .textureView = textures.cw.view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: Fragment shader image sampler */
-        .binding = 1,
-        .sampler = textures.cw.sampler,
-      },
-    };
-    bind_groups.cw = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group - CW",
-                              .layout     = bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_groups.cw != NULL);
-  }
-
-  // Bind group CCW
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0 : Fragment shader texture view */
-        .binding     = 0,
-        .textureView = textures.ccw.view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: Fragment shader image sampler */
-        .binding = 1,
-        .sampler = textures.ccw.sampler,
-      },
-    };
-    bind_groups.ccw = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Bind group - CCW",
-                              .layout     = bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_groups.ccw != NULL);
-  }
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
-{
-  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry) {
       /* Binding 0 : Fragment shader texture view */
@@ -233,295 +315,366 @@ static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
       .texture = {0},
     }
   };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label = "Coordinate system - Bind group layout",
-                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                            .entries    = bgl_entries,
-                          });
-  ASSERT(bind_group_layout != NULL);
-
-  // Create the pipeline layout that is used to generate the rendering pipelines
-  // that are based on this descriptor set layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = "Coordinate system - Pipeline layout",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
-                          });
-  ASSERT(pipeline_layout != NULL);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Coordinate system - Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
-{
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline);
-
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology = WGPUPrimitiveTopology_TriangleList,
-    .frontFace
-    = settings.winding_order == 0 ? WGPUFrontFace_CW : WGPUFrontFace_CCW,
-    .cullMode = WGPUCullMode_None + settings.cull_mode,
-  };
-
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
-
-  // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state
-    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
-      .depth_write_enabled = false,
+  state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label      = STRVIEW("Coordinate system - Bind group layout"),
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
     });
+  ASSERT(state.bind_group_layout != NULL);
+}
 
-  // Vertex buffer layout
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
+{
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Coordinate system - Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.bind_group_layout,
+    });
+  ASSERT(state.pipeline_layout != NULL);
+}
+
+static void init_bind_groups(wgpu_context_t* wgpu_context)
+{
+  /* Cleanup existing bind groups */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.cw)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.ccw)
+
+  /* Bind group CW */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = state.textures.cw.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .sampler = state.textures.cw.sampler,
+      },
+    };
+    state.bind_groups.cw = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Bind group - CW"),
+                              .layout     = state.bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(state.bind_groups.cw != NULL);
+  }
+
+  /* Bind group CCW */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = state.textures.ccw.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .sampler = state.textures.ccw.sampler,
+      },
+    };
+    state.bind_groups.ccw = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Bind group - CCW"),
+                              .layout     = state.bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(state.bind_groups.ccw != NULL);
+  }
+}
+
+static WGPUCullMode get_cull_mode(int32_t index)
+{
+  switch (index) {
+    case 0:
+      return WGPUCullMode_None;
+    case 1:
+      return WGPUCullMode_Front;
+    case 2:
+      return WGPUCullMode_Back;
+    default:
+      return WGPUCullMode_None;
+  }
+}
+
+static void init_pipeline(wgpu_context_t* wgpu_context)
+{
+  /* Cleanup existing pipeline */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
+
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, quad_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, quad_fragment_shader_wgsl);
+
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
+
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
-    quad, sizeof(float) * 5,
-    // Attribute location 0: Position
-    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, 0),
-    // Attribute location 1: UV
-    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, sizeof(float) * 3))
+    quad, sizeof(vertex_t),
+    /* Attribute location 0: Position */
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3, offsetof(vertex_t, pos)),
+    /* Attribute location 1: UV */
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2, offsetof(vertex_t, uv)))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Vertex shader WGSL
-                      .label            = "Quad - Vertex shader WGSL",
-                      .wgsl_code.source = quad_vertex_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .buffer_count = 1,
-                    .buffers      = &quad_vertex_buffer_layout,
-                  });
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Coordinate system - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &quad_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState) {
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState) {
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = state.settings.winding_order == 0 ?
+                     WGPUFrontFace_CW : WGPUFrontFace_CCW,
+      .cullMode  = get_cull_mode(state.settings.cull_mode),
+    },
+    .multisample = {
+      .count = 1,
+      .mask  = 0xffffffff
+    },
+  };
 
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      // Fragment shader WGSL
-                      .label            = "Quad - Fragment shader WGSL",
-                      .wgsl_code.source = quad_fragment_shader_wgsl,
-                      .entry            = "main",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
+  state.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 
-  // Create rendering pipeline using the specified states
-  pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label     = "Coordinate system - Render pipeline",
-                            .layout    = pipeline_layout,
-                            .primitive = primitive_state,
-                            .vertex    = vertex_state,
-                            .fragment  = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  state.pipeline_needs_rebuild = false;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void render_gui(wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Scene")) {
-    imgui_overlay_text("Quad Type");
-    static const char* quadtype[2] = {"VK (Y Negative)", "WebGPU (Y Positive)"};
-    imgui_overlay_combo_box(context->imgui_overlay, "##quadtype",
-                            &settings.quad_type, quadtype, 2);
-  }
+  UNUSED_VAR(wgpu_context);
 
-  if (imgui_overlay_header("Pipeline")) {
-    imgui_overlay_text("Winding Order");
-    static const char* windingorder[2] = {"Clock Wise", "Counter Clock Wise"};
-    if (imgui_overlay_combo_box(context->imgui_overlay, "##windingorder",
-                                &settings.winding_order, windingorder, 2)) {
-      prepare_pipelines(context->wgpu_context);
-    }
-    imgui_overlay_text("Cull Mode");
-    static const char* cullmode[3] = {"None", "Front Face", "Back Face"};
-    if (imgui_overlay_combo_box(context->imgui_overlay, "##cullmode",
-                                &settings.cull_mode, cullmode, 3)) {
-      prepare_pipelines(context->wgpu_context);
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size with content-aware padding */
+  igSetNextWindowSize((ImVec2){280.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  /* Build GUI */
+  igBegin("Coordinate System", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Scene section */
+  if (igCollapsingHeaderBoolPtr("Scene", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    int quad_type = state.settings.quad_type;
+    if (imgui_overlay_combo_box("Quad Type", &quad_type, state.quad_type_str,
+                                2)) {
+      state.settings.quad_type = quad_type;
     }
   }
+
+  /* Pipeline section */
+  if (igCollapsingHeaderBoolPtr("Pipeline", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    int winding_order = state.settings.winding_order;
+    if (imgui_overlay_combo_box("Winding Order", &winding_order,
+                                state.winding_order_str, 2)) {
+      state.settings.winding_order = winding_order;
+      state.pipeline_needs_rebuild = true;
+    }
+
+    int cull_mode = state.settings.cull_mode;
+    if (imgui_overlay_combo_box("Cull Mode", &cull_mode, state.cull_mode_str,
+                                3)) {
+      state.settings.cull_mode     = cull_mode;
+      state.pipeline_needs_rebuild = true;
+    }
+  }
+
+  igEnd();
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  /* Set target frame buffer */
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
-
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Create render pass encoder for encoding drawing commands */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
-
-  /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
-
-  /* Set scissor rectangle */
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
-
-  /* Render the quad with clock wise and counter clock wise indices, visibility
-     is determined by pipeline settings */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.cw,
-                                    0, 0);
-  wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, quad.indices_cw.buffer, WGPUIndexFormat_Uint32, 0,
-    WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       settings.quad_type == 0 ?
-                                         quad.vertices_y_down.buffer :
-                                         quad.vertices_y_up.buffer,
-                                       0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, 6, 1, 0, 0, 0);
-
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_groups.ccw,
-                                    0, 0);
-  wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, quad.indices_ccw.buffer, WGPUIndexFormat_Uint32, 0,
-    WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc, 6, 1, 0, 0, 0);
-
-  /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
+  imgui_overlay_handle_input(wgpu_context, input_event);
 }
 
-static int example_draw(wgpu_example_context_t* context)
+static void update_textures(wgpu_context_t* wgpu_context)
 {
-  /* Prepare frame */
-  prepare_frame(context);
+  bool all_dirty        = true;
+  uint8_t texture_count = (uint8_t)ARRAY_SIZE(state.texture_mappings);
+  for (uint8_t i = 0; i < texture_count; ++i) {
+    all_dirty = all_dirty && state.texture_mappings[i].texture->desc.is_dirty;
+  }
 
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
-
-  return EXIT_SUCCESS;
+  if (all_dirty) {
+    /* Recreate textures */
+    for (uint8_t i = 0; i < texture_count; ++i) {
+      wgpu_recreate_texture(wgpu_context, state.texture_mappings[i].texture);
+      FREE_TEXTURE_PIXELS(*state.texture_mappings[i].texture);
+    }
+    /* Update bind groups with new texture views */
+    init_bind_groups(wgpu_context);
+  }
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+static int init(wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    load_assets(context->wgpu_context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = TEXTURE_COUNT,
+      .num_channels = 1,
+      .num_lanes    = 1,
+      .logger.func  = slog_func,
+    });
+    init_textures(wgpu_context);
+    init_quad_buffers(wgpu_context);
+    init_bind_group_layout(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_bind_groups(wgpu_context);
+    init_pipeline(wgpu_context);
+    imgui_overlay_init(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static int frame(wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
-  return example_draw(context);
+
+  sfetch_dowork();
+
+  /* Update textures when pixel data loaded */
+  update_textures(wgpu_context);
+
+  /* Rebuild pipeline if settings changed */
+  if (state.pipeline_needs_rebuild) {
+    init_pipeline(wgpu_context);
+  }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view = wgpu_context->swapchain_view;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
+
+  /* Bind the rendering pipeline */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
+
+  /* Set scissor rectangle */
+  wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0u, 0u, wgpu_context->width,
+                                      wgpu_context->height);
+
+  /* Select vertex buffer based on quad type */
+  WGPUBuffer vertex_buffer = state.settings.quad_type == QUAD_TYPE_VK_Y_DOWN ?
+                               state.quad.vertices_y_down.buffer :
+                               state.quad.vertices_y_up.buffer;
+
+  /* Render CW quad */
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_groups.cw, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.quad.indices_cw.buffer,
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, vertex_buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(rpass_enc, 6, 1, 0, 0, 0);
+
+  /* Render CCW quad */
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_groups.ccw, 0, 0);
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.quad.indices_ccw.buffer,
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(rpass_enc, 6, 1, 0, 0, 0);
+
+  /* End render pass */
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  /* Submit and present */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
+
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
+  return EXIT_SUCCESS;
 }
 
-// Clean up used resources
-static void example_destroy(wgpu_example_context_t* context)
+static void shutdown(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(context);
-  wgpu_destroy_texture(&textures.cw);
-  wgpu_destroy_texture(&textures.ccw);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.cw)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.ccw)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_up.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.vertices_y_down.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_ccw.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, quad.indices_cw.buffer)
+  UNUSED_VAR(wgpu_context);
+
+  imgui_overlay_shutdown();
+  sfetch_shutdown();
+
+  wgpu_destroy_texture(&state.textures.cw);
+  wgpu_destroy_texture(&state.textures.ccw);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.cw)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.ccw)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad.vertices_y_up.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad.vertices_y_down.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad.indices_ccw.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad.indices_cw.buffer)
 }
 
-void example_coordinate_system(int argc, char* argv[])
+int main(void)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Coordinate System",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
