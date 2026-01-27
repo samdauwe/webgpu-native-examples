@@ -1,10 +1,14 @@
 ﻿#include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include <cimgui.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Wireframe and Thick-Line Rendering in WebGPU
@@ -47,8 +51,6 @@ static const char* render_wireframe_wgsl;
 /* -------------------------------------------------------------------------- *
  * Wireframe and Thick-Line Rendering example
  * -------------------------------------------------------------------------- */
-
-#define SWITCH_RENDER_TIME_INTERVAL (5.0f) /* seconds unit */
 
 /* Cube mesh */
 static indexed_cube_mesh_t indexed_cube_mesh = {0};
@@ -98,9 +100,9 @@ static struct {
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
   struct {
-    render_mode_enum_t current_render_mode;
+    int32_t current_render_mode;
   } settings;
-  float prev_render_mode_switch_time;
+  uint64_t last_frame_time;
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -125,7 +127,6 @@ static struct {
   .settings = {
     .current_render_mode = RenderMode_Solid_Mesh,
   },
-  .prev_render_mode_switch_time = -1.0f,
 };
 
 static void init_cube_mesh(void)
@@ -496,6 +497,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_pipeline_layout(wgpu_context);
     init_bind_groups(wgpu_context);
     init_pipelines(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -503,22 +505,27 @@ static int init(struct wgpu_context_t* wgpu_context)
   return EXIT_FAILURE;
 }
 
-static void update_render_mode(void)
+static void render_gui(struct wgpu_context_t* wgpu_context)
 {
-  if (state.prev_render_mode_switch_time < 0.0f) {
-    state.prev_render_mode_switch_time = stm_sec(stm_now());
-    return;
-  }
+  UNUSED_VAR(wgpu_context);
 
-  const float now = stm_sec(stm_now());
-  if ((now - state.prev_render_mode_switch_time)
-      > SWITCH_RENDER_TIME_INTERVAL) {
-    state.settings.current_render_mode
-      = (state.settings.current_render_mode + 1) % RenderMode_Count;
-    state.prev_render_mode_switch_time = now;
-    printf("Switched to new render mode: %s\n",
-           render_modes_desc[state.settings.current_render_mode]);
-  }
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Build GUI */
+  igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  imgui_overlay_combo_box("Render Mode", &state.settings.current_render_mode,
+                          render_modes_desc, RenderMode_Count);
+
+  igEnd();
+}
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
 }
 
 static int frame(struct wgpu_context_t* wgpu_context)
@@ -530,8 +537,20 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Update matrix data */
   update_uniform_buffers(wgpu_context);
 
-  /* Update render mode */
-  update_render_mode();
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
@@ -589,12 +608,16 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+  imgui_overlay_shutdown();
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, state.cube.uniform_buffer_bind_group)
@@ -610,10 +633,11 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Wireframe and Thick-Line Rendering in WebGPU",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Wireframe and Thick-Line Rendering in WebGPU",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
 
   return EXIT_SUCCESS;
