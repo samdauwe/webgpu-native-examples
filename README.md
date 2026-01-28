@@ -324,6 +324,11 @@ This example demonstrates primitive picking by computing a primitive ID from ver
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
 
+
+#### [Timestamp query](src/examples/timestamp_query.c)
+
+This example demonstrates using Timestamp Queries to measure the duration of a render pass.
+
 #### [Occlusion queries](src/examples/occlusion_query.c)
 
 This example demonstrates using Occlusion Queries.
