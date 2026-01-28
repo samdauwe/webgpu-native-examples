@@ -1,7 +1,18 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
@@ -42,7 +53,7 @@ static const char* mesh_shader_wgsl;
  * Render Bundles example
  * -------------------------------------------------------------------------- */
 
-#define MAX_ASTEROID_COUNT 10000u
+#define MAX_ASTEROID_COUNT (5000u)
 
 /* Renderable */
 typedef struct renderable_t {
@@ -91,6 +102,14 @@ static struct {
     bool use_render_bundles;
     int32_t asteroid_count;
   } settings;
+  /* FPS tracking */
+  struct {
+    uint64_t last_frame_time;
+    uint64_t last_fps_update_time;
+    uint32_t frame_count;
+    float fps;
+    float frame_time_ms;
+  } timing;
   /* Pipeline and render bundle */
   WGPURenderPipeline pipeline;
   WGPURenderBundle render_bundle;
@@ -625,10 +644,53 @@ static void update_render_bundle(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(RenderBundleEncoder, render_bundle_encoder)
 }
 
+/* Render GUI overlay */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size */
+  igSetNextWindowSize((ImVec2){260.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  /* Build GUI - similar to TypeScript version's dat.gui */
+  igBegin("Render Bundles", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Use Render Bundles checkbox */
+  igCheckbox("Use Render Bundles", &state.settings.use_render_bundles);
+
+  /* Asteroid Count slider (1000-10000, step 1000) */
+  int asteroid_count = state.settings.asteroid_count;
+  if (imgui_overlay_slider_int("Asteroid Count", &asteroid_count, 1000,
+                               10000)) {
+    /* Round to nearest 1000 */
+    asteroid_count = ((asteroid_count + 500) / 1000) * 1000;
+    if (asteroid_count != state.settings.asteroid_count) {
+      state.settings.asteroid_count = asteroid_count;
+      /* Need to ensure we have enough asteroids and rebuild render bundle */
+      ensure_enough_asteroids(wgpu_context);
+      update_render_bundle(wgpu_context);
+    }
+  }
+
+  igSeparator();
+
+  /* FPS display */
+  igText("FPS: %.1f", state.timing.fps);
+  igText("Frame Time: %.2f ms", state.timing.frame_time_ms);
+
+  igEnd();
+}
+
 /* Input event callback */
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     /* Recreate depth stencil texture on resize */
     init_depth_stencil(wgpu_context);
@@ -643,6 +705,34 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Calculate delta time and FPS */
+  uint64_t current_time = stm_now();
+  if (state.timing.last_frame_time == 0) {
+    state.timing.last_frame_time      = current_time;
+    state.timing.last_fps_update_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.timing.last_frame_time));
+  state.timing.last_frame_time = current_time;
+
+  /* Update FPS counter (every 0.5 seconds) */
+  state.timing.frame_count++;
+  if (stm_sec(stm_diff(current_time, state.timing.last_fps_update_time))
+      >= 0.5) {
+    state.timing.fps = state.timing.frame_count
+                       / (float)stm_sec(stm_diff(
+                         current_time, state.timing.last_fps_update_time));
+    state.timing.frame_time_ms        = 1000.0f / state.timing.fps;
+    state.timing.frame_count          = 0;
+    state.timing.last_fps_update_time = current_time;
+  }
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
 
   /* Process async file requests */
   sfetch_dowork();
@@ -705,6 +795,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuQueueSubmit(wgpu_context->queue, 1, &cmd_buf);
   WGPU_RELEASE_RESOURCE(CommandBuffer, cmd_buf)
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
@@ -734,6 +827,9 @@ static int init(struct wgpu_context_t* wgpu_context)
   create_frame_bind_group(wgpu_context);
   update_render_bundle(wgpu_context);
 
+  /* Initialize imgui overlay */
+  imgui_overlay_init(wgpu_context);
+
   state.initialized = true;
 
   return EXIT_SUCCESS;
@@ -743,6 +839,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  /* Shutdown imgui overlay */
+  imgui_overlay_shutdown();
 
   /* Release render bundle and bind groups */
   WGPU_RELEASE_RESOURCE(RenderBundle, state.render_bundle)
