@@ -1,5 +1,3 @@
-﻿#include "common_shaders.h"
-#include "meshes.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -29,6 +27,13 @@
  *
  * This example shows how to render and sample from a cubemap texture.
  *
+ * The example uses a simplified approach: instead of rendering a cube geometry,
+ * it draws a fullscreen triangle and uses the inverse view-projection matrix
+ * to compute the cubemap sampling direction in the fragment shader. This means:
+ *   - No vertex buffers needed
+ *   - No depth texture needed
+ *   - Only 3 vertices drawn instead of 36
+ *
  * Ref: https://github.com/webgpu/webgpu-samples/tree/main/sample/cubemap
  * -------------------------------------------------------------------------- */
 
@@ -36,7 +41,7 @@
  * WGSL Shader
  * -------------------------------------------------------------------------- */
 
-static const char* sample_cubemap_fragment_shader_wgsl;
+static const char* sample_cubemap_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Cubemap example
@@ -50,21 +55,17 @@ static const char* sample_cubemap_fragment_shader_wgsl;
 
 /* State struct */
 static struct {
-  cube_mesh_t cube_mesh;
   struct {
-    WGPUBindGroup uniform_buffer_bind_group;
+    WGPUBindGroup bind_group;
     WGPUBindGroupLayout bind_group_layout;
-    struct {
-      mat4 model_view_projection;
-    } view_mtx;
-  } cube;
-  wgpu_buffer_t vertices;
-  wgpu_buffer_t uniform_buffer_vs;
+  } cubemap;
+  wgpu_buffer_t uniform_buffer;
   struct {
     mat4 projection;
     mat4 model;
     mat4 view;
     mat4 tmp;
+    mat4 view_direction_projection_inverse;
   } view_matrices;
   struct {
     WGPUTexture handle;
@@ -77,7 +78,6 @@ static struct {
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
-  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
   WGPUBool initialized;
 } state = {
@@ -87,49 +87,23 @@ static struct {
     .clearValue = {0.1, 0.2, 0.3, 1.0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
-  .depth_stencil_attachment = {
-    .depthLoadOp       = WGPULoadOp_Clear,
-    .depthStoreOp      = WGPUStoreOp_Store,
-    .depthClearValue   = 1.0f,
-    .stencilLoadOp     = WGPULoadOp_Clear,
-    .stencilStoreOp    = WGPUStoreOp_Store,
-    .stencilClearValue = 0,
-  },
   .render_pass_descriptor = {
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = &state.color_attachment,
-    .depthStencilAttachment = &state.depth_stencil_attachment,
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
   }
 };
-
-static void init_cube_mesh(void)
-{
-  cube_mesh_init(&state.cube_mesh);
-}
-
-static void init_vertex_buffer(wgpu_context_t* wgpu_context)
-{
-  /* Create a vertex buffer from the cube data. */
-  state.vertices = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Cube - Vertex data",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(state.cube_mesh.vertex_array),
-                    .initial.data = state.cube_mesh.vertex_array,
-                  });
-}
 
 static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 0 : Transform */
+      /* Binding 0 : Transform - visible to both vertex and fragment */
       .binding    = 0,
-      .visibility = WGPUShaderStage_Vertex,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout) {
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(mat4), // 4x4 matrix
+        .minBindingSize   = sizeof(mat4), /* 4x4 matrix */
       },
       .sampler = {0},
     },
@@ -154,22 +128,22 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
       .storageTexture = {0},
     }
   };
-  state.cube.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.cubemap.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = STRVIEW("Cube - Bind group layout"),
+                            .label = STRVIEW("Cubemap - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
-  ASSERT(state.cube.bind_group_layout != NULL);
+  ASSERT(state.cubemap.bind_group_layout != NULL);
 
-  // Create the pipeline layout that is used to generate the rendering pipelines
-  // that are based on this bind group layout
+  /* Create the pipeline layout */
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = STRVIEW("Pipeline - Bind group layout"),
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts = &state.cube.bind_group_layout,
-                          });
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Cubemap - Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.cubemap.bind_group_layout,
+    });
   ASSERT(state.pipeline_layout != NULL);
 }
 
@@ -178,10 +152,11 @@ static void init_cubemap_texture(wgpu_context_t* wgpu_context)
   /* Texture */
   {
     WGPUTextureDescriptor tdesc = {
-      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-      .dimension = WGPUTextureDimension_2D,
-      .size      = {FACE_WIDTH, FACE_HEIGHT, NUM_FACES},
-      .format    = WGPUTextureFormat_RGBA8Unorm,
+      .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_RenderAttachment,
+      .dimension     = WGPUTextureDimension_2D,
+      .size          = {FACE_WIDTH, FACE_HEIGHT, NUM_FACES},
+      .format        = WGPUTextureFormat_RGBA8Unorm,
       .mipLevelCount = 1,
       .sampleCount   = 1,
     };
@@ -208,9 +183,9 @@ static void init_cubemap_texture(wgpu_context_t* wgpu_context)
   /* Texture sampler */
   {
     WGPUSamplerDescriptor sampler_desc = {
-      .addressModeU  = WGPUAddressMode_Repeat,
-      .addressModeV  = WGPUAddressMode_Repeat,
-      .addressModeW  = WGPUAddressMode_Repeat,
+      .addressModeU  = WGPUAddressMode_ClampToEdge,
+      .addressModeV  = WGPUAddressMode_ClampToEdge,
+      .addressModeW  = WGPUAddressMode_ClampToEdge,
       .magFilter     = WGPUFilterMode_Linear,
       .minFilter     = WGPUFilterMode_Linear,
       .mipmapFilter  = WGPUMipmapFilterMode_Linear,
@@ -240,25 +215,25 @@ static void fetch_callback(const sfetch_response_t* response)
     &num_channels, desired_channels);
   if (decoded_pixels) {
     assert(img_width == FACE_WIDTH);
-    assert(img_width == FACE_HEIGHT);
+    assert(img_height == FACE_HEIGHT);
     memcpy((void*)response->buffer.ptr, decoded_pixels, FACE_NUM_BYTES);
     stbi_image_free(decoded_pixels);
     ++state.load_count;
   }
 }
 
-// Fetch the 6 separate images for negative/positive x, y, z axis of a cubemap
-// and upload it into a GPUTexture.
+/* Fetch the 6 separate images for negative/positive x, y, z axis of a cubemap
+ * and upload it into a GPUTexture.
+ * The order of the array layers is [+X, -X, +Y, -Y, +Z, -Z] */
 static void fetch_cubemap_texture(void)
 {
-  // The order of the array layers is [+X, -X, +Y, -Y, +Z, -Z]
   static const char* cubemap_paths[NUM_FACES] = {
-    "assets/textures/cubemaps/bridge2_px.jpg", /* Right  */
-    "assets/textures/cubemaps/bridge2_nx.jpg", /* Left   */
-    "assets/textures/cubemaps/bridge2_py.jpg", /* Top    */
-    "assets/textures/cubemaps/bridge2_ny.jpg", /* Bottom */
-    "assets/textures/cubemaps/bridge2_pz.jpg", /* Back   */
-    "assets/textures/cubemaps/bridge2_nz.jpg", /* Front  */
+    "assets/textures/cubemaps/bridge2_px.jpg", /* +X Right  */
+    "assets/textures/cubemaps/bridge2_nx.jpg", /* -X Left   */
+    "assets/textures/cubemaps/bridge2_py.jpg", /* +Y Top    */
+    "assets/textures/cubemaps/bridge2_ny.jpg", /* -Y Bottom */
+    "assets/textures/cubemaps/bridge2_pz.jpg", /* +Z Back   */
+    "assets/textures/cubemaps/bridge2_nz.jpg", /* -Z Front  */
   };
   for (int i = 0; i < NUM_FACES; i++) {
     sfetch_send(&(sfetch_request_t){
@@ -275,8 +250,8 @@ static void update_texture_pixels(wgpu_context_t* wgpu_context)
   WGPUCommandEncoder cmd_encoder
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  // Create a host-visible staging buffers that contains the raw image data for
-  // each face of the cubemap
+  /* Create a host-visible staging buffers that contains the raw image data for
+   * each face of the cubemap */
   WGPUBuffer staging_buffers[6] = {0};
   for (uint32_t face = 0; face < NUM_FACES; ++face) {
     WGPUBufferDescriptor staging_buffer_desc = {
@@ -297,7 +272,7 @@ static void update_texture_pixels(wgpu_context_t* wgpu_context)
     memcpy(mapping, state.cubemap_pixels[face], FACE_NUM_BYTES);
     wgpuBufferUnmap(staging_buffers[face]);
 
-    // Upload staging buffer to texture
+    /* Upload staging buffer to texture */
     wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
         /* Source */
         &(WGPUTexelCopyBufferInfo) {
@@ -331,16 +306,14 @@ static void update_texture_pixels(wgpu_context_t* wgpu_context)
     = wgpuCommandEncoderFinish(cmd_encoder, NULL);
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
-  /* Sumbit commmand buffer and cleanup */
+  /* Submit command buffer */
   ASSERT(command_buffer != NULL)
-
-  /* Submit to the queue */
   wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
 
   /* Release command buffer */
   WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
 
-  /* Clean up staging resources and pixel data */
+  /* Clean up staging resources */
   for (uint32_t face = 0; face < NUM_FACES; ++face) {
     WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face]);
   }
@@ -358,72 +331,73 @@ static void init_view_matrices(wgpu_context_t* wgpu_context)
   glm_perspective(PI2 / 5.0f, aspect_ratio, 1.0f, 3000.0f,
                   state.view_matrices.projection);
 
-  /* Model matrix */
+  /* Model matrix - identity */
   glm_mat4_identity(state.view_matrices.model);
-  glm_scale(state.view_matrices.model, (vec3){1000.0f, 1000.0f, 1000.0f});
 
-  /* Model view projection matrix */
-  glm_mat4_identity(state.cube.view_mtx.model_view_projection);
+  /* View matrix - identity */
+  glm_mat4_identity(state.view_matrices.view);
 
   /* Other matrices */
-  glm_mat4_identity(state.view_matrices.view);
   glm_mat4_identity(state.view_matrices.tmp);
+  glm_mat4_identity(state.view_matrices.view_direction_projection_inverse);
 }
 
-static void init_uniform_buffers(wgpu_context_t* wgpu_context)
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 {
   /* Setup the view matrices for the camera */
   init_view_matrices(wgpu_context);
 
-  /* Uniform buffer */
-  state.uniform_buffer_vs = wgpu_create_buffer(
+  /* Uniform buffer - 4x4 matrix */
+  state.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Uniform buffer",
+                    .label = "Cubemap - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(mat4), // 4x4 matrix
+                    .size  = sizeof(mat4),
                   });
-  ASSERT(state.uniform_buffer_vs.buffer != NULL);
+  ASSERT(state.uniform_buffer.buffer != NULL);
 }
 
-/* Compute camera movement:                               */
-/* It rotates around Y axis with a slight pitch movement. */
+/* Compute camera movement:
+ * It rotates around Y axis with a slight pitch movement. */
 static void update_transformation_matrix(void)
 {
   const float now = stm_ms(stm_now()) / 800.0f;
 
-  /* View matrix */
+  /* Apply rotation to view matrix */
   glm_mat4_copy(state.view_matrices.view, state.view_matrices.tmp);
-  glm_rotate(state.view_matrices.tmp, (PI / 10.f) * sin(now),
+  glm_rotate(state.view_matrices.tmp, (GLM_PI / 10.f) * sin(now),
              (vec3){1.0f, 0.0f, 0.0f});
   glm_rotate(state.view_matrices.tmp, now * 0.2f, (vec3){0.f, 1.f, 0.f});
 
-  glm_mat4_mul(state.view_matrices.tmp, state.view_matrices.model,
-               state.cube.view_mtx.model_view_projection);
-  glm_mat4_mul(state.view_matrices.projection,
-               state.cube.view_mtx.model_view_projection,
-               state.cube.view_mtx.model_view_projection);
+  /* Compute model-view-projection matrix */
+  mat4 mvp;
+  glm_mat4_mul(state.view_matrices.tmp, state.view_matrices.model, mvp);
+  glm_mat4_mul(state.view_matrices.projection, mvp, mvp);
+
+  /* Compute inverse for cubemap sampling direction */
+  glm_mat4_inv(mvp, state.view_matrices.view_direction_projection_inverse);
 }
 
-static void update_uniform_buffers(wgpu_context_t* wgpu_context)
+static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  /* Update the model-view-projection matrix */
+  /* Update the transformation matrix */
   update_transformation_matrix();
 
-  /* Map uniform buffer and update it */
-  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer_vs.buffer, 0,
-                       &state.cube.view_mtx.model_view_projection,
-                       state.uniform_buffer_vs.size);
+  /* Upload to GPU */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
+                       &state.view_matrices.view_direction_projection_inverse,
+                       sizeof(mat4));
 }
 
-static void init_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry) {
       /* Binding 0 : Transform */
       .binding = 0,
-      .buffer  = state.uniform_buffer_vs.buffer,
+      .buffer  = state.uniform_buffer.buffer,
       .offset  = 0,
-      .size    = state.uniform_buffer_vs.size,
+      .size    = state.uniform_buffer.size,
     },
     [1] = (WGPUBindGroupEntry) {
       /* Binding 1 : Sampler */
@@ -437,55 +411,37 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
     }
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = STRVIEW("Cube uniform buffer - Bind group"),
-    .layout     = state.cube.bind_group_layout,
+    .label      = STRVIEW("Cubemap - Bind group"),
+    .layout     = state.cubemap.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  state.cube.uniform_buffer_bind_group
+  state.cubemap.bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(state.cube.uniform_buffer_bind_group != NULL);
+  ASSERT(state.cubemap.bind_group != NULL);
 }
 
 static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  WGPUShaderModule vert_shader_module
-    = wgpu_create_shader_module(wgpu_context->device, basic_vertex_shader_wgsl);
-  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
-    wgpu_context->device, sample_cubemap_fragment_shader_wgsl);
+  WGPUShaderModule shader_module = wgpu_create_shader_module(
+    wgpu_context->device, sample_cubemap_shader_wgsl);
 
   /* Color blend state */
   WGPUBlendState blend_state = wgpu_create_blend_state(true);
 
-  /* Depth stencil state */
-  WGPUDepthStencilState depth_stencil_state
-    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = wgpu_context->depth_stencil_format,
-      .depth_write_enabled = true,
-    });
-  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
-
-  /* Vertex buffer layout */
-  WGPU_VERTEX_BUFFER_LAYOUT(textured_cube, state.cube_mesh.vertex_size,
-                            /* Attribute location 0: Position */
-                            WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4,
-                                               state.cube_mesh.position_offset),
-                            /* Attribute location 1: UV */
-                            WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x2,
-                                               state.cube_mesh.uv_offset))
-
+  /* No vertex buffers needed - positions are generated in the vertex shader */
   WGPURenderPipelineDescriptor rp_desc = {
     .label  = STRVIEW("Cubemap - Render pipeline"),
     .layout = state.pipeline_layout,
     .vertex = {
-      .module      = vert_shader_module,
-      .entryPoint  = STRVIEW("main"),
-      .bufferCount = 1,
-      .buffers     = &textured_cube_vertex_buffer_layout,
+      .module      = shader_module,
+      .entryPoint  = STRVIEW("mainVS"),
+      .bufferCount = 0,
+      .buffers     = NULL,
     },
     .fragment = &(WGPUFragmentState) {
-      .entryPoint  = STRVIEW("main"),
-      .module      = frag_shader_module,
+      .entryPoint  = STRVIEW("mainFS"),
+      .module      = shader_module,
       .targetCount = 1,
       .targets = &(WGPUColorTargetState) {
         .format    = wgpu_context->render_format,
@@ -498,7 +454,8 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
       .cullMode  = WGPUCullMode_None,
       .frontFace = WGPUFrontFace_CCW
     },
-    .depthStencil = &depth_stencil_state,
+    /* No depth stencil - not needed for fullscreen cubemap sampling */
+    .depthStencil = NULL,
     .multisample = {
        .count = 1,
        .mask  = 0xffffffff
@@ -509,8 +466,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
   ASSERT(state.pipeline != NULL);
 
-  wgpuShaderModuleRelease(vert_shader_module);
-  wgpuShaderModuleRelease(frag_shader_module);
+  wgpuShaderModuleRelease(shader_module);
 }
 
 static int init(struct wgpu_context_t* wgpu_context)
@@ -523,13 +479,11 @@ static int init(struct wgpu_context_t* wgpu_context)
       .num_lanes    = NUM_FACES,
       .logger.func  = slog_func,
     });
-    init_cube_mesh();
-    init_vertex_buffer(wgpu_context);
     init_pipeline_layout(wgpu_context);
     init_cubemap_texture(wgpu_context);
     fetch_cubemap_texture();
-    init_uniform_buffers(wgpu_context);
-    init_bind_groups(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_bind_group(wgpu_context);
     init_pipeline(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
@@ -552,29 +506,26 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Update matrix data */
-  update_uniform_buffers(wgpu_context);
+  update_uniform_buffer(wgpu_context);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
 
-  state.color_attachment.view         = wgpu_context->swapchain_view;
-  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
+  state.color_attachment.view = wgpu_context->swapchain_view;
 
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
   WGPURenderPassEncoder rpass_enc
     = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  /* Record render commands. */
+  /* Record render commands - draw 3 vertices for fullscreen triangle */
   wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertices.buffer, 0,
-                                       WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
-                                    state.cube.uniform_buffer_bind_group, 0, 0);
-  wgpuRenderPassEncoderDraw(rpass_enc, state.cube_mesh.vertex_count, 1, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.cubemap.bind_group, 0,
+                                    0);
+  wgpuRenderPassEncoderDraw(rpass_enc, 3, 1, 0, 0);
   wgpuRenderPassEncoderEnd(rpass_enc);
   WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  /* Submit and present. */
+  /* Submit and present */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
   /* Cleanup */
@@ -594,11 +545,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Texture, state.cubemap_texture.handle);
   WGPU_RELEASE_RESOURCE(TextureView, state.cubemap_texture.view);
   WGPU_RELEASE_RESOURCE(Sampler, state.cubemap_texture.sampler);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cubemap.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, state.cube.uniform_buffer_bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer_vs.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.cubemap.bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
 }
 
@@ -619,20 +569,45 @@ int main(void)
  * -------------------------------------------------------------------------- */
 
 // clang-format off
-static const char* sample_cubemap_fragment_shader_wgsl = CODE(
+static const char* sample_cubemap_shader_wgsl = CODE(
+  @group(0) @binding(0) var<uniform> viewDirectionProjectionInverse: mat4x4f;
   @group(0) @binding(1) var mySampler: sampler;
   @group(0) @binding(2) var myTexture: texture_cube<f32>;
 
+  struct VertexOutput {
+    @builtin(position) position: vec4f,
+    @location(1) direction: vec4f,
+  };
+
+  @vertex
+  fn mainVS(
+    @builtin(vertex_index) vertexIndex: u32
+  ) -> VertexOutput {
+    // A triangle large enough to cover all of clip space.
+    let pos = array(
+      vec2f(-1, -1),
+      vec2f(-1,  3),
+      vec2f( 3, -1),
+    );
+    let p = pos[vertexIndex];
+    // We return the position twice. Once for @builtin(position)
+    // Once for the fragment shader. The values in the fragment shader
+    // will go from -1,-1 to 1,1 across the entire texture.
+    return VertexOutput(
+      vec4f(p, 0, 1),
+      vec4f(p, -1, 1),
+    );
+  }
+
   @fragment
-  fn main(
-    @location(0) fragUV: vec2<f32>,
-    @location(1) fragPosition: vec4<f32>
-  ) -> @location(0) vec4<f32> {
-    // Our camera and the skybox cube are both centered at (0, 0, 0) so we can
-    // use the cube geomtry position to get viewing vector to sample the cube
-    // texture. The magnitude of the vector doesn't matter.
-    var cubemapVec = fragPosition.xyz - vec3(0.5);
-    return textureSample(myTexture, mySampler, cubemapVec);
+  fn mainFS(
+    in: VertexOutput,
+  ) -> @location(0) vec4f {
+    // orient the direction to the view
+    let t = viewDirectionProjectionInverse * in.direction;
+    // remove the perspective.
+    let uvw = normalize(t.xyz / t.w);
+    return textureSample(myTexture, mySampler, uvw);
   }
 );
 // clang-format on
