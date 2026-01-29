@@ -272,6 +272,10 @@ WebGPU doesn't let you set the viewport’s values to be out-of-bounds. Therefor
 
 Uses the stencil buffer and its compare functionality for rendering a 3D model with dynamic outlines.
 
+#### [Stencil mask](src/examples/stencil_mask.c)
+
+Demonstrates using the stencil buffer for masking. It draws the 6 faces of a rotating cube into the stencil buffer, each with a different stencil value. Then it draws different scenes of animated objects where the stencil value matches, creating a cube-shaped window into different worlds.
+
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
