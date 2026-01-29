@@ -74,9 +74,9 @@ static const char* simple_lighting_shader_wgsl = CODE(
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define NUM_MASK_SCENES 6
-#define NUM_OBJECT_SCENES 7
-#define NUM_INSTANCES_PER_SCENE 100
+#define NUM_MASK_SCENES (6)
+#define NUM_OBJECT_SCENES (7)
+#define NUM_INSTANCES_PER_SCENE (100)
 #define DEPTH_FORMAT WGPUTextureFormat_Depth24PlusStencil8
 
 /* -------------------------------------------------------------------------- *
