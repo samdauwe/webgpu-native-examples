@@ -315,10 +315,14 @@ static void init_geometries(wgpu_context_t* wgpu_context)
   primitive_vertex_data_destroy(&data);
 
   /* Create torus with thickness 0.5 */
-  primitive_create_torus(&(primitive_torus_options_t){.thickness = 0.5f,
-                                                      .radial_subdivisions = 24,
-                                                      .body_subdivisions = 12},
-                         &data);
+  primitive_create_torus(
+    &(primitive_torus_options_t){.radius              = 1.0f,
+                                 .thickness           = 0.5f,
+                                 .radial_subdivisions = 24,
+                                 .body_subdivisions   = 12,
+                                 .start_angle         = 0.0f,
+                                 .end_angle           = GLM_PI * 2.0f},
+    &data);
   create_geometry(wgpu_context, &data, &state.torus_geo, "Torus");
   primitive_vertex_data_destroy(&data);
 
@@ -339,8 +343,13 @@ static void init_geometries(wgpu_context_t* wgpu_context)
 
   /* Create jem (faceted sphere) */
   primitive_create_sphere(
-    &(primitive_sphere_options_t){.subdivisions_axis   = 6,
-                                  .subdivisions_height = 5},
+    &(primitive_sphere_options_t){.radius              = 1.0f,
+                                  .subdivisions_axis   = 6,
+                                  .subdivisions_height = 5,
+                                  .start_latitude      = 0.0f,
+                                  .end_latitude        = GLM_PI,
+                                  .start_longitude     = 0.0f,
+                                  .end_longitude       = GLM_PI * 2.0f},
     &data);
   primitive_facet(&data, &faceted);
   primitive_vertex_data_destroy(&data);
@@ -348,10 +357,14 @@ static void init_geometries(wgpu_context_t* wgpu_context)
   primitive_vertex_data_destroy(&faceted);
 
   /* Create dice (faceted torus) */
-  primitive_create_torus(&(primitive_torus_options_t){.thickness = 0.5f,
-                                                      .radial_subdivisions = 8,
-                                                      .body_subdivisions   = 6},
-                         &data);
+  primitive_create_torus(
+    &(primitive_torus_options_t){.radius              = 1.0f,
+                                 .thickness           = 0.5f,
+                                 .radial_subdivisions = 8,
+                                 .body_subdivisions   = 8,
+                                 .start_angle         = 0.0f,
+                                 .end_angle           = GLM_PI * 2.0f},
+    &data);
   primitive_facet(&data, &faceted);
   primitive_vertex_data_destroy(&data);
   create_geometry(wgpu_context, &faceted, &state.dice_geo, "Dice");
@@ -726,8 +739,9 @@ static void update_mask(wgpu_context_t* wgpu_context, float time,
     glm_scale(world, (vec3){10.0f, 10.0f, 10.0f});
 
     memcpy(obj->uniform_values, world, sizeof(mat4));
+    /* Only write world matrix (64 bytes), color is static */
     wgpuQueueWriteBuffer(wgpu_context->queue, obj->uniform_buffer, 0,
-                         obj->uniform_values, sizeof(obj->uniform_values));
+                         obj->uniform_values, sizeof(mat4));
   }
 }
 
@@ -777,8 +791,9 @@ static void update_scene0(wgpu_context_t* wgpu_context, float time,
     glm_rotate_x(world, time * 0.53f + i, world);
 
     memcpy(obj->uniform_values, world, sizeof(mat4));
+    /* Only write world matrix (64 bytes), color is static */
     wgpuQueueWriteBuffer(wgpu_context->queue, obj->uniform_buffer, 0,
-                         obj->uniform_values, sizeof(obj->uniform_values));
+                         obj->uniform_values, sizeof(mat4));
   }
 }
 
@@ -830,8 +845,9 @@ static void update_scene1(wgpu_context_t* wgpu_context, float time,
     glm_rotate_x(world, time * 1.53f + i, world);
 
     memcpy(obj->uniform_values, world, sizeof(mat4));
+    /* Only write world matrix (64 bytes), color is static */
     wgpuQueueWriteBuffer(wgpu_context->queue, obj->uniform_buffer, 0,
-                         obj->uniform_values, sizeof(obj->uniform_values));
+                         obj->uniform_values, sizeof(mat4));
   }
 }
 
