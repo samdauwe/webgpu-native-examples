@@ -314,14 +314,11 @@ static void init_geometries(wgpu_context_t* wgpu_context)
   create_geometry(wgpu_context, &data, &state.sphere_geo, "Sphere");
   primitive_vertex_data_destroy(&data);
 
-  /* Create torus with thickness 0.5 */
+  /* Create torus with thickness 0.5 (other options use defaults via macros) */
   primitive_create_torus(
-    &(primitive_torus_options_t){.radius              = 1.0f,
-                                 .thickness           = 0.5f,
-                                 .radial_subdivisions = 24,
-                                 .body_subdivisions   = 12,
-                                 .start_angle         = 0.0f,
-                                 .end_angle           = GLM_PI * 2.0f},
+    &(primitive_torus_options_t){
+      .thickness = 0.5f,
+    },
     &data);
   create_geometry(wgpu_context, &data, &state.torus_geo, "Torus");
   primitive_vertex_data_destroy(&data);
@@ -341,29 +338,25 @@ static void init_geometries(wgpu_context_t* wgpu_context)
   create_geometry(wgpu_context, &data, &state.cylinder_geo, "Cylinder");
   primitive_vertex_data_destroy(&data);
 
-  /* Create jem (faceted sphere) */
+  /* Create jem (faceted sphere with low subdivision) */
   primitive_create_sphere(
-    &(primitive_sphere_options_t){.radius              = 1.0f,
-                                  .subdivisions_axis   = 6,
-                                  .subdivisions_height = 5,
-                                  .start_latitude      = 0.0f,
-                                  .end_latitude        = GLM_PI,
-                                  .start_longitude     = 0.0f,
-                                  .end_longitude       = GLM_PI * 2.0f},
+    &(primitive_sphere_options_t){
+      .subdivisions_axis   = 6,
+      .subdivisions_height = 5,
+    },
     &data);
   primitive_facet(&data, &faceted);
   primitive_vertex_data_destroy(&data);
   create_geometry(wgpu_context, &faceted, &state.jem_geo, "Jem");
   primitive_vertex_data_destroy(&faceted);
 
-  /* Create dice (faceted torus) */
+  /* Create dice (faceted torus with low subdivision) */
   primitive_create_torus(
-    &(primitive_torus_options_t){.radius              = 1.0f,
-                                 .thickness           = 0.5f,
-                                 .radial_subdivisions = 8,
-                                 .body_subdivisions   = 8,
-                                 .start_angle         = 0.0f,
-                                 .end_angle           = GLM_PI * 2.0f},
+    &(primitive_torus_options_t){
+      .thickness           = 0.5f,
+      .radial_subdivisions = 8,
+      .body_subdivisions   = 8,
+    },
     &data);
   primitive_facet(&data, &faceted);
   primitive_vertex_data_destroy(&data);
