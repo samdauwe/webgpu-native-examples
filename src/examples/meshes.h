@@ -151,6 +151,21 @@ void mesh_get_uv_at_index(const mesh_t* mesh, uint64_t index, float out_uv[2]);
 /* -------------------------------------------------------------------------- *
  * Primitive mesh structures and functions
  * Vertex format: position[3], normal[3], uv[2] = 8 floats per vertex
+ *
+ * NOTE: All primitive option structs support partial initialization.
+ * When passing a struct with only some fields specified (using C99 designated
+ * initializers), unspecified fields will use sensible defaults automatically.
+ *
+ * Example - create a torus with custom thickness but default radius:
+ *   primitive_create_torus(&(primitive_torus_options_t){.thickness = 0.5f},
+ * &data);
+ *
+ * Example - create a sphere with custom subdivisions but default radius:
+ *   primitive_create_sphere(&(primitive_sphere_options_t){.subdivisions_axis =
+ * 6, .subdivisions_height = 5}, &data);
+ *
+ * For full defaults, pass NULL as the options pointer:
+ *   primitive_create_sphere(NULL, &data);
  * -------------------------------------------------------------------------- */
 
 #define PRIMITIVE_VERTEX_SIZE 8 /* floats per vertex */

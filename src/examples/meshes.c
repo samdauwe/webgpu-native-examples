@@ -392,16 +392,43 @@ void primitive_to_mesh(const primitive_vertex_data_t* data, mesh_t* mesh)
   mesh->indices_uint32 = false;
 }
 
+/* -------------------------------------------------------------------------- *
+ * Primitive options helper macros
+ *
+ * These macros handle partial options structs properly. When users pass a
+ * struct with only some fields specified via C99 designated initializers,
+ * unspecified fields are zero-initialized. These macros apply defaults when
+ * either the options pointer is NULL OR the field value is zero.
+ *
+ * For fields where 0 is a valid non-default value (like start_angle),
+ * use the _ALLOW_ZERO variant which only applies defaults when options is NULL.
+ * -------------------------------------------------------------------------- */
+
+/* Apply default if options is NULL or field is zero (for positive values) */
+#define PRIM_OPT_F(opts, field, def)                                           \
+  (((opts) != NULL && (opts)->field != 0.0f) ? (opts)->field : (def))
+
+/* Apply default if options is NULL or field is zero (for uint32 values) */
+#define PRIM_OPT_U(opts, field, def)                                           \
+  (((opts) != NULL && (opts)->field != 0) ? (opts)->field : (def))
+
+/* Apply default only if options is NULL (for fields where 0 is valid) */
+#define PRIM_OPT_F_ALLOW_ZERO(opts, field, def)                                \
+  ((opts) != NULL ? (opts)->field : (def))
+
+/* Apply default only if options is NULL (for bool fields) */
+#define PRIM_OPT_BOOL(opts, field, def) ((opts) != NULL ? (opts)->field : (def))
+
 /* --- Plane primitive --- */
 
 void primitive_create_plane(const primitive_plane_options_t* options,
                             primitive_vertex_data_t* data)
 {
-  /* Default values */
-  float width             = (options != NULL) ? options->width : 1.0f;
-  float depth             = (options != NULL) ? options->depth : 1.0f;
-  uint32_t subdivisions_w = (options != NULL) ? options->subdivisions_width : 1;
-  uint32_t subdivisions_d = (options != NULL) ? options->subdivisions_depth : 1;
+  /* Apply defaults for partial options */
+  float width             = PRIM_OPT_F(options, width, 1.0f);
+  float depth             = PRIM_OPT_F(options, depth, 1.0f);
+  uint32_t subdivisions_w = PRIM_OPT_U(options, subdivisions_width, 1);
+  uint32_t subdivisions_d = PRIM_OPT_U(options, subdivisions_depth, 1);
 
   uint64_t num_vertices = (subdivisions_w + 1) * (subdivisions_d + 1);
   uint64_t num_indices  = subdivisions_w * subdivisions_d * 6;
@@ -451,15 +478,14 @@ void primitive_create_plane(const primitive_plane_options_t* options,
 void primitive_create_sphere(const primitive_sphere_options_t* options,
                              primitive_vertex_data_t* data)
 {
-  /* Default values */
-  float radius         = (options != NULL) ? options->radius : 1.0f;
-  uint32_t subdiv_axis = (options != NULL) ? options->subdivisions_axis : 24;
-  uint32_t subdiv_height
-    = (options != NULL) ? options->subdivisions_height : 12;
-  float start_lat  = (options != NULL) ? options->start_latitude : 0.0f;
-  float end_lat    = (options != NULL) ? options->end_latitude : GLM_PI;
-  float start_long = (options != NULL) ? options->start_longitude : 0.0f;
-  float end_long   = (options != NULL) ? options->end_longitude : GLM_PI * 2.0f;
+  /* Apply defaults for partial options */
+  float radius           = PRIM_OPT_F(options, radius, 1.0f);
+  uint32_t subdiv_axis   = PRIM_OPT_U(options, subdivisions_axis, 24);
+  uint32_t subdiv_height = PRIM_OPT_U(options, subdivisions_height, 12);
+  float start_lat        = PRIM_OPT_F_ALLOW_ZERO(options, start_latitude, 0.0f);
+  float end_lat          = PRIM_OPT_F(options, end_latitude, GLM_PI);
+  float start_long = PRIM_OPT_F_ALLOW_ZERO(options, start_longitude, 0.0f);
+  float end_long   = PRIM_OPT_F(options, end_longitude, GLM_PI * 2.0f);
 
   ASSERT(subdiv_axis > 0 && subdiv_height > 0);
 
@@ -475,11 +501,10 @@ void primitive_create_sphere(const primitive_sphere_options_t* options,
   uint64_t cursor = 0;
   for (uint32_t y = 0; y <= subdiv_height; y++) {
     for (uint32_t x = 0; x <= subdiv_axis; x++) {
-      float u     = (float)x / (float)subdiv_axis;
-      float v     = (float)y / (float)subdiv_height;
-      float theta = long_range * u + start_long;
-      float phi   = lat_range * v + start_lat;
-
+      float u         = (float)x / (float)subdiv_axis;
+      float v         = (float)y / (float)subdiv_height;
+      float theta     = long_range * u + start_long;
+      float phi       = lat_range * v + start_lat;
       float sin_theta = sinf(theta);
       float cos_theta = cosf(theta);
       float sin_phi   = sinf(phi);
@@ -534,7 +559,8 @@ static const int32_t CUBE_FACE_INDICES[6][4] = {
 void primitive_create_cube(const primitive_cube_options_t* options,
                            primitive_vertex_data_t* data)
 {
-  float size = (options != NULL) ? options->size : 1.0f;
+  /* Apply defaults for partial options */
+  float size = PRIM_OPT_F(options, size, 1.0f);
   float k    = size / 2.0f;
 
   float corner_vertices[8][3] = {
@@ -597,14 +623,15 @@ void primitive_create_truncated_cone(
   const primitive_truncated_cone_options_t* options,
   primitive_vertex_data_t* data)
 {
-  /* Default values */
-  float bottom_radius = (options != NULL) ? options->bottom_radius : 1.0f;
-  float top_radius    = (options != NULL) ? options->top_radius : 0.0f;
-  float height        = (options != NULL) ? options->height : 1.0f;
-  uint32_t radial_sub = (options != NULL) ? options->radial_subdivisions : 24;
-  uint32_t vert_sub   = (options != NULL) ? options->vertical_subdivisions : 1;
-  bool top_cap        = (options != NULL) ? options->top_cap : true;
-  bool bottom_cap     = (options != NULL) ? options->bottom_cap : true;
+  /* Apply defaults for partial options
+   * Note: top_radius default is 0 (cone point), so we use ALLOW_ZERO */
+  float bottom_radius = PRIM_OPT_F(options, bottom_radius, 1.0f);
+  float top_radius    = PRIM_OPT_F_ALLOW_ZERO(options, top_radius, 0.0f);
+  float height        = PRIM_OPT_F(options, height, 1.0f);
+  uint32_t radial_sub = PRIM_OPT_U(options, radial_subdivisions, 24);
+  uint32_t vert_sub   = PRIM_OPT_U(options, vertical_subdivisions, 1);
+  bool top_cap        = PRIM_OPT_BOOL(options, top_cap, true);
+  bool bottom_cap     = PRIM_OPT_BOOL(options, bottom_cap, true);
 
   ASSERT(radial_sub >= 3);
   ASSERT(vert_sub >= 1);
@@ -714,16 +741,22 @@ void primitive_create_truncated_cone(
 void primitive_create_cylinder(const primitive_cylinder_options_t* options,
                                primitive_vertex_data_t* data)
 {
+  /* Apply defaults for partial options, then forward to truncated cone */
+  float radius        = PRIM_OPT_F(options, radius, 1.0f);
+  float height        = PRIM_OPT_F(options, height, 1.0f);
+  uint32_t radial_sub = PRIM_OPT_U(options, radial_subdivisions, 24);
+  uint32_t vert_sub   = PRIM_OPT_U(options, vertical_subdivisions, 1);
+  bool top_cap        = PRIM_OPT_BOOL(options, top_cap, true);
+  bool bottom_cap     = PRIM_OPT_BOOL(options, bottom_cap, true);
+
   primitive_truncated_cone_options_t cone_opts = {
-    .bottom_radius = (options != NULL) ? options->radius : 1.0f,
-    .top_radius    = (options != NULL) ? options->radius : 1.0f,
-    .height        = (options != NULL) ? options->height : 1.0f,
-    .radial_subdivisions
-    = (options != NULL) ? options->radial_subdivisions : 24,
-    .vertical_subdivisions
-    = (options != NULL) ? options->vertical_subdivisions : 1,
-    .top_cap    = (options != NULL) ? options->top_cap : true,
-    .bottom_cap = (options != NULL) ? options->bottom_cap : true,
+    .bottom_radius         = radius,
+    .top_radius            = radius,
+    .height                = height,
+    .radial_subdivisions   = radial_sub,
+    .vertical_subdivisions = vert_sub,
+    .top_cap               = top_cap,
+    .bottom_cap            = bottom_cap,
   };
   primitive_create_truncated_cone(&cone_opts, data);
 }
@@ -733,13 +766,13 @@ void primitive_create_cylinder(const primitive_cylinder_options_t* options,
 void primitive_create_torus(const primitive_torus_options_t* options,
                             primitive_vertex_data_t* data)
 {
-  /* Default values */
-  float radius        = (options != NULL) ? options->radius : 1.0f;
-  float thickness     = (options != NULL) ? options->thickness : 0.24f;
-  uint32_t radial_sub = (options != NULL) ? options->radial_subdivisions : 24;
-  uint32_t body_sub   = (options != NULL) ? options->body_subdivisions : 12;
-  float start_angle   = (options != NULL) ? options->start_angle : 0.0f;
-  float end_angle     = (options != NULL) ? options->end_angle : GLM_PI * 2.0f;
+  /* Apply defaults for partial options */
+  float radius        = PRIM_OPT_F(options, radius, 1.0f);
+  float thickness     = PRIM_OPT_F(options, thickness, 0.24f);
+  uint32_t radial_sub = PRIM_OPT_U(options, radial_subdivisions, 24);
+  uint32_t body_sub   = PRIM_OPT_U(options, body_subdivisions, 12);
+  float start_angle   = PRIM_OPT_F_ALLOW_ZERO(options, start_angle, 0.0f);
+  float end_angle     = PRIM_OPT_F(options, end_angle, GLM_PI * 2.0f);
 
   ASSERT(radial_sub >= 3);
   ASSERT(body_sub >= 3);
@@ -809,12 +842,12 @@ void primitive_create_torus(const primitive_torus_options_t* options,
 void primitive_create_disc(const primitive_disc_options_t* options,
                            primitive_vertex_data_t* data)
 {
-  /* Default values */
-  float radius       = (options != NULL) ? options->radius : 1.0f;
-  uint32_t divisions = (options != NULL) ? options->divisions : 24;
-  uint32_t stacks    = (options != NULL) ? options->stacks : 1;
-  float inner_radius = (options != NULL) ? options->inner_radius : 0.0f;
-  float stack_power  = (options != NULL) ? options->stack_power : 1.0f;
+  /* Apply defaults for partial options */
+  float radius       = PRIM_OPT_F(options, radius, 1.0f);
+  uint32_t divisions = PRIM_OPT_U(options, divisions, 24);
+  uint32_t stacks    = PRIM_OPT_U(options, stacks, 1);
+  float inner_radius = PRIM_OPT_F_ALLOW_ZERO(options, inner_radius, 0.0f);
+  float stack_power  = PRIM_OPT_F(options, stack_power, 1.0f);
 
   ASSERT(divisions >= 3);
 
