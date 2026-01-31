@@ -260,6 +260,11 @@ Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to
     </li>
 </ul>
 
+#### [Wireframe](src/examples/wireframe.c)
+
+This example demonstrates drawing a wireframe from triangles in 2 ways. Both use the vertex and index buffers as storage buffers and the use \`@builtin vertex_index)\` to index the vertex data. One method generates 6 vertices per triangle and uses line-list to draw lines. The other method draws triangles with a fragment shader that uses barycentric coordinates to draw edges as detailed [here](https://web.archive.org/web/20130424093557/http://codeflow.org/entries/2012/aug/02/easy-wireframe-display-with-barycentric-coordinates/).
+
+
 #### [Offscreen rendering](src/examples/offscreen_rendering.c)
 
 Basic offscreen rendering in two passes. First pass renders the mirrored scene to a separate framebuffer with color and depth attachments, second pass samples from that color attachment for rendering a mirror surface.

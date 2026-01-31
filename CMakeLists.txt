@@ -225,6 +225,7 @@ add_example_executable(volume_rendering_texture_3d)
 add_example_executable(voxel_space)
 add_example_executable(water_simulation USE_CIMGUI)
 add_example_executable(wireframe_vertex_pulling USE_CIMGUI)
+add_example_executable(wireframe USE_CIMGUI)
 
 # ==============================================================================
 # IDE support
