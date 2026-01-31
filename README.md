@@ -1,10 +1,11 @@
 <img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu-logo.png">
 
 <p align="center" width="100%">
-:warning: Code refactoring is ongoing, most examples are currently disabled! :warning:
+:warning: Code refactoring is ongoing! :warning:
 </p>
 
-- ▓▓▓░░░░░░░ 38% (31/80 example updated)
+- ▓▓▓▓▓▓▓▓▓░ 91% (50/55 examples enabled with new structure)
+- Legacy examples still using old structure: 35/55 (need refactoring)
 
 # WebGPU Native Examples and Demos
 
