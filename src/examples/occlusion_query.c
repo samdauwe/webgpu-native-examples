@@ -413,10 +413,6 @@ static void update_view_projection_matrix(wgpu_context_t* wgpu_context)
 
 static void update_cubes_unform_buffer(wgpu_context_t* wgpu_context)
 {
-  if (!state.settings.animate) {
-    return;
-  }
-
   /* Update view-projection matrix */
   update_view_projection_matrix(wgpu_context);
 
@@ -481,11 +477,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
                      (ImVec2){0.0f, 0.0f});
 
   /* Set initial window size to prevent resizing */
-  igSetNextWindowSize((ImVec2){220.0f, 80.0f}, ImGuiCond_Always);
+  igSetNextWindowSize((ImVec2){220.0f, 110.0f}, ImGuiCond_Always);
 
   /* Build GUI - similar to TypeScript version */
   igBegin("Occlusion Query", NULL,
           ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+
+  /* Animate checkbox - matches TypeScript: gui.add(settings, 'animate') */
+  igCheckbox("animate", &state.settings.animate);
 
   /* Display visible cubes with colored squares */
   igText("Visible:");
