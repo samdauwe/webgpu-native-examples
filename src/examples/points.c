@@ -1,10 +1,21 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Points
@@ -78,6 +89,7 @@ static struct {
     float size;
   } settings;
   WGPUBool initialized;
+  uint64_t last_imgui_frame_time;
 } state = {
   .view_info = {
     .fov                    = (90.0f * PI) / 180.0f,
@@ -515,11 +527,29 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_pipeline_layout(wgpu_context);
     init_bind_group(wgpu_context);
     init_pipelines(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
+}
+
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = now;
+
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  igBegin("Settings", NULL, 0);
+  igCheckbox("fixedSize", &state.settings.fixed_size);
+  igCheckbox("textured", &state.settings.textured);
+  igSliderFloat("size", &state.settings.size, 0.0f, 80.0f, "%.1f", 1.0f);
+  igEnd();
 }
 
 static int frame(struct wgpu_context_t* wgpu_context)
@@ -530,6 +560,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Update uniform data */
   update_uniform_buffers(wgpu_context);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
@@ -566,6 +599,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit and present. */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   /* Cleanup */
   wgpuRenderPassEncoderRelease(rpass_enc);
   wgpuCommandBufferRelease(cmd_buffer);
@@ -590,15 +626,23 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   }
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  imgui_overlay_shutdown();
+}
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
 }
 
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Points",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Points",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;

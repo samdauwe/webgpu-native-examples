@@ -1,9 +1,13 @@
-﻿#include "webgpu/wgpu_common.h"
+﻿#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
 #include "common_shaders.h"
 
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #if defined(__clang__)
@@ -15,6 +19,16 @@
 #pragma clang diagnostic pop
 #endif
 #undef STB_IMAGE_IMPLEMENTATION
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include <stdbool.h>
 
@@ -63,6 +77,7 @@ static struct {
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
   bool initialized;
+  uint64_t last_imgui_frame_time;
 } state = {
   .uniform_buffer_data = {0, 1},
   .tile_dim = 128,
@@ -473,6 +488,26 @@ static void update_settings(wgpu_context_t* wgpu_context)
                        sizeof(state.uniform_buffer_data));
 }
 
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = now;
+
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  igBegin("Settings", NULL, 0);
+  if (igSliderInt("filterSize", &state.settings.filter_size, 1, 33, "%d")) {
+    /* Enforce odd values by rounding down to nearest odd number */
+    state.settings.filter_size = (state.settings.filter_size / 2) * 2 + 1;
+    update_settings(wgpu_context);
+  }
+  igSliderInt("iterations", &state.settings.iterations, 1, 10, "%d");
+  igEnd();
+}
+
 static int frame(struct wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
@@ -480,6 +515,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   sfetch_dowork();
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   /* Recreate texture when pixel data loaded */
   if (state.texture.desc.is_dirty) {
@@ -554,6 +592,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit and present. */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   /* Cleanup */
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
@@ -563,6 +604,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    stm_setup();
     sfetch_setup(&(sfetch_desc_t){
       .max_requests = 1,
       .num_channels = 1,
@@ -575,6 +617,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_uniform_buffers(wgpu_context);
     init_bind_groups(wgpu_context);
     update_settings(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -605,15 +648,23 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Buffer, state.blur_params_buffer.buffer)
   WGPU_RELEASE_RESOURCE(ComputePipeline, state.blur_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.fullscreen_quad_pipeline)
+  imgui_overlay_shutdown();
+}
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
 }
 
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Image Blur",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Image Blur",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;

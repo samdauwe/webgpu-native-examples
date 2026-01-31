@@ -1,9 +1,23 @@
 ﻿#include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 #include <math.h>
 #include <string.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Deferred Rendering
@@ -142,6 +156,9 @@ static struct {
     uint64_t start_time;
     float elapsed_ms;
   } time;
+
+  /* ImGui time tracking */
+  uint64_t last_imgui_frame_time;
 
   /* Initialization flag */
   WGPUBool initialized;
@@ -1294,9 +1311,46 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context, float time_ms)
                        64, camera_inv_view_proj, sizeof(mat4));
 }
 
+static void update_num_lights(wgpu_context_t* wgpu_context)
+{
+  uint32_t num_lights = (uint32_t)state.settings.num_lights;
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.lights.config_uniform_buffer,
+                       0, &num_lights, sizeof(uint32_t));
+}
+
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  /* Set window position */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size */
+  igSetNextWindowSize((ImVec2){280.0f, 100.0f}, ImGuiCond_Always);
+
+  igBegin("Deferred Rendering", NULL,
+          ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+
+  /* Mode combo: gui.add(settings, 'mode', ['rendering', 'gBuffers view']) */
+  const char* mode_items[] = {"rendering", "gBuffers view"};
+  int mode                 = (int)state.settings.current_render_mode;
+  if (igCombo("mode", &mode, mode_items, 2, -1)) {
+    state.settings.current_render_mode = (render_mode_enum)mode;
+  }
+
+  /* Number of lights slider: gui.add(settings, 'numLights', 1, kMaxNumLights)
+   */
+  if (igSliderInt("numLights", &state.settings.num_lights, 1,
+                  (int)state.max_num_lights, "%d")) {
+    update_num_lights(wgpu_context);
+  }
+
+  igEnd();
+}
+
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    stm_setup();
     stanford_dragon_mesh_init(&state.stanford_dragon_mesh);
     init_vertex_and_index_buffers(wgpu_context, &state.stanford_dragon_mesh);
     init_gbuffer_texture_render_targets(wgpu_context);
@@ -1311,6 +1365,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_light_update_compute_pipeline(wgpu_context);
     init_lights(wgpu_context);
     init_view_matrices(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -1321,6 +1376,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  /* Forward to imgui */
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     /* Recreate GBuffer textures and bind groups on resize */
     for (uint8_t i = 0; i < 3; ++i) {
@@ -1370,6 +1428,21 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_imgui_frame_time == 0) {
+    state.last_imgui_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
 
   /* Update time */
   if (state.time.start_time == 0) {
@@ -1464,6 +1537,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
@@ -1471,6 +1547,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  imgui_overlay_shutdown();
+
   WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.index_buffer)
   WGPU_RELEASE_RESOURCE(Texture, state.gbuffer.texture_2d_float16)

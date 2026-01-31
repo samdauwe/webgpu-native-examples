@@ -1,4 +1,5 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -8,6 +9,16 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include <cJSON.h>
 
@@ -96,6 +107,7 @@ static struct {
   float rad;
   WGPUBool mesh_loaded;
   WGPUBool initialized;
+  uint64_t last_imgui_frame_time;
 } state = {
   .view_matrices = {
     .eye_position = {0.0f, 12.0f, -25.0f},
@@ -766,6 +778,27 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
   return command_buffer;
 }
 
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = now;
+
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  static const char* modes[]  = {"rendering", "primitive indexes"};
+  static int32_t current_mode = 0;
+
+  igBegin("Settings", NULL, 0);
+  if (igCombo("mode", &current_mode, modes, 2, -1)) {
+    state.settings.show_primitive_indexes = (current_mode == 1);
+  }
+  igCheckbox("Rotate", &state.settings.rotate);
+  igEnd();
+}
+
 static int frame(struct wgpu_context_t* wgpu_context)
 {
   /* Process async file loading */
@@ -784,6 +817,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context);
 
+  /* Render GUI */
+  render_gui(wgpu_context);
+
   /* Build and submit command buffer */
   WGPUCommandBuffer command_buffer = build_command_buffer(wgpu_context);
   ASSERT(command_buffer != NULL);
@@ -791,12 +827,18 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
   WGPU_RELEASE_RESOURCE(CommandBuffer, command_buffer)
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  /* Forward input events to imgui overlay */
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
   /* Handle mouse move events */
   if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
     state.pick_coord.x = input_event->mouse_x;
@@ -819,7 +861,8 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 
 static int setup(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
+  /* Initialize sokol_time */
+  stm_setup();
 
   /* Initialize sokol_fetch */
   sfetch_setup(&(sfetch_desc_t){
@@ -834,6 +877,9 @@ static int setup(struct wgpu_context_t* wgpu_context)
     .callback = teapot_json_fetch_callback,
     .buffer   = SFETCH_RANGE(state.file_buffer),
   });
+
+  /* Initialize imgui overlay */
+  imgui_overlay_init(wgpu_context);
 
   return EXIT_SUCCESS;
 }
@@ -866,6 +912,9 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   /* Shutdown sokol_fetch */
   sfetch_shutdown();
+
+  /* Shutdown imgui overlay */
+  imgui_overlay_shutdown();
 }
 
 int main(void)

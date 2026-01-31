@@ -1,4 +1,5 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -8,6 +9,16 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #if defined(__clang__)
@@ -849,6 +860,7 @@ static struct {
   const char* camera_type_names[2];
   input_handler_t input_handler;
   float last_frame_ms;
+  uint64_t last_imgui_frame_time;
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -1225,6 +1237,37 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
   wgpuShaderModuleRelease(shader_module);
 }
 
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size */
+  igSetNextWindowSize((ImVec2){180.0f, 80.0f}, ImGuiCond_Always);
+
+  igBegin("Cameras", NULL,
+          ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+
+  /* Camera type combo: gui.add(params, 'type', ['arcball', 'WASD']) */
+  int camera_type = (int)state.example_parms.camera_type;
+  if (igCombo("type", &camera_type, state.camera_type_names, 2, -1)) {
+    /* Copy camera matrix from old to new - matches TypeScript behavior */
+    camera_type_t old_camera_type = state.example_parms.camera_type;
+    camera_type_t new_camera_type = (camera_type_t)camera_type;
+    if (old_camera_type != new_camera_type) {
+      camera_base_set_matrix(
+        state.cameras[new_camera_type],
+        *camera_base_get_matrix(state.cameras[old_camera_type]));
+      state.example_parms.camera_type = new_camera_type;
+    }
+  }
+
+  igEnd();
+}
+
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
@@ -1243,6 +1286,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_uniform_buffer(wgpu_context);
     init_bind_group(wgpu_context);
     init_pipeline(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
@@ -1257,6 +1301,21 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   sfetch_dowork();
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_imgui_frame_time == 0) {
+    state.last_imgui_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
 
   /* Recreate texture when pixel data loaded */
   if (state.textures.cube.desc.is_dirty) {
@@ -1299,15 +1358,24 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
-  UNUSED_VAR(wgpu_context);
+  /* Forward to imgui */
+  imgui_overlay_handle_input(wgpu_context, input_event);
 
-  if (input_event->type == INPUT_EVENT_TYPE_KEY_DOWN) {
+  /* Check if ImGui wants to capture the input */
+  ImGuiIO* io               = igGetIO();
+  bool imgui_wants_mouse    = io->WantCaptureMouse;
+  bool imgui_wants_keyboard = io->WantCaptureKeyboard;
+
+  if (input_event->type == INPUT_EVENT_TYPE_KEY_DOWN && !imgui_wants_keyboard) {
     switch (input_event->key_code) {
       case KEY_W:
         state.input_handler.digital.forward = 1;
@@ -1333,7 +1401,8 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
         break;
     }
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_KEY_UP) {
+  else if (input_event->type == INPUT_EVENT_TYPE_KEY_UP
+           && !imgui_wants_keyboard) {
     switch (input_event->key_code) {
       case KEY_W:
         state.input_handler.digital.forward = 0;
@@ -1359,23 +1428,27 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
         break;
     }
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN) {
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN
+           && !imgui_wants_mouse) {
     if (input_event->mouse_button == BUTTON_LEFT) {
       state.input_handler.analog.touching = true;
     }
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_UP) {
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_UP
+           && !imgui_wants_mouse) {
     if (input_event->mouse_button == BUTTON_LEFT) {
       state.input_handler.analog.touching = false;
     }
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE
+           && !imgui_wants_mouse) {
     if (state.input_handler.analog.touching) {
       state.input_handler.analog.current_position[0] += input_event->mouse_dx;
       state.input_handler.analog.current_position[1] += input_event->mouse_dy;
     }
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_SCROLL) {
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_SCROLL
+           && !imgui_wants_mouse) {
     if (state.input_handler.analog.touching) {
       /* The scroll value varies substantially between user agents / browsers.
        * Just use the sign. */
@@ -1397,6 +1470,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
+  imgui_overlay_shutdown();
   sfetch_shutdown();
 
   WGPU_RELEASE_RESOURCE(BindGroup, state.cube.uniform_buffer_bind_group)

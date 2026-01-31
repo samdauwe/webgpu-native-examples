@@ -1,6 +1,20 @@
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <stdio.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Conway's Game of Life
@@ -67,7 +81,10 @@ static struct {
     uint32_t height;
     uint32_t timestep;
     uint32_t workgroup_size;
+    int32_t workgroup_size_index;
   } game_options;
+  bool needs_reset;
+  uint64_t last_frame_time;
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -81,10 +98,11 @@ static struct {
     .colorAttachments     = &state.color_attachment,
   },
   .game_options = {
-    .width          = 128,
-    .height         = 128,
-    .timestep       = 4,
-    .workgroup_size = 8,
+    .width                = 128,
+    .height               = 128,
+    .timestep             = 4,
+    .workgroup_size       = 8,
+    .workgroup_size_index = 1, /* Index 1 = 8 in [4, 8, 16] */
   },
 };
 
@@ -439,9 +457,103 @@ static void init_pipeline_graphics(wgpu_context_t* wgpu_context)
   wgpuShaderModuleRelease(frag_shader_module);
 }
 
+/* Reset game data when settings change - matches TypeScript resetGameData() */
+static void reset_game_data(wgpu_context_t* wgpu_context)
+{
+  /* Map workgroup_size_index to actual value */
+  static const uint32_t workgroup_sizes[3] = {4, 8, 16};
+  state.game_options.workgroup_size
+    = workgroup_sizes[state.game_options.workgroup_size_index];
+
+  /* Update size uniform buffer */
+  update_size_uniform_buffer(wgpu_context);
+
+  /* Recreate storage buffers with new size */
+  init_storage_buffers(wgpu_context);
+
+  /* Release old bind groups */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.bind_group0)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.bind_group1)
+
+  /* Release and recreate bind group layout (minBindingSize depends on buffer
+   * sizes) */
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.compute.bind_group_layout)
+  init_bind_group_layout_compute(wgpu_context);
+
+  /* Release and recreate pipeline layout (depends on bind group layout) */
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.compute.pipeline_layout)
+  init_pipeline_layout_compute(wgpu_context);
+
+  /* Recreate compute bind groups with new buffers */
+  init_bind_groups_compute(wgpu_context);
+
+  /* Release old compute pipeline (workgroup size constant may have changed) */
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
+
+  /* Recreate compute pipeline with new workgroup size */
+  init_pipeline_compute(wgpu_context);
+
+  /* Reset timing */
+  state.whole_time = 0;
+  state.loop_times = 0;
+}
+
+static void render_gui(struct wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  /* Set initial window size */
+  igSetNextWindowSize((ImVec2){280.0f, 150.0f}, ImGuiCond_Always);
+
+  igBegin("Game of Life", NULL,
+          ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+
+  /* Timestep slider: gui.add(GameOptions, 'timestep', 1, 60, 1) */
+  int timestep = (int)state.game_options.timestep;
+  if (igSliderInt("timestep", &timestep, 1, 60, "%d")) {
+    state.game_options.timestep = (uint32_t)timestep;
+  }
+
+  /* Width slider: gui.add(GameOptions, 'width', 16, 1024, 16) */
+  int width = (int)state.game_options.width;
+  if (igSliderInt("width", &width, 16, 1024, "%d")) {
+    /* Snap to multiples of 16 */
+    state.game_options.width = (uint32_t)((width / 16) * 16);
+    if (state.game_options.width < 16) {
+      state.game_options.width = 16;
+    }
+    state.needs_reset = true;
+  }
+
+  /* Height slider: gui.add(GameOptions, 'height', 16, 1024, 16) */
+  int height = (int)state.game_options.height;
+  if (igSliderInt("height", &height, 16, 1024, "%d")) {
+    /* Snap to multiples of 16 */
+    state.game_options.height = (uint32_t)((height / 16) * 16);
+    if (state.game_options.height < 16) {
+      state.game_options.height = 16;
+    }
+    state.needs_reset = true;
+  }
+
+  /* Workgroup size combo: gui.add(GameOptions, 'workgroupSize', [4, 8, 16]) */
+  const char* workgroup_items[] = {"4", "8", "16"};
+  if (igCombo("workgroupSize", &state.game_options.workgroup_size_index,
+              workgroup_items, 3, -1)) {
+    state.needs_reset = true;
+  }
+
+  igEnd();
+}
+
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    stm_setup();
     init_static_buffers(wgpu_context);
     init_storage_buffers(wgpu_context);
     /* Compute */
@@ -454,6 +566,8 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_bind_group_graphics(wgpu_context);
     init_pipeline_layout_graphics(wgpu_context);
     init_pipeline_graphics(wgpu_context);
+    /* GUI */
+    imgui_overlay_init(wgpu_context);
     state.initialized = 1;
     return EXIT_SUCCESS;
   }
@@ -465,6 +579,27 @@ static int frame(struct wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI controls */
+  render_gui(wgpu_context);
+
+  /* Reset game data if settings changed */
+  if (state.needs_reset) {
+    reset_game_data(wgpu_context);
+    state.needs_reset = false;
   }
 
   if (state.game_options.timestep) {
@@ -533,6 +668,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
 
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(wgpu_context);
+
   return EXIT_SUCCESS;
 }
 
@@ -561,15 +699,27 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.graphics.bind_group_layout)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.graphics.pipeline)
+
+  imgui_overlay_shutdown();
+}
+
+/**
+ * @brief Input event callback for ImGui interaction
+ */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
+{
+  imgui_overlay_handle_input(wgpu_context, event);
 }
 
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Conway's Game of Life",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Conway's Game of Life",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;
