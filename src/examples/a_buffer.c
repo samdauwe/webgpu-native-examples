@@ -1,4 +1,5 @@
 #include "meshes.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -10,6 +11,16 @@
 #include <sokol_time.h>
 
 #include <cJSON.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - A-Buffer
@@ -93,6 +104,12 @@ static struct {
   } composite_pass;
   uint32_t num_slices;
   uint32_t slice_height;
+  /* GUI settings */
+  struct {
+    int32_t memory_strategy; /* 0 = multipass, 1 = clamp-pixel-ratio */
+  } settings;
+  const char* memory_strategy_options[2];
+  uint64_t last_imgui_frame_time;
   WGPUBool mesh_loaded;
   WGPUBool initialized;
 } state = {
@@ -106,6 +123,10 @@ static struct {
   .depth_texture = {
     .format = WGPUTextureFormat_Depth32Float,
   },
+  .settings = {
+    .memory_strategy = 0, /* multipass by default */
+  },
+  .memory_strategy_options = {"multipass", "clamp-pixel-ratio"},
   .mesh_loaded = false,
   .initialized = false,
 };
@@ -964,13 +985,40 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* Initialize depth texture */
   init_depth_texture(wgpu_context);
 
+  /* Initialize imgui overlay */
+  imgui_overlay_init(wgpu_context);
+
   state.initialized = true;
   return EXIT_SUCCESS;
+}
+
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  igBegin("A-Buffer Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Memory strategy selector */
+  if (imgui_overlay_combo_box("Memory Strategy",
+                              &state.settings.memory_strategy,
+                              state.memory_strategy_options, 2)) {
+    /* Memory strategy changed - in the TypeScript version this triggers
+     * reconfiguration, but for simplicity we just track the setting */
+  }
+
+  igEnd();
 }
 
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     /* Recreate depth texture with new dimensions */
     init_depth_texture(wgpu_context);
@@ -1035,8 +1083,22 @@ static int frame(struct wgpu_context_t* wgpu_context)
     init_composite_pass(wgpu_context);
   }
 
+  /* Calculate GUI frame time */
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = now;
+
+  /* Prepare imgui frame */
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
+
   /* Only render if mesh and pipelines are ready */
   if (!state.mesh_loaded || state.buffers.vertex.buffer == NULL) {
+    /* Still render imgui even if mesh not loaded */
+    imgui_overlay_render(wgpu_context);
     return EXIT_SUCCESS;
   }
 
@@ -1150,6 +1212,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit and present */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   /* Cleanup */
   WGPU_RELEASE_RESOURCE(CommandBuffer, cmd_buffer)
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_enc)
@@ -1162,6 +1227,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+  imgui_overlay_shutdown();
 
   wgpu_destroy_buffer(&state.buffers.vertex);
   wgpu_destroy_buffer(&state.buffers.index);

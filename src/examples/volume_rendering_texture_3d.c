@@ -1,3 +1,4 @@
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -9,6 +10,16 @@
 #include <sokol_time.h>
 
 #include <stdbool.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Volume Rendering - Texture 3D
@@ -82,6 +93,7 @@ static struct {
   float last_frame_ms;
   float rotation;
   const uint32_t sample_count;
+  uint64_t last_imgui_frame_time;
   bool initialized;
 } state = {
   .ubo_vs = {
@@ -408,11 +420,46 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_volume_texture(wgpu_context);
     init_pipeline(wgpu_context);
     init_bind_group(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
+}
+
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  UNUSED_VAR(wgpu_context);
+
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  igBegin("Volume Rendering Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Rotate camera checkbox */
+  igCheckbox("rotateCamera", &state.params.rotate_camera);
+
+  /* Near/far sliders */
+  imgui_overlay_slider_float("near", &state.params.near, 2.0f, 7.0f, "%.1f");
+  imgui_overlay_slider_float("far", &state.params.far, 2.0f, 7.0f, "%.1f");
+
+  igEnd();
+}
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    /* Recreate multisampled framebuffer on resize */
+    WGPU_RELEASE_RESOURCE(Texture, state.textures.multisampled.texture)
+    WGPU_RELEASE_RESOURCE(TextureView, state.textures.multisampled.framebuffer)
+    init_multisampled_framebuffer(wgpu_context);
+  }
 }
 
 static int frame(struct wgpu_context_t* wgpu_context)
@@ -428,6 +475,18 @@ static int frame(struct wgpu_context_t* wgpu_context)
     update_volume_texture_date(wgpu_context);
     state.textures.volume.is_dirty = false;
   }
+
+  /* Calculate GUI frame time */
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
+  state.last_imgui_frame_time = now;
+
+  /* Prepare imgui frame */
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   /* Update uniform data */
   update_uniform_buffers(wgpu_context);
@@ -453,6 +512,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit and present. */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   /* Cleanup */
   wgpuRenderPassEncoderRelease(rpass_enc);
   wgpuCommandBufferRelease(cmd_buffer);
@@ -466,6 +528,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+  imgui_overlay_shutdown();
 
   WGPU_RELEASE_RESOURCE(Texture, state.textures.volume.texture)
   WGPU_RELEASE_RESOURCE(TextureView, state.textures.volume.view)
@@ -480,10 +543,11 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Volume Rendering - Texture 3D",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Volume Rendering - Texture 3D",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;
