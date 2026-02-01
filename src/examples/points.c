@@ -1,4 +1,3 @@
-#include "meshes.h"
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
@@ -129,17 +128,17 @@ static void
 create_fibonacci_sphere_vertices(uint32_t num_samples, float radius,
                                  float (*vertices)[MAX_VERTICES_LEN])
 {
-  num_samples              = MIN(num_samples, MAX_VERTICES_COUNT);
-  const uint32_t increment = PI * (3.0f - sqrt(5.0f));
+  num_samples           = MIN(num_samples, MAX_VERTICES_COUNT);
+  const float increment = PI * (3.0f - sqrtf(5.0f));
   float offset = 0.0f, y = 0.0f, r = 0.0f, phi = 0.0f, x = 0.0f, z = 0.0f;
   for (uint32_t i = 0; i < num_samples; ++i) {
-    offset = 2.0f / num_samples;
-    y      = i * offset - 1.0f + offset / 2.0f;
-    r      = sqrt(1.0f - pow(y, 2.0f));
-    phi    = (i % num_samples) * increment;
-    x      = cos(phi) * r;
-    z      = sin(phi) * r;
-    // Ste vertex
+    offset = 2.0f / (float)num_samples;
+    y      = (float)i * offset - 1.0f + offset / 2.0f;
+    r      = sqrtf(1.0f - powf(y, 2.0f));
+    phi    = (float)(i % num_samples) * increment;
+    x      = cosf(phi) * r;
+    z      = sinf(phi) * r;
+    /* Set vertex */
     (*vertices)[i * 3]     = x * radius;
     (*vertices)[i * 3 + 1] = y * radius;
     (*vertices)[i * 3 + 2] = z * radius;
@@ -235,17 +234,38 @@ static void init_texture(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
   ASSERT(state.texture.handle != NULL);
 
-  /* Set texture data */
+  /* Set texture data - create a simple white circle pattern
+   * The TypeScript version uses an offscreen canvas with ctx.fillText('🦋')
+   * We create a simple visible pattern for testing */
   uint8_t data[TEXTURE_SIZE * TEXTURE_SIZE * 4] = {0};
   const uint32_t data_size                      = sizeof(data);
-  const uint8_t color_white[4]                  = {255, 255, 255, 255};
-  const uint8_t color_black[4]                  = {0, 0, 0, 255};
-  uint32_t index                                = 0;
+  const float center_x                          = TEXTURE_SIZE / 2.0f;
+  const float center_y                          = TEXTURE_SIZE / 2.0f;
+
   for (uint32_t y = 0; y < TEXTURE_SIZE; ++y) {
     for (uint32_t x = 0; x < TEXTURE_SIZE; ++x) {
-      index = (y * TEXTURE_SIZE + x) * 4;
-      for (uint8_t c = 0; c < 4; ++c) {
-        data[index + c] = (x + y) % 2 ? color_white[c] : color_black[c];
+      const uint32_t index = (y * TEXTURE_SIZE + x) * 4;
+
+      /* Calculate distance from center */
+      const float dx     = (float)x - center_x;
+      const float dy     = (float)y - center_y;
+      const float dist   = sqrtf(dx * dx + dy * dy);
+      const float radius = TEXTURE_SIZE / 2.0f;
+
+      /* Create a white circle with soft edges */
+      if (dist < radius * 0.8f) {
+        /* White color */
+        data[index + 0] = 255; /* R */
+        data[index + 1] = 255; /* G */
+        data[index + 2] = 255; /* B */
+        data[index + 3] = 255; /* A */
+      }
+      else {
+        /* Transparent background */
+        data[index + 0] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        data[index + 3] = 0;
       }
     }
   }
@@ -494,7 +514,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
           },
         },
         .primitive = {
-          .topology  = WGPUPrimitiveTopology_PointList,
+          .topology  = WGPUPrimitiveTopology_TriangleList,
           .cullMode  = WGPUCullMode_None,
           .frontFace = WGPUFrontFace_CCW
         },
@@ -545,10 +565,14 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   imgui_overlay_new_frame(wgpu_context, dt_sec);
 
-  igBegin("Settings", NULL, 0);
+  /* Set window position closer to upper left corner */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
   igCheckbox("fixedSize", &state.settings.fixed_size);
   igCheckbox("textured", &state.settings.textured);
-  igSliderFloat("size", &state.settings.size, 0.0f, 80.0f, "%.1f", 1.0f);
+  imgui_overlay_slider_float("size", &state.settings.size, 0.0f, 80.0f, "%.1f");
   igEnd();
 }
 
@@ -686,7 +710,7 @@ static const char* distance_sized_points_vert_wgsl = CODE(
     var vsOut: VSOutput;
     let pos = points[vNdx];
     let clipPos = uni.matrix * vert.position;
-    let pointPos = vec4f(pos * uni.size / uni.resolution, 0, 0);
+    let pointPos = vec4f(pos * uni.size / uni.resolution * clipPos.w, 0, 0);
     vsOut.position = clipPos + pointPos;
     vsOut.texcoord = pos * 0.5 + 0.5;
     return vsOut;
@@ -726,7 +750,7 @@ static const char* fixed_size_points_vert_wgsl = CODE(
     var vsOut: VSOutput;
     let pos = points[vNdx];
     let clipPos = uni.matrix * vert.position;
-    let pointPos = vec4f(pos * uni.size / uni.resolution * clipPos.w, 0, 0);
+    let pointPos = vec4f(pos * uni.size / uni.resolution, 0, 0);
     vsOut.position = clipPos + pointPos;
     vsOut.texcoord = pos * 0.5 + 0.5;
     return vsOut;
