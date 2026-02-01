@@ -172,7 +172,7 @@ endfunction()
 
 # Examples
 add_example_executable(a_buffer USE_CIMGUI)
-add_example_executable(animometer)
+add_example_executable(animometer USE_CIMGUI)
 # add_example_executable(aquarium)
 add_example_executable(blending USE_CIMGUI)
 add_example_executable(cameras USE_CIMGUI)

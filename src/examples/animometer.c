@@ -1,9 +1,20 @@
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include <stdio.h>
 
@@ -57,6 +68,12 @@ static struct {
     WGPUBool render_bundles;
     WGPUBool dynamic_offsets;
   } settings;
+  /* Performance tracking */
+  uint64_t last_frame_time;
+  uint64_t previous_frame_timestamp;
+  double js_time_avg;
+  double frame_time_avg;
+  WGPUBool update_display;
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -74,6 +91,7 @@ static struct {
     .render_bundles  = 1,
     .dynamic_offsets = 0,
   },
+  .update_display = 1,
 };
 
 /* Initialize vertex buffers */
@@ -413,11 +431,68 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_uniform_buffers(wgpu_context);
     init_pipelines(wgpu_context);
     init_render_bundle_encoder(wgpu_context);
+    imgui_overlay_init(wgpu_context);
     state.initialized = 1;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
+}
+
+/* Render GUI */
+static void render_gui(wgpu_context_t* wgpu_context)
+{
+  const uint64_t now    = stm_now();
+  const float dt_sec    = (float)stm_sec(stm_diff(now, state.last_frame_time));
+  state.last_frame_time = now;
+
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  /* Set window position */
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+
+  igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Simulation settings */
+  igText("Simulation Settings");
+  igSeparator();
+
+  int num_triangles = (int)state.settings.num_triangles;
+  if (igSliderInt("numTriangles", &num_triangles, 0, 200000, "%d")) {
+    /* Note: In the TypeScript version, changing this triggers reconfiguration.
+     * Here we just update the value - full reconfiguration would require
+     * recreating bind groups and uniform buffers */
+    if (num_triangles != (int)state.settings.num_triangles) {
+      state.settings.num_triangles = (uint64_t)num_triangles;
+      /* TODO: Implement reconfiguration if needed */
+    }
+  }
+
+  igCheckbox("renderBundles", (bool*)&state.settings.render_bundles);
+  igCheckbox("dynamicOffsets", (bool*)&state.settings.dynamic_offsets);
+
+  igSpacing();
+  igSeparator();
+
+  /* Performance statistics */
+  igText("Performance Statistics");
+  igSeparator();
+
+  if (state.js_time_avg > 0.0) {
+    igText("Avg Javascript: %.2f ms", state.js_time_avg);
+    igText("Avg Frame:      %.2f ms", state.frame_time_avg);
+
+    if (state.frame_time_avg > 0.0) {
+      double fps = 1000.0 / state.frame_time_avg;
+      igText("FPS:            %.1f", fps);
+    }
+  }
+  else {
+    igText("Performance data collecting...");
+  }
+
+  igEnd();
 }
 
 static int frame(struct wgpu_context_t* wgpu_context)
@@ -426,8 +501,22 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+  /* Performance tracking */
+  const uint64_t frame_start_time  = stm_now();
+  const uint64_t current_timestamp = stm_now();
+
+  double frame_time = 0.0;
+  if (state.previous_frame_timestamp != 0) {
+    frame_time
+      = stm_ms(stm_diff(current_timestamp, state.previous_frame_timestamp));
+  }
+  state.previous_frame_timestamp = current_timestamp;
+
   /* Update matrix data */
   update_uniform_buffers(wgpu_context);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   WGPUDevice device = wgpu_context->device;
   WGPUQueue queue   = wgpu_context->queue;
@@ -457,9 +546,27 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit and present. */
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
   /* Cleanup */
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_enc);
+
+  /* Calculate performance metrics */
+  const double js_time = stm_ms(stm_diff(stm_now(), frame_start_time));
+
+  /* Exponential moving average with weight */
+  const double w = 0.2;
+  if (state.frame_time_avg == 0.0) {
+    state.frame_time_avg = frame_time;
+  }
+  if (state.js_time_avg == 0.0) {
+    state.js_time_avg = js_time;
+  }
+
+  state.frame_time_avg = (1.0 - w) * state.frame_time_avg + w * frame_time;
+  state.js_time_avg    = (1.0 - w) * state.js_time_avg + w * js_time;
 
   return EXIT_SUCCESS;
 }
@@ -483,15 +590,23 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   free(state.bind_groups);
   WGPU_RELEASE_RESOURCE(BindGroup, state.dynamic_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroup, state.time_bind_group)
+  imgui_overlay_shutdown();
+}
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
 }
 
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Animometer",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Animometer",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .input_event_cb = input_event_cb,
+    .shutdown_cb    = shutdown,
   });
 
   return EXIT_SUCCESS;
