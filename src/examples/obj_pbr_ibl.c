@@ -1572,7 +1572,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
   state.cubemap_uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label  = STRVIEW("Skybox cubemap bind group"),
+      .label  = STRVIEW("Skybox cubemap - Bind group"),
       .layout = wgpuRenderPipelineGetBindGroupLayout(state.skybox_pipeline, 1),
       .entryCount = 2,
       .entries    = skybox_group1_entries,
