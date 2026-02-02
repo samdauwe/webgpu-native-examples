@@ -1538,7 +1538,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
   state.texture_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("PBR texture bind group"),
+      .label      = STRVIEW("PBR - Texture bind group"),
       .layout     = wgpuRenderPipelineGetBindGroupLayout(state.pipeline, 2),
       .entryCount = 5,
       .entries    = pbr_group2_entries,
