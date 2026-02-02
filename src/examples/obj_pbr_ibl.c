@@ -1556,8 +1556,8 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
 
   state.skybox_uniform_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Skybox uniform bind group"),
-                            .layout     = skybox_layout0,
+                            .label  = STRVIEW("Skybox - Uniform bind group"),
+                            .layout = skybox_layout0,
                             .entryCount = 1,
                             .entries    = skybox_group0_entries,
                           });
