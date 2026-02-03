@@ -1,259 +1,85 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Cornell Box
  *
- * A classic Cornell box, using a lightmap generated using software ray-tracing.
+ * Visualizes a classic Cornell box, using a lightmap generated using software
+ * ray-tracing.
  *
  * Ref:
- * https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell
+ * https://github.com/webgpu/webgpu-samples/tree/main/sample/cornell
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
- * Shader store
+ * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
-#define PRESENTATION_FORMAT "bgra8unorm"
-
-typedef struct {
-  const char* filename;
-  file_read_result_t read_result;
-} shader_store_entry;
-
-static struct {
-  shader_store_entry common;
-  shader_store_entry radiosity;
-  shader_store_entry rasterizer;
-  shader_store_entry raytracer;
-  shader_store_entry tonemapper;
-} shader_store = {
-  .common.filename     = "shaders/cornell_box/common.wgsl",
-  .radiosity.filename  = "shaders/cornell_box/radiosity.wgsl",
-  .rasterizer.filename = "shaders/cornell_box/rasterizer.wgsl",
-  .raytracer.filename  = "shaders/cornell_box/raytracer.wgsl",
-  .tonemapper.filename = "shaders/cornell_box/tonemapper.wgsl",
-};
-
-static void initialize_shader_store_entry(shader_store_entry* entry)
-{
-  read_file(entry->filename, &entry->read_result, true);
-  log_debug("Read file: %s, size: %d bytes\n", entry->filename,
-            entry->read_result.size);
-  ASSERT(entry->read_result.size > 0);
-}
-
-static void create_shader_store(void)
-{
-  initialize_shader_store_entry(&shader_store.common);
-  initialize_shader_store_entry(&shader_store.radiosity);
-  initialize_shader_store_entry(&shader_store.rasterizer);
-  initialize_shader_store_entry(&shader_store.raytracer);
-  initialize_shader_store_entry(&shader_store.tonemapper);
-}
-
-static void destroy_shader_store_entry(shader_store_entry* entry)
-{
-  if (entry->read_result.size > 0) {
-    free(entry->read_result.data);
-    entry->read_result.size = 0;
-  }
-}
-
-static void destroy_shader_store(void)
-{
-  destroy_shader_store_entry(&shader_store.common);
-  destroy_shader_store_entry(&shader_store.radiosity);
-  destroy_shader_store_entry(&shader_store.rasterizer);
-  destroy_shader_store_entry(&shader_store.raytracer);
-  destroy_shader_store_entry(&shader_store.tonemapper);
-}
-
-static void concat_shader_store_entries(shader_store_entry* e1,
-                                        shader_store_entry* e2, char** dst)
-{
-  uint32_t total_size = e1->read_result.size + 1 + e2->read_result.size + 1;
-  *dst                = malloc(total_size);
-  sprintf(*dst, "%s\n%s%c", e1->read_result.data, e2->read_result.data, '\0');
-}
+/* Forward declare shaders (defined at the bottom of the file) */
+static const char* common_shader_wgsl;
+static const char* radiosity_shader_wgsl;
+static const char* rasterizer_shader_wgsl;
+static const char* raytracer_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
- * Common holds the shared WGSL between the shaders, including the common
- * uniform buffer.
+ * Constants
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  /* The common uniform buffer bind group and layout */
-  struct {
-    WGPUBindGroupLayout bind_group_layout;
-    WGPUBindGroup bind_group;
-  } uniforms;
-  wgpu_context_t* wgpu_context;
-  wgpu_buffer_t uniform_buffer;
-  struct {
-    mat4 view_matrix;
-    mat4 mvp;
-    mat4 inv_mvp;
-    mat4 projection_matrix;
-  } ubo_vs;
-  uint64_t frame;
-} common_t;
+/* Lightmap dimensions */
+#define LIGHTMAP_WIDTH 256
+#define LIGHTMAP_HEIGHT 256
+#define LIGHTMAP_FORMAT WGPUTextureFormat_RGBA16Float
 
-static void common_init_defaults(common_t* this)
-{
-  memset(this, 0, sizeof(*this));
-}
+/* Radiosity constants */
+#define PHOTONS_PER_WORKGROUP 256
+#define WORKGROUPS_PER_FRAME 1024
+#define PHOTON_ENERGY 100000.0f
 
-static void common_create(common_t* this, wgpu_context_t* wgpu_context,
-                          wgpu_buffer_t* quads)
-{
-  common_init_defaults(this);
+/* Accumulation to lightmap workgroup size */
+#define ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_X 16
+#define ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_Y 16
 
-  this->wgpu_context = wgpu_context;
+/* Raytracer workgroup size */
+#define RAYTRACER_WORKGROUP_SIZE_X 16
+#define RAYTRACER_WORKGROUP_SIZE_Y 16
 
-  /* Uniform buffer */
-  this->uniform_buffer = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Common - Uniform buffer",
-                    .size  = 0 +     /*         */
-                            4 * 16 + /* mvp     */
-                            4 * 16 + /* inv_mvp */
-                            4 * 4,   /* seed    */
-                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                  });
+/* Tonemapper workgroup size */
+#define TONEMAPPER_WORKGROUP_SIZE_X 16
+#define TONEMAPPER_WORKGROUP_SIZE_Y 16
 
-  /* Uniforms bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        /* Common uniforms */
-        .binding = 0,
-        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type             = WGPUBufferBindingType_Uniform,
-          .minBindingSize   = this->uniform_buffer.size,
-        },
-        .sampler = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        /* Quads */
-        .binding = 1,
-        .visibility = WGPUShaderStage_Compute,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type              = WGPUBufferBindingType_ReadOnlyStorage,
-          .minBindingSize   = quads->size,
-        },
-        .sampler = {0},
-      },
-    };
-    this->uniforms.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Common - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(this->uniforms.bind_group_layout != NULL)
-  }
-
-  /* Uniforms bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Common uniforms */
-        .binding = 0,
-        .buffer  = this->uniform_buffer.buffer,
-        .offset  = 0,
-        .size    = this->uniform_buffer.size,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Quads */
-        .binding = 1,
-        .buffer  = quads->buffer,
-        .offset  = 0,
-        .size    = quads->size,
-      },
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Common - Bind group",
-      .layout     = this->uniforms.bind_group_layout,
-      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-      .entries    = bg_entries,
-    };
-    this->uniforms.bind_group
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-    ASSERT(this->uniforms.bind_group != NULL)
-  }
-}
-
-static void common_destroy(common_t* this)
-{
-  wgpu_destroy_buffer(&this->uniform_buffer);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->uniforms.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->uniforms.bind_group)
-}
-
-typedef struct {
-  bool rotate_camera;
-  float aspect;
-} common_update_params_t;
-
-/* Updates the uniform buffer data */
-static void common_update(common_t* this, common_update_params_t* params)
-{
-  glm_mat4_identity(this->ubo_vs.view_matrix);
-  glm_mat4_identity(this->ubo_vs.mvp);
-  glm_mat4_identity(this->ubo_vs.inv_mvp);
-
-  glm_mat4_identity(this->ubo_vs.projection_matrix);
-  glm_perspective(PI2 / 8.0f, params->aspect, 0.5f, 100.0f,
-                  this->ubo_vs.projection_matrix);
-
-  const float view_rotation
-    = params->rotate_camera ? this->frame / 1000.0f : 0.0f;
-
-  glm_lookat(
-    (vec3){sin(view_rotation) * 15.0f, 5.0f, cos(view_rotation) * 15.0f},
-    (vec3){0.0f, 5.0f, 0.0f}, (vec3){0.0f, 1.0f, 0.0f},
-    this->ubo_vs.view_matrix);
-  glm_mat4_mul(this->ubo_vs.projection_matrix, this->ubo_vs.view_matrix,
-               this->ubo_vs.mvp);
-  glm_mat4_inv(this->ubo_vs.mvp, this->ubo_vs.inv_mvp);
-
-  float uniform_data_f32[36] = {0};
-  uint8_t i                  = 0;
-  for (uint8_t r = 0; r < 4; ++r) {
-    for (uint8_t c = 0; c < 4; ++c) {
-      uniform_data_f32[i++] = this->ubo_vs.mvp[r][c];
-    }
-  }
-  for (uint8_t r = 0; r < 4; ++r) {
-    for (uint8_t c = 0; c < 4; ++c) {
-      uniform_data_f32[i++] = this->ubo_vs.inv_mvp[r][c];
-    }
-  }
-  const float mult     = (float)0xffffffff;
-  uniform_data_f32[32] = (uint32_t)(mult * random_float());
-  uniform_data_f32[33] = (uint32_t)(mult * random_float());
-  uniform_data_f32[34] = (uint32_t)(mult * random_float());
-
-  wgpu_queue_write_buffer(this->wgpu_context, this->uniform_buffer.buffer, 0,
-                          uniform_data_f32, sizeof(uniform_data_f32));
-
-  this->frame++;
-}
+/* Maximum accumulation mean before scaling */
+#define ACCUMULATION_MEAN_MAX 0x10000000
 
 /* -------------------------------------------------------------------------- *
- * Scene holds the cornell-box scene information.
+ * Renderer types
  * -------------------------------------------------------------------------- */
 
-#define SCENE_QUADS_LENGTH 19u
-#define SCENE_QUAD_STRIDE (16 * 4)
-#define SCENE_QUAD_VERTEX_STRIDE (4 * 10)
+typedef enum renderer_type_t {
+  RENDERER_RASTERIZER = 0,
+  RENDERER_RAYTRACER  = 1,
+  RENDERER_COUNT      = 2,
+} renderer_type_t;
 
-typedef struct {
+/* -------------------------------------------------------------------------- *
+ * Quad structure for scene geometry
+ * -------------------------------------------------------------------------- */
+
+typedef struct quad_t {
   vec3 center;
   vec3 right;
   vec3 up;
@@ -261,1996 +87,2300 @@ typedef struct {
   float emissive;
 } quad_t;
 
-typedef enum {
-  QuadType_Convex,
-  QuadType_Concave,
-} quad_type_t;
+/* -------------------------------------------------------------------------- *
+ * Helper functions
+ * -------------------------------------------------------------------------- */
 
-/**
- * @brief Calculates the length of a vec3
- *
- * @param {ReadonlyVec3} a vector to calculate length of
- * @returns {Number} length of a
- */
+static void vec3_reciprocal(vec3 v, vec3 result)
+{
+  const float s = 1.0f / glm_vec3_norm2(v);
+  glm_vec3_scale(v, s, result);
+}
+
 static float vec3_len(vec3 v)
 {
-  const float x = v[0];
-  const float y = v[1];
-  const float z = v[2];
-
-  return sqrt(x * x + y * y + z * z);
+  return sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-/**
- * @brief Calculates the squared length of a vec3
- *
- * @param {ReadonlyVec3} a vector to calculate squared length of
- * @returns {Number} squared length of a
- */
-static float vec3_sqr_len(vec3 v)
-{
-  const float x = v[0];
-  const float y = v[1];
-  const float z = v[2];
+/* -------------------------------------------------------------------------- *
+ * Box generation (similar to TypeScript version)
+ * -------------------------------------------------------------------------- */
 
-  return x * x + y * y + z * z;
-}
-
-static void vec3_sign(vec3 v, quad_type_t type, vec3* dst)
-{
-  glm_vec3_copy(v, *dst);
-  if (type == QuadType_Convex) {
-    glm_vec3_negate(*dst);
-  }
-}
-
-static void reciprocal(vec3 v, vec3* dst)
-{
-  const float s = 1.0f / vec3_sqr_len(v);
-  glm_vec3_mul((vec3){s, s, s}, v, *dst);
-}
-
-//      ─────────┐
-//     ╱  +Y    ╱│
-//    ┌────────┐ │
-//    │        │+X
-//    │   +Z   │ │
-//    │        │╱
-//    └────────┘
-typedef enum {
-  CubeFace_Positive_X,
-  CubeFace_Positive_Y,
-  CubeFace_Positive_Z,
-  CubeFace_Negative_X,
-  CubeFace_Negative_Y,
-  CubeFace_Negative_Z,
+typedef enum cube_face_t {
+  CUBE_FACE_POSITIVE_X = 0,
+  CUBE_FACE_POSITIVE_Y = 1,
+  CUBE_FACE_POSITIVE_Z = 2,
+  CUBE_FACE_NEGATIVE_X = 3,
+  CUBE_FACE_NEGATIVE_Y = 4,
+  CUBE_FACE_NEGATIVE_Z = 5,
 } cube_face_t;
 
-typedef struct {
-  vec3 center;
-  float width;
-  float height;
-  float depth;
-  float rotation;
-  vec3* color;
-  uint8_t color_count;
-  quad_type_t type;
-} box_params_t;
-
-static void create_box(box_params_t* params, quad_t* quads)
+static void create_box_quads(vec3 center, float width, float height,
+                             float depth, float rotation, vec3 colors[6],
+                             bool is_concave, quad_t out_quads[6])
 {
-  //      ─────────┐
-  //     ╱  +Y    ╱│
-  //    ┌────────┐ │        y
-  //    │        │+X        ^
-  //    │   +Z   │ │        │ -z
-  //    │        │╱         │╱
-  //    └────────┘          └─────> x
-  vec3 x = {
-    cos(params->rotation) * (params->width / 2.0f), /* x */
-    0.0f,                                           /* y */
-    sin(params->rotation) * (params->depth / 2.0f)  /* z */
-  };
-  vec3 y = {0.0f, params->height / 2.0f, 0.0f};
-  vec3 z = {
-    sin(params->rotation) * (params->width / 2.0f), /* x */
-    0.0f,                                           /* y */
-    -cos(params->rotation) * (params->depth / 2.0f) /* z */
-  };
-  vec3 colors[6] = {0};
-  for (uint8_t i = 0; i < 6; ++i) {
-    glm_vec3_copy(params->color[MIN(i, params->color_count - 1)], colors[i]);
+  /* Calculate basis vectors */
+  vec3 x
+    = {cosf(rotation) * (width / 2.0f), 0.0f, sinf(rotation) * (depth / 2.0f)};
+  vec3 y = {0.0f, height / 2.0f, 0.0f};
+  vec3 z
+    = {sinf(rotation) * (width / 2.0f), 0.0f, -cosf(rotation) * (depth / 2.0f)};
+
+  vec3 neg_x, neg_y, neg_z;
+  glm_vec3_negate_to(x, neg_x);
+  glm_vec3_negate_to(y, neg_y);
+  glm_vec3_negate_to(z, neg_z);
+
+  UNUSED_VAR(neg_x);
+  UNUSED_VAR(neg_y);
+  UNUSED_VAR(neg_z);
+
+  /* PositiveX face */
+  glm_vec3_add(center, x, out_quads[0].center);
+  if (is_concave) {
+    glm_vec3_negate_to(z, out_quads[0].right);
   }
-
-  /* Box faces */
-  {
-    /* PositiveX */
-    quad_t* quad = &quads[0];
-    glm_vec3_add(params->center, x, quad->center);
-    vec3 vec3_tmp = GLM_VEC3_ZERO_INIT;
-    glm_vec3_negate_to(z, vec3_tmp);
-    vec3_sign(vec3_tmp, params->type, &quad->right);
-    glm_vec3_copy(y, quad->up);
-    glm_vec3_copy(colors[CubeFace_Positive_X], quad->color);
-
-    /* PositiveY */
-    quad = &quads[1];
-    glm_vec3_add(params->center, y, quad->center);
-    vec3_sign(x, params->type, &quad->right);
-    glm_vec3_negate_to(z, quad->up);
-    glm_vec3_copy(colors[CubeFace_Positive_Y], quad->color);
-
-    /* PositiveZ */
-    quad = &quads[2];
-    glm_vec3_add(params->center, z, quad->center);
-    vec3_sign(x, params->type, &quad->right);
-    glm_vec3_copy(y, quad->up);
-    glm_vec3_copy(colors[CubeFace_Positive_Z], quad->color);
-
-    /* NegativeX */
-    quad = &quads[3];
-    glm_vec3_sub(params->center, x, quad->center);
-    vec3_sign(z, params->type, &quad->right);
-    glm_vec3_copy(y, quad->up);
-    glm_vec3_copy(colors[CubeFace_Negative_X], quad->color);
-
-    /* NegativeY */
-    quad = &quads[4];
-    glm_vec3_sub(params->center, y, quad->center);
-    vec3_sign(x, params->type, &quad->right);
-    glm_vec3_copy(z, quad->up);
-    glm_vec3_copy(colors[CubeFace_Negative_Y], quad->color);
-
-    /* NegativeZ */
-    quad = &quads[5];
-    glm_vec3_sub(params->center, z, quad->center);
-    glm_vec3_negate_to(x, vec3_tmp);
-    vec3_sign(vec3_tmp, params->type, &quad->right);
-    glm_vec3_copy(y, quad->up);
-    glm_vec3_copy(colors[CubeFace_Negative_Z], quad->color);
+  else {
+    glm_vec3_copy(z, out_quads[0].right);
   }
+  glm_vec3_copy(y, out_quads[0].up);
+  glm_vec3_copy(colors[0], out_quads[0].color);
+  out_quads[0].emissive = 0.0f;
+
+  /* PositiveY face */
+  glm_vec3_add(center, y, out_quads[1].center);
+  if (is_concave) {
+    glm_vec3_copy(x, out_quads[1].right);
+  }
+  else {
+    glm_vec3_negate_to(x, out_quads[1].right);
+  }
+  glm_vec3_negate_to(z, out_quads[1].up);
+  glm_vec3_copy(colors[1], out_quads[1].color);
+  out_quads[1].emissive = 0.0f;
+
+  /* PositiveZ face */
+  glm_vec3_add(center, z, out_quads[2].center);
+  if (is_concave) {
+    glm_vec3_copy(x, out_quads[2].right);
+  }
+  else {
+    glm_vec3_negate_to(x, out_quads[2].right);
+  }
+  glm_vec3_copy(y, out_quads[2].up);
+  glm_vec3_copy(colors[2], out_quads[2].color);
+  out_quads[2].emissive = 0.0f;
+
+  /* NegativeX face */
+  glm_vec3_sub(center, x, out_quads[3].center);
+  if (is_concave) {
+    glm_vec3_copy(z, out_quads[3].right);
+  }
+  else {
+    glm_vec3_negate_to(z, out_quads[3].right);
+  }
+  glm_vec3_copy(y, out_quads[3].up);
+  glm_vec3_copy(colors[3], out_quads[3].color);
+  out_quads[3].emissive = 0.0f;
+
+  /* NegativeY face */
+  glm_vec3_sub(center, y, out_quads[4].center);
+  if (is_concave) {
+    glm_vec3_copy(x, out_quads[4].right);
+  }
+  else {
+    glm_vec3_negate_to(x, out_quads[4].right);
+  }
+  glm_vec3_copy(z, out_quads[4].up);
+  glm_vec3_copy(colors[4], out_quads[4].color);
+  out_quads[4].emissive = 0.0f;
+
+  /* NegativeZ face */
+  glm_vec3_sub(center, z, out_quads[5].center);
+  if (is_concave) {
+    glm_vec3_negate_to(x, out_quads[5].right);
+  }
+  else {
+    glm_vec3_copy(x, out_quads[5].right);
+  }
+  glm_vec3_copy(y, out_quads[5].up);
+  glm_vec3_copy(colors[5], out_quads[5].color);
+  out_quads[5].emissive = 0.0f;
 }
 
-static quad_t light = {
-  .center   = {0.0f, 9.95f, 0.0f},
-  .right    = {1.0f, 0.0f, 0.0f},
-  .up       = {0.0f, 0.0f, 1.0f},
-  .color    = {5.0f, 5.0f, 5.0f},
-  .emissive = 1.0f,
+/* -------------------------------------------------------------------------- *
+ * Scene data
+ * -------------------------------------------------------------------------- */
+
+#define TOTAL_QUADS (6 + 6 + 6 + 1) /* Room + small box + tall box + light */
+
+/* GPU quad data structure (matches shader) */
+typedef struct gpu_quad_t {
+  float plane[4]; /* vec4f */
+  float right[4]; /* vec4f */
+  float up[4];    /* vec4f */
+  float color[3]; /* vec3f */
+  float emissive; /* f32 */
+} gpu_quad_t;
+
+/* Vertex data structure for rasterizer */
+typedef struct vertex_t {
+  float position[4]; /* vec4f */
+  float uv[3];       /* vec3f (u, v, quad_idx) */
+  float emissive[3]; /* vec3f */
+} vertex_t;
+
+/* -------------------------------------------------------------------------- *
+ * State struct
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  /* Scene data */
+  struct {
+    quad_t quads[TOTAL_QUADS];
+    uint32_t quad_count;
+    vec3 light_center;
+    float light_width;
+    float light_height;
+  } scene;
+
+  /* Common resources */
+  struct {
+    WGPUBuffer uniform_buffer;
+    WGPUBuffer quad_buffer;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    uint32_t frame;
+  } common;
+
+  /* Radiosity */
+  struct {
+    WGPUTexture lightmap;
+    WGPUTextureView lightmap_view;
+    WGPUBuffer accumulation_buffer;
+    WGPUBuffer uniform_buffer;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPUComputePipeline radiosity_pipeline;
+    WGPUComputePipeline accumulation_to_lightmap_pipeline;
+    float accumulation_mean;
+  } radiosity;
+
+  /* Rasterizer */
+  struct {
+    WGPUBuffer vertex_buffer;
+    WGPUBuffer index_buffer;
+    uint32_t vertex_count;
+    uint32_t index_count;
+    WGPUTexture depth_texture;
+    WGPUTextureView depth_view;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPURenderPipeline pipeline;
+    WGPUSampler sampler;
+  } rasterizer;
+
+  /* Raytracer */
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPUComputePipeline pipeline;
+    WGPUSampler sampler;
+  } raytracer;
+
+  /* Tonemapper */
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPUComputePipeline pipeline;
+    WGPUTexture output_texture;
+    WGPUTextureView output_view;
+  } tonemapper;
+
+  /* Blit (fullscreen copy from tonemapper output to swapchain) */
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPURenderPipeline pipeline;
+    WGPUSampler sampler;
+    WGPURenderPassColorAttachment color_attachment;
+    WGPURenderPassDescriptor render_pass_descriptor;
+  } blit;
+
+  /* Framebuffer (rgba16float) */
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+    uint32_t width;
+    uint32_t height;
+  } framebuffer;
+
+  /* View matrices */
+  struct {
+    mat4 projection;
+    mat4 view;
+    mat4 mvp;
+    mat4 inv_mvp;
+  } matrices;
+
+  /* GUI settings */
+  struct {
+    int32_t renderer;
+    bool rotate_camera;
+  } settings;
+
+  const char* renderer_names[RENDERER_COUNT];
+  uint64_t last_frame_time;
+  WGPUBool initialized;
+} state = {
+  .settings = {
+    .renderer      = RENDERER_RASTERIZER,
+    .rotate_camera = true,
+  },
+  .renderer_names = {
+    "Rasterizer",
+    "Raytracer",
+  },
 };
 
-typedef struct {
-  uint32_t vertex_count;
-  uint32_t index_count;
-  wgpu_buffer_t vertices;
-  wgpu_buffer_t indices;
-  WGPUVertexBufferLayout vertex_buffer_layout;
-  WGPUVertexAttribute vertex_buffer_layout_attributes[3];
-  wgpu_buffer_t quad_buffer;
-  quad_t quads[SCENE_QUADS_LENGTH];
-  uint32_t quads_length;
-  vec3 light_center;
-  float light_width;
-  float light_height;
-} scene_t;
-
-static void scene_init_defaults(scene_t* this)
-{
-  memset(this, 0, sizeof(*this));
-
-  this->quads_length = SCENE_QUADS_LENGTH;
-
-  glm_vec3_copy(light.center, this->light_center);
-  this->light_width  = vec3_len(light.right) * 2.0f;
-  this->light_height = vec3_len(light.up) * 2.0f;
-}
-
-static void scene_create(scene_t* this, wgpu_context_t* wgpu_context)
-{
-  scene_init_defaults(this);
-
-  /* Quads */
-  {
-    /* Box 1 - quads */
-    {
-      vec3 color_array[6] = {
-        {0.0f, 0.5f, 0.0f}, /* PositiveX */
-        {0.5f, 0.5f, 0.5f}, /* PositiveY */
-        {0.5f, 0.5f, 0.5f}, /* PositiveZ */
-        {0.5f, 0.0f, 0.0f}, /* NegativeX */
-        {0.5f, 0.5f, 0.5f}, /* NegativeY */
-        {0.5f, 0.5f, 0.5f}, /* NegativeZ */
-      };
-      create_box(
-        &(box_params_t){
-          .center      = {0.0f, 5.0f, 0.0f},
-          .width       = 10.0f,
-          .height      = 10.0f,
-          .depth       = 10.0f,
-          .rotation    = 0.0f,
-          .color       = color_array,
-          .color_count = (uint32_t)ARRAY_SIZE(color_array),
-          .type        = QuadType_Concave,
-        },
-        &this->quads[0]);
-    }
-
-    /* Box 2 - quads */
-    {
-      vec3 color_array[1] = {{0.8f, 0.8f, 0.8f}};
-      create_box(
-        &(box_params_t){
-          .center      = {1.5f, 1.5f, 1.0f},
-          .width       = 3.0f,
-          .height      = 3.0f,
-          .depth       = 3.0f,
-          .rotation    = 0.3f,
-          .color       = color_array,
-          .color_count = (uint32_t)ARRAY_SIZE(color_array),
-          .type        = QuadType_Convex,
-        },
-        &this->quads[6]);
-    }
-
-    /* Box 3 - quads */
-    {
-      vec3 color_array[1] = {{0.8f, 0.8f, 0.8f}};
-      create_box(
-        &(box_params_t){
-          .center      = {-2.0f, 3.0f, -2.0f},
-          .width       = 3.0f,
-          .height      = 6.0f,
-          .depth       = 3.0f,
-          .rotation    = -0.4f,
-          .color       = color_array,
-          .color_count = (uint32_t)ARRAY_SIZE(color_array),
-          .type        = QuadType_Convex,
-        },
-        &this->quads[12]);
-    }
-
-    /* Light quad */
-    memcpy(&this->quads[18], &light, sizeof(light));
-  }
-
-  /* Quad buffer */
-  {
-    float quad_data[SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH]          = {0};
-    float vertex_data[SCENE_QUADS_LENGTH * SCENE_QUAD_VERTEX_STRIDE] = {0};
-    uint16_t index_data[SCENE_QUADS_LENGTH * 9] = {0}; /* TODO: 6? */
-    uint32_t quad_data_offset                   = 0;
-    uint32_t vertex_data_offset                 = 0;
-    uint32_t index_data_offset                  = 0;
-    for (uint32_t quad_idx = 0; quad_idx < SCENE_QUADS_LENGTH; ++quad_idx) {
-      quad_t* quad = &this->quads[quad_idx];
-      vec3 normal  = GLM_VEC3_ZERO_INIT;
-      glm_vec3_cross(quad->right, quad->up, normal);
-      glm_vec3_normalize(normal);
-      quad_data[quad_data_offset++] = normal[0];
-      quad_data[quad_data_offset++] = normal[1];
-      quad_data[quad_data_offset++] = normal[2];
-      quad_data[quad_data_offset++] = -glm_vec3_dot(normal, quad->center);
-
-      vec3 inv_right = GLM_VEC3_ZERO_INIT;
-      reciprocal(quad->right, &inv_right);
-      quad_data[quad_data_offset++] = inv_right[0];
-      quad_data[quad_data_offset++] = inv_right[1];
-      quad_data[quad_data_offset++] = inv_right[2];
-      quad_data[quad_data_offset++] = -glm_vec3_dot(inv_right, quad->center);
-
-      vec3 inv_up = GLM_VEC3_ZERO_INIT;
-      reciprocal(quad->up, &inv_up);
-      quad_data[quad_data_offset++] = inv_up[0];
-      quad_data[quad_data_offset++] = inv_up[1];
-      quad_data[quad_data_offset++] = inv_up[2];
-      quad_data[quad_data_offset++] = -glm_vec3_dot(inv_up, quad->center);
-
-      quad_data[quad_data_offset++] = quad->color[0];
-      quad_data[quad_data_offset++] = quad->color[1];
-      quad_data[quad_data_offset++] = quad->color[2];
-      quad_data[quad_data_offset++] = quad->emissive;
-
-      // a ----- b
-      // |       |
-      // |   m   |
-      // |       |
-      // c ----- d
-      vec3 a = GLM_VEC3_ZERO_INIT;
-      glm_vec3_sub(quad->center, quad->right, a);
-      glm_vec3_add(a, quad->up, a);
-      vec3 b = GLM_VEC3_ZERO_INIT;
-      glm_vec3_add(quad->center, quad->right, b);
-      glm_vec3_add(b, quad->up, b);
-      vec3 c = GLM_VEC3_ZERO_INIT;
-      glm_vec3_sub(quad->center, quad->right, c);
-      glm_vec3_sub(c, quad->up, c);
-      vec3 d = GLM_VEC3_ZERO_INIT;
-      glm_vec3_add(quad->center, quad->right, d);
-      glm_vec3_sub(d, quad->up, d);
-
-      vertex_data[vertex_data_offset++] = a[0];
-      vertex_data[vertex_data_offset++] = a[1];
-      vertex_data[vertex_data_offset++] = a[2];
-      vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 0; /* uv.x */
-      vertex_data[vertex_data_offset++] = 1; /* uv.y */
-      vertex_data[vertex_data_offset++] = quad_idx;
-      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
-
-      vertex_data[vertex_data_offset++] = b[0];
-      vertex_data[vertex_data_offset++] = b[1];
-      vertex_data[vertex_data_offset++] = b[2];
-      vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 1; /* uv.x */
-      vertex_data[vertex_data_offset++] = 1; /* uv.y */
-      vertex_data[vertex_data_offset++] = quad_idx;
-      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
-
-      vertex_data[vertex_data_offset++] = c[0];
-      vertex_data[vertex_data_offset++] = c[1];
-      vertex_data[vertex_data_offset++] = c[2];
-      vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 0; /* uv.x */
-      vertex_data[vertex_data_offset++] = 0; /* uv.y */
-      vertex_data[vertex_data_offset++] = quad_idx;
-      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
-
-      vertex_data[vertex_data_offset++] = d[0];
-      vertex_data[vertex_data_offset++] = d[1];
-      vertex_data[vertex_data_offset++] = d[2];
-      vertex_data[vertex_data_offset++] = 1;
-      vertex_data[vertex_data_offset++] = 1; /* uv.x */
-      vertex_data[vertex_data_offset++] = 0; /* uv.y */
-      vertex_data[vertex_data_offset++] = quad_idx;
-      vertex_data[vertex_data_offset++] = quad->color[0] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[1] * quad->emissive;
-      vertex_data[vertex_data_offset++] = quad->color[2] * quad->emissive;
-
-      index_data[index_data_offset++] = this->vertex_count + 0; /* a */
-      index_data[index_data_offset++] = this->vertex_count + 2; /* c */
-      index_data[index_data_offset++] = this->vertex_count + 1; /* b */
-      index_data[index_data_offset++] = this->vertex_count + 1; /* b */
-      index_data[index_data_offset++] = this->vertex_count + 2; /* c */
-      index_data[index_data_offset++] = this->vertex_count + 3; /* d */
-      this->index_count += 6;
-      this->vertex_count += 4;
-    }
-
-    /* Quads storage buffer */
-    this->quad_buffer = wgpu_create_buffer(
-      wgpu_context, &(wgpu_buffer_desc_t){
-                      .label        = "Scene quad - Storage buffer",
-                      .size         = SCENE_QUAD_STRIDE * SCENE_QUADS_LENGTH,
-                      .usage        = WGPUBufferUsage_Storage,
-                      .initial.data = quad_data,
-                    });
-
-    /* Quads vertices buffer */
-    this->vertices
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Scene - Vertices buffer",
-                                           .size  = sizeof(vertex_data),
-                                           .usage = WGPUBufferUsage_Vertex,
-                                           .initial.data = vertex_data,
-                                         });
-
-    /* Quads indices buffer */
-    this->indices
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Scene - Indices buffer",
-                                           .size  = sizeof(index_data),
-                                           .usage = WGPUBufferUsage_Index,
-                                           .initial.data = index_data,
-                                         });
-  }
-
-  /* Vertex buffer layout */
-  {
-    WGPUVertexAttribute attributes[3] = {
-      [0] = (WGPUVertexAttribute) {
-        // position
-        .shaderLocation = 0,
-        .offset         = 0 * 4,
-        .format         = WGPUVertexFormat_Float32x4,
-      },
-      [1] = (WGPUVertexAttribute) {
-        // uv
-        .shaderLocation = 1,
-        .offset         = 4 * 4,
-        .format         = WGPUVertexFormat_Float32x3,
-      },
-      [2] = (WGPUVertexAttribute) {
-        // color
-        .shaderLocation = 2,
-        .offset         = 7 * 4,
-        .format         = WGPUVertexFormat_Float32x3,
-      },
-    };
-    memcpy(&this->vertex_buffer_layout_attributes[0], attributes,
-           sizeof(attributes));
-    this->vertex_buffer_layout = (WGPUVertexBufferLayout){
-      .arrayStride    = SCENE_QUAD_VERTEX_STRIDE,
-      .attributeCount = (uint32_t)ARRAY_SIZE(attributes),
-      .attributes     = this->vertex_buffer_layout_attributes,
-    };
-  }
-}
-
-static void scene_destroy(scene_t* this)
-{
-  wgpu_destroy_buffer(&this->vertices);
-  wgpu_destroy_buffer(&this->indices);
-  wgpu_destroy_buffer(&this->quad_buffer);
-}
-
-/* --------------------------------------------------------------------------
- * Radiosity computes lightmaps, calculated by software raytracing of light in
- * the scene.
+/* -------------------------------------------------------------------------- *
+ * Scene initialization
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  /* The output lightmap format and dimensions */
-  WGPUTextureFormat lightmap_format;
-  uint32_t lightmap_width;
-  uint32_t lightmap_height;
-  /* The output lightmap. */
-  texture_t lightmap;
-  uint32_t lightmap_depth_or_array_layers;
-  // Number of photons emitted per workgroup.
-  // This is equal to the workgroup size (one photon per invocation)
-  uint32_t photons_per_workgroup;
-  // Number of radiosity workgroups dispatched per frame.
-  uint32_t workgroups_per_frame;
-  uint32_t photons_per_frame;
-  // Maximum value that can be added to the 'accumulation' buffer, per
-  // photon, across all texels.
-  uint32_t photon_energy;
-  /* The total number of lightmap texels for all quads. */
-  uint32_t total_lightmap_texels;
-  uint32_t accumulation_to_lightmap_workgroup_size_x;
-  uint32_t accumulation_to_lightmap_workgroup_size_y;
-  wgpu_context_t* wgpu_context;
-  common_t* common;
-  scene_t* scene;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUComputePipeline radiosity_pipeline;
-  WGPUComputePipeline accumulation_to_lightmap_pipeline;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-  wgpu_buffer_t accumulation_buffer;
-  wgpu_buffer_t uniform_buffer;
-  /* The 'accumulation' buffer average value */
-  float accumulation_mean;
-  // The maximum value of 'accumulationAverage' before all values in
-  // 'accumulation' are reduced to avoid integer overflows.
-  uint32_t accumulation_mean_max;
-} radiosity_t;
-
-static void radiosity_init_defaults(radiosity_t* this)
+static void init_scene(void)
 {
-  memset(this, 0, sizeof(*this));
+  uint32_t quad_idx = 0;
 
-  this->lightmap_format = WGPUTextureFormat_RGBA16Float;
-  this->lightmap_width  = 256;
-  this->lightmap_height = 256;
+  /* Room (concave box) */
+  vec3 room_center    = {0.0f, 5.0f, 0.0f};
+  vec3 room_colors[6] = {
+    {0.0f, 0.5f, 0.0f}, /* PositiveX - green */
+    {0.5f, 0.5f, 0.5f}, /* PositiveY - gray */
+    {0.5f, 0.5f, 0.5f}, /* PositiveZ - gray */
+    {0.5f, 0.0f, 0.0f}, /* NegativeX - red */
+    {0.5f, 0.5f, 0.5f}, /* NegativeY - gray */
+    {0.5f, 0.5f, 0.5f}, /* NegativeZ - gray */
+  };
+  create_box_quads(room_center, 10.0f, 10.0f, 10.0f, 0.0f, room_colors, true,
+                   &state.scene.quads[quad_idx]);
+  quad_idx += 6;
 
-  this->photons_per_workgroup = 256;
-  this->workgroups_per_frame  = 1024;
-  this->photons_per_frame
-    = this->photons_per_workgroup * this->workgroups_per_frame;
+  /* Small box (convex) */
+  vec3 small_box_center = {1.5f, 1.5f, 1.0f};
+  vec3 small_box_color  = {0.8f, 0.8f, 0.8f};
+  vec3 small_box_colors[6];
+  for (int i = 0; i < 6; i++) {
+    glm_vec3_copy(small_box_color, small_box_colors[i]);
+  }
+  create_box_quads(small_box_center, 3.0f, 3.0f, 3.0f, 0.3f, small_box_colors,
+                   false, &state.scene.quads[quad_idx]);
+  quad_idx += 6;
 
-  this->photon_energy = 100000;
+  /* Tall box (convex) */
+  vec3 tall_box_center = {-2.0f, 3.0f, -2.0f};
+  vec3 tall_box_color  = {0.8f, 0.8f, 0.8f};
+  vec3 tall_box_colors[6];
+  for (int i = 0; i < 6; i++) {
+    glm_vec3_copy(tall_box_color, tall_box_colors[i]);
+  }
+  create_box_quads(tall_box_center, 3.0f, 6.0f, 3.0f, -0.4f, tall_box_colors,
+                   false, &state.scene.quads[quad_idx]);
+  quad_idx += 6;
 
-  this->accumulation_to_lightmap_workgroup_size_x = 16;
-  this->accumulation_to_lightmap_workgroup_size_y = 16;
+  /* Light quad */
+  state.scene.quads[quad_idx] = (quad_t){
+    .center   = {0.0f, 9.95f, 0.0f},
+    .right    = {1.0f, 0.0f, 0.0f},
+    .up       = {0.0f, 0.0f, 1.0f},
+    .color    = {5.0f, 5.0f, 5.0f},
+    .emissive = 1.0f,
+  };
 
-  this->accumulation_mean     = 0.0f;
-  this->accumulation_mean_max = 0x10000000;
+  /* Store light properties */
+  glm_vec3_copy(state.scene.quads[quad_idx].center, state.scene.light_center);
+  state.scene.light_width  = vec3_len(state.scene.quads[quad_idx].right) * 2.0f;
+  state.scene.light_height = vec3_len(state.scene.quads[quad_idx].up) * 2.0f;
+
+  quad_idx++;
+  state.scene.quad_count = quad_idx;
 }
 
-static void radiosity_create(radiosity_t* this, wgpu_context_t* wgpu_context,
-                             common_t* common, scene_t* scene)
+/* -------------------------------------------------------------------------- *
+ * GPU buffer creation for scene
+ * -------------------------------------------------------------------------- */
+
+static void init_scene_buffers(wgpu_context_t* wgpu_context)
 {
-  radiosity_init_defaults(this);
+  const uint32_t quad_count = state.scene.quad_count;
 
-  this->wgpu_context = wgpu_context;
-  this->common       = common;
-  this->scene        = scene;
+  /* Create GPU quad buffer */
+  gpu_quad_t* gpu_quads = (gpu_quad_t*)malloc(quad_count * sizeof(gpu_quad_t));
+  ASSERT(gpu_quads != NULL);
 
-  /* Lightmap */
-  {
-    /* Texture */
-    WGPUTextureDescriptor texture_desc = {
-      .label         = "Radiosity lightmap - Texture",
-      .size          = (WGPUExtent3D) {
-        .width              = this->lightmap_width,
-        .height             = this->lightmap_height,
-        .depthOrArrayLayers = this->scene->quads_length,
+  /* Create vertex and index data for rasterizer */
+  vertex_t* vertices = (vertex_t*)malloc(quad_count * 4 * sizeof(vertex_t));
+  uint16_t* indices  = (uint16_t*)malloc(quad_count * 6 * sizeof(uint16_t));
+  ASSERT(vertices != NULL && indices != NULL);
+
+  uint32_t vertex_count  = 0;
+  uint32_t index_count   = 0;
+  uint32_t vertex_offset = 0;
+  uint32_t index_offset  = 0;
+
+  for (uint32_t quad_idx = 0; quad_idx < quad_count; quad_idx++) {
+    quad_t* quad = &state.scene.quads[quad_idx];
+
+    /* Calculate normal from cross(right, up) */
+    vec3 normal;
+    glm_vec3_cross(quad->right, quad->up, normal);
+    glm_vec3_normalize(normal);
+
+    /* GPU quad data */
+    gpu_quads[quad_idx].plane[0] = normal[0];
+    gpu_quads[quad_idx].plane[1] = normal[1];
+    gpu_quads[quad_idx].plane[2] = normal[2];
+    gpu_quads[quad_idx].plane[3] = -glm_vec3_dot(normal, quad->center);
+
+    /* Calculate reciprocal of right vector */
+    vec3 inv_right;
+    vec3_reciprocal(quad->right, inv_right);
+    gpu_quads[quad_idx].right[0] = inv_right[0];
+    gpu_quads[quad_idx].right[1] = inv_right[1];
+    gpu_quads[quad_idx].right[2] = inv_right[2];
+    gpu_quads[quad_idx].right[3] = -glm_vec3_dot(inv_right, quad->center);
+
+    /* Calculate reciprocal of up vector */
+    vec3 inv_up;
+    vec3_reciprocal(quad->up, inv_up);
+    gpu_quads[quad_idx].up[0] = inv_up[0];
+    gpu_quads[quad_idx].up[1] = inv_up[1];
+    gpu_quads[quad_idx].up[2] = inv_up[2];
+    gpu_quads[quad_idx].up[3] = -glm_vec3_dot(inv_up, quad->center);
+
+    /* Color and emissive */
+    gpu_quads[quad_idx].color[0] = quad->color[0];
+    gpu_quads[quad_idx].color[1] = quad->color[1];
+    gpu_quads[quad_idx].color[2] = quad->color[2];
+    gpu_quads[quad_idx].emissive = quad->emissive;
+
+    /* Calculate vertex positions: a, b, c, d corners */
+    /* a ----- b
+       |       |
+       |   m   |
+       |       |
+       c ----- d */
+    vec3 a, b, c, d;
+    vec3 temp1;
+
+    /* a = center - right + up */
+    glm_vec3_sub(quad->center, quad->right, temp1);
+    glm_vec3_add(temp1, quad->up, a);
+
+    /* b = center + right + up */
+    glm_vec3_add(quad->center, quad->right, temp1);
+    glm_vec3_add(temp1, quad->up, b);
+
+    /* c = center - right - up */
+    glm_vec3_sub(quad->center, quad->right, temp1);
+    glm_vec3_sub(temp1, quad->up, c);
+
+    /* d = center + right - up */
+    glm_vec3_add(quad->center, quad->right, temp1);
+    glm_vec3_sub(temp1, quad->up, d);
+
+    /* Calculate emissive color */
+    float emissive_r = quad->color[0] * quad->emissive;
+    float emissive_g = quad->color[1] * quad->emissive;
+    float emissive_b = quad->color[2] * quad->emissive;
+
+    /* Vertex a */
+    vertices[vertex_offset].position[0] = a[0];
+    vertices[vertex_offset].position[1] = a[1];
+    vertices[vertex_offset].position[2] = a[2];
+    vertices[vertex_offset].position[3] = 1.0f;
+    vertices[vertex_offset].uv[0]       = 0.0f; /* u */
+    vertices[vertex_offset].uv[1]       = 1.0f; /* v */
+    vertices[vertex_offset].uv[2]       = (float)quad_idx;
+    vertices[vertex_offset].emissive[0] = emissive_r;
+    vertices[vertex_offset].emissive[1] = emissive_g;
+    vertices[vertex_offset].emissive[2] = emissive_b;
+    vertex_offset++;
+
+    /* Vertex b */
+    vertices[vertex_offset].position[0] = b[0];
+    vertices[vertex_offset].position[1] = b[1];
+    vertices[vertex_offset].position[2] = b[2];
+    vertices[vertex_offset].position[3] = 1.0f;
+    vertices[vertex_offset].uv[0]       = 1.0f; /* u */
+    vertices[vertex_offset].uv[1]       = 1.0f; /* v */
+    vertices[vertex_offset].uv[2]       = (float)quad_idx;
+    vertices[vertex_offset].emissive[0] = emissive_r;
+    vertices[vertex_offset].emissive[1] = emissive_g;
+    vertices[vertex_offset].emissive[2] = emissive_b;
+    vertex_offset++;
+
+    /* Vertex c */
+    vertices[vertex_offset].position[0] = c[0];
+    vertices[vertex_offset].position[1] = c[1];
+    vertices[vertex_offset].position[2] = c[2];
+    vertices[vertex_offset].position[3] = 1.0f;
+    vertices[vertex_offset].uv[0]       = 0.0f; /* u */
+    vertices[vertex_offset].uv[1]       = 0.0f; /* v */
+    vertices[vertex_offset].uv[2]       = (float)quad_idx;
+    vertices[vertex_offset].emissive[0] = emissive_r;
+    vertices[vertex_offset].emissive[1] = emissive_g;
+    vertices[vertex_offset].emissive[2] = emissive_b;
+    vertex_offset++;
+
+    /* Vertex d */
+    vertices[vertex_offset].position[0] = d[0];
+    vertices[vertex_offset].position[1] = d[1];
+    vertices[vertex_offset].position[2] = d[2];
+    vertices[vertex_offset].position[3] = 1.0f;
+    vertices[vertex_offset].uv[0]       = 1.0f; /* u */
+    vertices[vertex_offset].uv[1]       = 0.0f; /* v */
+    vertices[vertex_offset].uv[2]       = (float)quad_idx;
+    vertices[vertex_offset].emissive[0] = emissive_r;
+    vertices[vertex_offset].emissive[1] = emissive_g;
+    vertices[vertex_offset].emissive[2] = emissive_b;
+    vertex_offset++;
+
+    /* Indices: two triangles per quad (a, c, b) and (b, c, d) */
+    indices[index_offset++] = vertex_count + 0; /* a */
+    indices[index_offset++] = vertex_count + 2; /* c */
+    indices[index_offset++] = vertex_count + 1; /* b */
+    indices[index_offset++] = vertex_count + 1; /* b */
+    indices[index_offset++] = vertex_count + 2; /* c */
+    indices[index_offset++] = vertex_count + 3; /* d */
+
+    index_count += 6;
+    vertex_count += 4;
+  }
+
+  state.rasterizer.vertex_count = vertex_count;
+  state.rasterizer.index_count  = index_count;
+
+  /* Create GPU quad buffer */
+  state.common.quad_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label            = STRVIEW("Scene - Quad buffer"),
+      .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+      .size             = quad_count * sizeof(gpu_quad_t),
+      .mappedAtCreation = true,
+    });
+  ASSERT(state.common.quad_buffer != NULL);
+  memcpy(wgpuBufferGetMappedRange(state.common.quad_buffer, 0,
+                                  quad_count * sizeof(gpu_quad_t)),
+         gpu_quads, quad_count * sizeof(gpu_quad_t));
+  wgpuBufferUnmap(state.common.quad_buffer);
+
+  /* Create vertex buffer */
+  state.rasterizer.vertex_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label            = STRVIEW("Scene - Vertex buffer"),
+      .usage            = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+      .size             = vertex_count * sizeof(vertex_t),
+      .mappedAtCreation = true,
+    });
+  ASSERT(state.rasterizer.vertex_buffer != NULL);
+  memcpy(wgpuBufferGetMappedRange(state.rasterizer.vertex_buffer, 0,
+                                  vertex_count * sizeof(vertex_t)),
+         vertices, vertex_count * sizeof(vertex_t));
+  wgpuBufferUnmap(state.rasterizer.vertex_buffer);
+
+  /* Create index buffer */
+  state.rasterizer.index_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label            = STRVIEW("Scene - Index buffer"),
+      .usage            = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+      .size             = index_count * sizeof(uint16_t),
+      .mappedAtCreation = true,
+    });
+  ASSERT(state.rasterizer.index_buffer != NULL);
+  memcpy(wgpuBufferGetMappedRange(state.rasterizer.index_buffer, 0,
+                                  index_count * sizeof(uint16_t)),
+         indices, index_count * sizeof(uint16_t));
+  wgpuBufferUnmap(state.rasterizer.index_buffer);
+
+  /* Cleanup temporary arrays */
+  free(gpu_quads);
+  free(vertices);
+  free(indices);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Common resources initialization
+ * -------------------------------------------------------------------------- */
+
+static void init_common_resources(wgpu_context_t* wgpu_context)
+{
+  /* Common uniform buffer: mvp (4x4) + inv_mvp (4x4) + seed (vec3u) + padding
+   */
+  const uint64_t uniform_size = 4 * 16 + 4 * 16 + 4 * 4;
+  state.common.uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("Common - Uniform buffer"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = uniform_size,
+    });
+  ASSERT(state.common.uniform_buffer != NULL);
+
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout){
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = uniform_size,
       },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout){
+        .type           = WGPUBufferBindingType_ReadOnlyStorage,
+        .minBindingSize = state.scene.quad_count * sizeof(gpu_quad_t),
+      },
+    },
+  };
+  state.common.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("Common - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.common.bind_group_layout != NULL);
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding = 0,
+      .buffer  = state.common.uniform_buffer,
+      .size    = uniform_size,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .buffer  = state.common.quad_buffer,
+      .size    = state.scene.quad_count * sizeof(gpu_quad_t),
+    },
+  };
+  state.common.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Common - Bind group"),
+                            .layout     = state.common.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.common.bind_group != NULL);
+
+  state.common.frame = 0;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Framebuffer initialization
+ * -------------------------------------------------------------------------- */
+
+static void init_framebuffer(wgpu_context_t* wgpu_context)
+{
+  /* Destroy existing framebuffer if any */
+  WGPU_RELEASE_RESOURCE(TextureView, state.framebuffer.view)
+  WGPU_RELEASE_RESOURCE(Texture, state.framebuffer.texture)
+
+  state.framebuffer.width  = wgpu_context->width;
+  state.framebuffer.height = wgpu_context->height;
+
+  /* Create framebuffer texture (rgba16float) */
+  state.framebuffer.texture = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Framebuffer - Texture"),
+      .size  = (WGPUExtent3D){
+        .width              = wgpu_context->width,
+        .height             = wgpu_context->height,
+        .depthOrArrayLayers = 1,
+      },
+      .format        = WGPUTextureFormat_RGBA16Float,
+      .usage         = WGPUTextureUsage_RenderAttachment
+                       | WGPUTextureUsage_StorageBinding
+                       | WGPUTextureUsage_TextureBinding,
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = this->lightmap_format,
-      .usage
-      = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
-    };
-    this->lightmap.texture
-      = wgpuDeviceCreateTexture(this->wgpu_context->device, &texture_desc);
-    ASSERT(this->lightmap.texture != NULL);
-    this->lightmap_depth_or_array_layers = this->scene->quads_length;
+    });
+  ASSERT(state.framebuffer.texture != NULL);
 
-    /* Texture view */
-    WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Radiosity lightmap - Texture view",
-      .dimension       = WGPUTextureViewDimension_2DArray,
-      .format          = texture_desc.format,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
-      .arrayLayerCount = this->lightmap_depth_or_array_layers,
-      .aspect          = WGPUTextureAspect_All,
-    };
-    this->lightmap.view
-      = wgpuTextureCreateView(this->lightmap.texture, &texture_view_dec);
-    ASSERT(this->lightmap.view != NULL);
+  state.framebuffer.view = wgpuTextureCreateView(
+    state.framebuffer.texture, &(WGPUTextureViewDescriptor){
+                                 .label         = STRVIEW("Framebuffer - View"),
+                                 .format        = WGPUTextureFormat_RGBA16Float,
+                                 .dimension     = WGPUTextureViewDimension_2D,
+                                 .baseMipLevel  = 0,
+                                 .mipLevelCount = 1,
+                                 .baseArrayLayer  = 0,
+                                 .arrayLayerCount = 1,
+                               });
+  ASSERT(state.framebuffer.view != NULL);
+}
 
-    /* Texture sampler */
-    WGPUSamplerDescriptor sampler_desc = {
-      .label         = "Radiosity lightmap - Texture sampler",
-      .addressModeU  = WGPUAddressMode_ClampToEdge,
-      .addressModeV  = WGPUAddressMode_ClampToEdge,
-      .addressModeW  = WGPUAddressMode_ClampToEdge,
-      .minFilter     = WGPUFilterMode_Linear,
-      .magFilter     = WGPUFilterMode_Linear,
-      .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
-      .lodMinClamp   = 0.0f,
-      .lodMaxClamp   = 1.0f,
-      .maxAnisotropy = 1,
-    };
-    this->lightmap.sampler
-      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-    ASSERT(this->lightmap.sampler != NULL);
-  }
+/* -------------------------------------------------------------------------- *
+ * Radiosity initialization
+ * -------------------------------------------------------------------------- */
 
-  /* Accumulation buffer */
-  {
-    this->accumulation_buffer = wgpu_create_buffer(
-      this->wgpu_context, &(wgpu_buffer_desc_t){
-                            .label = "Radiosity accumulation - Storage buffer",
-                            .size = this->lightmap_width * this->lightmap_height
-                                    * this->scene->quads_length * 16,
+static void init_radiosity(wgpu_context_t* wgpu_context)
+{
+  const uint32_t quad_count = state.scene.quad_count;
+
+  /* Create lightmap texture */
+  state.radiosity.lightmap = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Radiosity - Lightmap"),
+      .size  = (WGPUExtent3D){
+        .width              = LIGHTMAP_WIDTH,
+        .height             = LIGHTMAP_HEIGHT,
+        .depthOrArrayLayers = quad_count,
+      },
+      .format        = LIGHTMAP_FORMAT,
+      .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+    });
+  ASSERT(state.radiosity.lightmap != NULL);
+
+  state.radiosity.lightmap_view = wgpuTextureCreateView(
+    state.radiosity.lightmap, &(WGPUTextureViewDescriptor){
+                                .label  = STRVIEW("Radiosity - Lightmap view"),
+                                .format = LIGHTMAP_FORMAT,
+                                .dimension = WGPUTextureViewDimension_2DArray,
+                                .baseMipLevel    = 0,
+                                .mipLevelCount   = 1,
+                                .baseArrayLayer  = 0,
+                                .arrayLayerCount = quad_count,
+                              });
+  ASSERT(state.radiosity.lightmap_view != NULL);
+
+  /* Create accumulation buffer */
+  const uint64_t accumulation_size
+    = (uint64_t)LIGHTMAP_WIDTH * LIGHTMAP_HEIGHT * quad_count * 16;
+  state.radiosity.accumulation_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device, &(WGPUBufferDescriptor){
+                            .label = STRVIEW("Radiosity - Accumulation buffer"),
                             .usage = WGPUBufferUsage_Storage,
+                            .size  = accumulation_size,
                           });
-    this->total_lightmap_texels = this->lightmap_width * this->lightmap_height
-                                  * this->scene->quads_length;
-  }
+  ASSERT(state.radiosity.accumulation_buffer != NULL);
 
-  /* Uniform buffer */
-  {
-    this->uniform_buffer = wgpu_create_buffer(
-      this->wgpu_context,
-      &(wgpu_buffer_desc_t){
-        .label = "Radiosity - Uniform buffer",
-        .size  = 8 * 4, /* 8 x f32 */
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      });
-  }
+  /* Create uniform buffer */
+  const uint64_t uniform_size    = 8 * 4; /* 8 x f32 */
+  state.radiosity.uniform_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("Radiosity - Uniform buffer"),
+      .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+      .size  = uniform_size,
+    });
+  ASSERT(state.radiosity.uniform_buffer != NULL);
 
-  /* Bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[3] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 0: accumulation buffer */
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Compute,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type           = WGPUBufferBindingType_Storage,
-          .minBindingSize = this->accumulation_buffer.size,
-        },
-        .sampler = {0},
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout){
+        .type = WGPUBufferBindingType_Storage,
       },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 1: lightmap */
-        .binding    = 1,
-        .visibility = WGPUShaderStage_Compute,
-        .storageTexture = {
-          .access = WGPUStorageTextureAccess_WriteOnly,
-          .format = this->lightmap_format,
-          .viewDimension = WGPUTextureViewDimension_2DArray,
-        },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .storageTexture = (WGPUStorageTextureBindingLayout){
+        .access        = WGPUStorageTextureAccess_WriteOnly,
+        .format        = LIGHTMAP_FORMAT,
+        .viewDimension = WGPUTextureViewDimension_2DArray,
       },
-      [2] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 2: radiosity_uniforms */
-        .binding    = 2,
-        .visibility = WGPUShaderStage_Compute,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type           = WGPUBufferBindingType_Uniform,
-          .minBindingSize = this->uniform_buffer.size,
-        },
-        .sampler = {0},
-      }
-    };
-    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Radiosity - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[3] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0: accumulation buffer */
-        .binding = 0,
-        .buffer  = this->accumulation_buffer.buffer,
-        .offset  = 0,
-        .size    = this->accumulation_buffer.size,
+    },
+    [2] = (WGPUBindGroupLayoutEntry){
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout){
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = uniform_size,
       },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: lightmap */
-        .binding     = 1,
-        .textureView = this->lightmap.view,
+    },
+  };
+  state.radiosity.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label = STRVIEW("Radiosity - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.radiosity.bind_group_layout != NULL);
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[3] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding = 0,
+      .buffer  = state.radiosity.accumulation_buffer,
+      .size    = accumulation_size,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding     = 1,
+      .textureView = state.radiosity.lightmap_view,
+    },
+    [2] = (WGPUBindGroupEntry){
+      .binding = 2,
+      .buffer  = state.radiosity.uniform_buffer,
+      .size    = uniform_size,
+    },
+  };
+  state.radiosity.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Radiosity - Bind group"),
+                            .layout     = state.radiosity.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.radiosity.bind_group != NULL);
+
+  /* Create pipeline layout */
+  WGPUBindGroupLayout bg_layouts[2] = {
+    state.common.bind_group_layout,
+    state.radiosity.bind_group_layout,
+  };
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Radiosity - Pipeline layout"),
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bg_layouts),
+      .bindGroupLayouts     = bg_layouts,
+    });
+  ASSERT(pipeline_layout != NULL);
+
+  /* Concatenate shaders */
+  size_t shader_len
+    = strlen(radiosity_shader_wgsl) + strlen(common_shader_wgsl) + 1;
+  char* shader_code = (char*)malloc(shader_len);
+  ASSERT(shader_code != NULL);
+  snprintf(shader_code, shader_len, "%s%s", radiosity_shader_wgsl,
+           common_shader_wgsl);
+
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, shader_code);
+  ASSERT(shader_module != NULL);
+
+  /* Create radiosity pipeline */
+  WGPUConstantEntry radiosity_constants[2] = {
+    {.key = STRVIEW("PhotonsPerWorkgroup"), .value = PHOTONS_PER_WORKGROUP},
+    {.key = STRVIEW("PhotonEnergy"), .value = PHOTON_ENERGY},
+  };
+  state.radiosity.radiosity_pipeline = wgpuDeviceCreateComputePipeline(
+    wgpu_context->device,
+    &(WGPUComputePipelineDescriptor){
+      .label   = STRVIEW("Radiosity - Radiosity pipeline"),
+      .layout  = pipeline_layout,
+      .compute = (WGPUComputeState){
+        .module        = shader_module,
+        .entryPoint    = STRVIEW("radiosity"),
+        .constantCount = (uint32_t)ARRAY_SIZE(radiosity_constants),
+        .constants     = radiosity_constants,
       },
-      [2] = (WGPUBindGroupEntry) {
-        /* Binding 2: radiosity_uniforms */
-        .binding = 2,
-        .buffer  = this->uniform_buffer.buffer,
-        .offset  = 0,
-        .size    = this->uniform_buffer.size,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Radiosity - Bind group",
-                              .layout     = this->bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(this->bind_group != NULL);
-  }
+    });
+  ASSERT(state.radiosity.radiosity_pipeline != NULL);
 
-  /* Compute pipeline layout */
-  {
-    WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->common->uniforms.bind_group_layout, /* Group 0 */
-      this->bind_group_layout,                  /* Group 1 */
-    };
-    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Radiosity accumulate - Pipeline layout",
-      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-      .bindGroupLayouts     = bind_group_layouts,
-    };
-    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(this->pipeline_layout != NULL);
-  }
-
-  /* Compute shader */
-  char* wgsl_code = {0};
-  concat_shader_store_entries(&shader_store.common, &shader_store.radiosity,
-                              &wgsl_code);
-
-  /* Radiosity compute pipeline */
-  {
-    /* Constants */
-    WGPUConstantEntry constant_entries[2] = {
-      [0] = (WGPUConstantEntry) {
-        .key   = "PhotonsPerWorkgroup",
-        .value = this->photons_per_workgroup,
-      },
-      [1] = (WGPUConstantEntry) {
-        .key   = "PhotonEnergy",
-        .value = this->photon_energy,
-      },
-    };
-
-    /* Compute shader */
-    wgpu_shader_t radiosity_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      /* Compute shader WGSL */
-                      .label           = "Radiosity - Compute shader",
-                      .wgsl_code       = {wgsl_code},
-                      .entry           = "radiosity",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
-
-    /* Compute pipeline*/
-    this->radiosity_pipeline = wgpuDeviceCreateComputePipeline(
+  /* Create accumulation_to_lightmap pipeline */
+  WGPUConstantEntry acc_constants[2] = {
+    {.key   = STRVIEW("AccumulationToLightmapWorkgroupSizeX"),
+     .value = ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_X},
+    {.key   = STRVIEW("AccumulationToLightmapWorkgroupSizeY"),
+     .value = ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_Y},
+  };
+  state.radiosity.accumulation_to_lightmap_pipeline
+    = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Radiosity radiosity - Compute pipeline",
-        .layout  = this->pipeline_layout,
-        .compute = radiosity_comp_shader.programmable_stage_descriptor,
+        .label   = STRVIEW("Radiosity - Accumulation to lightmap pipeline"),
+        .layout  = pipeline_layout,
+        .compute = (WGPUComputeState){
+          .module        = shader_module,
+          .entryPoint    = STRVIEW("accumulation_to_lightmap"),
+          .constantCount = (uint32_t)ARRAY_SIZE(acc_constants),
+          .constants     = acc_constants,
+        },
       });
+  ASSERT(state.radiosity.accumulation_to_lightmap_pipeline != NULL);
 
-    /* Cleanup */
-    wgpu_shader_release(&radiosity_comp_shader);
-  }
-
-  /* Accumulation to lightmap compute pipeline */
-  {
-    /* Constants */
-    WGPUConstantEntry constant_entries[2] = {
-      [0] = (WGPUConstantEntry) {
-        .key   = "AccumulationToLightmapWorkgroupSizeX",
-        .value = this->accumulation_to_lightmap_workgroup_size_x,
-      },
-      [1] = (WGPUConstantEntry) {
-        .key   = "AccumulationToLightmapWorkgroupSizeY",
-        .value = this->accumulation_to_lightmap_workgroup_size_y,
-      },
-    };
-
-    /* Compute shader */
-    wgpu_shader_t accumulation_to_lightmap_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      /* Compute shader WGSL */
-                      .label     = "Accumulation to lightmap - Compute shader",
-                      .wgsl_code = {wgsl_code},
-                      .entry     = "accumulation_to_lightmap",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
-
-    /* Compute pipeline*/
-    this->accumulation_to_lightmap_pipeline = wgpuDeviceCreateComputePipeline(
-      wgpu_context->device,
-      &(WGPUComputePipelineDescriptor){
-        .label  = "Radiosity accumulation to lightmap - Compute pipeline",
-        .layout = this->pipeline_layout,
-        .compute
-        = accumulation_to_lightmap_comp_shader.programmable_stage_descriptor,
-      });
-
-    /* Cleanup */
-    wgpu_shader_release(&accumulation_to_lightmap_comp_shader);
-  }
+  state.radiosity.accumulation_mean = 0.0f;
 
   /* Cleanup */
-  free(wgsl_code);
+  free(shader_code);
+  wgpuShaderModuleRelease(shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
 }
 
-static void radiosity_destroy(radiosity_t* this)
-{
-  wgpu_destroy_texture(&this->lightmap);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, this->radiosity_pipeline)
-  WGPU_RELEASE_RESOURCE(ComputePipeline,
-                        this->accumulation_to_lightmap_pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
-  WGPU_RELEASE_RESOURCE(Buffer, this->accumulation_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, this->uniform_buffer.buffer)
-}
-
-static void radiosity_run(radiosity_t* this, WGPUCommandEncoder command_encoder)
-{
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-
-  /* Calculate the new mean value for the accumulation buffer */
-  this->accumulation_mean += (this->photons_per_frame * this->photon_energy)
-                             / (float)this->total_lightmap_texels;
-
-  // Calculate the 'accumulation' -> 'lightmap' scale factor from
-  // 'accumulationMean'
-  const float accumulation_to_lightmap_scale = 1.0f / this->accumulation_mean;
-  // If 'accumulationMean' is greater than 'kAccumulationMeanMax', then
-  // reduce the 'accumulation' buffer values to prevent u32 overflow.
-  const float accumulation_buffer_scale
-    = this->accumulation_mean > 2 * this->accumulation_mean_max ? 0.5f : 1.0f;
-  this->accumulation_mean *= accumulation_buffer_scale;
-
-  /* Update the radiosity uniform buffer data. */
-  const float uniform_data_f32[8] = {
-    accumulation_to_lightmap_scale, /* accumulation_to_lightmap_scale */
-    accumulation_buffer_scale,      /* accumulation_buffer_scale      */
-    this->scene->light_width,       /* light_width                    */
-    this->scene->light_height,      /* light_height                   */
-    this->scene->light_center[0],   /* light_center x                 */
-    this->scene->light_center[1],   /* light_center y                 */
-    this->scene->light_center[2],   /* light_center z                 */
-  };
-  wgpu_queue_write_buffer(wgpu_context, this->uniform_buffer.buffer, 0,
-                          &uniform_data_f32[0], sizeof(uniform_data_f32));
-
-  /* Dispatch the radiosity workgroups */
-  wgpu_context->cpass_enc
-    = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
-  wgpuComputePassEncoderSetBindGroup(
-    wgpu_context->cpass_enc, 0, this->common->uniforms.bind_group, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
-                                     this->bind_group, 0, NULL);
-  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
-                                    this->radiosity_pipeline);
-  wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
-                                           this->workgroups_per_frame, 1, 1);
-
-  /* Then copy the 'accumulation' data to 'lightmap' */
-  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
-                                    this->accumulation_to_lightmap_pipeline);
-  wgpuComputePassEncoderDispatchWorkgroups(
-    wgpu_context->cpass_enc,
-    ceil(this->lightmap_width
-         / (float)this->accumulation_to_lightmap_workgroup_size_x),
-    ceil(this->lightmap_height
-         / (float)this->accumulation_to_lightmap_workgroup_size_y),
-    this->lightmap_depth_or_array_layers);
-  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
-}
-
-/* --------------------------------------------------------------------------
- * Rasterizer renders the scene using a regular raserization graphics pipeline.
+/* -------------------------------------------------------------------------- *
+ * Rasterizer initialization
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  wgpu_context_t* wgpu_context;
-  common_t* common;
-  scene_t* scene;
-  texture_t depth_texture;
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-    WGPURenderPassDescriptor descriptor;
-  } render_pass;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPURenderPipeline pipeline;
-} rasterizer_t;
-
-static void rasterizer_init_defaults(rasterizer_t* this)
+static void init_rasterizer_depth_texture(wgpu_context_t* wgpu_context)
 {
-  memset(this, 0, sizeof(*this));
-}
+  /* Destroy existing depth texture */
+  WGPU_RELEASE_RESOURCE(TextureView, state.rasterizer.depth_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.rasterizer.depth_texture)
 
-static void rasterizer_create(rasterizer_t* this, wgpu_context_t* wgpu_context,
-                              common_t* common, scene_t* scene,
-                              radiosity_t* radiosity, texture_t* frame_buffer)
-{
-  rasterizer_init_defaults(this);
-
-  this->wgpu_context = wgpu_context;
-  this->common       = common;
-  this->scene        = scene;
-
-  /* Depth texture */
-  {
-    /* Create the texture */
-    WGPUExtent3D texture_extent = {
-      .width              = frame_buffer->size.width,
-      .height             = frame_buffer->size.height,
-      .depthOrArrayLayers = 1,
-    };
-    WGPUTextureDescriptor texture_desc = {
-      .label         = "Rasterizer renderer - Depth texture",
-      .size          = texture_extent,
+  /* Create depth texture */
+  state.rasterizer.depth_texture = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Rasterizer - Depth texture"),
+      .size  = (WGPUExtent3D){
+        .width              = state.framebuffer.width,
+        .height             = state.framebuffer.height,
+        .depthOrArrayLayers = 1,
+      },
+      .format        = WGPUTextureFormat_Depth24Plus,
+      .usage         = WGPUTextureUsage_RenderAttachment,
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = WGPUTextureFormat_Depth24Plus,
-      .usage         = WGPUTextureUsage_RenderAttachment,
-    };
-    this->depth_texture.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(this->depth_texture.texture != NULL);
+    });
+  ASSERT(state.rasterizer.depth_texture != NULL);
 
-    /* Create the texture view */
-    WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Rasterizer renderer - Depth texture view",
+  state.rasterizer.depth_view
+    = wgpuTextureCreateView(state.rasterizer.depth_texture,
+                            &(WGPUTextureViewDescriptor){
+                              .label     = STRVIEW("Rasterizer - Depth view"),
+                              .format    = WGPUTextureFormat_Depth24Plus,
+                              .dimension = WGPUTextureViewDimension_2D,
+                              .baseMipLevel    = 0,
+                              .mipLevelCount   = 1,
+                              .baseArrayLayer  = 0,
+                              .arrayLayerCount = 1,
+                            });
+  ASSERT(state.rasterizer.depth_view != NULL);
+}
+
+static void init_rasterizer(wgpu_context_t* wgpu_context)
+{
+  /* Create sampler */
+  state.rasterizer.sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Rasterizer - Sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(state.rasterizer.sampler != NULL);
+
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2DArray,
+        .multisampled  = false,
+      },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+  };
+  state.rasterizer.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label = STRVIEW("Rasterizer - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.rasterizer.bind_group_layout != NULL);
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.radiosity.lightmap_view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = state.rasterizer.sampler,
+    },
+  };
+  state.rasterizer.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Rasterizer - Bind group"),
+                            .layout     = state.rasterizer.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.rasterizer.bind_group != NULL);
+
+  /* Create pipeline layout */
+  WGPUBindGroupLayout bg_layouts[2] = {
+    state.common.bind_group_layout,
+    state.rasterizer.bind_group_layout,
+  };
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Rasterizer - Pipeline layout"),
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bg_layouts),
+      .bindGroupLayouts     = bg_layouts,
+    });
+  ASSERT(pipeline_layout != NULL);
+
+  /* Concatenate shaders */
+  size_t shader_len
+    = strlen(rasterizer_shader_wgsl) + strlen(common_shader_wgsl) + 1;
+  char* shader_code = (char*)malloc(shader_len);
+  ASSERT(shader_code != NULL);
+  snprintf(shader_code, shader_len, "%s%s", rasterizer_shader_wgsl,
+           common_shader_wgsl);
+
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, shader_code);
+  ASSERT(shader_module != NULL);
+
+  /* Vertex buffer layout */
+  WGPUVertexAttribute vertex_attributes[3] = {
+    [0] = {
+      .shaderLocation = 0,
+      .offset         = offsetof(vertex_t, position),
+      .format         = WGPUVertexFormat_Float32x4,
+    },
+    [1] = {
+      .shaderLocation = 1,
+      .offset         = offsetof(vertex_t, uv),
+      .format         = WGPUVertexFormat_Float32x3,
+    },
+    [2] = {
+      .shaderLocation = 2,
+      .offset         = offsetof(vertex_t, emissive),
+      .format         = WGPUVertexFormat_Float32x3,
+    },
+  };
+  WGPUVertexBufferLayout vertex_buffer_layout = {
+    .arrayStride    = sizeof(vertex_t),
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = (uint32_t)ARRAY_SIZE(vertex_attributes),
+    .attributes     = vertex_attributes,
+  };
+
+  /* Depth stencil state */
+  WGPUDepthStencilState depth_stencil_state
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth24Plus,
+      .depth_write_enabled = true,
+    });
+  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+  /* Create render pipeline */
+  state.rasterizer.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("Rasterizer - Pipeline"),
+      .layout = pipeline_layout,
+      .vertex = (WGPUVertexState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vs_main"),
+        .bufferCount = 1,
+        .buffers     = &vertex_buffer_layout,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fs_main"),
+        .targetCount = 1,
+        .targets     = &(WGPUColorTargetState){
+          .format    = WGPUTextureFormat_RGBA16Float,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .primitive = (WGPUPrimitiveState){
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_Back,
+        .frontFace = WGPUFrontFace_CCW,
+      },
+      .depthStencil = &depth_stencil_state,
+      .multisample = (WGPUMultisampleState){
+        .count = 1,
+        .mask  = 0xFFFFFFFF,
+      },
+    });
+  ASSERT(state.rasterizer.pipeline != NULL);
+
+  /* Cleanup */
+  free(shader_code);
+  wgpuShaderModuleRelease(shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Raytracer initialization
+ * -------------------------------------------------------------------------- */
+
+static void init_raytracer(wgpu_context_t* wgpu_context)
+{
+  /* Create sampler */
+  state.raytracer.sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Raytracer - Sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(state.raytracer.sampler != NULL);
+
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Compute,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2DArray,
+        .multisampled  = false,
+      },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+    [2] = (WGPUBindGroupLayoutEntry){
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Compute,
+      .storageTexture = (WGPUStorageTextureBindingLayout){
+        .access        = WGPUStorageTextureAccess_WriteOnly,
+        .format        = WGPUTextureFormat_RGBA16Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+      },
+    },
+  };
+  state.raytracer.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label = STRVIEW("Raytracer - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.raytracer.bind_group_layout != NULL);
+
+  /* Create pipeline layout */
+  WGPUBindGroupLayout bg_layouts[2] = {
+    state.common.bind_group_layout,
+    state.raytracer.bind_group_layout,
+  };
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Raytracer - Pipeline layout"),
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bg_layouts),
+      .bindGroupLayouts     = bg_layouts,
+    });
+  ASSERT(pipeline_layout != NULL);
+
+  /* Concatenate shaders */
+  size_t shader_len
+    = strlen(raytracer_shader_wgsl) + strlen(common_shader_wgsl) + 1;
+  char* shader_code = (char*)malloc(shader_len);
+  ASSERT(shader_code != NULL);
+  snprintf(shader_code, shader_len, "%s%s", raytracer_shader_wgsl,
+           common_shader_wgsl);
+
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, shader_code);
+  ASSERT(shader_module != NULL);
+
+  /* Create compute pipeline */
+  WGPUConstantEntry constants[2] = {
+    {.key = STRVIEW("WorkgroupSizeX"), .value = RAYTRACER_WORKGROUP_SIZE_X},
+    {.key = STRVIEW("WorkgroupSizeY"), .value = RAYTRACER_WORKGROUP_SIZE_Y},
+  };
+  state.raytracer.pipeline = wgpuDeviceCreateComputePipeline(
+    wgpu_context->device,
+    &(WGPUComputePipelineDescriptor){
+      .label   = STRVIEW("Raytracer - Pipeline"),
+      .layout  = pipeline_layout,
+      .compute = (WGPUComputeState){
+        .module        = shader_module,
+        .entryPoint    = STRVIEW("main"),
+        .constantCount = (uint32_t)ARRAY_SIZE(constants),
+        .constants     = constants,
+      },
+    });
+  ASSERT(state.raytracer.pipeline != NULL);
+
+  /* Cleanup */
+  free(shader_code);
+  wgpuShaderModuleRelease(shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
+}
+
+static void init_raytracer_bind_group(wgpu_context_t* wgpu_context)
+{
+  /* Destroy existing bind group */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.raytracer.bind_group)
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[3] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.radiosity.lightmap_view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = state.raytracer.sampler,
+    },
+    [2] = (WGPUBindGroupEntry){
+      .binding     = 2,
+      .textureView = state.framebuffer.view,
+    },
+  };
+  state.raytracer.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Raytracer - Bind group"),
+                            .layout     = state.raytracer.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.raytracer.bind_group != NULL);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Tonemapper initialization
+ * -------------------------------------------------------------------------- */
+
+static void init_tonemapper_output_texture(wgpu_context_t* wgpu_context)
+{
+  /* Destroy existing texture */
+  WGPU_RELEASE_RESOURCE(TextureView, state.tonemapper.output_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.tonemapper.output_texture)
+
+  /* Create output texture (RGBA8Unorm - storable) */
+  state.tonemapper.output_texture = wgpuDeviceCreateTexture(
+    wgpu_context->device,
+    &(WGPUTextureDescriptor){
+      .label = STRVIEW("Tonemapper - Output texture"),
+      .size  = (WGPUExtent3D){
+        .width              = wgpu_context->width,
+        .height             = wgpu_context->height,
+        .depthOrArrayLayers = 1,
+      },
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA8Unorm,
+      .usage         = WGPUTextureUsage_StorageBinding
+                       | WGPUTextureUsage_TextureBinding,
+    });
+  ASSERT(state.tonemapper.output_texture != NULL);
+
+  state.tonemapper.output_view = wgpuTextureCreateView(
+    state.tonemapper.output_texture,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Tonemapper - Output texture view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
       .dimension       = WGPUTextureViewDimension_2D,
-      .format          = texture_desc.format,
       .baseMipLevel    = 0,
       .mipLevelCount   = 1,
       .baseArrayLayer  = 0,
       .arrayLayerCount = 1,
-    };
-    this->depth_texture.view
-      = wgpuTextureCreateView(this->depth_texture.texture, &texture_view_dec);
-    ASSERT(this->depth_texture.view != NULL);
-  }
-
-  /* Render pass */
-  {
-    /* Color attachment */
-    this->render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = frame_buffer->view,
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
-      },
-    };
-
-    /* Depth-stencil attachment */
-    this->render_pass.depth_stencil_attachment
-      = (WGPURenderPassDepthStencilAttachment){
-        .view            = this->depth_texture.view,
-        .depthClearValue = 1.0f,
-        .depthLoadOp     = WGPULoadOp_Clear,
-        .depthStoreOp    = WGPUStoreOp_Store,
-      };
-
-    /* Render pass descriptor */
-    this->render_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                  = "Rasterizer renderer - Render pass descriptor",
-      .colorAttachmentCount   = 1,
-      .colorAttachments       = this->render_pass.color_attachments,
-      .depthStencilAttachment = &this->render_pass.depth_stencil_attachment,
-    };
-  }
-
-  /* Bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 0: lightmap */
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType    = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2DArray,
-        },
-        .storageTexture = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 1: sampler */
-        .binding    = 1,
-        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
-        .sampler = (WGPUSamplerBindingLayout) {
-          .type  = WGPUSamplerBindingType_Filtering,
-        },
-        .texture = {0},
-      },
-    };
-    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device,
-      &(WGPUBindGroupLayoutDescriptor){
-        .label      = "Rasterizer renderer - Bind group layout",
-        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-        .entries    = bgl_entries,
-      });
-    ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0: lightmap */
-        .binding = 0,
-        .textureView  = radiosity->lightmap.view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: sampler */
-        .binding     = 1,
-        .sampler = radiosity->lightmap.sampler,
-
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Rasterizer renderer - Bind group",
-                              .layout     = this->bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(this->bind_group != NULL);
-  }
-
-  /* Render pipeline layout */
-  {
-    WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->common->uniforms.bind_group_layout, /* Group 0 */
-      this->bind_group_layout,                  /* Group 1 */
-    };
-    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Rasterizer - Renderer pipeline layout",
-      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-      .bindGroupLayouts     = bind_group_layouts,
-    };
-    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(this->pipeline_layout != NULL);
-  }
-
-  /* Rasterizer render pipeline */
-  {
-    /* Primitive state */
-    WGPUPrimitiveState primitive_state_desc = {
-      .topology  = WGPUPrimitiveTopology_TriangleList,
-      .frontFace = WGPUFrontFace_CCW,
-      .cullMode  = WGPUCullMode_Back,
-    };
-
-    /* Color target state */
-    WGPUBlendState blend_state = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-      .format    = frame_buffer->format,
-      .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
-    };
-
-    /* Depth stencil state */
-    WGPUDepthStencilState depth_stencil_state_desc
-      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24Plus,
-        .depth_write_enabled = true,
-      });
-    depth_stencil_state_desc.depthCompare = WGPUCompareFunction_Less;
-
-    /* Shader code */
-    char* wgsl_code = {0};
-    concat_shader_store_entries(&shader_store.common, &shader_store.rasterizer,
-                                &wgsl_code);
-
-    /* Vertex state */
-    WGPUVertexState vertex_state_desc = wgpu_create_vertex_state(
-      wgpu_context, &(wgpu_vertex_state_t){
-      .shader_desc = (wgpu_shader_desc_t){
-        /* Vertex shader WGSL */
-        .label     = "Rasterizer renderer - Vertex module",
-        .wgsl_code  = {wgsl_code},
-        .entry     = "vs_main",
-      },
-      .buffer_count = 1,
-      .buffers      = &this->scene->vertex_buffer_layout,
     });
-
-    /* Fragment state */
-    WGPUFragmentState fragment_state_desc = wgpu_create_fragment_state(
-      wgpu_context, &(wgpu_fragment_state_t){
-      .shader_desc = (wgpu_shader_desc_t){
-        /* Fragment shader WGSL */
-        .label     = "Rasterizer renderer - Fragment module",
-        .wgsl_code  = {wgsl_code},
-        .entry     = "fs_main",
-      },
-      .target_count = 1,
-      .targets = &color_target_state_desc,
-    });
-
-    /* Multisample state */
-    WGPUMultisampleState multisample_state_desc
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
-
-    /* Create rendering pipeline using the specified states */
-    this->pipeline = wgpuDeviceCreateRenderPipeline(
-      wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                              .label        = "Rasterizer - Renderer pipeline",
-                              .layout       = this->pipeline_layout,
-                              .primitive    = primitive_state_desc,
-                              .vertex       = vertex_state_desc,
-                              .fragment     = &fragment_state_desc,
-                              .depthStencil = &depth_stencil_state_desc,
-                              .multisample  = multisample_state_desc,
-                            });
-    ASSERT(this->pipeline != NULL);
-
-    // Shader modules are no longer needed once the graphics pipeline has
-    // been created
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state_desc.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state_desc.module);
-    free(wgsl_code);
-  }
+  ASSERT(state.tonemapper.output_view != NULL);
 }
 
-static void rasterizer_destroy(rasterizer_t* this)
+static void init_tonemapper(wgpu_context_t* wgpu_context)
 {
-  wgpu_destroy_texture(&this->depth_texture);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+  /* Create output texture */
+  init_tonemapper_output_texture(wgpu_context);
+
+  /* Create bind group layout - always use rgba8unorm for storage */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Compute,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .storageTexture = (WGPUStorageTextureBindingLayout){
+        .access        = WGPUStorageTextureAccess_WriteOnly,
+        .format        = WGPUTextureFormat_RGBA8Unorm,
+        .viewDimension = WGPUTextureViewDimension_2D,
+      },
+    },
+  };
+  state.tonemapper.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label = STRVIEW("Tonemapper - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.tonemapper.bind_group_layout != NULL);
+
+  /* Create pipeline layout */
+  WGPUBindGroupLayout bg_layouts[1] = {
+    state.tonemapper.bind_group_layout,
+  };
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Tonemapper - Pipeline layout"),
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bg_layouts),
+      .bindGroupLayouts     = bg_layouts,
+    });
+  ASSERT(pipeline_layout != NULL);
+
+  /* Build shader with fixed rgba8unorm format */
+  static const char* shader_code
+    = "// The linear-light input framebuffer\n"
+      "@group(0) @binding(0) var input  : texture_2d<f32>;\n"
+      "// The tonemapped, gamma-corrected output framebuffer\n"
+      "@group(0) @binding(1) var output : texture_storage_2d<rgba8unorm, "
+      "write>;\n"
+      "const TonemapExposure = 0.5;\n"
+      "const Gamma = 2.2;\n"
+      "override WorkgroupSizeX : u32;\n"
+      "override WorkgroupSizeY : u32;\n"
+      "@compute @workgroup_size(WorkgroupSizeX, WorkgroupSizeY)\n"
+      "fn main(@builtin(global_invocation_id) invocation_id : vec3u) {\n"
+      "  let color = textureLoad(input, invocation_id.xy, 0).rgb;\n"
+      "  let tonemapped = reinhard_tonemap(color);\n"
+      "  textureStore(output, invocation_id.xy, vec4f(tonemapped, 1));\n"
+      "}\n"
+      "fn reinhard_tonemap(linearColor: vec3f) -> vec3f {\n"
+      "  let color = linearColor * TonemapExposure;\n"
+      "  let mapped = color / (1+color);\n"
+      "  return pow(mapped, vec3f(1 / Gamma));\n"
+      "}\n";
+
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, shader_code);
+  ASSERT(shader_module != NULL);
+
+  /* Create compute pipeline */
+  WGPUConstantEntry constants[2] = {
+    {.key = STRVIEW("WorkgroupSizeX"), .value = TONEMAPPER_WORKGROUP_SIZE_X},
+    {.key = STRVIEW("WorkgroupSizeY"), .value = TONEMAPPER_WORKGROUP_SIZE_Y},
+  };
+  state.tonemapper.pipeline = wgpuDeviceCreateComputePipeline(
+    wgpu_context->device,
+    &(WGPUComputePipelineDescriptor){
+      .label   = STRVIEW("Tonemapper - Pipeline"),
+      .layout  = pipeline_layout,
+      .compute = (WGPUComputeState){
+        .module        = shader_module,
+        .entryPoint    = STRVIEW("main"),
+        .constantCount = (uint32_t)ARRAY_SIZE(constants),
+        .constants     = constants,
+      },
+    });
+  ASSERT(state.tonemapper.pipeline != NULL);
+
+  /* Cleanup */
+  wgpuShaderModuleRelease(shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
 }
 
-static void rasterizer_run(rasterizer_t* this,
-                           WGPUCommandEncoder command_encoder)
+static void init_tonemapper_bind_group(wgpu_context_t* wgpu_context)
 {
-  wgpu_context_t* wgpu_context = this->wgpu_context;
+  /* Destroy existing bind group */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.tonemapper.bind_group)
 
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    command_encoder, &this->render_pass.descriptor);
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       this->scene->vertices.buffer, 0,
-                                       WGPU_WHOLE_SIZE);
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.framebuffer.view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding     = 1,
+      .textureView = state.tonemapper.output_view,
+    },
+  };
+  state.tonemapper.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Tonemapper - Bind group"),
+                            .layout     = state.tonemapper.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.tonemapper.bind_group != NULL);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Blit (fullscreen copy) initialization
+ * -------------------------------------------------------------------------- */
+
+static void init_blit(wgpu_context_t* wgpu_context)
+{
+  /* Create sampler */
+  state.blit.sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Blit - Sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(state.blit.sampler != NULL);
+
+  /* Create bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+  };
+  state.blit.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("Blit - Bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.blit.bind_group_layout != NULL);
+
+  /* Create pipeline layout */
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("Blit - Pipeline layout"),
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts = &state.blit.bind_group_layout,
+                          });
+  ASSERT(pipeline_layout != NULL);
+
+  /* Create shaders */
+  static const char* vertex_shader_code
+    = "struct VertexOutput {\n"
+      "  @builtin(position) position : vec4<f32>,\n"
+      "  @location(0) tex_coord : vec2<f32>,\n"
+      "};\n"
+      "@vertex fn main(@builtin(vertex_index) vertex_index : u32) -> "
+      "VertexOutput {\n"
+      "  var output : VertexOutput;\n"
+      "  let x = f32((vertex_index << 1u) & 2u);\n"
+      "  let y = f32(vertex_index & 2u);\n"
+      "  output.position = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);\n"
+      "  output.tex_coord = vec2<f32>(x, y);\n"
+      "  return output;\n"
+      "}\n";
+
+  static const char* fragment_shader_code
+    = "@group(0) @binding(0) var render_texture : texture_2d<f32>;\n"
+      "@group(0) @binding(1) var tex_sampler : sampler;\n"
+      "@fragment fn main(@location(0) tex_coord : vec2<f32>) -> @location(0) "
+      "vec4<f32> {\n"
+      "  return textureSample(render_texture, tex_sampler, tex_coord);\n"
+      "}\n";
+
+  WGPUShaderModule vertex_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vertex_shader_code);
+  ASSERT(vertex_shader_module != NULL);
+
+  WGPUShaderModule fragment_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, fragment_shader_code);
+  ASSERT(fragment_shader_module != NULL);
+
+  /* Create render pipeline */
+  WGPUColorTargetState color_target = {
+    .format    = wgpu_context->render_format,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  state.blit.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("Blit - Render pipeline"),
+      .layout = pipeline_layout,
+      .vertex = (WGPUVertexState){
+        .module     = vertex_shader_module,
+        .entryPoint = STRVIEW("main"),
+      },
+      .primitive = (WGPUPrimitiveState){
+        .topology = WGPUPrimitiveTopology_TriangleList,
+      },
+      .multisample = (WGPUMultisampleState){
+        .count = 1,
+        .mask  = 0xFFFFFFFF,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = fragment_shader_module,
+        .entryPoint  = STRVIEW("main"),
+        .targetCount = 1,
+        .targets     = &color_target,
+      },
+    });
+  ASSERT(state.blit.pipeline != NULL);
+
+  /* Setup render pass descriptor */
+  state.blit.color_attachment = (WGPURenderPassColorAttachment){
+    .view       = NULL, /* Set per frame */
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0},
+  };
+  state.blit.render_pass_descriptor = (WGPURenderPassDescriptor){
+    .label                = STRVIEW("Blit - Render pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.blit.color_attachment,
+  };
+
+  /* Cleanup */
+  wgpuShaderModuleRelease(vertex_shader_module);
+  wgpuShaderModuleRelease(fragment_shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
+}
+
+static void init_blit_bind_group(wgpu_context_t* wgpu_context)
+{
+  /* Destroy existing bind group */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.blit.bind_group)
+
+  /* Create bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.tonemapper.output_view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = state.blit.sampler,
+    },
+  };
+  state.blit.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Blit - Bind group"),
+                            .layout     = state.blit.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.blit.bind_group != NULL);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Uniform buffer updates
+ * -------------------------------------------------------------------------- */
+
+static void update_common_uniforms(wgpu_context_t* wgpu_context)
+{
+  const float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
+
+  /* Projection matrix */
+  glm_perspective(PI2 / 8.0f, aspect, 0.5f, 100.0f, state.matrices.projection);
+
+  /* Camera rotation */
+  float view_rotation = 0.0f;
+  if (state.settings.rotate_camera) {
+    view_rotation = (float)state.common.frame / 1000.0f;
+  }
+
+  /* View matrix */
+  vec3 eye = {sinf(view_rotation) * 15.0f, 5.0f, cosf(view_rotation) * 15.0f};
+  vec3 center = {0.0f, 5.0f, 0.0f};
+  vec3 up     = {0.0f, 1.0f, 0.0f};
+  glm_lookat(eye, center, up, state.matrices.view);
+
+  /* MVP matrix */
+  glm_mat4_mul(state.matrices.projection, state.matrices.view,
+               state.matrices.mvp);
+
+  /* Inverse MVP */
+  glm_mat4_inv(state.matrices.mvp, state.matrices.inv_mvp);
+
+  /* Prepare uniform data */
+  float uniform_data[36]; /* 16 + 16 + 4 = 36 floats */
+  memcpy(&uniform_data[0], state.matrices.mvp, 16 * sizeof(float));
+  memcpy(&uniform_data[16], state.matrices.inv_mvp, 16 * sizeof(float));
+
+  /* Random seed */
+  uint32_t* seed_ptr = (uint32_t*)&uniform_data[32];
+  seed_ptr[0]        = (uint32_t)(random_float() * (float)0xFFFFFFFF);
+  seed_ptr[1]        = (uint32_t)(random_float() * (float)0xFFFFFFFF);
+  seed_ptr[2]        = (uint32_t)(random_float() * (float)0xFFFFFFFF);
+
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.common.uniform_buffer, 0,
+                       uniform_data, sizeof(uniform_data));
+
+  state.common.frame++;
+}
+
+static void update_radiosity_uniforms(wgpu_context_t* wgpu_context)
+{
+  const uint32_t total_lightmap_texels
+    = LIGHTMAP_WIDTH * LIGHTMAP_HEIGHT * state.scene.quad_count;
+  const uint32_t photons_per_frame
+    = PHOTONS_PER_WORKGROUP * WORKGROUPS_PER_FRAME;
+
+  /* Calculate the new mean value for the accumulation buffer */
+  state.radiosity.accumulation_mean
+    += (float)(photons_per_frame * PHOTON_ENERGY)
+       / (float)total_lightmap_texels;
+
+  /* Calculate scales */
+  float accumulation_to_lightmap_scale
+    = 1.0f / state.radiosity.accumulation_mean;
+  float accumulation_buffer_scale = 1.0f;
+  if (state.radiosity.accumulation_mean > 2.0f * ACCUMULATION_MEAN_MAX) {
+    accumulation_buffer_scale = 0.5f;
+  }
+  state.radiosity.accumulation_mean *= accumulation_buffer_scale;
+
+  /* Prepare uniform data */
+  float uniform_data[8] = {
+    accumulation_to_lightmap_scale, accumulation_buffer_scale,
+    state.scene.light_width,        state.scene.light_height,
+    state.scene.light_center[0],    state.scene.light_center[1],
+    state.scene.light_center[2],    0.0f, /* padding */
+  };
+
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.radiosity.uniform_buffer, 0,
+                       uniform_data, sizeof(uniform_data));
+}
+
+/* -------------------------------------------------------------------------- *
+ * Render passes
+ * -------------------------------------------------------------------------- */
+
+static void run_radiosity(WGPUCommandEncoder command_encoder)
+{
+  WGPUComputePassEncoder pass_encoder
+    = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
+
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 0, state.common.bind_group,
+                                     0, NULL);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 1,
+                                     state.radiosity.bind_group, 0, NULL);
+
+  /* Dispatch radiosity workgroups */
+  wgpuComputePassEncoderSetPipeline(pass_encoder,
+                                    state.radiosity.radiosity_pipeline);
+  wgpuComputePassEncoderDispatchWorkgroups(pass_encoder, WORKGROUPS_PER_FRAME,
+                                           1, 1);
+
+  /* Copy accumulation to lightmap */
+  wgpuComputePassEncoderSetPipeline(
+    pass_encoder, state.radiosity.accumulation_to_lightmap_pipeline);
+  uint32_t wg_x
+    = (LIGHTMAP_WIDTH + ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_X - 1)
+      / ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_X;
+  uint32_t wg_y
+    = (LIGHTMAP_HEIGHT + ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_Y - 1)
+      / ACCUMULATION_TO_LIGHTMAP_WORKGROUP_SIZE_Y;
+  wgpuComputePassEncoderDispatchWorkgroups(pass_encoder, wg_x, wg_y,
+                                           state.scene.quad_count);
+
+  wgpuComputePassEncoderEnd(pass_encoder);
+  wgpuComputePassEncoderRelease(pass_encoder);
+}
+
+static void run_rasterizer(WGPUCommandEncoder command_encoder)
+{
+  WGPURenderPassColorAttachment color_attachment = {
+    .view       = state.framebuffer.view,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1f, 0.2f, 0.3f, 1.0f},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  };
+  WGPURenderPassDepthStencilAttachment depth_attachment = {
+    .view            = state.rasterizer.depth_view,
+    .depthLoadOp     = WGPULoadOp_Clear,
+    .depthStoreOp    = WGPUStoreOp_Store,
+    .depthClearValue = 1.0f,
+  };
+  WGPURenderPassDescriptor render_pass_desc = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &color_attachment,
+    .depthStencilAttachment = &depth_attachment,
+  };
+
+  WGPURenderPassEncoder pass_encoder
+    = wgpuCommandEncoderBeginRenderPass(command_encoder, &render_pass_desc);
+
+  wgpuRenderPassEncoderSetPipeline(pass_encoder, state.rasterizer.pipeline);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    pass_encoder, 0, state.rasterizer.vertex_buffer, 0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, this->scene->indices.buffer,
-    WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    this->common->uniforms.bind_group, 0, 0);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                    this->bind_group, 0, 0);
-  wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                   this->scene->index_count, 1, 0, 0, 0);
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+    pass_encoder, state.rasterizer.index_buffer, WGPUIndexFormat_Uint16, 0,
+    WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0, state.common.bind_group, 0,
+                                    NULL);
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1,
+                                    state.rasterizer.bind_group, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(pass_encoder, state.rasterizer.index_count,
+                                   1, 0, 0, 0);
+
+  wgpuRenderPassEncoderEnd(pass_encoder);
+  wgpuRenderPassEncoderRelease(pass_encoder);
 }
 
-/* --------------------------------------------------------------------------
- * Raytracer renders the scene using a software ray-tracing compute pipeline.
- * -------------------------------------------------------------------------- */
-
-typedef struct {
-  wgpu_context_t* wgpu_context;
-  common_t* common;
-  texture_t* frame_buffer;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUComputePipeline pipeline;
-  uint32_t workgroup_size_x;
-  uint32_t workgroup_size_y;
-} raytracer_t;
-
-static void raytracer_init_defaults(raytracer_t* this)
+static void run_raytracer(WGPUCommandEncoder command_encoder)
 {
-  memset(this, 0, sizeof(*this));
-
-  this->workgroup_size_x = 16;
-  this->workgroup_size_y = 16;
-}
-
-static void raytracer_create(raytracer_t* this, wgpu_context_t* wgpu_context,
-                             common_t* common, radiosity_t* radiosity,
-                             texture_t* frame_buffer)
-{
-  raytracer_init_defaults(this);
-
-  this->wgpu_context = wgpu_context;
-  this->common       = common;
-  this->frame_buffer = frame_buffer;
-
-  /* Bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[3] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 0: lightmap */
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType    = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2DArray,
-        },
-        .storageTexture = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 1: sampler */
-        .binding    = 1,
-        .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
-        .sampler = (WGPUSamplerBindingLayout) {
-          .type  = WGPUSamplerBindingType_Filtering,
-        },
-        .texture = {0},
-      },
-      [2] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 2: framebuffer */
-        .binding    = 2,
-        .visibility = WGPUShaderStage_Compute,
-        .storageTexture = {
-          .access = WGPUStorageTextureAccess_WriteOnly,
-          .format = radiosity->lightmap_format,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-      },
-    };
-    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Raytracer - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[3] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0: lightmap */
-        .binding = 0,
-        .textureView  = radiosity->lightmap.view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: sampler */
-        .binding     = 1,
-        .sampler = radiosity->lightmap.sampler,
-
-      },
-      [2] = (WGPUBindGroupEntry) {
-        /* Binding 2: framebuffer */
-        .binding = 2,
-        .textureView = frame_buffer->view,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Renderer - Bind group",
-                              .layout     = this->bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(this->bind_group != NULL);
-  }
-
-  /* Compute pipeline layout */
-  {
-    WGPUBindGroupLayout bind_group_layouts[2] = {
-      this->common->uniforms.bind_group_layout, /* Group 0 */
-      this->bind_group_layout,                  /* Group 1 */
-    };
-    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Raytracer - Compute pipeline layout",
-      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-      .bindGroupLayouts     = bind_group_layouts,
-    };
-    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(this->pipeline_layout != NULL);
-  }
-
-  /* Raytracer compute pipeline */
-  {
-    /* Constants */
-    WGPUConstantEntry constant_entries[2] = {
-      [0] = (WGPUConstantEntry) {
-        .key   = "WorkgroupSizeX",
-        .value = this->workgroup_size_x,
-      },
-      [1] = (WGPUConstantEntry) {
-        .key   = "WorkgroupSizeY",
-        .value = this->workgroup_size_y,
-      },
-    };
-
-    /* Compute shader */
-    char* wgsl_code = {0};
-    concat_shader_store_entries(&shader_store.common, &shader_store.raytracer,
-                                &wgsl_code);
-    wgpu_shader_t raytracer_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      /* Compute shader WGSL */
-                      .label           = "Raytracer - Compute shader",
-                      .wgsl_code       = {wgsl_code},
-                      .entry           = "main",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
-
-    /* Compute pipeline*/
-    this->pipeline = wgpuDeviceCreateComputePipeline(
-      wgpu_context->device,
-      &(WGPUComputePipelineDescriptor){
-        .label   = "Raytracer - Compute pipeline",
-        .layout  = this->pipeline_layout,
-        .compute = raytracer_comp_shader.programmable_stage_descriptor,
-      });
-
-    /* Cleanup */
-    wgpu_shader_release(&raytracer_comp_shader);
-    free(wgsl_code);
-  }
-}
-
-static void raytracer_destroy(raytracer_t* this)
-{
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
-}
-
-static void raytracer_run(raytracer_t* this, WGPUCommandEncoder command_encoder)
-{
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-
-  wgpu_context->cpass_enc
+  WGPUComputePassEncoder pass_encoder
     = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
-  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc, this->pipeline);
-  wgpuComputePassEncoderSetBindGroup(
-    wgpu_context->cpass_enc, 0, this->common->uniforms.bind_group, 0, NULL);
-  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 1,
-                                     this->bind_group, 0, NULL);
-  wgpuComputePassEncoderDispatchWorkgroups(
-    wgpu_context->cpass_enc,
-    ceil(this->frame_buffer->size.width / (float)this->workgroup_size_x),
-    ceil(this->frame_buffer->size.height / (float)this->workgroup_size_y), 1);
-  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+
+  wgpuComputePassEncoderSetPipeline(pass_encoder, state.raytracer.pipeline);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 0, state.common.bind_group,
+                                     0, NULL);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 1,
+                                     state.raytracer.bind_group, 0, NULL);
+
+  uint32_t wg_x = (state.framebuffer.width + RAYTRACER_WORKGROUP_SIZE_X - 1)
+                  / RAYTRACER_WORKGROUP_SIZE_X;
+  uint32_t wg_y = (state.framebuffer.height + RAYTRACER_WORKGROUP_SIZE_Y - 1)
+                  / RAYTRACER_WORKGROUP_SIZE_Y;
+  wgpuComputePassEncoderDispatchWorkgroups(pass_encoder, wg_x, wg_y, 1);
+
+  wgpuComputePassEncoderEnd(pass_encoder);
+  wgpuComputePassEncoderRelease(pass_encoder);
 }
 
-/* --------------------------------------------------------------------------
- * Tonemapper implements a tonemapper to convert a linear-light framebuffer to a
- * gamma-correct, tonemapped framebuffer used for presentation.
- * -------------------------------------------------------------------------- */
-
-typedef struct {
-  wgpu_context_t* wgpu_context;
-  common_t* common;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPUComputePipeline pipeline;
-  texture_t* input;
-  texture_t* output;
-  uint32_t workgroup_size_x;
-  uint32_t workgroup_size_y;
-} tonemapper_t;
-
-static void tonemapper_init_defaults(tonemapper_t* this)
+static void run_tonemapper(WGPUCommandEncoder command_encoder)
 {
-  memset(this, 0, sizeof(*this));
-
-  this->workgroup_size_x = 16;
-  this->workgroup_size_y = 16;
-}
-
-static void tonemapper_create(tonemapper_t* this, wgpu_context_t* wgpu_context,
-                              common_t* common, texture_t* input,
-                              texture_t* output)
-{
-  tonemapper_init_defaults(this);
-
-  this->wgpu_context = wgpu_context;
-  this->common       = common;
-  this->input        = input;
-  this->output       = output;
-
-  /* Bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        // Binding 0: input
-        .binding    = 0,
-        .visibility = WGPUShaderStage_Compute,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType    = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled  = false,
-        },
-        .storageTexture = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        // Binding 1: output
-        .binding    = 1,
-        .visibility = WGPUShaderStage_Compute,
-        .storageTexture = {
-          .access        = WGPUStorageTextureAccess_WriteOnly,
-          .format        = output->format,
-          .viewDimension = WGPUTextureViewDimension_2D,
-        },
-      },
-    };
-    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Tonemapper - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        // Binding 0: input
-        .binding     = 0,
-        .textureView = this->input->view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        // Binding 1: output
-        .binding     = 1,
-        .textureView = output->view,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      this->wgpu_context->device,
-      &(WGPUBindGroupDescriptor){
-        .label      = "Tonemapper - Bind group",
-        .layout     = this->bind_group_layout,
-        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-        .entries    = bg_entries,
-      });
-    ASSERT(this->bind_group != NULL);
-  }
-
-  /* Compute pipeline layout */
-  {
-    WGPUBindGroupLayout bind_group_layouts[1] = {
-      this->bind_group_layout, /* Group 0 */
-    };
-    WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-      .label                = "Tonemap - Pipeline layout",
-      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
-      .bindGroupLayouts     = bind_group_layouts,
-    };
-    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &compute_pipeline_layout_desc);
-    ASSERT(this->pipeline_layout != NULL);
-  }
-
-  /* Tonemap compute pipeline */
-  {
-    /* Constants */
-    WGPUConstantEntry constant_entries[2] = {
-      [0] = (WGPUConstantEntry) {
-        .key   = "WorkgroupSizeX",
-        .value = this->workgroup_size_x,
-      },
-      [1] = (WGPUConstantEntry) {
-        .key   = "WorkgroupSizeY",
-        .value = this->workgroup_size_y,
-      },
-    };
-
-    /* Compute shader */
-    char* wgsl_code = {0};
-    concat_shader_store_entries(&shader_store.common, &shader_store.tonemapper,
-                                &wgsl_code);
-    wgpu_shader_t tonemapper_comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      // Compute shader WGSL
-                      .label           = "Tonemapper - Compute shader",
-                      .wgsl_code       = {wgsl_code},
-                      .entry           = "main",
-                      .constants.count = (uint32_t)ARRAY_SIZE(constant_entries),
-                      .constants.entries = constant_entries,
-                    });
-
-    /* Compute pipeline*/
-    this->pipeline = wgpuDeviceCreateComputePipeline(
-      wgpu_context->device,
-      &(WGPUComputePipelineDescriptor){
-        .label   = "Tonemap - Compute pipeline",
-        .layout  = this->pipeline_layout,
-        .compute = tonemapper_comp_shader.programmable_stage_descriptor,
-      });
-
-    /* Cleanup */
-    wgpu_shader_release(&tonemapper_comp_shader);
-    free(wgsl_code);
-  }
-}
-
-static void tonemapper_destroy(tonemapper_t* this)
-{
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
-}
-
-static void tonemapper_run(tonemapper_t* this,
-                           WGPUCommandEncoder command_encoder)
-{
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-
-  wgpu_context->cpass_enc
+  WGPUComputePassEncoder pass_encoder
     = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
-  wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
-                                     this->bind_group, 0, NULL);
-  wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc, this->pipeline);
-  wgpuComputePassEncoderDispatchWorkgroups(
-    wgpu_context->cpass_enc,
-    ceil(this->input->size.width / (float)this->workgroup_size_x),
-    ceil(this->input->size.height / (float)this->workgroup_size_y), 1);
-  wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-  WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+
+  wgpuComputePassEncoderSetPipeline(pass_encoder, state.tonemapper.pipeline);
+  wgpuComputePassEncoderSetBindGroup(pass_encoder, 0,
+                                     state.tonemapper.bind_group, 0, NULL);
+
+  uint32_t wg_x = (state.framebuffer.width + TONEMAPPER_WORKGROUP_SIZE_X - 1)
+                  / TONEMAPPER_WORKGROUP_SIZE_X;
+  uint32_t wg_y = (state.framebuffer.height + TONEMAPPER_WORKGROUP_SIZE_Y - 1)
+                  / TONEMAPPER_WORKGROUP_SIZE_Y;
+  wgpuComputePassEncoderDispatchWorkgroups(pass_encoder, wg_x, wg_y, 1);
+
+  wgpuComputePassEncoderEnd(pass_encoder);
+  wgpuComputePassEncoderRelease(pass_encoder);
 }
 
-/* --------------------------------------------------------------------------
- * Result renderer.
+static void run_blit(WGPUCommandEncoder command_encoder,
+                     WGPUTextureView swapchain_view)
+{
+  state.blit.color_attachment.view = swapchain_view;
+
+  WGPURenderPassEncoder pass_encoder = wgpuCommandEncoderBeginRenderPass(
+    command_encoder, &state.blit.render_pass_descriptor);
+
+  wgpuRenderPassEncoderSetPipeline(pass_encoder, state.blit.pipeline);
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0, state.blit.bind_group, 0,
+                                    NULL);
+  wgpuRenderPassEncoderDraw(pass_encoder, 3, 1, 0, 0);
+
+  wgpuRenderPassEncoderEnd(pass_encoder);
+  wgpuRenderPassEncoderRelease(pass_encoder);
+}
+
+/* -------------------------------------------------------------------------- *
+ * GUI
  * -------------------------------------------------------------------------- */
 
-typedef struct {
-  wgpu_context_t* wgpu_context;
-  WGPUBindGroupLayout bind_group_layout;
-  WGPUBindGroup bind_group;
-  WGPUPipelineLayout pipeline_layout;
-  WGPURenderPipeline pipeline;
-  struct {
-    WGPURenderPassColorAttachment color_att_descriptors[1];
-    WGPURenderPassDescriptor descriptor;
-  } render_pass;
-} result_renderer_t;
-
-static void result_renderer_init_defaults(result_renderer_t* this)
+static void render_gui(wgpu_context_t* wgpu_context)
 {
-  memset(this, 0, sizeof(*this));
+  UNUSED_VAR(wgpu_context);
+
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igSetNextWindowSize((ImVec2){200.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  igBegin("Cornell Box", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  /* Renderer selector */
+  if (imgui_overlay_combo_box("Renderer", &state.settings.renderer,
+                              state.renderer_names, RENDERER_COUNT)) {
+    /* Renderer changed */
+  }
+
+  /* Rotate camera checkbox */
+  igCheckbox("Rotate Camera", &state.settings.rotate_camera);
+
+  igEnd();
 }
 
-static void result_renderer_create(result_renderer_t* this,
-                                   wgpu_context_t* wgpu_context,
-                                   texture_t* texture)
-{
-  result_renderer_init_defaults(this);
-
-  this->wgpu_context = wgpu_context;
-
-  /* Bind group layout */
-  {
-    WGPUBindGroupLayoutEntry bgl_entries[2] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 0: Fragment shader image view */
-        .binding = 0,
-        .visibility = WGPUShaderStage_Fragment,
-        .texture = (WGPUTextureBindingLayout) {
-          .sampleType    = WGPUTextureSampleType_Float,
-          .viewDimension = WGPUTextureViewDimension_2D,
-          .multisampled  = false,
-        },
-        .storageTexture = {0},
-      },
-      [1] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 1: Fragment shader image sampler */
-        .binding    = 1,
-        .visibility = WGPUShaderStage_Fragment,
-        .sampler = (WGPUSamplerBindingLayout) {
-          .type = WGPUSamplerBindingType_Filtering,
-        },
-        .texture = {0},
-      }
-    };
-    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Quad - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
-    ASSERT(this->bind_group_layout != NULL);
-  }
-
-  /* Bind group */
-  {
-    WGPUBindGroupEntry bg_entries[2] = {
-      [0] = (WGPUBindGroupEntry) {
-        /* Binding 0: Fragment shader image sampler */
-        .binding     = 0,
-        .textureView = texture->view,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        /* Binding 1: Fragment shader image sampler */
-        .binding = 1,
-        .sampler = texture->sampler,
-      },
-    };
-    this->bind_group = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Quad - Bind group",
-                              .layout     = this->bind_group_layout,
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(this->bind_group != NULL);
-  }
-
-  /* Pipeline layout */
-  {
-    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
-      wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label = "Quad - Render pipeline layout",
-                              .bindGroupLayoutCount = 1,
-                              .bindGroupLayouts     = &this->bind_group_layout,
-                            });
-    ASSERT(this->pipeline_layout != NULL);
-  }
-
-  /* Render pass */
-  {
-    /* Color attachment */
-    this->render_pass.color_att_descriptors[0] = (WGPURenderPassColorAttachment) {
-        .view       = NULL, /* Assigned later */
-        .depthSlice = ~0,
-        .loadOp     = WGPULoadOp_Clear,
-        .storeOp    = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor) {
-          .r = 0.0f,
-          .g = 0.0f,
-          .b = 0.0f,
-          .a = 0.0f,
-        },
-    };
-
-    /* Depth attachment */
-    wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-    /* Render pass descriptor */
-    this->render_pass.descriptor = (WGPURenderPassDescriptor){
-      .colorAttachmentCount   = 1,
-      .colorAttachments       = this->render_pass.color_att_descriptors,
-      .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-    };
-  }
-
-  /* Render pipeline */
-  {
-    /* Primitive state */
-    WGPUPrimitiveState primitive_state = {
-      .topology  = WGPUPrimitiveTopology_TriangleList,
-      .frontFace = WGPUFrontFace_CCW,
-      .cullMode  = WGPUCullMode_None,
-    };
-
-    /* Color target state */
-    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-      .format    = wgpu_context->swap_chain.format,
-      .blend     = &blend_state,
-      .writeMask = WGPUColorWriteMask_All,
-    };
-
-    /* Depth stencil state */
-    WGPUDepthStencilState depth_stencil_state
-      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-        .format              = WGPUTextureFormat_Depth24PlusStencil8,
-        .depth_write_enabled = true,
-      });
-
-    /* Vertex state */
-    WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Vertex shader SPIR-V */
-                .label = "Quad - Vertex shader",
-                .file  = "shaders/cornell_box/quad.vert.spv",
-              },
-              .buffer_count = 0,
-              .buffers      = NULL,
-            });
-
-    /* Fragment state */
-    WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Fragment shader SPIR-V */
-                .label = "Quad - Fragment shader",
-                .file  = "shaders/cornell_box/quad.frag.spv",
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
-
-    /* Multisample state */
-    WGPUMultisampleState multisample_state
-      = wgpu_create_multisample_state_descriptor(
-        &(create_multisample_state_desc_t){
-          .sample_count = 1,
-        });
-
-    /* Render pipeline description */
-    WGPURenderPipelineDescriptor pipeline_desc = {
-      .label        = "Quad  - Render pipeline",
-      .layout       = this->pipeline_layout,
-      .primitive    = primitive_state,
-      .depthStencil = &depth_stencil_state,
-      .vertex       = vertex_state,
-      .fragment     = &fragment_state,
-      .multisample  = multisample_state,
-    };
-    this->pipeline
-      = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &pipeline_desc);
-    ASSERT(this->pipeline != NULL);
-
-    /* Partial cleanup */
-    WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-    WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-  }
-}
-
-static void result_renderer_destroy(result_renderer_t* this)
-{
-  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, this->pipeline)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
-}
-
-static void result_renderer_run(result_renderer_t* this,
-                                WGPUCommandEncoder command_encoder,
-                                WGPUTextureView frame_buffer)
-{
-  wgpu_context_t* wgpu_context = this->wgpu_context;
-
-  // Set target frame buffer
-  this->render_pass.color_att_descriptors[0].view = frame_buffer;
-
-  // Create render pass encoder for encoding drawing commands
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    command_encoder, &this->render_pass.descriptor);
-
-  // Set viewport
-  wgpuRenderPassEncoderSetViewport(
-    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-    (float)wgpu_context->surface.height, 0.0f, 1.0f);
-
-  // Set scissor rectangle
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
-
-  // Draw textured quad
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, this->pipeline);
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    this->bind_group, 0, 0);
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 3, 1, 0, 0);
-
-  // End render pass
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-}
-
-/* --------------------------------------------------------------------------
- * Cornell box example.
+/* -------------------------------------------------------------------------- *
+ * Resize handling
  * -------------------------------------------------------------------------- */
 
-// Example structs
-static struct {
-  struct {
-    texture_t input;
-    texture_t output;
-  } frame_buffer;
-  scene_t scene;
-  common_t common;
-  radiosity_t radiosity;
-  rasterizer_t rasterizer;
-  raytracer_t raytracer;
-  tonemapper_t tonemapper;
-  result_renderer_t result_renderer;
-} example = {0};
-
-// GUI
-typedef enum {
-  Renderer_Rasterizer,
-  Renderer_Raytracer,
-} renderer_t;
-
-static struct {
-  renderer_t renderer;
-  bool rotate_camera;
-} example_parms = {
-  .renderer      = Renderer_Rasterizer,
-  .rotate_camera = true,
-};
-
-static const char* renderer_names[2] = {"Rasterizer", "Raytracer"};
-
-// Other variables
-static const char* example_title = "Cornell box";
-static bool prepared             = false;
-
-static void create_frame_buffer(wgpu_context_t* wgpu_context,
-                                texture_t* frame_buffer,
-                                WGPUTextureFormat format)
+static void handle_resize(wgpu_context_t* wgpu_context)
 {
-  // Create the texture
-  WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
-    .depthOrArrayLayers = 1,
-  };
-  WGPUTextureDescriptor texture_desc = {
-    .label         = "Framebuffer - Texture",
-    .size          = texture_extent,
-    .mipLevelCount = 1,
-    .sampleCount   = 1,
-    .dimension     = WGPUTextureDimension_2D,
-    .format        = format,
-    .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_StorageBinding
-             | WGPUTextureUsage_TextureBinding,
-  };
-  *frame_buffer = (texture_t){
-    .size.width              = texture_extent.width,
-    .size.height             = texture_extent.height,
-    .size.depthOrArrayLayers = texture_extent.depthOrArrayLayers,
-    .mip_level_count         = texture_desc.mipLevelCount,
-    .format                  = texture_desc.format,
-    .dimension               = texture_desc.dimension,
-    .texture = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc),
-  };
-  ASSERT(frame_buffer->texture != NULL);
-
-  // Create the texture view
-  WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Framebuffer - Texture view",
-    .dimension       = WGPUTextureViewDimension_2D,
-    .format          = texture_desc.format,
-    .baseMipLevel    = 0,
-    .mipLevelCount   = 1,
-    .baseArrayLayer  = 0,
-    .arrayLayerCount = 1,
-  };
-  frame_buffer->view
-    = wgpuTextureCreateView(frame_buffer->texture, &texture_view_dec);
-  ASSERT(frame_buffer->view != NULL);
-
-  // Texture sampler
-  WGPUSamplerDescriptor sampler_desc = {
-    .label         = "Framebuffer - Texture sampler",
-    .addressModeU  = WGPUAddressMode_ClampToEdge,
-    .addressModeV  = WGPUAddressMode_ClampToEdge,
-    .addressModeW  = WGPUAddressMode_ClampToEdge,
-    .minFilter     = WGPUFilterMode_Linear,
-    .magFilter     = WGPUFilterMode_Linear,
-    .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
-    .lodMinClamp   = 0.0f,
-    .lodMaxClamp   = 1.0f,
-    .maxAnisotropy = 1,
-  };
-  frame_buffer->sampler
-    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(frame_buffer->sampler != NULL);
+  init_framebuffer(wgpu_context);
+  init_rasterizer_depth_texture(wgpu_context);
+  init_raytracer_bind_group(wgpu_context);
+  init_tonemapper_output_texture(wgpu_context);
+  init_tonemapper_bind_group(wgpu_context);
+  init_blit_bind_group(wgpu_context);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+/* -------------------------------------------------------------------------- *
+ * Input handling
+ * -------------------------------------------------------------------------- */
+
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  if (context) {
-    create_shader_store();
-    create_frame_buffer(context->wgpu_context, &example.frame_buffer.input,
-                        WGPUTextureFormat_RGBA16Float);
-    create_frame_buffer(context->wgpu_context, &example.frame_buffer.output,
-                        WGPUTextureFormat_BGRA8Unorm);
-    scene_create(&example.scene, context->wgpu_context);
-    common_create(&example.common, context->wgpu_context,
-                  &example.scene.quad_buffer);
-    radiosity_create(&example.radiosity, context->wgpu_context, &example.common,
-                     &example.scene);
-    rasterizer_create(&example.rasterizer, context->wgpu_context,
-                      &example.common, &example.scene, &example.radiosity,
-                      &example.frame_buffer.input);
-    raytracer_create(&example.raytracer, context->wgpu_context, &example.common,
-                     &example.radiosity, &example.frame_buffer.input);
-    tonemapper_create(&example.tonemapper, context->wgpu_context,
-                      &example.common, &example.frame_buffer.input,
-                      &example.frame_buffer.output);
-    result_renderer_create(&example.result_renderer, context->wgpu_context,
-                           &example.frame_buffer.output);
-    prepared = true;
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    handle_resize(wgpu_context);
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_CHAR) {
+    if (input_event->char_code == (uint32_t)'r') {
+      /* Toggle renderer */
+      state.settings.renderer = (state.settings.renderer + 1) % RENDERER_COUNT;
+    }
+    else if (input_event->char_code == (uint32_t)'c') {
+      /* Toggle camera rotation */
+      state.settings.rotate_camera = !state.settings.rotate_camera;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Main functions
+ * -------------------------------------------------------------------------- */
+
+static int init(wgpu_context_t* wgpu_context)
+{
+  if (wgpu_context) {
+    stm_setup();
+
+    init_scene();
+    init_scene_buffers(wgpu_context);
+    init_common_resources(wgpu_context);
+    init_framebuffer(wgpu_context);
+    init_radiosity(wgpu_context);
+    init_rasterizer(wgpu_context);
+    init_rasterizer_depth_texture(wgpu_context);
+    init_raytracer(wgpu_context);
+    init_raytracer_bind_group(wgpu_context);
+    init_tonemapper(wgpu_context);
+    init_tonemapper_bind_group(wgpu_context);
+    init_blit(wgpu_context);
+    init_blit_bind_group(wgpu_context);
+
+    imgui_overlay_init(wgpu_context);
+
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int frame(wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Settings")) {
-    int32_t current_renderer_index
-      = (example_parms.renderer == Renderer_Rasterizer) ? 0 : 1;
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Renderer",
-                                &current_renderer_index, renderer_names, 2)) {
-      example_parms.renderer = (current_renderer_index == 0) ?
-                                 Renderer_Rasterizer :
-                                 Renderer_Raytracer;
-    }
-    imgui_overlay_checkBox(context->imgui_overlay, "Rotate Camera",
-                           &example_parms.rotate_camera);
+  if (!state.initialized) {
+    return EXIT_FAILURE;
   }
-}
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  WGPUTextureView frame_buffer = wgpu_context->swap_chain.frame_buffer;
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Render GUI */
+  render_gui(wgpu_context);
 
   /* Update uniforms */
-  common_update(&example.common,
-                &(common_update_params_t){
-                  .rotate_camera = example_parms.rotate_camera,
-                  .aspect        = wgpu_context->surface.width
-                            / (float)wgpu_context->surface.height,
-                });
+  update_common_uniforms(wgpu_context);
+  update_radiosity_uniforms(wgpu_context);
 
-  /* Software raytracing */
-  radiosity_run(&example.radiosity, wgpu_context->cmd_enc);
+  WGPUCommandEncoder command_encoder
+    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
-  switch (example_parms.renderer) {
-    case Renderer_Rasterizer: {
-      rasterizer_run(&example.rasterizer, wgpu_context->cmd_enc);
-    } break;
-    case Renderer_Raytracer: {
-      raytracer_run(&example.raytracer, wgpu_context->cmd_enc);
-    } break;
+  /* Run radiosity pass */
+  run_radiosity(command_encoder);
+
+  /* Run renderer (rasterizer or raytracer) */
+  if (state.settings.renderer == RENDERER_RASTERIZER) {
+    run_rasterizer(command_encoder);
+  }
+  else {
+    run_raytracer(command_encoder);
   }
 
-  /* Tone mapping */
-  tonemapper_run(&example.tonemapper, wgpu_context->cmd_enc);
+  /* Run tonemapper (writes to intermediate RGBA8Unorm texture) */
+  run_tonemapper(command_encoder);
 
-  /* Render result */
-  result_renderer_run(&example.result_renderer, wgpu_context->cmd_enc,
-                      frame_buffer);
+  /* Blit tonemapper output to swapchain */
+  run_blit(command_encoder, wgpu_context->swapchain_view);
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  /* Get command buffer */
+  /* Submit commands */
   WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+    = wgpuCommandEncoderFinish(command_encoder, NULL);
+  wgpuQueueSubmit(wgpu_context->queue, 1, &command_buffer);
 
-  return command_buffer;
-}
+  /* Cleanup */
+  wgpuCommandBufferRelease(command_buffer);
+  wgpuCommandEncoderRelease(command_encoder);
 
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Render ImGui overlay */
+  imgui_overlay_render(wgpu_context);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
 
-  if (!prepared) {
-    return EXIT_FAILURE;
+  imgui_overlay_shutdown();
+
+  /* Common resources */
+  WGPU_RELEASE_RESOURCE(Buffer, state.common.uniform_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.common.quad_buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.common.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.common.bind_group)
+
+  /* Radiosity resources */
+  WGPU_RELEASE_RESOURCE(TextureView, state.radiosity.lightmap_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.radiosity.lightmap)
+  WGPU_RELEASE_RESOURCE(Buffer, state.radiosity.accumulation_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.radiosity.uniform_buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.radiosity.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.radiosity.bind_group)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.radiosity.radiosity_pipeline)
+  WGPU_RELEASE_RESOURCE(ComputePipeline,
+                        state.radiosity.accumulation_to_lightmap_pipeline)
+
+  /* Rasterizer resources */
+  WGPU_RELEASE_RESOURCE(Buffer, state.rasterizer.vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.rasterizer.index_buffer)
+  WGPU_RELEASE_RESOURCE(TextureView, state.rasterizer.depth_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.rasterizer.depth_texture)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.rasterizer.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.rasterizer.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.rasterizer.pipeline)
+  WGPU_RELEASE_RESOURCE(Sampler, state.rasterizer.sampler)
+
+  /* Raytracer resources */
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.raytracer.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.raytracer.bind_group)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.raytracer.pipeline)
+  WGPU_RELEASE_RESOURCE(Sampler, state.raytracer.sampler)
+
+  /* Tonemapper resources */
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.tonemapper.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.tonemapper.bind_group)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.tonemapper.pipeline)
+  WGPU_RELEASE_RESOURCE(TextureView, state.tonemapper.output_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.tonemapper.output_texture)
+
+  /* Blit resources */
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.blit.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.blit.bind_group)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.blit.pipeline)
+  WGPU_RELEASE_RESOURCE(Sampler, state.blit.sampler)
+
+  /* Framebuffer resources */
+  WGPU_RELEASE_RESOURCE(TextureView, state.framebuffer.view)
+  WGPU_RELEASE_RESOURCE(Texture, state.framebuffer.texture)
+}
+
+int main(void)
+{
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Cornell Box",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
+  });
+
+  return EXIT_SUCCESS;
+}
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* common_shader_wgsl = CODE(
+  const pi = 3.14159265359;
+
+  // Quad describes 2D rectangle on a plane
+  struct Quad {
+    // The surface plane
+    plane    : vec4f,
+    // A plane with a normal in the 'u' direction, intersecting the origin, at
+    // right-angles to the surface plane.
+    right    : vec4f,
+    // A plane with a normal in the 'v' direction, intersecting the origin, at
+    // right-angles to the surface plane.
+    up       : vec4f,
+    // The diffuse color of the quad
+    color    : vec3f,
+    // Emissive value. 0=no emissive, 1=full emissive.
+    emissive : f32,
+  };
+
+  // Ray is a start point and direction.
+  struct Ray {
+    start : vec3f,
+    dir   : vec3f,
   }
 
-  return example_draw(context);
-}
+  // Value for HitInfo.quad if no intersection occured.
+  const kNoHit = 0xffffffff;
 
-// Clean up used resources
-static void example_destroy(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
+  // HitInfo describes the hit location of a ray-quad intersection
+  struct HitInfo {
+    // Distance along the ray to the intersection
+    dist : f32,
+    // The quad index that was hit
+    quad : u32,
+    // The position of the intersection
+    pos : vec3f,
+    // The UVs of the quad at the point of intersection
+    uv : vec2f,
+  }
 
-  destroy_shader_store();
-  wgpu_destroy_texture(&example.frame_buffer.input);
-  wgpu_destroy_texture(&example.frame_buffer.output);
-  result_renderer_destroy(&example.result_renderer);
-  tonemapper_destroy(&example.tonemapper);
-  raytracer_destroy(&example.raytracer);
-  rasterizer_destroy(&example.rasterizer);
-  radiosity_destroy(&example.radiosity);
-  common_destroy(&example.common);
-  scene_destroy(&example.scene);
-}
+  // CommonUniforms uniform buffer data
+  struct CommonUniforms {
+    // Model View Projection matrix
+    mvp : mat4x4f,
+    // Inverse of mvp
+    inv_mvp : mat4x4f,
+    // Random seed for the workgroup
+    seed : vec3u,
+  }
 
-void example_cornell_box(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-      .title   = example_title,
-      .overlay = true,
-      .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy
-  });
-  // clang-format on
-}
+  // The common uniform buffer binding.
+  @group(0) @binding(0) var<uniform> common_uniforms : CommonUniforms;
+
+  // The quad buffer binding.
+  @group(0) @binding(1) var<storage> quads : array<Quad>;
+
+  // intersect_ray_quad will check to see if the ray 'r' intersects the quad 'q'.
+  fn intersect_ray_quad(r : Ray, quad : u32, closest : HitInfo) -> HitInfo {
+    let q = quads[quad];
+    let plane_dist = dot(q.plane, vec4(r.start, 1));
+    let ray_dist = plane_dist / -dot(q.plane.xyz, r.dir);
+    let pos = r.start + r.dir * ray_dist;
+    let uv = vec2(dot(vec4f(pos, 1), q.right),
+                  dot(vec4f(pos, 1), q.up)) * 0.5 + 0.5;
+    let hit = plane_dist > 0 &&
+              ray_dist > 0 &&
+              ray_dist < closest.dist &&
+              all((uv > vec2f()) & (uv < vec2f(1)));
+    return HitInfo(
+      select(closest.dist, ray_dist, hit),
+      select(closest.quad, quad,     hit),
+      select(closest.pos,  pos,      hit),
+      select(closest.uv,   uv,       hit),
+    );
+  }
+
+  // raytrace finds the closest intersecting quad for the given ray
+  fn raytrace(ray : Ray) -> HitInfo {
+    var hit = HitInfo();
+    hit.dist = 1e20;
+    hit.quad = kNoHit;
+    for (var quad = 0u; quad < arrayLength(&quads); quad++) {
+      hit = intersect_ray_quad(ray, quad, hit);
+    }
+    return hit;
+  }
+
+  // A pseudo random number. Initialized with init_rand(), updated with rand().
+  var<private> rnd : vec3u;
+
+  // Initializes the random number generator.
+  fn init_rand(invocation_id : vec3u) {
+    const A = vec3(1741651 * 1009,
+                   140893  * 1609 * 13,
+                   6521    * 983  * 7 * 2);
+    rnd = (invocation_id * A) ^ common_uniforms.seed;
+  }
+
+  // Returns a random number between 0 and 1.
+  fn rand() -> f32 {
+    const C = vec3(60493  * 9377,
+                   11279  * 2539 * 23,
+                   7919   * 631  * 5 * 3);
+
+    rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
+    return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
+  }
+
+  // Returns a random point within a unit sphere centered at (0,0,0).
+  fn rand_unit_sphere() -> vec3f {
+      var u = rand();
+      var v = rand();
+      var theta = u * 2.0 * pi;
+      var phi = acos(2.0 * v - 1.0);
+      var r = pow(rand(), 1.0/3.0);
+      var sin_theta = sin(theta);
+      var cos_theta = cos(theta);
+      var sin_phi = sin(phi);
+      var cos_phi = cos(phi);
+      var x = r * sin_phi * sin_theta;
+      var y = r * sin_phi * cos_theta;
+      var z = r * cos_phi;
+      return vec3f(x, y, z);
+  }
+
+  fn rand_concentric_disk() -> vec2f {
+      let u = vec2f(rand(), rand());
+      let uOffset = 2.f * u - vec2f(1, 1);
+
+      if (uOffset.x == 0 && uOffset.y == 0){
+          return vec2f(0, 0);
+      }
+
+      var theta = 0.0;
+      var r = 0.0;
+      if (abs(uOffset.x) > abs(uOffset.y)) {
+          r = uOffset.x;
+          theta = (pi / 4) * (uOffset.y / uOffset.x);
+      } else {
+          r = uOffset.y;
+          theta = (pi / 2) - (pi / 4) * (uOffset.x / uOffset.y);
+      }
+      return r * vec2f(cos(theta), sin(theta));
+  }
+
+  fn rand_cosine_weighted_hemisphere() -> vec3f {
+      let d = rand_concentric_disk();
+      let z = sqrt(max(0.0, 1.0 - d.x * d.x - d.y * d.y));
+      return vec3f(d.x, d.y, z);
+  }
+);
+
+static const char* radiosity_shader_wgsl = CODE(
+  // A storage buffer holding an array of atomic<u32>.
+  @group(1) @binding(0)
+  var<storage, read_write> accumulation : array<atomic<u32>>;
+
+  // The output lightmap texture.
+  @group(1) @binding(1)
+  var lightmap : texture_storage_2d_array<rgba16float, write>;
+
+  // Uniform data used by the accumulation_to_lightmap entry point
+  struct Uniforms {
+    accumulation_to_lightmap_scale : f32,
+    accumulation_buffer_scale : f32,
+    light_width : f32,
+    light_height : f32,
+    light_center : vec3f,
+  }
+
+  @group(1) @binding(2) var<uniform> uniforms : Uniforms;
+
+  override PhotonsPerWorkgroup : u32;
+  override PhotonEnergy : f32;
+
+  const PhotonBounces = 4;
+  const LightAbsorbtion = 0.5;
+
+  @compute @workgroup_size(PhotonsPerWorkgroup)
+  fn radiosity(@builtin(global_invocation_id) invocation_id : vec3u) {
+    init_rand(invocation_id);
+    photon();
+  }
+
+  fn photon() {
+    var ray = new_light_ray();
+    var color = PhotonEnergy * vec3f(1, 0.8, 0.6);
+
+    for (var i = 0; i < (PhotonBounces+1); i++) {
+      let hit = raytrace(ray);
+      let quad = quads[hit.quad];
+
+      ray.start = hit.pos + quad.plane.xyz * 1e-5;
+      ray.dir = normalize(reflect(ray.dir, quad.plane.xyz) + rand_unit_sphere() * 0.75);
+
+      color *= quad.color;
+      accumulate(hit.uv, hit.quad, color * LightAbsorbtion);
+      color *= 1 - LightAbsorbtion;
+    }
+  }
+
+  fn accumulate(uv : vec2f, quad : u32, color : vec3f) {
+    let dims = textureDimensions(lightmap);
+    let base_idx = accumulation_base_index(vec2u(uv * vec2f(dims)), quad);
+    atomicAdd(&accumulation[base_idx + 0], u32(color.r + 0.5));
+    atomicAdd(&accumulation[base_idx + 1], u32(color.g + 0.5));
+    atomicAdd(&accumulation[base_idx + 2], u32(color.b + 0.5));
+  }
+
+  fn accumulation_base_index(coord : vec2u, quad : u32) -> u32 {
+    let dims = textureDimensions(lightmap);
+    let c = min(vec2u(dims) - 1, coord);
+    return 3 * (c.x + dims.x * c.y + dims.x * dims.y * quad);
+  }
+
+  fn new_light_ray() -> Ray {
+    let center = uniforms.light_center;
+    let pos = center + vec3f(uniforms.light_width * (rand() - 0.5),
+                             0,
+                             uniforms.light_height * (rand() - 0.5));
+    var dir = rand_cosine_weighted_hemisphere().xzy;
+    dir.y = -dir.y;
+    return Ray(pos, dir);
+  }
+
+  override AccumulationToLightmapWorkgroupSizeX : u32;
+  override AccumulationToLightmapWorkgroupSizeY : u32;
+
+  @compute @workgroup_size(AccumulationToLightmapWorkgroupSizeX, AccumulationToLightmapWorkgroupSizeY)
+  fn accumulation_to_lightmap(@builtin(global_invocation_id) invocation_id : vec3u,
+                              @builtin(workgroup_id)         workgroup_id  : vec3u) {
+    let dims = textureDimensions(lightmap);
+    let quad = workgroup_id.z;
+    let coord = invocation_id.xy;
+    if (all(coord < dims)) {
+      let base_idx = accumulation_base_index(coord, quad);
+      let color = vec3(f32(atomicLoad(&accumulation[base_idx + 0])),
+                       f32(atomicLoad(&accumulation[base_idx + 1])),
+                       f32(atomicLoad(&accumulation[base_idx + 2])));
+
+      textureStore(lightmap, coord, quad, vec4(color * uniforms.accumulation_to_lightmap_scale, 1));
+
+      if (uniforms.accumulation_buffer_scale != 1.0) {
+        let scaled = color * uniforms.accumulation_buffer_scale + 0.5;
+        atomicStore(&accumulation[base_idx + 0], u32(scaled.r));
+        atomicStore(&accumulation[base_idx + 1], u32(scaled.g));
+        atomicStore(&accumulation[base_idx + 2], u32(scaled.b));
+      }
+    }
+  }
+);
+
+static const char* rasterizer_shader_wgsl = CODE(
+  // The lightmap data
+  @group(1) @binding(0) var lightmap : texture_2d_array<f32>;
+
+  // The sampler used to sample the lightmap
+  @group(1) @binding(1) var smpl : sampler;
+
+  // Vertex shader input data
+  struct VertexIn {
+    @location(0) position : vec4f,
+    @location(1) uv : vec3f,
+    @location(2) emissive : vec3f,
+  }
+
+  // Vertex shader output data
+  struct VertexOut {
+    @builtin(position) position : vec4f,
+    @location(0) uv : vec2f,
+    @location(1) emissive : vec3f,
+    @interpolate(flat)
+    @location(2) quad : u32,
+  }
+
+  @vertex
+  fn vs_main(input : VertexIn) -> VertexOut {
+    var output : VertexOut;
+    output.position = common_uniforms.mvp * input.position;
+    output.uv = input.uv.xy;
+    output.quad = u32(input.uv.z + 0.5);
+    output.emissive = input.emissive;
+    return output;
+  }
+
+  @fragment
+  fn fs_main(vertex_out : VertexOut) -> @location(0) vec4f {
+    return textureSample(lightmap, smpl, vertex_out.uv, vertex_out.quad) + vec4f(vertex_out.emissive, 1);
+  }
+);
+
+static const char* raytracer_shader_wgsl = CODE(
+  // The lightmap data
+  @group(1) @binding(0) var lightmap : texture_2d_array<f32>;
+
+  // The sampler used to sample the lightmap
+  @group(1) @binding(1) var smpl : sampler;
+
+  // The output framebuffer
+  @group(1) @binding(2) var framebuffer : texture_storage_2d<rgba16float, write>;
+
+  override WorkgroupSizeX : u32;
+  override WorkgroupSizeY : u32;
+
+  const NumReflectionRays = 5;
+
+  @compute @workgroup_size(WorkgroupSizeX, WorkgroupSizeY)
+  fn main(@builtin(global_invocation_id) invocation_id : vec3u) {
+    if (all(invocation_id.xy < textureDimensions(framebuffer))) {
+      init_rand(invocation_id);
+
+      let uv = vec2f(invocation_id.xy) / vec2f(textureDimensions(framebuffer).xy);
+      let ndcXY = (uv - 0.5) * vec2(2, -2);
+
+      var near = common_uniforms.inv_mvp * vec4f(ndcXY, 0.0, 1);
+      var far = common_uniforms.inv_mvp * vec4f(ndcXY, 1, 1);
+      near /= near.w;
+      far /= far.w;
+
+      let ray = Ray(near.xyz, normalize(far.xyz - near.xyz));
+      let hit = raytrace(ray);
+
+      let hit_color = sample_hit(hit);
+      var normal = quads[hit.quad].plane.xyz;
+
+      let bounce = reflect(ray.dir, normal);
+      var reflection : vec3f;
+      for (var i = 0; i < NumReflectionRays; i++) {
+        let reflection_dir = normalize(bounce + rand_unit_sphere()*0.1);
+        let reflection_ray = Ray(hit.pos + bounce * 1e-5, reflection_dir);
+        let reflection_hit = raytrace(reflection_ray);
+        reflection += sample_hit(reflection_hit);
+      }
+      let color = mix(reflection / NumReflectionRays, hit_color, 0.95);
+
+      textureStore(framebuffer, invocation_id.xy, vec4(color, 1));
+    }
+  }
+
+  fn sample_hit(hit : HitInfo) -> vec3f {
+    let quad = quads[hit.quad];
+    return textureSampleLevel(lightmap, smpl, hit.uv, hit.quad, 0).rgb +
+           quad.emissive * quad.color;
+  }
+);
+// clang-format on
