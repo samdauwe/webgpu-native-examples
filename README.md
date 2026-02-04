@@ -419,6 +419,12 @@ A classic Cornell box, using a lightmap generated using software ray-tracing.
 
 Load and render a 2D text overlay created from the bitmap glyph data of a [stb font file](https://nothings.org/stb/font/). This data is uploaded as a texture and used for displaying text on top of a 3D scene in a second pass.
 
+#### [Text rendering MSDF](src/examples/text_rendering_msdf.c)
+
+This example uses multichannel signed distance fields (MSDF) to render text. MSDF fonts are more complex to implement than using Canvas 2D to generate text, but the resulting text looks smoother while using less memory than the Canvas 2D approach, especially at high zoom levels. They can be used to render larger amounts of text efficiently.
+
+The font texture is generated using [Don McCurdy's MSDF font generation tool](https://msdf-bmfont.donmccurdy.com/), which is built on [Viktor Chlumský's msdfgen library](https://github.com/Chlumsky/msdfgen).
+
 #### [ImGui overlay](src/examples/imgui_overlay.c)
 
 Generates and renders a complex user interface with multiple windows, controls and user interaction on top of a 3D scene. The UI is generated using [Dear ImGUI](https://github.com/ocornut/imgui) and updated each frame.
