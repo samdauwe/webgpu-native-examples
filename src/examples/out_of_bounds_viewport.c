@@ -1,15 +1,39 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Out-of-bounds Viewport
  *
- * WebGPU doesn't let you set the viewport’s values to be out-of-bounds.
- * Therefore, the viewport’s values need to be clamped to the screen-size, which
- * means the viewport values can’t be defined in a way that makes the viewport
+ * WebGPU doesn't let you set the viewport's values to be out-of-bounds.
+ * Therefore, the viewport's values need to be clamped to the screen-size, which
+ * means the viewport values can't be defined in a way that makes the viewport
  * go off the screen. This example shows how to render a viewport out-of-bounds.
  *
  * Ref:
@@ -20,398 +44,438 @@
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
-static const char* vertex_shader_wgsl;
-static const char* fragment_shader_wgsl;
+static const char* out_of_bounds_viewport_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Out-of-bounds Viewport example
  * -------------------------------------------------------------------------- */
 
-/* Uniform buffer block object */
-static wgpu_buffer_t uniform_buffer_vs = {0};
-
-/* Uniform block data - inputs of the shader */
-static struct {
+/* Viewport uniform buffer data */
+typedef struct viewport_params_t {
   float x;
   float y;
   float width;
   float height;
-} viewport_params = {
-  .x      = 0.0f,
-  .y      = 0.0f,
-  .width  = 1.0f,
-  .height = 1.0f,
+} viewport_params_t;
+
+/* State struct */
+static struct {
+  wgpu_texture_t texture;
+  uint8_t file_buffer[512 * 512 * 4];
+  struct {
+    WGPUBindGroup handle;
+    bool is_dirty;
+  } bind_group;
+  WGPUBindGroupLayout bind_group_layout;
+  wgpu_buffer_t uniform_buffer;
+  WGPURenderPipeline pipeline;
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  viewport_params_t viewport_params;
+  uint64_t last_frame_time;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1f, 0.2f, 0.3f, 1.0f},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+  .viewport_params = {
+    .x      = 0.0f,
+    .y      = 0.0f,
+    .width  = 1.0f,
+    .height = 1.0f,
+  },
 };
 
-/* Texture and sampler */
-static texture_t texture = {0};
+/**
+ * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
+ * or when an error has occurred.
+ */
+static void fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    return;
+  }
 
-/* The pipeline layout */
-static WGPUPipelineLayout pipeline_layout = NULL;
+  /* The file data has been fetched, since we provided a big-enough buffer we
+   * can be sure that all data has been loaded here */
+  int img_width, img_height, num_channels;
+  const int desired_channels = 4;
+  stbi_uc* pixels            = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
+  if (pixels) {
+    wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
+    texture->desc = (wgpu_texture_desc_t){
+      .extent = (WGPUExtent3D){
+        .width              = img_width,
+        .height             = img_height,
+        .depthOrArrayLayers = 1,
+      },
+      .format = WGPUTextureFormat_RGBA8Unorm,
+      .pixels = {
+        .ptr  = pixels,
+        .size = img_width * img_height * 4,
+      },
+    };
+    texture->desc.is_dirty = true;
+  }
+}
 
-/* Pipeline */
-static WGPURenderPipeline pipeline = NULL;
+/* Initialize texture - use color bars as placeholder while loading */
+static void init_texture(wgpu_context_t* wgpu_context)
+{
+  state.texture           = wgpu_create_color_bars_texture(wgpu_context, NULL);
+  wgpu_texture_t* texture = &state.texture;
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/Di-3d.png",
+    .callback = fetch_callback,
+    .buffer   = SFETCH_RANGE(state.file_buffer),
+    .user_data = {
+      .ptr  = &texture,
+      .size = sizeof(wgpu_texture_t*),
+    },
+  });
+}
 
-/* Render pass descriptor for frame buffer writes */
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
+/* Initialize uniform buffer */
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  state.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Out-of-bounds Viewport - Uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(viewport_params_t),
+                    .initial.data = &state.viewport_params,
+                  });
+  ASSERT(state.uniform_buffer.buffer != NULL);
+}
 
-/* The bind group layout */
-static WGPUBindGroupLayout bind_group_layout = NULL;
+/* Update uniform buffer with current viewport parameters */
+static void update_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
+                       &state.viewport_params, sizeof(viewport_params_t));
+}
 
-/* The bind group */
-static WGPUBindGroup bind_group = NULL;
-
-/* Other variables */
-static const char* example_title = "Out-of-bounds Viewport";
-static bool prepared             = false;
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
+/* Initialize bind group layout */
+static void init_bind_group_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayoutEntry bgl_entries[3] = {
-    [0] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 1: Vertex shader uniform buffer */
+    [0] = (WGPUBindGroupLayoutEntry){
+      /* Binding 0: Vertex shader uniform buffer */
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
-      .buffer = (WGPUBufferBindingLayout) {
+      .buffer = (WGPUBufferBindingLayout){
         .type             = WGPUBufferBindingType_Uniform,
         .hasDynamicOffset = false,
-        .minBindingSize   = sizeof(viewport_params),
+        .minBindingSize   = sizeof(viewport_params_t),
       },
       .sampler = {0},
     },
-    [1] = (WGPUBindGroupLayoutEntry) {
+    [1] = (WGPUBindGroupLayoutEntry){
       /* Binding 1: Fragment shader texture view */
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
-      .texture = (WGPUTextureBindingLayout) {
+      .texture = (WGPUTextureBindingLayout){
         .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
         .multisampled  = false,
       },
       .storageTexture = {0},
     },
-    [2] = (WGPUBindGroupLayoutEntry) {
+    [2] = (WGPUBindGroupLayoutEntry){
       /* Binding 2: Fragment shader texture sampler */
       .binding    = 2,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
-        .type  = WGPUSamplerBindingType_Filtering,
+        .type = WGPUSamplerBindingType_Filtering,
       },
       .texture = {0},
     },
   };
-  bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+  state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = "Out-of-bounds Viewport - Bind group layout",
+      .label      = STRVIEW("Out-of-bounds Viewport - Bind group layout"),
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     });
-  ASSERT(bind_group_layout != NULL);
-
-  // Create the pipeline layout
-  pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = "Out-of-bounds Viewport - Pipeline layout",
-                            .bindGroupLayoutCount = 1,
-                            .bindGroupLayouts     = &bind_group_layout,
-                          });
-  ASSERT(pipeline_layout != NULL);
+  ASSERT(state.bind_group_layout != NULL);
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+/* Initialize bind group */
+static void init_bind_group(wgpu_context_t* wgpu_context)
 {
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group.handle)
+
   WGPUBindGroupEntry bg_entries[3] = {
-    [0] = (WGPUBindGroupEntry) {
+    [0] = (WGPUBindGroupEntry){
       .binding = 0,
-      .buffer  = uniform_buffer_vs.buffer,
+      .buffer  = state.uniform_buffer.buffer,
       .offset  = 0,
-      .size    = uniform_buffer_vs.size,
+      .size    = state.uniform_buffer.size,
     },
-    [1] = (WGPUBindGroupEntry) {
+    [1] = (WGPUBindGroupEntry){
       .binding     = 1,
-      .textureView = texture.view,
+      .textureView = state.texture.view,
     },
-    [2] = (WGPUBindGroupEntry) {
+    [2] = (WGPUBindGroupEntry){
       .binding = 2,
-      .sampler = texture.sampler,
+      .sampler = state.texture.sampler,
     },
   };
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Out-of-bounds Viewport - Bind group",
-    .layout     = bind_group_layout,
+    .label      = STRVIEW("Out-of-bounds Viewport - Bind group"),
+    .layout     = state.bind_group_layout,
     .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
     .entries    = bg_entries,
   };
-  bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(bind_group != NULL);
+  state.bind_group.handle
+    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  ASSERT(state.bind_group.handle != NULL);
+  state.bind_group.is_dirty = false;
 }
 
-static void prepare_texture(wgpu_context_t* wgpu_context)
+/* Initialize render pipeline */
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  const char* file = "textures/Di-3d.png";
-  texture          = wgpu_create_texture_from_file(wgpu_context, file, NULL);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  UNUSED_VAR(wgpu_context);
-
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.3f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                = "Out-of-bounds Viewport - Render pass descriptor",
-    .colorAttachmentCount = 1,
-    .colorAttachments     = render_pass.color_attachments,
-  };
-}
-
-static void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  wgpu_queue_write_buffer(context->wgpu_context, uniform_buffer_vs.buffer, 0,
-                          &viewport_params, uniform_buffer_vs.size);
-}
-
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
-{
-  uniform_buffer_vs = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label        = "Vertex shader - Uniform buffer",
-      .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size         = sizeof(viewport_params),
-      .initial.data = &viewport_params,
+  /* Create pipeline layout */
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label = STRVIEW("Out-of-bounds Viewport - Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.bind_group_layout,
     });
-}
+  ASSERT(pipeline_layout != NULL);
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
-{
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
+  /* Create shader module */
+  WGPUShaderModule shader_module = wgpu_create_shader_module(
+    wgpu_context->device, out_of_bounds_viewport_shader_wgsl);
+  ASSERT(shader_module != NULL);
 
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
-
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                    wgpu_context, &(wgpu_vertex_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      /* Vertex shader WGSL */
-                      .label            = "Out-of-bounds Viewport - Vertex shader WGSL",
-                      .wgsl_code.source = vertex_shader_wgsl,
-                      .entry            = "vertex_main",
-                    },
-                    .buffer_count = 0,
-                    .buffers      = NULL,
-                  });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                    wgpu_context, &(wgpu_fragment_state_t){
-                    .shader_desc = (wgpu_shader_desc_t){
-                      /* Fragment shader WGSL */
-                      .label            = "Out-of-bounds Viewport - Fragment shader WGSL",
-                      .wgsl_code.source = fragment_shader_wgsl,
-                      .entry            = "fragment_main",
-                    },
-                    .target_count = 1,
-                    .targets      = &color_target_state,
-                  });
-
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  /* Create rendering pipeline using the specified states */
-  pipeline = wgpuDeviceCreateRenderPipeline(
+  /* Create render pipeline */
+  state.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label = "Out-of-bounds Viewport - Render pipeline",
-                            .layout      = pipeline_layout,
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(pipeline != NULL);
+      .label  = STRVIEW("Out-of-bounds Viewport - Render pipeline"),
+      .layout = pipeline_layout,
+      .vertex = {
+        .module     = shader_module,
+        .entryPoint = STRVIEW("vertex_main"),
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .frontFace = WGPUFrontFace_CCW,
+        .cullMode  = WGPUCullMode_None,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module     = shader_module,
+        .entryPoint = STRVIEW("fragment_main"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format    = wgpu_context->render_format,
+          .blend     = &(WGPUBlendState){
+            .color = {
+              .operation = WGPUBlendOperation_Add,
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_Zero,
+            },
+            .alpha = {
+              .operation = WGPUBlendOperation_Add,
+              .srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_Zero,
+            },
+          },
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .multisample = {
+        .count = 1,
+        .mask  = ~0u,
+      },
+    });
+  ASSERT(state.pipeline != NULL);
 
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  /* Cleanup */
+  WGPU_RELEASE_RESOURCE(ShaderModule, shader_module);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+/* Initialize example */
+static int init(wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    prepare_texture(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    setup_pipeline_layout(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    prepare_pipelines(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
+  if (wgpu_context) {
+    /* Initialize timing and fetch */
+    stm_setup();
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+    });
+
+    /* Initialize resources */
+    init_texture(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_bind_group_layout(wgpu_context);
+    init_bind_group(wgpu_context);
+    init_pipeline(wgpu_context);
+
+    /* Initialize ImGui overlay */
+    imgui_overlay_init(wgpu_context);
+
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+/* Render GUI panel */
+static void render_gui(void)
 {
-  if (imgui_overlay_header("Viewport")) {
-    if (imgui_overlay_slider_float(context->imgui_overlay, "x",
-                                   &viewport_params.x, -0.5f, 0.5f, "%.2f")) {
-      update_uniform_buffers(context);
-    }
-    if (imgui_overlay_slider_float(context->imgui_overlay, "y",
-                                   &viewport_params.y, -0.5f, 0.5f, "%.2f")) {
-      update_uniform_buffers(context);
-    }
-    if (imgui_overlay_slider_float(context->imgui_overlay, "width",
-                                   &viewport_params.width, 0.f, 2.f, "%.2f")) {
-      viewport_params.width += 0.000001f;
-      update_uniform_buffers(context);
-    }
-    if (imgui_overlay_slider_float(context->imgui_overlay, "height",
-                                   &viewport_params.height, 0.f, 2.f, "%.2f")) {
-      viewport_params.height += 0.000001f;
-      update_uniform_buffers(context);
-    }
-  }
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igSetNextWindowSize((ImVec2){300.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  igBegin("Viewport Parameters", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+  imgui_overlay_slider_float("X", &state.viewport_params.x, -0.5f, 0.5f,
+                             "%.2f");
+  imgui_overlay_slider_float("Y", &state.viewport_params.y, -0.5f, 0.5f,
+                             "%.2f");
+  imgui_overlay_slider_float("Width", &state.viewport_params.width, 0.0f, 2.0f,
+                             "%.2f");
+  imgui_overlay_slider_float("Height", &state.viewport_params.height, 0.0f,
+                             2.0f, "%.2f");
+  igEnd();
 }
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
+/* Frame render function */
+static int frame(wgpu_context_t* wgpu_context)
 {
-  /* Set target frame buffer */
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
+
+  /* Process async file loading */
+  sfetch_dowork();
+
+  /* Recreate texture when pixel data loaded */
+  if (state.texture.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.texture);
+    FREE_TEXTURE_PIXELS(state.texture);
+    /* Update the bind group */
+    init_bind_group(wgpu_context);
+  }
+
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+
+  /* Update uniform buffer */
+  update_uniform_buffer(wgpu_context);
+
+  /* Get device and queue */
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  /* Update render pass color attachment */
+  state.color_attachment.view = wgpu_context->swapchain_view;
 
   /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
-  /* Create render pass encoder for encoding drawing commands */
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &render_pass.descriptor);
+  /* Begin render pass */
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  /* Bind the rendering pipeline */
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc, pipeline);
-
-  /* Set the bind group */
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0, bind_group, 0,
+  /* Record render commands */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_group.handle, 0,
                                     0);
-
-  /* Set viewport */
-  wgpuRenderPassEncoderSetViewport(
-    wgpu_context->rpass_enc, 0.0f, 0.0f, (float)wgpu_context->surface.width,
-    (float)wgpu_context->surface.height, 0.0f, 1.0f);
-
-  /* Set scissor rectangle */
-  wgpuRenderPassEncoderSetScissorRect(wgpu_context->rpass_enc, 0u, 0u,
-                                      wgpu_context->surface.width,
-                                      wgpu_context->surface.height);
-
-  /* Draw indexed quad */
-  wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, 6, 1, 0, 0);
+  wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
+                                   (float)wgpu_context->width,
+                                   (float)wgpu_context->height, 0.0f, 1.0f);
+  wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0u, 0u,
+                                      (uint32_t)wgpu_context->width,
+                                      (uint32_t)wgpu_context->height);
+  wgpuRenderPassEncoderDraw(rpass_enc, 6, 1, 0, 0);
 
   /* End render pass */
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  wgpuRenderPassEncoderEnd(rpass_enc);
 
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit command buffer */
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
-  return command_buffer;
-}
+  /* Render GUI */
+  render_gui();
 
-static int example_draw(wgpu_example_context_t* context)
-{
-  wgpu_context_t* wgpu_context = context->wgpu_context;
-
-  /* Update the uniform buffers */
-  update_uniform_buffers(context);
-
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit command buffer to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
+  /* Render ImGui overlay */
+  imgui_overlay_render(wgpu_context);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+/* Cleanup resources */
+static void shutdown(wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  /* Shutdown fetch and ImGui */
+  sfetch_shutdown();
+  imgui_overlay_shutdown();
+
+  /* Release resources */
+  wgpu_destroy_texture(&state.texture);
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bind_group_layout);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_group.handle);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline);
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+/* Input event callback for ImGui interaction */
+static void input_event_cb(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
 {
-  camera_release(context->camera);
-  wgpu_destroy_texture(&texture);
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffer_vs.buffer)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_group)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipeline)
+  imgui_overlay_handle_input(wgpu_context, event);
 }
 
-void example_out_of_bounds_viewport(int argc, char* argv[])
+/* Example entry point */
+int main(int argc, char* argv[])
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = example_title,
-     .overlay = true,
-     .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  UNUSED_VAR(argc);
+  UNUSED_VAR(argv);
+
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Out-of-bounds Viewport",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -419,7 +483,7 @@ void example_out_of_bounds_viewport(int argc, char* argv[])
  * -------------------------------------------------------------------------- */
 
 // clang-format off
-static const char* vertex_shader_wgsl = CODE(
+static const char* out_of_bounds_viewport_shader_wgsl = CODE(
   struct Viewport {
     x : f32,
     y : f32,
@@ -430,7 +494,7 @@ static const char* vertex_shader_wgsl = CODE(
   @group(0) @binding(0)
   var<uniform> viewport : Viewport;
 
-  struct VertexOutput{
+  struct VertexOutput {
     @builtin(position) Position : vec4<f32>,
     @location(0) fragUV : vec2<f32>,
   }
@@ -439,13 +503,12 @@ static const char* vertex_shader_wgsl = CODE(
   fn vertex_main(
     @builtin(vertex_index) VertexIndex : u32
   ) -> VertexOutput {
-
     var pos = array<vec2<f32>, 6>(
       vec2( 1.0,  1.0),  vec2( 1.0, -1.0), vec2(-1.0, -1.0),
       vec2( 1.0,  1.0),  vec2(-1.0, -1.0), vec2(-1.0,  1.0)
     );
 
-    const uv = array(
+    let uv = array(
       vec2( 1.0,  0.0),  vec2( 1.0,  1.0), vec2( 0.0,  1.0),
       vec2( 1.0,  0.0),  vec2( 0.0,  1.0), vec2( 0.0,  0.0)
     );
@@ -458,26 +521,23 @@ static const char* vertex_shader_wgsl = CODE(
 
     var output : VertexOutput;
     output.Position = position;
-    output.fragUV =  uv[VertexIndex];
+    output.fragUV = uv[VertexIndex];
 
     return output;
   }
-);
 
-static const char* fragment_shader_wgsl = CODE(
   @group(0) @binding(1) var myTexture : texture_2d<f32>;
   @group(0) @binding(2) var mySampler : sampler;
 
   @fragment
   fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
-    // PIXELATE
-    var dx:f32 = 8.0 / 640.0;
-    var dy:f32 = 8.0 / 640.0;
-    var uv:vec2<f32> = vec2(dx*(floor(fragUV.x/dx)), dy*(floor(fragUV.y/dy)));
+    let dx: f32 = 8.0 / 640.0;
+    let dy: f32 = 8.0 / 640.0;
+    let uv: vec2<f32> = vec2(dx * floor(fragUV.x / dx), dy * floor(fragUV.y / dy));
 
-    var color:vec3<f32> = (textureSample(myTexture, mySampler, uv)).rgb;
+    let color: vec3<f32> = textureSample(myTexture, mySampler, uv).rgb;
 
-    return  vec4<f32>(color, 1.0);
+    return vec4<f32>(color, 1.0);
   }
 );
 // clang-format on
