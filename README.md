@@ -213,10 +213,6 @@ The original raw data is generated using [the BrainWeb Simulated Brain Database]
 
 This example shows how to render an equirectangular panorama consisting of a single rectangular image. The equirectangular input can be used for a 360 degrees viewing experience to achieve more realistic surroundings and convincing real-time effects.
 
-#### [Basis Universal texture loading](src/examples/basisu.c)
-
-This example shows how to how to load [Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures in a WebGPU application.
-
 #### [Blending](src/examples/blending.c)
 
 This example demonstrates the use of blending in WebGPU. It shows how to configure different blend operations, source factors, and destination factors for both color and alpha channels. The example displays two overlapping images with various blend modes that can be selected through a GUI.
