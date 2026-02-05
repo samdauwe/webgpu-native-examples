@@ -1101,7 +1101,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_texture_desc = {
-    .label = STRVIEW("Depth texture"),
+    .label = STRVIEW("Depth - Texture"),
     .usage = WGPUTextureUsage_RenderAttachment,
     .dimension      = WGPUTextureDimension_2D,
     .size           = {
