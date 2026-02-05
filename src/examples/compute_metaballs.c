@@ -58,10 +58,25 @@ static const uint32_t VOLUME_DEPTH  = 64;
  * Shader variables - declared at top, code at bottom of file
  * -------------------------------------------------------------------------- */
 
-static const char* metaball_field_compute_shader;
+static const char* bloom_blur_compute_shader;
+static const char* bloom_pass_fragment_shader;
+static const char* box_outline_fragment_shader;
+static const char* box_outline_vertex_shader;
+static const char* copy_pass_fragment_shader;
+static const char* deferred_pass_fragment_shader;
+static const char* effect_vertex_shader;
+static const char* ground_fragment_shader;
+static const char* ground_shadow_vertex_shader;
+static const char* ground_vertex_shader;
 static const char* marching_cubes_compute_shader;
-static const char* metaballs_vertex_shader;
+static const char* metaball_field_compute_shader;
 static const char* metaballs_fragment_shader;
+static const char* metaballs_shadow_vertex_shader;
+static const char* metaballs_vertex_shader;
+static const char* particles_fragment_shader;
+static const char* particles_vertex_shader;
+static const char* result_pass_fragment_shader;
+static const char* update_point_lights_compute_shader;
 
 /* -------------------------------------------------------------------------- *
  * Marching Cubes Tables
@@ -2110,278 +2125,1304 @@ int main(int argc, char* argv[])
 
 // clang-format off
 static const char* metaball_field_compute_shader = CODE(
-struct Metaballs {
-  count: u32,
-  balls: array<Metaball>,
-}
-
-struct Metaball {
-  position: vec3<f32>,
-  radius: f32,
-  strength: f32,
-  subtract: f32,
-}
-
-struct IsosurfaceVolume {
-  min: vec3<f32>,
-  max: vec3<f32>,
-  step: vec3<f32>,
-  size: vec3<u32>,
-  threshold: f32,
-  values: array<f32>,
-}
-
-@group(0) @binding(0) var<storage> metaballs : Metaballs;
-@group(0) @binding(1) var<storage, read_write> volume : IsosurfaceVolume;
-
-@compute @workgroup_size(4, 4, 4)
-fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-  let position = volume.min + (volume.step * vec3<f32>(global_id.xyz));
-
-  var fieldValue: f32 = 0.0;
-  for (var i: u32 = 0u; i < metaballs.count; i = i + 1u) {
-    let ball = metaballs.balls[i];
-    let d = distance(ball.position, position);
-    fieldValue = fieldValue + ball.strength / (d * d);
+  struct Metaballs {
+    count: u32,
+    balls: array<Metaball>,
   }
 
-  let valueIndex = global_id.x +
-                   (global_id.y * volume.size.x) +
-                   (global_id.z * volume.size.x * volume.size.y);
-  volume.values[valueIndex] = fieldValue;
-}
+  struct Metaball {
+    position: vec3<f32>,
+    radius: f32,
+    strength: f32,
+    subtract: f32,
+  }
+
+  struct IsosurfaceVolume {
+    min: vec3<f32>,
+    max: vec3<f32>,
+    step: vec3<f32>,
+    size: vec3<u32>,
+    threshold: f32,
+    values: array<f32>,
+  }
+
+  @group(0) @binding(0) var<storage> metaballs : Metaballs;
+  @group(0) @binding(1) var<storage, read_write> volume : IsosurfaceVolume;
+
+  @compute @workgroup_size(4, 4, 4)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    let position = volume.min + (volume.step * vec3<f32>(global_id.xyz));
+
+    var fieldValue: f32 = 0.0;
+    for (var i: u32 = 0u; i < metaballs.count; i = i + 1u) {
+      let ball = metaballs.balls[i];
+      let d = distance(ball.position, position);
+      fieldValue = fieldValue + ball.strength / (d * d);
+    }
+
+    let valueIndex = global_id.x +
+                     (global_id.y * volume.size.x) +
+                     (global_id.z * volume.size.x * volume.size.y);
+    volume.values[valueIndex] = fieldValue;
+  }
 );
 
 static const char* marching_cubes_compute_shader = CODE(
-struct Tables {
-  edges: array<u32, 256>,
-  tris: array<i32, 4096>,
-};
-@group(0) @binding(0) var<storage> tables : Tables;
+  struct Tables {
+    edges: array<u32, 256>,
+    tris: array<i32, 4096>,
+  };
+  @group(0) @binding(0) var<storage> tables : Tables;
 
-struct IsosurfaceVolume {
-  min: vec3<f32>,
-  max: vec3<f32>,
-  step: vec3<f32>,
-  size: vec3<u32>,
-  threshold: f32,
-  values: array<f32>,
-}
-@group(0) @binding(1) var<storage, read_write> volume : IsosurfaceVolume;
+  struct IsosurfaceVolume {
+    min: vec3<f32>,
+    max: vec3<f32>,
+    step: vec3<f32>,
+    size: vec3<u32>,
+    threshold: f32,
+    values: array<f32>,
+  }
+  @group(0) @binding(1) var<storage, read_write> volume : IsosurfaceVolume;
 
-struct PositionBuffer {
-  values : array<f32>,
-};
-@group(0) @binding(2) var<storage, read_write> positionsOut : PositionBuffer;
+  struct PositionBuffer {
+    values : array<f32>,
+  };
+  @group(0) @binding(2) var<storage, read_write> positionsOut : PositionBuffer;
 
-struct NormalBuffer {
-  values : array<f32>,
-};
-@group(0) @binding(3) var<storage, read_write> normalsOut : NormalBuffer;
+  struct NormalBuffer {
+    values : array<f32>,
+  };
+  @group(0) @binding(3) var<storage, read_write> normalsOut : NormalBuffer;
 
-struct IndexBuffer {
-  tris : array<u32>,
-};
-@group(0) @binding(4) var<storage, read_write> indicesOut : IndexBuffer;
+  struct IndexBuffer {
+    tris : array<u32>,
+  };
+  @group(0) @binding(4) var<storage, read_write> indicesOut : IndexBuffer;
 
-struct DrawIndirectArgs {
-  vc : u32,
-  vertexCount : atomic<u32>,
-  firstVertex : u32,
-  firstInstance : u32,
+  struct DrawIndirectArgs {
+    vc : u32,
+    vertexCount : atomic<u32>,
+    firstVertex : u32,
+    firstInstance : u32,
 
-  indexCount : atomic<u32>,
-  indexedInstanceCount : u32,
-  indexedFirstIndex : u32,
-  indexedBaseVertex : u32,
-  indexedFirstInstance : u32,
-};
-@group(0) @binding(5) var<storage, read_write> drawOut : DrawIndirectArgs;
+    indexCount : atomic<u32>,
+    indexedInstanceCount : u32,
+    indexedFirstIndex : u32,
+    indexedBaseVertex : u32,
+    indexedFirstInstance : u32,
+  };
+  @group(0) @binding(5) var<storage, read_write> drawOut : DrawIndirectArgs;
 
-fn valueAt(index : vec3<u32>) -> f32 {
-  if (any(index >= volume.size)) { return 0.0; }
+  fn valueAt(index : vec3<u32>) -> f32 {
+    if (any(index >= volume.size)) { return 0.0; }
 
-  var valueIndex = index.x +
-                  (index.y * volume.size.x) +
-                  (index.z * volume.size.x * volume.size.y);
-  return volume.values[valueIndex];
-}
-
-fn positionAt(index : vec3<u32>) -> vec3<f32> {
-  return volume.min + (volume.step * vec3<f32>(index.xyz));
-}
-
-fn normalAt(index : vec3<u32>) -> vec3<f32> {
-  return vec3<f32>(
-    valueAt(index - vec3<u32>(1u, 0u, 0u)) - valueAt(index + vec3<u32>(1u, 0u, 0u)),
-    valueAt(index - vec3<u32>(0u, 1u, 0u)) - valueAt(index + vec3<u32>(0u, 1u, 0u)),
-    valueAt(index - vec3<u32>(0u, 0u, 1u)) - valueAt(index + vec3<u32>(0u, 0u, 1u))
-  );
-}
-
-var<private> positions : array<vec3<f32>, 12>;
-var<private> normals : array<vec3<f32>, 12>;
-var<private> indices : array<u32, 12>;
-var<private> cubeVerts : u32 = 0u;
-
-fn interpX(index : u32, i : vec3<u32>, va : f32, vb : f32) {
-  var mu = (volume.threshold - va) / (vb - va);
-  positions[cubeVerts] = positionAt(i) + vec3<f32>(volume.step.x * mu, 0.0, 0.0);
-
-  var na = normalAt(i);
-  var nb = normalAt(i + vec3<u32>(1u, 0u, 0u));
-  normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
-
-  indices[index] = cubeVerts;
-  cubeVerts = cubeVerts + 1u;
-}
-
-fn interpY(index : u32, i : vec3<u32>, va : f32, vb : f32) {
-  var mu = (volume.threshold - va) / (vb - va);
-  positions[cubeVerts] = positionAt(i) + vec3<f32>(0.0, volume.step.y * mu, 0.0);
-
-  var na = normalAt(i);
-  var nb = normalAt(i + vec3<u32>(0u, 1u, 0u));
-  normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
-
-  indices[index] = cubeVerts;
-  cubeVerts = cubeVerts + 1u;
-}
-
-fn interpZ(index : u32, i : vec3<u32>, va : f32, vb : f32) {
-  var mu = (volume.threshold - va) / (vb - va);
-  positions[cubeVerts] = positionAt(i) + vec3<f32>(0.0, 0.0, volume.step.z * mu);
-
-  var na = normalAt(i);
-  var nb = normalAt(i + vec3<u32>(0u, 0u, 1u));
-  normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
-
-  indices[index] = cubeVerts;
-  cubeVerts = cubeVerts + 1u;
-}
-
-@compute @workgroup_size(4, 4, 4)
-fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-  
-  var i0 = global_id;
-  var i1 = global_id + vec3<u32>(1u, 0u, 0u);
-  var i2 = global_id + vec3<u32>(1u, 1u, 0u);
-  var i3 = global_id + vec3<u32>(0u, 1u, 0u);
-  var i4 = global_id + vec3<u32>(0u, 0u, 1u);
-  var i5 = global_id + vec3<u32>(1u, 0u, 1u);
-  var i6 = global_id + vec3<u32>(1u, 1u, 1u);
-  var i7 = global_id + vec3<u32>(0u, 1u, 1u);
-
-  var v0 = valueAt(i0);
-  var v1 = valueAt(i1);
-  var v2 = valueAt(i2);
-  var v3 = valueAt(i3);
-  var v4 = valueAt(i4);
-  var v5 = valueAt(i5);
-  var v6 = valueAt(i6);
-  var v7 = valueAt(i7);
-
-  var cubeIndex = 0u;
-  if (v0 < volume.threshold) { cubeIndex = cubeIndex | 1u; }
-  if (v1 < volume.threshold) { cubeIndex = cubeIndex | 2u; }
-  if (v2 < volume.threshold) { cubeIndex = cubeIndex | 4u; }
-  if (v3 < volume.threshold) { cubeIndex = cubeIndex | 8u; }
-  if (v4 < volume.threshold) { cubeIndex = cubeIndex | 16u; }
-  if (v5 < volume.threshold) { cubeIndex = cubeIndex | 32u; }
-  if (v6 < volume.threshold) { cubeIndex = cubeIndex | 64u; }
-  if (v7 < volume.threshold) { cubeIndex = cubeIndex | 128u; }
-
-  var edges = tables.edges[cubeIndex];
-
-  if ((edges & 1u) != 0u) { interpX(0u, i0, v0, v1); }
-  if ((edges & 2u) != 0u) { interpY(1u, i1, v1, v2); }
-  if ((edges & 4u) != 0u) { interpX(2u, i3, v3, v2); }
-  if ((edges & 8u) != 0u) { interpY(3u, i0, v0, v3); }
-  if ((edges & 16u) != 0u) { interpX(4u, i4, v4, v5); }
-  if ((edges & 32u) != 0u) { interpY(5u, i5, v5, v6); }
-  if ((edges & 64u) != 0u) { interpX(6u, i7, v7, v6); }
-  if ((edges & 128u) != 0u) { interpY(7u, i4, v4, v7); }
-  if ((edges & 256u) != 0u) { interpZ(8u, i0, v0, v4); }
-  if ((edges & 512u) != 0u) { interpZ(9u, i1, v1, v5); }
-  if ((edges & 1024u) != 0u) { interpZ(10u, i2, v2, v6); }
-  if ((edges & 2048u) != 0u) { interpZ(11u, i3, v3, v7); }
-
-  var triTableOffset = (cubeIndex << 4u) + 1u;
-  var indexCount = u32(tables.tris[triTableOffset - 1u]);
-
-  var firstVertex = atomicAdd(&drawOut.vertexCount, cubeVerts);
-
-  var bufferOffset = (global_id.x +
-                      global_id.y * volume.size.x +
-                      global_id.z * volume.size.x * volume.size.y);
-  var firstIndex = bufferOffset * 15u;
-
-  for (var i = 0u; i < cubeVerts; i = i + 1u) {
-    positionsOut.values[firstVertex*3u + i*3u] = positions[i].x;
-    positionsOut.values[firstVertex*3u + i*3u + 1u] = positions[i].y;
-    positionsOut.values[firstVertex*3u + i*3u + 2u] = positions[i].z;
-
-    normalsOut.values[firstVertex*3u + i*3u] = normals[i].x;
-    normalsOut.values[firstVertex*3u + i*3u + 1u] = normals[i].y;
-    normalsOut.values[firstVertex*3u + i*3u + 2u] = normals[i].z;
+    var valueIndex = index.x +
+                    (index.y * volume.size.x) +
+                    (index.z * volume.size.x * volume.size.y);
+    return volume.values[valueIndex];
   }
 
-  for (var i = 0u; i < indexCount; i = i + 1u) {
-    var index = tables.tris[triTableOffset + i];
-    indicesOut.tris[firstIndex + i] = firstVertex + indices[index];
+  fn positionAt(index : vec3<u32>) -> vec3<f32> {
+    return volume.min + (volume.step * vec3<f32>(index.xyz));
   }
 
-  for (var i = indexCount; i < 15u; i = i + 1u) {
-    indicesOut.tris[firstIndex + i] = firstVertex;
+  fn normalAt(index : vec3<u32>) -> vec3<f32> {
+    return vec3<f32>(
+      valueAt(index - vec3<u32>(1u, 0u, 0u)) - valueAt(index + vec3<u32>(1u, 0u, 0u)),
+      valueAt(index - vec3<u32>(0u, 1u, 0u)) - valueAt(index + vec3<u32>(0u, 1u, 0u)),
+      valueAt(index - vec3<u32>(0u, 0u, 1u)) - valueAt(index + vec3<u32>(0u, 0u, 1u))
+    );
   }
-}
+
+  var<private> positions : array<vec3<f32>, 12>;
+  var<private> normals : array<vec3<f32>, 12>;
+  var<private> indices : array<u32, 12>;
+  var<private> cubeVerts : u32 = 0u;
+
+  fn interpX(index : u32, i : vec3<u32>, va : f32, vb : f32) {
+    var mu = (volume.threshold - va) / (vb - va);
+    positions[cubeVerts] = positionAt(i) + vec3<f32>(volume.step.x * mu, 0.0, 0.0);
+
+    var na = normalAt(i);
+    var nb = normalAt(i + vec3<u32>(1u, 0u, 0u));
+    normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
+
+    indices[index] = cubeVerts;
+    cubeVerts = cubeVerts + 1u;
+  }
+
+  fn interpY(index : u32, i : vec3<u32>, va : f32, vb : f32) {
+    var mu = (volume.threshold - va) / (vb - va);
+    positions[cubeVerts] = positionAt(i) + vec3<f32>(0.0, volume.step.y * mu, 0.0);
+
+    var na = normalAt(i);
+    var nb = normalAt(i + vec3<u32>(0u, 1u, 0u));
+    normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
+
+    indices[index] = cubeVerts;
+    cubeVerts = cubeVerts + 1u;
+  }
+
+  fn interpZ(index : u32, i : vec3<u32>, va : f32, vb : f32) {
+    var mu = (volume.threshold - va) / (vb - va);
+    positions[cubeVerts] = positionAt(i) + vec3<f32>(0.0, 0.0, volume.step.z * mu);
+
+    var na = normalAt(i);
+    var nb = normalAt(i + vec3<u32>(0u, 0u, 1u));
+    normals[cubeVerts] = mix(na, nb, vec3<f32>(mu, mu, mu));
+
+    indices[index] = cubeVerts;
+    cubeVerts = cubeVerts + 1u;
+  }
+
+  @compute @workgroup_size(4, 4, 4)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+
+    var i0 = global_id;
+    var i1 = global_id + vec3<u32>(1u, 0u, 0u);
+    var i2 = global_id + vec3<u32>(1u, 1u, 0u);
+    var i3 = global_id + vec3<u32>(0u, 1u, 0u);
+    var i4 = global_id + vec3<u32>(0u, 0u, 1u);
+    var i5 = global_id + vec3<u32>(1u, 0u, 1u);
+    var i6 = global_id + vec3<u32>(1u, 1u, 1u);
+    var i7 = global_id + vec3<u32>(0u, 1u, 1u);
+
+    var v0 = valueAt(i0);
+    var v1 = valueAt(i1);
+    var v2 = valueAt(i2);
+    var v3 = valueAt(i3);
+    var v4 = valueAt(i4);
+    var v5 = valueAt(i5);
+    var v6 = valueAt(i6);
+    var v7 = valueAt(i7);
+
+    var cubeIndex = 0u;
+    if (v0 < volume.threshold) { cubeIndex = cubeIndex | 1u; }
+    if (v1 < volume.threshold) { cubeIndex = cubeIndex | 2u; }
+    if (v2 < volume.threshold) { cubeIndex = cubeIndex | 4u; }
+    if (v3 < volume.threshold) { cubeIndex = cubeIndex | 8u; }
+    if (v4 < volume.threshold) { cubeIndex = cubeIndex | 16u; }
+    if (v5 < volume.threshold) { cubeIndex = cubeIndex | 32u; }
+    if (v6 < volume.threshold) { cubeIndex = cubeIndex | 64u; }
+    if (v7 < volume.threshold) { cubeIndex = cubeIndex | 128u; }
+
+    var edges = tables.edges[cubeIndex];
+
+    if ((edges & 1u) != 0u) { interpX(0u, i0, v0, v1); }
+    if ((edges & 2u) != 0u) { interpY(1u, i1, v1, v2); }
+    if ((edges & 4u) != 0u) { interpX(2u, i3, v3, v2); }
+    if ((edges & 8u) != 0u) { interpY(3u, i0, v0, v3); }
+    if ((edges & 16u) != 0u) { interpX(4u, i4, v4, v5); }
+    if ((edges & 32u) != 0u) { interpY(5u, i5, v5, v6); }
+    if ((edges & 64u) != 0u) { interpX(6u, i7, v7, v6); }
+    if ((edges & 128u) != 0u) { interpY(7u, i4, v4, v7); }
+    if ((edges & 256u) != 0u) { interpZ(8u, i0, v0, v4); }
+    if ((edges & 512u) != 0u) { interpZ(9u, i1, v1, v5); }
+    if ((edges & 1024u) != 0u) { interpZ(10u, i2, v2, v6); }
+    if ((edges & 2048u) != 0u) { interpZ(11u, i3, v3, v7); }
+
+    var triTableOffset = (cubeIndex << 4u) + 1u;
+    var indexCount = u32(tables.tris[triTableOffset - 1u]);
+
+    var firstVertex = atomicAdd(&drawOut.vertexCount, cubeVerts);
+
+    var bufferOffset = (global_id.x +
+                        global_id.y * volume.size.x +
+                        global_id.z * volume.size.x * volume.size.y);
+    var firstIndex = bufferOffset * 15u;
+
+    for (var i = 0u; i < cubeVerts; i = i + 1u) {
+      positionsOut.values[firstVertex*3u + i*3u] = positions[i].x;
+      positionsOut.values[firstVertex*3u + i*3u + 1u] = positions[i].y;
+      positionsOut.values[firstVertex*3u + i*3u + 2u] = positions[i].z;
+
+      normalsOut.values[firstVertex*3u + i*3u] = normals[i].x;
+      normalsOut.values[firstVertex*3u + i*3u + 1u] = normals[i].y;
+      normalsOut.values[firstVertex*3u + i*3u + 2u] = normals[i].z;
+    }
+
+    for (var i = 0u; i < indexCount; i = i + 1u) {
+      var index = tables.tris[triTableOffset + i];
+      indicesOut.tris[firstIndex + i] = firstVertex + indices[index];
+    }
+
+    for (var i = indexCount; i < 15u; i = i + 1u) {
+      indicesOut.tris[firstIndex + i] = firstVertex;
+    }
+  }
 );
 
 static const char* metaballs_vertex_shader = CODE(
-@group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
-@group(0) @binding(1) var<uniform> view: mat4x4<f32>;
+  @group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
+  @group(0) @binding(1) var<uniform> view: mat4x4<f32>;
 
-struct VertexInput {
-  @location(0) position: vec3<f32>,
-  @location(1) normal: vec3<f32>,
-};
+  struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+  };
 
-struct VertexOutput {
-  @builtin(position) position: vec4<f32>,
-  @location(0) world_pos: vec3<f32>,
-  @location(1) normal: vec3<f32>,
-};
+  struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) world_pos: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+  };
 
-@vertex
-fn main(input: VertexInput) -> VertexOutput {
-  var output: VertexOutput;
-  let world_pos = input.position;
-  output.position = projection * view * vec4<f32>(world_pos, 1.0);
-  output.world_pos = world_pos;
-  output.normal = normalize(input.normal);
-  return output;
-}
+  @vertex
+  fn main(input: VertexInput) -> VertexOutput {
+    var output: VertexOutput;
+    let world_pos = input.position;
+    output.position = projection * view * vec4<f32>(world_pos, 1.0);
+    output.world_pos = world_pos;
+    output.normal = normalize(input.normal);
+    return output;
+  }
+  );
+
+  static const char* metaballs_fragment_shader = CODE(
+  struct FragmentInput {
+    @location(0) world_pos: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+  };
+
+  @fragment
+  fn main(input: FragmentInput) -> @location(0) vec4<f32> {
+    let light_dir = normalize(vec3<f32>(1.0, 1.0, 1.0));
+    let normal = normalize(input.normal);
+
+    let ambient = 0.2;
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let lighting = ambient + diffuse * 0.8;
+
+    let base_color = vec3<f32>(0.8, 0.3, 0.2);
+    let final_color = base_color * lighting;
+
+    return vec4<f32>(final_color, 1.0);
+  }
 );
 
-static const char* metaballs_fragment_shader = CODE(
-struct FragmentInput {
-  @location(0) world_pos: vec3<f32>,
-  @location(1) normal: vec3<f32>,
-};
+static const char* bloom_blur_compute_shader = CODE(
+  struct Params {
+    filterDim : u32,
+    blockDim : u32,
+  }
 
-@fragment
-fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-  let light_dir = normalize(vec3<f32>(1.0, 1.0, 1.0));
-  let normal = normalize(input.normal);
-  
-  let ambient = 0.2;
-  let diffuse = max(dot(normal, light_dir), 0.0);
-  let lighting = ambient + diffuse * 0.8;
-  
-  let base_color = vec3<f32>(0.8, 0.3, 0.2);
-  let final_color = base_color * lighting;
-  
-  return vec4<f32>(final_color, 1.0);
-}
+  struct Flip {
+    value : u32,
+  }
+
+  @group(0) @binding(0) var samp: sampler;
+  @group(0) @binding(1) var<uniform> params: Params;
+  @group(1) @binding(0) var inputTex: texture_2d<f32>;
+  @group(1) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
+  @group(1) @binding(2) var<uniform> flip : Flip;
+
+  var<workgroup> tile : array<array<vec3<f32>, 128>, 4>;
+
+  @compute @workgroup_size(32, 1, 1)
+  fn main(
+    @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
+  ) {
+    var filterOffset : u32 = (params.filterDim - 1u) / 2u;
+    var dims : vec2<i32> = vec2<i32>(textureDimensions(inputTex, 0));
+
+    var baseIndex = vec2<i32>(
+      WorkGroupID.xy * vec2<u32>(params.blockDim, 4u) +
+      LocalInvocationID.xy * vec2<u32>(4u, 1u)
+    ) - vec2<i32>(i32(filterOffset), 0);
+
+    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
+      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
+        var loadIndex = baseIndex + vec2<i32>(i32(c), i32(r));
+        if (flip.value != 0u) {
+          loadIndex = loadIndex.yx;
+        }
+
+        tile[r][4u * LocalInvocationID.x + c] =
+          textureSampleLevel(inputTex, samp,
+            (vec2<f32>(loadIndex) + vec2<f32>(0.25, 0.25)) / vec2<f32>(dims), 0.0).rgb;
+      }
+    }
+
+    workgroupBarrier();
+
+    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
+      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
+        var writeIndex = baseIndex + vec2<i32>(i32(c), i32(r));
+        if (flip.value != 0u) {
+          writeIndex = writeIndex.yx;
+        }
+
+        var center : u32 = 4u * LocalInvocationID.x + c;
+        if (center >= filterOffset &&
+            center < 128u - filterOffset &&
+            all(writeIndex < dims)) {
+          var acc : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+          for (var f : u32 = 0u; f < params.filterDim; f = f + 1u) {
+            var i : u32 = center + f - filterOffset;
+            acc = acc + (1.0 / f32(params.filterDim)) * tile[r][i];
+          }
+          textureStore(outputTex, writeIndex, vec4<f32>(acc, 1.0));
+        }
+      }
+    }
+  }
+);
+
+static const char* bloom_pass_fragment_shader = CODE(
+  @group(0) @binding(0) var texture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var albedo = textureLoad(
+      texture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    var brightness = dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if (brightness > 1.0) {
+      output.color = vec4(1.0, 1.0, 1.0, 1.0);
+    } else {
+      output.color = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    return output;
+  }
+);
+
+static const char* box_outline_vertex_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  @group(0) @binding(0) var<uniform> projection : ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view : ViewUniformsStruct;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) instanceMat0: vec4<f32>,
+    @location(2) instanceMat1: vec4<f32>,
+    @location(3) instanceMat2: vec4<f32>,
+    @location(4) instanceMat3: vec4<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+    @location(0) localPosition: vec3<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+
+    var instanceMatrix = mat4x4(
+      input.instanceMat0,
+      input.instanceMat1,
+      input.instanceMat2,
+      input.instanceMat3,
+    );
+
+    var worldPosition = vec4<f32>(input.position, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      instanceMatrix *
+                      worldPosition;
+
+    output.localPosition = input.position;
+    return output;
+  }
+);
+
+static const char* box_outline_fragment_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct Output {
+    @location(0) GBuffer_OUT0: vec4<f32>,
+    @location(1) GBuffer_OUT1: vec4<f32>,
+  }
+
+  fn encodeNormals(n: vec3<f32>) -> vec2<f32> {
+    var p = sqrt(n.z * 8.0 + 8.0);
+    return vec2(n.xy / p + 0.5);
+  }
+
+  fn encodeGBufferOutput(
+    normal: vec3<f32>,
+    albedo: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    ID: f32
+  ) -> Output {
+    var output: Output;
+    output.GBuffer_OUT0 = vec4(encodeNormals(normal), metallic, ID);
+    output.GBuffer_OUT1 = vec4(albedo, roughness);
+    return output;
+  }
+
+  struct Input {
+    @location(0) localPosition: vec3<f32>,
+  }
+  @group(0) @binding(0) var<uniform> projection : ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view : ViewUniformsStruct;
+
+  @fragment
+  fn main(input: Input) -> Output {
+    var output: Output;
+    var spacing = step(sin(input.localPosition.x * 10.0 + view.time * 2.0), 0.1);
+    if (spacing < 0.5) {
+      discard;
+    }
+    var normal = vec3(0.0);
+    var albedo = vec3(1.0);
+    var metallic = 0.0;
+    var roughness = 0.0;
+    var ID = 0.1;
+    return encodeGBufferOutput(
+      normal,
+      albedo,
+      metallic,
+      roughness,
+      ID
+    );
+  }
+);
+
+static const char* copy_pass_fragment_shader = CODE(
+  @group(0) @binding(0) var texture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    let albedo = textureLoad(
+      texture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    output.color = vec4(albedo.rgb, 1.0);
+    return output;
+  }
+);
+
+static const char* effect_vertex_shader = CODE(
+  struct Inputs {
+    @location(0) position: vec2<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    output.position = vec4(input.position, 0.0, 1.0);
+
+    return output;
+  }
+);
+
+static const char* ground_vertex_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct ModelUniforms {
+    matrix: mat4x4<f32>,
+  }
+
+  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(0) var<uniform> model: ModelUniforms;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) instanceOffset: vec3<f32>,
+    @location(3) metallic: f32,
+    @location(4) roughness: f32,
+  }
+
+  struct Output {
+    @location(0) normal: vec3<f32>,
+    @location(1) metallic: f32,
+    @location(2) roughness: f32,
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var dist = distance(input.instanceOffset.xy, vec2(0.0));
+    var offsetX = input.instanceOffset.x;
+    var offsetZ = input.instanceOffset.y;
+    var scaleY = input.instanceOffset.z;
+    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
+    var scaleMatrix = mat4x4(
+      1.0, 0.0, 0.0, 0.0,
+      0.0, scaleY, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0
+    );
+    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      worldPosition;
+
+    output.normal = input.normal;
+    output.metallic = input.metallic;
+    output.roughness = input.roughness;
+    return output;
+  }
+);
+
+static const char* ground_fragment_shader = CODE(
+  struct Output {
+    @location(0) GBuffer_OUT0: vec4<f32>,
+    @location(1) GBuffer_OUT1: vec4<f32>,
+  }
+
+  fn encodeNormals(n: vec3<f32>) -> vec2<f32> {
+    var p = sqrt(n.z * 8.0 + 8.0);
+    return vec2(n.xy / p + 0.5);
+  }
+
+  fn encodeGBufferOutput(
+    normal: vec3<f32>,
+    albedo: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    ID: f32
+  ) -> Output {
+    var output: Output;
+    output.GBuffer_OUT0 = vec4(encodeNormals(normal), metallic, ID);
+    output.GBuffer_OUT1 = vec4(albedo, roughness);
+    return output;
+  }
+
+  struct Inputs {
+    @location(0) normal: vec3<f32>,
+    @location(1) metallic: f32,
+    @location(2) roughness: f32,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var normal = normalize(input.normal);
+    var albedo = vec3(1.0);
+    var metallic = 1.0;
+    var roughness = input.roughness;
+    var ID = 0.0;
+
+    return encodeGBufferOutput(
+      normal,
+      albedo,
+      metallic,
+      roughness,
+      ID
+    );
+  }
+);
+
+static const char* ground_shadow_vertex_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct ModelUniforms {
+    matrix: mat4x4<f32>,
+  }
+
+  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(0) var<uniform> model: ModelUniforms;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) instanceOffset: vec3<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var dist = distance(input.instanceOffset.xy, vec2(0.0));
+    var offsetX = input.instanceOffset.x;
+    var offsetZ = input.instanceOffset.y;
+    var scaleY = input.instanceOffset.z;
+    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
+    var scaleMatrix = mat4x4(
+      1.0, 0.0, 0.0, 0.0,
+      0.0, scaleY, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0
+    );
+    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      worldPosition;
+
+    return output;
+  }
+);
+
+static const char* metaballs_shadow_vertex_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    output.position = projection.matrix *
+                      view.matrix *
+                      vec4(input.position, 1.0);
+
+    return output;
+  }
+);
+
+static const char* particles_vertex_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
+
+  @group(1) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
+
+  struct Inputs {
+    @builtin(vertex_index) vertexIndex: u32,
+    @builtin(instance_index) instanceIndex: u32,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+  }
+
+  var<private> normalisedPosition: array<vec2<f32>, 4> = array<vec2<f32>, 4>(
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(1.0, 1.0)
+  );
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+
+    var inputPosition = normalisedPosition[input.vertexIndex];
+
+    var sc = clamp(lightsBuffer.lights[input.instanceIndex].intensity * 0.01, 0.01, 0.1);
+    var scaleMatrix = mat4x4(
+      sc,  0.0, 0.0, 0.0,
+      0.0, sc,  0.0, 0.0,
+      0.0, 0.0, sc,  0.0,
+      0.0, 0.0, 0.0, 1.0,
+    );
+
+    var instancePosition = lightsBuffer.lights[input.instanceIndex].position;
+    var worldPosition = vec4(instancePosition.xyz, 0.0);
+
+    var viewMatrix = view.matrix;
+
+    output.position = projection.matrix *
+                      (
+                        viewMatrix *
+                        (worldPosition +
+                        vec4(0.0, 0.0, 0.0, 1.0)) +
+                        scaleMatrix * vec4(inputPosition, 0.0, 0.0)
+                      );
+
+    var instanceColor = lightsBuffer.lights[input.instanceIndex].color;
+    output.color = instanceColor;
+    output.uv = inputPosition * vec2(0.5, -0.5) + vec2(0.5);
+    return output;
+  }
+);
+
+static const char* particles_fragment_shader = CODE(
+  struct Input {
+    @location(0) color: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+  }
+
+  struct Output {
+    @location(0) normal: vec4<f32>,
+    @location(1) albedo: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Input) -> Output {
+    var dist = distance(input.uv, vec2(0.5), );
+    if (dist > 0.5) {
+      discard;
+    }
+    var output: Output;
+    output.normal = vec4(0.0, 0.0, 0.0, 0.1);
+    output.albedo = vec4(input.color, 1.0);
+    return output;
+  }
+);
+
+static const char* result_pass_fragment_shader = CODE(
+  const GAMMA = 2.2;
+  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
+    var INV_GAMMA = 1.0 / GAMMA;
+    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
+  }
+
+  @group(0) @binding(0) var copyTexture: texture_2d<f32>;
+  @group(0) @binding(1) var bloomTexture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var hdrColor = textureLoad(
+      copyTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    var bloomColor = textureLoad(
+      bloomTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    hdrColor += bloomColor;
+
+    var result = vec3(1.0) - exp(-hdrColor.rgb * 1.0);
+
+    output.color = vec4(result, 1.0);
+    return output;
+  }
+);
+
+static const char* update_point_lights_compute_shader = CODE(
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  struct LightsConfig {
+    numLights: u32,
+  }
+
+  @group(0) @binding(0) var<storage, read_write> lightsBuffer: LightsBuffer;
+  @group(0) @binding(1) var<uniform> config: LightsConfig;
+
+  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
+
+  const PI = 3.141592653589793;
+
+  @compute @workgroup_size(64, 1, 1)
+  fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
+    var index = GlobalInvocationID.x;
+    if (index >= config.numLights) {
+      return;
+    }
+
+    lightsBuffer.lights[index].position.x += lightsBuffer.lights[index].velocity.x * view.deltaTime;
+    lightsBuffer.lights[index].position.z += lightsBuffer.lights[index].velocity.z * view.deltaTime;
+
+    const size = 42.0;
+    var halfSize = size / 2.0;
+
+    if (lightsBuffer.lights[index].position.x < -halfSize) {
+      lightsBuffer.lights[index].position.x = -halfSize;
+      lightsBuffer.lights[index].velocity.x *= -1.0;
+    } else if (lightsBuffer.lights[index].position.x > halfSize) {
+      lightsBuffer.lights[index].position.x = halfSize;
+      lightsBuffer.lights[index].velocity.x *= -1.0;
+    }
+
+    if (lightsBuffer.lights[index].position.z < -halfSize) {
+      lightsBuffer.lights[index].position.z = -halfSize;
+      lightsBuffer.lights[index].velocity.z *= -1.0;
+    } else if (lightsBuffer.lights[index].position.z > halfSize) {
+      lightsBuffer.lights[index].position.z = halfSize;
+      lightsBuffer.lights[index].velocity.z *= -1.0;
+    }
+  }
+);
+
+static const char* deferred_pass_fragment_shader = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  struct LightsConfig {
+    numLights: u32,
+  }
+
+  struct PointLight {
+    pointToLight: vec3<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct DirectionalLight {
+    direction: vec3<f32>,
+    color: vec3<f32>,
+  }
+
+  struct SpotLight {
+    position: vec3<f32>,
+    direction: vec3<f32>,
+    color: vec3<f32>,
+    cutOff: f32,
+    outerCutOff: f32,
+    intensity: f32,
+  }
+
+  struct Surface {
+    albedo: vec4<f32>,
+    metallic: f32,
+    roughness: f32,
+    worldPos: vec4<f32>,
+    ID: f32,
+    N: vec3<f32>,
+    F0: vec3<f32>,
+    V: vec3<f32>,
+  }
+
+  fn decodeNormals(enc: vec2<f32>) -> vec3<f32> {
+    var fenc = enc * 4.0 - 2.0;
+    var f = dot(fenc, fenc);
+    var g = sqrt(1.0 - f / 4.0);
+    return vec3(fenc*g, 1.0 - f / 2.0);
+  }
+
+  fn reconstructWorldPosFromZ(
+    coords: vec2<f32>,
+    size: vec2<f32>,
+    depthTexture: texture_depth_2d,
+    projInverse: mat4x4<f32>,
+    viewInverse: mat4x4<f32>
+  ) -> vec4<f32> {
+    var uv = coords.xy / projection.outputSize;
+    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);
+    var x = uv.x * 2.0 - 1.0;
+    var y = (1.0 - uv.y) * 2.0 - 1.0;
+    var projectedPos = vec4(x, y, depth, 1.0);
+    var worldPosition = projInverse * projectedPos;
+    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
+    worldPosition = viewInverse * worldPosition;
+    return worldPosition;
+  }
+
+  @group(0) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
+  @group(0) @binding(1) var<uniform> lightsConfig: LightsConfig;
+  @group(0) @binding(2) var normalTexture: texture_2d<f32>;
+  @group(0) @binding(3) var diffuseTexture: texture_2d<f32>;
+  @group(0) @binding(4) var depthTexture: texture_depth_2d;
+
+  @group(1) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(2) var depthSampler: sampler;
+
+  @group(2) @binding(0) var<uniform> spotLight: SpotLight;
+  @group(2) @binding(1) var<uniform> spotLightProjection: ProjectionUniformsStruct;
+  @group(2) @binding(2) var<uniform> spotLightView: ViewUniformsStruct;
+
+  @group(3) @binding(0) var spotLightDepthTexture: texture_depth_2d;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  const PI = 3.141592653589793;
+  const LOG2 = 1.4426950408889634;
+
+  fn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
+    var a      = roughness*roughness;
+    var a2     = a*a;
+    var NdotH  = max(dot(N, H), 0.0);
+    var NdotH2 = NdotH*NdotH;
+
+    var num   = a2;
+    var denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    return num / denom;
+  }
+
+  fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {
+    var r = (roughness + 1.0);
+    var k = (r*r) / 8.0;
+
+    var num   = NdotV;
+    var denom = NdotV * (1.0 - k) + k;
+
+    return num / denom;
+  }
+
+  fn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
+    var NdotV = max(dot(N, V), 0.0);
+    var NdotL = max(dot(N, L), 0.0);
+    var ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    var ggx1  = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+  }
+
+  fn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  }
+
+  fn reinhard(x: vec3<f32>) -> vec3<f32> {
+    return x / (1.0 + x);
+  }
+
+  fn rangeAttenuation(range : f32, distance : f32) -> f32 {
+    if (range <= 0.0) {
+        return 1.0 / pow(distance, 2.0);
+    }
+    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
+  }
+
+  fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
+    var L = normalize(light.pointToLight);
+    var H = normalize(surface.V + L);
+    var distance = length(light.pointToLight);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / denominator;
+
+    var attenuation = rangeAttenuation(light.range, distance);
+    var radiance = light.color * light.intensity * attenuation;
+
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+  }
+
+  fn SpotLightRadiance(light: SpotLight, surface: Surface) -> vec3<f32> {
+    var L = normalize(light.position - surface.worldPos.xyz);
+    var H = normalize(surface.V + L);
+
+    var theta = dot(L, normalize(light.direction));
+    var attenuation = smoothstep(light.outerCutOff, light.cutOff, theta);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / vec3(denominator, denominator, denominator);
+
+    var radiance = light.color * light.intensity;
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * attenuation * NdotL;
+  }
+
+  fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
+    var L = normalize(light.direction);
+    var H = normalize(surface.V + L);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / vec3(denominator, denominator, denominator);
+
+    var radiance = light.color;
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+  }
+
+  const GAMMA = 2.2;
+  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
+    var INV_GAMMA = 1.0 / GAMMA;
+    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
+  }
+
+  fn LinearizeDepth(depth: f32) -> f32 {
+    var z = depth * 2.0 - 1.0;
+    var near_plane = 0.001;
+    var far_plane = 0.4;
+    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var worldPosition = reconstructWorldPosFromZ(
+      input.coords.xy,
+      projection.outputSize,
+      depthTexture,
+      projection.inverseMatrix,
+      view.inverseMatrix
+    );
+
+    var normalRoughnessMatID = textureLoad(
+      normalTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    var albedo = textureLoad(
+      diffuseTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    var surface: Surface;
+    surface.ID = normalRoughnessMatID.w;
+
+    var output: Output;
+
+    var posFromLight = spotLightProjection.matrix * spotLightView.matrix * vec4(worldPosition.xyz, 1.0);
+    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
+    var shadowPos = vec3(
+      posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5),
+      posFromLight.z
+    );
+
+    var projectedDepth = textureSample(spotLightDepthTexture, depthSampler, shadowPos.xy);
+
+    if (surface.ID == 0.0) {
+
+      var inRange =
+        shadowPos.x >= 0.0 &&
+        shadowPos.x <= 1.0 &&
+        shadowPos.y >= 0.0 &&
+        shadowPos.y <= 1.0;
+      var visibility = 1.0;
+      if (inRange && projectedDepth <= posFromLight.z - 0.000009) {
+        visibility = 0.0;
+      }
+
+      surface.albedo = albedo;
+      surface.metallic = normalRoughnessMatID.z;
+      surface.roughness = albedo.a;
+      surface.worldPos = worldPosition;
+      surface.N = decodeNormals(normalRoughnessMatID.xy);
+      surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
+      surface.V = normalize(view.position - worldPosition.xyz);
+
+      var Lo = vec3(0.0);
+
+      for (var i : u32 = 0u; i < lightsConfig.numLights; i = i + 1u) {
+          var light = lightsBuffer.lights[i];
+        var pointLight: PointLight;
+
+        if (distance(light.position.xyz, worldPosition.xyz) > light.range) {
+          continue;
+        }
+
+        pointLight.pointToLight = light.position.xyz - worldPosition.xyz;
+        pointLight.color = light.color;
+        pointLight.range = light.range;
+        pointLight.intensity = light.intensity;
+        Lo += PointLightRadiance(pointLight, surface);
+      }
+
+      var dirLight: DirectionalLight;
+      dirLight.direction = vec3(2.0, 20.0, 0.0);
+      dirLight.color = vec3(0.1);
+      Lo += DirectionalLightRadiance(dirLight, surface) * visibility;
+
+      Lo += SpotLightRadiance(spotLight, surface) * visibility;
+
+      var ambient = vec3(0.09) * albedo.rgb;
+      var color = ambient + Lo;
+      output.color = vec4(color.rgb, 1.0);
+
+      var fogDensity = 0.085;
+      var fogDistance = length(worldPosition.xyz);
+      var fogAmount = 1.0 - exp2(-fogDensity * fogDensity * fogDistance * fogDistance * LOG2);
+      fogAmount = clamp(fogAmount, 0.0, 1.0);
+      var fogColor = vec4(vec3(0.005), 1.0);
+      output.color = mix(output.color, fogColor, fogAmount);
+
+
+    } else if (0.1 - surface.ID < 0.01 && surface.ID < 0.1) {
+      output.color = vec4(albedo.rgb, 1.0);
+    } else {
+      output.color = vec4(vec3(0.005), 1.0);
+    }
+    return output;
+  }
 );
 // clang-format on
