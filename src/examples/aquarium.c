@@ -1338,7 +1338,7 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
     cached_bubble_pipeline_layout = wgpuDeviceCreatePipelineLayout(
       device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = STRVIEW("Bubble Pipeline Layout"),
+        .label                = STRVIEW("Bubble - Pipeline Layout"),
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
         .bindGroupLayouts     = bind_groups_layouts,
       });
