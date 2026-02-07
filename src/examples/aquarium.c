@@ -1291,7 +1291,7 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
                          .minBindingSize   = sizeof(float) * 40}}};
     cached_bubble_bind_group_layout_0 = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Bubble Frame Bind Group Layout"),
+                .label      = STRVIEW("Bubble Frame - Bind Group Layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                 .entries    = bgl_entries,
               });
