@@ -631,14 +631,15 @@ static void mat4_identity(mat4_t* out)
 static void mat4_perspective_yfov(mat4_t* out, float fovy_rad, float aspect,
                                   float near, float far)
 {
+  /* WebGPU uses depth range [0, 1] (not OpenGL's [-1, 1]) */
   float f         = 1.0f / tanf(fovy_rad / 2.0f);
   float range_inv = 1.0f / (near - far);
   memset(out->m, 0, sizeof(out->m));
   out->m[0]  = f / aspect;
   out->m[5]  = f;
-  out->m[10] = (near + far) * range_inv;
+  out->m[10] = far * range_inv; /* WebGPU: far / (near - far) */
   out->m[11] = -1.0f;
-  out->m[14] = near * far * range_inv * 2.0f;
+  out->m[14] = near * far * range_inv; /* WebGPU: near * far / (near - far) */
 }
 
 static void vec3_subtract(const float* a, const float* b, float* out)
@@ -2066,15 +2067,15 @@ create_light_ray_pipeline(WGPUDevice device, light_ray_pipeline_desc_t* desc)
         .targets     = &(WGPUColorTargetState) {
           .format = desc->format,
           .blend = &(WGPUBlendState) {
-            /* Alpha blending for soft god rays */
+            /* Additive blending for light rays (like WebGL: gl.blendFunc(gl.SRC_ALPHA, gl.ONE)) */
             .color = {
               .srcFactor = WGPUBlendFactor_SrcAlpha,
-              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .dstFactor = WGPUBlendFactor_One,
               .operation = WGPUBlendOperation_Add,
             },
             .alpha = {
-              .srcFactor = WGPUBlendFactor_One,
-              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .srcFactor = WGPUBlendFactor_SrcAlpha,
+              .dstFactor = WGPUBlendFactor_One,
               .operation = WGPUBlendOperation_Add,
             }
           },
@@ -2277,8 +2278,9 @@ create_seaweed_pipeline(WGPUDevice device, seaweed_pipeline_desc_t* desc)
         .targets     = &(WGPUColorTargetState) {
           .format = desc->color_format,
           .blend = &(WGPUBlendState) {
+            /* Standard alpha blending for seaweed (non-premultiplied alpha) */
             .color = {
-              .srcFactor = WGPUBlendFactor_One,
+              .srcFactor = WGPUBlendFactor_SrcAlpha,
               .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
               .operation = WGPUBlendOperation_Add,
             },
@@ -3312,7 +3314,7 @@ static void placement_fetch_callback(const sfetch_response_t* response);
  * Render Items - Model + material + world matrix
  * -------------------------------------------------------------------------- */
 
-#define MAX_DIFFUSE_ITEMS (64)
+#define MAX_DIFFUSE_ITEMS (128)
 #define MAX_SEAWEED_ITEMS (32)
 #define MAX_INNER_ITEMS (8)
 #define MAX_OUTER_ITEMS (8)
@@ -3500,23 +3502,23 @@ static struct {
   bool initialized;
   bool render_data_initialized;
 } state = {
-  /* Default configuration */
+  /* Default configuration - matches view_presets[0] "Inside (A)" for WebGL parity */
   .globals = {
     .speed         = 1.0f,
-    .target_height = 0.0f,
-    .target_radius = 88.0f,
-    .eye_height    = 38.0f,
-    .eye_radius    = 69.0f,
-    .eye_speed     = 0.06f,
-    .field_of_view = 85.0f,
-    .ambient_red   = 0.22f,
-    .ambient_green = 0.25f,
-    .ambient_blue  = 0.39f,
-    .fog_power     = 14.5f,
-    .fog_mult      = 1.66f,
-    .fog_offset    = 0.53f,
-    .fog_red       = 0.54f,
-    .fog_green     = 0.86f,
+    .target_height = 63.3f,
+    .target_radius = 91.6f,
+    .eye_height    = 7.5f,
+    .eye_radius    = 13.2f,
+    .eye_speed     = 0.0258f,
+    .field_of_view = 82.699f,
+    .ambient_red   = 0.218f,
+    .ambient_green = 0.502f,
+    .ambient_blue  = 0.706f,
+    .fog_power     = 16.5f,
+    .fog_mult      = 1.5f,
+    .fog_offset    = 0.738f,
+    .fog_red       = 0.338f,
+    .fog_green     = 0.81f,
     .fog_blue      = 1.0f,
   },
   .fish_config = {
@@ -3532,7 +3534,7 @@ static struct {
   .inner_const = {
     .refraction_fudge = 3.0f,
     .eta              = 1.0f,
-    .tank_color_fudge = 0.8f,
+    .tank_color_fudge = 0.796f,
   },
   .options = {
     .normal_maps = true,
@@ -3541,7 +3543,7 @@ static struct {
     .museum      = true,
     .fog         = true,
     .bubbles     = true,
-    .light_rays  = true,
+    .light_rays  = false, /* Disabled: not correctly ported yet */
     .lasers      = false,
   },
   .fish_count           = 500,
@@ -3831,7 +3833,10 @@ static void update_model_uniforms(const float* world_matrix, const float* extra)
          sizeof(float) * 16);
   memcpy(&state.model_uniform_data[48],
          extra != NULL ? extra : state.model_extra_default, sizeof(float) * 4);
+}
 
+static void upload_model_uniforms(void)
+{
   wgpuQueueWriteBuffer(state.queue, state.model_uniform_buffer, 0,
                        state.model_uniform_data, MODEL_UNIFORM_SIZE);
 }
@@ -3884,10 +3889,21 @@ static void compute_frame_uniforms(void)
   memcpy(&state.frame_uniform_data[0], view_projection.m, sizeof(float) * 16);
   memcpy(&state.frame_uniform_data[16], view_inverse.m, sizeof(float) * 16);
 
-  /* Light world position (above camera) */
-  state.frame_uniform_data[32] = eye_position[0];
-  state.frame_uniform_data[33] = eye_position[1] + 20.0f;
-  state.frame_uniform_data[34] = eye_position[2];
+  /* Light world position - computed like WebGL:
+   * lightWorldPos = eyePosition + viewInverse.xAxis * 20 + viewInverse.yAxis *
+   * 30 */
+  float view_x_axis[3]
+    = {view_inverse.m[0], view_inverse.m[1], view_inverse.m[2]};
+  float view_y_axis[3]
+    = {view_inverse.m[4], view_inverse.m[5], view_inverse.m[6]};
+  float light_offset_x[3], light_offset_y[3], light_world_pos[3];
+  vec3_scale(view_x_axis, 20.0f, light_offset_x);
+  vec3_scale(view_y_axis, 30.0f, light_offset_y);
+  vec3_add(eye_position, light_offset_x, light_world_pos);
+  vec3_add(light_world_pos, light_offset_y, light_world_pos);
+  state.frame_uniform_data[32] = light_world_pos[0];
+  state.frame_uniform_data[33] = light_world_pos[1];
+  state.frame_uniform_data[34] = light_world_pos[2];
   state.frame_uniform_data[35] = 1.0f;
 
   /* Light color */
@@ -3917,6 +3933,96 @@ static void compute_frame_uniforms(void)
   /* Upload to GPU */
   wgpuQueueWriteBuffer(state.queue, state.frame_uniform_buffer, 0,
                        state.frame_uniform_data, FRAME_UNIFORM_SIZE);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Update material options based on GUI toggles
+ * -------------------------------------------------------------------------- */
+
+static void update_material_options(void)
+{
+  /* Update fish species uniforms */
+  for (uint32_t i = 0; i < state.fish_render_group_count; ++i) {
+    fish_render_group_t* group = &state.fish_render_groups[i];
+    if (group->species_uniform_buffer == NULL) {
+      continue;
+    }
+
+    /* Combine model capability with global option toggle */
+    float use_normal
+      = (group->has_normal_map && state.options.normal_maps) ? 1.0f : 0.0f;
+    float use_reflection
+      = (group->has_reflection_map && state.options.reflection) ? 1.0f : 0.0f;
+
+    /* Only update if changed */
+    if (group->species_uniform_data[3] != use_normal
+        || group->species_uniform_data[4] != use_reflection) {
+      group->species_uniform_data[3] = use_normal;
+      group->species_uniform_data[4] = use_reflection;
+      wgpuQueueWriteBuffer(state.queue, group->species_uniform_buffer, 0,
+                           group->species_uniform_data,
+                           sizeof(group->species_uniform_data));
+    }
+  }
+
+  /* Update tank (inner) uniforms */
+  for (uint32_t i = 0; i < state.inner_item_count; ++i) {
+    tank_render_item_t* item = &state.inner_items[i];
+    if (item->uniform_buffer == NULL) {
+      continue;
+    }
+
+    /* Re-create uniforms with updated options */
+    float tank_uniforms[16] = {
+      1.0f,
+      1.0f,
+      1.0f,
+      1.0f, /* specular */
+      50.0f,
+      0.5f,
+      3.0f,
+      1.5f, /* shininess, specularFactor, refractionFudge, eta */
+      0.8f, /* tankColorFudge */
+      state.options.normal_maps ? 1.0f : 0.0f, /* useNormalMap */
+      state.options.reflection ? 1.0f : 0.0f,  /* useReflectionMap */
+      0.0f,                                    /* padding */
+      0.0f,
+      0.0f,
+      0.0f,
+      0.0f, /* extra padding */
+    };
+    wgpuQueueWriteBuffer(state.queue, item->uniform_buffer, 0, tank_uniforms,
+                         sizeof(tank_uniforms));
+  }
+
+  /* Update tank (outer) uniforms */
+  for (uint32_t i = 0; i < state.outer_item_count; ++i) {
+    tank_render_item_t* item = &state.outer_items[i];
+    if (item->uniform_buffer == NULL) {
+      continue;
+    }
+
+    float tank_uniforms[16] = {
+      1.0f,
+      1.0f,
+      1.0f,
+      1.0f, /* specular */
+      50.0f,
+      0.5f,
+      3.0f,
+      1.5f, /* shininess, specularFactor, refractionFudge, eta */
+      0.8f, /* tankColorFudge */
+      state.options.normal_maps ? 1.0f : 0.0f, /* useNormalMap */
+      state.options.reflection ? 1.0f : 0.0f,  /* useReflectionMap */
+      0.0f,                                    /* padding */
+      0.0f,
+      0.0f,
+      0.0f,
+      0.0f, /* extra padding */
+    };
+    wgpuQueueWriteBuffer(state.queue, item->uniform_buffer, 0, tank_uniforms,
+                         sizeof(tank_uniforms));
+  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -4604,6 +4710,7 @@ static void render_light_rays(WGPURenderPassEncoder pass)
     /* Update model uniforms with alpha in extra data */
     state.model_extra_scratch[0] = ray->intensity;
     update_model_uniforms(world_matrix.m, state.model_extra_scratch);
+    upload_model_uniforms();
 
     wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0, NULL);
     wgpuRenderPassEncoderSetBindGroup(
@@ -4704,39 +4811,57 @@ static void init_render_data(void)
     const char* program = scene_definitions[def_index].program;
 
     if (strcmp(program, "diffuse") == 0) {
-      if (state.diffuse_item_count < MAX_DIFFUSE_ITEMS) {
-        diffuse_render_item_t* item
-          = &state.diffuse_items[state.diffuse_item_count++];
-        item->model = &scene->models[0];
-        memcpy(item->world_matrix, placement->world_matrix, sizeof(float) * 16);
-        item->material_bind_group = NULL; /* Will create when texture is loaded
-                                           */
+      /* Iterate over ALL models in the scene, not just models[0] */
+      for (uint32_t m = 0; m < scene->model_count; ++m) {
+        if (state.diffuse_item_count < MAX_DIFFUSE_ITEMS) {
+          diffuse_render_item_t* item
+            = &state.diffuse_items[state.diffuse_item_count++];
+          item->model = &scene->models[m];
+          memcpy(item->world_matrix, placement->world_matrix,
+                 sizeof(float) * 16);
+          item->material_bind_group
+            = NULL; /* Will create when texture loaded */
+        }
       }
     }
     else if (strcmp(program, "seaweed") == 0) {
-      if (state.seaweed_item_count < MAX_SEAWEED_ITEMS) {
-        seaweed_render_item_t* item
-          = &state.seaweed_items[state.seaweed_item_count++];
-        item->model = &scene->models[0];
-        memcpy(item->world_matrix, placement->world_matrix, sizeof(float) * 16);
-        item->time_offset         = (float)seaweed_time_index++;
-        item->material_bind_group = NULL;
+      /* Iterate over ALL models in the scene */
+      for (uint32_t m = 0; m < scene->model_count; ++m) {
+        if (state.seaweed_item_count < MAX_SEAWEED_ITEMS) {
+          seaweed_render_item_t* item
+            = &state.seaweed_items[state.seaweed_item_count++];
+          item->model = &scene->models[m];
+          memcpy(item->world_matrix, placement->world_matrix,
+                 sizeof(float) * 16);
+          item->time_offset         = (float)seaweed_time_index++;
+          item->material_bind_group = NULL;
+        }
       }
     }
     else if (strcmp(program, "inner") == 0) {
-      if (state.inner_item_count < MAX_INNER_ITEMS) {
-        tank_render_item_t* item = &state.inner_items[state.inner_item_count++];
-        item->model              = &scene->models[0];
-        memcpy(item->world_matrix, placement->world_matrix, sizeof(float) * 16);
-        item->material_bind_group = NULL;
+      /* Iterate over ALL models in the scene */
+      for (uint32_t m = 0; m < scene->model_count; ++m) {
+        if (state.inner_item_count < MAX_INNER_ITEMS) {
+          tank_render_item_t* item
+            = &state.inner_items[state.inner_item_count++];
+          item->model = &scene->models[m];
+          memcpy(item->world_matrix, placement->world_matrix,
+                 sizeof(float) * 16);
+          item->material_bind_group = NULL;
+        }
       }
     }
     else if (strcmp(program, "outer") == 0) {
-      if (state.outer_item_count < MAX_OUTER_ITEMS) {
-        tank_render_item_t* item = &state.outer_items[state.outer_item_count++];
-        item->model              = &scene->models[0];
-        memcpy(item->world_matrix, placement->world_matrix, sizeof(float) * 16);
-        item->material_bind_group = NULL;
+      /* Iterate over ALL models in the scene */
+      for (uint32_t m = 0; m < scene->model_count; ++m) {
+        if (state.outer_item_count < MAX_OUTER_ITEMS) {
+          tank_render_item_t* item
+            = &state.outer_items[state.outer_item_count++];
+          item->model = &scene->models[m];
+          memcpy(item->world_matrix, placement->world_matrix,
+                 sizeof(float) * 16);
+          item->material_bind_group = NULL;
+        }
       }
     }
   }
@@ -5039,6 +5164,21 @@ static void init_render_data(void)
   }
   printf("Diffuse items with bind groups: %d\n", valid_diffuse);
   printf("Diffuse items with index buffers: %d\n", valid_models);
+
+  /* Count seaweed items with valid bind groups */
+  int valid_seaweed  = 0;
+  int seaweed_models = 0;
+  for (uint32_t i = 0; i < state.seaweed_item_count; ++i) {
+    if (state.seaweed_items[i].material_bind_group != NULL) {
+      valid_seaweed++;
+    }
+    if (state.seaweed_items[i].model
+        && state.seaweed_items[i].model->index_buffer) {
+      seaweed_models++;
+    }
+  }
+  printf("Seaweed items with bind groups: %d\n", valid_seaweed);
+  printf("Seaweed items with index buffers: %d\n", seaweed_models);
   if (state.diffuse_item_count > 0 && state.diffuse_items[0].model) {
     aquarium_model_t* m = state.diffuse_items[0].model;
     printf("First model: vb_count=%u, idx_count=%u\n", m->vertex_buffer_count,
@@ -5265,6 +5405,9 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Compute frame uniforms */
   compute_frame_uniforms();
 
+  /* Update material options based on GUI toggles */
+  update_material_options();
+
   /* Get current texture view */
   state.color_attachment.view         = wgpu_context->swapchain_view;
   state.depth_stencil_attachment.view = state.depth_view;
@@ -5277,27 +5420,31 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder pass
     = wgpuCommandEncoderBeginRenderPass(encoder, &state.render_pass_descriptor);
 
-  /* Render diffuse items */
-  for (uint32_t i = 0; i < state.diffuse_item_count; ++i) {
-    diffuse_render_item_t* item = &state.diffuse_items[i];
-    if (item->model && state.diffuse_pipeline && item->material_bind_group) {
-      wgpuRenderPassEncoderSetPipeline(pass, state.diffuse_pipeline);
-      wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
-                                        NULL);
+  /* Render diffuse items (static objects like rocks, coral, etc.) */
+  if (state.diffuse_pipeline && state.diffuse_item_count > 0) {
+    wgpuRenderPassEncoderSetPipeline(pass, state.diffuse_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0, NULL);
 
-      /* Update model uniforms with this item's world matrix */
-      update_model_uniforms(item->world_matrix, state.model_extra_default);
-      wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
-                                        NULL);
+    for (uint32_t i = 0; i < state.diffuse_item_count; ++i) {
+      diffuse_render_item_t* item = &state.diffuse_items[i];
+      if (item->model && item->material_bind_group) {
+        /* Update and upload model uniforms with this item's world matrix */
+        update_model_uniforms(item->world_matrix, state.model_extra_default);
+        upload_model_uniforms();
 
-      wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
-                                        NULL);
+        /* Set bind groups */
+        wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
+                                          NULL);
+        wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
+                                          NULL);
 
-      aquarium_model_bind(item->model, pass);
+        /* Bind model and draw */
+        aquarium_model_bind(item->model, pass);
 
-      if (item->model->index_buffer) {
-        wgpuRenderPassEncoderDrawIndexed(pass, item->model->index_count, 1, 0,
-                                         0, 0);
+        if (item->model->index_buffer) {
+          wgpuRenderPassEncoderDrawIndexed(pass, item->model->index_count, 1, 0,
+                                           0, 0);
+        }
       }
     }
   }
@@ -5335,6 +5482,7 @@ static int frame(wgpu_context_t* wgpu_context)
       /* Seaweed uses time offset for animation */
       state.model_extra_scratch[0] = state.clock + item->time_offset;
       update_model_uniforms(item->world_matrix, state.model_extra_scratch);
+      upload_model_uniforms();
       wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
                                         NULL);
 
@@ -5359,6 +5507,7 @@ static int frame(wgpu_context_t* wgpu_context)
         wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
                                           NULL);
         update_model_uniforms(item->world_matrix, state.model_extra_default);
+        upload_model_uniforms();
         wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
                                           NULL);
         wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
@@ -5383,6 +5532,7 @@ static int frame(wgpu_context_t* wgpu_context)
         wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
                                           NULL);
         update_model_uniforms(item->world_matrix, state.model_extra_default);
+        upload_model_uniforms();
         wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
                                           NULL);
         wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
@@ -5399,10 +5549,14 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Render bubbles */
-  /* DISABLED FOR DEBUGGING: render_bubbles(pass); */
+  if (state.options.bubbles) {
+    render_bubbles(pass);
+  }
 
   /* Render light rays */
-  /* DISABLED FOR DEBUGGING: render_light_rays(pass); */
+  if (state.options.light_rays) {
+    render_light_rays(pass);
+  }
 
   /* End render pass */
   wgpuRenderPassEncoderEnd(pass);
@@ -5512,6 +5666,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
     igCheckbox("Tank", &state.options.tank);
     igCheckbox("Bubbles", &state.options.bubbles);
     igCheckbox("Light Rays", &state.options.light_rays);
+    igCheckbox("Lasers", &state.options.lasers);
     igCheckbox("Fog", &state.options.fog);
     igCheckbox("Normal Maps", &state.options.normal_maps);
     igCheckbox("Reflection", &state.options.reflection);
@@ -6186,16 +6341,20 @@ static const char* light_ray_shader_wgsl = CODE(
 
   struct ModelUniforms {
     world: mat4x4<f32>,
+    worldInverse: mat4x4<f32>,
+    worldInverseTranspose: mat4x4<f32>,
+    extra: vec4<f32>, // x: intensity (alpha)
   };
 
   struct VertexInput {
-    @location(0) position: vec3<f32>,
+    @location(0) position: vec2<f32>,
     @location(1) texCoord: vec2<f32>,
   };
 
   struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
+    @location(1) intensity: f32,
   };
 
   @group(0) @binding(0) var<uniform> frameUniforms: FrameUniforms;
@@ -6207,16 +6366,21 @@ static const char* light_ray_shader_wgsl = CODE(
   fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-    let worldPosition = modelUniforms.world * vec4<f32>(input.position, 1.0);
+    // Position is 2D (x, y), z is 0 in local space
+    let localPos = vec4<f32>(input.position.x, input.position.y, 0.0, 1.0);
+    let worldPosition = modelUniforms.world * localPos;
     output.position = frameUniforms.viewProjection * worldPosition;
     output.texCoord = input.texCoord;
+    output.intensity = modelUniforms.extra.x;
 
     return output;
   }
 
   @fragment
   fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(lightRayTexture, lightRaySampler, input.texCoord);
+    let texColor = textureSample(lightRayTexture, lightRaySampler, input.texCoord);
+    // Apply intensity to alpha for fade in/out effect
+    return vec4<f32>(texColor.rgb, texColor.a * input.intensity);
   }
 );
 
@@ -6382,12 +6546,12 @@ static const char* seaweed_shader_wgsl = CODE(
     let toCamera = safeNormalize(frameUniforms.viewInverse[3].xyz - worldPos[3].xyz, vec3<f32>(0.0, 0.0, 1.0));
     let yAxis = vec3<f32>(0.0, 1.0, 0.0);
     let xAxis = safeNormalize(cross(yAxis, toCamera), vec3<f32>(1.0, 0.0, 0.0));
-    let zAxis = safeNormalize(cross(xAxis, yAxis), vec3<f32>(0.0, 0.0, 1.0));
 
+    /* Match WebGL: Use xAxis as third column for flat billboard seaweed */
     let newWorld = mat4x4<f32>(
       vec4<f32>(xAxis, 0.0),
       vec4<f32>(yAxis, 0.0),
-      vec4<f32>(zAxis, 0.0),
+      vec4<f32>(xAxis, 0.0),
       vec4<f32>(worldPos[3].xyz, 1.0)
     );
 
