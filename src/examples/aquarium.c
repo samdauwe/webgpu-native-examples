@@ -70,10 +70,7 @@
 #define MAX_INDICES 65536
 #define ASSET_FILE_BUFFER_SIZE (4 * 1024 * 1024) /* 4MB for asset files */
 /* Path relative to executable in build/Desktop-Debug/Debugx64/ */
-#define AQUARIUM_ASSETS_PATH                                                   \
-  "../../../src/examples/aquarium-web/aquarium/assets/"
-#define AQUARIUM_STATIC_ASSETS_PATH                                            \
-  "../../../src/examples/aquarium-web/aquarium/static_assets/"
+#define AQUARIUM_ASSETS_PATH "assets/models/Aquarium/"
 
 /* -------------------------------------------------------------------------- *
  * Config
@@ -171,11 +168,13 @@ static struct {
 static uint32_t fish_count_presets[FISH_COUNT_PRESET_COUNT]
   = {1, 100, 500, 1000, 5000, 10000, 15000, 20000, 25000, 30000};
 
-static struct {
+typedef struct {
   const char* name;
   globals_t globals;
   inner_const_t inner_const;
-} view_presets[VIEW_PRESET_COUNT] = {
+} view_preset_t;
+
+static view_preset_t view_presets[VIEW_PRESET_COUNT] = {
   {
     .name = "Inside (A)",
     .globals = {
@@ -3389,6 +3388,7 @@ static struct {
     bool lasers;
   } options;
   int fish_count;
+  int view_index; /* Current camera view preset index */
 
   /* Timing */
   float clock;
@@ -3544,9 +3544,10 @@ static struct {
     .light_rays  = true,
     .lasers      = false,
   },
-  .fish_count          = 500,
+  .fish_count           = 500,
+  .view_index           = 0, /* Default view: "Inside (A)" */
   .max_bubble_particles = 1000,
-  .color_attachment = {
+  .color_attachment     = {
     .loadOp     = WGPULoadOp_Clear,
     .storeOp    = WGPUStoreOp_Store,
     .clearValue = {0.0, 0.1, 0.2, 1.0},
@@ -4228,7 +4229,7 @@ static void init_bubble_system(void)
     = create_bubble_pipeline(state.device, state.color_format);
 
   /* Load bubble texture */
-  const char* bubble_texture_path = AQUARIUM_STATIC_ASSETS_PATH "bubble.png";
+  const char* bubble_texture_path = AQUARIUM_ASSETS_PATH "bubble.png";
   state.bubble_texture            = texture_cache_load_texture(
     &state.texture_cache, bubble_texture_path, WGPUTextureFormat_RGBA8Unorm);
 
@@ -4472,9 +4473,8 @@ static void init_light_ray_system(void)
     = create_light_ray_pipeline(state.device, &desc);
 
   /* Load light ray texture */
-  const char* light_ray_texture_path
-    = AQUARIUM_STATIC_ASSETS_PATH "LightRay.png";
-  state.light_ray_texture = texture_cache_load_texture(
+  const char* light_ray_texture_path = AQUARIUM_ASSETS_PATH "LightRay.png";
+  state.light_ray_texture            = texture_cache_load_texture(
     &state.texture_cache, light_ray_texture_path, WGPUTextureFormat_RGBA8Unorm);
   state.light_ray_bind_groups_created = false;
 
@@ -5424,6 +5424,38 @@ static int frame(wgpu_context_t* wgpu_context)
  * Aquarium example - GUI
  * -------------------------------------------------------------------------- */
 
+/* Apply a camera view preset */
+static void apply_view_preset(int index)
+{
+  if (index < 0 || index >= VIEW_PRESET_COUNT) {
+    return;
+  }
+
+  const view_preset_t* preset = &view_presets[index];
+
+  /* Update globals from the preset */
+  state.globals.target_height = preset->globals.target_height;
+  state.globals.target_radius = preset->globals.target_radius;
+  state.globals.eye_height    = preset->globals.eye_height;
+  state.globals.eye_radius    = preset->globals.eye_radius;
+  state.globals.eye_speed     = preset->globals.eye_speed;
+  state.globals.field_of_view = preset->globals.field_of_view;
+  state.globals.ambient_red   = preset->globals.ambient_red;
+  state.globals.ambient_green = preset->globals.ambient_green;
+  state.globals.ambient_blue  = preset->globals.ambient_blue;
+  state.globals.fog_power     = preset->globals.fog_power;
+  state.globals.fog_mult      = preset->globals.fog_mult;
+  state.globals.fog_offset    = preset->globals.fog_offset;
+  state.globals.fog_red       = preset->globals.fog_red;
+  state.globals.fog_green     = preset->globals.fog_green;
+  state.globals.fog_blue      = preset->globals.fog_blue;
+
+  /* Update inner constants if needed */
+  state.inner_const.refraction_fudge = preset->inner_const.refraction_fudge;
+  state.inner_const.eta              = preset->inner_const.eta;
+  state.inner_const.tank_color_fudge = preset->inner_const.tank_color_fudge;
+}
+
 static void render_gui(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
@@ -5438,6 +5470,16 @@ static void render_gui(wgpu_context_t* wgpu_context)
   /* Camera settings */
   if (igCollapsingHeaderBoolPtr("Camera", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
+    /* Change View button */
+    if (igButton("Change View", (ImVec2){0, 0})) {
+      state.view_index = (state.view_index + 1) % VIEW_PRESET_COUNT;
+      apply_view_preset(state.view_index);
+    }
+    igSameLine(0.0f, -1.0f);
+    igText("%s", view_presets[state.view_index].name);
+
+    igSeparator();
+
     imgui_overlay_slider_float("Eye Height", &state.globals.eye_height, 1.0f,
                                100.0f, "%.1f");
     imgui_overlay_slider_float("Eye Radius", &state.globals.eye_radius, 10.0f,
@@ -5509,7 +5551,7 @@ static void cleanup(wgpu_context_t* wgpu_context)
   sfetch_shutdown();
 
   /* Release loaded scene models */
-  for (int i = 0; i < SCENE_DEFINITION_COUNT; ++i) {
+  for (uint32_t i = 0; i < SCENE_DEFINITION_COUNT; ++i) {
     loaded_scene_t* scene = &loaded_scenes[i];
     for (uint32_t m = 0; m < scene->model_count; ++m) {
       aquarium_model_destroy(&scene->models[m]);
