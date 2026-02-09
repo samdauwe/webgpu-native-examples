@@ -3248,16 +3248,6 @@ static bool parse_model_from_json(WGPUDevice device, cJSON* model_json,
 
       uint32_t slot = get_attribute_slot(field_name);
 
-      /* Debug: print first model's vertex buffer slots */
-      static bool first_model_debug = true;
-      if (first_model_debug && model->vertex_buffer_count < 5) {
-        printf("[VBUF] %s -> slot=%u, components=%d\n", field_name, slot,
-               num_components);
-        if (model->vertex_buffer_count == 4) {
-          first_model_debug = false;
-        }
-      }
-
       /* Create vertex buffer */
       vertex_buffer_info_t* vb_info
         = &model->vertex_buffers[model->vertex_buffer_count];
@@ -3324,6 +3314,8 @@ typedef struct {
   aquarium_model_t* model;
   WGPUBindGroup material_bind_group;
   WGPUBuffer material_uniform_buffer;
+  WGPUBuffer model_uniform_buffer; /* Per-item model uniform buffer */
+  WGPUBindGroup model_bind_group;  /* Per-item model bind group */
   float world_matrix[16];
 } diffuse_render_item_t;
 
@@ -3331,6 +3323,8 @@ typedef struct {
   aquarium_model_t* model;
   WGPUBindGroup material_bind_group;
   WGPUBuffer material_uniform_buffer;
+  WGPUBuffer model_uniform_buffer; /* Per-item model uniform buffer */
+  WGPUBindGroup model_bind_group;  /* Per-item model bind group */
   float world_matrix[16];
   float time_offset;
 } seaweed_render_item_t;
@@ -3841,6 +3835,13 @@ static void upload_model_uniforms(void)
                        state.model_uniform_data, MODEL_UNIFORM_SIZE);
 }
 
+/* Upload model uniforms to a specific buffer (for per-item rendering) */
+static void upload_model_uniforms_to_buffer(WGPUBuffer buffer)
+{
+  wgpuQueueWriteBuffer(state.queue, buffer, 0, state.model_uniform_data,
+                       MODEL_UNIFORM_SIZE);
+}
+
 /* -------------------------------------------------------------------------- *
  * Compute frame uniforms
  * -------------------------------------------------------------------------- */
@@ -3867,23 +3868,6 @@ static void compute_frame_uniforms(void)
   mat4_perspective_yfov(&projection, g->field_of_view * PI / 180.0f, aspect,
                         1.0f, 25000.0f);
   mat4_multiply(&projection, &view_matrix, &view_projection);
-
-  /* Debug: print matrices once */
-  static bool first_uniform = true;
-  if (first_uniform) {
-    first_uniform = false;
-    printf("[FRAME] eye=(%.1f,%.1f,%.1f) target=(%.1f,%.1f,%.1f)\n",
-           eye_position[0], eye_position[1], eye_position[2], target[0],
-           target[1], target[2]);
-    printf("[FRAME] viewProj row0: %.4f %.4f %.4f %.4f\n", view_projection.m[0],
-           view_projection.m[4], view_projection.m[8], view_projection.m[12]);
-    printf("[FRAME] viewProj row1: %.4f %.4f %.4f %.4f\n", view_projection.m[1],
-           view_projection.m[5], view_projection.m[9], view_projection.m[13]);
-    printf("[FRAME] viewProj row2: %.4f %.4f %.4f %.4f\n", view_projection.m[2],
-           view_projection.m[6], view_projection.m[10], view_projection.m[14]);
-    printf("[FRAME] viewProj row3: %.4f %.4f %.4f %.4f\n", view_projection.m[3],
-           view_projection.m[7], view_projection.m[11], view_projection.m[15]);
-  }
 
   /* Fill frame uniform data */
   memcpy(&state.frame_uniform_data[0], view_projection.m, sizeof(float) * 16);
@@ -4819,6 +4803,25 @@ static void init_render_data(void)
           item->model = &scene->models[m];
           memcpy(item->world_matrix, placement->world_matrix,
                  sizeof(float) * 16);
+
+          /* Create per-item model uniform buffer */
+          item->model_uniform_buffer = create_uniform_buffer(
+            state.device, MODEL_UNIFORM_SIZE, "diffuse-item-model-uniform");
+
+          /* Create per-item model bind group */
+          WGPUBindGroupEntry bg_entry = {
+            .binding = 0,
+            .buffer  = item->model_uniform_buffer,
+            .size    = MODEL_UNIFORM_SIZE,
+          };
+          item->model_bind_group
+            = create_bind_group(state.device, state.model_layout, &bg_entry, 1,
+                                "diffuse-item-model-bind-group");
+
+          /* Pre-upload the world matrix to the item's buffer */
+          update_model_uniforms(item->world_matrix, state.model_extra_default);
+          upload_model_uniforms_to_buffer(item->model_uniform_buffer);
+
           item->material_bind_group
             = NULL; /* Will create when texture loaded */
         }
@@ -4833,7 +4836,26 @@ static void init_render_data(void)
           item->model = &scene->models[m];
           memcpy(item->world_matrix, placement->world_matrix,
                  sizeof(float) * 16);
-          item->time_offset         = (float)seaweed_time_index++;
+          item->time_offset = (float)seaweed_time_index++;
+
+          /* Create per-item model uniform buffer */
+          item->model_uniform_buffer = create_uniform_buffer(
+            state.device, MODEL_UNIFORM_SIZE, "seaweed-item-model-uniform");
+
+          /* Create per-item model bind group */
+          WGPUBindGroupEntry bg_entry = {
+            .binding = 0,
+            .buffer  = item->model_uniform_buffer,
+            .size    = MODEL_UNIFORM_SIZE,
+          };
+          item->model_bind_group
+            = create_bind_group(state.device, state.model_layout, &bg_entry, 1,
+                                "seaweed-item-model-bind-group");
+
+          /* Pre-upload the world matrix to the item's buffer */
+          update_model_uniforms(item->world_matrix, state.model_extra_default);
+          upload_model_uniforms_to_buffer(item->model_uniform_buffer);
+
           item->material_bind_group = NULL;
         }
       }
@@ -5136,54 +5158,6 @@ static void init_render_data(void)
   init_light_ray_system();
 
   state.render_data_initialized = true;
-
-  /* Debug: Print render data statistics */
-  printf("=== Render Data Initialized ===\n");
-  printf("Diffuse items: %u\n", state.diffuse_item_count);
-  printf("Seaweed items: %u\n", state.seaweed_item_count);
-  printf("Inner items: %u\n", state.inner_item_count);
-  printf("Outer items: %u\n", state.outer_item_count);
-  printf("Fish render groups: %u\n", state.fish_render_group_count);
-  printf("Diffuse pipeline: %s\n", state.diffuse_pipeline ? "OK" : "NULL");
-  printf("Fish pipeline: %s\n", state.fish_pipeline ? "OK" : "NULL");
-  printf("Seaweed pipeline: %s\n", state.seaweed_pipeline ? "OK" : "NULL");
-  printf("Inner pipeline: %s\n", state.inner_pipeline ? "OK" : "NULL");
-  printf("Outer pipeline: %s\n", state.outer_pipeline ? "OK" : "NULL");
-
-  /* Count items with valid bind groups */
-  int valid_diffuse = 0;
-  int valid_models  = 0;
-  for (uint32_t i = 0; i < state.diffuse_item_count; ++i) {
-    if (state.diffuse_items[i].material_bind_group != NULL) {
-      valid_diffuse++;
-    }
-    if (state.diffuse_items[i].model
-        && state.diffuse_items[i].model->index_buffer) {
-      valid_models++;
-    }
-  }
-  printf("Diffuse items with bind groups: %d\n", valid_diffuse);
-  printf("Diffuse items with index buffers: %d\n", valid_models);
-
-  /* Count seaweed items with valid bind groups */
-  int valid_seaweed  = 0;
-  int seaweed_models = 0;
-  for (uint32_t i = 0; i < state.seaweed_item_count; ++i) {
-    if (state.seaweed_items[i].material_bind_group != NULL) {
-      valid_seaweed++;
-    }
-    if (state.seaweed_items[i].model
-        && state.seaweed_items[i].model->index_buffer) {
-      seaweed_models++;
-    }
-  }
-  printf("Seaweed items with bind groups: %d\n", valid_seaweed);
-  printf("Seaweed items with index buffers: %d\n", seaweed_models);
-  if (state.diffuse_item_count > 0 && state.diffuse_items[0].model) {
-    aquarium_model_t* m = state.diffuse_items[0].model;
-    printf("First model: vb_count=%u, idx_count=%u\n", m->vertex_buffer_count,
-           m->index_count);
-  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -5329,16 +5303,6 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Render GUI */
   render_gui(wgpu_context);
 
-  /* Debug: print loading state once per second */
-  static float debug_timer = 0.0f;
-  debug_timer += delta_seconds;
-  if (debug_timer > 1.0f && !state.render_data_initialized) {
-    debug_timer = 0.0f;
-    printf("[DEBUG] Loading: placement=%d, scenes_pending=%d, render_init=%d\n",
-           state.loading_state.placement_loaded,
-           state.loading_state.scenes_pending, state.render_data_initialized);
-  }
-
   /* Early return if not ready to render - still show GUI */
   if (!state.render_data_initialized) {
     imgui_overlay_render(wgpu_context);
@@ -5427,13 +5391,10 @@ static int frame(wgpu_context_t* wgpu_context)
 
     for (uint32_t i = 0; i < state.diffuse_item_count; ++i) {
       diffuse_render_item_t* item = &state.diffuse_items[i];
-      if (item->model && item->material_bind_group) {
-        /* Update and upload model uniforms with this item's world matrix */
-        update_model_uniforms(item->world_matrix, state.model_extra_default);
-        upload_model_uniforms();
-
-        /* Set bind groups */
-        wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
+      if (item->model && item->material_bind_group && item->model_bind_group) {
+        /* Use the per-item model bind group (matrix was pre-uploaded at init)
+         */
+        wgpuRenderPassEncoderSetBindGroup(pass, 1, item->model_bind_group, 0,
                                           NULL);
         wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
                                           NULL);
@@ -5474,16 +5435,19 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Render seaweed items */
   for (uint32_t i = 0; i < state.seaweed_item_count; ++i) {
     seaweed_render_item_t* item = &state.seaweed_items[i];
-    if (item->model && state.seaweed_pipeline && item->material_bind_group) {
+    if (item->model && state.seaweed_pipeline && item->material_bind_group
+        && item->model_bind_group) {
       wgpuRenderPassEncoderSetPipeline(pass, state.seaweed_pipeline);
       wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
                                         NULL);
 
-      /* Seaweed uses time offset for animation */
+      /* Seaweed uses time offset for animation - update per-item buffer */
       state.model_extra_scratch[0] = state.clock + item->time_offset;
       update_model_uniforms(item->world_matrix, state.model_extra_scratch);
-      upload_model_uniforms();
-      wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
+      upload_model_uniforms_to_buffer(item->model_uniform_buffer);
+
+      /* Use the per-item model bind group */
+      wgpuRenderPassEncoderSetBindGroup(pass, 1, item->model_bind_group, 0,
                                         NULL);
 
       wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
