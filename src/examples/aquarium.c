@@ -1689,17 +1689,18 @@ typedef struct {
   WGPUBindGroupLayout material_bind_group_layout;
 } laser_pipeline_result_t;
 
-/* Note: Laser feature is disabled by default. These variables and the pipeline
- * creation function are kept for future implementation but currently unused.
- * Using __attribute__((unused)) to suppress compiler warnings. */
-static WGPURenderPipeline cached_laser_pipeline __attribute__((unused)) = NULL;
-static WGPUPipelineLayout cached_laser_pipeline_layout __attribute__((unused))
-= NULL;
-static WGPUBindGroupLayout cached_laser_material_bind_group_layout
-  __attribute__((unused))
-  = NULL;
+/* Maximum laser instances (3 lasers per big fish) */
+#define MAX_LASER_INSTANCES 128
 
-__attribute__((unused)) static laser_pipeline_result_t
+typedef struct {
+  float world_matrix[16]; /* World transformation matrix */
+} laser_instance_t;
+
+static WGPURenderPipeline cached_laser_pipeline                    = NULL;
+static WGPUPipelineLayout cached_laser_pipeline_layout             = NULL;
+static WGPUBindGroupLayout cached_laser_material_bind_group_layout = NULL;
+
+static laser_pipeline_result_t
 create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
 {
   if (cached_laser_pipeline) {
@@ -1736,12 +1737,12 @@ create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
         },
       },
       [2] = (WGPUBindGroupLayoutEntry) {
-        /* Binding 2: Uniform buffer */
+        /* Binding 2: Uniform buffer (vec4 colorMult) */
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .buffer     = {
            .type             = WGPUBufferBindingType_Uniform,
-           .minBindingSize   = sizeof(float) * 16 // 4x4 matrix
+           .minBindingSize   = sizeof(float) * 4  /* vec4 colorMult */
         }
       }
     };
@@ -3314,8 +3315,13 @@ static struct {
   laser_pipeline_result_t laser_pipeline_result;
   WGPUBuffer laser_vertex_buffer;
   WGPUBuffer laser_color_mult_buffer;
+  WGPUBuffer laser_model_uniform_buffer;
   WGPUBindGroup laser_material_bind_group;
+  WGPUBindGroup laser_model_bind_group;
   texture_record_t* laser_texture;
+  laser_instance_t laser_instances[MAX_LASER_INSTANCES];
+  int num_laser_instances;
+  bool laser_material_bind_group_created;
 
   /* Light ray system */
   light_ray_pipeline_result_t light_ray_pipeline_result;
@@ -3388,7 +3394,7 @@ static struct {
     .fog         = true,
     .bubbles     = true,
     .light_rays  = false, /* Disabled: not correctly ported yet */
-    .lasers      = false,
+    .lasers      = true,  /* Enabled: laser beams from big fish */
   },
   .fish_count           = 500,
   .view_index           = 0, /* Default view: "Inside (A)" */
@@ -4397,6 +4403,239 @@ static void render_bubbles(WGPURenderPassEncoder pass)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Initialize laser rendering system
+ * -------------------------------------------------------------------------- */
+
+static void init_laser_system(void)
+{
+  /* Create laser pipeline */
+  laser_pipeline_desc_t desc = {
+    .frame_layout = state.frame_layout,
+    .model_layout = state.model_layout,
+    .format       = state.color_format,
+  };
+  state.laser_pipeline_result = create_laser_pipeline(state.device, &desc);
+
+  /* Load laser beam texture */
+  const char* laser_texture_path = AQUARIUM_ASSETS_PATH "beam.png";
+  state.laser_texture            = texture_cache_load_texture(
+    &state.texture_cache, laser_texture_path, WGPUTextureFormat_RGBA8Unorm);
+  state.laser_material_bind_group_created = false;
+
+  /* Create quad vertices for laser beam (billboard) */
+  /* Vertex format: position.xy (2 floats) + texCoord.xy (2 floats) = 4 floats
+   */
+  float vertices[24] = {
+    /* position (xy), texcoord (uv) */
+    -0.5f, -0.5f, 0.0f, 1.0f, /* bottom-left */
+    0.5f,  -0.5f, 1.0f, 1.0f, /* bottom-right */
+    0.5f,  0.5f,  1.0f, 0.0f, /* top-right */
+    -0.5f, -0.5f, 0.0f, 1.0f, /* bottom-left */
+    0.5f,  0.5f,  1.0f, 0.0f, /* top-right */
+    -0.5f, 0.5f,  0.0f, 0.0f, /* top-left */
+  };
+  state.laser_vertex_buffer = wgpuDeviceCreateBuffer(
+    state.device, &(WGPUBufferDescriptor){
+                    .label = STRVIEW("laser-vertices"),
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(vertices),
+                  });
+  wgpuQueueWriteBuffer(state.queue, state.laser_vertex_buffer, 0, vertices,
+                       sizeof(vertices));
+
+  /* Create color multiplier buffer (vec4) - red tint */
+  float color_mult[4]           = {1.0f, 0.2f, 0.2f, 1.0f};
+  state.laser_color_mult_buffer = wgpuDeviceCreateBuffer(
+    state.device, &(WGPUBufferDescriptor){
+                    .label = STRVIEW("laser-color-mult"),
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(color_mult),
+                  });
+  wgpuQueueWriteBuffer(state.queue, state.laser_color_mult_buffer, 0,
+                       color_mult, sizeof(color_mult));
+
+  /* Create model uniform buffer for laser transforms */
+  state.laser_model_uniform_buffer = wgpuDeviceCreateBuffer(
+    state.device, &(WGPUBufferDescriptor){
+                    .label = STRVIEW("laser-model-uniforms"),
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(float) * 16, /* mat4x4 world matrix */
+                  });
+
+  /* Create model bind group for lasers */
+  WGPUBindGroupEntry model_entry = {
+    .binding = 0,
+    .buffer  = state.laser_model_uniform_buffer,
+    .offset  = 0,
+    .size    = sizeof(float) * 16,
+  };
+  state.laser_model_bind_group = wgpuDeviceCreateBindGroup(
+    state.device, &(WGPUBindGroupDescriptor){
+                    .label      = STRVIEW("laser-model-bind-group"),
+                    .layout     = state.model_layout,
+                    .entryCount = 1,
+                    .entries    = &model_entry,
+                  });
+
+  state.num_laser_instances = 0;
+}
+
+static void create_laser_material_bind_group(void)
+{
+  if (state.laser_material_bind_group_created) {
+    return;
+  }
+
+  /* Check if texture is loaded and valid */
+  if (state.laser_texture == NULL || state.laser_texture->view == NULL
+      || state.laser_texture->sampler == NULL || state.laser_texture->width == 0
+      || state.laser_texture->height == 0
+      || state.laser_pipeline_result.material_bind_group_layout == NULL) {
+    return;
+  }
+
+  /* Create material bind group */
+  WGPUBindGroupEntry entries[3] = {
+    [0] = {.binding = 0, .textureView = state.laser_texture->view},
+    [1] = {.binding = 1, .sampler = state.laser_texture->sampler},
+    [2] = {.binding = 2,
+           .buffer  = state.laser_color_mult_buffer,
+           .offset  = 0,
+           .size    = sizeof(float) * 4},
+  };
+  state.laser_material_bind_group = wgpuDeviceCreateBindGroup(
+    state.device,
+    &(WGPUBindGroupDescriptor){
+      .label      = STRVIEW("laser-material-bind-group"),
+      .layout     = state.laser_pipeline_result.material_bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(entries),
+      .entries    = entries,
+    });
+
+  if (state.laser_material_bind_group != NULL) {
+    state.laser_material_bind_group_created = true;
+  }
+}
+
+static void update_lasers(float delta_seconds)
+{
+  (void)delta_seconds;
+
+  if (!state.options.lasers || !state.laser_material_bind_group_created) {
+    state.num_laser_instances = 0;
+    return;
+  }
+
+  /* Clear previous laser instances */
+  state.num_laser_instances = 0;
+
+  /* Find BigFishA and BigFishB render groups and create lasers */
+  for (uint32_t g = 0; g < state.fish_render_group_count; g++) {
+    fish_render_group_t* group = &state.fish_render_groups[g];
+
+    /* Only process big fish species that have lasers */
+    const char* species_name = fish_species[group->species_index].name;
+    if (strcmp(species_name, "BigFishA") != 0
+        && strcmp(species_name, "BigFishB") != 0) {
+      continue;
+    }
+
+    /* Get fish positions from the fish school */
+    species_state_t* sim_state
+      = &state.fish_school.species_state[group->species_index];
+    if (sim_state == NULL || sim_state->fish == NULL) {
+      continue;
+    }
+
+    /* Create 3 lasers for each big fish at 120-degree intervals */
+    for (int i = 0; i < sim_state->fish_count; i++) {
+      fish_instance_t* fish = &sim_state->fish[i];
+      if (state.num_laser_instances + 3 > MAX_LASER_INSTANCES) {
+        break;
+      }
+
+      float fish_x   = fish->position[0];
+      float fish_y   = fish->position[1];
+      float fish_z   = fish->position[2];
+      float fish_rot = atan2f(fish->position[2], fish->position[0]);
+
+      /* Create 3 lasers at 120-degree intervals */
+      for (int j = 0; j < 3; j++) {
+        float angle        = fish_rot + (j * 2.0f * PI) / 3.0f;
+        float laser_length = 200.0f; /* Match WebGL scale */
+
+        laser_instance_t* laser
+          = &state.laser_instances[state.num_laser_instances++];
+
+        /* Build world matrix: scale, rotate around Y, translate */
+        float* m = laser->world_matrix;
+        memset(m, 0, sizeof(float) * 16);
+
+        /* Start with identity */
+        m[0] = m[5] = m[10] = m[15] = 1.0f;
+
+        /* Apply scale: width = 0.5, height = laser_length, depth = 0.5 */
+        m[0]  = 0.5f;
+        m[5]  = laser_length;
+        m[10] = 0.5f;
+
+        /* Apply rotation around Y axis */
+        float cos_a = cosf(angle);
+        float sin_a = sinf(angle);
+        float rot_x = m[0];
+        float rot_z = m[10];
+        m[0]        = cos_a * rot_x;
+        m[2]        = sin_a * rot_x;
+        m[8]        = -sin_a * rot_z;
+        m[10]       = cos_a * rot_z;
+
+        /* Apply translation to fish position */
+        m[12] = fish_x;
+        m[13] = fish_y;
+        m[14] = fish_z;
+      }
+    }
+  }
+}
+
+static void render_lasers(WGPURenderPassEncoder pass)
+{
+  if (!state.options.lasers || state.laser_pipeline_result.pipeline == NULL
+      || state.num_laser_instances == 0) {
+    return;
+  }
+
+  /* Try to create material bind group if texture is ready */
+  create_laser_material_bind_group();
+
+  /* Only render if bind group is ready */
+  if (!state.laser_material_bind_group_created
+      || state.laser_material_bind_group == NULL) {
+    return;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(pass, state.laser_pipeline_result.pipeline);
+  wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.laser_vertex_buffer, 0,
+                                       WGPU_WHOLE_SIZE);
+
+  /* Render each laser instance */
+  for (int i = 0; i < state.num_laser_instances; i++) {
+    laser_instance_t* laser = &state.laser_instances[i];
+
+    /* Update model uniform buffer with laser's world matrix */
+    wgpuQueueWriteBuffer(state.queue, state.laser_model_uniform_buffer, 0,
+                         laser->world_matrix, sizeof(float) * 16);
+
+    wgpuRenderPassEncoderSetBindGroup(pass, 1, state.laser_model_bind_group, 0,
+                                      NULL);
+    wgpuRenderPassEncoderSetBindGroup(pass, 2, state.laser_material_bind_group,
+                                      0, NULL);
+    wgpuRenderPassEncoderDraw(pass, 6, 1, 0, 0);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Initialize light ray rendering system
  * -------------------------------------------------------------------------- */
 
@@ -5003,6 +5242,9 @@ static void init_render_data(void)
   /* Initialize bubble system */
   init_bubble_system();
 
+  /* Initialize laser system */
+  init_laser_system();
+
   /* Initialize light ray system */
   init_light_ray_system();
 
@@ -5160,6 +5402,9 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* Update fish school */
   fish_school_update(&state.fish_school, state.clock, &state.fish_config);
+
+  /* Update laser instances (attached to big fish) */
+  update_lasers(delta_seconds);
 
   /* Update fish instance data and upload to GPU */
   for (uint32_t g = 0; g < state.fish_render_group_count; ++g) {
@@ -5366,6 +5611,11 @@ static int frame(wgpu_context_t* wgpu_context)
     render_bubbles(pass);
   }
 
+  /* Render lasers */
+  if (state.options.lasers) {
+    render_lasers(pass);
+  }
+
   /* Render light rays */
   if (state.options.light_rays) {
     render_light_rays(pass);
@@ -5534,6 +5784,13 @@ static void cleanup(wgpu_context_t* wgpu_context)
   /* Release bubble emitter */
   bubble_emitter_destroy(&state.bubble_emitter);
 
+  /* Release laser system resources */
+  WGPU_RELEASE_RESOURCE(Buffer, state.laser_vertex_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, state.laser_color_mult_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, state.laser_model_uniform_buffer);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.laser_material_bind_group);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.laser_model_bind_group);
+
   /* Release texture cache */
   texture_cache_destroy(&state.texture_cache);
 
@@ -5564,6 +5821,17 @@ static void cleanup(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.inner_pipeline_layout);
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.outer_pipeline);
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.outer_pipeline_layout);
+
+  /* Release laser pipeline resources */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.laser_pipeline_result.pipeline);
+  WGPU_RELEASE_RESOURCE(PipelineLayout,
+                        state.laser_pipeline_result.pipeline_layout);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.laser_pipeline_result.material_bind_group_layout);
+  /* Clear cached pointers to avoid double-release */
+  cached_laser_pipeline                   = NULL;
+  cached_laser_pipeline_layout            = NULL;
+  cached_laser_material_bind_group_layout = NULL;
 
   /* Release depth resources */
   WGPU_RELEASE_RESOURCE(TextureView, state.depth_view);
@@ -6111,7 +6379,7 @@ static const char* laser_shader_wgsl = CODE(
   };
 
   struct VertexInput {
-    @location(0) position: vec3<f32>,
+    @location(0) position: vec2<f32>,
     @location(1) texCoord: vec2<f32>,
   };
 
@@ -6130,7 +6398,8 @@ static const char* laser_shader_wgsl = CODE(
   fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-    let worldPosition = modelUniforms.world * vec4<f32>(input.position, 1.0);
+    // Expand 2D position to 3D (XY plane, Z=0)
+    let worldPosition = modelUniforms.world * vec4<f32>(input.position.x, input.position.y, 0.0, 1.0);
     output.position = frameUniforms.viewProjection * worldPosition;
     output.texCoord = input.texCoord;
 
