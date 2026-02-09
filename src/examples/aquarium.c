@@ -95,25 +95,6 @@ typedef struct {
   float fog_blue;
 } globals_t;
 
-static globals_t default_globals = {
-  .speed         = 1.0f,
-  .target_height = 0.0f,
-  .target_radius = 88.0f,
-  .eye_height    = 38.0f,
-  .eye_radius    = 69.0f,
-  .eye_speed     = 0.06f,
-  .field_of_view = 85.0f,
-  .ambient_red   = 0.22f,
-  .ambient_green = 0.25f,
-  .ambient_blue  = 0.39f,
-  .fog_power     = 14.5f,
-  .fog_mult      = 1.66f,
-  .fog_offset    = 0.53f,
-  .fog_red       = 0.54f,
-  .fog_green     = 0.86f,
-  .fog_blue      = 1.0f,
-};
-
 typedef struct {
   float fish_height_range;
   float fish_height;
@@ -125,48 +106,11 @@ typedef struct {
   float fish_tail_speed;
 } fish_t;
 
-static fish_t default_fish = {
-  .fish_height_range = 1.0f,
-  .fish_height       = 25.0f,
-  .fish_speed        = 0.124f,
-  .fish_offset       = 0.52f,
-  .fish_xclock       = 1.0f,
-  .fish_yclock       = 0.556f,
-  .fish_zclock       = 1.0f,
-  .fish_tail_speed   = 1.0f,
-};
-
 typedef struct {
   float refraction_fudge;
   float eta;
   float tank_color_fudge;
 } inner_const_t;
-
-static inner_const_t default_inner_const = {
-  .refraction_fudge = 3.0f,
-  .eta              = 1.0f,
-  .tank_color_fudge = 0.8f,
-};
-
-static struct {
-  const char* id;
-  const char* label;
-  bool default_value;
-} option_definitions[OPTION_DEFINITION_COUNT] = {
-  // clang-format off
-  { .id = "normalMaps", .label = "Normal Maps", .default_value = true  },
-  { .id = "reflection", .label = "Reflection",  .default_value = true  },
-  { .id = "tank",       .label = "Tank",        .default_value = true  },
-  { .id = "museum",     .label = "Museum",      .default_value = true  },
-  { .id = "fog",        .label = "Fog",         .default_value = true  },
-  { .id = "bubbles",    .label = "Bubbles",     .default_value = true  },
-  { .id = "lightRays",  .label = "Light Rays",  .default_value = true  },
-  { .id = "lasers",     .label = "Lasers",      .default_value = false },
-  // clang-format on
-};
-
-static uint32_t fish_count_presets[FISH_COUNT_PRESET_COUNT]
-  = {1, 100, 500, 1000, 5000, 10000, 15000, 20000, 25000, 30000};
 
 typedef struct {
   const char* name;
@@ -693,15 +637,8 @@ static void vec3_normalize(const float* v, float* out)
   }
 }
 
-static float lerp(float a, float b, float t)
-{
-  return a + (b - a) * t;
-}
-
-static float clamp(float value, float min, float max)
-{
-  return fminf(max, fmaxf(min, value));
-}
+/* Note: lerp and clamp removed - use standard fminf/fmaxf or cglm equivalents
+ */
 
 static void mat4_lookat(mat4_t* out, const float* eye, const float* target,
                         const float* up)
@@ -746,36 +683,8 @@ static void mat4_multiply(const mat4_t* a, const mat4_t* b, mat4_t* out)
   }
 }
 
-static void mat4_translate(const mat4_t* matrix, const float* translation,
-                           mat4_t* out)
-{
-  memcpy(out->m, matrix->m, sizeof(out->m));
-  out->m[12] = matrix->m[0] * translation[0] + matrix->m[4] * translation[1]
-               + matrix->m[8] * translation[2] + matrix->m[12];
-  out->m[13] = matrix->m[1] * translation[0] + matrix->m[5] * translation[1]
-               + matrix->m[9] * translation[2] + matrix->m[13];
-  out->m[14] = matrix->m[2] * translation[0] + matrix->m[6] * translation[1]
-               + matrix->m[10] * translation[2] + matrix->m[14];
-  out->m[15] = matrix->m[3] * translation[0] + matrix->m[7] * translation[1]
-               + matrix->m[11] * translation[2] + matrix->m[15];
-}
-
-static void mat4_scale(const mat4_t* matrix, const float* scale, mat4_t* out)
-{
-  memcpy(out->m, matrix->m, sizeof(out->m));
-  out->m[0] *= scale[0];
-  out->m[1] *= scale[0];
-  out->m[2] *= scale[0];
-  out->m[3] *= scale[0];
-  out->m[4] *= scale[1];
-  out->m[5] *= scale[1];
-  out->m[6] *= scale[1];
-  out->m[7] *= scale[1];
-  out->m[8] *= scale[2];
-  out->m[9] *= scale[2];
-  out->m[10] *= scale[2];
-  out->m[11] *= scale[2];
-}
+/* Note: mat4_translate removed - use cglm glm_translate or inline */
+/* Note: mat4_scale removed - use cglm glm_scale or inline */
 
 static void mat4_transpose(const mat4_t* matrix, mat4_t* out)
 {
@@ -1780,11 +1689,17 @@ typedef struct {
   WGPUBindGroupLayout material_bind_group_layout;
 } laser_pipeline_result_t;
 
-static WGPURenderPipeline cached_laser_pipeline                    = NULL;
-static WGPUPipelineLayout cached_laser_pipeline_layout             = NULL;
-static WGPUBindGroupLayout cached_laser_material_bind_group_layout = NULL;
+/* Note: Laser feature is disabled by default. These variables and the pipeline
+ * creation function are kept for future implementation but currently unused.
+ * Using __attribute__((unused)) to suppress compiler warnings. */
+static WGPURenderPipeline cached_laser_pipeline __attribute__((unused)) = NULL;
+static WGPUPipelineLayout cached_laser_pipeline_layout __attribute__((unused))
+= NULL;
+static WGPUBindGroupLayout cached_laser_material_bind_group_layout
+  __attribute__((unused))
+  = NULL;
 
-static laser_pipeline_result_t
+__attribute__((unused)) static laser_pipeline_result_t
 create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
 {
   if (cached_laser_pipeline) {
@@ -2666,32 +2581,6 @@ static void texture_cache_destroy(texture_cache_t* this)
  * Aquarium model
  * -------------------------------------------------------------------------- */
 
-typedef enum {
-  ATTRIBUTE_SLOT_POSITION = 0,
-  ATTRIBUTE_SLOT_NORMAL   = 1,
-  ATTRIBUTE_SLOT_TEXCOORD = 2,
-  ATTRIBUTE_SLOT_TANGENT  = 3,
-  ATTRIBUTE_SLOT_BINORMAL = 4,
-} ATTRIBUTE_SLOTS;
-
-static WGPUVertexFormat vertex_format(const char* type, int num_components)
-{
-  if (strcmp(type, "Float32Array") == 0) {
-    switch (num_components) {
-      case 2:
-        return WGPUVertexFormat_Float32x2;
-      case 3:
-        return WGPUVertexFormat_Float32x3;
-      case 4:
-        return WGPUVertexFormat_Float32x4;
-      default:
-        fprintf(stderr, "Unsupported float component count: %d\n",
-                num_components);
-    }
-  }
-  return WGPUVertexFormat_Force32;
-}
-
 /* -------------------------------------------------------------------------- *
  * Aquarium renderer
  * -------------------------------------------------------------------------- */
@@ -2911,46 +2800,8 @@ aquarium_renderer_create_bind_group_layouts(aquarium_renderer_t* this)
   }
 }
 
-static void aquarium_renderer_create_uniform_buffers(aquarium_renderer_t* this)
-{
-  /* Frame uniform buffer */
-  {
-    this->frame_uniform_buffer = create_uniform_buffer(
-      this->device, FRAME_UNIFORM_SIZE, "frame-uniform");
-    ASSERT(this->frame_uniform_buffer != NULL);
-  }
-
-  /* Frame bind group */
-  {
-    WGPUBindGroupEntry bg_entry = {
-      .binding = 0,
-      .buffer  = this->frame_uniform_buffer,
-      .size    = FRAME_UNIFORM_SIZE,
-    };
-    this->frame_bind_group = create_bind_group(
-      this->device, this->frame_layout, &bg_entry, 1, "frame-bind-group");
-    ASSERT(this->frame_bind_group != NULL);
-  }
-
-  /* Model uniform buffer */
-  {
-    this->model_uniform_buffer = create_uniform_buffer(
-      this->device, MODEL_UNIFORM_SIZE, "model-uniform");
-    ASSERT(this->model_uniform_buffer != NULL);
-  }
-
-  /* Model bind group */
-  {
-    WGPUBindGroupEntry bg_entry = {
-      .binding = 0,
-      .buffer  = this->model_uniform_buffer,
-      .size    = MODEL_UNIFORM_SIZE,
-    };
-    this->model_bind_group = create_bind_group(
-      this->device, this->model_layout, &bg_entry, 1, "model-bind-group");
-    ASSERT(this->model_bind_group != NULL);
-  }
-}
+/* Note: aquarium_renderer_create_uniform_buffers removed - same logic is done
+ * inline in init_render_data() */
 
 /* -------------------------------------------------------------------------- *
  * Aquarium Model - Manages vertex/index buffers for scene geometry
@@ -3482,7 +3333,6 @@ static struct {
   uint8_t file_buffer[ASSET_FILE_BUFFER_SIZE];
   struct {
     bool placement_loaded;
-    bool scenes_loaded;
     int scenes_pending;
     int textures_pending;
   } loading_state;
@@ -3634,7 +3484,6 @@ static void scene_fetch_callback(const sfetch_response_t* response)
   scene->loading = false;
   scene->loaded  = true;
   state.loading_state.scenes_pending--;
-  state.loading_state.scenes_loaded++;
 }
 
 /* Callback for prop placement file fetch */
@@ -5063,7 +4912,7 @@ static void init_render_data(void)
 
   /* Create fish render groups - one per species */
   state.fish_render_group_count = 0;
-  for (int species = 0;
+  for (uint32_t species = 0;
        species < FISH_SPECIES_COUNT
        && state.fish_render_group_count < MAX_FISH_RENDER_GROUPS;
        ++species) {
@@ -5545,7 +5394,7 @@ static int frame(wgpu_context_t* wgpu_context)
 /* Apply a camera view preset */
 static void apply_view_preset(int index)
 {
-  if (index < 0 || index >= VIEW_PRESET_COUNT) {
+  if (index < 0 || index >= (int)VIEW_PRESET_COUNT) {
     return;
   }
 
