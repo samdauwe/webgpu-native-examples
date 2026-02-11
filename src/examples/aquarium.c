@@ -1247,7 +1247,7 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
     };
     cached_bubble_bind_group_layout_1 = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Bubble Material Bind Group Layout"),
+                .label      = STRVIEW("Bubble Material - Bind Group Layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                 .entries    = bgl_entries,
               });
