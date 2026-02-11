@@ -683,6 +683,22 @@ static void mat4_multiply(const mat4_t* a, const mat4_t* b, mat4_t* out)
   }
 }
 
+/* mat4_mul for float[16] arrays (column-major) */
+static void mat4_mul(float* out, const float* a, const float* b)
+{
+  float temp[16];
+  for (int col = 0; col < 4; ++col) {
+    for (int row = 0; row < 4; ++row) {
+      float sum = 0.0f;
+      for (int k = 0; k < 4; ++k) {
+        sum += a[k * 4 + row] * b[col * 4 + k];
+      }
+      temp[col * 4 + row] = sum;
+    }
+  }
+  memcpy(out, temp, sizeof(float) * 16);
+}
+
 /* Note: mat4_translate removed - use cglm glm_translate or inline */
 /* Note: mat4_scale removed - use cglm glm_scale or inline */
 
@@ -1691,6 +1707,16 @@ typedef struct {
 
 /* Maximum laser instances (3 lasers per big fish) */
 #define MAX_LASER_INSTANCES 128
+#define MAX_LASER_FISH_DATA 32
+
+/* Data tracked per laser-enabled fish during fish rendering */
+typedef struct {
+  float position[3]; /* Fish current position */
+  float target[3];   /* Fish next position (look target) */
+  float scale;       /* Fish scale */
+  float time;        /* Animation time for wave offset */
+  int species_index; /* Species index for laser parameters */
+} laser_fish_data_t;
 
 typedef struct {
   float world_matrix[16]; /* World transformation matrix */
@@ -1776,22 +1802,22 @@ create_laser_pipeline(WGPUDevice device, laser_pipeline_desc_t* desc)
   {
     WGPUVertexAttribute vertex_attributes[2] = {
       [0] = (WGPUVertexAttribute) {
-        /* position */
+        /* position (3D - XZ plane like WebGL createPlane) */
         .shaderLocation = 0,
         .offset         = 0,
-        .format         = WGPUVertexFormat_Float32x2,
+        .format         = WGPUVertexFormat_Float32x3,
       },
       [1] = (WGPUVertexAttribute) {
         /* texcoord */
         .shaderLocation = 1,
-        .offset         = 8,
+        .offset         = 12,
         .format         = WGPUVertexFormat_Float32x2,
       },
     };
 
-    /* Vertex buffer layout for simple quad */
+    /* Vertex buffer layout: position(3) + texcoord(2) = 5 floats */
     WGPUVertexBufferLayout vertex_buffer_layout = {
-      .arrayStride    = 16, /* 4 floats: position(2) + texcoord(2) */
+      .arrayStride    = 20, /* 5 floats: position(3) + texcoord(2) */
       .stepMode       = WGPUVertexStepMode_Vertex,
       .attributeCount = ARRAY_SIZE(vertex_attributes),
       .attributes     = &vertex_attributes[0],
@@ -3314,14 +3340,18 @@ static struct {
   /* Laser system */
   laser_pipeline_result_t laser_pipeline_result;
   WGPUBuffer laser_vertex_buffer;
+  WGPUBuffer laser_index_buffer;
   WGPUBuffer laser_color_mult_buffer;
   WGPUBuffer laser_model_uniform_buffer;
   WGPUBindGroup laser_material_bind_group;
   WGPUBindGroup laser_model_bind_group;
   texture_record_t* laser_texture;
   laser_instance_t laser_instances[MAX_LASER_INSTANCES];
+  laser_fish_data_t laser_fish_data[MAX_LASER_FISH_DATA];
+  int num_laser_fish_data;
   int num_laser_instances;
   bool laser_material_bind_group_created;
+  uint32_t laser_index_count;
 
   /* Light ray system */
   light_ray_pipeline_result_t light_ray_pipeline_result;
@@ -4422,18 +4452,74 @@ static void init_laser_system(void)
     &state.texture_cache, laser_texture_path, WGPUTextureFormat_RGBA8Unorm);
   state.laser_material_bind_group_created = false;
 
-  /* Create quad vertices for laser beam (billboard) */
-  /* Vertex format: position.xy (2 floats) + texCoord.xy (2 floats) = 4 floats
+  /* Create 3-beam laser geometry matching WebGL createPlane + reorient
+   * WebGL creates a plane on XZ (Y=0), with vertices at:
+   * (x-0.5, 0, z-0.5) then translates by [0,0,0.5]
+   * Then creates 3 copies rotated at 0°, 120°, -120° around Z
+   * Each beam: 4 vertices, 6 indices (2 triangles)
+   * Total: 12 vertices, 18 indices (3 beams)
+   * Vertex format: position.xyz (3 floats) + texCoord.xy (2 floats) = 5 floats
    */
-  float vertices[24] = {
-    /* position (xy), texcoord (uv) */
-    -0.5f, -0.5f, 0.0f, 1.0f, /* bottom-left */
-    0.5f,  -0.5f, 1.0f, 1.0f, /* bottom-right */
-    0.5f,  0.5f,  1.0f, 0.0f, /* top-right */
-    -0.5f, -0.5f, 0.0f, 1.0f, /* bottom-left */
-    0.5f,  0.5f,  1.0f, 0.0f, /* top-right */
-    -0.5f, 0.5f,  0.0f, 0.0f, /* top-left */
-  };
+  float vertices[60]; /* 12 vertices * 5 floats */
+  uint16_t indices[18];
+  int v_idx = 0;
+  int i_idx = 0;
+
+  /* Create 3 beams at 0, 120, -120 degrees rotation around Z */
+  float beam_angles[3] = {0.0f, 120.0f * PI / 180.0f, -120.0f * PI / 180.0f};
+
+  for (int beam = 0; beam < 3; beam++) {
+    float cos_a = cosf(beam_angles[beam]);
+    float sin_a = sinf(beam_angles[beam]);
+
+    /* Base plane vertices matching JavaScript createPlane(1,1,1,1) + reorient.
+     * JavaScript iterates z=0..1, x=0..1, producing vertices in this order:
+     * (z=0,x=0), (z=0,x=1), (z=1,x=0), (z=1,x=1)
+     * With positions: (-0.5,0,0), (0.5,0,0), (-0.5,0,1), (0.5,0,1)
+     * And texCoords: (0,0), (1,0), (0,1), (1,1)
+     */
+    float base_verts[4][3] = {
+      {-0.5f, 0.0f, 0.0f}, /* vertex 0: z=0, x=0 */
+      {0.5f, 0.0f, 0.0f},  /* vertex 1: z=0, x=1 */
+      {-0.5f, 0.0f, 1.0f}, /* vertex 2: z=1, x=0 */
+      {0.5f, 0.0f, 1.0f},  /* vertex 3: z=1, x=1 */
+    };
+    float tex_coords[4][2] = {
+      {0.0f, 0.0f}, /* vertex 0 */
+      {1.0f, 0.0f}, /* vertex 1 */
+      {0.0f, 1.0f}, /* vertex 2 */
+      {1.0f, 1.0f}, /* vertex 3 */
+    };
+
+    uint16_t base_idx = (uint16_t)(beam * 4);
+    for (int i = 0; i < 4; i++) {
+      /* Rotate around Z axis */
+      float x  = base_verts[i][0];
+      float y  = base_verts[i][1];
+      float z  = base_verts[i][2];
+      float rx = x * cos_a - y * sin_a;
+      float ry = x * sin_a + y * cos_a;
+
+      vertices[v_idx++] = rx;
+      vertices[v_idx++] = ry;
+      vertices[v_idx++] = z;
+      vertices[v_idx++] = tex_coords[i][0];
+      vertices[v_idx++] = tex_coords[i][1];
+    }
+
+    /* Triangles matching JavaScript: [0,2,1] and [2,3,1]
+     * This gives CCW winding when viewed from +Y (above).
+     */
+    indices[i_idx++] = base_idx + 0;
+    indices[i_idx++] = base_idx + 2;
+    indices[i_idx++] = base_idx + 1;
+    indices[i_idx++] = base_idx + 2;
+    indices[i_idx++] = base_idx + 3;
+    indices[i_idx++] = base_idx + 1;
+  }
+
+  state.laser_index_count = 18;
+
   state.laser_vertex_buffer = wgpuDeviceCreateBuffer(
     state.device, &(WGPUBufferDescriptor){
                     .label = STRVIEW("laser-vertices"),
@@ -4443,8 +4529,17 @@ static void init_laser_system(void)
   wgpuQueueWriteBuffer(state.queue, state.laser_vertex_buffer, 0, vertices,
                        sizeof(vertices));
 
-  /* Create color multiplier buffer (vec4) - red tint */
-  float color_mult[4]           = {1.0f, 0.2f, 0.2f, 1.0f};
+  state.laser_index_buffer = wgpuDeviceCreateBuffer(
+    state.device, &(WGPUBufferDescriptor){
+                    .label = STRVIEW("laser-indices"),
+                    .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(indices),
+                  });
+  wgpuQueueWriteBuffer(state.queue, state.laser_index_buffer, 0, indices,
+                       sizeof(indices));
+
+  /* Create color multiplier buffer (vec4) - red tint (matches WebGL) */
+  float color_mult[4]           = {1.0f, 0.1f, 0.1f, 1.0f};
   state.laser_color_mult_buffer = wgpuDeviceCreateBuffer(
     state.device, &(WGPUBufferDescriptor){
                     .label = STRVIEW("laser-color-mult"),
@@ -4478,6 +4573,7 @@ static void init_laser_system(void)
                   });
 
   state.num_laser_instances = 0;
+  state.num_laser_fish_data = 0;
 }
 
 static void create_laser_material_bind_group(void)
@@ -4517,14 +4613,120 @@ static void create_laser_material_bind_group(void)
   }
 }
 
+/* Ray-sphere intersection for laser length calculation (matches WebGL) */
+static bool ray_sphere_intersection(const float* point1, const float* point2,
+                                    const float* center, float radius,
+                                    float* intersection)
+{
+  float dx = point2[0] - point1[0];
+  float dy = point2[1] - point1[1];
+  float dz = point2[2] - point1[2];
+
+  float fx = point1[0] - center[0];
+  float fy = point1[1] - center[1];
+  float fz = point1[2] - center[2];
+
+  float a = dx * dx + dy * dy + dz * dz;
+  float b = 2.0f * (fx * dx + fy * dy + fz * dz);
+  float c = fx * fx + fy * fy + fz * fz - radius * radius;
+
+  float disc = b * b - 4.0f * a * c;
+  if (disc < 0.0f) {
+    return false;
+  }
+
+  float t = (-b + sqrtf(disc)) / (2.0f * a);
+  if (t < 0.0f) {
+    return false;
+  }
+
+  intersection[0] = point1[0] + t * dx;
+  intersection[1] = point1[1] + t * dy;
+  intersection[2] = point1[2] + t * dz;
+  return true;
+}
+
+/* Build camera look-at matrix (EXACTLY matches WebGL fast.matrix4.cameraLookAt)
+ * WebGL uses ROW-MAJOR matrices, and computes:
+ *   vz = normalize(eye - target)  <- BACKWARD direction
+ *   vx = normalize(cross(up, vz)) <- RIGHT
+ *   vy = cross(vz, vx)            <- UP
+ * Then stores in row-major as rows: [vx, vy, vz, eye]
+ *
+ * For column-major, we store columns: [vx, vy, vz, eye]
+ * which maps indices 0-3=vx, 4-7=vy, 8-11=vz, 12-15=eye
+ */
+static void build_camera_look_at(float* out, const float* eye,
+                                 const float* target, const float* up)
+{
+  /* vz = normalize(eye - target) - BACKWARD direction (same as JavaScript) */
+  float vz_x   = eye[0] - target[0];
+  float vz_y   = eye[1] - target[1];
+  float vz_z   = eye[2] - target[2];
+  float vz_len = sqrtf(vz_x * vz_x + vz_y * vz_y + vz_z * vz_z);
+  if (vz_len > 0.0f) {
+    vz_x /= vz_len;
+    vz_y /= vz_len;
+    vz_z /= vz_len;
+  }
+
+  /* vx = normalize(cross(up, vz)) - RIGHT direction */
+  float vx_x   = up[1] * vz_z - up[2] * vz_y;
+  float vx_y   = up[2] * vz_x - up[0] * vz_z;
+  float vx_z   = up[0] * vz_y - up[1] * vz_x;
+  float vx_len = sqrtf(vx_x * vx_x + vx_y * vx_y + vx_z * vx_z);
+  if (vx_len > 0.0f) {
+    vx_x /= vx_len;
+    vx_y /= vx_len;
+    vx_z /= vx_len;
+  }
+
+  /* vy = cross(vz, vx) - UP direction */
+  float vy_x = vz_y * vx_z - vz_z * vx_y;
+  float vy_y = vz_z * vx_x - vz_x * vx_z;
+  float vy_z = vz_x * vx_y - vz_y * vx_x;
+
+  /* Column-major matrix - columns are vx, vy, vz, eye */
+  out[0]  = vx_x;
+  out[1]  = vx_y;
+  out[2]  = vx_z;
+  out[3]  = 0.0f;
+  out[4]  = vy_x;
+  out[5]  = vy_y;
+  out[6]  = vy_z;
+  out[7]  = 0.0f;
+  out[8]  = vz_x;
+  out[9]  = vz_y;
+  out[10] = vz_z;
+  out[11] = 0.0f;
+  out[12] = eye[0];
+  out[13] = eye[1];
+  out[14] = eye[2];
+  out[15] = 1.0f;
+}
+
 static void update_lasers(float delta_seconds)
 {
   (void)delta_seconds;
 
-  if (!state.options.lasers || !state.laser_material_bind_group_created) {
+  if (!state.options.lasers) {
     state.num_laser_instances = 0;
     return;
   }
+
+  /* Try to create material bind group if not yet created */
+  create_laser_material_bind_group();
+
+  if (!state.laser_material_bind_group_created) {
+    state.num_laser_instances = 0;
+    return;
+  }
+
+  static const float TANK_RADIUS     = 74.0f;
+  static const float TANK_HEIGHT     = 36.0f;
+  static const float UP[3]           = {0.0f, 1.0f, 0.0f};
+  static const float LASER_LEN_FUDGE = 1.0f;
+  float center[3]                    = {0.0f, TANK_HEIGHT, 0.0f};
 
   /* Clear previous laser instances */
   state.num_laser_instances = 0;
@@ -4534,9 +4736,8 @@ static void update_lasers(float delta_seconds)
     fish_render_group_t* group = &state.fish_render_groups[g];
 
     /* Only process big fish species that have lasers */
-    const char* species_name = fish_species[group->species_index].name;
-    if (strcmp(species_name, "BigFishA") != 0
-        && strcmp(species_name, "BigFishB") != 0) {
+    int species_idx = group->species_index;
+    if (!fish_species[species_idx].lasers) {
       continue;
     }
 
@@ -4547,52 +4748,119 @@ static void update_lasers(float delta_seconds)
       continue;
     }
 
-    /* Create 3 lasers for each big fish at 120-degree intervals */
+    /* Create laser for each big fish */
     for (int i = 0; i < sim_state->fish_count; i++) {
       fish_instance_t* fish = &sim_state->fish[i];
-      if (state.num_laser_instances + 3 > MAX_LASER_INSTANCES) {
+      if (state.num_laser_instances >= MAX_LASER_INSTANCES) {
         break;
       }
 
-      float fish_x   = fish->position[0];
-      float fish_y   = fish->position[1];
-      float fish_z   = fish->position[2];
-      float fish_rot = atan2f(fish->position[2], fish->position[0]);
+      /* Fish wave oscillation for laser direction wobble.
+       * In WebGL, mult = fish.extents.max[2] / fishLength, which is
+       * approximately 1.0 for properly scaled fish models. We use 1.0 as the
+       * approximation.
+       */
+      float mult = 1.0f;
+      float s    = sinf(
+        fish->tail_time
+        + mult * fish_species[species_idx].const_uniforms.fish_wave_length);
+      float bend_offset
+        = mult * mult * s
+          * fish_species[species_idx].const_uniforms.fish_bend_amount;
 
-      /* Create 3 lasers at 120-degree intervals */
-      for (int j = 0; j < 3; j++) {
-        float angle        = fish_rot + (j * 2.0f * PI) / 3.0f;
-        float laser_length = 200.0f; /* Match WebGL scale */
+      /* Build look-at matrix from fish position to target */
+      float look_at[16];
+      build_camera_look_at(look_at, fish->position, fish->target, UP);
+
+      /* Apply rotation Y for laser wobble */
+      float rot_y     = s * fish_species[species_idx].laser_rot;
+      float cos_r     = cosf(rot_y);
+      float sin_r     = sinf(rot_y);
+      float rot_m[16] = {
+        cos_r,  0.0f, sin_r, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -sin_r, 0.0f, cos_r, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+      };
+
+      /* Apply translation offset */
+      float off_x       = bend_offset;
+      float off_y       = fish_species[species_idx].laser_off[1];
+      float off_z       = fish_species[species_idx].laser_off[2];
+      float trans_m[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  1.0f,  0.0f,  0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, off_x, off_y, off_z, 1.0f,
+      };
+
+      /* Matrix multiplication order for column-major:
+       * JavaScript (row-major): world = rotY * translation * cameraLookAt
+       * For row vector v: v' = v * cameraLookAt * translation * rotY
+       * For column-major to get same transformation:
+       * world = cameraLookAt * translation * rotY
+       * For column vector p: p' = cameraLookAt * translation * rotY * p
+       */
+      float m4t2[16];
+      mat4_mul(m4t2, trans_m, rot_m); /* m4t2 = trans_m * rot_m */
+
+      float world[16];
+      mat4_mul(world, look_at, m4t2); /* world = look_at * trans_m * rot_m */
+
+      /* Get laser direction from matrix column 2 (backward direction vz) */
+      float laser_dir[3] = {world[8], world[9], world[10]};
+      float dir_len
+        = sqrtf(laser_dir[0] * laser_dir[0] + laser_dir[1] * laser_dir[1]
+                + laser_dir[2] * laser_dir[2]);
+      if (dir_len > 0.0f) {
+        laser_dir[0] /= dir_len;
+        laser_dir[1] /= dir_len;
+        laser_dir[2] /= dir_len;
+      }
+
+      /* Laser start point from matrix translation */
+      float point1[3] = {world[12], world[13], world[14]};
+      float point2[3] = {
+        point1[0] + laser_dir[0] * 1000.0f,
+        point1[1] + laser_dir[1] * 1000.0f,
+        point1[2] + laser_dir[2] * 1000.0f,
+      };
+
+      /* Calculate ray-sphere intersection for laser length */
+      float intersection[3];
+      if (ray_sphere_intersection(point1, point2, center, TANK_RADIUS,
+                                  intersection)) {
+        /* Calculate laser length */
+        float dx  = intersection[0] - point1[0];
+        float dy  = intersection[1] - point1[1];
+        float dz  = intersection[2] - point1[2];
+        float len = sqrtf(dx * dx + dy * dy + dz * dz) * LASER_LEN_FUDGE;
+
+        /* Apply final scale - but preserve translation!
+         * We need to scale only the 3x3 orientation part, not the translation.
+         * world = [R | T] where R is 3x3 rotation and T is translation
+         * scaled_world = [S*R | T] where S is scale
+         */
+        float scale_x = fish_species[species_idx].laser_scale[0];
+        float scale_y = fish_species[species_idx].laser_scale[1];
+        float scale_z = len;
 
         laser_instance_t* laser
           = &state.laser_instances[state.num_laser_instances++];
 
-        /* Build world matrix: scale, rotate around Y, translate */
-        float* m = laser->world_matrix;
-        memset(m, 0, sizeof(float) * 16);
+        /* Copy world matrix */
+        memcpy(laser->world_matrix, world, sizeof(float) * 16);
 
-        /* Start with identity */
-        m[0] = m[5] = m[10] = m[15] = 1.0f;
-
-        /* Apply scale: width = 0.5, height = laser_length, depth = 0.5 */
-        m[0]  = 0.5f;
-        m[5]  = laser_length;
-        m[10] = 0.5f;
-
-        /* Apply rotation around Y axis */
-        float cos_a = cosf(angle);
-        float sin_a = sinf(angle);
-        float rot_x = m[0];
-        float rot_z = m[10];
-        m[0]        = cos_a * rot_x;
-        m[2]        = sin_a * rot_x;
-        m[8]        = -sin_a * rot_z;
-        m[10]       = cos_a * rot_z;
-
-        /* Apply translation to fish position */
-        m[12] = fish_x;
-        m[13] = fish_y;
-        m[14] = fish_z;
+        /* Scale only the 3x3 part (columns 0, 1, 2) */
+        /* Column 0 (right vector) scaled by scale_x */
+        laser->world_matrix[0] *= scale_x;
+        laser->world_matrix[1] *= scale_x;
+        laser->world_matrix[2] *= scale_x;
+        /* Column 1 (up vector) scaled by scale_y */
+        laser->world_matrix[4] *= scale_y;
+        laser->world_matrix[5] *= scale_y;
+        laser->world_matrix[6] *= scale_y;
+        /* Column 2 (forward vector) scaled by scale_z (the laser length) */
+        laser->world_matrix[8] *= scale_z;
+        laser->world_matrix[9] *= scale_z;
+        laser->world_matrix[10] *= scale_z;
+        /* Column 3 (translation) stays unchanged */
       }
     }
   }
@@ -4614,10 +4882,20 @@ static void render_lasers(WGPURenderPassEncoder pass)
     return;
   }
 
+  /* Update laser color with frame-based animation (like WebGL) */
+  static uint32_t frame_count = 0;
+  frame_count++;
+  float c             = 0.5f + (float)(frame_count % 2) + 0.5f;
+  float color_mult[4] = {c * 1.0f, c * 0.1f, c * 0.1f, c};
+  wgpuQueueWriteBuffer(state.queue, state.laser_color_mult_buffer, 0,
+                       color_mult, sizeof(color_mult));
+
   wgpuRenderPassEncoderSetPipeline(pass, state.laser_pipeline_result.pipeline);
   wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0, NULL);
   wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.laser_vertex_buffer, 0,
                                        WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    pass, state.laser_index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
 
   /* Render each laser instance */
   for (int i = 0; i < state.num_laser_instances; i++) {
@@ -4631,7 +4909,7 @@ static void render_lasers(WGPURenderPassEncoder pass)
                                       NULL);
     wgpuRenderPassEncoderSetBindGroup(pass, 2, state.laser_material_bind_group,
                                       0, NULL);
-    wgpuRenderPassEncoderDraw(pass, 6, 1, 0, 0);
+    wgpuRenderPassEncoderDrawIndexed(pass, state.laser_index_count, 1, 0, 0, 0);
   }
 }
 
@@ -6364,7 +6642,7 @@ static const char* inner_shader_p2_wgsl = CODE(
 
 static const char* laser_shader_wgsl = CODE(
   // Laser Beam Shader for WebGPU Aquarium
-  // Simple textured beam with color modulation
+  // Matches WebGL laser shader - simple textured beam with color modulation
 
   struct FrameUniforms {
     viewProjection: mat4x4<f32>,
@@ -6379,7 +6657,7 @@ static const char* laser_shader_wgsl = CODE(
   };
 
   struct VertexInput {
-    @location(0) position: vec2<f32>,
+    @location(0) position: vec3<f32>,
     @location(1) texCoord: vec2<f32>,
   };
 
@@ -6398,8 +6676,8 @@ static const char* laser_shader_wgsl = CODE(
   fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-    // Expand 2D position to 3D (XY plane, Z=0)
-    let worldPosition = modelUniforms.world * vec4<f32>(input.position.x, input.position.y, 0.0, 1.0);
+    // Transform 3D position by world matrix (matches WebGL laser shader)
+    let worldPosition = modelUniforms.world * vec4<f32>(input.position, 1.0);
     output.position = frameUniforms.viewProjection * worldPosition;
     output.texCoord = input.texCoord;
 
