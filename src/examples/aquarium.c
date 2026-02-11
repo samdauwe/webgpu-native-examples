@@ -1328,7 +1328,7 @@ static bubble_pipeline_result_t create_bubble_pipeline(WGPUDevice device,
     };
 
     WGPURenderPipelineDescriptor rp_desc = {
-      .label  = STRVIEW("Bubble Particle Pipeline"),
+      .label  = STRVIEW("Bubble - Particle Pipeline"),
       .layout = cached_bubble_pipeline_layout,
       .vertex = {
         .module      = shader_module,
