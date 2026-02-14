@@ -1656,7 +1656,10 @@ create_inner_pipeline(WGPUDevice device, inner_pipeline_desc_t* desc)
         .entryPoint  = STRVIEW("fs_main"),
         .targetCount = 1,
         .targets     = &(WGPUColorTargetState) {
-          .format    = desc->color_format,
+          .format = desc->color_format,
+          /* No blending - WebGL uses gl.disable(gl.BLEND) for GlobeInner
+           * The inner tank renders opaque, relying on render order and depth test */
+          .blend = NULL,
           .writeMask = WGPUColorWriteMask_All
         },
       },
@@ -2452,13 +2455,17 @@ texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
   } bitmap_t;
   bitmap_t bitmaps[NUM_FACES] = {0};
 
+  /* WebGPU cubemap loading:
+   * Load faces in standard order: +X, -X, +Y, -Y, +Z, -Z (indices 0-5)
+   * No swapping or flipping needed - the source images are already correctly
+   * oriented for WebGPU's coordinate system. */
+  stbi_set_flip_vertically_on_load(false);
   for (uint8_t face = 0; face < NUM_FACES; ++face) {
     bitmap_t* bitmap   = &bitmaps[face];
     bitmap->depth      = 4;
     bitmap->mip_levels = 1;
-    stbi_set_flip_vertically_on_load(true);
-    bitmap->pixels = stbi_load(urls[face], &bitmap->width, &bitmap->height,
-                               &bitmap->channels, bitmap->depth);
+    bitmap->pixels     = stbi_load(urls[face], &bitmap->width, &bitmap->height,
+                                   &bitmap->channels, bitmap->depth);
   }
 
   const int32_t width      = bitmaps[0].width;
@@ -3262,7 +3269,9 @@ static struct {
     bool lasers;
   } options;
   int fish_count;
-  int view_index; /* Current camera view preset index */
+  int view_index;       /* Current camera view preset index */
+  int inner_debug_mode; /* Debug mode for inner shader: 0=normal, 1=normals,
+                           2=refract dir, 3=skybox, 4=mask */
 
   /* Timing */
   float clock;
@@ -3849,12 +3858,13 @@ static void update_material_options(void)
       1.0f, /* specular */
       50.0f,
       0.5f,
-      3.0f,
-      1.5f, /* shininess, specularFactor, refractionFudge, eta */
-      0.8f, /* tankColorFudge */
+      state.inner_const.refraction_fudge,
+      state.inner_const
+        .eta, /* shininess, specularFactor, refractionFudge, eta */
+      state.inner_const.tank_color_fudge,      /* tankColorFudge */
       state.options.normal_maps ? 1.0f : 0.0f, /* useNormalMap */
       state.options.reflection ? 1.0f : 0.0f,  /* useReflectionMap */
-      0.0f,                                    /* padding */
+      (float)state.inner_debug_mode,           /* debugMode (params1.w) */
       0.0f,
       0.0f,
       0.0f,
@@ -5804,7 +5814,33 @@ static int frame(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Render seaweed items */
+  /* Render inner tank items (with refraction) - BEFORE seaweed, matching WebGL
+   * order */
+  if (state.options.tank && state.inner_pipeline) {
+    for (uint32_t i = 0; i < state.inner_item_count; ++i) {
+      tank_render_item_t* item = &state.inner_items[i];
+      if (item->model && item->material_bind_group) {
+        wgpuRenderPassEncoderSetPipeline(pass, state.inner_pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
+                                          NULL);
+        update_model_uniforms(item->world_matrix, state.model_extra_default);
+        upload_model_uniforms();
+        wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
+                                          NULL);
+        wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
+                                          NULL);
+
+        aquarium_model_bind(item->model, pass);
+
+        if (item->model->index_buffer) {
+          wgpuRenderPassEncoderDrawIndexed(pass, item->model->index_count, 1, 0,
+                                           0, 0);
+        }
+      }
+    }
+  }
+
+  /* Render seaweed items - AFTER inner tank, matching WebGL order */
   for (uint32_t i = 0; i < state.seaweed_item_count; ++i) {
     seaweed_render_item_t* item = &state.seaweed_items[i];
     if (item->model && state.seaweed_pipeline && item->material_bind_group
@@ -5830,31 +5866,6 @@ static int frame(wgpu_context_t* wgpu_context)
       if (item->model->index_buffer) {
         wgpuRenderPassEncoderDrawIndexed(pass, item->model->index_count, 1, 0,
                                          0, 0);
-      }
-    }
-  }
-
-  /* Render inner tank items (with refraction) */
-  if (state.options.tank && state.inner_pipeline) {
-    for (uint32_t i = 0; i < state.inner_item_count; ++i) {
-      tank_render_item_t* item = &state.inner_items[i];
-      if (item->model && item->material_bind_group) {
-        wgpuRenderPassEncoderSetPipeline(pass, state.inner_pipeline);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, state.frame_bind_group, 0,
-                                          NULL);
-        update_model_uniforms(item->world_matrix, state.model_extra_default);
-        upload_model_uniforms();
-        wgpuRenderPassEncoderSetBindGroup(pass, 1, state.model_bind_group, 0,
-                                          NULL);
-        wgpuRenderPassEncoderSetBindGroup(pass, 2, item->material_bind_group, 0,
-                                          NULL);
-
-        aquarium_model_bind(item->model, pass);
-
-        if (item->model->index_buffer) {
-          wgpuRenderPassEncoderDrawIndexed(pass, item->model->index_count, 1, 0,
-                                           0, 0);
-        }
       }
     }
   }
@@ -6011,6 +6022,15 @@ static void render_gui(wgpu_context_t* wgpu_context)
     igCheckbox("Fog", &state.options.fog);
     igCheckbox("Normal Maps", &state.options.normal_maps);
     igCheckbox("Reflection", &state.options.reflection);
+  }
+
+  /* Debug options */
+  if (igCollapsingHeaderBoolPtr("Debug", NULL, 0)) {
+    const char* debug_modes[]
+      = {"Normal", "Normals", "Refract Dir", "Skybox Sample", "Refract Mask"};
+    igCombo("Inner Debug", &state.inner_debug_mode, debug_modes, 5, -1);
+    igText("0=Normal, 1=Normals, 2=Refraction Dir");
+    igText("3=Skybox Only, 4=Reflection Mask");
   }
 
   /* Statistics */
@@ -6592,6 +6612,14 @@ static const char* inner_shader_p2_wgsl = CODE(
 
   @fragment
   fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    // Debug mode: params1.w controls visualization
+    // 0 = normal rendering
+    // 1 = show normals
+    // 2 = show refraction direction
+    // 3 = show skybox sample only
+    // 4 = show reflection mask
+    let debugMode = i32(tankUniforms.params1.w);
+
     var diffuseColor = textureSample(diffuseTexture, linearSampler, input.texCoord);
     let tankColorFudge = tankUniforms.params1.x;
     diffuseColor = vec4<f32>(diffuseColor.rgb + vec3<f32>(tankColorFudge, tankColorFudge, tankColorFudge), 1.0);
@@ -6608,6 +6636,11 @@ static const char* inner_shader_p2_wgsl = CODE(
       normal = normalize(tangentToWorld * tangentNormal);
     }
 
+    // Debug: show normals
+    if (debugMode == 1) {
+      return vec4<f32>(normal * 0.5 + 0.5, 1.0);
+    }
+
     let surfaceToView = normalize(input.surfaceToView);
     let eta = max(tankUniforms.params0.w, 0.0001);
     var refractionDir = refract(surfaceToView, normal, eta);
@@ -6616,7 +6649,17 @@ static const char* inner_shader_p2_wgsl = CODE(
     }
     refractionDir = normalize(refractionDir);
 
+    // Debug: show refraction direction
+    if (debugMode == 2) {
+      return vec4<f32>(refractionDir * 0.5 + 0.5, 1.0);
+    }
+
     let skySample = textureSample(skyboxTexture, linearSampler, refractionDir);
+
+    // Debug: show skybox sample only
+    if (debugMode == 3) {
+      return vec4<f32>(skySample.rgb, 1.0);
+    }
 
     var refractionMask = 1.0;
     let useReflectionMap = tankUniforms.params1.z;
@@ -6624,6 +6667,11 @@ static const char* inner_shader_p2_wgsl = CODE(
       refractionMask = textureSample(reflectionTexture, linearSampler, input.texCoord).r;
     }
     refractionMask = clamp(refractionMask, 0.0, 1.0);
+
+    // Debug: show reflection mask
+    if (debugMode == 4) {
+      return vec4<f32>(refractionMask, refractionMask, refractionMask, 1.0);
+    }
 
     let skyContribution = skySample.rgb * diffuseColor.rgb;
     let mixedColor = mix(skyContribution, diffuseColor.rgb, refractionMask);
@@ -6822,7 +6870,7 @@ static const char* outer_shader_wgsl = CODE(
     }
 
     let surfaceToView = normalize(input.surfaceToView);
-    let reflectionDir = normalize(-reflect(surfaceToView, normal));
+    var reflectionDir = normalize(-reflect(surfaceToView, normal));
     var skyColor = textureSample(skyboxTexture, linearSampler, reflectionDir);
 
     let fudgeAmount = tankUniforms.params1.w;
