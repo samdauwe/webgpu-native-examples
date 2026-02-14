@@ -1665,7 +1665,7 @@ create_inner_pipeline(WGPUDevice device, inner_pipeline_desc_t* desc)
       },
       .primitive = {
         .topology  = WGPUPrimitiveTopology_TriangleList,
-        .cullMode  = WGPUCullMode_None,
+        .cullMode  = WGPUCullMode_Back,  /* Cull back faces - inner tank only visible from inside */
         .frontFace = WGPUFrontFace_CCW
       },
       .depthStencil = &(WGPUDepthStencilState) {
@@ -3272,6 +3272,8 @@ static struct {
   int view_index;       /* Current camera view preset index */
   int inner_debug_mode; /* Debug mode for inner shader: 0=normal, 1=normals,
                            2=refract dir, 3=skybox, 4=mask */
+  int outer_debug_mode; /* Debug mode for outer shader: 0=normal, 1=alpha,
+                           2=viewDot, 3=reflectionAmount, 4=normal */
 
   /* Timing */
   float clock;
@@ -3889,11 +3891,12 @@ static void update_material_options(void)
       50.0f,
       0.5f,
       3.0f,
-      1.5f, /* shininess, specularFactor, refractionFudge, eta */
-      0.8f, /* tankColorFudge */
+      (float)state.outer_debug_mode,           /* shininess, specularFactor,
+                                                  refractionFudge, debugMode */
+      0.8f,                                    /* tankColorFudge */
       state.options.normal_maps ? 1.0f : 0.0f, /* useNormalMap */
       state.options.reflection ? 1.0f : 0.0f,  /* useReflectionMap */
-      0.0f,                                    /* padding */
+      1.1f,                                    /* outerFudge */
       0.0f,
       0.0f,
       0.0f,
@@ -6026,11 +6029,19 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Debug options */
   if (igCollapsingHeaderBoolPtr("Debug", NULL, 0)) {
-    const char* debug_modes[]
+    const char* inner_debug_modes[]
       = {"Normal", "Normals", "Refract Dir", "Skybox Sample", "Refract Mask"};
-    igCombo("Inner Debug", &state.inner_debug_mode, debug_modes, 5, -1);
+    igCombo("Inner Debug", &state.inner_debug_mode, inner_debug_modes, 5, -1);
     igText("0=Normal, 1=Normals, 2=Refraction Dir");
     igText("3=Skybox Only, 4=Reflection Mask");
+
+    igSeparator();
+    const char* outer_debug_modes[] = {
+      "Normal", "Alpha", "ViewDot", "ReflectAmount", "Normals", "RedAlpha0.3"};
+    igCombo("Outer Debug", &state.outer_debug_mode, outer_debug_modes, 6, -1);
+    igText("0=Normal, 1=Alpha (black=transparent)");
+    igText("2=ViewDot, 3=ReflectAmount, 4=Normals");
+    igText("5=RedAlpha0.3 (test transparency)");
   }
 
   /* Statistics */
@@ -6857,6 +6868,14 @@ static const char* outer_shader_wgsl = CODE(
 
   @fragment
   fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    // Debug mode: params0.w controls visualization (repurposed from unused eta)
+    // 0 = normal rendering
+    // 1 = show alpha only (white = opaque, black = transparent)
+    // 2 = show viewDot
+    // 3 = show reflectionAmount
+    // 4 = show normal
+    let debugMode = i32(tankUniforms.params0.w);
+
     let diffuseColor = textureSample(diffuseTexture, linearSampler, input.texCoord);
 
     var normal = normalize(input.normal);
@@ -6870,6 +6889,12 @@ static const char* outer_shader_wgsl = CODE(
     }
 
     let surfaceToView = normalize(input.surfaceToView);
+
+    // Debug: show normals
+    if (debugMode == 4) {
+      return vec4<f32>(normal * 0.5 + 0.5, 1.0);
+    }
+
     var reflectionDir = normalize(-reflect(surfaceToView, normal));
     var skyColor = textureSample(skyboxTexture, linearSampler, reflectionDir);
 
@@ -6883,8 +6908,19 @@ static const char* outer_shader_wgsl = CODE(
     }
     reflectionAmount = clamp(reflectionAmount, 0.0, 1.0);
 
+    // Debug: show reflection amount
+    if (debugMode == 3) {
+      return vec4<f32>(reflectionAmount, reflectionAmount, reflectionAmount, 1.0);
+    }
+
     let reflectColor = mix(vec4<f32>(skyColor.rgb, bright), diffuseColor, 1.0 - reflectionAmount);
     let viewDot = clamp(abs(dot(surfaceToView, normal)), 0.0, 1.0);
+
+    // Debug: show viewDot (should be ~1 at center, ~0 at edges)
+    if (debugMode == 2) {
+      return vec4<f32>(viewDot, viewDot, viewDot, 1.0);
+    }
+
     var reflectMix = clamp((viewDot + 0.3) * reflectionAmount, 0.0, 1.0);
     if (tankUniforms.params1.z <= 0.5) {
       reflectMix = 1.0;
@@ -6892,6 +6928,18 @@ static const char* outer_shader_wgsl = CODE(
 
     let finalColor = mix(skyColor.rgb, reflectColor.rgb, reflectMix);
     let alpha = clamp(1.0 - viewDot, 0.0, 1.0);
+
+    // Debug: show alpha only
+    if (debugMode == 1) {
+      return vec4<f32>(alpha, alpha, alpha, 1.0);
+    }
+
+    // Debug: test transparency with semi-transparent red (alpha=0.3)
+    // If fish are visible through red tint, blending works correctly
+    if (debugMode == 5) {
+      return vec4<f32>(1.0, 0.0, 0.0, 0.3);
+    }
+
     return vec4<f32>(finalColor, alpha);
   }
 );
