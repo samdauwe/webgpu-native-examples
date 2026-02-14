@@ -279,39 +279,40 @@ static struct {
   const char* name;
   const char* program;
   bool blend;
-  bool fog;
+  bool
+    no_fog; /* true = disable fog for this item (default false = fog enabled) */
   bool lasers;
   const char* group;
 } scene_definitions[SCENE_DEFINITION_COUNT] = {
   // clang-format off
-  { .name = "SmallFishA",      .program = "fishReflection"                                     },
-  { .name = "MediumFishA",     .program = "fishNormal"                                         },
-  { .name = "MediumFishB",     .program = "fishReflection"                                     },
-  { .name = "BigFishA",        .program = "fishNormal",    .lasers = true                      },
-  { .name = "BigFishB",        .program = "fishNormal",    .lasers = true                      },
-  { .name = "Arch",            .program = "diffuse"                                            },
-  { .name = "Coral",           .program = "diffuse"                                            },
-  { .name = "CoralStoneA",     .program = "diffuse"                                            },
-  { .name = "CoralStoneB",     .program = "diffuse"                                            },
-  { .name = "EnvironmentBox",  .program = "diffuse",       .fog    = false, .group = "outside" },
-  { .name = "FloorBase_Baked", .program = "diffuse"                                            },
-  { .name = "FloorCenter",     .program = "diffuse"                                            },
-  { .name = "GlobeBase",       .program = "diffuse",       .fog    = false                     },
-  { .name = "GlobeInner",      .program = "inner"                                              },
-  { .name = "GlobeOuter",      .program = "outer",         .blend  = true                      },
-  { .name = "RockA",           .program = "diffuse"                                            },
-  { .name = "RockB",           .program = "diffuse"                                            },
-  { .name = "RockC",           .program = "diffuse"                                            },
-  { .name = "RuinColumn",      .program = "diffuse"                                            },
-  { .name = "Skybox",          .program = "diffuse",       .fog    = false, .group = "outside" },
-  { .name = "Stone",           .program = "diffuse"                                            },
-  { .name = "Stones",          .program = "diffuse"                                            },
-  { .name = "SunknShip",       .program = "diffuse"                                            },
-  { .name = "SunknSub",        .program = "diffuse"                                            },
-  { .name = "SupportBeams",    .program = "diffuse",       .fog    = false, .group = "outside" },
-  { .name = "SeaweedA",        .program = "seaweed",       .blend  = true,  .group = "seaweed" },
-  { .name = "SeaweedB",        .program = "seaweed",       .blend  = true,  .group = "seaweed" },
-  { .name = "TreasureChest",   .program = "diffuse"                                            },
+  { .name = "SmallFishA",      .program = "fishReflection"                                       },
+  { .name = "MediumFishA",     .program = "fishNormal"                                           },
+  { .name = "MediumFishB",     .program = "fishReflection"                                       },
+  { .name = "BigFishA",        .program = "fishNormal",    .lasers = true                        },
+  { .name = "BigFishB",        .program = "fishNormal",    .lasers = true                        },
+  { .name = "Arch",            .program = "diffuse"                                              },
+  { .name = "Coral",           .program = "diffuse"                                              },
+  { .name = "CoralStoneA",     .program = "diffuse"                                              },
+  { .name = "CoralStoneB",     .program = "diffuse"                                              },
+  { .name = "EnvironmentBox",  .program = "diffuse",       .no_fog = true, .group = "outside"    },
+  { .name = "FloorBase_Baked", .program = "diffuse"                                              },
+  { .name = "FloorCenter",     .program = "diffuse"                                              },
+  { .name = "GlobeBase",       .program = "diffuse",       .no_fog = true                        },
+  { .name = "GlobeInner",      .program = "inner"                                                },
+  { .name = "GlobeOuter",      .program = "outer",         .blend  = true                        },
+  { .name = "RockA",           .program = "diffuse"                                              },
+  { .name = "RockB",           .program = "diffuse"                                              },
+  { .name = "RockC",           .program = "diffuse"                                              },
+  { .name = "RuinColumn",      .program = "diffuse"                                              },
+  { .name = "Skybox",          .program = "diffuse",       .no_fog = true, .group = "outside"    },
+  { .name = "Stone",           .program = "diffuse"                                              },
+  { .name = "Stones",          .program = "diffuse"                                              },
+  { .name = "SunknShip",       .program = "diffuse"                                              },
+  { .name = "SunknSub",        .program = "diffuse"                                              },
+  { .name = "SupportBeams",    .program = "diffuse",       .no_fog = true, .group = "outside"    },
+  { .name = "SeaweedA",        .program = "seaweed",       .blend  = true, .group = "seaweed"    },
+  { .name = "SeaweedB",        .program = "seaweed",       .blend  = true, .group = "seaweed"    },
+  { .name = "TreasureChest",   .program = "diffuse"                                              },
   // clang-format on
 };
 
@@ -3202,6 +3203,7 @@ typedef struct {
   WGPUBuffer model_uniform_buffer; /* Per-item model uniform buffer */
   WGPUBindGroup model_bind_group;  /* Per-item model bind group */
   float world_matrix[16];
+  bool fog; /* Whether fog should be applied to this item */
 } diffuse_render_item_t;
 
 typedef struct {
@@ -3437,13 +3439,14 @@ static struct {
     .light_rays  = false, /* Disabled: not correctly ported yet */
     .lasers      = true,  /* Enabled: laser beams from big fish */
   },
+  .model_extra_default  = {0.0f, 0.0f, 0.0f, 1.0f}, /* .w = 1.0 enables fog */
   .fish_count           = 500,
   .view_index           = 0, /* Default view: "Inside (A)" */
   .max_bubble_particles = 1000,
   .color_attachment     = {
     .loadOp     = WGPULoadOp_Clear,
     .storeOp    = WGPUStoreOp_Store,
-    .clearValue = {0.0, 0.1, 0.2, 1.0},
+    .clearValue = {0.0, 0.8, 1.0, 1.0}, /* Sky blue - matches JS version */
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
   .depth_stencil_attachment = {
@@ -5172,6 +5175,8 @@ static void init_render_data(void)
     }
 
     const char* program = scene_definitions[def_index].program;
+    bool fog_enabled
+      = !scene_definitions[def_index].no_fog; /* Default: fog enabled */
 
     if (strcmp(program, "diffuse") == 0) {
       /* Iterate over ALL models in the scene, not just models[0] */
@@ -5180,6 +5185,7 @@ static void init_render_data(void)
           diffuse_render_item_t* item
             = &state.diffuse_items[state.diffuse_item_count++];
           item->model = &scene->models[m];
+          item->fog   = fog_enabled; /* Use scene definition fog setting */
           memcpy(item->world_matrix, placement->world_matrix,
                  sizeof(float) * 16);
 
@@ -5197,8 +5203,9 @@ static void init_render_data(void)
             = create_bind_group(state.device, state.model_layout, &bg_entry, 1,
                                 "diffuse-item-model-bind-group");
 
-          /* Pre-upload the world matrix to the item's buffer */
-          update_model_uniforms(item->world_matrix, state.model_extra_default);
+          /* Pre-upload the world matrix with fog flag in extra.w */
+          float extra[4] = {0.0f, 0.0f, 0.0f, item->fog ? 1.0f : 0.0f};
+          update_model_uniforms(item->world_matrix, extra);
           upload_model_uniforms_to_buffer(item->model_uniform_buffer);
 
           item->material_bind_group
@@ -6371,7 +6378,8 @@ static const char* diffuse_shader_wgsl = CODE(
 
     var outColor = vec4<f32>(color, diffuseColor.a);
 
-    if (frameUniforms.fogParams.w > 0.5) {
+    // Apply fog only if: global fog enabled AND per-model fog enabled (extra.w > 0.5)
+    if (frameUniforms.fogParams.w > 0.5 && modelUniforms.extra.w > 0.5) {
       let fogCoord = input.clipPosition.z / input.clipPosition.w;
       let fogFactor = clamp(pow(fogCoord, frameUniforms.fogParams.x) * frameUniforms.fogParams.y - frameUniforms.fogParams.z, 0.0, 1.0);
       let foggedColor = mix(outColor.rgb, frameUniforms.fogColor.rgb, fogFactor);
