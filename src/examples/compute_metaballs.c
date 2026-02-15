@@ -2860,7 +2860,7 @@ static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
       .depthClearValue = 1.0f,
     };
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
-    .label                  = STRVIEW("Spot light shadow pass"),
+    .label                  = STRVIEW("Spot light - Shadow pass"),
     .colorAttachmentCount   = 0,
     .colorAttachments       = NULL,
     .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
