@@ -35,8 +35,9 @@
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define MAX_METABALLS 256
-#define MAX_POINT_LIGHTS_COUNT 256
+/* Reduced from 256 to make testing viable - can be increased for production */
+#define MAX_METABALLS 32
+#define MAX_POINT_LIGHTS_COUNT 64
 #define DEPTH_FORMAT WGPUTextureFormat_Depth24Plus
 #define SHADOW_MAP_SIZE 128
 #define METABALLS_COMPUTE_WORKGROUP_SIZE_X 4
@@ -49,15 +50,91 @@ static const uint32_t METABALLS_COMPUTE_WORKGROUP_SIZE[3] = {
   METABALLS_COMPUTE_WORKGROUP_SIZE_Z,
 };
 
-/* Configurable volume settings */
-static const uint32_t VOLUME_WIDTH  = 64;
-static const uint32_t VOLUME_HEIGHT = 64;
-static const uint32_t VOLUME_DEPTH  = 64;
+/* Configurable volume settings - reduced from 64 for testing */
+static const uint32_t VOLUME_WIDTH  = 32;
+static const uint32_t VOLUME_HEIGHT = 32;
+static const uint32_t VOLUME_DEPTH  = 32;
+
+/* -------------------------------------------------------------------------- *
+ * Quality Settings
+ * -------------------------------------------------------------------------- */
+
+typedef enum {
+  QualitySettings_Low    = 0,
+  QualitySettings_Medium = 1,
+  QualitySettings_High   = 2,
+} quality_settings_enum;
+
+typedef struct {
+  bool bloom_toggle;
+  uint32_t shadow_res;
+  uint32_t point_lights_count;
+  float output_scale;
+  bool update_metaballs;
+} quality_option_t;
+
+static const quality_option_t QUALITIES[3] = {
+  [QualitySettings_Low] = {
+    .bloom_toggle       = false,
+    .shadow_res         = 512,
+    .point_lights_count = 32,
+    .output_scale       = 1.0f,
+    .update_metaballs   = false,
+  },
+  [QualitySettings_Medium] = {
+    .bloom_toggle       = true,
+    .shadow_res         = 512,
+    .point_lights_count = 32,
+    .output_scale       = 1.0f,
+    .update_metaballs   = true,
+   },
+  [QualitySettings_High] = {
+    .bloom_toggle       = true,
+    .shadow_res         = 512,
+    .point_lights_count = 128,
+    .output_scale       = 1.0f,
+    .update_metaballs   = true,
+  },
+};
+
+static quality_settings_enum _quality = QualitySettings_Low;
+
+static quality_option_t settings_get_quality_level(void)
+{
+  return QUALITIES[_quality];
+}
+
+static quality_settings_enum settings_get_quality(void)
+{
+  return _quality;
+}
+
+static void settings_set_quality(quality_settings_enum v)
+{
+  _quality = v;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Helper Functions
+ * -------------------------------------------------------------------------- */
+
+static float deg_to_rad(float deg)
+{
+  return (deg * PI) / 180.0f;
+}
 
 /* -------------------------------------------------------------------------- *
  * Shader variables - declared at top, code at bottom of file
+ * Currently only compute + basic rendering shaders are used.
+ * Additional shaders for post-processing will be enabled when ported.
  * -------------------------------------------------------------------------- */
 
+static const char* marching_cubes_compute_shader;
+static const char* metaball_field_compute_shader;
+static const char* metaballs_fragment_shader;
+static const char* metaballs_vertex_shader;
+
+/* TODO: Enable these when post-processing is ported
 static const char* bloom_blur_compute_shader;
 static const char* bloom_pass_fragment_shader;
 static const char* box_outline_fragment_shader;
@@ -68,15 +145,12 @@ static const char* effect_vertex_shader;
 static const char* ground_fragment_shader;
 static const char* ground_shadow_vertex_shader;
 static const char* ground_vertex_shader;
-static const char* marching_cubes_compute_shader;
-static const char* metaball_field_compute_shader;
-static const char* metaballs_fragment_shader;
 static const char* metaballs_shadow_vertex_shader;
-static const char* metaballs_vertex_shader;
 static const char* particles_fragment_shader;
 static const char* particles_vertex_shader;
 static const char* result_pass_fragment_shader;
 static const char* update_point_lights_compute_shader;
+*/
 
 /* -------------------------------------------------------------------------- *
  * Marching Cubes Tables
@@ -416,6 +490,60 @@ typedef struct {
   vec4 shadow_view_proj_matrix[4]; /* 4x4 matrix as 4 vec4s */
 } spot_light_uniforms_t;
 
+/* Input point light data for compute shader */
+typedef struct {
+  vec4 position;
+  vec4 velocity;
+  vec3 color;
+  float range;
+  float intensity;
+  float _padding[3]; /* Alignment padding */
+} input_point_light_t;
+
+/* Spot light initialization settings */
+typedef struct {
+  vec3 position;
+  vec3 direction;
+  vec3 color;
+  float cut_off;
+  float outer_cut_off;
+  float intensity;
+} ispot_light_t;
+
+/* Screen effect configuration */
+typedef struct {
+  const char* fragment_shader_wgsl;
+  struct {
+    WGPUBindGroupLayout* items;
+    uint32_t item_count;
+  } bind_group_layouts;
+  struct {
+    WGPUBindGroup* items;
+    uint32_t item_count;
+  } bind_groups;
+  WGPUTextureFormat presentation_format;
+  const char* label;
+} iscreen_effect_t;
+
+/* Projection uniforms for shaders */
+typedef struct {
+  mat4 matrix;
+  mat4 inverse_matrix;
+  vec2 output_size;
+  float z_near;
+  float z_far;
+} projection_uniforms_t;
+
+/* View uniforms for shaders */
+typedef struct {
+  mat4 matrix;
+  mat4 inverse_matrix;
+  vec3 position;
+  float time;
+  float delta_time;
+  float _padding[3]; /* Alignment */
+} view_uniforms_t;
+
 /* -------------------------------------------------------------------------- *
  * Camera Structures
  * -------------------------------------------------------------------------- */
@@ -438,7 +566,9 @@ typedef struct {
   float near;
   float far;
   mat4 view_matrix;
+  mat4 view_inv_matrix;
   mat4 projection_matrix;
+  mat4 projection_inv_matrix;
   vec3 position;
   vec3 look_at_position;
 } perspective_camera_t;
@@ -487,6 +617,19 @@ typedef struct {
   /* Screen size */
   uint32_t screen_width;
   uint32_t screen_height;
+
+  /* Default sampler */
+  WGPUSampler default_sampler;
+
+  /* Presentation format */
+  WGPUTextureFormat presentation_format;
+
+  /* Framebuffer for final composite pass */
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
 } webgpu_renderer_t;
 
 /* -------------------------------------------------------------------------- *
@@ -544,6 +687,8 @@ typedef struct {
   uint32_t metaball_count;
   float strength;
   float subtract;
+  float strength_target;
+  float subtract_target;
   bool has_calced_once;
 
   /* Vertex output buffers */
@@ -569,29 +714,19 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  float positions[MAX_POINT_LIGHTS_COUNT * 4];
-  float colors[MAX_POINT_LIGHTS_COUNT * 4];
-  uint32_t count;
-} point_lights_data_t;
-
-typedef struct {
   wgpu_context_t* wgpu_context;
   webgpu_renderer_t* renderer;
 
-  point_lights_data_t data;
+  /* Light data */
+  wgpu_buffer_t lights_buffer;
+  wgpu_buffer_t lights_config_uniform_buffer;
+  int32_t lights_count;
 
-  WGPUBuffer positions_buffer;
-  WGPUBuffer colors_buffer;
-  WGPUBuffer count_buffer;
-
-  WGPUBindGroup bind_group;
-  WGPUBindGroupLayout bind_group_layout;
-
-  /* Render resources */
-  WGPURenderPipeline render_pipeline;
-  WGPUBuffer sphere_vertex_buffer;
-  WGPUBuffer sphere_index_buffer;
-  uint32_t sphere_index_count;
+  /* Compute resources */
+  WGPUBindGroupLayout lights_buffer_compute_bind_group_layout;
+  WGPUBindGroup lights_buffer_compute_bind_group;
+  WGPUPipelineLayout update_compute_pipeline_layout;
+  WGPUComputePipeline update_compute_pipeline;
 } point_lights_t;
 
 /* -------------------------------------------------------------------------- *
@@ -601,68 +736,126 @@ typedef struct {
 typedef struct {
   wgpu_context_t* wgpu_context;
   webgpu_renderer_t* renderer;
+  perspective_camera_t camera;
 
-  spot_light_uniforms_t uniforms;
-  WGPUBuffer uniforms_buffer;
+  /* Light properties */
+  vec3 _position;
+  vec3 _direction;
+  vec3 _color;
+  float _cut_off;
+  float _outer_cut_off;
+  float _intensity;
 
-  /* Shadow map */
-  WGPUTexture shadow_map_texture;
-  WGPUTextureView shadow_map_texture_view;
-  WGPUSampler shadow_map_sampler;
+  /* UBOs */
+  struct {
+    wgpu_buffer_t light_info;
+    wgpu_buffer_t projection;
+    wgpu_buffer_t view;
+  } ubos;
+  struct {
+    spot_light_uniforms_t light_info;
+    projection_uniforms_t projection;
+    view_uniforms_t view;
+  } ubos_data;
+
+  /* Depth texture for shadow mapping */
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } depth_texture;
+
+  /* Render pass */
+  struct {
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
+
+  /* Bind group layouts */
+  struct {
+    WGPUBindGroupLayout ubos;
+    WGPUBindGroupLayout depth_texture;
+  } bind_group_layouts;
 
   /* Bind groups */
-  WGPUBindGroup bind_group;
-  WGPUBindGroupLayout bind_group_layout;
-
-  /* Render resources (light representation) */
-  WGPURenderPipeline render_pipeline;
-  WGPUBuffer cone_vertex_buffer;
-  WGPUBuffer cone_index_buffer;
-  uint32_t cone_index_count;
-
-  /* Shadow pass pipeline */
-  WGPURenderPipeline shadow_pipeline;
+  struct {
+    WGPUBindGroup ubos;
+    WGPUBindGroup depth_texture;
+  } bind_groups;
 } spot_light_t;
 
 /* -------------------------------------------------------------------------- *
  * Box Outline
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/box-outline.ts
  * -------------------------------------------------------------------------- */
 
+#define BOX_OUTLINE_RADIUS 2.5f
+#define BOX_OUTLINE_SIDE_COUNT 13u
+
 typedef struct {
-  wgpu_context_t* wgpu_context;
   webgpu_renderer_t* renderer;
-  volume_settings_t* volume_settings;
-
-  WGPUBuffer vertex_buffer;
-  WGPUBuffer index_buffer;
-  uint32_t index_count;
-
+  struct {
+    wgpu_buffer_t vertex_buffer;
+    wgpu_buffer_t index_buffer;
+    wgpu_buffer_t instance_buffer;
+  } buffers;
+  WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline render_pipeline;
 } box_outline_t;
 
 /* -------------------------------------------------------------------------- *
  * Ground
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/ground.ts
  * -------------------------------------------------------------------------- */
 
+#define GROUND_WORLD_Y -7.5f
+#define GROUND_WIDTH 100u
+#define GROUND_HEIGHT 100u
+#define GROUND_COUNT 100u
+#define GROUND_SPACING 0
+
 typedef struct {
-  wgpu_context_t* wgpu_context;
   webgpu_renderer_t* renderer;
+  spot_light_t* spot_light;
 
-  WGPUBuffer vertex_buffer;
-  WGPUBuffer index_buffer;
-  uint32_t index_count;
+  struct {
+    WGPUPipelineLayout render_pipeline;
+    WGPUPipelineLayout render_shadow_pipeline;
+  } pipeline_layouts;
 
+  struct {
+    WGPURenderPipeline render_pipeline;
+    WGPURenderPipeline render_shadow_pipeline;
+  } render_pipelines;
+
+  WGPUBindGroupLayout model_bind_group_layout;
+  WGPUBindGroup model_bind_group;
+
+  struct {
+    wgpu_buffer_t vertex_buffer;
+    wgpu_buffer_t normal_buffer;
+    wgpu_buffer_t instance_offsets_buffer;
+    wgpu_buffer_t instance_material_buffer;
+    wgpu_buffer_t uniform_buffer;
+  } buffers;
+
+  uint32_t instance_count;
   mat4 model_matrix;
-  WGPUBuffer model_matrix_buffer;
-
-  WGPURenderPipeline render_pipeline;
-  WGPURenderPipeline shadow_pipeline;
-  WGPUBindGroup bind_group;
 } ground_t;
 
 /* -------------------------------------------------------------------------- *
  * Metaballs Rendering
  * -------------------------------------------------------------------------- */
+
+/* Material properties for metaballs */
+typedef struct {
+  vec3 color_rgb;
+  float roughness;
+  float metallic;
+} metaballs_material_t;
 
 typedef struct {
   wgpu_context_t* wgpu_context;
@@ -674,6 +867,11 @@ typedef struct {
   WGPURenderPipeline shadow_pipeline;
 
   WGPUBindGroup bind_group;
+  WGPUBindGroupLayout bind_group_layout;
+  wgpu_buffer_t ubo; /* Material UBO */
+
+  metaballs_material_t material;
+  metaballs_material_t target_material;
 
   mat4 model_matrix;
   WGPUBuffer model_matrix_buffer;
@@ -681,99 +879,177 @@ typedef struct {
 
 /* -------------------------------------------------------------------------- *
  * Particles
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/meshes/particles.ts
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  float position[3];
-  float velocity[3];
-  float life;
-  float max_life;
-} particle_t;
+  webgpu_renderer_t* renderer;
+  WGPUPipelineLayout pipeline_layout;
+  WGPURenderPipeline render_pipeline;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+} particles_t;
+
+/* -------------------------------------------------------------------------- *
+ * Effect - Base class for post-processing effects
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/effect.ts
+ * -------------------------------------------------------------------------- */
+
+#define EFFECT_MAX_BIND_GROUP_COUNT 5u
 
 typedef struct {
-  wgpu_context_t* wgpu_context;
   webgpu_renderer_t* renderer;
-
-  particle_t particles[512];
-  uint32_t particle_count;
-
-  WGPUBuffer vertex_buffer;
-  WGPUBuffer instance_buffer;
-
+  WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline render_pipeline;
-} particles_t;
+  struct {
+    WGPUBindGroup items[EFFECT_MAX_BIND_GROUP_COUNT];
+    uint32_t item_count;
+  } bind_groups;
+  WGPUTextureFormat presentation_format;
+  struct {
+    wgpu_buffer_t vertex_buffer;
+    wgpu_buffer_t index_buffer;
+  } buffers;
+} effect_t;
 
 /* -------------------------------------------------------------------------- *
  * Post-Processing Effects
  * -------------------------------------------------------------------------- */
 
-/* Copy pass - copies a texture */
+/* Copy Pass
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/copy-pass.ts
+ */
 typedef struct {
-  wgpu_context_t* wgpu_context;
+  webgpu_renderer_t* renderer;
+  effect_t effect;
 
-  WGPURenderPipeline pipeline;
-  WGPUBindGroup bind_group;
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
+
   WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } copy_texture;
 } copy_pass_t;
 
-/* Bloom pass */
+/* Bloom Pass
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/bloom-pass.ts
+ */
+#define BLOOM_PASS_TILE_DIM 128u
+#define BLOOM_PASS_BATCH {4, 4}
+#define BLOOM_PASS_FILTER_SIZE 10u
+#define BLOOM_PASS_ITERATIONS 2u
+
 typedef struct {
-  wgpu_context_t* wgpu_context;
-  uint32_t width;
-  uint32_t height;
+  webgpu_renderer_t* renderer;
+  effect_t effect;
 
-  WGPUTexture blur_textures[2];
-  WGPUTextureView blur_texture_views[2];
+  point_lights_t* point_lights;
+  spot_light_t* spot_light;
+  WGPURenderPassDescriptor framebuffer_descriptor;
 
-  WGPUComputePipeline blur_h_pipeline;
-  WGPUComputePipeline blur_v_pipeline;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } bloom_texture;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } input_texture;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } blur_textures[2];
 
-  WGPUBindGroup blur_bind_groups[2];
-  WGPUBindGroupLayout blur_bind_group_layout;
+  WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
 
-  /* Combine pass */
-  WGPURenderPipeline combine_pipeline;
-  WGPUBindGroup combine_bind_group;
+  WGPUPipelineLayout blur_pipeline_layout;
+  WGPUComputePipeline blur_pipeline;
+
+  WGPUBindGroupLayout blur_constants_bind_group_layout;
+  WGPUBindGroup blur_compute_constants_bindGroup;
+
+  WGPUBindGroupLayout blur_compute_bind_group_layout;
+  WGPUBindGroup blur_compute_bind_groups[3];
+
+  wgpu_buffer_t blur_params_buffer;
+  wgpu_buffer_t buffer_0;
+  wgpu_buffer_t buffer_1;
+
+  struct {
+    WGPURenderPassColorAttachment color_attachments[1];
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
+
+  WGPUSampler sampler;
+  uint32_t block_dim;
 } bloom_pass_t;
 
-/* Deferred pass - G-buffer rendering */
+/* Deferred Pass - G-buffer lighting
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/deferred-pass.ts
+ */
 typedef struct {
-  wgpu_context_t* wgpu_context;
-  uint32_t width;
-  uint32_t height;
+  webgpu_renderer_t* renderer;
+  effect_t effect;
 
-  /* G-buffer textures */
-  WGPUTexture position_texture;
-  WGPUTextureView position_texture_view;
+  point_lights_t point_lights;
+  spot_light_t spot_light;
 
-  WGPUTexture normal_texture;
-  WGPUTextureView normal_texture_view;
+  struct {
+    WGPURenderPassColorAttachment color_attachments[2];
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+    WGPURenderPassDescriptor descriptor;
+  } framebuffer;
 
-  WGPUTexture albedo_texture;
-  WGPUTextureView albedo_texture_view;
-
-  WGPUTexture depth_texture;
-  WGPUTextureView depth_texture_view;
-
-  /* Output texture */
-  WGPUTexture output_texture;
-  WGPUTextureView output_texture_view;
-
-  /* Pipeline */
-  WGPURenderPipeline pipeline;
-  WGPUBindGroup bind_group;
   WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
+
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } g_buffer_texture_normal;
+
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } g_buffer_texture_diffuse;
+
+  vec3 spot_light_target;
+  vec3 spot_light_color_target;
 } deferred_pass_t;
 
-/* Result pass - final composite */
+/* Result Pass - Final composite
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/result-pass.ts
+ */
 typedef struct {
-  wgpu_context_t* wgpu_context;
+  webgpu_renderer_t* renderer;
+  effect_t effect;
 
-  WGPURenderPipeline pipeline;
-  WGPUBindGroup bind_group;
   WGPUBindGroupLayout bind_group_layout;
+  WGPUBindGroup bind_group;
 
-  WGPUBuffer settings_buffer;
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+  } empty_texture;
 } result_pass_t;
 
 /* -------------------------------------------------------------------------- *
@@ -832,9 +1108,9 @@ static struct {
     .width     = 6.0f,
     .height    = 6.0f,
     .depth     = 6.0f,
-    .res_x     = 64,
-    .res_y     = 64,
-    .res_z     = 64,
+    .res_x     = VOLUME_WIDTH,
+    .res_y     = VOLUME_HEIGHT,
+    .res_z     = VOLUME_DEPTH,
     .iso_level = 20.0f,
   },
   .screen_effect_settings = {
@@ -858,30 +1134,14 @@ static struct {
 static void init_cameras(void);
 static void init_renderer(wgpu_context_t* wgpu_context);
 static void init_metaballs_compute(wgpu_context_t* wgpu_context);
-static void init_point_lights(wgpu_context_t* wgpu_context);
-static void init_spot_light(wgpu_context_t* wgpu_context);
-static void init_box_outline(wgpu_context_t* wgpu_context);
-static void init_ground(wgpu_context_t* wgpu_context);
 static void init_metaballs(wgpu_context_t* wgpu_context);
-static void init_particles(wgpu_context_t* wgpu_context);
-static void init_post_processing(wgpu_context_t* wgpu_context);
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context);
-static void update_camera(float dt);
-static void update_metaballs(float time);
-static void update_particles(float dt);
 
 static void render_gui(wgpu_context_t* wgpu_context, float delta_time);
 
-static void cleanup_renderer(void);
 static void cleanup_metaballs_compute(void);
-static void cleanup_point_lights(void);
-static void cleanup_spot_light(void);
-static void cleanup_box_outline(void);
-static void cleanup_ground(void);
 static void cleanup_metaballs(void);
-static void cleanup_particles(void);
-static void cleanup_post_processing(void);
 
 /* -------------------------------------------------------------------------- *
  * Camera Implementation
@@ -903,6 +1163,8 @@ static void orthographic_camera_init(orthographic_camera_t* camera, float left,
   glm_ortho(left, right, bottom, top, near, far, camera->projection_matrix);
 }
 
+/* TODO: Will be used when post-processing is ported */
+#if 0
 static void
 orthographic_camera_update_view_matrix(orthographic_camera_t* camera)
 {
@@ -911,6 +1173,7 @@ orthographic_camera_update_view_matrix(orthographic_camera_t* camera)
   glm_vec3_add(camera->position, center, center);
   glm_lookat(camera->position, center, up, camera->view_matrix);
 }
+#endif
 
 static void perspective_camera_init(perspective_camera_t* camera, float fov,
                                     float aspect, float near, float far)
@@ -923,7 +1186,9 @@ static void perspective_camera_init(perspective_camera_t* camera, float fov,
   glm_vec3_zero(camera->position);
   glm_vec3_zero(camera->look_at_position);
   glm_mat4_identity(camera->view_matrix);
+  glm_mat4_identity(camera->view_inv_matrix);
   glm_perspective(glm_rad(fov), aspect, near, far, camera->projection_matrix);
+  glm_mat4_inv(camera->projection_matrix, camera->projection_inv_matrix);
 }
 
 static void
@@ -931,6 +1196,7 @@ perspective_camera_update_projection_matrix(perspective_camera_t* camera)
 {
   glm_perspective(glm_rad(camera->fov), camera->aspect, camera->near,
                   camera->far, camera->projection_matrix);
+  glm_mat4_inv(camera->projection_matrix, camera->projection_inv_matrix);
 }
 
 static void perspective_camera_update_view_matrix(perspective_camera_t* camera)
@@ -938,6 +1204,13 @@ static void perspective_camera_update_view_matrix(perspective_camera_t* camera)
   vec3 up = {0.0f, 1.0f, 0.0f};
   glm_lookat(camera->position, camera->look_at_position, up,
              camera->view_matrix);
+  glm_mat4_inv(camera->view_matrix, camera->view_inv_matrix);
+}
+
+static void perspective_camera_set_position(perspective_camera_t* camera,
+                                            vec3 position)
+{
+  glm_vec3_copy(position, camera->position);
 }
 
 static void perspective_camera_look_at(perspective_camera_t* camera,
@@ -1072,7 +1345,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(mat4),
+                    .size  = sizeof(projection_uniforms_t),
                   });
 
   /* Create view uniform buffer */
@@ -1080,7 +1353,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "View UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(mat4),
+                    .size  = sizeof(view_uniforms_t),
                   });
 
   /* Create screen projection uniform buffer */
@@ -1088,7 +1361,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Screen Projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(mat4),
+                    .size  = sizeof(projection_uniforms_t),
                   });
 
   /* Create screen view uniform buffer */
@@ -1096,7 +1369,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Screen View UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(mat4),
+                    .size  = sizeof(view_uniforms_t),
                   });
 
   /* Create depth texture */
@@ -1135,18 +1408,20 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
-      .visibility = WGPUShaderStage_Vertex,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment
+                    | WGPUShaderStage_Compute,
       .buffer = {
         .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(mat4),
+        .minBindingSize = sizeof(projection_uniforms_t),
       },
     },
     [1] = (WGPUBindGroupLayoutEntry){
       .binding    = 1,
-      .visibility = WGPUShaderStage_Vertex,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment
+                    | WGPUShaderStage_Compute,
       .buffer = {
         .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(mat4),
+        .minBindingSize = sizeof(view_uniforms_t),
       },
     },
   };
@@ -1166,13 +1441,13 @@ static void init_renderer(wgpu_context_t* wgpu_context)
       .binding = 0,
       .buffer  = state.renderer.projection_ubo.buffer,
       .offset  = 0,
-      .size    = sizeof(mat4),
+      .size    = sizeof(projection_uniforms_t),
     },
     [1] = (WGPUBindGroupEntry){
       .binding = 1,
       .buffer  = state.renderer.view_ubo.buffer,
       .offset  = 0,
-      .size    = sizeof(mat4),
+      .size    = sizeof(view_uniforms_t),
     },
   };
 
@@ -1216,16 +1491,77 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   state.renderer.screen_frame_bind_group
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &screen_bg_desc);
   ASSERT(state.renderer.screen_frame_bind_group);
+
+  /* Create default sampler */
+  WGPUSamplerDescriptor sampler_desc = {
+    .label         = STRVIEW("Default sampler"),
+    .addressModeU  = WGPUAddressMode_ClampToEdge,
+    .addressModeV  = WGPUAddressMode_ClampToEdge,
+    .addressModeW  = WGPUAddressMode_ClampToEdge,
+    .magFilter     = WGPUFilterMode_Linear,
+    .minFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  state.renderer.default_sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(state.renderer.default_sampler);
+
+  /* Store presentation format */
+  state.renderer.presentation_format = wgpu_context->render_format;
+
+  /* Initialize framebuffer descriptor for final composite pass */
+  state.renderer.framebuffer.color_attachments[0]
+    = (WGPURenderPassColorAttachment){
+      .view       = NULL, /* Will be set per frame to swapchain view */
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+    };
+  state.renderer.framebuffer.depth_stencil_attachment
+    = (WGPURenderPassDepthStencilAttachment){
+      .view            = state.renderer.depth_texture_view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
+    };
+  state.renderer.framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                = STRVIEW("Final composite pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = state.renderer.framebuffer.color_attachments,
+    .depthStencilAttachment
+    = &state.renderer.framebuffer.depth_stencil_attachment,
+  };
 }
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  /* Update projection and view matrices */
+  /* Update projection uniforms */
+  projection_uniforms_t proj_uniforms = {0};
+  glm_mat4_copy(state.main_camera.projection_matrix, proj_uniforms.matrix);
+  glm_mat4_copy(state.main_camera.projection_inv_matrix,
+                proj_uniforms.inverse_matrix);
+  proj_uniforms.output_size[0] = (float)state.renderer.screen_width;
+  proj_uniforms.output_size[1] = (float)state.renderer.screen_height;
+  proj_uniforms.z_near         = state.main_camera.near;
+  proj_uniforms.z_far          = state.main_camera.far;
   wgpuQueueWriteBuffer(wgpu_context->queue,
-                       state.renderer.projection_ubo.buffer, 0,
-                       &state.main_camera.projection_matrix, sizeof(mat4));
+                       state.renderer.projection_ubo.buffer, 0, &proj_uniforms,
+                       sizeof(proj_uniforms));
+
+  /* Update view uniforms */
+  view_uniforms_t view_uniforms = {0};
+  glm_mat4_copy(state.main_camera.view_matrix, view_uniforms.matrix);
+  glm_mat4_copy(state.main_camera.view_inv_matrix,
+                view_uniforms.inverse_matrix);
+  glm_vec3_copy(state.main_camera.position, view_uniforms.position);
+  view_uniforms.time       = state.last_frame_time;
+  view_uniforms.delta_time = state.delta_time;
   wgpuQueueWriteBuffer(wgpu_context->queue, state.renderer.view_ubo.buffer, 0,
-                       &state.main_camera.view_matrix, sizeof(mat4));
+                       &view_uniforms, sizeof(view_uniforms));
 
   /* Update screen projection and view matrices */
   wgpuQueueWriteBuffer(wgpu_context->queue,
@@ -1664,6 +2000,26 @@ static void update_metaballs_sim(float time_delta)
                        sizeof(indirect_reset));
 }
 
+/* Randomize metaballs compute targets for smooth transitions */
+static void metaballs_compute_rearrange(metaballs_compute_t* mc)
+{
+  mc->subtract_target = 3.0f + random_float() * 3.0f;
+  mc->strength_target = 3.0f + random_float() * 3.0f;
+}
+
+/* Randomize metaballs material targets for smooth color transitions */
+static void metaballs_rearrange(metaballs_t* mb)
+{
+  mb->target_material.color_rgb[0] = random_float();
+  mb->target_material.color_rgb[1] = random_float();
+  mb->target_material.color_rgb[2] = random_float();
+
+  mb->target_material.metallic  = 0.08f + random_float() * 0.92f;
+  mb->target_material.roughness = 0.08f + random_float() * 0.92f;
+
+  metaballs_compute_rearrange(&state.metaballs_compute);
+}
+
 static void dispatch_metaballs_compute(WGPUComputePassEncoder compute_pass)
 {
   metaballs_compute_t* mc = &state.metaballs_compute;
@@ -1820,6 +2176,140 @@ static void init_metaballs(wgpu_context_t* wgpu_context)
   /* Cleanup shader modules */
   wgpuShaderModuleRelease(vertex_shader_module);
   wgpuShaderModuleRelease(fragment_shader_module);
+
+  /* Shadow pipeline will be initialized later when spot_light is available */
+  mb->shadow_pipeline = NULL;
+}
+
+/* Shadow vertex shader for metaballs */
+// clang-format off
+static const char* metaballs_shadow_vertex_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    output.position = projection.matrix *
+                      view.matrix *
+                      vec4(input.position, 1.0);
+
+    return output;
+  }
+);
+// clang-format on
+
+/* Initialize metaballs shadow pipeline after spot_light is available */
+static void init_metaballs_shadow(wgpu_context_t* wgpu_context,
+                                  spot_light_t* spot_light)
+{
+  metaballs_t* mb = &state.metaballs;
+
+  /* Shadow pipeline layout - uses spot light's ubos bind group */
+  WGPUBindGroupLayout shadow_bind_group_layouts[1] = {
+    spot_light->bind_group_layouts.ubos,
+  };
+
+  WGPUPipelineLayoutDescriptor shadow_layout_desc = {
+    .label                = STRVIEW("Metaballs shadow - Pipeline layout"),
+    .bindGroupLayoutCount = 1,
+    .bindGroupLayouts     = shadow_bind_group_layouts,
+  };
+  WGPUPipelineLayout shadow_pipeline_layout
+    = wgpuDeviceCreatePipelineLayout(wgpu_context->device, &shadow_layout_desc);
+  ASSERT(shadow_pipeline_layout);
+
+  /* Shadow vertex shader - use embedded shader from later in file */
+  /* Note: The shader string will be defined after Point Lights section */
+
+  /* Vertex state for shadow rendering */
+  WGPUVertexAttribute shadow_vertex_attr = {
+    .format         = WGPUVertexFormat_Float32x3,
+    .offset         = 0,
+    .shaderLocation = 0,
+  };
+  WGPUVertexBufferLayout shadow_vertex_buffer_layout = {
+    .arrayStride    = sizeof(float) * 3,
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = 1,
+    .attributes     = &shadow_vertex_attr,
+  };
+
+  /* Depth stencil state for shadow pass */
+  WGPUDepthStencilState shadow_depth_stencil = {
+    .format            = WGPUTextureFormat_Depth32Float,
+    .depthWriteEnabled = true,
+    .depthCompare      = WGPUCompareFunction_Less,
+  };
+
+  /* Shadow pipeline descriptor */
+  WGPURenderPipelineDescriptor shadow_pipeline_desc = {
+    .label  = STRVIEW("Metaballs shadow - Render pipeline"),
+    .layout = shadow_pipeline_layout,
+    .vertex = {
+      .bufferCount = 1,
+      .buffers     = &shadow_vertex_buffer_layout,
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    },
+    .depthStencil = &shadow_depth_stencil,
+    .multisample  = {
+      .count = 1,
+      .mask  = 0xFFFFFFFF,
+    },
+  };
+
+  /* Create shadow vertex shader module from embedded WGSL */
+  WGPUShaderModuleDescriptor shadow_shader_desc = {
+    .label = STRVIEW("Metaballs shadow vertex shader"),
+    .nextInChain
+      = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+        .chain = (WGPUChainedStruct){
+          .sType = WGPUSType_ShaderSourceWGSL,
+        },
+        .code = STRVIEW(metaballs_shadow_vertex_shader_wgsl),
+      },
+  };
+  WGPUShaderModule shadow_shader
+    = wgpuDeviceCreateShaderModule(wgpu_context->device, &shadow_shader_desc);
+  ASSERT(shadow_shader);
+
+  shadow_pipeline_desc.vertex.module     = shadow_shader;
+  shadow_pipeline_desc.vertex.entryPoint = STRVIEW("main");
+
+  mb->shadow_pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
+                                                       &shadow_pipeline_desc);
+  ASSERT(mb->shadow_pipeline);
+
+  wgpuShaderModuleRelease(shadow_shader);
+  wgpuPipelineLayoutRelease(shadow_pipeline_layout);
 }
 
 static void render_metaballs(WGPURenderPassEncoder render_pass)
@@ -1851,7 +2341,4120 @@ static void cleanup_metaballs(void)
   metaballs_t* mb = &state.metaballs;
 
   WGPU_RELEASE_RESOURCE(RenderPipeline, mb->render_pipeline);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, mb->shadow_pipeline);
   WGPU_RELEASE_RESOURCE(PipelineLayout, mb->pipeline_layout);
+}
+
+static void render_metaballs_shadow(WGPURenderPassEncoder render_pass,
+                                    spot_light_t* spot_light)
+{
+  metaballs_t* mb         = &state.metaballs;
+  metaballs_compute_t* mc = &state.metaballs_compute;
+
+  if (!mc->has_calced_once || !mb->shadow_pipeline) {
+    return;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(render_pass, mb->shadow_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    spot_light->bind_groups.ubos, 0, NULL);
+  wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, mc->vertex_buffer.buffer,
+                                       0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(render_pass, mc->index_buffer.buffer,
+                                      WGPUIndexFormat_Uint32, 0,
+                                      WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, mc->index_count, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Point Lights Implementation
+ * -------------------------------------------------------------------------- */
+
+/* Point lights update compute shader - embedded */
+static const char* update_point_lights_compute_shader = CODE(
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  struct LightsConfig {
+    numLights: u32,
+  }
+
+  @group(0) @binding(0) var<storage, read_write> lightsBuffer: LightsBuffer;
+  @group(0) @binding(1) var<uniform> config: LightsConfig;
+
+  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
+
+  @compute @workgroup_size(64, 1, 1)
+  fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
+    var index = GlobalInvocationID.x;
+    if (index >= config.numLights) {
+      return;
+    }
+
+    lightsBuffer.lights[index].position.x += lightsBuffer.lights[index].velocity.x * view.deltaTime;
+    lightsBuffer.lights[index].position.z += lightsBuffer.lights[index].velocity.z * view.deltaTime;
+
+    let size = 42.0;
+    var halfSize = size / 2.0;
+
+    if (lightsBuffer.lights[index].position.x < -halfSize) {
+      lightsBuffer.lights[index].position.x = -halfSize;
+      lightsBuffer.lights[index].velocity.x *= -1.0;
+    } else if (lightsBuffer.lights[index].position.x > halfSize) {
+      lightsBuffer.lights[index].position.x = halfSize;
+      lightsBuffer.lights[index].velocity.x *= -1.0;
+    }
+
+    if (lightsBuffer.lights[index].position.z < -halfSize) {
+      lightsBuffer.lights[index].position.z = -halfSize;
+      lightsBuffer.lights[index].velocity.z *= -1.0;
+    } else if (lightsBuffer.lights[index].position.z > halfSize) {
+      lightsBuffer.lights[index].position.z = halfSize;
+      lightsBuffer.lights[index].velocity.z *= -1.0;
+    }
+  }
+);
+
+static bool point_lights_is_ready(point_lights_t* this)
+{
+  return this->update_compute_pipeline != NULL;
+}
+
+static void point_lights_set_lights_count(point_lights_t* this, uint32_t v)
+{
+  this->lights_count = v;
+  wgpuQueueWriteBuffer(this->wgpu_context->queue,
+                       this->lights_config_uniform_buffer.buffer, 0, &v,
+                       sizeof(uint32_t));
+}
+
+static void point_lights_init(point_lights_t* this)
+{
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  /* Pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->lights_buffer_compute_bind_group_layout, /* Group 0 */
+      this->renderer->frame_bind_group_layout,       /* Group 1 */
+    };
+    this->update_compute_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device,
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Point light update - Pipeline layout"),
+        .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+        .bindGroupLayouts     = bind_group_layouts,
+      });
+    ASSERT(this->update_compute_pipeline_layout != NULL);
+  }
+
+  /* Compute pipeline */
+  {
+    WGPUShaderModule comp_shader = wgpu_create_shader_module(
+      wgpu_context->device, update_point_lights_compute_shader);
+    ASSERT(comp_shader);
+
+    this->update_compute_pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .label   = STRVIEW("Point light update - Compute pipeline"),
+        .layout  = this->update_compute_pipeline_layout,
+        .compute = {
+          .module     = comp_shader,
+          .entryPoint = STRVIEW("main"),
+        },
+      });
+    ASSERT(this->update_compute_pipeline);
+
+    wgpuShaderModuleRelease(comp_shader);
+  }
+}
+
+static void point_lights_init_defaults(point_lights_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void point_lights_create(point_lights_t* this,
+                                webgpu_renderer_t* renderer)
+{
+  point_lights_init_defaults(this);
+  this->renderer     = renderer;
+  this->wgpu_context = renderer->wgpu_context;
+
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  /* Lights uniform buffer */
+  {
+    input_point_light_t lights_data[MAX_POINT_LIGHTS_COUNT] = {0};
+    float x, y, z, vel_x, vel_y, vel_z, r, g, b, radius, intensity;
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS_COUNT; ++i) {
+      input_point_light_t* light_data = &lights_data[i];
+
+      x = (random_float() * 2 - 1) * 20;
+      y = -2.0f;
+      z = (random_float() * 2 - 1) * 20;
+
+      vel_x = random_float() * 4 - 2;
+      vel_y = random_float() * 4 - 2;
+      vel_z = random_float() * 4 - 2;
+
+      r = random_float();
+      g = random_float();
+      b = random_float();
+
+      radius    = 5 + random_float() * 3;
+      intensity = 10 + random_float() * 10;
+
+      /* Position */
+      light_data->position[0] = x;
+      light_data->position[1] = y;
+      light_data->position[2] = z;
+      light_data->position[3] = 0.0f;
+      /* Velocity */
+      light_data->velocity[0] = vel_x;
+      light_data->velocity[1] = vel_y;
+      light_data->velocity[2] = vel_z;
+      light_data->velocity[3] = 0.0f;
+      /* Color */
+      light_data->color[0] = r;
+      light_data->color[1] = g;
+      light_data->color[2] = b;
+      /* Radius */
+      light_data->range = radius;
+      /* Intensity */
+      light_data->intensity = intensity;
+    }
+    this->lights_buffer
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Lights - Uniform buffer",
+                                           .usage = WGPUBufferUsage_Storage,
+                                           .size  = sizeof(lights_data),
+                                           .initial.data = lights_data,
+                                         });
+  }
+
+  /* Lights config uniform buffer */
+  {
+    this->lights_count                 = state.gui_settings.point_lights_count;
+    this->lights_config_uniform_buffer = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .label        = "Lights config - Uniform buffer",
+        .usage        = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+        .size         = sizeof(uint32_t),
+        .initial.data = &this->lights_count,
+      });
+  }
+
+  /* Lights buffer compute bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+           .type           = WGPUBufferBindingType_Storage,
+           .minBindingSize = this->lights_buffer.size,
+         },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+             .type           = WGPUBufferBindingType_Uniform,
+             .minBindingSize = this->lights_config_uniform_buffer.size,
+         },
+        .sampler = {0},
+      },
+    };
+    this->lights_buffer_compute_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(
+        wgpu_context->device,
+        &(WGPUBindGroupLayoutDescriptor){
+          .label      = STRVIEW("Lights update compute - Bind group layout"),
+          .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+          .entries    = bgl_entries,
+        });
+    ASSERT(this->lights_buffer_compute_bind_group_layout != NULL);
+  }
+
+  /* Lights buffer compute bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->lights_buffer.buffer,
+        .size    = this->lights_buffer.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->lights_config_uniform_buffer.buffer,
+        .size    = this->lights_config_uniform_buffer.size,
+      },
+    };
+    this->lights_buffer_compute_bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = STRVIEW("lights buffer compute - Bind group"),
+        .layout     = this->lights_buffer_compute_bind_group_layout,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(this->lights_buffer_compute_bind_group != NULL);
+  }
+
+  point_lights_init(this);
+}
+
+static void point_lights_destroy(point_lights_t* this)
+{
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        this->lights_buffer_compute_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->lights_buffer_compute_bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->update_compute_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->update_compute_pipeline)
+  WGPU_RELEASE_RESOURCE(Buffer, this->lights_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->lights_config_uniform_buffer.buffer)
+}
+
+static point_lights_t*
+point_lights_update_sim(point_lights_t* this,
+                        WGPUComputePassEncoder compute_pass)
+{
+  if (!point_lights_is_ready(this)) {
+    return this;
+  }
+  wgpuComputePassEncoderSetPipeline(compute_pass,
+                                    this->update_compute_pipeline);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 0, this->lights_buffer_compute_bind_group, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(compute_pass, 1,
+                                     this->renderer->frame_bind_group, 0, NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    compute_pass, (uint32_t)ceil(state.gui_settings.point_lights_count / 64.0f),
+    1, 1);
+  return this;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Spot Light Implementation
+ * -------------------------------------------------------------------------- */
+
+#define SPOT_LIGHT_SHADOW_RES 1024u
+
+static void spot_light_set_position(spot_light_t* this, vec3 v)
+{
+  glm_vec3_copy(v, this->_position);
+  glm_vec3_copy(v, this->ubos_data.light_info.position);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+
+  perspective_camera_set_position(&this->camera,
+                                  (vec3){-v[0] * 15, v[1], -v[2] * 15});
+  perspective_camera_update_view_matrix(&this->camera);
+
+  view_uniforms_t* view_uniforms = &this->ubos_data.view;
+  glm_mat4_copy(this->camera.view_matrix, view_uniforms->matrix);
+  glm_mat4_copy(this->camera.view_inv_matrix, view_uniforms->inverse_matrix);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.view.buffer, 0,
+                       view_uniforms, sizeof(view_uniforms_t));
+}
+
+static void spot_light_set_direction(spot_light_t* this, vec3 v)
+{
+  glm_vec3_copy(v, this->_direction);
+  glm_vec3_copy(v, this->ubos_data.light_info.direction);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+
+  glm_vec3_copy(v, this->camera.look_at_position);
+  perspective_camera_update_view_matrix(&this->camera);
+
+  view_uniforms_t* view_uniforms = &this->ubos_data.view;
+  glm_mat4_copy(this->camera.view_matrix, view_uniforms->matrix);
+  glm_mat4_copy(this->camera.view_inv_matrix, view_uniforms->inverse_matrix);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.view.buffer, 0,
+                       view_uniforms, sizeof(view_uniforms_t));
+}
+
+static void spot_light_set_color(spot_light_t* this, vec3 v)
+{
+  glm_vec3_copy(v, this->_color);
+  glm_vec3_copy(v, this->ubos_data.light_info.color);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+}
+
+static void spot_light_set_cut_off(spot_light_t* this, float v)
+{
+  this->_cut_off                    = v;
+  this->ubos_data.light_info.cutoff = cosf(v);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+}
+
+static void spot_light_set_outer_cut_off(spot_light_t* this, float v)
+{
+  this->_outer_cut_off                    = v;
+  this->ubos_data.light_info.outer_cutoff = cosf(v);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+
+  this->camera.fov = glm_deg(v * 1.5f);
+  perspective_camera_update_projection_matrix(&this->camera);
+
+  projection_uniforms_t* projection_uniforms = &this->ubos_data.projection;
+  glm_mat4_copy(this->camera.projection_matrix, projection_uniforms->matrix);
+  glm_mat4_copy(this->camera.projection_inv_matrix,
+                projection_uniforms->inverse_matrix);
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.projection.buffer,
+                       0, projection_uniforms, sizeof(projection_uniforms_t));
+}
+
+static void spot_light_set_intensity(spot_light_t* this, float v)
+{
+  this->_intensity                     = v;
+  this->ubos_data.light_info.intensity = v;
+  wgpuQueueWriteBuffer(this->wgpu_context->queue, this->ubos.light_info.buffer,
+                       0, &this->ubos_data.light_info,
+                       sizeof(spot_light_uniforms_t));
+}
+
+static void spot_light_init_defaults(spot_light_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void spot_light_create(spot_light_t* this, webgpu_renderer_t* renderer,
+                              ispot_light_t* ispot_light)
+{
+  spot_light_init_defaults(this);
+
+  this->renderer               = renderer;
+  this->wgpu_context           = renderer->wgpu_context;
+  wgpu_context_t* wgpu_context = this->wgpu_context;
+
+  perspective_camera_init(&this->camera, 56.0f, 1.0f, 0.1f, 120.0f);
+  perspective_camera_update_view_matrix(&this->camera);
+  perspective_camera_update_projection_matrix(&this->camera);
+
+  /* Depth texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = SPOT_LIGHT_SHADOW_RES,
+      .height             = SPOT_LIGHT_SHADOW_RES,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = STRVIEW("Spot light - Depth texture"),
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_Depth32Float,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->depth_texture.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->depth_texture.texture != NULL);
+
+    this->depth_texture.view = wgpuTextureCreateView(
+      this->depth_texture.texture,
+      &(WGPUTextureViewDescriptor){
+        .label           = STRVIEW("Spot light - Depth texture view"),
+        .dimension       = WGPUTextureViewDimension_2D,
+        .format          = texture_desc.format,
+        .baseMipLevel    = 0,
+        .mipLevelCount   = 1,
+        .baseArrayLayer  = 0,
+        .arrayLayerCount = 1,
+      });
+    ASSERT(this->depth_texture.view != NULL);
+  }
+
+  /* Light info UBO */
+  this->ubos.light_info = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Light info - UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(spot_light_uniforms_t),
+                  });
+
+  /* Projection UBO */
+  this->ubos.projection = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Projection - UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(projection_uniforms_t),
+                  });
+  {
+    projection_uniforms_t* proj = &this->ubos_data.projection;
+    glm_mat4_copy(this->camera.projection_matrix, proj->matrix);
+    glm_mat4_copy(this->camera.projection_inv_matrix, proj->inverse_matrix);
+    proj->output_size[0] = (float)SPOT_LIGHT_SHADOW_RES;
+    proj->output_size[1] = (float)SPOT_LIGHT_SHADOW_RES;
+    proj->z_near         = this->camera.near;
+    proj->z_far          = this->camera.far;
+    wgpuQueueWriteBuffer(wgpu_context->queue, this->ubos.projection.buffer, 0,
+                         proj, sizeof(projection_uniforms_t));
+  }
+
+  /* View UBO */
+  this->ubos.view = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "View - UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(view_uniforms_t),
+                  });
+  {
+    view_uniforms_t* view = &this->ubos_data.view;
+    glm_mat4_copy(this->camera.view_matrix, view->matrix);
+    glm_mat4_copy(this->camera.view_inv_matrix, view->inverse_matrix);
+    glm_vec3_copy(this->camera.position, view->position);
+    view->time       = 0.0f;
+    view->delta_time = 0.0f;
+    wgpuQueueWriteBuffer(wgpu_context->queue, this->ubos.view.buffer, 0, view,
+                         sizeof(view_uniforms_t));
+  }
+
+  /* Set spot light properties */
+  spot_light_set_position(this, ispot_light->position);
+  spot_light_set_direction(this, ispot_light->direction);
+  spot_light_set_color(this, ispot_light->color);
+  spot_light_set_cut_off(this, ispot_light->cut_off);
+  spot_light_set_outer_cut_off(this, ispot_light->outer_cut_off);
+  spot_light_set_intensity(this, ispot_light->intensity);
+
+  /* Render pass descriptor */
+  this->framebuffer.depth_stencil_attachment
+    = (WGPURenderPassDepthStencilAttachment){
+      .view            = this->depth_texture.view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
+    };
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                  = STRVIEW("Spot light shadow pass"),
+    .colorAttachmentCount   = 0,
+    .colorAttachments       = NULL,
+    .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
+    .occlusionQuerySet      = NULL,
+  };
+
+  /* Spot light ubos bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->ubos.light_info.size,
+        },
+        .sampler = {0},
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->ubos.projection.size,
+        },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->ubos.view.size,
+        },
+        .sampler = {0},
+      }
+    };
+    this->bind_group_layouts.ubos = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Spot light ubos - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(this->bind_group_layouts.ubos != NULL);
+  }
+
+  /* Spot light depth texture bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Depth,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+    };
+    this->bind_group_layouts.depth_texture = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Spot light depth texture - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
+    ASSERT(this->bind_group_layouts.depth_texture != NULL);
+  }
+
+  /* Spot light ubos bind group */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .buffer  = this->ubos.light_info.buffer,
+        .size    = this->ubos.light_info.size,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->ubos.projection.buffer,
+        .size    = this->ubos.projection.size,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->ubos.view.buffer,
+        .size    = this->ubos.view.size,
+      },
+    };
+    this->bind_groups.ubos = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Spot light ubos - Bind group"),
+                              .layout = this->bind_group_layouts.ubos,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_groups.ubos != NULL);
+  }
+
+  /* Spot light depth texture bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->depth_texture.view,
+      },
+    };
+    this->bind_groups.depth_texture = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = STRVIEW("Spot light depth texture - Bind group"),
+        .layout     = this->bind_group_layouts.depth_texture,
+        .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+        .entries    = bg_entries,
+      });
+    ASSERT(this->bind_groups.depth_texture != NULL);
+  }
+}
+
+static void spot_light_destroy(spot_light_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.light_info.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.projection.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->ubos.view.buffer);
+  WGPU_RELEASE_RESOURCE(Texture, this->depth_texture.texture);
+  WGPU_RELEASE_RESOURCE(TextureView, this->depth_texture.view);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layouts.ubos);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        this->bind_group_layouts.depth_texture);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.ubos);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_groups.depth_texture);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Box Outline Implementation
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* box_outline_vertex_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  @group(0) @binding(0) var<uniform> projection : ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view : ViewUniformsStruct;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) instanceMat0: vec4<f32>,
+    @location(2) instanceMat1: vec4<f32>,
+    @location(3) instanceMat2: vec4<f32>,
+    @location(4) instanceMat3: vec4<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+    @location(0) localPosition: vec3<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+
+    var instanceMatrix = mat4x4(
+      input.instanceMat0,
+      input.instanceMat1,
+      input.instanceMat2,
+      input.instanceMat3,
+    );
+
+    var worldPosition = vec4<f32>(input.position, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      instanceMatrix *
+                      worldPosition;
+
+    output.localPosition = input.position;
+    return output;
+  }
+);
+
+static const char* box_outline_fragment_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct Output {
+    @location(0) GBuffer_OUT0: vec4<f32>,
+    @location(1) GBuffer_OUT1: vec4<f32>,
+  }
+
+  fn encodeNormals(n: vec3<f32>) -> vec2<f32> {
+    var p = sqrt(n.z * 8.0 + 8.0);
+    return vec2(n.xy / p + 0.5);
+  }
+
+  fn encodeGBufferOutput(
+    normal: vec3<f32>,
+    albedo: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    ID: f32
+  ) -> Output {
+    var output: Output;
+    output.GBuffer_OUT0 = vec4(encodeNormals(normal), metallic, ID);
+    output.GBuffer_OUT1 = vec4(albedo, roughness);
+    return output;
+  }
+
+  struct Input {
+    @location(0) localPosition: vec3<f32>,
+  }
+  @group(0) @binding(0) var<uniform> projection : ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view : ViewUniformsStruct;
+
+  @fragment
+  fn main(input: Input) -> Output {
+    var output: Output;
+    var spacing = step(sin(input.localPosition.x * 10.0 + view.time * 2.0), 0.1);
+    if (spacing < 0.5) {
+      discard;
+    }
+    var normal = vec3(0.0);
+    var albedo = vec3(1.0);
+    var metallic = 0.0;
+    var roughness = 0.0;
+    var ID = 0.1;
+    return encodeGBufferOutput(
+      normal,
+      albedo,
+      metallic,
+      roughness,
+      ID
+    );
+  }
+);
+// clang-format on
+
+static void box_outline_init(box_outline_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[1] = {
+      this->renderer->frame_bind_group_layout,
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Box outline render - Pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Box outline render pipeline */
+  {
+    /* Primitive state */
+    WGPUPrimitiveState primitive_state = {
+      .topology         = WGPUPrimitiveTopology_LineStrip,
+      .stripIndexFormat = WGPUIndexFormat_Uint16,
+      .frontFace        = WGPUFrontFace_CCW,
+      .cullMode         = WGPUCullMode_None,
+    };
+
+    /* Color target state */
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_states[2] = {
+      [0] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_RGBA16Float,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+      [1] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_BGRA8Unorm,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      }
+    };
+
+    /* Depth stencil state */
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = DEPTH_FORMAT,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+    /* Vertex attributes */
+    WGPUVertexAttribute attributes[5] = {
+      [0] = (WGPUVertexAttribute){
+        .shaderLocation = 0,
+        .offset         = 0 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [1] = (WGPUVertexAttribute){
+        .shaderLocation = 1,
+        .offset         = 0 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32x4,
+      },
+      [2] = (WGPUVertexAttribute){
+        .shaderLocation = 2,
+        .offset         = 4 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32x4,
+      },
+      [3] = (WGPUVertexAttribute){
+        .shaderLocation = 3,
+        .offset         = 8 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32x4,
+      },
+      [4] = (WGPUVertexAttribute){
+        .shaderLocation = 4,
+        .offset         = 12 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32x4,
+      },
+    };
+
+    /* Vertex buffer layouts */
+    WGPUVertexBufferLayout vertex_buffers[2] = {
+      [0] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Vertex,
+        .attributeCount = 1,
+        .attributes     = &attributes[0],
+      },
+      [1] = (WGPUVertexBufferLayout){
+        .arrayStride    = 16 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Instance,
+        .attributeCount = 4,
+        .attributes     = &attributes[1],
+      },
+    };
+
+    /* Vertex shader module */
+    WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Box outline vertex shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(box_outline_vertex_shader_wgsl),
+          },
+      });
+
+    /* Fragment shader module */
+    WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Box outline fragment shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(box_outline_fragment_shader_wgsl),
+          },
+      });
+
+    /* Render pipeline */
+    this->render_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device,
+      &(WGPURenderPipelineDescriptor){
+        .label    = "Box outline - Render pipeline",
+        .layout   = this->pipeline_layout,
+        .primitive = primitive_state,
+        .vertex = (WGPUVertexState){
+          .module      = vs_module,
+          .entryPoint  = STRVIEW("main"),
+          .bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffers),
+          .buffers     = vertex_buffers,
+        },
+        .fragment = &(WGPUFragmentState){
+          .module      = fs_module,
+          .entryPoint  = STRVIEW("main"),
+          .targetCount = (uint32_t)ARRAY_SIZE(color_target_states),
+          .targets     = color_target_states,
+        },
+        .depthStencil = &depth_stencil_state,
+        .multisample = (WGPUMultisampleState){
+          .count = 1,
+          .mask  = 0xFFFFFFFF,
+        },
+      });
+    ASSERT(this->render_pipeline != NULL);
+
+    /* Cleanup shader modules */
+    WGPU_RELEASE_RESOURCE(ShaderModule, vs_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fs_module);
+  }
+}
+
+static void box_outline_init_defaults(box_outline_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
+{
+  box_outline_init_defaults(this);
+  this->renderer = renderer;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  const float vertices[2 * 3]
+    = {-BOX_OUTLINE_RADIUS, 0.0f, 0.0f, BOX_OUTLINE_RADIUS, 0.0f, 0.0f};
+
+  const uint16_t indices[16] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  };
+
+  this->buffers.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Box outline - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(vertices),
+                    .initial.data = vertices,
+                  });
+
+  this->buffers.index_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Box outline - Index buffer",
+                    .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(indices),
+                    .initial.data = indices,
+                  });
+
+  float instance_matrices[BOX_OUTLINE_SIDE_COUNT * 16] = {0};
+  mat4 instance_matrix                                 = GLM_MAT4_IDENTITY_INIT;
+
+  /* Top rig */
+  glm_translate(instance_matrix,
+                (vec3){0, BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 0});
+  memcpy(&instance_matrices[0 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 1, 0});
+  memcpy(&instance_matrices[1 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){-BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, -1, 0});
+  memcpy(&instance_matrices[2 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){0, BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  memcpy(&instance_matrices[3 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  /* Bottom rig */
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){0, -BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 0});
+  memcpy(&instance_matrices[4 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 1, 0});
+  memcpy(&instance_matrices[5 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){-BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, -1, 0});
+  memcpy(&instance_matrices[6 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){0, -BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  memcpy(&instance_matrices[7 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  /* Sides */
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
+  memcpy(&instance_matrices[8 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){-BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
+  memcpy(&instance_matrices[9 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){-BOX_OUTLINE_RADIUS, 0, -BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
+  memcpy(&instance_matrices[10 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){BOX_OUTLINE_RADIUS, 0, -BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
+  memcpy(&instance_matrices[11 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  /* Extra side */
+  glm_mat4_identity(instance_matrix);
+  memcpy(&instance_matrices[12 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  this->buffers.instance_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Box outline instance matrices - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(instance_matrices),
+                    .initial.data = instance_matrices,
+                  });
+
+  /* Init render pipeline */
+  box_outline_init(this);
+}
+
+static void box_outline_destroy(box_outline_t* this)
+{
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.vertex_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.index_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.instance_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->render_pipeline);
+}
+
+static void box_outline_render(box_outline_t* this,
+                               WGPURenderPassEncoder render_pass)
+{
+  if (!this->render_pipeline) {
+    return;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->renderer->frame_bind_group, 0, 0);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 1, this->buffers.instance_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    render_pass, this->buffers.index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
+    WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 2, BOX_OUTLINE_SIDE_COUNT, 0, 0,
+                                   0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Cube Geometry
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  struct {
+    float data[18 * 6];
+    size_t data_size;
+    size_t count;
+  } positions;
+  struct {
+    float data[18 * 6];
+    size_t data_size;
+    size_t count;
+  } normals;
+  struct {
+    float data[12 * 6];
+    size_t data_size;
+    size_t count;
+  } uvs;
+} cube_geometry_t;
+
+static void cube_geometry_init_defaults(cube_geometry_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void cube_geometry_create_cube(cube_geometry_t* this, vec3 dimensions)
+{
+  cube_geometry_init_defaults(this);
+
+  const vec3 position
+    = {-dimensions[0] / 2.0f, -dimensions[1] / 2.0f, -dimensions[2] / 2.0f};
+  const float x      = position[0];
+  const float y      = position[1];
+  const float z      = position[2];
+  const float width  = dimensions[0];
+  const float height = dimensions[1];
+  const float depth  = dimensions[2];
+
+  const vec3 fbl = {x, y, z + depth};
+  const vec3 fbr = {x + width, y, z + depth};
+  const vec3 ftl = {x, y + height, z + depth};
+  const vec3 ftr = {x + width, y + height, z + depth};
+  const vec3 bbl = {x, y, z};
+  const vec3 bbr = {x + width, y, z};
+  const vec3 btl = {x, y + height, z};
+  const vec3 btr = {x + width, y + height, z};
+
+  // clang-format off
+  const float positions[18 * 6] = {
+    /* front */
+    fbl[0], fbl[1], fbl[2], fbr[0], fbr[1], fbr[2], ftl[0], ftl[1], ftl[2],
+    ftl[0], ftl[1], ftl[2], fbr[0], fbr[1], fbr[2], ftr[0], ftr[1], ftr[2],
+    /* right */
+    fbr[0], fbr[1], fbr[2], bbr[0], bbr[1], bbr[2], ftr[0], ftr[1], ftr[2],
+    ftr[0], ftr[1], ftr[2], bbr[0], bbr[1], bbr[2], btr[0], btr[1], btr[2],
+    /* back */
+    bbr[0], bbr[1], bbr[2], bbl[0], bbl[1], bbl[2], btr[0], btr[1], btr[2],
+    btr[0], btr[1], btr[2], bbl[0], bbl[1], bbl[2], btl[0], btl[1], btl[2],
+    /* left */
+    bbl[0], bbl[1], bbl[2], fbl[0], fbl[1], fbl[2], btl[0], btl[1], btl[2],
+    btl[0], btl[1], btl[2], fbl[0], fbl[1], fbl[2], ftl[0], ftl[1], ftl[2],
+    /* top */
+    ftl[0], ftl[1], ftl[2], ftr[0], ftr[1], ftr[2], btl[0], btl[1], btl[2],
+    btl[0], btl[1], btl[2], ftr[0], ftr[1], ftr[2], btr[0], btr[1], btr[2],
+    /* bottom */
+    bbl[0], bbl[1], bbl[2], bbr[0], bbr[1], bbr[2], fbl[0], fbl[1], fbl[2],
+    fbl[0], fbl[1], fbl[2], bbr[0], bbr[1], bbr[2], fbr[0], fbr[1], fbr[2],
+  };
+  // clang-format on
+  memcpy(this->positions.data, positions, sizeof(positions));
+  this->positions.data_size = sizeof(positions);
+  this->positions.count     = (size_t)ARRAY_SIZE(positions);
+
+  static const float uvs[12 * 6] = {
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* front */
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* right */
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* back */
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* left */
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* top */
+    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, /* bottom */
+  };
+  memcpy(this->uvs.data, uvs, sizeof(uvs));
+  this->uvs.data_size = sizeof(uvs);
+  this->uvs.count     = (size_t)ARRAY_SIZE(uvs);
+
+  static const float normals[18 * 6] = {
+    0,  0,  1,  0,  0,  1,  0,  0,  1,
+    0,  0,  1,  0,  0,  1,  0,  0,  1, /* front */
+    1,  0,  0,  1,  0,  0,  1,  0,  0,
+    1,  0,  0,  1,  0,  0,  1,  0,  0, /* right */
+    0,  0,  -1, 0,  0,  -1, 0,  0,  -1,
+    0,  0,  -1, 0,  0,  -1, 0,  0,  -1, /* back */
+    -1, 0,  0,  -1, 0,  0,  -1, 0,  0,
+    -1, 0,  0,  -1, 0,  0,  -1, 0,  0, /* left */
+    0,  1,  0,  0,  1,  0,  0,  1,  0,
+    0,  1,  0,  0,  1,  0,  0,  1,  0, /* top */
+    0,  -1, 0,  0,  -1, 0,  0,  -1, 0,
+    0,  -1, 0,  0,  -1, 0,  0,  -1, 0, /* bottom */
+  };
+  memcpy(this->normals.data, normals, sizeof(normals));
+  this->normals.data_size = sizeof(normals);
+  this->normals.count     = (size_t)ARRAY_SIZE(normals);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Ground Implementation
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* ground_vertex_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct ModelUniforms {
+    matrix: mat4x4<f32>,
+  }
+
+  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(0) var<uniform> model: ModelUniforms;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) instanceOffset: vec3<f32>,
+    @location(3) metallic: f32,
+    @location(4) roughness: f32,
+  }
+
+  struct Output {
+    @location(0) normal: vec3<f32>,
+    @location(1) metallic: f32,
+    @location(2) roughness: f32,
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var dist = distance(input.instanceOffset.xy, vec2(0.0));
+    var offsetX = input.instanceOffset.x;
+    var offsetZ = input.instanceOffset.y;
+    var scaleY = input.instanceOffset.z;
+    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
+    var scaleMatrix = mat4x4(
+      1.0, 0.0, 0.0, 0.0,
+      0.0, scaleY, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0
+    );
+    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      worldPosition;
+
+    output.normal = input.normal;
+    output.metallic = input.metallic;
+    output.roughness = input.roughness;
+    return output;
+  }
+);
+
+static const char* ground_fragment_shader_wgsl = CODE(
+  struct Output {
+    @location(0) GBuffer_OUT0: vec4<f32>,
+    @location(1) GBuffer_OUT1: vec4<f32>,
+  }
+
+  fn encodeNormals(n: vec3<f32>) -> vec2<f32> {
+    var p = sqrt(n.z * 8.0 + 8.0);
+    return vec2(n.xy / p + 0.5);
+  }
+
+  fn encodeGBufferOutput(
+    normal: vec3<f32>,
+    albedo: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    ID: f32
+  ) -> Output {
+    var output: Output;
+    output.GBuffer_OUT0 = vec4(encodeNormals(normal), metallic, ID);
+    output.GBuffer_OUT1 = vec4(albedo, roughness);
+    return output;
+  }
+
+  struct Inputs {
+    @location(0) normal: vec3<f32>,
+    @location(1) metallic: f32,
+    @location(2) roughness: f32,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var normal = normalize(input.normal);
+    var albedo = vec3(1.0);
+    var metallic = 1.0;
+    var roughness = input.roughness;
+    var ID = 0.0;
+
+    return encodeGBufferOutput(
+      normal,
+      albedo,
+      metallic,
+      roughness,
+      ID
+    );
+  }
+);
+
+static const char* ground_shadow_vertex_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct ModelUniforms {
+    matrix: mat4x4<f32>,
+  }
+
+  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(0) var<uniform> model: ModelUniforms;
+
+  struct Inputs {
+    @location(0) position: vec3<f32>,
+    @location(1) instanceOffset: vec3<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var dist = distance(input.instanceOffset.xy, vec2(0.0));
+    var offsetX = input.instanceOffset.x;
+    var offsetZ = input.instanceOffset.y;
+    var scaleY = input.instanceOffset.z;
+    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
+    var scaleMatrix = mat4x4(
+      1.0, 0.0, 0.0, 0.0,
+      0.0, scaleY, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0
+    );
+    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
+    output.position = projection.matrix *
+                      view.matrix *
+                      worldPosition;
+
+    return output;
+  }
+);
+// clang-format on
+
+static void ground_init(ground_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Ground render pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->renderer->frame_bind_group_layout,
+      this->model_bind_group_layout,
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Ground render - Pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layouts.render_pipeline = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->pipeline_layouts.render_pipeline != NULL);
+  }
+
+  /* Ground render pipeline */
+  {
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    };
+
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_states[2] = {
+      [0] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_RGBA16Float,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+      [1] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_BGRA8Unorm,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      }
+    };
+
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = DEPTH_FORMAT,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+    WGPUVertexAttribute attributes[5] = {
+      [0] = (WGPUVertexAttribute){
+        .shaderLocation = 0,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [1] = (WGPUVertexAttribute){
+        .shaderLocation = 1,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [2] = (WGPUVertexAttribute){
+        .shaderLocation = 2,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [3] = (WGPUVertexAttribute){
+        .shaderLocation = 3,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32,
+      },
+      [4] = (WGPUVertexAttribute){
+        .shaderLocation = 4,
+        .offset         = 1 * sizeof(float),
+        .format         = WGPUVertexFormat_Float32,
+      },
+    };
+
+    WGPUVertexBufferLayout vertex_buffers[4] = {
+      [0] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Vertex,
+        .attributeCount = 1,
+        .attributes     = &attributes[0],
+      },
+      [1] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Vertex,
+        .attributeCount = 1,
+        .attributes     = &attributes[1],
+      },
+      [2] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Instance,
+        .attributeCount = 1,
+        .attributes     = &attributes[2],
+      },
+      [3] = (WGPUVertexBufferLayout){
+        .arrayStride    = 2 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Instance,
+        .attributeCount = 2,
+        .attributes     = &attributes[3],
+      },
+    };
+
+    WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Ground vertex shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(ground_vertex_shader_wgsl),
+          },
+      });
+
+    WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Ground fragment shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(ground_fragment_shader_wgsl),
+          },
+      });
+
+    this->render_pipelines.render_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device,
+      &(WGPURenderPipelineDescriptor){
+        .label    = "Ground - Render pipeline",
+        .layout   = this->pipeline_layouts.render_pipeline,
+        .primitive = primitive_state,
+        .vertex = (WGPUVertexState){
+          .module      = vs_module,
+          .entryPoint  = STRVIEW("main"),
+          .bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffers),
+          .buffers     = vertex_buffers,
+        },
+        .fragment = &(WGPUFragmentState){
+          .module      = fs_module,
+          .entryPoint  = STRVIEW("main"),
+          .targetCount = (uint32_t)ARRAY_SIZE(color_target_states),
+          .targets     = color_target_states,
+        },
+        .depthStencil = &depth_stencil_state,
+        .multisample = (WGPUMultisampleState){
+          .count = 1,
+          .mask  = 0xFFFFFFFF,
+        },
+      });
+    ASSERT(this->render_pipelines.render_pipeline != NULL);
+
+    WGPU_RELEASE_RESOURCE(ShaderModule, vs_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fs_module);
+  }
+
+  /* Ground shadow render pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->spot_light->bind_group_layouts.ubos,
+      this->model_bind_group_layout,
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Ground shadow rendering - Pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layouts.render_shadow_pipeline
+      = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
+                                       &pipeline_layout_desc);
+    ASSERT(this->pipeline_layouts.render_shadow_pipeline != NULL);
+  }
+
+  /* Ground shadow render pipeline */
+  {
+    WGPUPrimitiveState primitive_state = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
+    };
+
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = WGPUTextureFormat_Depth32Float,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+    WGPUVertexAttribute shadow_attributes[2] = {
+      [0] = (WGPUVertexAttribute){
+        .shaderLocation = 0,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+      [1] = (WGPUVertexAttribute){
+        .shaderLocation = 1,
+        .offset         = 0,
+        .format         = WGPUVertexFormat_Float32x3,
+      },
+    };
+
+    WGPUVertexBufferLayout shadow_vertex_buffers[2] = {
+      [0] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Vertex,
+        .attributeCount = 1,
+        .attributes     = &shadow_attributes[0],
+      },
+      [1] = (WGPUVertexBufferLayout){
+        .arrayStride    = 3 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Instance,
+        .attributeCount = 1,
+        .attributes     = &shadow_attributes[1],
+      },
+    };
+
+    WGPUShaderModule shadow_vs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Ground shadow vertex shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(ground_shadow_vertex_shader_wgsl),
+          },
+      });
+
+    this->render_pipelines.render_shadow_pipeline
+      = wgpuDeviceCreateRenderPipeline(
+        wgpu_context->device,
+        &(WGPURenderPipelineDescriptor){
+          .label    = "Ground shadow - Render pipeline",
+          .layout   = this->pipeline_layouts.render_shadow_pipeline,
+          .primitive = primitive_state,
+          .vertex = (WGPUVertexState){
+            .module      = shadow_vs_module,
+            .entryPoint  = STRVIEW("main"),
+            .bufferCount = (uint32_t)ARRAY_SIZE(shadow_vertex_buffers),
+            .buffers     = shadow_vertex_buffers,
+          },
+          .fragment = NULL,
+          .depthStencil = &depth_stencil_state,
+          .multisample = (WGPUMultisampleState){
+            .count = 1,
+            .mask  = 0xFFFFFFFF,
+          },
+        });
+    ASSERT(this->render_pipelines.render_shadow_pipeline != NULL);
+
+    WGPU_RELEASE_RESOURCE(ShaderModule, shadow_vs_module);
+  }
+}
+
+static void ground_init_defaults(ground_t* this)
+{
+  memset(this, 0, sizeof(*this));
+  glm_mat4_identity(this->model_matrix);
+}
+
+static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
+                          spot_light_t* spot_light)
+{
+  ground_init_defaults(this);
+
+  this->renderer   = renderer;
+  this->spot_light = spot_light;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Create cube */
+  cube_geometry_t cube_geometry;
+  vec3 cube_dimensions = GLM_VEC3_ONE_INIT;
+  cube_geometry_create_cube(&cube_geometry, cube_dimensions);
+
+  /* Ground vertex buffer */
+  this->buffers.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Ground - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = cube_geometry.positions.data_size,
+                    .initial.data = cube_geometry.positions.data,
+                  });
+
+  /* Ground normal buffer */
+  this->buffers.normal_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Ground - Normal buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = cube_geometry.normals.data_size,
+                    .initial.data = cube_geometry.normals.data,
+                  });
+
+  /* Ground instance buffers */
+  float instance_offsets[GROUND_WIDTH * GROUND_HEIGHT * 3]           = {0};
+  float instance_metallic_rougness[GROUND_WIDTH * GROUND_HEIGHT * 2] = {0};
+
+  const float spacing_x
+    = (float)GROUND_WIDTH / (float)GROUND_COUNT + GROUND_SPACING;
+  const float spacing_y
+    = (float)GROUND_HEIGHT / (float)GROUND_COUNT + GROUND_SPACING;
+
+  float x_pos = 0.0f, y_pos = 0.0f;
+  for (uint32_t x = 0, i = 0; x < GROUND_COUNT; x++) {
+    for (uint32_t y = 0; y < GROUND_COUNT; y++) {
+      x_pos = (float)x * spacing_x;
+      y_pos = (float)y * spacing_y;
+
+      instance_offsets[i * 3 + 0] = x_pos - (float)GROUND_WIDTH / 2.0f;
+      instance_offsets[i * 3 + 1] = y_pos - (float)GROUND_HEIGHT / 2.0f;
+      instance_offsets[i * 3 + 2] = random_float() * 3.0f + 1.0f;
+
+      instance_metallic_rougness[i * 2 + 0] = 1.0f;
+      instance_metallic_rougness[i * 2 + 1] = 0.5f;
+
+      ++i;
+    }
+  }
+
+  this->instance_count = ARRAY_SIZE(instance_offsets) / 3;
+
+  this->buffers.instance_offsets_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Ground instance xyz - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(instance_offsets),
+                    .initial.data = instance_offsets,
+                  });
+
+  this->buffers.instance_material_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Ground instance material - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(instance_metallic_rougness),
+                    .initial.data = instance_metallic_rougness,
+                  });
+
+  /* Ground uniform buffer */
+  glm_translate(this->model_matrix, (vec3){0, GROUND_WORLD_Y, 0});
+  this->buffers.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Ground - Uniform buffer",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(this->model_matrix),
+                    .initial.data = this->model_matrix,
+                  });
+
+  /* Ground bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = (WGPUBufferBindingLayout){
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->buffers.uniform_buffer.size,
+        },
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Ground - Bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->model_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->model_bind_group_layout != NULL);
+  }
+
+  /* Ground bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer  = this->buffers.uniform_buffer.buffer,
+        .size    = this->buffers.uniform_buffer.size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "Ground - Bind group",
+      .layout     = this->model_bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->model_bind_group
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->model_bind_group != NULL);
+  }
+
+  /* Init render pipeline */
+  ground_init(this);
+}
+
+static void ground_destroy(ground_t* this)
+{
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layouts.render_pipeline);
+  WGPU_RELEASE_RESOURCE(PipelineLayout,
+                        this->pipeline_layouts.render_shadow_pipeline);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->render_pipelines.render_pipeline);
+  WGPU_RELEASE_RESOURCE(RenderPipeline,
+                        this->render_pipelines.render_shadow_pipeline);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->model_bind_group_layout);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->model_bind_group);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.vertex_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.normal_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.instance_offsets_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.instance_material_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.uniform_buffer.buffer);
+}
+
+static ground_t* ground_render_shadow(ground_t* this,
+                                      WGPURenderPassEncoder render_pass)
+{
+  if (!this->render_pipelines.render_shadow_pipeline) {
+    return this;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(
+    render_pass, this->render_pipelines.render_shadow_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->spot_light->bind_groups.ubos, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1, this->model_bind_group, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 1, this->buffers.instance_offsets_buffer.buffer, 0,
+    WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDraw(render_pass, 36, this->instance_count, 0, 0);
+  return this;
+}
+
+static ground_t* ground_render(ground_t* this,
+                               WGPURenderPassEncoder render_pass)
+{
+  if (!this->render_pipelines.render_pipeline) {
+    return this;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(render_pass,
+                                   this->render_pipelines.render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->renderer->frame_bind_group, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1, this->model_bind_group, 0,
+                                    0);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 1, this->buffers.normal_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 2, this->buffers.instance_offsets_buffer.buffer, 0,
+    WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 3, this->buffers.instance_material_buffer.buffer, 0,
+    WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderDraw(render_pass, 36, this->instance_count, 0, 0);
+  return this;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Particles Implementation
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* particles_vertex_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
+
+  @group(1) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
+
+  struct Inputs {
+    @builtin(vertex_index) vertexIndex: u32,
+    @builtin(instance_index) instanceIndex: u32,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+  }
+
+  var<private> normalisedPosition: array<vec2<f32>, 4> = array<vec2<f32>, 4>(
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(1.0, 1.0)
+  );
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+
+    var inputPosition = normalisedPosition[input.vertexIndex];
+
+    var sc = clamp(lightsBuffer.lights[input.instanceIndex].intensity * 0.01, 0.01, 0.1);
+    var scaleMatrix = mat4x4(
+      sc,  0.0, 0.0, 0.0,
+      0.0, sc,  0.0, 0.0,
+      0.0, 0.0, sc,  0.0,
+      0.0, 0.0, 0.0, 1.0,
+    );
+
+    var instancePosition = lightsBuffer.lights[input.instanceIndex].position;
+    var worldPosition = vec4(instancePosition.xyz, 0.0);
+
+    var viewMatrix = view.matrix;
+
+    output.position = projection.matrix *
+                      (
+                        viewMatrix *
+                        (worldPosition +
+                        vec4(0.0, 0.0, 0.0, 1.0)) +
+                        scaleMatrix * vec4(inputPosition, 0.0, 0.0)
+                      );
+
+    var instanceColor = lightsBuffer.lights[input.instanceIndex].color;
+    output.color = instanceColor;
+    output.uv = inputPosition * vec2(0.5, -0.5) + vec2(0.5);
+    return output;
+  }
+);
+
+static const char* particles_fragment_shader_wgsl = CODE(
+  struct Input {
+    @location(0) color: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+  }
+
+  struct Output {
+    @location(0) normal: vec4<f32>,
+    @location(1) albedo: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Input) -> Output {
+    var dist = distance(input.uv, vec2(0.5));
+    if (dist > 0.5) {
+      discard;
+    }
+    var output: Output;
+    output.normal = vec4(0.0, 0.0, 0.0, 0.1);
+    output.albedo = vec4(input.color, 1.0);
+    return output;
+  }
+);
+// clang-format on
+
+static void particles_init(particles_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Render pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->renderer->frame_bind_group_layout,
+      this->bind_group_layout,
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Particles render - Pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Render pipeline */
+  {
+    WGPUPrimitiveState primitive_state = {
+      .topology         = WGPUPrimitiveTopology_TriangleStrip,
+      .stripIndexFormat = WGPUIndexFormat_Uint16,
+      .frontFace        = WGPUFrontFace_CCW,
+      .cullMode         = WGPUCullMode_None,
+    };
+
+    WGPUBlendState blend_state = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_states[2] = {
+      [0] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_RGBA16Float,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+      [1] = (WGPUColorTargetState){
+        .format    = WGPUTextureFormat_BGRA8Unorm,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      }
+    };
+
+    WGPUDepthStencilState depth_stencil_state
+      = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+        .format              = DEPTH_FORMAT,
+        .depth_write_enabled = true,
+      });
+    depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+
+    WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Particles vertex shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(particles_vertex_shader_wgsl),
+          },
+      });
+
+    WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Particles fragment shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(particles_fragment_shader_wgsl),
+          },
+      });
+
+    this->render_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device,
+      &(WGPURenderPipelineDescriptor){
+        .label    = "Particles - Render pipeline",
+        .layout   = this->pipeline_layout,
+        .primitive = primitive_state,
+        .vertex = (WGPUVertexState){
+          .module      = vs_module,
+          .entryPoint  = STRVIEW("main"),
+          .bufferCount = 0,
+          .buffers     = NULL,
+        },
+        .fragment = &(WGPUFragmentState){
+          .module      = fs_module,
+          .entryPoint  = STRVIEW("main"),
+          .targetCount = (uint32_t)ARRAY_SIZE(color_target_states),
+          .targets     = color_target_states,
+        },
+        .depthStencil = &depth_stencil_state,
+        .multisample = (WGPUMultisampleState){
+          .count = 1,
+          .mask  = 0xFFFFFFFF,
+        },
+      });
+    ASSERT(this->render_pipeline != NULL);
+
+    WGPU_RELEASE_RESOURCE(ShaderModule, vs_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fs_module);
+  }
+}
+
+static void particles_init_defaults(particles_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
+                             wgpu_buffer_t* lights_buffer)
+{
+  particles_init_defaults(this);
+
+  this->renderer               = renderer;
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Particles bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout){
+          .type           = WGPUBufferBindingType_ReadOnlyStorage,
+          .minBindingSize = lights_buffer->size,
+        },
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Particles - Bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Particles bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer  = lights_buffer->buffer,
+        .size    = lights_buffer->size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "Particles - Bind group",
+      .layout     = this->bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->bind_group
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->bind_group != NULL);
+  }
+
+  /* Init render pipeline */
+  particles_init(this);
+}
+
+static void particles_destroy(particles_t* this)
+{
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->render_pipeline);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+}
+
+static void particles_render(particles_t* this,
+                             WGPURenderPassEncoder render_pass,
+                             uint32_t point_lights_count)
+{
+  if (!this->render_pipeline) {
+    return;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->render_pipeline);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
+                                    this->renderer->frame_bind_group, 0, 0);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1, this->bind_group, 0, 0);
+  wgpuRenderPassEncoderDraw(render_pass, 4, point_lights_count, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Effect Implementation
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* effect_vertex_shader_wgsl = CODE(
+  struct Inputs {
+    @location(0) position: vec2<f32>,
+  }
+
+  struct Output {
+    @builtin(position) position: vec4<f32>,
+  }
+
+  @vertex
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    output.position = vec4(input.position, 0.0, 1.0);
+    return output;
+  }
+);
+
+static const char* copy_pass_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var texture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    let albedo = textureLoad(
+      texture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    output.color = vec4(albedo.rgb, 1.0);
+    return output;
+  }
+);
+// clang-format on
+
+static void effect_init(effect_t* this, const char* fragment_shader_wgsl,
+                        WGPUBindGroupLayout* bind_group_layouts,
+                        uint32_t bind_group_layout_count, const char* label)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Render pipeline layout */
+  {
+    char pipeline_layout_lbl[256] = {0};
+    snprintf(pipeline_layout_lbl, sizeof(pipeline_layout_lbl),
+             "%s - Pipeline layout", label);
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = pipeline_layout_lbl,
+      .bindGroupLayoutCount = bind_group_layout_count,
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->pipeline_layout != NULL);
+  }
+
+  /* Render pipeline */
+  {
+    WGPUPrimitiveState primitive_state = {
+      .topology         = WGPUPrimitiveTopology_TriangleStrip,
+      .stripIndexFormat = WGPUIndexFormat_Uint16,
+      .frontFace        = WGPUFrontFace_CCW,
+      .cullMode         = WGPUCullMode_None,
+    };
+
+    WGPUBlendState blend_state              = wgpu_create_blend_state(false);
+    WGPUColorTargetState color_target_state = (WGPUColorTargetState){
+      .format    = this->presentation_format,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    WGPUVertexAttribute attribute = {
+      .shaderLocation = 0,
+      .offset         = 0,
+      .format         = WGPUVertexFormat_Float32x2,
+    };
+    WGPUVertexBufferLayout vertex_buffers[1] = {
+      [0] = (WGPUVertexBufferLayout){
+        .arrayStride    = 2 * sizeof(float),
+        .stepMode       = WGPUVertexStepMode_Vertex,
+        .attributeCount = 1,
+        .attributes     = &attribute,
+      },
+    };
+
+    WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Effect vertex shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(effect_vertex_shader_wgsl),
+          },
+      });
+
+    WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
+      wgpu_context->device,
+      &(WGPUShaderModuleDescriptor){
+        .label = "Effect fragment shader",
+        .nextInChain
+          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+            .chain = (WGPUChainedStruct){
+              .sType = WGPUSType_ShaderSourceWGSL,
+            },
+            .code = STRVIEW(fragment_shader_wgsl),
+          },
+      });
+
+    this->render_pipeline = wgpuDeviceCreateRenderPipeline(
+      wgpu_context->device,
+      &(WGPURenderPipelineDescriptor){
+        .label    = label,
+        .layout   = this->pipeline_layout,
+        .primitive = primitive_state,
+        .vertex = (WGPUVertexState){
+          .module      = vs_module,
+          .entryPoint  = STRVIEW("main"),
+          .bufferCount = (uint32_t)ARRAY_SIZE(vertex_buffers),
+          .buffers     = vertex_buffers,
+        },
+        .fragment = &(WGPUFragmentState){
+          .module      = fs_module,
+          .entryPoint  = STRVIEW("main"),
+          .targetCount = 1,
+          .targets     = &color_target_state,
+        },
+        .multisample = (WGPUMultisampleState){
+          .count = 1,
+          .mask  = 0xFFFFFFFF,
+        },
+      });
+    ASSERT(this->render_pipeline != NULL);
+
+    WGPU_RELEASE_RESOURCE(ShaderModule, vs_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, fs_module);
+  }
+}
+
+static void effect_set_bind_groups(effect_t* this,
+                                   iscreen_effect_t* screen_effect)
+{
+  const uint32_t max_bind_groups = (uint32_t)EFFECT_MAX_BIND_GROUP_COUNT;
+  for (uint32_t i = 0;
+       i < screen_effect->bind_groups.item_count && i < max_bind_groups; i++) {
+    this->bind_groups.items[i] = screen_effect->bind_groups.items[i];
+  }
+  this->bind_groups.item_count
+    = MIN(screen_effect->bind_groups.item_count, max_bind_groups);
+}
+
+static void effect_create(effect_t* this, webgpu_renderer_t* renderer,
+                          iscreen_effect_t* screen_effect)
+{
+  memset(this, 0, sizeof(*this));
+  this->renderer            = renderer;
+  this->presentation_format = screen_effect->presentation_format;
+
+  effect_set_bind_groups(this, screen_effect);
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Vertex data & indices */
+  const float vertex_data[2 * 4] = {
+    -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f,
+  };
+
+  const uint16_t indices[3 * 2] = {
+    3, 2, 1, 3, 1, 0,
+  };
+
+  /* Effect vertex buffer */
+  this->buffers.vertex_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Fullscreen effect - Vertex buffer",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(vertex_data),
+                    .initial.data = vertex_data,
+                  });
+
+  /* Effect index buffer */
+  this->buffers.index_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Fullscreen effect - Index buffer",
+                    .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(indices),
+                    .initial.data = indices,
+                  });
+
+  /* Init render pipeline */
+  effect_init(this, screen_effect->fragment_shader_wgsl,
+              screen_effect->bind_group_layouts.items,
+              screen_effect->bind_group_layouts.item_count,
+              screen_effect->label);
+}
+
+static void effect_destroy(effect_t* this)
+{
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->pipeline_layout);
+  WGPU_RELEASE_RESOURCE(RenderPipeline, this->render_pipeline);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.vertex_buffer.buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffers.index_buffer.buffer);
+}
+
+static void effect_pre_render(effect_t* this, WGPURenderPassEncoder render_pass)
+{
+  if (!this->render_pipeline) {
+    return;
+  }
+
+  wgpuRenderPassEncoderSetPipeline(render_pass, this->render_pipeline);
+  for (uint32_t i = 0; i < this->bind_groups.item_count; ++i) {
+    wgpuRenderPassEncoderSetBindGroup(render_pass, i,
+                                      this->bind_groups.items[i], 0, 0);
+  }
+  wgpuRenderPassEncoderSetVertexBuffer(
+    render_pass, 0, this->buffers.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+  wgpuRenderPassEncoderSetIndexBuffer(
+    render_pass, this->buffers.index_buffer.buffer, WGPUIndexFormat_Uint16, 0,
+    WGPU_WHOLE_SIZE);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Copy Pass Implementation
+ * -------------------------------------------------------------------------- */
+
+static bool copy_pass_is_ready(copy_pass_t* this)
+{
+  return this->effect.render_pipeline != NULL;
+}
+
+static void copy_pass_init_defaults(copy_pass_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
+{
+  copy_pass_init_defaults(this);
+
+  this->renderer               = renderer;
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Copy texture */
+  WGPUExtent3D texture_extent = {
+    .width              = renderer->screen_width,
+    .height             = renderer->screen_height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "Copy pass - Texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_RGBA16Float,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  this->copy_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(this->copy_texture.texture != NULL);
+
+  /* Copy texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "Copy pass - Texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->copy_texture.view
+    = wgpuTextureCreateView(this->copy_texture.texture, &texture_view_dec);
+  ASSERT(this->copy_texture.view != NULL);
+
+  /* Bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[1] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+    },
+  };
+  this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Copy pass - Bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(this->bind_group_layout != NULL);
+
+  /* Bind group */
+  WGPUBindGroupEntry bg_entries[1] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = this->copy_texture.view,
+    },
+  };
+  this->bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = "Copy pass - Bind group",
+                            .layout     = this->bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(this->bind_group != NULL);
+
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->frame_bind_group_layout,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->frame_bind_group,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_wgsl          = copy_pass_fragment_shader_wgsl,
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = WGPUTextureFormat_RGBA16Float,
+      .label                         = "Copy pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+
+  /* Frame buffer Color attachments */
+  this->framebuffer.color_attachments[0] = (WGPURenderPassColorAttachment){
+    .view       = this->copy_texture.view,
+    .depthSlice = ~0,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = (WGPUColor){
+      .r = 0.0f,
+      .g = 0.0f,
+      .b = 0.0f,
+      .a = 1.0f,
+    },
+  };
+
+  /* Frame buffer descriptor */
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .label                  = "Copy pass frame buffer",
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &this->framebuffer.color_attachments[0],
+    .depthStencilAttachment = NULL,
+  };
+}
+
+static void copy_pass_destroy(copy_pass_t* this)
+{
+  effect_destroy(&this->effect);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+  WGPU_RELEASE_RESOURCE(Texture, this->copy_texture.texture);
+  WGPU_RELEASE_RESOURCE(TextureView, this->copy_texture.view);
+}
+
+static void copy_pass_render(copy_pass_t* this,
+                             WGPURenderPassEncoder render_pass)
+{
+  if (!copy_pass_is_ready(this)) {
+    return;
+  }
+
+  effect_pre_render(&this->effect, render_pass);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->renderer->frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Bloom Pass Implementation
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/bloom-pass.ts
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* bloom_pass_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var texture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var albedo = textureLoad(
+      texture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    var brightness = dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if (brightness > 1.0) {
+      output.color = vec4(1.0, 1.0, 1.0, 1.0);
+    } else {
+      output.color = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    return output;
+  }
+);
+
+static const char* bloom_blur_compute_shader_wgsl = CODE(
+  struct Params {
+    filterDim : u32,
+    blockDim : u32,
+  }
+
+  struct Flip {
+    value : u32,
+  }
+
+  @group(0) @binding(0) var samp: sampler;
+  @group(0) @binding(1) var<uniform> params: Params;
+  @group(1) @binding(0) var inputTex: texture_2d<f32>;
+  @group(1) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
+  @group(1) @binding(2) var<uniform> flip : Flip;
+
+  var<workgroup> tile : array<array<vec3<f32>, 128>, 4>;
+
+  @compute @workgroup_size(32, 1, 1)
+  fn main(
+    @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
+  ) {
+    var filterOffset : u32 = (params.filterDim - 1u) / 2u;
+    var dims : vec2<i32> = vec2<i32>(textureDimensions(inputTex, 0));
+
+    var baseIndex = vec2<i32>(
+      WorkGroupID.xy * vec2<u32>(params.blockDim, 4u) +
+      LocalInvocationID.xy * vec2<u32>(4u, 1u)
+    ) - vec2<i32>(i32(filterOffset), 0);
+
+    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
+      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
+        var loadIndex = baseIndex + vec2<i32>(i32(c), i32(r));
+        if (flip.value != 0u) {
+          loadIndex = loadIndex.yx;
+        }
+
+        tile[r][4u * LocalInvocationID.x + c] =
+          textureSampleLevel(inputTex, samp,
+            (vec2<f32>(loadIndex) + vec2<f32>(0.25, 0.25)) / vec2<f32>(dims), 0.0).rgb;
+      }
+    }
+
+    workgroupBarrier();
+
+    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
+      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
+        var writeIndex = baseIndex + vec2<i32>(i32(c), i32(r));
+        if (flip.value != 0u) {
+          writeIndex = writeIndex.yx;
+        }
+
+        var center : u32 = 4u * LocalInvocationID.x + c;
+        if (center >= filterOffset &&
+            center < 128u - filterOffset &&
+            all(writeIndex < dims)) {
+          var acc : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+          for (var f : u32 = 0u; f < params.filterDim; f = f + 1u) {
+            var i : u32 = center + f - filterOffset;
+            acc = acc + (1.0 / f32(params.filterDim)) * tile[r][i];
+          }
+          textureStore(outputTex, writeIndex, vec4<f32>(acc, 1.0));
+        }
+      }
+    }
+  }
+);
+// clang-format on
+
+static bool bloom_pass_is_ready(bloom_pass_t* this)
+{
+  return (this->effect.render_pipeline != NULL)
+         && (this->blur_pipeline != NULL);
+}
+
+static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Bloom pass blur pipeline layout */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->blur_constants_bind_group_layout, // Group 0
+      this->blur_compute_bind_group_layout,   // Group 1
+    };
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+      .label                = "Bloom pass blur - Pipeline layout",
+      .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bindGroupLayouts     = bind_group_layouts,
+    };
+    this->blur_pipeline_layout = wgpuDeviceCreatePipelineLayout(
+      this->renderer->wgpu_context->device, &pipeline_layout_desc);
+    ASSERT(this->blur_pipeline_layout != NULL);
+  }
+
+  /* Bloom pass blur pipeline */
+  {
+    WGPUShaderModuleDescriptor shader_desc = {
+      .label = "Bloom blur - Compute shader",
+      .nextInChain
+        = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          .chain = (WGPUChainedStruct){
+            .sType = WGPUSType_ShaderSourceWGSL,
+          },
+          .code = bloom_blur_compute_shader_wgsl,
+        },
+    };
+    WGPUShaderModule comp_shader
+      = wgpuDeviceCreateShaderModule(wgpu_context->device, &shader_desc);
+    ASSERT(comp_shader != NULL);
+
+    this->blur_pipeline = wgpuDeviceCreateComputePipeline(
+      wgpu_context->device,
+      &(WGPUComputePipelineDescriptor){
+        .label   = "Bloom pass blur - Compute pipeline",
+        .layout  = this->blur_pipeline_layout,
+        .compute = (WGPUComputeState){
+          .module     = comp_shader,
+          .entryPoint = "main",
+        },
+      });
+    ASSERT(this->blur_pipeline != NULL);
+    wgpuShaderModuleRelease(comp_shader);
+  }
+
+  /* Horizontal flip */
+  const uint32_t horizontal_flip_data[1] = {
+    0 //
+  };
+  this->buffer_0 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label        = "Horizontal flip - Uniform buffer",
+                    .usage        = WGPUBufferUsage_Uniform,
+                    .size         = sizeof(horizontal_flip_data),
+                    .initial.data = &horizontal_flip_data[0],
+                  });
+
+  /* Vertical flip */
+  const uint32_t vertical_flip_data[1] = {
+    1 //
+  };
+  this->buffer_1 = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label        = "Vertical flip - Uniform buffer",
+                    .usage        = WGPUBufferUsage_Uniform,
+                    .size         = sizeof(vertical_flip_data),
+                    .initial.data = &vertical_flip_data[0],
+                  });
+
+  /* Blur compute bind group 0 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->bloom_texture.view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[0].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_0.buffer,
+        .size    = this->buffer_0.size,
+      },
+    };
+    this->blur_compute_bind_groups[0] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Blur compute - Bind group 0",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_groups[0] != NULL);
+  }
+
+  /* Blur compute bind group 1 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->blur_textures[0].view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[1].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_1.buffer,
+        .size    = this->buffer_1.size,
+      },
+    };
+    this->blur_compute_bind_groups[1] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Blur compute - Bind group 1",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_groups[1] != NULL);
+  }
+
+  /* Blur compute bind group 2 */
+  {
+    WGPUBindGroupEntry bg_entries[3] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = this->blur_textures[1].view,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding     = 1,
+        .textureView = this->blur_textures[0].view,
+      },
+      [2] = (WGPUBindGroupEntry) {
+        .binding = 2,
+        .buffer  = this->buffer_0.buffer,
+        .size    = this->buffer_0.size,
+      },
+    };
+    this->blur_compute_bind_groups[2] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = "Blur compute - Bind group 2",
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->blur_compute_bind_groups[2] != NULL);
+  }
+}
+
+static void bloom_pass_init_defaults(bloom_pass_t* this)
+{
+  memset(this, 0, sizeof(*this));
+  this->block_dim = 0;
+}
+
+static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
+                              copy_pass_t* copy_pass)
+{
+  bloom_pass_init_defaults(this);
+  this->renderer = renderer;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Bloom texture */
+  WGPUExtent3D texture_extent = {
+    .width              = renderer->screen_width,
+    .height             = renderer->screen_height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "Bloom - Texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_RGBA16Float,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  this->bloom_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(this->bloom_texture.texture != NULL);
+
+  /* Bloom texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "Bloom - Texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->bloom_texture.view
+    = wgpuTextureCreateView(this->bloom_texture.texture, &texture_view_dec);
+  ASSERT(this->bloom_texture.view != NULL);
+
+  /* Bloom pass bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        // Binding 0: Texture view
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = (WGPUTextureBindingLayout) {
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+        .storageTexture = {0},
+      },
+    };
+    this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = "Bloom pass - Bind group layout",
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(this->bind_group_layout != NULL);
+  }
+
+  /* Blur texture and blur texture views */
+  for (uint8_t i = 0; i < 2; ++i) {
+    /* Blur texture */
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->screen_width,
+      .height             = renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "Blur - Texture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA8Unorm,
+      .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
+               | WGPUTextureUsage_TextureBinding,
+    };
+    this->blur_textures[i].texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->blur_textures[i].texture != NULL);
+
+    /* Blur texture view */
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Blur - Texture view",
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->blur_textures[i].view = wgpuTextureCreateView(
+      this->blur_textures[i].texture, &texture_view_dec);
+    ASSERT(this->blur_textures[i].view != NULL);
+  }
+
+  /* G-buffer bind group */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding     = 0,
+        .textureView = copy_pass->copy_texture.view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = "Gbuffer - Bind group",
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+    ASSERT(this->bind_group != NULL);
+  }
+
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->frame_bind_group_layout,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->frame_bind_group,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_wgsl          = bloom_pass_fragment_shader_wgsl,
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = WGPUTextureFormat_RGBA16Float,
+      .label                         = "Bloom - Pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+
+  /* Input texture */
+  this->input_texture.texture = copy_pass->copy_texture.texture;
+  this->input_texture.view    = copy_pass->copy_texture.view;
+
+  /* Frame buffer descriptor */
+  this->framebuffer.color_attachments[0] =
+    (WGPURenderPassColorAttachment) {
+      .view       = this->bloom_texture.view,
+      .depthSlice = ~0,
+      .loadOp     = WGPULoadOp_Clear,
+      .storeOp    = WGPUStoreOp_Store,
+      .clearValue = (WGPUColor) {
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
+        .a = 1.0f,
+      },
+    };
+
+  /* Frame buffer descriptor */
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &this->framebuffer.color_attachments[0],
+    .depthStencilAttachment = NULL,
+  };
+
+  /* Blur params buffer */
+  this->block_dim = BLOOM_PASS_TILE_DIM - (BLOOM_PASS_FILTER_SIZE - 1);
+  const uint32_t blur_params[2] = {BLOOM_PASS_FILTER_SIZE, this->block_dim};
+  this->blur_params_buffer      = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                         .label = "Blur params - Uniform buffer",
+                         .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                         .size  = sizeof(blur_params),
+                         .initial.data = &blur_params[0],
+                  });
+
+  /* Bloom sampler */
+  this->sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = "Bloom - Sampler",
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(this->sampler != NULL);
+
+  /* Blur constants bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .sampler = (WGPUSamplerBindingLayout){
+          .type = WGPUSamplerBindingType_Filtering,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = this->blur_params_buffer.size,
+        },
+        .sampler = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Blur constants - Bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->blur_constants_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->blur_constants_bind_group_layout != NULL);
+  }
+
+  /* Blur constants bind group */
+  {
+    WGPUBindGroupEntry bg_entries[2] = {
+      [0] = (WGPUBindGroupEntry) {
+        .binding = 0,
+        .sampler = this->sampler,
+      },
+      [1] = (WGPUBindGroupEntry) {
+        .binding = 1,
+        .buffer  = this->blur_params_buffer.buffer,
+        .size    = this->blur_params_buffer.size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = "Blur constants - Bind group",
+      .layout     = this->blur_constants_bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    this->blur_compute_constants_bindGroup
+      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(this->blur_compute_constants_bindGroup != NULL);
+  }
+
+  /* Blur compute bind group layout */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[3] = {
+      [0] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Compute,
+        .texture = (WGPUTextureBindingLayout){
+          .sampleType    = WGPUTextureSampleType_Float,
+          .viewDimension = WGPUTextureViewDimension_2D,
+          .multisampled  = false,
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Compute,
+        .storageTexture = (WGPUStorageTextureBindingLayout) {
+           .access        = WGPUStorageTextureAccess_WriteOnly,
+           .format        = WGPUTextureFormat_RGBA8Unorm,
+           .viewDimension = WGPUTextureViewDimension_2D,
+         },
+        .sampler = {0},
+      },
+      [2] = (WGPUBindGroupLayoutEntry) {
+        .binding    = 2,
+        .visibility = WGPUShaderStage_Compute,
+        .buffer = (WGPUBufferBindingLayout) {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(float),
+        },
+        .sampler = {0},
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = "Blur compute - Bind group layout",
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    this->blur_compute_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(this->blur_compute_bind_group_layout != NULL);
+  }
+
+  /* Init compute pipeline */
+  bloom_pass_init_compute_pipeline(this);
+}
+
+static void bloom_pass_destroy(bloom_pass_t* this)
+{
+  effect_destroy(&this->effect);
+  WGPU_RELEASE_RESOURCE(Texture, this->bloom_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->bloom_texture.view)
+  for (uint8_t i = 0; i < (uint8_t)ARRAY_SIZE(this->blur_textures); ++i) {
+    WGPU_RELEASE_RESOURCE(Texture, this->blur_textures[i].texture)
+    WGPU_RELEASE_RESOURCE(TextureView, this->blur_textures[i].view)
+  }
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, this->blur_pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, this->blur_pipeline)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_constants_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_constants_bindGroup)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->blur_compute_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[0])
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[1])
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[2])
+  WGPU_RELEASE_RESOURCE(Buffer, this->blur_params_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffer_0.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, this->buffer_1.buffer)
+  WGPU_RELEASE_RESOURCE(Sampler, this->sampler)
+}
+
+static void bloom_pass_update_bloom(bloom_pass_t* this,
+                                    WGPUComputePassEncoder compute_pass)
+{
+  if (!bloom_pass_is_ready(this)) {
+    return;
+  }
+
+  const webgpu_renderer_t* renderer = this->renderer;
+  const uint32_t block_dim          = this->block_dim;
+  const uint32_t batch[2]           = BLOOM_PASS_BATCH;
+  const uint32_t src_width          = renderer->screen_width;
+  const uint32_t src_height         = renderer->screen_height;
+
+  wgpuComputePassEncoderSetPipeline(compute_pass, this->blur_pipeline);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 0, this->blur_compute_constants_bindGroup, 0, NULL);
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 1, this->blur_compute_bind_groups[0], 0, NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    compute_pass,
+    (uint32_t)ceil(src_width / (float)block_dim), /* workgroupCountX */
+    (uint32_t)ceil(src_height / (float)batch[1]), /* workgroupCountY */
+    1                                             /* workgroupCountZ */
+  );
+  wgpuComputePassEncoderSetBindGroup(
+    compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
+  wgpuComputePassEncoderDispatchWorkgroups(
+    compute_pass,
+    (uint32_t)ceil(src_height / (float)block_dim), /* workgroupCountX */
+    (uint32_t)ceil(src_width / (float)batch[1]),   /* workgroupCountY */
+    1                                              /* workgroupCountZ */
+  );
+  for (uint32_t i = 0; i < BLOOM_PASS_ITERATIONS - 1; ++i) {
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 1, this->blur_compute_bind_groups[2], 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      compute_pass,
+      (uint32_t)ceil(src_width / (float)block_dim), /* workgroupCountX */
+      (uint32_t)ceil(src_height / (float)batch[1]), /* workgroupCountY */
+      1                                             /* workgroupCountZ */
+    );
+    wgpuComputePassEncoderSetBindGroup(
+      compute_pass, 1, this->blur_compute_bind_groups[1], 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(
+      compute_pass,
+      (uint32_t)ceil(src_height / (float)block_dim), /* workgroupCountX */
+      (uint32_t)ceil(src_width / (float)batch[1]),   /* workgroupCountY */
+      1                                              /* workgroupCountZ */
+    );
+  }
+}
+
+static void bloom_pass_render(bloom_pass_t* this,
+                              WGPURenderPassEncoder render_pass)
+{
+  if (!bloom_pass_is_ready(this)) {
+    return;
+  }
+
+  effect_pre_render(&this->effect, render_pass);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->renderer->frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Deferred Pass Implementation
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/deferred-pass.ts
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* deferred_pass_fragment_shader_wgsl = CODE(
+  struct ProjectionUniformsStruct {
+    matrix : mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32,
+  }
+
+  struct ViewUniformsStruct {
+    matrix: mat4x4<f32>,
+    inverseMatrix: mat4x4<f32>,
+    position: vec3<f32>,
+    time: f32,
+    deltaTime: f32,
+  }
+
+  struct InputPointLight {
+    position: vec4<f32>,
+    velocity: vec4<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct LightsBuffer {
+    lights: array<InputPointLight>,
+  }
+
+  struct LightsConfig {
+    numLights: u32,
+  }
+
+  struct PointLight {
+    pointToLight: vec3<f32>,
+    color: vec3<f32>,
+    range: f32,
+    intensity: f32,
+  }
+
+  struct DirectionalLight {
+    direction: vec3<f32>,
+    color: vec3<f32>,
+  }
+
+  struct SpotLight {
+    position: vec3<f32>,
+    direction: vec3<f32>,
+    color: vec3<f32>,
+    cutOff: f32,
+    outerCutOff: f32,
+    intensity: f32,
+  }
+
+  struct Surface {
+    albedo: vec4<f32>,
+    metallic: f32,
+    roughness: f32,
+    worldPos: vec4<f32>,
+    ID: f32,
+    N: vec3<f32>,
+    F0: vec3<f32>,
+    V: vec3<f32>,
+  }
+
+  fn decodeNormals(enc: vec2<f32>) -> vec3<f32> {
+    var fenc = enc * 4.0 - 2.0;
+    var f = dot(fenc, fenc);
+    var g = sqrt(1.0 - f / 4.0);
+    return vec3(fenc*g, 1.0 - f / 2.0);
+  }
+
+  fn reconstructWorldPosFromZ(
+    coords: vec2<f32>,
+    size: vec2<f32>,
+    depthTexture: texture_depth_2d,
+    projInverse: mat4x4<f32>,
+    viewInverse: mat4x4<f32>
+  ) -> vec4<f32> {
+    var uv = coords.xy / projection.outputSize;
+    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);
+    var x = uv.x * 2.0 - 1.0;
+    var y = (1.0 - uv.y) * 2.0 - 1.0;
+    var projectedPos = vec4(x, y, depth, 1.0);
+    var worldPosition = projInverse * projectedPos;
+    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
+    worldPosition = viewInverse * worldPosition;
+    return worldPosition;
+  }
+
+  @group(0) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
+  @group(0) @binding(1) var<uniform> lightsConfig: LightsConfig;
+  @group(0) @binding(2) var normalTexture: texture_2d<f32>;
+  @group(0) @binding(3) var diffuseTexture: texture_2d<f32>;
+  @group(0) @binding(4) var depthTexture: texture_depth_2d;
+
+  @group(1) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
+  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
+  @group(1) @binding(2) var depthSampler: sampler;
+
+  @group(2) @binding(0) var<uniform> spotLight: SpotLight;
+  @group(2) @binding(1) var<uniform> spotLightProjection: ProjectionUniformsStruct;
+  @group(2) @binding(2) var<uniform> spotLightView: ViewUniformsStruct;
+
+  @group(3) @binding(0) var spotLightDepthTexture: texture_depth_2d;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  const PI = 3.141592653589793;
+  const LOG2 = 1.4426950408889634;
+
+  fn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
+    var a      = roughness*roughness;
+    var a2     = a*a;
+    var NdotH  = max(dot(N, H), 0.0);
+    var NdotH2 = NdotH*NdotH;
+
+    var num   = a2;
+    var denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    return num / denom;
+  }
+
+  fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {
+    var r = (roughness + 1.0);
+    var k = (r*r) / 8.0;
+
+    var num   = NdotV;
+    var denom = NdotV * (1.0 - k) + k;
+
+    return num / denom;
+  }
+
+  fn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
+    var NdotV = max(dot(N, V), 0.0);
+    var NdotL = max(dot(N, L), 0.0);
+    var ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    var ggx1  = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+  }
+
+  fn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  }
+
+  fn reinhard(x: vec3<f32>) -> vec3<f32> {
+    return x / (1.0 + x);
+  }
+
+  fn rangeAttenuation(range : f32, distance : f32) -> f32 {
+    if (range <= 0.0) {
+        return 1.0 / pow(distance, 2.0);
+    }
+    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
+  }
+
+  fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
+    var L = normalize(light.pointToLight);
+    var H = normalize(surface.V + L);
+    var distance = length(light.pointToLight);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / vec3(denominator, denominator, denominator);
+
+    var attenuation = rangeAttenuation(light.range, distance);
+    var radiance = light.color * light.intensity * attenuation;
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+  }
+
+  fn SpotLightRadiance(light: SpotLight, surface: Surface) -> vec3<f32> {
+    var L = normalize(light.position - surface.worldPos.xyz);
+    var H = normalize(surface.V + L);
+
+    var theta = dot(L, normalize(light.direction));
+    var attenuation = smoothstep(light.outerCutOff, light.cutOff, theta);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / denominator;
+
+    var radiance = light.color * light.intensity * attenuation;
+
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+  }
+
+  fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
+    var L = normalize(light.direction);
+    var H = normalize(surface.V + L);
+
+    var NDF = DistributionGGX(surface.N, H, surface.roughness);
+    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
+    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+
+    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+
+    var NdotL = max(dot(surface.N, L), 0.0);
+
+    var numerator = NDF * G * F;
+    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
+    var specular = numerator / vec3(denominator, denominator, denominator);
+
+    var radiance = light.color;
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+  }
+
+  const GAMMA = 2.2;
+  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
+    var INV_GAMMA = 1.0 / GAMMA;
+    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
+  }
+
+  fn LinearizeDepth(depth: f32) -> f32 {
+    var z = depth * 2.0 - 1.0;
+    var near_plane = 0.001;
+    var far_plane = 0.4;
+    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var worldPosition = reconstructWorldPosFromZ(
+      input.coords.xy,
+      projection.outputSize,
+      depthTexture,
+      projection.inverseMatrix,
+      view.inverseMatrix
+    );
+
+    var normalRoughnessMatID = textureLoad(
+      normalTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    var albedo = textureLoad(
+      diffuseTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    var surface: Surface;
+    surface.ID = normalRoughnessMatID.w;
+
+    var output: Output;
+
+    var posFromLight = spotLightProjection.matrix * spotLightView.matrix * vec4(worldPosition.xyz, 1.0);
+    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
+    var shadowPos = vec3(
+      posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5),
+      posFromLight.z
+    );
+
+    var projectedDepth = textureSample(spotLightDepthTexture, depthSampler, shadowPos.xy);
+
+    if (surface.ID == 0.0) {
+      var inRange =
+        shadowPos.x >= 0.0 &&
+        shadowPos.x <= 1.0 &&
+        shadowPos.y >= 0.0 &&
+        shadowPos.y <= 1.0;
+      var visibility = 1.0;
+      if (inRange && projectedDepth <= posFromLight.z - 0.000009) {
+        visibility = 0.0;
+      }
+
+      surface.albedo = albedo;
+      surface.metallic = normalRoughnessMatID.z;
+      surface.roughness = albedo.a;
+      surface.worldPos = worldPosition;
+      surface.N = decodeNormals(normalRoughnessMatID.xy);
+      surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
+      surface.V = normalize(view.position - worldPosition.xyz);
+
+      var Lo = vec3(0.0);
+
+      for (var i : u32 = 0u; i < lightsConfig.numLights; i = i + 1u) {
+          var light = lightsBuffer.lights[i];
+        var pointLight: PointLight;
+
+        if (distance(light.position.xyz, worldPosition.xyz) > light.range) {
+          continue;
+        }
+
+        pointLight.pointToLight = light.position.xyz - worldPosition.xyz;
+        pointLight.color = light.color;
+        pointLight.range = light.range;
+        pointLight.intensity = light.intensity;
+        Lo += PointLightRadiance(pointLight, surface);
+      }
+
+      var dirLight: DirectionalLight;
+      dirLight.direction = vec3(2.0, 20.0, 0.0);
+      dirLight.color = vec3(0.1);
+      Lo += DirectionalLightRadiance(dirLight, surface) * visibility;
+
+      Lo += SpotLightRadiance(spotLight, surface) * visibility;
+
+      var ambient = vec3(0.09) * albedo.rgb;
+      var color = ambient + Lo;
+      output.color = vec4(color.rgb, 1.0);
+
+      var fogDensity = 0.085;
+      var fogDistance = length(worldPosition.xyz);
+      var fogAmount = 1.0 - exp2(-fogDensity * fogDensity * fogDistance * fogDistance * LOG2);
+      fogAmount = clamp(fogAmount, 0.0, 1.0);
+      var fogColor = vec4(vec3(0.005), 1.0);
+      output.color = mix(output.color, fogColor, fogAmount);
+
+
+    } else if (0.1 - surface.ID < 0.01 && surface.ID < 0.1) {
+      output.color = vec4(albedo.rgb, 1.0);
+    } else {
+      output.color = vec4(vec3(0.005), 1.0);
+    }
+    return output;
+  }
+);
+// clang-format on
+
+static bool deferred_pass_is_ready(deferred_pass_t* this)
+{
+  return point_lights_is_ready(&this->point_lights)
+         && (this->effect.render_pipeline != NULL);
+}
+
+static void deferred_pass_init_defaults(deferred_pass_t* this)
+{
+  memset(this, 0, sizeof(*this));
+
+  glm_vec3_copy((vec3){0.0f, 80.0f, 0.0f}, this->spot_light_target);
+  glm_vec3_one(this->spot_light_color_target);
+}
+
+static void deferred_pass_create(deferred_pass_t* this,
+                                 webgpu_renderer_t* renderer)
+{
+  deferred_pass_init_defaults(this);
+
+  this->renderer = renderer;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Point light */
+  point_lights_create(&this->point_lights, renderer);
+
+  /* Spot light */
+  ispot_light_t ispot_light = {
+    .position      = {0.0f, 80.0f, 1.0f},
+    .direction     = {0.0f, 1.0f, 0.0f},
+    .color         = GLM_VEC3_ONE_INIT,
+    .cut_off       = deg_to_rad(1.0f),
+    .outer_cut_off = deg_to_rad(4.0f),
+    .intensity     = 40.0f,
+  };
+  spot_light_create(&this->spot_light, renderer, &ispot_light);
+
+  /* G-Buffer normal texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->screen_width,
+      .height             = renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "Gbuffer normal - Texture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA16Float,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->g_buffer_texture_normal.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->g_buffer_texture_normal.texture != NULL);
+
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Gbuffer normal - Texture view",
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->g_buffer_texture_normal.view = wgpuTextureCreateView(
+      this->g_buffer_texture_normal.texture, &texture_view_dec);
+    ASSERT(this->g_buffer_texture_normal.view != NULL);
+  }
+
+  /* G-Buffer diffuse texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->screen_width,
+      .height             = renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = "Gbuffer diffuse - Texture",
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_BGRA8Unorm,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->g_buffer_texture_diffuse.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    ASSERT(this->g_buffer_texture_diffuse.texture != NULL);
+
+    WGPUTextureViewDescriptor texture_view_dec = {
+      .label           = "Gbuffer diffuse - Texture view",
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->g_buffer_texture_diffuse.view = wgpuTextureCreateView(
+      this->g_buffer_texture_diffuse.texture, &texture_view_dec);
+    ASSERT(this->g_buffer_texture_diffuse.view != NULL);
+  }
+
+  /* Bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[5] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type           = WGPUBufferBindingType_ReadOnlyStorage,
+        .minBindingSize = this->point_lights.lights_buffer.size,
+       },
+      .sampler = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
+      .buffer = (WGPUBufferBindingLayout) {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = this->point_lights.lights_config_uniform_buffer.size,
+       },
+      .sampler = {0},
+    },
+    [2] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+      .storageTexture = {0},
+    },
+    [3] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 3,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+      .storageTexture = {0},
+    },
+    [4] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 4,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType    = WGPUTextureSampleType_Depth,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+      .storageTexture = {0},
+    },
+  };
+  this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Gbuffer - Bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(this->bind_group_layout != NULL);
+
+  /* Bind group */
+  WGPUBindGroupEntry bg_entries[5] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding = 0,
+      .buffer  = this->point_lights.lights_buffer.buffer,
+      .size    = this->point_lights.lights_buffer.size,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      .binding = 1,
+      .buffer  = this->point_lights.lights_config_uniform_buffer.buffer,
+      .size    = this->point_lights.lights_config_uniform_buffer.size,
+    },
+    [2] = (WGPUBindGroupEntry) {
+      .binding     = 2,
+      .textureView = this->g_buffer_texture_normal.view,
+    },
+    [3] = (WGPUBindGroupEntry) {
+      .binding     = 3,
+      .textureView = this->g_buffer_texture_diffuse.view,
+    },
+    [4] = (WGPUBindGroupEntry) {
+      .binding     = 4,
+      .textureView = renderer->depth_texture_view,
+    },
+  };
+  this->bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = "Gbuffer - Bind group",
+                            .layout     = this->bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(this->bind_group != NULL);
+
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[4] = {
+      this->bind_group_layout,
+      this->renderer->frame_bind_group_layout,
+      this->spot_light.bind_group_layouts.ubos,
+      this->spot_light.bind_group_layouts.depth_texture,
+    };
+    WGPUBindGroup bind_groups[4] = {
+      this->bind_group,
+      this->renderer->frame_bind_group,
+      this->spot_light.bind_groups.ubos,
+      this->spot_light.bind_groups.depth_texture,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_wgsl          = deferred_pass_fragment_shader_wgsl,
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format = settings_get_quality_level().bloom_toggle ?
+                               WGPUTextureFormat_RGBA16Float :
+                               WGPUTextureFormat_BGRA8Unorm,
+      .label               = "Deferred - Pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+
+  /* Frame buffer Color attachments */
+  {
+    this->framebuffer.color_attachments[0] =
+      (WGPURenderPassColorAttachment) {
+        .view       = this->g_buffer_texture_normal.view,
+        .depthSlice = ~0,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 1.0f,
+        },
+      };
+  }
+  {
+    this->framebuffer.color_attachments[1] =
+      (WGPURenderPassColorAttachment) {
+        .view       = this->g_buffer_texture_diffuse.view,
+        .depthSlice = ~0,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor) {
+          .r = 0.0f,
+          .g = 0.0f,
+          .b = 0.0f,
+          .a = 1.0f,
+        },
+      };
+  }
+
+  /* Frame buffer depth stencil attachment */
+  this->framebuffer.depth_stencil_attachment
+    = (WGPURenderPassDepthStencilAttachment){
+      .view            = renderer->depth_texture_view,
+      .depthLoadOp     = WGPULoadOp_Clear,
+      .depthStoreOp    = WGPUStoreOp_Store,
+      .depthClearValue = 1.0f,
+    };
+
+  /* Frame buffer descriptor */
+  this->framebuffer.descriptor = (WGPURenderPassDescriptor){
+    .colorAttachmentCount   = 2,
+    .colorAttachments       = &this->framebuffer.color_attachments[0],
+    .depthStencilAttachment = &this->framebuffer.depth_stencil_attachment,
+  };
+}
+
+static void deferred_pass_destroy(deferred_pass_t* this)
+{
+  effect_destroy(&this->effect);
+  point_lights_destroy(&this->point_lights);
+  spot_light_destroy(&this->spot_light);
+
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+  WGPU_RELEASE_RESOURCE(Texture, this->g_buffer_texture_normal.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->g_buffer_texture_normal.view)
+  WGPU_RELEASE_RESOURCE(Texture, this->g_buffer_texture_diffuse.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->g_buffer_texture_diffuse.view)
+}
+
+static void deferred_pass_rearrange(deferred_pass_t* this)
+{
+  this->spot_light_target[0]       = (random_float() * 2 - 1) * 3;
+  this->spot_light_target[2]       = (random_float() * 2 - 1) * 3;
+  this->spot_light_color_target[0] = random_float();
+  this->spot_light_color_target[1] = random_float();
+  this->spot_light_color_target[2] = random_float();
+}
+
+static void deferred_pass_update_lights_sim(deferred_pass_t* this,
+                                            WGPUComputePassEncoder compute_pass,
+                                            float _time, float time_delta)
+{
+  UNUSED_VAR(_time);
+
+  point_lights_update_sim(&this->point_lights, compute_pass);
+  const float speed = time_delta * 2.0f;
+  glm_vec3_copy(
+    (vec3){
+      this->spot_light._position[0]
+        + (this->spot_light_target[0] - this->spot_light._position[0])
+            * speed, /* x */
+      this->spot_light._position[1]
+        + (this->spot_light_target[1] - this->spot_light._position[1])
+            * speed, /* y */
+      this->spot_light._position[2]
+        + (this->spot_light_target[2] - this->spot_light._position[2])
+            * speed, /* z */
+    },
+    this->spot_light._position);
+
+  glm_vec3_copy(
+    (vec3){
+      (this->spot_light_color_target[0] - this->spot_light._color[0]) * speed
+        * 4, /* r */
+      (this->spot_light_color_target[1] - this->spot_light._color[1]) * speed
+        * 4, /* g */
+      (this->spot_light_color_target[2] - this->spot_light._color[2]) * speed
+        * 4, /* b */
+    },
+    this->spot_light._color);
+}
+
+static void deferred_pass_render(deferred_pass_t* this,
+                                 WGPURenderPassEncoder render_pass)
+{
+  if (!deferred_pass_is_ready(this)) {
+    return;
+  }
+
+  effect_pre_render(&this->effect, render_pass);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->renderer->frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Result Pass Implementation
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs/blob/master/src/postfx/result-pass.ts
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* result_pass_fragment_shader_wgsl = CODE(
+  const GAMMA = 2.2;
+  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
+    var INV_GAMMA = 1.0 / GAMMA;
+    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
+  }
+
+  @group(0) @binding(0) var copyTexture: texture_2d<f32>;
+  @group(0) @binding(1) var bloomTexture: texture_2d<f32>;
+
+  struct Inputs {
+    @builtin(position) coords: vec4<f32>,
+  }
+  struct Output {
+    @location(0) color: vec4<f32>,
+  }
+
+  @fragment
+  fn main(input: Inputs) -> Output {
+    var output: Output;
+    var hdrColor = textureLoad(
+      copyTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+    var bloomColor = textureLoad(
+      bloomTexture,
+      vec2<i32>(floor(input.coords.xy)),
+      0
+    );
+
+    hdrColor += bloomColor;
+
+    var result = vec3(1.0) - exp(-hdrColor.rgb * 1.0);
+
+    output.color = vec4(result, 1.0);
+    return output;
+  }
+);
+// clang-format on
+
+static bool result_pass_is_ready(result_pass_t* this)
+{
+  return this->effect.render_pipeline != NULL;
+}
+
+static void result_pass_init_defaults(result_pass_t* this)
+{
+  memset(this, 0, sizeof(*this));
+}
+
+static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
+                               copy_pass_t* copy_pass, bloom_pass_t* bloom_pass)
+{
+  result_pass_init_defaults(this);
+
+  this->renderer = renderer;
+
+  wgpu_context_t* wgpu_context = renderer->wgpu_context;
+
+  /* Bind group layout */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+      .storageTexture = {0},
+    },
+    [1] = (WGPUBindGroupLayoutEntry) {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout) {
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+        .multisampled  = false,
+      },
+      .storageTexture = {0},
+    },
+  };
+  this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = "Result pass - Bind group layout",
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(this->bind_group_layout != NULL);
+
+  /* Empty texture (1x1 placeholder) */
+  WGPUExtent3D texture_extent = {
+    .width              = 1,
+    .height             = 1,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = "Empty - Texture",
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_BGRA8Unorm,
+    .usage         = WGPUTextureUsage_TextureBinding,
+  };
+  this->empty_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+  ASSERT(this->empty_texture.texture != NULL);
+
+  /* Empty texture view */
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = "Empty - Texture view",
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->empty_texture.view
+    = wgpuTextureCreateView(this->empty_texture.texture, &texture_view_dec);
+  ASSERT(this->empty_texture.view != NULL);
+
+  /* Bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry) {
+      .binding     = 0,
+      .textureView = copy_pass->copy_texture.view,
+    },
+    [1] = (WGPUBindGroupEntry) {
+      .binding     = 1,
+      .textureView = bloom_pass ? bloom_pass->blur_textures[1].view
+                                  : this->empty_texture.view,
+    },
+  };
+  this->bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = "Result pass - Bind group",
+                            .layout     = this->bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(this->bind_group != NULL);
+
+  /* Initialize effect */
+  {
+    WGPUBindGroupLayout bind_group_layouts[2] = {
+      this->bind_group_layout,
+      this->renderer->frame_bind_group_layout,
+    };
+    WGPUBindGroup bind_groups[2] = {
+      this->bind_group,
+      this->renderer->frame_bind_group,
+    };
+    iscreen_effect_t screen_effect = {
+      .fragment_shader_wgsl          = result_pass_fragment_shader_wgsl,
+      .bind_group_layouts.items      = bind_group_layouts,
+      .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
+      .bind_groups.items             = bind_groups,
+      .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
+      .presentation_format           = wgpu_context->render_format,
+      .label                         = "Result - Pass effect",
+    };
+    effect_create(&this->effect, renderer, &screen_effect);
+  }
+}
+
+static void result_pass_destroy(result_pass_t* this)
+{
+  effect_destroy(&this->effect);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, this->bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
+  WGPU_RELEASE_RESOURCE(Texture, this->empty_texture.texture)
+  WGPU_RELEASE_RESOURCE(TextureView, this->empty_texture.view)
+}
+
+static void result_pass_render(result_pass_t* this,
+                               WGPURenderPassEncoder render_pass)
+{
+  if (!result_pass_is_ready(this)) {
+    return;
+  }
+
+  effect_pre_render(&this->effect, render_pass);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1,
+                                    this->renderer->frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
 }
 
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
@@ -1924,8 +6527,8 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
   /* Point lights count slider */
   if (igSliderInt("Point Lights", &state.gui_settings.point_lights_count, 1,
                   MAX_POINT_LIGHTS_COUNT, "%d")) {
-    state.point_lights.data.count
-      = (uint32_t)state.gui_settings.point_lights_count;
+    point_lights_set_lights_count(
+      &state.point_lights, (uint32_t)state.gui_settings.point_lights_count);
   }
 
   /* Bloom threshold slider */
@@ -1968,6 +6571,33 @@ static int init(wgpu_context_t* wgpu_context)
   init_metaballs_compute(wgpu_context);
   init_metaballs(wgpu_context);
 
+  /* Initialize deferred pass (creates spot_light and point_lights internally)
+   */
+  deferred_pass_create(&state.deferred_pass, &state.renderer);
+
+  /* Initialize copy pass */
+  copy_pass_create(&state.copy_pass, &state.renderer);
+
+  /* Initialize bloom pass (if enabled) */
+  if (settings_get_quality_level().bloom_toggle) {
+    bloom_pass_create(&state.bloom_pass, &state.renderer, &state.copy_pass);
+  }
+
+  /* Initialize result pass */
+  result_pass_create(
+    &state.result_pass, &state.renderer, &state.copy_pass,
+    settings_get_quality_level().bloom_toggle ? &state.bloom_pass : NULL);
+
+  /* Initialize scene objects - these need the spot light from deferred_pass */
+  box_outline_create(&state.box_outline, &state.renderer);
+  ground_create(&state.ground, &state.renderer,
+                &state.deferred_pass.spot_light);
+  particles_create(&state.particles, &state.renderer,
+                   &state.deferred_pass.point_lights.lights_buffer);
+
+  /* Initialize metaballs shadow pipeline */
+  init_metaballs_shadow(wgpu_context, &state.deferred_pass.spot_light);
+
   /* Initialize imgui */
   imgui_overlay_init(wgpu_context);
 
@@ -1995,14 +6625,15 @@ static int frame(wgpu_context_t* wgpu_context)
   camera_controller_update(&state.camera_controller, state.delta_time);
   update_uniform_buffers(wgpu_context);
 
+  /* Update renderer framebuffer view to current swapchain texture */
+  state.renderer.framebuffer.color_attachments[0].view
+    = wgpu_context->swapchain_view;
+
   /* Update metaballs simulation */
   update_metaballs_sim(state.delta_time);
 
   /* Render GUI */
   render_gui(wgpu_context, state.delta_time);
-
-  /* Get current swap chain texture view */
-  WGPUTextureView backbuffer_view = wgpu_context->swapchain_view;
 
   /* Create command encoder */
   WGPUCommandEncoder cmd_encoder = wgpuDeviceCreateCommandEncoder(
@@ -2010,50 +6641,102 @@ static int frame(wgpu_context_t* wgpu_context)
                             .label = STRVIEW("Main command encoder"),
                           });
 
-  /* Compute pass - update metaballs field and run marching cubes */
+  /* Compute pass - update metaballs field, run marching cubes, and update
+   * lights */
   {
     WGPUComputePassEncoder compute_pass = wgpuCommandEncoderBeginComputePass(
       cmd_encoder, &(WGPUComputePassDescriptor){
                      .label = STRVIEW("Metaballs compute pass"),
                    });
 
-    dispatch_metaballs_compute(compute_pass);
+    /* Update metaballs if enabled */
+    if (settings_get_quality_level().update_metaballs) {
+      dispatch_metaballs_compute(compute_pass);
+    }
+    else if (!state.metaballs_compute.has_calced_once) {
+      /* Compute at least once */
+      dispatch_metaballs_compute(compute_pass);
+    }
+
+    /* Update point lights simulation */
+    deferred_pass_update_lights_sim(&state.deferred_pass, compute_pass,
+                                    state.last_frame_time, state.delta_time);
+
+    /* Update bloom if enabled */
+    if (settings_get_quality_level().bloom_toggle) {
+      bloom_pass_update_bloom(&state.bloom_pass, compute_pass);
+    }
 
     wgpuComputePassEncoderEnd(compute_pass);
     wgpuComputePassEncoderRelease(compute_pass);
   }
 
-  /* Main render pass */
-  WGPURenderPassColorAttachment color_attachment = {
-    .view       = backbuffer_view,
-    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-    .loadOp     = WGPULoadOp_Clear,
-    .storeOp    = WGPUStoreOp_Store,
-    .clearValue = {0.1f, 0.1f, 0.15f, 1.0f},
-  };
+  /* Shadow pass - render scene from spot light POV */
+  {
+    WGPURenderPassEncoder spot_light_shadow_pass
+      = wgpuCommandEncoderBeginRenderPass(
+        cmd_encoder, &state.deferred_pass.spot_light.framebuffer.descriptor);
+    render_metaballs_shadow(spot_light_shadow_pass,
+                            &state.deferred_pass.spot_light);
+    ground_render_shadow(&state.ground, spot_light_shadow_pass);
+    wgpuRenderPassEncoderEnd(spot_light_shadow_pass);
+    wgpuRenderPassEncoderRelease(spot_light_shadow_pass);
+  }
 
-  WGPURenderPassDepthStencilAttachment depth_attachment = {
-    .view            = state.renderer.depth_texture_view,
-    .depthLoadOp     = WGPULoadOp_Clear,
-    .depthStoreOp    = WGPUStoreOp_Store,
-    .depthClearValue = 1.0f,
-  };
+  /* G-buffer pass - render scene to G-buffer textures */
+  {
+    WGPURenderPassEncoder g_buffer_pass = wgpuCommandEncoderBeginRenderPass(
+      cmd_encoder, &state.deferred_pass.framebuffer.descriptor);
+    render_metaballs(g_buffer_pass);
+    box_outline_render(&state.box_outline, g_buffer_pass);
+    ground_render(&state.ground, g_buffer_pass);
+    particles_render(&state.particles, g_buffer_pass,
+                     state.deferred_pass.point_lights.lights_count);
+    wgpuRenderPassEncoderEnd(g_buffer_pass);
+    wgpuRenderPassEncoderRelease(g_buffer_pass);
+  }
 
-  WGPURenderPassDescriptor render_pass_desc = {
-    .label                  = STRVIEW("Main render pass"),
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = &color_attachment,
-    .depthStencilAttachment = &depth_attachment,
-  };
+  /* Post-processing passes */
+  if (settings_get_quality_level().bloom_toggle) {
+    /* Copy pass - render deferred lighting to copy buffer */
+    {
+      WGPURenderPassEncoder copy_render_pass
+        = wgpuCommandEncoderBeginRenderPass(
+          cmd_encoder, &state.copy_pass.framebuffer.descriptor);
+      deferred_pass_render(&state.deferred_pass, copy_render_pass);
+      wgpuRenderPassEncoderEnd(copy_render_pass);
+      wgpuRenderPassEncoderRelease(copy_render_pass);
+    }
 
-  WGPURenderPassEncoder render_pass
-    = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass_desc);
+    /* Bloom pass */
+    {
+      WGPURenderPassEncoder bloom_render_pass
+        = wgpuCommandEncoderBeginRenderPass(
+          cmd_encoder, &state.bloom_pass.framebuffer.descriptor);
+      bloom_pass_render(&state.bloom_pass, bloom_render_pass);
+      wgpuRenderPassEncoderEnd(bloom_render_pass);
+      wgpuRenderPassEncoderRelease(bloom_render_pass);
+    }
 
-  /* Render metaballs */
-  render_metaballs(render_pass);
-
-  wgpuRenderPassEncoderEnd(render_pass);
-  wgpuRenderPassEncoderRelease(render_pass);
+    /* Final composite pass */
+    {
+      WGPURenderPassEncoder final_pass = wgpuCommandEncoderBeginRenderPass(
+        cmd_encoder, &state.renderer.framebuffer.descriptor);
+      result_pass_render(&state.result_pass, final_pass);
+      wgpuRenderPassEncoderEnd(final_pass);
+      wgpuRenderPassEncoderRelease(final_pass);
+    }
+  }
+  else {
+    /* Final composite pass - render deferred lighting directly */
+    {
+      WGPURenderPassEncoder final_pass = wgpuCommandEncoderBeginRenderPass(
+        cmd_encoder, &state.renderer.framebuffer.descriptor);
+      deferred_pass_render(&state.deferred_pass, final_pass);
+      wgpuRenderPassEncoderEnd(final_pass);
+      wgpuRenderPassEncoderRelease(final_pass);
+    }
+  }
 
   /* Render imgui */
   imgui_overlay_render(wgpu_context);
@@ -2080,11 +6763,25 @@ static void shutdown(wgpu_context_t* wgpu_context)
   /* Cleanup imgui */
   imgui_overlay_shutdown();
 
+  /* Cleanup scene objects */
+  particles_destroy(&state.particles);
+  ground_destroy(&state.ground);
+  box_outline_destroy(&state.box_outline);
+
   /* Cleanup metaballs */
   cleanup_metaballs();
   cleanup_metaballs_compute();
 
+  /* Cleanup post-processing passes */
+  result_pass_destroy(&state.result_pass);
+  if (settings_get_quality_level().bloom_toggle) {
+    bloom_pass_destroy(&state.bloom_pass);
+  }
+  copy_pass_destroy(&state.copy_pass);
+  deferred_pass_destroy(&state.deferred_pass);
+
   /* Cleanup renderer */
+  WGPU_RELEASE_RESOURCE(Sampler, state.renderer.default_sampler);
   WGPU_RELEASE_RESOURCE(TextureView, state.renderer.depth_texture_view);
   WGPU_RELEASE_RESOURCE(Texture, state.renderer.depth_texture);
   WGPU_RELEASE_RESOURCE(BindGroup, state.renderer.frame_bind_group);
@@ -2399,6 +7096,9 @@ static const char* metaballs_vertex_shader = CODE(
     return vec4<f32>(final_color, 1.0);
   }
 );
+
+/* TODO: Enable these shaders when post-processing is ported */
+#if 0
 
 static const char* bloom_blur_compute_shader = CODE(
   struct Params {
@@ -3425,4 +8125,6 @@ static const char* deferred_pass_fragment_shader = CODE(
     return output;
   }
 );
+
+#endif /* End of TODO shaders */
 // clang-format on
