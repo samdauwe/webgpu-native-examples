@@ -1,13 +1,3 @@
-/**
- * @file compute_metaballs.c
- * @brief WebGPU demo featuring marching cubes and bloom post-processing via
- * compute shaders, physically based shading, deferred rendering, gamma
- * correction and shadow mapping.
- *
- * @ref
- * https://github.com/gnikoloff/webgpu-compute-metaballs/tree/main/src
- */
-
 #include "webgpu/wgpu_common.h"
 
 #include <stdlib.h>
@@ -30,6 +20,17 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Compute Metaballs
+ *
+ * WebGPU demo featuring marching cubes and bloom post-processing via compute
+ * shaders, physically based shading, deferred rendering, gamma correction and
+ * shadow mapping.
+ *
+ * Ref:
+ * https://github.com/gnikoloff/webgpu-compute-metaballs
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * Constants
