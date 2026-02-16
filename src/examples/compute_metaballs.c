@@ -4077,7 +4077,7 @@ static void ground_init(ground_t* this)
     WGPUShaderModule shadow_vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = STRVIEW("Ground shadow vertex shader"),
+        .label = STRVIEW("Ground shadow - Vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
