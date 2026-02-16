@@ -130,28 +130,11 @@ static float deg_to_rad(float deg)
  * Additional shaders for post-processing will be enabled when ported.
  * -------------------------------------------------------------------------- */
 
-static const char* marching_cubes_compute_shader;
 static const char* metaball_field_compute_shader;
 static const char* metaballs_fragment_shader;
 static const char* metaballs_vertex_shader;
-
-/* TODO: Enable these when post-processing is ported
-static const char* bloom_blur_compute_shader;
-static const char* bloom_pass_fragment_shader;
-static const char* box_outline_fragment_shader;
-static const char* box_outline_vertex_shader;
-static const char* copy_pass_fragment_shader;
-static const char* deferred_pass_fragment_shader;
-static const char* effect_vertex_shader;
-static const char* ground_fragment_shader;
-static const char* ground_shadow_vertex_shader;
-static const char* ground_vertex_shader;
-static const char* metaballs_shadow_vertex_shader;
-static const char* particles_fragment_shader;
-static const char* particles_vertex_shader;
-static const char* result_pass_fragment_shader;
 static const char* update_point_lights_compute_shader;
-*/
+static const char* marching_cubes_create_compute_shader(void);
 
 /* -------------------------------------------------------------------------- *
  * Marching Cubes Tables
@@ -526,13 +509,14 @@ typedef struct {
   const char* label;
 } iscreen_effect_t;
 
-/* Projection uniforms for shaders */
+/* Projection uniforms for shaders - matches WGSL alignment (144 bytes) */
 typedef struct {
   mat4 matrix;
   mat4 inverse_matrix;
   vec2 output_size;
   float z_near;
   float z_far;
+  float _padding[1]; /* Pad to 144 bytes (multiple of struct alignment 16) */
 } projection_uniforms_t;
 
 /* View uniforms for shaders */
@@ -637,29 +621,25 @@ typedef struct {
  * Metaballs Compute
  * -------------------------------------------------------------------------- */
 
-/* GPU-side metaball representation */
+/* GPU-side metaball representation
+ * Must match WGSL struct alignment:
+ *   position: vec3<f32>  -> offset 0,  size 12, align 16
+ *   radius: f32          -> offset 16
+ *   strength: f32        -> offset 20
+ *   subtract: f32        -> offset 24
+ *   (struct padded to 32 bytes, alignment 16)
+ */
 typedef struct {
   float position[3];
+  float _pad0;        /* padding after vec3 to reach alignment */
   float radius;
   float strength;
   float subtract;
-  float padding[2];
+  float _pad1;        /* padding to reach struct size 32 */
 } gpu_metaball_t;
 
-/* Volume settings for GPU */
-typedef struct {
-  float x_min;
-  float y_min;
-  float z_min;
-  float x_step;
-  float y_step;
-  float z_step;
-  uint32_t width;
-  uint32_t height;
-  uint32_t depth;
-  float iso_level;
-  float padding[2];
-} gpu_volume_settings_t;
+/* Note: Volume data is written directly to the GPU buffer matching WGSL
+ * alignment for IsosurfaceVolume struct. See init_metaballs_compute(). */
 
 /* Metaball simulation position/velocity */
 typedef struct {
@@ -1103,8 +1083,10 @@ static struct {
   /* Time tracking */
   float last_frame_time;
   float delta_time;
+  float rearrange_countdown;
 } state = {
-  .prepared = false,
+  .prepared            = false,
+  .rearrange_countdown = 5.0f,
   .volume_settings = {
     .width     = 6.0f,
     .height    = 6.0f,
@@ -1362,7 +1344,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Screen Projection UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(projection_uniforms_t),
+                    .size  = sizeof(mat4),
                   });
 
   /* Create screen view uniform buffer */
@@ -1370,13 +1352,14 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Screen View UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size  = sizeof(view_uniforms_t),
+                    .size  = sizeof(mat4),
                   });
 
   /* Create depth texture */
   WGPUTextureDescriptor depth_texture_desc = {
     .label = STRVIEW("Depth - Texture"),
-    .usage = WGPUTextureUsage_RenderAttachment,
+    .usage = WGPUTextureUsage_RenderAttachment
+             | WGPUTextureUsage_TextureBinding,
     .dimension      = WGPUTextureDimension_2D,
     .size           = {
       .width              = state.renderer.screen_width,
@@ -1405,8 +1388,25 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     = wgpuTextureCreateView(state.renderer.depth_texture, &depth_view_desc);
   ASSERT(state.renderer.depth_texture_view);
 
+  /* Create default sampler */
+  WGPUSamplerDescriptor sampler_desc = {
+    .label         = STRVIEW("Default sampler"),
+    .addressModeU  = WGPUAddressMode_ClampToEdge,
+    .addressModeV  = WGPUAddressMode_ClampToEdge,
+    .addressModeW  = WGPUAddressMode_ClampToEdge,
+    .magFilter     = WGPUFilterMode_Linear,
+    .minFilter     = WGPUFilterMode_Linear,
+    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+    .lodMinClamp   = 0.0f,
+    .lodMaxClamp   = 1.0f,
+    .maxAnisotropy = 1,
+  };
+  state.renderer.default_sampler
+    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
+  ASSERT(state.renderer.default_sampler);
+
   /* Create frame bind group layout */
-  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+  WGPUBindGroupLayoutEntry bgl_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment
@@ -1425,11 +1425,18 @@ static void init_renderer(wgpu_context_t* wgpu_context)
         .minBindingSize = sizeof(view_uniforms_t),
       },
     },
+    [2] = (WGPUBindGroupLayoutEntry){
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = {
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
   };
 
   WGPUBindGroupLayoutDescriptor bgl_desc = {
     .label      = STRVIEW("Frame bind group layout"),
-    .entryCount = 2,
+    .entryCount = 3,
     .entries    = bgl_entries,
   };
   state.renderer.frame_bind_group_layout
@@ -1437,7 +1444,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   ASSERT(state.renderer.frame_bind_group_layout);
 
   /* Create frame bind group */
-  WGPUBindGroupEntry bg_entries[2] = {
+  WGPUBindGroupEntry bg_entries[3] = {
     [0] = (WGPUBindGroupEntry){
       .binding = 0,
       .buffer  = state.renderer.projection_ubo.buffer,
@@ -1450,12 +1457,16 @@ static void init_renderer(wgpu_context_t* wgpu_context)
       .offset  = 0,
       .size    = sizeof(view_uniforms_t),
     },
+    [2] = (WGPUBindGroupEntry){
+      .binding = 2,
+      .sampler = state.renderer.default_sampler,
+    },
   };
 
   WGPUBindGroupDescriptor bg_desc = {
     .label      = STRVIEW("Frame bind group"),
     .layout     = state.renderer.frame_bind_group_layout,
-    .entryCount = 2,
+    .entryCount = 3,
     .entries    = bg_entries,
   };
   state.renderer.frame_bind_group
@@ -1463,9 +1474,36 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   ASSERT(state.renderer.frame_bind_group);
 
   /* Create screen frame bind group layout */
-  state.renderer.screen_frame_bind_group_layout
-    = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(state.renderer.screen_frame_bind_group_layout);
+  {
+    WGPUBindGroupLayoutEntry screen_bgl_entries[2] = {
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment
+                      | WGPUShaderStage_Compute,
+        .buffer = {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(mat4),
+        },
+      },
+      [1] = (WGPUBindGroupLayoutEntry){
+        .binding    = 1,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment
+                      | WGPUShaderStage_Compute,
+        .buffer = {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(mat4),
+        },
+      },
+    };
+    WGPUBindGroupLayoutDescriptor screen_bgl_desc = {
+      .label      = STRVIEW("Screen frame bind group layout"),
+      .entryCount = 2,
+      .entries    = screen_bgl_entries,
+    };
+    state.renderer.screen_frame_bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &screen_bgl_desc);
+    ASSERT(state.renderer.screen_frame_bind_group_layout);
+  }
 
   /* Create screen frame bind group */
   WGPUBindGroupEntry screen_bg_entries[2] = {
@@ -1493,23 +1531,6 @@ static void init_renderer(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateBindGroup(wgpu_context->device, &screen_bg_desc);
   ASSERT(state.renderer.screen_frame_bind_group);
 
-  /* Create default sampler */
-  WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Default sampler"),
-    .addressModeU  = WGPUAddressMode_ClampToEdge,
-    .addressModeV  = WGPUAddressMode_ClampToEdge,
-    .addressModeW  = WGPUAddressMode_ClampToEdge,
-    .magFilter     = WGPUFilterMode_Linear,
-    .minFilter     = WGPUFilterMode_Linear,
-    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-    .lodMinClamp   = 0.0f,
-    .lodMaxClamp   = 1.0f,
-    .maxAnisotropy = 1,
-  };
-  state.renderer.default_sampler
-    = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-  ASSERT(state.renderer.default_sampler);
-
   /* Store presentation format */
   state.renderer.presentation_format = wgpu_context->render_format;
 
@@ -1530,11 +1551,10 @@ static void init_renderer(wgpu_context_t* wgpu_context)
       .depthClearValue = 1.0f,
     };
   state.renderer.framebuffer.descriptor = (WGPURenderPassDescriptor){
-    .label                = STRVIEW("Final composite pass"),
-    .colorAttachmentCount = 1,
-    .colorAttachments     = state.renderer.framebuffer.color_attachments,
-    .depthStencilAttachment
-    = &state.renderer.framebuffer.depth_stencil_attachment,
+    .label                  = STRVIEW("Final composite pass"),
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = state.renderer.framebuffer.color_attachments,
+    .depthStencilAttachment = NULL,
   };
 }
 
@@ -1593,8 +1613,9 @@ static void recreate_depth_texture(wgpu_context_t* wgpu_context)
   }
 
   WGPUTextureDescriptor depth_texture_desc = {
-    .label                   = STRVIEW("Depth texture"),
-    .usage                   = WGPUTextureUsage_RenderAttachment,
+    .label = STRVIEW("Depth texture"),
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     .dimension               = WGPUTextureDimension_2D,
     .size.width              = width,
     .size.height             = height,
@@ -1677,12 +1698,24 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
       });
   }
 
-  /* Create volume buffer */
+  /* Create volume buffer
+   *
+   * WGSL struct alignment for IsosurfaceVolume:
+   *   min: vec3<f32>   -> offset  0, size 12, pad 4 (align 16)
+   *   max: vec3<f32>   -> offset 16, size 12, pad 4 (align 16)
+   *   step: vec3<f32>  -> offset 32, size 12, pad 4 (align 16)
+   *   size: vec3<u32>  -> offset 48, size 12, pad 4 (align 16)
+   *   threshold: f32   -> offset 64, size  4
+   *   values: array    -> offset 68
+   *
+   * Header = 17 floats (68 bytes), then volume_elements floats for values
+   */
   {
     const uint32_t volume_elements    = vol->res_x * vol->res_y * vol->res_z;
-    const uint64_t volume_buffer_size = sizeof(float) * 12
-                                        + sizeof(uint32_t) * 4
-                                        + sizeof(float) * volume_elements;
+    const uint32_t volume_header_floats = 17; /* 68 bytes for struct header */
+    const uint64_t volume_buffer_size = sizeof(float)
+                                        * (volume_header_floats
+                                           + volume_elements);
 
     WGPUBufferDescriptor buffer_desc = {
       .label            = STRVIEW("Volume - Storage buffer"),
@@ -1694,24 +1727,33 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
     ASSERT(mc->volume_buffer);
 
-    float* volume_mapped = (float*)wgpuBufferGetMappedRange(
+    float* v = (float*)wgpuBufferGetMappedRange(
       mc->volume_buffer, 0, volume_buffer_size);
-    uint32_t* volume_size = (uint32_t*)(&volume_mapped[12]);
+    memset(v, 0, (size_t)volume_buffer_size);
 
-    /* Set volume parameters */
-    volume_mapped[0] = -vol->width / 2.0f;  /* x_min */
-    volume_mapped[1] = -vol->height / 2.0f; /* y_min */
-    volume_mapped[2] = -vol->depth / 2.0f;  /* z_min */
+    /* min: vec3<f32> at float[0..2], pad at float[3] */
+    v[0] = -vol->width / 2.0f;
+    v[1] = -vol->height / 2.0f;
+    v[2] = -vol->depth / 2.0f;
 
-    volume_mapped[8]  = vol->width / (float)(vol->res_x - 1);  /* x_step */
-    volume_mapped[9]  = vol->height / (float)(vol->res_y - 1); /* y_step */
-    volume_mapped[10] = vol->depth / (float)(vol->res_z - 1);  /* z_step */
+    /* max: vec3<f32> at float[4..6], pad at float[7] */
+    v[4] = vol->width / 2.0f;
+    v[5] = vol->height / 2.0f;
+    v[6] = vol->depth / 2.0f;
 
-    volume_size[0] = vol->res_x; /* width */
-    volume_size[1] = vol->res_y; /* height */
-    volume_size[2] = vol->res_z; /* depth */
+    /* step: vec3<f32> at float[8..10], pad at float[11] */
+    v[8]  = vol->width / (float)(vol->res_x - 1);
+    v[9]  = vol->height / (float)(vol->res_y - 1);
+    v[10] = vol->depth / (float)(vol->res_z - 1);
 
-    volume_mapped[15] = vol->iso_level; /* iso_level */
+    /* size: vec3<u32> at float[12..14], pad at float[15] */
+    uint32_t* size_u32 = (uint32_t*)&v[12];
+    size_u32[0] = vol->res_x;
+    size_u32[1] = vol->res_y;
+    size_u32[2] = vol->res_z;
+
+    /* threshold: f32 at float[16] */
+    v[16] = vol->iso_level;
 
     wgpuBufferUnmap(mc->volume_buffer);
 
@@ -1842,7 +1884,7 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
   /* Compute marching cubes pipeline */
   {
     WGPUShaderModule comp_shader = wgpu_create_shader_module(
-      wgpu_context->device, marching_cubes_compute_shader);
+      wgpu_context->device, marching_cubes_create_compute_shader());
     ASSERT(comp_shader);
 
     mc->marching_cubes_pipeline = wgpuDeviceCreateComputePipeline(
@@ -1974,9 +2016,11 @@ static void update_metaballs_sim(float time_delta)
     metaball->position[0] = position->x;
     metaball->position[1] = position->y;
     metaball->position[2] = position->z;
+    metaball->_pad0       = 0.0f;
     metaball->radius      = sqrtf(mc->strength / mc->subtract);
     metaball->strength    = mc->strength;
     metaball->subtract    = mc->subtract;
+    metaball->_pad1       = 0.0f;
   }
 
   wgpuQueueWriteBuffer(mc->wgpu_context->queue, mc->metaballs_buffer.buffer,
@@ -2074,9 +2118,65 @@ static void init_metaballs(wgpu_context_t* wgpu_context)
   mb->wgpu_context = wgpu_context;
   mb->renderer     = &state.renderer;
 
-  /* Pipeline layout - only uses the frame bind group */
-  WGPUBindGroupLayout bind_group_layouts[1] = {
-    state.renderer.frame_bind_group_layout,
+  /* Metaballs material UBO */
+  {
+    /* padding required for struct alignment: size % 8 == 0 */
+    const float metaballs_ubo_data[5] = {1.0f, 1.0f, 1.0f, 0.3f, 0.1f};
+    mb->ubo
+      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
+                                           .label = "Metaballs - UBO",
+                                           .usage = WGPUBufferUsage_Uniform
+                                                    | WGPUBufferUsage_CopyDst,
+                                           .size         = 8 * sizeof(float),
+                                           .initial.data = metaballs_ubo_data,
+                                         });
+  }
+
+  /* Bind group layout for metaballs material (group 1) */
+  {
+    WGPUBindGroupLayoutEntry bgl_entries[1] = {
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = {
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = mb->ubo.size,
+        },
+      },
+    };
+    WGPUBindGroupLayoutDescriptor bgl_desc = {
+      .label      = STRVIEW("Metaballs - Bind group layout"),
+      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+      .entries    = bgl_entries,
+    };
+    mb->bind_group_layout
+      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
+    ASSERT(mb->bind_group_layout);
+  }
+
+  /* Bind group for metaballs material (group 1) */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer  = mb->ubo.buffer,
+        .size    = mb->ubo.size,
+      },
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .label      = STRVIEW("Metaballs - Bind group"),
+      .layout     = mb->bind_group_layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    };
+    mb->bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    ASSERT(mb->bind_group);
+  }
+
+  /* Pipeline layout - frame bind group (group 0) + material (group 1) */
+  WGPUBindGroupLayout bind_group_layouts[2] = {
+    state.renderer.frame_bind_group_layout, /* Group 0 */
+    mb->bind_group_layout,                  /* Group 1 */
   };
 
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
@@ -2126,12 +2226,21 @@ static void init_metaballs(wgpu_context_t* wgpu_context)
     },
   };
 
-  /* Color target state */
-  WGPUBlendState blend_state        = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target = {
-    .format    = wgpu_context->render_format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
+  /* Color target state - 2 GBuffer outputs */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
+  WGPUColorTargetState color_target_states[2] = {
+    [0] = (WGPUColorTargetState){
+      /* normal + material id */
+      .format    = WGPUTextureFormat_RGBA16Float,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    },
+    [1] = (WGPUColorTargetState){
+      /* albedo */
+      .format    = WGPUTextureFormat_BGRA8Unorm,
+      .blend     = &blend_state,
+      .writeMask = WGPUColorWriteMask_All,
+    },
   };
 
   /* Depth stencil state */
@@ -2155,8 +2264,8 @@ static void init_metaballs(wgpu_context_t* wgpu_context)
     .fragment = &(WGPUFragmentState){
       .module      = fragment_shader_module,
       .entryPoint  = STRVIEW("main"),
-      .targetCount = 1,
-      .targets     = &color_target,
+      .targetCount = (uint32_t)ARRAY_SIZE(color_target_states),
+      .targets     = color_target_states,
     },
     .primitive = {
       .topology  = WGPUPrimitiveTopology_TriangleList,
@@ -2261,11 +2370,12 @@ static void init_metaballs_shadow(wgpu_context_t* wgpu_context,
   };
 
   /* Depth stencil state for shadow pass */
-  WGPUDepthStencilState shadow_depth_stencil = {
-    .format            = WGPUTextureFormat_Depth32Float,
-    .depthWriteEnabled = true,
-    .depthCompare      = WGPUCompareFunction_Less,
-  };
+  WGPUDepthStencilState shadow_depth_stencil
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = WGPUTextureFormat_Depth32Float,
+      .depth_write_enabled = true,
+    });
+  shadow_depth_stencil.depthCompare = WGPUCompareFunction_Less;
 
   /* Shadow pipeline descriptor */
   WGPURenderPipelineDescriptor shadow_pipeline_desc = {
@@ -2295,7 +2405,7 @@ static void init_metaballs_shadow(wgpu_context_t* wgpu_context,
         .chain = (WGPUChainedStruct){
           .sType = WGPUSType_ShaderSourceWGSL,
         },
-        .code = STRVIEW(metaballs_shadow_vertex_shader_wgsl),
+        .code = {metaballs_shadow_vertex_shader_wgsl, strlen(metaballs_shadow_vertex_shader_wgsl)},
       },
   };
   WGPUShaderModule shadow_shader
@@ -2325,6 +2435,7 @@ static void render_metaballs(WGPURenderPassEncoder render_pass)
   wgpuRenderPassEncoderSetPipeline(render_pass, mb->render_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass, 0,
                                     state.renderer.frame_bind_group, 0, NULL);
+  wgpuRenderPassEncoderSetBindGroup(render_pass, 1, mb->bind_group, 0, NULL);
   wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, mc->vertex_buffer.buffer,
                                        0, WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderSetVertexBuffer(render_pass, 1, mc->normal_buffer.buffer,
@@ -2344,6 +2455,9 @@ static void cleanup_metaballs(void)
   WGPU_RELEASE_RESOURCE(RenderPipeline, mb->render_pipeline);
   WGPU_RELEASE_RESOURCE(RenderPipeline, mb->shadow_pipeline);
   WGPU_RELEASE_RESOURCE(PipelineLayout, mb->pipeline_layout);
+  WGPU_RELEASE_RESOURCE(Buffer, mb->ubo.buffer);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, mb->bind_group_layout);
+  WGPU_RELEASE_RESOURCE(BindGroup, mb->bind_group);
 }
 
 static void render_metaballs_shadow(WGPURenderPassEncoder render_pass,
@@ -3134,7 +3248,7 @@ static void box_outline_init(box_outline_t* this)
       this->renderer->frame_bind_group_layout,
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "Box outline render - Pipeline layout",
+      .label                = STRVIEW("Box outline render - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -3225,13 +3339,13 @@ static void box_outline_init(box_outline_t* this)
     WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Box outline vertex shader",
+        .label = STRVIEW("Box outline vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(box_outline_vertex_shader_wgsl),
+            .code = {box_outline_vertex_shader_wgsl, strlen(box_outline_vertex_shader_wgsl)},
           },
       });
 
@@ -3239,13 +3353,13 @@ static void box_outline_init(box_outline_t* this)
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Box outline fragment shader",
+        .label = STRVIEW("Box outline fragment shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(box_outline_fragment_shader_wgsl),
+            .code = {box_outline_fragment_shader_wgsl, strlen(box_outline_fragment_shader_wgsl)},
           },
       });
 
@@ -3253,7 +3367,7 @@ static void box_outline_init(box_outline_t* this)
     this->render_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = "Box outline - Render pipeline",
+        .label    = STRVIEW("Box outline - Render pipeline"),
         .layout   = this->pipeline_layout,
         .primitive = primitive_state,
         .vertex = (WGPUVertexState){
@@ -3751,7 +3865,7 @@ static void ground_init(ground_t* this)
       this->model_bind_group_layout,
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "Ground render - Pipeline layout",
+      .label                = STRVIEW("Ground render - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -3847,33 +3961,33 @@ static void ground_init(ground_t* this)
     WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Ground vertex shader",
+        .label = STRVIEW("Ground vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(ground_vertex_shader_wgsl),
+            .code = {ground_vertex_shader_wgsl, strlen(ground_vertex_shader_wgsl)},
           },
       });
 
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Ground fragment shader",
+        .label = STRVIEW("Ground fragment shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(ground_fragment_shader_wgsl),
+            .code = {ground_fragment_shader_wgsl, strlen(ground_fragment_shader_wgsl)},
           },
       });
 
     this->render_pipelines.render_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = "Ground - Render pipeline",
+        .label    = STRVIEW("Ground - Render pipeline"),
         .layout   = this->pipeline_layouts.render_pipeline,
         .primitive = primitive_state,
         .vertex = (WGPUVertexState){
@@ -3907,7 +4021,7 @@ static void ground_init(ground_t* this)
       this->model_bind_group_layout,
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "Ground shadow rendering - Pipeline layout",
+      .label = STRVIEW("Ground shadow rendering - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -3963,13 +4077,13 @@ static void ground_init(ground_t* this)
     WGPUShaderModule shadow_vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Ground shadow vertex shader",
+        .label = STRVIEW("Ground shadow vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(ground_shadow_vertex_shader_wgsl),
+            .code = {ground_shadow_vertex_shader_wgsl, strlen(ground_shadow_vertex_shader_wgsl)},
           },
       });
 
@@ -3977,7 +4091,7 @@ static void ground_init(ground_t* this)
       = wgpuDeviceCreateRenderPipeline(
         wgpu_context->device,
         &(WGPURenderPipelineDescriptor){
-          .label    = "Ground shadow - Render pipeline",
+          .label    = STRVIEW("Ground shadow - Render pipeline"),
           .layout   = this->pipeline_layouts.render_shadow_pipeline,
           .primitive = primitive_state,
           .vertex = (WGPUVertexState){
@@ -4105,7 +4219,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Ground - Bind group layout",
+      .label      = STRVIEW("Ground - Bind group layout"),
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -4124,7 +4238,7 @@ static void ground_create(ground_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Ground - Bind group",
+      .label      = STRVIEW("Ground - Bind group"),
       .layout     = this->model_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
@@ -4331,7 +4445,7 @@ static void particles_init(particles_t* this)
       this->bind_group_layout,
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "Particles render - Pipeline layout",
+      .label                = STRVIEW("Particles render - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -4373,33 +4487,33 @@ static void particles_init(particles_t* this)
     WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Particles vertex shader",
+        .label = STRVIEW("Particles vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(particles_vertex_shader_wgsl),
+            .code = {particles_vertex_shader_wgsl, strlen(particles_vertex_shader_wgsl)},
           },
       });
 
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Particles fragment shader",
+        .label = STRVIEW("Particles fragment shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(particles_fragment_shader_wgsl),
+            .code = {particles_fragment_shader_wgsl, strlen(particles_fragment_shader_wgsl)},
           },
       });
 
     this->render_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = "Particles - Render pipeline",
+        .label    = STRVIEW("Particles - Render pipeline"),
         .layout   = this->pipeline_layout,
         .primitive = primitive_state,
         .vertex = (WGPUVertexState){
@@ -4453,7 +4567,7 @@ static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Particles - Bind group layout",
+      .label      = STRVIEW("Particles - Bind group layout"),
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -4472,7 +4586,7 @@ static void particles_create(particles_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Particles - Bind group",
+      .label      = STRVIEW("Particles - Bind group"),
       .layout     = this->bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
@@ -4567,7 +4681,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_wgsl,
     snprintf(pipeline_layout_lbl, sizeof(pipeline_layout_lbl),
              "%s - Pipeline layout", label);
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = pipeline_layout_lbl,
+      .label = {pipeline_layout_lbl, strlen(pipeline_layout_lbl)},
       .bindGroupLayoutCount = bind_group_layout_count,
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -4609,33 +4723,33 @@ static void effect_init(effect_t* this, const char* fragment_shader_wgsl,
     WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Effect vertex shader",
+        .label = STRVIEW("Effect vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(effect_vertex_shader_wgsl),
+            .code = {effect_vertex_shader_wgsl, strlen(effect_vertex_shader_wgsl)},
           },
       });
 
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = "Effect fragment shader",
+        .label = STRVIEW("Effect fragment shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
-            .code = STRVIEW(fragment_shader_wgsl),
+            .code = {fragment_shader_wgsl, strlen(fragment_shader_wgsl)},
           },
       });
 
     this->render_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = label,
+        .label    = {label, strlen(label)},
         .layout   = this->pipeline_layout,
         .primitive = primitive_state,
         .vertex = (WGPUVertexState){
@@ -4773,7 +4887,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Copy pass - Texture",
+    .label         = STRVIEW("Copy pass - Texture"),
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
@@ -4788,7 +4902,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
 
   /* Copy texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Copy pass - Texture view",
+    .label           = STRVIEW("Copy pass - Texture view"),
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -4814,7 +4928,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Copy pass - Bind group layout",
+                            .label = STRVIEW("Copy pass - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -4829,7 +4943,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
   };
   this->bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Copy pass - Bind group",
+                            .label      = STRVIEW("Copy pass - Bind group"),
                             .layout     = this->bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
@@ -4874,7 +4988,7 @@ static void copy_pass_create(copy_pass_t* this, webgpu_renderer_t* renderer)
 
   /* Frame buffer descriptor */
   this->framebuffer.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Copy pass frame buffer",
+    .label                  = STRVIEW("Copy pass frame buffer"),
     .colorAttachmentCount   = 1,
     .colorAttachments       = &this->framebuffer.color_attachments[0],
     .depthStencilAttachment = NULL,
@@ -5026,7 +5140,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
       this->blur_compute_bind_group_layout,   // Group 1
     };
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-      .label                = "Bloom pass blur - Pipeline layout",
+      .label                = STRVIEW("Bloom pass blur - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     };
@@ -5038,13 +5152,13 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
   /* Bloom pass blur pipeline */
   {
     WGPUShaderModuleDescriptor shader_desc = {
-      .label = "Bloom blur - Compute shader",
+      .label = STRVIEW("Bloom blur - Compute shader"),
       .nextInChain
         = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
           .chain = (WGPUChainedStruct){
             .sType = WGPUSType_ShaderSourceWGSL,
           },
-          .code = bloom_blur_compute_shader_wgsl,
+          .code = {bloom_blur_compute_shader_wgsl, strlen(bloom_blur_compute_shader_wgsl)},
         },
     };
     WGPUShaderModule comp_shader
@@ -5054,11 +5168,11 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     this->blur_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .label   = "Bloom pass blur - Compute pipeline",
+        .label   = STRVIEW("Bloom pass blur - Compute pipeline"),
         .layout  = this->blur_pipeline_layout,
         .compute = (WGPUComputeState){
           .module     = comp_shader,
-          .entryPoint = "main",
+          .entryPoint = STRVIEW("main"),
         },
       });
     ASSERT(this->blur_pipeline != NULL);
@@ -5108,7 +5222,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     };
     this->blur_compute_bind_groups[0] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Blur compute - Bind group 0",
+                              .label  = STRVIEW("Blur compute - Bind group 0"),
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -5135,7 +5249,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     };
     this->blur_compute_bind_groups[1] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Blur compute - Bind group 1",
+                              .label  = STRVIEW("Blur compute - Bind group 1"),
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -5162,7 +5276,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     };
     this->blur_compute_bind_groups[2] = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Blur compute - Bind group 2",
+                              .label  = STRVIEW("Blur compute - Bind group 2"),
                               .layout = this->blur_compute_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -5192,7 +5306,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Bloom - Texture",
+    .label         = STRVIEW("Bloom - Texture"),
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
@@ -5207,7 +5321,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
   /* Bloom texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Bloom - Texture view",
+    .label           = STRVIEW("Bloom - Texture view"),
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -5235,11 +5349,12 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = "Bloom pass - Bind group layout",
-                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-                              .entries    = bgl_entries,
-                            });
+      wgpu_context->device,
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Bloom pass - Bind group layout"),
+        .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+        .entries    = bgl_entries,
+      });
     ASSERT(this->bind_group_layout != NULL);
   }
 
@@ -5252,7 +5367,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Blur - Texture",
+      .label         = STRVIEW("Blur - Texture"),
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -5267,7 +5382,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
 
     /* Blur texture view */
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Blur - Texture view",
+      .label           = STRVIEW("Blur - Texture view"),
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -5290,7 +5405,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
     };
     this->bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = "Gbuffer - Bind group",
+                              .label      = STRVIEW("Gbuffer - Bind group"),
                               .layout     = this->bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
@@ -5360,7 +5475,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
   /* Bloom sampler */
   this->sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = "Bloom - Sampler",
+                            .label         = STRVIEW("Bloom - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
@@ -5394,7 +5509,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Blur constants - Bind group layout",
+      .label      = STRVIEW("Blur constants - Bind group layout"),
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -5417,7 +5532,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupDescriptor bg_desc = {
-      .label      = "Blur constants - Bind group",
+      .label      = STRVIEW("Blur constants - Bind group"),
       .layout     = this->blur_constants_bind_group_layout,
       .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
       .entries    = bg_entries,
@@ -5460,7 +5575,7 @@ static void bloom_pass_create(bloom_pass_t* this, webgpu_renderer_t* renderer,
       },
     };
     WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .label      = "Blur compute - Bind group layout",
+      .label      = STRVIEW("Blur compute - Bind group layout"),
       .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
       .entries    = bgl_entries,
     };
@@ -5571,7 +5686,8 @@ static void bloom_pass_render(bloom_pass_t* this,
  * -------------------------------------------------------------------------- */
 
 // clang-format off
-static const char* deferred_pass_fragment_shader_wgsl = CODE(
+/* Part 1: Struct definitions, utility functions, and bindings */
+static const char* deferred_pass_fragment_shader_part1 = CODE(
   struct ProjectionUniformsStruct {
     matrix : mat4x4<f32>,
     inverseMatrix: mat4x4<f32>,
@@ -5732,7 +5848,9 @@ static const char* deferred_pass_fragment_shader_wgsl = CODE(
     }
     return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
   }
-
+  );
+  /* Part 2: PBR light radiance functions */
+  static const char* deferred_pass_fragment_shader_part2 = CODE(
   fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
     var L = normalize(light.pointToLight);
     var H = normalize(surface.V + L);
@@ -5811,7 +5929,9 @@ static const char* deferred_pass_fragment_shader_wgsl = CODE(
     var far_plane = 0.4;
     return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
   }
-
+  );
+  /* Part 3: Fragment shader entry point */
+  static const char* deferred_pass_fragment_shader_part3 = CODE(
   @fragment
   fn main(input: Inputs) -> Output {
     var worldPosition = reconstructWorldPosFromZ(
@@ -5846,7 +5966,8 @@ static const char* deferred_pass_fragment_shader_wgsl = CODE(
       posFromLight.z
     );
 
-    var projectedDepth = textureSample(spotLightDepthTexture, depthSampler, shadowPos.xy);
+    var shadowMapSize = vec2<f32>(textureDimensions(spotLightDepthTexture, 0));
+    var projectedDepth = textureLoad(spotLightDepthTexture, vec2<i32>(shadowPos.xy * shadowMapSize), 0);
 
     if (surface.ID == 0.0) {
       var inRange =
@@ -5913,6 +6034,18 @@ static const char* deferred_pass_fragment_shader_wgsl = CODE(
 );
 // clang-format on
 
+/* Combine deferred pass fragment shader chunks into one buffer */
+#define DEFERRED_PASS_SHADER_SIZE (16 * 1024)
+static const char* deferred_pass_create_fragment_shader(void)
+{
+  static char shader_source[DEFERRED_PASS_SHADER_SIZE];
+  snprintf(shader_source, sizeof(shader_source), "%s%s%s",
+           deferred_pass_fragment_shader_part1,
+           deferred_pass_fragment_shader_part2,
+           deferred_pass_fragment_shader_part3);
+  return shader_source;
+}
+
 static bool deferred_pass_is_ready(deferred_pass_t* this)
 {
   return point_lights_is_ready(&this->point_lights)
@@ -5958,7 +6091,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Gbuffer normal - Texture",
+      .label         = STRVIEW("Gbuffer normal - Texture"),
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -5972,7 +6105,7 @@ static void deferred_pass_create(deferred_pass_t* this,
     ASSERT(this->g_buffer_texture_normal.texture != NULL);
 
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Gbuffer normal - Texture view",
+      .label           = STRVIEW("Gbuffer normal - Texture view"),
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -5993,7 +6126,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .depthOrArrayLayers = 1,
     };
     WGPUTextureDescriptor texture_desc = {
-      .label         = "Gbuffer diffuse - Texture",
+      .label         = STRVIEW("Gbuffer diffuse - Texture"),
       .size          = texture_extent,
       .mipLevelCount = 1,
       .sampleCount   = 1,
@@ -6007,7 +6140,7 @@ static void deferred_pass_create(deferred_pass_t* this,
     ASSERT(this->g_buffer_texture_diffuse.texture != NULL);
 
     WGPUTextureViewDescriptor texture_view_dec = {
-      .label           = "Gbuffer diffuse - Texture view",
+      .label           = STRVIEW("Gbuffer diffuse - Texture view"),
       .dimension       = WGPUTextureViewDimension_2D,
       .format          = texture_desc.format,
       .baseMipLevel    = 0,
@@ -6073,7 +6206,7 @@ static void deferred_pass_create(deferred_pass_t* this,
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Gbuffer - Bind group layout",
+                            .label = STRVIEW("Gbuffer - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -6106,7 +6239,7 @@ static void deferred_pass_create(deferred_pass_t* this,
   };
   this->bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Gbuffer - Bind group",
+                            .label      = STRVIEW("Gbuffer - Bind group"),
                             .layout     = this->bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
@@ -6128,7 +6261,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       this->spot_light.bind_groups.depth_texture,
     };
     iscreen_effect_t screen_effect = {
-      .fragment_shader_wgsl          = deferred_pass_fragment_shader_wgsl,
+      .fragment_shader_wgsl          = deferred_pass_create_fragment_shader(),
       .bind_group_layouts.items      = bind_group_layouts,
       .bind_group_layouts.item_count = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bind_groups.items             = bind_groups,
@@ -6353,7 +6486,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
   };
   this->bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = "Result pass - Bind group layout",
+                            .label = STRVIEW("Result pass - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
@@ -6366,7 +6499,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
     .depthOrArrayLayers = 1,
   };
   WGPUTextureDescriptor texture_desc = {
-    .label         = "Empty - Texture",
+    .label         = STRVIEW("Empty - Texture"),
     .size          = texture_extent,
     .mipLevelCount = 1,
     .sampleCount   = 1,
@@ -6380,7 +6513,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
 
   /* Empty texture view */
   WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Empty - Texture view",
+    .label           = STRVIEW("Empty - Texture view"),
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
@@ -6406,7 +6539,7 @@ static void result_pass_create(result_pass_t* this, webgpu_renderer_t* renderer,
   };
   this->bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = "Result pass - Bind group",
+                            .label      = STRVIEW("Result pass - Bind group"),
                             .layout     = this->bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
@@ -6622,6 +6755,14 @@ static int frame(wgpu_context_t* wgpu_context)
   state.delta_time      = current_time - state.last_frame_time;
   state.last_frame_time = current_time;
 
+  /* Periodically rearrange geometry */
+  if (state.rearrange_countdown < 0.0f) {
+    deferred_pass_rearrange(&state.deferred_pass);
+    metaballs_rearrange(&state.metaballs);
+    state.rearrange_countdown = 5.0f;
+  }
+  state.rearrange_countdown -= state.delta_time;
+
   /* Update camera */
   camera_controller_update(&state.camera_controller, state.delta_time);
   update_uniform_buffers(wgpu_context);
@@ -6823,16 +6964,16 @@ int main(int argc, char* argv[])
 
 // clang-format off
 static const char* metaball_field_compute_shader = CODE(
-  struct Metaballs {
-    count: u32,
-    balls: array<Metaball>,
-  }
-
   struct Metaball {
     position: vec3<f32>,
     radius: f32,
     strength: f32,
     subtract: f32,
+  }
+
+  struct Metaballs {
+    count: u32,
+    balls: array<Metaball>,
   }
 
   struct IsosurfaceVolume {
@@ -6847,25 +6988,37 @@ static const char* metaball_field_compute_shader = CODE(
   @group(0) @binding(0) var<storage> metaballs : Metaballs;
   @group(0) @binding(1) var<storage, read_write> volume : IsosurfaceVolume;
 
+  fn positionAt(index : vec3<u32>) -> vec3<f32> {
+    return volume.min + (volume.step * vec3<f32>(index.xyz));
+  }
+
+  fn surfaceFunc(position : vec3<f32>) -> f32 {
+    var result = 0.0;
+    for (var i = 0u; i < metaballs.count; i = i + 1u) {
+      var ball = metaballs.balls[i];
+      var dist = distance(position, ball.position);
+      var val = ball.strength / (0.000001 + (dist * dist)) - ball.subtract;
+      if (val > 0.0) {
+        result = result + val;
+      }
+    }
+    return result;
+  }
+
   @compute @workgroup_size(4, 4, 4)
   fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-    let position = volume.min + (volume.step * vec3<f32>(global_id.xyz));
+    var position = positionAt(global_id);
+    var valueIndex = global_id.x +
+                    (global_id.y * volume.size.x) +
+                    (global_id.z * volume.size.x * volume.size.y);
 
-    var fieldValue: f32 = 0.0;
-    for (var i: u32 = 0u; i < metaballs.count; i = i + 1u) {
-      let ball = metaballs.balls[i];
-      let d = distance(ball.position, position);
-      fieldValue = fieldValue + ball.strength / (d * d);
-    }
-
-    let valueIndex = global_id.x +
-                     (global_id.y * volume.size.x) +
-                     (global_id.z * volume.size.x * volume.size.y);
-    volume.values[valueIndex] = fieldValue;
+    volume.values[valueIndex] = surfaceFunc(position);
   }
 );
 
-static const char* marching_cubes_compute_shader = CODE(
+static const char* marching_cubes_compute_shader_part1 =
+  /* Part 1: Struct definitions and helper functions */
+  CODE(
   struct Tables {
     edges: array<u32, 256>,
     tris: array<i32, 4096>,
@@ -6936,7 +7089,9 @@ static const char* marching_cubes_compute_shader = CODE(
   var<private> normals : array<vec3<f32>, 12>;
   var<private> indices : array<u32, 12>;
   var<private> cubeVerts : u32 = 0u;
-
+  );
+  /* Part 2: Interpolation functions */
+  static const char* marching_cubes_compute_shader_part2 = CODE(
   fn interpX(index : u32, i : vec3<u32>, va : f32, vb : f32) {
     var mu = (volume.threshold - va) / (vb - va);
     positions[cubeVerts] = positionAt(i) + vec3<f32>(volume.step.x * mu, 0.0, 0.0);
@@ -6972,7 +7127,9 @@ static const char* marching_cubes_compute_shader = CODE(
     indices[index] = cubeVerts;
     cubeVerts = cubeVerts + 1u;
   }
-
+  );
+  /* Part 3: Main compute entry point */
+  static const char* marching_cubes_compute_shader_part3 = CODE(
   @compute @workgroup_size(4, 4, 4)
   fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 
@@ -7050,155 +7207,19 @@ static const char* marching_cubes_compute_shader = CODE(
   }
 );
 
+/* Combine marching cubes compute shader chunks into one buffer */
+#define MARCHING_CUBES_SHADER_SIZE (8 * 1024)
+static const char* marching_cubes_create_compute_shader(void)
+{
+  static char shader_source[MARCHING_CUBES_SHADER_SIZE];
+  snprintf(shader_source, sizeof(shader_source), "%s%s%s",
+           marching_cubes_compute_shader_part1,
+           marching_cubes_compute_shader_part2,
+           marching_cubes_compute_shader_part3);
+  return shader_source;
+}
+
 static const char* metaballs_vertex_shader = CODE(
-  @group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
-  @group(0) @binding(1) var<uniform> view: mat4x4<f32>;
-
-  struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-  };
-
-  struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-  };
-
-  @vertex
-  fn main(input: VertexInput) -> VertexOutput {
-    var output: VertexOutput;
-    let world_pos = input.position;
-    output.position = projection * view * vec4<f32>(world_pos, 1.0);
-    output.world_pos = world_pos;
-    output.normal = normalize(input.normal);
-    return output;
-  }
-  );
-
-  static const char* metaballs_fragment_shader = CODE(
-  struct FragmentInput {
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-  };
-
-  @fragment
-  fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-    let light_dir = normalize(vec3<f32>(1.0, 1.0, 1.0));
-    let normal = normalize(input.normal);
-
-    let ambient = 0.2;
-    let diffuse = max(dot(normal, light_dir), 0.0);
-    let lighting = ambient + diffuse * 0.8;
-
-    let base_color = vec3<f32>(0.8, 0.3, 0.2);
-    let final_color = base_color * lighting;
-
-    return vec4<f32>(final_color, 1.0);
-  }
-);
-
-/* TODO: Enable these shaders when post-processing is ported */
-#if 0
-
-static const char* bloom_blur_compute_shader = CODE(
-  struct Params {
-    filterDim : u32,
-    blockDim : u32,
-  }
-
-  struct Flip {
-    value : u32,
-  }
-
-  @group(0) @binding(0) var samp: sampler;
-  @group(0) @binding(1) var<uniform> params: Params;
-  @group(1) @binding(0) var inputTex: texture_2d<f32>;
-  @group(1) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
-  @group(1) @binding(2) var<uniform> flip : Flip;
-
-  var<workgroup> tile : array<array<vec3<f32>, 128>, 4>;
-
-  @compute @workgroup_size(32, 1, 1)
-  fn main(
-    @builtin(workgroup_id) WorkGroupID : vec3<u32>,
-    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
-  ) {
-    var filterOffset : u32 = (params.filterDim - 1u) / 2u;
-    var dims : vec2<i32> = vec2<i32>(textureDimensions(inputTex, 0));
-
-    var baseIndex = vec2<i32>(
-      WorkGroupID.xy * vec2<u32>(params.blockDim, 4u) +
-      LocalInvocationID.xy * vec2<u32>(4u, 1u)
-    ) - vec2<i32>(i32(filterOffset), 0);
-
-    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
-      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
-        var loadIndex = baseIndex + vec2<i32>(i32(c), i32(r));
-        if (flip.value != 0u) {
-          loadIndex = loadIndex.yx;
-        }
-
-        tile[r][4u * LocalInvocationID.x + c] =
-          textureSampleLevel(inputTex, samp,
-            (vec2<f32>(loadIndex) + vec2<f32>(0.25, 0.25)) / vec2<f32>(dims), 0.0).rgb;
-      }
-    }
-
-    workgroupBarrier();
-
-    for (var r : u32 = 0u; r < 4u; r = r + 1u) {
-      for (var c : u32 = 0u; c < 4u; c = c + 1u) {
-        var writeIndex = baseIndex + vec2<i32>(i32(c), i32(r));
-        if (flip.value != 0u) {
-          writeIndex = writeIndex.yx;
-        }
-
-        var center : u32 = 4u * LocalInvocationID.x + c;
-        if (center >= filterOffset &&
-            center < 128u - filterOffset &&
-            all(writeIndex < dims)) {
-          var acc : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-          for (var f : u32 = 0u; f < params.filterDim; f = f + 1u) {
-            var i : u32 = center + f - filterOffset;
-            acc = acc + (1.0 / f32(params.filterDim)) * tile[r][i];
-          }
-          textureStore(outputTex, writeIndex, vec4<f32>(acc, 1.0));
-        }
-      }
-    }
-  }
-);
-
-static const char* bloom_pass_fragment_shader = CODE(
-  @group(0) @binding(0) var texture: texture_2d<f32>;
-
-  struct Inputs {
-    @builtin(position) coords: vec4<f32>,
-  }
-  struct Output {
-    @location(0) color: vec4<f32>,
-  }
-
-  @fragment
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    var albedo = textureLoad(
-      texture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-    var brightness = dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
-    if (brightness > 1.0) {
-      output.color = vec4(1.0, 1.0, 1.0, 1.0);
-    } else {
-      output.color = vec4(0.0, 0.0, 0.0, 1.0);
-    }
-    return output;
-  }
-);
-
-static const char* box_outline_vertex_shader = CODE(
   struct ProjectionUniformsStruct {
     matrix : mat4x4<f32>,
     inverseMatrix: mat4x4<f32>,
@@ -7220,215 +7241,26 @@ static const char* box_outline_vertex_shader = CODE(
 
   struct Inputs {
     @location(0) position: vec3<f32>,
-    @location(1) instanceMat0: vec4<f32>,
-    @location(2) instanceMat1: vec4<f32>,
-    @location(3) instanceMat2: vec4<f32>,
-    @location(4) instanceMat3: vec4<f32>,
-  }
-
-  struct Output {
-    @builtin(position) position: vec4<f32>,
-    @location(0) localPosition: vec3<f32>,
-  }
-
-  @vertex
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-
-    var instanceMatrix = mat4x4(
-      input.instanceMat0,
-      input.instanceMat1,
-      input.instanceMat2,
-      input.instanceMat3,
-    );
-
-    var worldPosition = vec4<f32>(input.position, 1.0);
-    output.position = projection.matrix *
-                      view.matrix *
-                      instanceMatrix *
-                      worldPosition;
-
-    output.localPosition = input.position;
-    return output;
-  }
-);
-
-static const char* box_outline_fragment_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct Output {
-    @location(0) GBuffer_OUT0: vec4<f32>,
-    @location(1) GBuffer_OUT1: vec4<f32>,
-  }
-
-  fn encodeNormals(n: vec3<f32>) -> vec2<f32> {
-    var p = sqrt(n.z * 8.0 + 8.0);
-    return vec2(n.xy / p + 0.5);
-  }
-
-  fn encodeGBufferOutput(
-    normal: vec3<f32>,
-    albedo: vec3<f32>,
-    metallic: f32,
-    roughness: f32,
-    ID: f32
-  ) -> Output {
-    var output: Output;
-    output.GBuffer_OUT0 = vec4(encodeNormals(normal), metallic, ID);
-    output.GBuffer_OUT1 = vec4(albedo, roughness);
-    return output;
-  }
-
-  struct Input {
-    @location(0) localPosition: vec3<f32>,
-  }
-  @group(0) @binding(0) var<uniform> projection : ProjectionUniformsStruct;
-  @group(0) @binding(1) var<uniform> view : ViewUniformsStruct;
-
-  @fragment
-  fn main(input: Input) -> Output {
-    var output: Output;
-    var spacing = step(sin(input.localPosition.x * 10.0 + view.time * 2.0), 0.1);
-    if (spacing < 0.5) {
-      discard;
-    }
-    var normal = vec3(0.0);
-    var albedo = vec3(1.0);
-    var metallic = 0.0;
-    var roughness = 0.0;
-    var ID = 0.1;
-    return encodeGBufferOutput(
-      normal,
-      albedo,
-      metallic,
-      roughness,
-      ID
-    );
-  }
-);
-
-static const char* copy_pass_fragment_shader = CODE(
-  @group(0) @binding(0) var texture: texture_2d<f32>;
-
-  struct Inputs {
-    @builtin(position) coords: vec4<f32>,
-  }
-  struct Output {
-    @location(0) color: vec4<f32>,
-  }
-
-  @fragment
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    let albedo = textureLoad(
-      texture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-    output.color = vec4(albedo.rgb, 1.0);
-    return output;
-  }
-);
-
-static const char* effect_vertex_shader = CODE(
-  struct Inputs {
-    @location(0) position: vec2<f32>,
-  }
-
-  struct Output {
-    @builtin(position) position: vec4<f32>,
-  }
-
-  @vertex
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    output.position = vec4(input.position, 0.0, 1.0);
-
-    return output;
-  }
-);
-
-static const char* ground_vertex_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct ModelUniforms {
-    matrix: mat4x4<f32>,
-  }
-
-  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
-  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
-  @group(1) @binding(0) var<uniform> model: ModelUniforms;
-
-  struct Inputs {
-    @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
-    @location(2) instanceOffset: vec3<f32>,
-    @location(3) metallic: f32,
-    @location(4) roughness: f32,
   }
 
   struct Output {
     @location(0) normal: vec3<f32>,
-    @location(1) metallic: f32,
-    @location(2) roughness: f32,
     @builtin(position) position: vec4<f32>,
   }
 
   @vertex
   fn main(input: Inputs) -> Output {
     var output: Output;
-    var dist = distance(input.instanceOffset.xy, vec2(0.0));
-    var offsetX = input.instanceOffset.x;
-    var offsetZ = input.instanceOffset.y;
-    var scaleY = input.instanceOffset.z;
-    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
-    var scaleMatrix = mat4x4(
-      1.0, 0.0, 0.0, 0.0,
-      0.0, scaleY, 0.0, 0.0,
-      0.0, 0.0, 1.0, 0.0,
-      0.0, 0.0, 0.0, 1.0
-    );
-    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
     output.position = projection.matrix *
-                      view.matrix *
-                      worldPosition;
-
+                    view.matrix *
+                    vec4(input.position, 1.0);
     output.normal = input.normal;
-    output.metallic = input.metallic;
-    output.roughness = input.roughness;
     return output;
   }
 );
 
-static const char* ground_fragment_shader = CODE(
+static const char* metaballs_fragment_shader = CODE(
   struct Output {
     @location(0) GBuffer_OUT0: vec4<f32>,
     @location(1) GBuffer_OUT1: vec4<f32>,
@@ -7452,20 +7284,25 @@ static const char* ground_fragment_shader = CODE(
     return output;
   }
 
+  struct Uniforms {
+    color: vec3<f32>,
+    roughness: f32,
+    metallic: f32,
+  }
+
+  @group(1) @binding(0) var<uniform> ubo: Uniforms;
+
   struct Inputs {
     @location(0) normal: vec3<f32>,
-    @location(1) metallic: f32,
-    @location(2) roughness: f32,
   }
 
   @fragment
   fn main(input: Inputs) -> Output {
     var normal = normalize(input.normal);
-    var albedo = vec3(1.0);
-    var metallic = 1.0;
-    var roughness = input.roughness;
+    var albedo = ubo.color;
+    var metallic = ubo.metallic;
+    var roughness = ubo.roughness;
     var ID = 0.0;
-
     return encodeGBufferOutput(
       normal,
       albedo,
@@ -7476,656 +7313,4 @@ static const char* ground_fragment_shader = CODE(
   }
 );
 
-static const char* ground_shadow_vertex_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct ModelUniforms {
-    matrix: mat4x4<f32>,
-  }
-
-  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
-  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
-  @group(1) @binding(0) var<uniform> model: ModelUniforms;
-
-  struct Inputs {
-    @location(0) position: vec3<f32>,
-    @location(1) instanceOffset: vec3<f32>,
-  }
-
-  struct Output {
-    @builtin(position) position: vec4<f32>,
-  }
-
-  @vertex
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    var dist = distance(input.instanceOffset.xy, vec2(0.0));
-    var offsetX = input.instanceOffset.x;
-    var offsetZ = input.instanceOffset.y;
-    var scaleY = input.instanceOffset.z;
-    var offsetPos = vec3(offsetX, abs(dist) * 0.06 + scaleY * 0.01, offsetZ);
-    var scaleMatrix = mat4x4(
-      1.0, 0.0, 0.0, 0.0,
-      0.0, scaleY, 0.0, 0.0,
-      0.0, 0.0, 1.0, 0.0,
-      0.0, 0.0, 0.0, 1.0
-    );
-    var worldPosition = model.matrix * scaleMatrix * vec4(input.position + offsetPos, 1.0);
-    output.position = projection.matrix *
-                      view.matrix *
-                      worldPosition;
-
-    return output;
-  }
-);
-
-static const char* metaballs_shadow_vertex_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  @group(0) @binding(1) var<uniform> projection: ProjectionUniformsStruct;
-  @group(0) @binding(2) var<uniform> view: ViewUniformsStruct;
-
-  struct Inputs {
-    @location(0) position: vec3<f32>,
-  }
-
-  struct Output {
-    @builtin(position) position: vec4<f32>,
-  }
-
-  @vertex
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    output.position = projection.matrix *
-                      view.matrix *
-                      vec4(input.position, 1.0);
-
-    return output;
-  }
-);
-
-static const char* particles_vertex_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct InputPointLight {
-    position: vec4<f32>,
-    velocity: vec4<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-  }
-
-  struct LightsBuffer {
-    lights: array<InputPointLight>,
-  }
-
-  @group(0) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
-  @group(0) @binding(1) var<uniform> view: ViewUniformsStruct;
-
-  @group(1) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
-
-  struct Inputs {
-    @builtin(vertex_index) vertexIndex: u32,
-    @builtin(instance_index) instanceIndex: u32,
-  }
-
-  struct Output {
-    @builtin(position) position: vec4<f32>,
-    @location(0) color: vec3<f32>,
-    @location(1) uv: vec2<f32>,
-  }
-
-  var<private> normalisedPosition: array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-    vec2<f32>(-1.0, -1.0),
-    vec2<f32>(1.0, -1.0),
-    vec2<f32>(-1.0, 1.0),
-    vec2<f32>(1.0, 1.0)
-  );
-
-  @vertex
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-
-    var inputPosition = normalisedPosition[input.vertexIndex];
-
-    var sc = clamp(lightsBuffer.lights[input.instanceIndex].intensity * 0.01, 0.01, 0.1);
-    var scaleMatrix = mat4x4(
-      sc,  0.0, 0.0, 0.0,
-      0.0, sc,  0.0, 0.0,
-      0.0, 0.0, sc,  0.0,
-      0.0, 0.0, 0.0, 1.0,
-    );
-
-    var instancePosition = lightsBuffer.lights[input.instanceIndex].position;
-    var worldPosition = vec4(instancePosition.xyz, 0.0);
-
-    var viewMatrix = view.matrix;
-
-    output.position = projection.matrix *
-                      (
-                        viewMatrix *
-                        (worldPosition +
-                        vec4(0.0, 0.0, 0.0, 1.0)) +
-                        scaleMatrix * vec4(inputPosition, 0.0, 0.0)
-                      );
-
-    var instanceColor = lightsBuffer.lights[input.instanceIndex].color;
-    output.color = instanceColor;
-    output.uv = inputPosition * vec2(0.5, -0.5) + vec2(0.5);
-    return output;
-  }
-);
-
-static const char* particles_fragment_shader = CODE(
-  struct Input {
-    @location(0) color: vec3<f32>,
-    @location(1) uv: vec2<f32>,
-  }
-
-  struct Output {
-    @location(0) normal: vec4<f32>,
-    @location(1) albedo: vec4<f32>,
-  }
-
-  @fragment
-  fn main(input: Input) -> Output {
-    var dist = distance(input.uv, vec2(0.5), );
-    if (dist > 0.5) {
-      discard;
-    }
-    var output: Output;
-    output.normal = vec4(0.0, 0.0, 0.0, 0.1);
-    output.albedo = vec4(input.color, 1.0);
-    return output;
-  }
-);
-
-static const char* result_pass_fragment_shader = CODE(
-  const GAMMA = 2.2;
-  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
-    var INV_GAMMA = 1.0 / GAMMA;
-    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
-  }
-
-  @group(0) @binding(0) var copyTexture: texture_2d<f32>;
-  @group(0) @binding(1) var bloomTexture: texture_2d<f32>;
-
-  struct Inputs {
-    @builtin(position) coords: vec4<f32>,
-  }
-  struct Output {
-    @location(0) color: vec4<f32>,
-  }
-
-  @fragment
-  fn main(input: Inputs) -> Output {
-    var output: Output;
-    var hdrColor = textureLoad(
-      copyTexture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-    var bloomColor = textureLoad(
-      bloomTexture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-
-    hdrColor += bloomColor;
-
-    var result = vec3(1.0) - exp(-hdrColor.rgb * 1.0);
-
-    output.color = vec4(result, 1.0);
-    return output;
-  }
-);
-
-static const char* update_point_lights_compute_shader = CODE(
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct InputPointLight {
-    position: vec4<f32>,
-    velocity: vec4<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-  }
-
-  struct LightsBuffer {
-    lights: array<InputPointLight>,
-  }
-
-  struct LightsConfig {
-    numLights: u32,
-  }
-
-  @group(0) @binding(0) var<storage, read_write> lightsBuffer: LightsBuffer;
-  @group(0) @binding(1) var<uniform> config: LightsConfig;
-
-  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
-
-  const PI = 3.141592653589793;
-
-  @compute @workgroup_size(64, 1, 1)
-  fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-    var index = GlobalInvocationID.x;
-    if (index >= config.numLights) {
-      return;
-    }
-
-    lightsBuffer.lights[index].position.x += lightsBuffer.lights[index].velocity.x * view.deltaTime;
-    lightsBuffer.lights[index].position.z += lightsBuffer.lights[index].velocity.z * view.deltaTime;
-
-    const size = 42.0;
-    var halfSize = size / 2.0;
-
-    if (lightsBuffer.lights[index].position.x < -halfSize) {
-      lightsBuffer.lights[index].position.x = -halfSize;
-      lightsBuffer.lights[index].velocity.x *= -1.0;
-    } else if (lightsBuffer.lights[index].position.x > halfSize) {
-      lightsBuffer.lights[index].position.x = halfSize;
-      lightsBuffer.lights[index].velocity.x *= -1.0;
-    }
-
-    if (lightsBuffer.lights[index].position.z < -halfSize) {
-      lightsBuffer.lights[index].position.z = -halfSize;
-      lightsBuffer.lights[index].velocity.z *= -1.0;
-    } else if (lightsBuffer.lights[index].position.z > halfSize) {
-      lightsBuffer.lights[index].position.z = halfSize;
-      lightsBuffer.lights[index].velocity.z *= -1.0;
-    }
-  }
-);
-
-static const char* deferred_pass_fragment_shader = CODE(
-  struct ProjectionUniformsStruct {
-    matrix : mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    outputSize : vec2<f32>,
-    zNear : f32,
-    zFar : f32,
-  }
-
-  struct ViewUniformsStruct {
-    matrix: mat4x4<f32>,
-    inverseMatrix: mat4x4<f32>,
-    position: vec3<f32>,
-    time: f32,
-    deltaTime: f32,
-  }
-
-  struct InputPointLight {
-    position: vec4<f32>,
-    velocity: vec4<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-  }
-
-  struct LightsBuffer {
-    lights: array<InputPointLight>,
-  }
-
-  struct LightsConfig {
-    numLights: u32,
-  }
-
-  struct PointLight {
-    pointToLight: vec3<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-  }
-
-  struct DirectionalLight {
-    direction: vec3<f32>,
-    color: vec3<f32>,
-  }
-
-  struct SpotLight {
-    position: vec3<f32>,
-    direction: vec3<f32>,
-    color: vec3<f32>,
-    cutOff: f32,
-    outerCutOff: f32,
-    intensity: f32,
-  }
-
-  struct Surface {
-    albedo: vec4<f32>,
-    metallic: f32,
-    roughness: f32,
-    worldPos: vec4<f32>,
-    ID: f32,
-    N: vec3<f32>,
-    F0: vec3<f32>,
-    V: vec3<f32>,
-  }
-
-  fn decodeNormals(enc: vec2<f32>) -> vec3<f32> {
-    var fenc = enc * 4.0 - 2.0;
-    var f = dot(fenc, fenc);
-    var g = sqrt(1.0 - f / 4.0);
-    return vec3(fenc*g, 1.0 - f / 2.0);
-  }
-
-  fn reconstructWorldPosFromZ(
-    coords: vec2<f32>,
-    size: vec2<f32>,
-    depthTexture: texture_depth_2d,
-    projInverse: mat4x4<f32>,
-    viewInverse: mat4x4<f32>
-  ) -> vec4<f32> {
-    var uv = coords.xy / projection.outputSize;
-    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);
-    var x = uv.x * 2.0 - 1.0;
-    var y = (1.0 - uv.y) * 2.0 - 1.0;
-    var projectedPos = vec4(x, y, depth, 1.0);
-    var worldPosition = projInverse * projectedPos;
-    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
-    worldPosition = viewInverse * worldPosition;
-    return worldPosition;
-  }
-
-  @group(0) @binding(0) var<storage, read> lightsBuffer: LightsBuffer;
-  @group(0) @binding(1) var<uniform> lightsConfig: LightsConfig;
-  @group(0) @binding(2) var normalTexture: texture_2d<f32>;
-  @group(0) @binding(3) var diffuseTexture: texture_2d<f32>;
-  @group(0) @binding(4) var depthTexture: texture_depth_2d;
-
-  @group(1) @binding(0) var<uniform> projection: ProjectionUniformsStruct;
-  @group(1) @binding(1) var<uniform> view: ViewUniformsStruct;
-  @group(1) @binding(2) var depthSampler: sampler;
-
-  @group(2) @binding(0) var<uniform> spotLight: SpotLight;
-  @group(2) @binding(1) var<uniform> spotLightProjection: ProjectionUniformsStruct;
-  @group(2) @binding(2) var<uniform> spotLightView: ViewUniformsStruct;
-
-  @group(3) @binding(0) var spotLightDepthTexture: texture_depth_2d;
-
-  struct Inputs {
-    @builtin(position) coords: vec4<f32>,
-  }
-  struct Output {
-    @location(0) color: vec4<f32>,
-  }
-
-  const PI = 3.141592653589793;
-  const LOG2 = 1.4426950408889634;
-
-  fn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
-    var a      = roughness*roughness;
-    var a2     = a*a;
-    var NdotH  = max(dot(N, H), 0.0);
-    var NdotH2 = NdotH*NdotH;
-
-    var num   = a2;
-    var denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-    return num / denom;
-  }
-
-  fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {
-    var r = (roughness + 1.0);
-    var k = (r*r) / 8.0;
-
-    var num   = NdotV;
-    var denom = NdotV * (1.0 - k) + k;
-
-    return num / denom;
-  }
-
-  fn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
-    var NdotV = max(dot(N, V), 0.0);
-    var NdotL = max(dot(N, L), 0.0);
-    var ggx2  = GeometrySchlickGGX(NdotV, roughness);
-    var ggx1  = GeometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
-  }
-
-  fn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-  }
-
-  fn reinhard(x: vec3<f32>) -> vec3<f32> {
-    return x / (1.0 + x);
-  }
-
-  fn rangeAttenuation(range : f32, distance : f32) -> f32 {
-    if (range <= 0.0) {
-        return 1.0 / pow(distance, 2.0);
-    }
-    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
-  }
-
-  fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
-    var L = normalize(light.pointToLight);
-    var H = normalize(surface.V + L);
-    var distance = length(light.pointToLight);
-
-    var NDF = DistributionGGX(surface.N, H, surface.roughness);
-    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
-    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
-
-    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
-
-    var NdotL = max(dot(surface.N, L), 0.0);
-
-    var numerator = NDF * G * F;
-    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
-    var specular = numerator / denominator;
-
-    var attenuation = rangeAttenuation(light.range, distance);
-    var radiance = light.color * light.intensity * attenuation;
-
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
-  }
-
-  fn SpotLightRadiance(light: SpotLight, surface: Surface) -> vec3<f32> {
-    var L = normalize(light.position - surface.worldPos.xyz);
-    var H = normalize(surface.V + L);
-
-    var theta = dot(L, normalize(light.direction));
-    var attenuation = smoothstep(light.outerCutOff, light.cutOff, theta);
-
-    var NDF = DistributionGGX(surface.N, H, surface.roughness);
-    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
-    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
-
-    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
-
-    var NdotL = max(dot(surface.N, L), 0.0);
-
-    var numerator = NDF * G * F;
-    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
-    var specular = numerator / vec3(denominator, denominator, denominator);
-
-    var radiance = light.color * light.intensity;
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * attenuation * NdotL;
-  }
-
-  fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
-    var L = normalize(light.direction);
-    var H = normalize(surface.V + L);
-
-    var NDF = DistributionGGX(surface.N, H, surface.roughness);
-    var G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
-    var F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
-
-    var kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
-
-    var NdotL = max(dot(surface.N, L), 0.0);
-
-    var numerator = NDF * G * F;
-    var denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
-    var specular = numerator / vec3(denominator, denominator, denominator);
-
-    var radiance = light.color;
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
-  }
-
-  const GAMMA = 2.2;
-  fn linearTosRGB(linear: vec3<f32>) -> vec3<f32> {
-    var INV_GAMMA = 1.0 / GAMMA;
-    return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
-  }
-
-  fn LinearizeDepth(depth: f32) -> f32 {
-    var z = depth * 2.0 - 1.0;
-    var near_plane = 0.001;
-    var far_plane = 0.4;
-    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
-  }
-
-  @fragment
-  fn main(input: Inputs) -> Output {
-    var worldPosition = reconstructWorldPosFromZ(
-      input.coords.xy,
-      projection.outputSize,
-      depthTexture,
-      projection.inverseMatrix,
-      view.inverseMatrix
-    );
-
-    var normalRoughnessMatID = textureLoad(
-      normalTexture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-
-    var albedo = textureLoad(
-      diffuseTexture,
-      vec2<i32>(floor(input.coords.xy)),
-      0
-    );
-
-    var surface: Surface;
-    surface.ID = normalRoughnessMatID.w;
-
-    var output: Output;
-
-    var posFromLight = spotLightProjection.matrix * spotLightView.matrix * vec4(worldPosition.xyz, 1.0);
-    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
-    var shadowPos = vec3(
-      posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5),
-      posFromLight.z
-    );
-
-    var projectedDepth = textureSample(spotLightDepthTexture, depthSampler, shadowPos.xy);
-
-    if (surface.ID == 0.0) {
-
-      var inRange =
-        shadowPos.x >= 0.0 &&
-        shadowPos.x <= 1.0 &&
-        shadowPos.y >= 0.0 &&
-        shadowPos.y <= 1.0;
-      var visibility = 1.0;
-      if (inRange && projectedDepth <= posFromLight.z - 0.000009) {
-        visibility = 0.0;
-      }
-
-      surface.albedo = albedo;
-      surface.metallic = normalRoughnessMatID.z;
-      surface.roughness = albedo.a;
-      surface.worldPos = worldPosition;
-      surface.N = decodeNormals(normalRoughnessMatID.xy);
-      surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
-      surface.V = normalize(view.position - worldPosition.xyz);
-
-      var Lo = vec3(0.0);
-
-      for (var i : u32 = 0u; i < lightsConfig.numLights; i = i + 1u) {
-          var light = lightsBuffer.lights[i];
-        var pointLight: PointLight;
-
-        if (distance(light.position.xyz, worldPosition.xyz) > light.range) {
-          continue;
-        }
-
-        pointLight.pointToLight = light.position.xyz - worldPosition.xyz;
-        pointLight.color = light.color;
-        pointLight.range = light.range;
-        pointLight.intensity = light.intensity;
-        Lo += PointLightRadiance(pointLight, surface);
-      }
-
-      var dirLight: DirectionalLight;
-      dirLight.direction = vec3(2.0, 20.0, 0.0);
-      dirLight.color = vec3(0.1);
-      Lo += DirectionalLightRadiance(dirLight, surface) * visibility;
-
-      Lo += SpotLightRadiance(spotLight, surface) * visibility;
-
-      var ambient = vec3(0.09) * albedo.rgb;
-      var color = ambient + Lo;
-      output.color = vec4(color.rgb, 1.0);
-
-      var fogDensity = 0.085;
-      var fogDistance = length(worldPosition.xyz);
-      var fogAmount = 1.0 - exp2(-fogDensity * fogDensity * fogDistance * fogDistance * LOG2);
-      fogAmount = clamp(fogAmount, 0.0, 1.0);
-      var fogColor = vec4(vec3(0.005), 1.0);
-      output.color = mix(output.color, fogColor, fogAmount);
-
-
-    } else if (0.1 - surface.ID < 0.01 && surface.ID < 0.1) {
-      output.color = vec4(albedo.rgb, 1.0);
-    } else {
-      output.color = vec4(vec3(0.005), 1.0);
-    }
-    return output;
-  }
-);
-
-#endif /* End of TODO shaders */
 // clang-format on
