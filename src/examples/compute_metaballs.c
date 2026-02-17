@@ -464,14 +464,27 @@ typedef struct {
   float enable_screen_effect;
 } screen_effect_settings_t;
 
+/* Spot light uniforms - must match WGSL SpotLight struct alignment:
+ *   position: vec3<f32>   -> offset  0 (align 16, size 12)
+ *   (pad 4 bytes)         -> offset 12
+ *   direction: vec3<f32>  -> offset 16 (align 16, size 12)
+ *   (pad 4 bytes)         -> offset 28
+ *   color: vec3<f32>      -> offset 32 (align 16, size 12)
+ *   cutOff: f32           -> offset 44 (align 4, size 4)
+ *   outerCutOff: f32      -> offset 48 (align 4, size 4)
+ *   intensity: f32        -> offset 52 (align 4, size 4)
+ *   (struct pads to 64 bytes for alignment 16)
+ */
 typedef struct {
   float position[3];
-  float cutoff;
+  float _pad0; /* vec3 padding */
   float direction[3];
-  float outer_cutoff;
+  float _pad1; /* vec3 padding */
   float color[3];
+  float cutoff;
+  float outer_cutoff;
   float intensity;
-  vec4 shadow_view_proj_matrix[4]; /* 4x4 matrix as 4 vec4s */
+  float _pad2[2]; /* struct padding to 64 bytes */
 } spot_light_uniforms_t;
 
 /* Input point light data for compute shader */
@@ -516,7 +529,6 @@ typedef struct {
   vec2 output_size;
   float z_near;
   float z_far;
-  float _padding[1]; /* Pad to 144 bytes (multiple of struct alignment 16) */
 } projection_uniforms_t;
 
 /* View uniforms for shaders */
@@ -623,19 +635,18 @@ typedef struct {
 
 /* GPU-side metaball representation
  * Must match WGSL struct alignment:
- *   position: vec3<f32>  -> offset 0,  size 12, align 16
- *   radius: f32          -> offset 16
- *   strength: f32        -> offset 20
- *   subtract: f32        -> offset 24
- *   (struct padded to 32 bytes, alignment 16)
+ *   position: vec3<f32>  -> offset 0,  size 12
+ *   radius: f32          -> offset 12, size 4
+ *   strength: f32        -> offset 16, size 4
+ *   subtract: f32        -> offset 20, size 4
+ *   (struct padded to 32 bytes for array stride alignment 16)
  */
 typedef struct {
   float position[3];
-  float _pad0;        /* padding after vec3 to reach alignment */
   float radius;
   float strength;
   float subtract;
-  float _pad1;        /* padding to reach struct size 32 */
+  float _pad[2]; /* padding to reach struct size 32 (array stride) */
 } gpu_metaball_t;
 
 /* Note: Volume data is written directly to the GPU buffer matching WGSL
@@ -1055,10 +1066,6 @@ static struct {
 
   /* Compute */
   metaballs_compute_t metaballs_compute;
-
-  /* Lighting */
-  point_lights_t point_lights;
-  spot_light_t spot_light;
 
   /* Scene objects */
   box_outline_t box_outline;
@@ -1704,18 +1711,17 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
    *   min: vec3<f32>   -> offset  0, size 12, pad 4 (align 16)
    *   max: vec3<f32>   -> offset 16, size 12, pad 4 (align 16)
    *   step: vec3<f32>  -> offset 32, size 12, pad 4 (align 16)
-   *   size: vec3<u32>  -> offset 48, size 12, pad 4 (align 16)
-   *   threshold: f32   -> offset 64, size  4
-   *   values: array    -> offset 68
+   *   size: vec3<u32>  -> offset 48, size 12
+   *   threshold: f32   -> offset 60, size  4
+   *   values: array    -> offset 64
    *
-   * Header = 17 floats (68 bytes), then volume_elements floats for values
+   * Header = 16 floats (64 bytes), then volume_elements floats for values
    */
   {
-    const uint32_t volume_elements    = vol->res_x * vol->res_y * vol->res_z;
-    const uint32_t volume_header_floats = 17; /* 68 bytes for struct header */
-    const uint64_t volume_buffer_size = sizeof(float)
-                                        * (volume_header_floats
-                                           + volume_elements);
+    const uint32_t volume_elements      = vol->res_x * vol->res_y * vol->res_z;
+    const uint32_t volume_header_floats = 16; /* 64 bytes for struct header */
+    const uint64_t volume_buffer_size
+      = sizeof(float) * (volume_header_floats + volume_elements);
 
     WGPUBufferDescriptor buffer_desc = {
       .label            = STRVIEW("Volume - Storage buffer"),
@@ -1727,8 +1733,8 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
     ASSERT(mc->volume_buffer);
 
-    float* v = (float*)wgpuBufferGetMappedRange(
-      mc->volume_buffer, 0, volume_buffer_size);
+    float* v = (float*)wgpuBufferGetMappedRange(mc->volume_buffer, 0,
+                                                volume_buffer_size);
     memset(v, 0, (size_t)volume_buffer_size);
 
     /* min: vec3<f32> at float[0..2], pad at float[3] */
@@ -1746,14 +1752,14 @@ static void init_metaballs_compute(wgpu_context_t* wgpu_context)
     v[9]  = vol->height / (float)(vol->res_y - 1);
     v[10] = vol->depth / (float)(vol->res_z - 1);
 
-    /* size: vec3<u32> at float[12..14], pad at float[15] */
+    /* size: vec3<u32> at float[12..14] (byte offset 48-59) */
     uint32_t* size_u32 = (uint32_t*)&v[12];
-    size_u32[0] = vol->res_x;
-    size_u32[1] = vol->res_y;
-    size_u32[2] = vol->res_z;
+    size_u32[0]        = vol->res_x;
+    size_u32[1]        = vol->res_y;
+    size_u32[2]        = vol->res_z;
 
-    /* threshold: f32 at float[16] */
-    v[16] = vol->iso_level;
+    /* threshold: f32 at float[15] (byte offset 60) */
+    v[15] = vol->iso_level;
 
     wgpuBufferUnmap(mc->volume_buffer);
 
@@ -2016,11 +2022,11 @@ static void update_metaballs_sim(float time_delta)
     metaball->position[0] = position->x;
     metaball->position[1] = position->y;
     metaball->position[2] = position->z;
-    metaball->_pad0       = 0.0f;
     metaball->radius      = sqrtf(mc->strength / mc->subtract);
     metaball->strength    = mc->strength;
     metaball->subtract    = mc->subtract;
-    metaball->_pad1       = 0.0f;
+    metaball->_pad[0]     = 0.0f;
+    metaball->_pad[1]     = 0.0f;
   }
 
   wgpuQueueWriteBuffer(mc->wgpu_context->queue, mc->metaballs_buffer.buffer,
@@ -3974,7 +3980,7 @@ static void ground_init(ground_t* this)
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = STRVIEW("Ground - Fragment shader"),
+        .label = STRVIEW("Ground fragment shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
@@ -4077,7 +4083,7 @@ static void ground_init(ground_t* this)
     WGPUShaderModule shadow_vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = STRVIEW("Ground shadow - Vertex shader"),
+        .label = STRVIEW("Ground shadow vertex shader"),
         .nextInChain
           = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
@@ -6354,30 +6360,25 @@ static void deferred_pass_update_lights_sim(deferred_pass_t* this,
 
   point_lights_update_sim(&this->point_lights, compute_pass);
   const float speed = time_delta * 2.0f;
-  glm_vec3_copy(
-    (vec3){
-      this->spot_light._position[0]
-        + (this->spot_light_target[0] - this->spot_light._position[0])
-            * speed, /* x */
-      this->spot_light._position[1]
-        + (this->spot_light_target[1] - this->spot_light._position[1])
-            * speed, /* y */
-      this->spot_light._position[2]
-        + (this->spot_light_target[2] - this->spot_light._position[2])
-            * speed, /* z */
-    },
-    this->spot_light._position);
 
-  glm_vec3_copy(
-    (vec3){
-      (this->spot_light_color_target[0] - this->spot_light._color[0]) * speed
-        * 4, /* r */
-      (this->spot_light_color_target[1] - this->spot_light._color[1]) * speed
-        * 4, /* g */
-      (this->spot_light_color_target[2] - this->spot_light._color[2]) * speed
-        * 4, /* b */
-    },
-    this->spot_light._color);
+  /* Update spot light position - must use setter to update UBO */
+  vec3 new_position = {
+    this->spot_light._position[0]
+      + (this->spot_light_target[0] - this->spot_light._position[0]) * speed,
+    this->spot_light._position[1]
+      + (this->spot_light_target[1] - this->spot_light._position[1]) * speed,
+    this->spot_light._position[2]
+      + (this->spot_light_target[2] - this->spot_light._position[2]) * speed,
+  };
+  spot_light_set_position(&this->spot_light, new_position);
+
+  /* Update spot light color - must use setter to update UBO */
+  vec3 new_color = {
+    (this->spot_light_color_target[0] - this->spot_light._color[0]) * speed * 4,
+    (this->spot_light_color_target[1] - this->spot_light._color[1]) * speed * 4,
+    (this->spot_light_color_target[2] - this->spot_light._color[2]) * speed * 4,
+  };
+  spot_light_set_color(&this->spot_light, new_color);
 }
 
 static void deferred_pass_render(deferred_pass_t* this,
@@ -6662,7 +6663,8 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
   if (igSliderInt("Point Lights", &state.gui_settings.point_lights_count, 1,
                   MAX_POINT_LIGHTS_COUNT, "%d")) {
     point_lights_set_lights_count(
-      &state.point_lights, (uint32_t)state.gui_settings.point_lights_count);
+      &state.deferred_pass.point_lights,
+      (uint32_t)state.gui_settings.point_lights_count);
   }
 
   /* Bloom threshold slider */
@@ -6880,9 +6882,6 @@ static int frame(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Render imgui */
-  imgui_overlay_render(wgpu_context);
-
   /* Submit commands */
   WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_encoder, NULL);
   wgpuQueueSubmit(wgpu_context->queue, 1, &cmd_buffer);
@@ -6890,6 +6889,10 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Cleanup */
   wgpuCommandBufferRelease(cmd_buffer);
   wgpuCommandEncoderRelease(cmd_encoder);
+
+  /* Render imgui - must be after main submit since it creates its own encoder
+   * and submits to the same swapchain texture with loadOp=Load */
+  imgui_overlay_render(wgpu_context);
 
   return EXIT_SUCCESS;
 }
