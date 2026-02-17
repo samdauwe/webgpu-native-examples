@@ -2405,7 +2405,7 @@ static void init_metaballs_shadow(wgpu_context_t* wgpu_context,
 
   /* Create shadow vertex shader module from embedded WGSL */
   WGPUShaderModuleDescriptor shadow_shader_desc = {
-    .label = STRVIEW("Metaballs shadow vertex shader"),
+    .label = STRVIEW("Metaballs shadow - Vertex shader"),
     .nextInChain
       = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
         .chain = (WGPUChainedStruct){
