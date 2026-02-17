@@ -2780,7 +2780,7 @@ point_lights_update_sim(point_lights_t* this,
  * Spot Light Implementation
  * -------------------------------------------------------------------------- */
 
-#define SPOT_LIGHT_SHADOW_RES 1024u
+#define SPOT_LIGHT_SHADOW_RES (1024u)
 
 static void spot_light_set_position(spot_light_t* this, vec3 v)
 {
