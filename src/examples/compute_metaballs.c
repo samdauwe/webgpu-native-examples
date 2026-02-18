@@ -36,11 +36,11 @@
  * Constants
  * -------------------------------------------------------------------------- */
 
-/* Reduced from 256 to make testing viable - can be increased for production */
-#define MAX_METABALLS 32
-#define MAX_POINT_LIGHTS_COUNT 64
+/* Metaballs count - matches TypeScript reference (256) */
+#define MAX_METABALLS 256
+#define MAX_POINT_LIGHTS_COUNT 128
 #define DEPTH_FORMAT WGPUTextureFormat_Depth24Plus
-#define SHADOW_MAP_SIZE 128
+#define SHADOW_MAP_SIZE 512
 #define METABALLS_COMPUTE_WORKGROUP_SIZE_X 4
 #define METABALLS_COMPUTE_WORKGROUP_SIZE_Y 4
 #define METABALLS_COMPUTE_WORKGROUP_SIZE_Z 4
@@ -51,10 +51,10 @@ static const uint32_t METABALLS_COMPUTE_WORKGROUP_SIZE[3] = {
   METABALLS_COMPUTE_WORKGROUP_SIZE_Z,
 };
 
-/* Configurable volume settings - reduced from 64 for testing */
-static const uint32_t VOLUME_WIDTH  = 32;
-static const uint32_t VOLUME_HEIGHT = 32;
-static const uint32_t VOLUME_DEPTH  = 32;
+/* Volume resolution - matches TypeScript reference (100x100x80) */
+static const uint32_t VOLUME_WIDTH  = 100;
+static const uint32_t VOLUME_HEIGHT = 100;
+static const uint32_t VOLUME_DEPTH  = 80;
 
 /* -------------------------------------------------------------------------- *
  * Quality Settings
@@ -789,7 +789,7 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 #define BOX_OUTLINE_RADIUS 2.5f
-#define BOX_OUTLINE_SIDE_COUNT 13u
+#define BOX_OUTLINE_SIDE_COUNT 12u
 
 typedef struct {
   webgpu_renderer_t* renderer;
@@ -1654,6 +1654,15 @@ static void recreate_depth_texture(wgpu_context_t* wgpu_context)
   state.renderer.screen_width  = width;
   state.renderer.screen_height = height;
 }
+
+/* Forward declarations for resize helpers */
+static void copy_pass_recreate_textures(copy_pass_t* this);
+static void bloom_pass_recreate_textures(bloom_pass_t* this,
+                                         copy_pass_t* copy_pass);
+static void deferred_pass_recreate_textures(deferred_pass_t* this);
+static void result_pass_recreate_bind_group(result_pass_t* this,
+                                            copy_pass_t* copy_pass,
+                                            bloom_pass_t* bloom_pass);
 
 /* -------------------------------------------------------------------------- *
  * Metaballs Compute Implementation
@@ -3543,11 +3552,6 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[11 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
-  /* Extra side */
-  glm_mat4_identity(instance_matrix);
-  memcpy(&instance_matrices[12 * 16], &instance_matrix[0],
-         sizeof(instance_matrix));
-
   this->buffers.instance_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Box outline instance matrices - Vertex buffer",
@@ -5036,6 +5040,68 @@ static void copy_pass_render(copy_pass_t* this,
   wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
 }
 
+static void copy_pass_recreate_textures(copy_pass_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Release old texture resources */
+  WGPU_RELEASE_RESOURCE(TextureView, this->copy_texture.view);
+  WGPU_RELEASE_RESOURCE(Texture, this->copy_texture.texture);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+
+  /* Recreate copy texture */
+  WGPUExtent3D texture_extent = {
+    .width              = this->renderer->screen_width,
+    .height             = this->renderer->screen_height,
+    .depthOrArrayLayers = 1,
+  };
+  WGPUTextureDescriptor texture_desc = {
+    .label         = STRVIEW("Copy pass - Texture"),
+    .size          = texture_extent,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+    .format        = WGPUTextureFormat_RGBA16Float,
+    .usage
+    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+  };
+  this->copy_texture.texture
+    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+
+  WGPUTextureViewDescriptor texture_view_dec = {
+    .label           = STRVIEW("Copy pass - Texture view"),
+    .dimension       = WGPUTextureViewDimension_2D,
+    .format          = texture_desc.format,
+    .baseMipLevel    = 0,
+    .mipLevelCount   = 1,
+    .baseArrayLayer  = 0,
+    .arrayLayerCount = 1,
+  };
+  this->copy_texture.view
+    = wgpuTextureCreateView(this->copy_texture.texture, &texture_view_dec);
+
+  /* Recreate bind group */
+  WGPUBindGroupEntry bg_entries[1] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = this->copy_texture.view,
+    },
+  };
+  this->bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Copy pass - Bind group"),
+                            .layout     = this->bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+
+  /* Update effect bind group reference */
+  this->effect.bind_groups.items[0] = this->bind_group;
+
+  /* Update framebuffer color attachment view */
+  this->framebuffer.color_attachments[0].view = this->copy_texture.view;
+}
+
 /* -------------------------------------------------------------------------- *
  * Bloom Pass Implementation
  *
@@ -5697,6 +5763,165 @@ static void bloom_pass_render(bloom_pass_t* this,
   wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
 }
 
+static void bloom_pass_recreate_textures(bloom_pass_t* this,
+                                         copy_pass_t* copy_pass)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Release old texture resources */
+  WGPU_RELEASE_RESOURCE(TextureView, this->bloom_texture.view);
+  WGPU_RELEASE_RESOURCE(Texture, this->bloom_texture.texture);
+  for (uint8_t i = 0; i < 2; ++i) {
+    WGPU_RELEASE_RESOURCE(TextureView, this->blur_textures[i].view);
+    WGPU_RELEASE_RESOURCE(Texture, this->blur_textures[i].texture);
+  }
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[0]);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[1]);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->blur_compute_bind_groups[2]);
+
+  /* Recreate bloom texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = this->renderer->screen_width,
+      .height             = this->renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = STRVIEW("Bloom - Texture"),
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA16Float,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->bloom_texture.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    WGPUTextureViewDescriptor view_desc = {
+      .label           = STRVIEW("Bloom - Texture view"),
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->bloom_texture.view
+      = wgpuTextureCreateView(this->bloom_texture.texture, &view_desc);
+  }
+
+  /* Recreate blur textures */
+  for (uint8_t i = 0; i < 2; ++i) {
+    WGPUExtent3D texture_extent = {
+      .width              = this->renderer->screen_width,
+      .height             = this->renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = STRVIEW("Blur - Texture"),
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA8Unorm,
+      .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_StorageBinding
+               | WGPUTextureUsage_TextureBinding,
+    };
+    this->blur_textures[i].texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    WGPUTextureViewDescriptor view_desc = {
+      .label           = STRVIEW("Blur - Texture view"),
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->blur_textures[i].view
+      = wgpuTextureCreateView(this->blur_textures[i].texture, &view_desc);
+  }
+
+  /* Recreate bind group (references copy pass texture) */
+  {
+    WGPUBindGroupEntry bg_entries[1] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding     = 0,
+        .textureView = copy_pass->copy_texture.view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Gbuffer - Bind group"),
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+  }
+
+  /* Update effect bind group reference */
+  this->effect.bind_groups.items[0] = this->bind_group;
+
+  /* Update input texture reference */
+  this->input_texture.texture = copy_pass->copy_texture.texture;
+  this->input_texture.view    = copy_pass->copy_texture.view;
+
+  /* Update framebuffer color attachment view */
+  this->framebuffer.color_attachments[0].view = this->bloom_texture.view;
+
+  /* Recreate blur compute bind groups */
+  {
+    WGPUBindGroupEntry bg0[3] = {
+      [0] = {.binding = 0, .textureView = this->bloom_texture.view},
+      [1] = {.binding = 1, .textureView = this->blur_textures[0].view},
+      [2] = {.binding = 2,
+             .buffer  = this->buffer_0.buffer,
+             .size    = this->buffer_0.size},
+    };
+    this->blur_compute_bind_groups[0] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Blur compute - Bind group 0"),
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = 3,
+                              .entries    = bg0,
+                            });
+  }
+  {
+    WGPUBindGroupEntry bg1[3] = {
+      [0] = {.binding = 0, .textureView = this->blur_textures[0].view},
+      [1] = {.binding = 1, .textureView = this->blur_textures[1].view},
+      [2] = {.binding = 2,
+             .buffer  = this->buffer_1.buffer,
+             .size    = this->buffer_1.size},
+    };
+    this->blur_compute_bind_groups[1] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Blur compute - Bind group 1"),
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = 3,
+                              .entries    = bg1,
+                            });
+  }
+  {
+    WGPUBindGroupEntry bg2[3] = {
+      [0] = {.binding = 0, .textureView = this->blur_textures[1].view},
+      [1] = {.binding = 1, .textureView = this->blur_textures[0].view},
+      [2] = {.binding = 2,
+             .buffer  = this->buffer_0.buffer,
+             .size    = this->buffer_0.size},
+    };
+    this->blur_compute_bind_groups[2] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Blur compute - Bind group 2"),
+                              .layout = this->blur_compute_bind_group_layout,
+                              .entryCount = 3,
+                              .entries    = bg2,
+                            });
+  }
+}
+
 /* -------------------------------------------------------------------------- *
  * Deferred Pass Implementation
  *
@@ -6356,6 +6581,131 @@ static void deferred_pass_destroy(deferred_pass_t* this)
   WGPU_RELEASE_RESOURCE(TextureView, this->g_buffer_texture_diffuse.view)
 }
 
+static void deferred_pass_recreate_textures(deferred_pass_t* this)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+  webgpu_renderer_t* renderer  = this->renderer;
+
+  /* Release old texture resources */
+  WGPU_RELEASE_RESOURCE(TextureView, this->g_buffer_texture_normal.view);
+  WGPU_RELEASE_RESOURCE(Texture, this->g_buffer_texture_normal.texture);
+  WGPU_RELEASE_RESOURCE(TextureView, this->g_buffer_texture_diffuse.view);
+  WGPU_RELEASE_RESOURCE(Texture, this->g_buffer_texture_diffuse.texture);
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+
+  /* Recreate G-Buffer normal texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->screen_width,
+      .height             = renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = STRVIEW("Gbuffer normal - Texture"),
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_RGBA16Float,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->g_buffer_texture_normal.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    WGPUTextureViewDescriptor view_desc = {
+      .label           = STRVIEW("Gbuffer normal - Texture view"),
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->g_buffer_texture_normal.view = wgpuTextureCreateView(
+      this->g_buffer_texture_normal.texture, &view_desc);
+  }
+
+  /* Recreate G-Buffer diffuse texture */
+  {
+    WGPUExtent3D texture_extent = {
+      .width              = renderer->screen_width,
+      .height             = renderer->screen_height,
+      .depthOrArrayLayers = 1,
+    };
+    WGPUTextureDescriptor texture_desc = {
+      .label         = STRVIEW("Gbuffer diffuse - Texture"),
+      .size          = texture_extent,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+      .dimension     = WGPUTextureDimension_2D,
+      .format        = WGPUTextureFormat_BGRA8Unorm,
+      .usage
+      = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+    };
+    this->g_buffer_texture_diffuse.texture
+      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
+    WGPUTextureViewDescriptor view_desc = {
+      .label           = STRVIEW("Gbuffer diffuse - Texture view"),
+      .dimension       = WGPUTextureViewDimension_2D,
+      .format          = texture_desc.format,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    };
+    this->g_buffer_texture_diffuse.view = wgpuTextureCreateView(
+      this->g_buffer_texture_diffuse.texture, &view_desc);
+  }
+
+  /* Recreate bind group (with new texture views + depth texture view) */
+  {
+    WGPUBindGroupEntry bg_entries[5] = {
+      [0] = (WGPUBindGroupEntry){
+        .binding = 0,
+        .buffer  = this->point_lights.lights_buffer.buffer,
+        .size    = this->point_lights.lights_buffer.size,
+      },
+      [1] = (WGPUBindGroupEntry){
+        .binding = 1,
+        .buffer  = this->point_lights.lights_config_uniform_buffer.buffer,
+        .size    = this->point_lights.lights_config_uniform_buffer.size,
+      },
+      [2] = (WGPUBindGroupEntry){
+        .binding     = 2,
+        .textureView = this->g_buffer_texture_normal.view,
+      },
+      [3] = (WGPUBindGroupEntry){
+        .binding     = 3,
+        .textureView = this->g_buffer_texture_diffuse.view,
+      },
+      [4] = (WGPUBindGroupEntry){
+        .binding     = 4,
+        .textureView = renderer->depth_texture_view,
+      },
+    };
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Gbuffer - Bind group"),
+                              .layout     = this->bind_group_layout,
+                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                              .entries    = bg_entries,
+                            });
+  }
+
+  /* Update effect bind group reference */
+  this->effect.bind_groups.items[0] = this->bind_group;
+
+  /* Update framebuffer color attachment views */
+  this->framebuffer.color_attachments[0].view
+    = this->g_buffer_texture_normal.view;
+  this->framebuffer.color_attachments[1].view
+    = this->g_buffer_texture_diffuse.view;
+
+  /* Update framebuffer depth stencil attachment */
+  this->framebuffer.depth_stencil_attachment.view
+    = renderer->depth_texture_view;
+}
+
 static void deferred_pass_rearrange(deferred_pass_t* this)
 {
   this->spot_light_target[0]       = (random_float() * 2 - 1) * 3;
@@ -6605,6 +6955,39 @@ static void result_pass_render(result_pass_t* this,
   wgpuRenderPassEncoderDrawIndexed(render_pass, 6, 1, 0, 0, 0);
 }
 
+static void result_pass_recreate_bind_group(result_pass_t* this,
+                                            copy_pass_t* copy_pass,
+                                            bloom_pass_t* bloom_pass)
+{
+  wgpu_context_t* wgpu_context = this->renderer->wgpu_context;
+
+  /* Release old bind group */
+  WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group);
+
+  /* Recreate bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = copy_pass->copy_texture.view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding     = 1,
+      .textureView = bloom_pass ? bloom_pass->blur_textures[1].view
+                                : this->empty_texture.view,
+    },
+  };
+  this->bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Result pass - Bind group"),
+                            .layout     = this->bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+
+  /* Update effect bind group reference */
+  this->effect.bind_groups.items[0] = this->bind_group;
+}
+
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
@@ -6627,8 +7010,24 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
       state.screen_effect_settings.screen_width  = (float)width;
       state.screen_effect_settings.screen_height = (float)height;
 
-      /* Recreate depth texture */
+      /* Recreate depth texture (also updates renderer screen_width/height) */
       recreate_depth_texture(wgpu_context);
+
+      /* Recreate deferred pass GBuffer textures + bind group */
+      deferred_pass_recreate_textures(&state.deferred_pass);
+
+      /* Recreate copy pass texture + bind group */
+      copy_pass_recreate_textures(&state.copy_pass);
+
+      /* Recreate bloom pass textures + bind groups (if enabled) */
+      if (settings_get_quality_level().bloom_toggle) {
+        bloom_pass_recreate_textures(&state.bloom_pass, &state.copy_pass);
+      }
+
+      /* Recreate result pass bind group (references copy + bloom textures) */
+      result_pass_recreate_bind_group(
+        &state.result_pass, &state.copy_pass,
+        settings_get_quality_level().bloom_toggle ? &state.bloom_pass : NULL);
     }
   }
   else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN
