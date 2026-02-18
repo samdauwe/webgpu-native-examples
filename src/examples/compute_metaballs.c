@@ -789,7 +789,7 @@ typedef struct {
  * -------------------------------------------------------------------------- */
 
 #define BOX_OUTLINE_RADIUS 2.5f
-#define BOX_OUTLINE_SIDE_COUNT 12u
+#define BOX_OUTLINE_SIDE_COUNT 13u
 
 typedef struct {
   webgpu_renderer_t* renderer;
@@ -3462,13 +3462,15 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   float instance_matrices[BOX_OUTLINE_SIDE_COUNT * 16] = {0};
   mat4 instance_matrix                                 = GLM_MAT4_IDENTITY_INIT;
 
-  /* Top rig */
+  /* Top ring */
+  /* Instance 0: front top edge - translate only (TS rotates around (0,0,0)
+   * which is a no-op in gl-matrix) */
   glm_translate(instance_matrix,
                 (vec3){0, BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS});
-  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 0});
   memcpy(&instance_matrices[0 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 1: right top edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS, 0});
@@ -3476,6 +3478,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[1 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 2: left top edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){-BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS, 0});
@@ -3483,6 +3486,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[2 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 3: back top edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){0, BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS});
@@ -3490,14 +3494,16 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[3 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
-  /* Bottom rig */
+  /* Bottom ring */
+  /* Instance 4: front bottom edge - translate only (TS rotates around (0,0,0)
+   * which is a no-op in gl-matrix) */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){0, -BOX_OUTLINE_RADIUS, BOX_OUTLINE_RADIUS});
-  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 0});
   memcpy(&instance_matrices[4 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 5: right bottom edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS, 0});
@@ -3505,6 +3511,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[5 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 6: left bottom edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){-BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS, 0});
@@ -3512,6 +3519,7 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[6 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 7: back bottom edge */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){0, -BOX_OUTLINE_RADIUS, -BOX_OUTLINE_RADIUS});
@@ -3519,37 +3527,50 @@ static void box_outline_create(box_outline_t* this, webgpu_renderer_t* renderer)
   memcpy(&instance_matrices[7 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
-  /* Sides */
+  /* Vertical sides */
+  /* Instance 8: front-right vertical */
+  glm_mat4_identity(instance_matrix);
+  glm_translate(instance_matrix,
+                (vec3){BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
+  glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
+  memcpy(&instance_matrices[8 * 16], &instance_matrix[0],
+         sizeof(instance_matrix));
+
+  /* Instance 9: front-right vertical (TS duplicate position with extra Y
+   * rotation) */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
   glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
-  memcpy(&instance_matrices[8 * 16], &instance_matrix[0],
+  memcpy(&instance_matrices[9 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 10: front-left vertical */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){-BOX_OUTLINE_RADIUS, 0, BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
   glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
-  memcpy(&instance_matrices[9 * 16], &instance_matrix[0],
+  memcpy(&instance_matrices[10 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 11: back-left vertical */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){-BOX_OUTLINE_RADIUS, 0, -BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
   glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
-  memcpy(&instance_matrices[10 * 16], &instance_matrix[0],
+  memcpy(&instance_matrices[11 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
+  /* Instance 12: back-right vertical */
   glm_mat4_identity(instance_matrix);
   glm_translate(instance_matrix,
                 (vec3){BOX_OUTLINE_RADIUS, 0, -BOX_OUTLINE_RADIUS});
   glm_rotate(instance_matrix, GLM_PI, (vec3){0, 1, 0});
   glm_rotate(instance_matrix, GLM_PI_2, (vec3){0, 0, 1});
-  memcpy(&instance_matrices[11 * 16], &instance_matrix[0],
+  memcpy(&instance_matrices[12 * 16], &instance_matrix[0],
          sizeof(instance_matrix));
 
   this->buffers.instance_buffer = wgpu_create_buffer(
