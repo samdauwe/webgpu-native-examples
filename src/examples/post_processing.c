@@ -587,7 +587,7 @@ static void create_inst_gpu_buffers(wgpu_context_t* ctx,
          });
   buf->normal_matrix = wgpu_create_buffer(
     ctx, &(wgpu_buffer_desc_t){
-           .label        = "Instance normal matrix buffer",
+           .label        = "Instance normal - Matrix buffer",
            .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
            .size         = sizeof(inst->normal_matrix_data),
            .initial.data = inst->normal_matrix_data,
