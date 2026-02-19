@@ -580,7 +580,7 @@ static void create_inst_gpu_buffers(wgpu_context_t* ctx,
 {
   buf->model_matrix = wgpu_create_buffer(
     ctx, &(wgpu_buffer_desc_t){
-           .label        = "Instance model matrix buffer",
+           .label        = "Instance model - Matrix buffer",
            .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
            .size         = sizeof(inst->model_matrix_data),
            .initial.data = inst->model_matrix_data,
