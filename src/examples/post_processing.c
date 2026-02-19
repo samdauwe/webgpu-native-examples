@@ -1,28 +1,69 @@
-﻿#include "example_base.h"
+﻿#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
+#include <cglm/cglm.h>
 #include <string.h>
 
-#include "../webgpu/imgui_overlay.h"
-#include "../webgpu/texture.h"
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#define STB_IMAGE_IMPLEMENTATION
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include <stb_image.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#undef STB_IMAGE_IMPLEMENTATION
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Post-processing
  *
  * This example shows how to use a post-processing effect to blend between two
- * scenes.
+ * scenes. Two instanced scenes (cubes and spheres) are rendered to offscreen
+ * framebuffers, then blended together on a fullscreen quad using a cutoff mask
+ * texture for transition effects.
  *
  * Ref:
  * https://github.com/gnikoloff/webgpu-dojo/tree/master/src/examples/postprocessing-01
  * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
- * Global variables
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* instanced_vertex_shader_wgsl;
+static const char* instanced_fragment_shader_wgsl;
+static const char* quad_vertex_shader_wgsl;
+static const char* quad_fragment_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Constants
  * -------------------------------------------------------------------------- */
 
 #define INSTANCES_COUNT 500u
 #define WORLD_SIZE_X 20u
 #define WORLD_SIZE_Y 20u
 #define WORLD_SIZE_Z 20u
+#define PP_EPSILON 0.00001f
 
 /* -------------------------------------------------------------------------- *
  * Base transform class to handle vectors and matrices
@@ -39,42 +80,12 @@ typedef struct {
   bool should_update;
 } transform_t;
 
-static void transform_copy_from_matrix(transform_t* transform, mat4 matrix)
-{
-  glm_mat4_copy(matrix, transform->model_matrix);
-  transform->should_update = false;
-}
-
-/**
- * @brief Sets position
- */
-static void transform_set_position(transform_t* transform, vec3 position)
-{
-  glm_vec3_copy(position, transform->position);
-  transform->should_update = true;
-}
-
-/**
- * @brief Sets scale
- */
-static void transform_set_scale(transform_t* transform, vec3 scale)
-{
-  glm_vec3_copy(scale, transform->scale);
-  transform->should_update = true;
-}
-
-/**
- * @brief Sets rotation
- */
 static void transform_set_rotation(transform_t* transform, vec3 rotation)
 {
   glm_vec3_copy(rotation, transform->rotation);
   transform->should_update = true;
 }
 
-/**
- * @brief Update model matrix with scale, rotation and translation.
- */
 static void transform_update_model_matrix(transform_t* transform)
 {
   glm_mat4_identity(transform->model_matrix);
@@ -91,10 +102,6 @@ static void transform_update_model_matrix(transform_t* transform)
 
 static void transform_init(transform_t* transform)
 {
-  UNUSED_FUNCTION(transform_copy_from_matrix);
-  UNUSED_FUNCTION(transform_set_position);
-  UNUSED_FUNCTION(transform_set_scale);
-
   glm_vec3_zero(transform->position);
   glm_vec3_zero(transform->rotation);
   glm_vec3_one(transform->scale);
@@ -103,199 +110,113 @@ static void transform_init(transform_t* transform)
 
 /* -------------------------------------------------------------------------- *
  * Orthographic Camera
- *
- * Ref:
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/main/src/camera/orthographic-camera.ts
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  vec3 UP_VECTOR;
-  float left;
-  float right;
-  float top;
-  float bottom;
-  float near;
-  float far;
-  float zoom;
+  vec3 up;
+  float left, right, top, bottom, near, far;
   vec3 position;
   vec3 look_at_position;
   mat4 projection_matrix;
   mat4 view_matrix;
 } orthographic_camera_t;
 
-static void orthographic_camera_set_position(orthographic_camera_t* camera,
-                                             vec3 target)
+static void orthographic_camera_update_view_matrix(orthographic_camera_t* cam)
 {
-  glm_vec3_copy(target, camera->position);
+  glm_lookat(cam->position, cam->look_at_position, cam->up, cam->view_matrix);
 }
 
 static void
-orthographic_camera_update_view_matrix(orthographic_camera_t* camera)
+orthographic_camera_update_projection_matrix(orthographic_camera_t* cam)
 {
-  glm_lookat(camera->position,         /* eye    */
-             camera->look_at_position, /* center */
-             camera->UP_VECTOR,        /* up     */
-             camera->view_matrix       /* dest   */
-  );
+  glm_ortho(cam->left, cam->right, cam->bottom, cam->top, cam->near, cam->far,
+            cam->projection_matrix);
 }
 
-static void
-orthographic_camera_update_projection_matrix(orthographic_camera_t* camera)
-{
-  glm_ortho(camera->left,             /* left   */
-            camera->right,            /* right  */
-            camera->bottom,           /* bottom */
-            camera->top,              /* top    */
-            camera->near,             /* nearZ  */
-            camera->far,              // farZ   */
-            camera->projection_matrix /* dest   */
-  );
-}
-
-static void orthographic_camera_look_at(orthographic_camera_t* camera,
-                                        vec3 target)
-{
-  glm_vec3_copy(target, camera->look_at_position);
-  orthographic_camera_update_view_matrix(camera);
-}
-
-static void orthographic_camera_init_defaults(orthographic_camera_t* camera)
-{
-  glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, camera->UP_VECTOR);
-
-  camera->left   = -1.0f;
-  camera->right  = 1.0f;
-  camera->top    = 1.0f;
-  camera->bottom = -1.0f;
-  camera->near   = 0.1f;
-  camera->far    = 2000.0f;
-  camera->zoom   = 1.0f;
-
-  glm_vec3_zero(camera->position);
-  glm_vec3_zero(camera->look_at_position);
-  glm_mat4_zero(camera->projection_matrix);
-  glm_mat4_zero(camera->view_matrix);
-}
-
-static void orthographic_camera_init(orthographic_camera_t* camera, float left,
+static void orthographic_camera_init(orthographic_camera_t* cam, float left,
                                      float right, float top, float bottom,
-                                     float near, float far)
+                                     float near_val, float far_val)
 {
-  orthographic_camera_init_defaults(camera);
-
-  camera->left   = left;
-  camera->right  = right;
-  camera->top    = top;
-  camera->bottom = bottom;
-
-  camera->near = near;
-  camera->far  = far;
-
-  orthographic_camera_update_projection_matrix(camera);
+  glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, cam->up);
+  cam->left   = left;
+  cam->right  = right;
+  cam->top    = top;
+  cam->bottom = bottom;
+  cam->near   = near_val;
+  cam->far    = far_val;
+  glm_vec3_zero(cam->position);
+  glm_vec3_zero(cam->look_at_position);
+  glm_mat4_zero(cam->projection_matrix);
+  glm_mat4_zero(cam->view_matrix);
+  orthographic_camera_update_projection_matrix(cam);
 }
 
 /* -------------------------------------------------------------------------- *
  * Perspective Camera
- *
- * Ref:
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/main/src/camera/perspective-camera.ts
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  vec3 UP_VECTOR;
+  vec3 up;
   vec3 position;
   vec3 look_at_position;
   mat4 projection_matrix;
   mat4 view_matrix;
-  float zoom;
   float field_of_view;
   float aspect;
-  float near;
-  float far;
+  float near, far;
 } perspective_camera_t;
 
-static void perspective_camera_set_position(perspective_camera_t* camera,
-                                            vec3 target)
+static void perspective_camera_update_view_matrix(perspective_camera_t* cam)
 {
-  glm_vec3_copy(target, camera->position);
-}
-
-static void perspective_camera_update_view_matrix(perspective_camera_t* camera)
-{
-  glm_lookat(camera->position,         /* eye    */
-             camera->look_at_position, /* center */
-             camera->UP_VECTOR,        /* up     */
-             camera->view_matrix       /* dest   */
-  );
+  glm_lookat(cam->position, cam->look_at_position, cam->up, cam->view_matrix);
 }
 
 static void
-perspective_camera_update_projection_matrix(perspective_camera_t* camera)
+perspective_camera_update_projection_matrix(perspective_camera_t* cam)
 {
-  glm_perspective(camera->field_of_view,    /* fovy   */
-                  camera->aspect,           /* aspect */
-                  camera->near,             /* nearZ  */
-                  camera->far,              /* farZ   */
-                  camera->projection_matrix /* dest   */
-  );
+  glm_perspective(cam->field_of_view, cam->aspect, cam->near, cam->far,
+                  cam->projection_matrix);
 }
 
-static void perspective_camera_look_at(perspective_camera_t* camera,
-                                       vec3 target)
+static void perspective_camera_init(perspective_camera_t* cam, float fov,
+                                    float aspect, float near_val, float far_val)
 {
-  glm_vec3_copy(target, camera->look_at_position);
-  perspective_camera_update_view_matrix(camera);
-}
-
-static void perspective_camera_init_defaults(perspective_camera_t* camera)
-{
-  glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, camera->UP_VECTOR);
-  glm_vec3_zero(camera->position);
-  glm_vec3_zero(camera->look_at_position);
-  glm_mat4_zero(camera->projection_matrix);
-  glm_mat4_zero(camera->view_matrix);
-
-  camera->zoom = 1.0f;
-}
-
-static void perspective_camera_init(perspective_camera_t* camera,
-                                    float field_of_view, float aspect,
-                                    float near, float far)
-{
-  perspective_camera_init_defaults(camera);
-
-  camera->field_of_view = field_of_view;
-  camera->aspect        = aspect;
-  camera->near          = near;
-  camera->far           = far;
-
-  perspective_camera_update_projection_matrix(camera);
+  glm_vec3_copy((vec3){0.0f, 1.0f, 0.0f}, cam->up);
+  glm_vec3_zero(cam->position);
+  glm_vec3_zero(cam->look_at_position);
+  glm_mat4_zero(cam->projection_matrix);
+  glm_mat4_zero(cam->view_matrix);
+  cam->field_of_view = fov;
+  cam->aspect        = aspect;
+  cam->near          = near_val;
+  cam->far           = far_val;
+  perspective_camera_update_projection_matrix(cam);
 }
 
 /* -------------------------------------------------------------------------- *
- * Geometry class
+ * Geometry helpers
  * -------------------------------------------------------------------------- */
 
 typedef struct {
   struct {
     float* data;
-    size_t data_size;
-    size_t count;
+    uint32_t data_size;
+    uint32_t count;
   } positions;
   struct {
     float* data;
-    size_t data_size;
-    size_t count;
+    uint32_t data_size;
+    uint32_t count;
   } normals;
   struct {
     float* data;
-    size_t data_size;
-    size_t count;
+    uint32_t data_size;
+    uint32_t count;
   } uvs;
   struct {
     uint32_t* data;
-    size_t data_size;
-    size_t count;
+    uint32_t data_size;
+    uint32_t count;
   } indices;
 } geometry_t;
 
@@ -304,49 +225,27 @@ typedef struct {
   float normal_matrix_data[INSTANCES_COUNT * 16];
 } instanced_geometry_t;
 
-static void geometry_destroy(geometry_t* geometry)
+static void geometry_destroy(geometry_t* geo)
 {
-  if ((geometry->positions.data != NULL) && geometry->positions.data_size > 0) {
-    free(geometry->positions.data);
-    geometry->positions.data      = NULL;
-    geometry->positions.data_size = 0;
-    geometry->positions.count     = 0;
+  if (geo->positions.data) {
+    free(geo->positions.data);
+    geo->positions.data = NULL;
   }
-  if ((geometry->normals.data != NULL) && geometry->normals.data_size > 0) {
-    free(geometry->normals.data);
-    geometry->normals.data      = NULL;
-    geometry->normals.data_size = 0;
-    geometry->normals.count     = 0;
+  if (geo->normals.data) {
+    free(geo->normals.data);
+    geo->normals.data = NULL;
   }
-  if ((geometry->uvs.data != NULL) && geometry->uvs.data_size > 0) {
-    free(geometry->uvs.data);
-    geometry->uvs.data      = NULL;
-    geometry->uvs.data_size = 0;
-    geometry->uvs.count     = 0;
+  if (geo->uvs.data) {
+    free(geo->uvs.data);
+    geo->uvs.data = NULL;
   }
-  if ((geometry->indices.data != NULL) && geometry->indices.data_size > 0) {
-    free(geometry->indices.data);
-    geometry->indices.data      = NULL;
-    geometry->indices.data_size = 0;
-    geometry->indices.count     = 0;
+  if (geo->indices.data) {
+    free(geo->indices.data);
+    geo->indices.data = NULL;
   }
 }
 
-/* -------------------------------------------------------------------------- *
- * Plane Geometry
- *
- * Ref:
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/0f865ca0d47f9d0e1fd527ee6f30a6ade32edcd7/src/geometry-utils/create-plane.ts
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/0f865ca0d47f9d0e1fd527ee6f30a6ade32edcd7/src/geometry-utils/build-plane.ts
- * -------------------------------------------------------------------------- */
-
-typedef struct {
-  uint32_t width;
-  uint32_t height;
-  uint32_t width_segments;
-  uint32_t height_segments;
-} plane_desc_t;
-
+/* Build a plane face for box/plane geometry */
 static void build_plane(float* vertices, float* normal, float* uv,
                         uint32_t* indices, int32_t width, int32_t height,
                         int32_t depth, uint32_t w_segs, uint32_t h_segs,
@@ -356,9 +255,9 @@ static void build_plane(float* vertices, float* normal, float* uv,
   const uint32_t io = i;
   const float seg_w = (float)width / (float)w_segs;
   const float seg_h = (float)height / (float)h_segs;
-
   uint32_t a = 0, b = 0, c = 0, d = 0;
   float x = 0.0f, y = 0.0f;
+
   for (uint32_t iy = 0; iy <= h_segs; ++iy) {
     y = iy * seg_h - height / 2.0f;
     for (uint32_t ix = 0; ix <= w_segs; ++ix, ++i) {
@@ -368,12 +267,12 @@ static void build_plane(float* vertices, float* normal, float* uv,
       vertices[i * 3 + v] = y * v_dir;
       vertices[i * 3 + w] = depth / 2.0f;
 
-      normal[i * 3 + u] = 0.f;
-      normal[i * 3 + v] = 0.f;
-      normal[i * 3 + w] = depth >= 0 ? 1.f : -1.f;
+      normal[i * 3 + u] = 0.0f;
+      normal[i * 3 + v] = 0.0f;
+      normal[i * 3 + w] = depth >= 0 ? 1.0f : -1.0f;
 
-      uv[i * 2]     = ix / w_segs;
-      uv[i * 2 + 1] = 1 - iy / h_segs;
+      uv[i * 2]     = (float)ix / (float)w_segs;
+      uv[i * 2 + 1] = 1.0f - (float)iy / (float)h_segs;
 
       if (iy == h_segs || ix == w_segs) {
         continue;
@@ -395,116 +294,52 @@ static void build_plane(float* vertices, float* normal, float* uv,
   }
 }
 
-/**
- * @brief Generates geometry data for a quad.
- * @param plane plane geometry
- * @param plane_desc params
- * @return pointer to the generated geometry data
- */
-static geometry_t* create_plane(geometry_t* plane, plane_desc_t* plane_desc)
+/* Generate a plane geometry */
+static void create_plane(geometry_t* plane, uint32_t width, uint32_t height,
+                         uint32_t w_segs, uint32_t h_segs)
 {
-  const uint32_t width  = (plane_desc != NULL) ? plane_desc->width : 1;
-  const uint32_t height = (plane_desc != NULL) ? plane_desc->height : 1;
-
-  const uint32_t w_segs = (plane_desc != NULL) ? plane_desc->width_segments : 1;
-  const uint32_t h_segs
-    = (plane_desc != NULL) ? plane_desc->height_segments : 1;
-
-  // Determine length of arrays
   const uint32_t num         = (w_segs + 1) * (h_segs + 1);
   const uint32_t num_indices = w_segs * h_segs * 6;
 
-  // Set array sizes
-  plane->positions.count = num;
-  plane->normals.count   = num;
-  plane->uvs.count       = num;
-  plane->indices.count   = num_indices;
-
-  // Set array size (in bytes)
+  plane->positions.count     = num;
+  plane->normals.count       = num;
+  plane->uvs.count           = num;
+  plane->indices.count       = num_indices;
   plane->positions.data_size = num * 3 * sizeof(float);
   plane->normals.data_size   = num * 3 * sizeof(float);
   plane->uvs.data_size       = num * 2 * sizeof(float);
   plane->indices.data_size   = num_indices * sizeof(uint32_t);
 
-  // Generate empty arrays once
   plane->positions.data = (float*)malloc(plane->positions.data_size);
   plane->normals.data   = (float*)malloc(plane->normals.data_size);
   plane->uvs.data       = (float*)malloc(plane->uvs.data_size);
   plane->indices.data   = (uint32_t*)malloc(plane->indices.data_size);
 
-  build_plane(plane->positions.data, /* vertices */
-              plane->normals.data,   /* normal   */
-              plane->uvs.data,       /* uv       */
-              plane->indices.data,   /* indices  */
-              width,                 /* width    */
-              height,                /* height   */
-              0,                     /* depth    */
-              w_segs,                /* w_segs   */
-              h_segs,                /* h_segs   */
-              0,                     /* u        */
-              1,                     /* v        */
-              2,                     /* w        */
-              1,                     /* u_dir    */
-              -1,                    /* v_dir    */
-              0,                     /* i        */
-              0                      /* ii       */
-  );
-
-  return plane;
+  build_plane(plane->positions.data, plane->normals.data, plane->uvs.data,
+              plane->indices.data, (int32_t)width, (int32_t)height, 0, w_segs,
+              h_segs, 0, 1, 2, 1, -1, 0, 0);
 }
 
-/* -------------------------------------------------------------------------- *
- * Box Geometry
- *
- * Ref:
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/0f865ca0d47f9d0e1fd527ee6f30a6ade32edcd7/src/geometry-utils/create-box.ts
- * -------------------------------------------------------------------------- */
-
-typedef struct {
-  uint32_t width;
-  uint32_t height;
-  uint32_t depth;
-  uint32_t width_segments;
-  uint32_t height_segments;
-  uint32_t depth_segments;
-  bool separate_faces;
-} box_desc_t;
-
-/**
- * @brief Generates geometry data for a box.
- * @param box box geometry
- * @param box_desc params
- * @return pointer to the generated geometry data
- */
-static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
+/* Generate a box geometry */
+static void create_box(geometry_t* box)
 {
-  const uint32_t width  = (box_desc != NULL) ? box_desc->width : 1;
-  const uint32_t height = (box_desc != NULL) ? box_desc->height : 1;
-  const uint32_t depth  = (box_desc != NULL) ? box_desc->depth : 1;
-
-  const uint32_t w_segs = (box_desc != NULL) ? box_desc->width_segments : 1;
-  const uint32_t h_segs = (box_desc != NULL) ? box_desc->height_segments : 1;
-  const uint32_t d_segs = (box_desc != NULL) ? box_desc->depth_segments : 1;
-
-  const uint32_t num = (w_segs + 1) * (h_segs + 1) * 2 + //
-                       (w_segs + 1) * (d_segs + 1) * 2 + //
-                       (h_segs + 1) * (d_segs + 1) * 2;
+  const uint32_t w_segs = 1, h_segs = 1, d_segs = 1;
+  const uint32_t width = 1, height = 1, depth = 1;
+  const uint32_t num = (w_segs + 1) * (h_segs + 1) * 2
+                       + (w_segs + 1) * (d_segs + 1) * 2
+                       + (h_segs + 1) * (d_segs + 1) * 2;
   const uint32_t num_indices
     = (w_segs * h_segs * 2 + w_segs * d_segs * 2 + h_segs * d_segs * 2) * 6;
 
-  // Set array count
-  box->positions.count = num;
-  box->normals.count   = num;
-  box->uvs.count       = num;
-  box->indices.count   = num_indices;
-
-  // Set array size (in bytes)
+  box->positions.count     = num;
+  box->normals.count       = num;
+  box->uvs.count           = num;
+  box->indices.count       = num_indices;
   box->positions.data_size = num * 3 * sizeof(float);
   box->normals.data_size   = num * 3 * sizeof(float);
   box->uvs.data_size       = num * 2 * sizeof(float);
   box->indices.data_size   = num_indices * sizeof(uint32_t);
 
-  // Generate empty arrays once
   box->positions.data = (float*)malloc(box->positions.data_size);
   box->normals.data   = (float*)malloc(box->normals.data_size);
   box->uvs.data       = (float*)malloc(box->uvs.data_size);
@@ -513,222 +348,98 @@ static geometry_t* create_box(geometry_t* box, box_desc_t* box_desc)
   uint32_t i = 0, ii = 0;
 
   /* RIGHT */
-  {
-    build_plane(box->positions.data, // vertices
-                box->normals.data,   // normal
-                box->uvs.data,       // uv
-                box->indices.data,   // indices
-                depth,               // width
-                height,              // height
-                width,               // depth
-                d_segs,              // w_segs
-                h_segs,              // h_segs
-                2,                   // u
-                1,                   // v
-                0,                   // w
-                -1,                  // u_dir
-                -1,                  // v_dir
-                i,                   // i
-                ii                   // ii
-    );
-  }
-
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, depth, height, width, d_segs, h_segs, 2, 1, 0,
+              -1, -1, i, ii);
   /* LEFT */
-  {
-    build_plane(box->positions.data,                // vertices
-                box->normals.data,                  // normal
-                box->uvs.data,                      // uv
-                box->indices.data,                  // indices
-                depth,                              // width
-                height,                             // height
-                -((int)width),                      // depth
-                d_segs,                             // w_segs
-                h_segs,                             // h_segs
-                2,                                  // u
-                1,                                  // v
-                0,                                  // w
-                1,                                  // u_dir
-                -1,                                 // v_dir
-                (i += (d_segs + 1) * (h_segs + 1)), // i
-                (ii += d_segs * h_segs)             // ii
-    );
-  }
-
+  i += (d_segs + 1) * (h_segs + 1);
+  ii += d_segs * h_segs;
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, depth, height, -((int32_t)width), d_segs,
+              h_segs, 2, 1, 0, 1, -1, i, ii);
   /* TOP */
-  {
-    build_plane(box->positions.data,                // vertices
-                box->normals.data,                  // normal
-                box->uvs.data,                      // uv
-                box->indices.data,                  // indices
-                width,                              // width
-                depth,                              // height
-                height,                             // depth
-                d_segs,                             // w_segs
-                h_segs,                             // h_segs
-                0,                                  // u
-                2,                                  // v
-                1,                                  // w
-                1,                                  // u_dir
-                1,                                  // v_dir
-                (i += (d_segs + 1) * (h_segs + 1)), // i
-                (ii += d_segs * h_segs)             // ii
-    );
-  }
-
+  i += (d_segs + 1) * (h_segs + 1);
+  ii += d_segs * h_segs;
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, width, depth, height, d_segs, h_segs, 0, 2, 1,
+              1, 1, i, ii);
   /* BOTTOM */
-  {
-    build_plane(box->positions.data,                // vertices
-                box->normals.data,                  // normal
-                box->uvs.data,                      // uv
-                box->indices.data,                  // indices
-                width,                              // width
-                depth,                              // height
-                -((int)height),                     // depth
-                d_segs,                             // w_segs
-                h_segs,                             // h_segs
-                0,                                  // u
-                2,                                  // v
-                1,                                  // w
-                1,                                  // u_dir
-                -1,                                 // v_dir
-                (i += (w_segs + 1) * (d_segs + 1)), // i
-                (ii += w_segs * d_segs)             // ii
-    );
-  }
-
+  i += (w_segs + 1) * (d_segs + 1);
+  ii += w_segs * d_segs;
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, width, depth, -((int32_t)height), d_segs,
+              h_segs, 0, 2, 1, 1, -1, i, ii);
   /* BACK */
-  {
-    build_plane(box->positions.data,                // vertices
-                box->normals.data,                  // normal
-                box->uvs.data,                      // uv
-                box->indices.data,                  // indices
-                width,                              // width
-                height,                             // height
-                -((int)depth),                      // depth
-                w_segs,                             // w_segs
-                h_segs,                             // h_segs
-                0,                                  // u
-                1,                                  // v
-                2,                                  // w
-                -1,                                 // u_dir
-                -1,                                 // v_dir
-                (i += (w_segs + 1) * (d_segs + 1)), // i
-                (ii += w_segs * d_segs)             // ii
-    );
-  }
-
+  i += (w_segs + 1) * (d_segs + 1);
+  ii += w_segs * d_segs;
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, width, height, -((int32_t)depth), w_segs,
+              h_segs, 0, 1, 2, -1, -1, i, ii);
   /* FRONT */
-  {
-    build_plane(box->positions.data,                // vertices
-                box->normals.data,                  // normal
-                box->uvs.data,                      // uv
-                box->indices.data,                  // indices
-                width,                              // width
-                height,                             // height
-                depth,                              // depth
-                w_segs,                             // w_segs
-                h_segs,                             // h_segs
-                0,                                  // u
-                1,                                  // v
-                2,                                  // w
-                1,                                  // u_dir
-                -1,                                 // v_dir
-                (i += (w_segs + 1) * (h_segs + 1)), // i
-                (ii += w_segs * h_segs)             // ii
-    );
-  }
-
-  return box;
+  i += (w_segs + 1) * (h_segs + 1);
+  ii += w_segs * h_segs;
+  build_plane(box->positions.data, box->normals.data, box->uvs.data,
+              box->indices.data, width, height, depth, w_segs, h_segs, 0, 1, 2,
+              1, -1, i, ii);
 }
 
-/* -------------------------------------------------------------------------- *
- * Sphere Geometry
- *
- * Ref:
- * https://github.com/gnikoloff/hwoa-rang-gl/blob/0f865ca0d47f9d0e1fd527ee6f30a6ade32edcd7/src/geometry-utils/create-sphere.ts
- * -------------------------------------------------------------------------- */
-
-typedef struct {
-  float radius;
-  uint32_t width_segments;
-  uint32_t height_segments;
-  float phi_start;
-  float phi_length;
-  float theta_start;
-  float theta_length;
-} sphere_desc_t;
-
-/**
- * @brief Generates geometry data for a sphere.
- * @param sphere sphere geometry
- * @param sphere_desc sphere creation parameters
- * @return pointer to the generated geometry data
- */
-static geometry_t* create_sphere(geometry_t* sphere, sphere_desc_t* sphere_desc)
+/* Generate a sphere geometry */
+static void create_sphere(geometry_t* sphere)
 {
-  const float radius = (sphere_desc != NULL) ? sphere_desc->radius : 0.5f;
-  const uint32_t w_segs
-    = (sphere_desc != NULL) ? sphere_desc->width_segments : 16u;
-  const uint32_t h_segs = (sphere_desc != NULL) ? sphere_desc->height_segments :
-                                                  (uint32_t)ceil(w_segs * 0.5f);
-  const float p_start   = (sphere_desc != NULL) ? sphere_desc->phi_start : 0.0f;
-  const float p_length  = (sphere_desc != NULL) ? sphere_desc->phi_length : PI2;
-  const float t_start = (sphere_desc != NULL) ? sphere_desc->theta_start : 0.0f;
-  const float t_length = (sphere_desc != NULL) ? sphere_desc->theta_length : PI;
+  const float radius    = 0.5f;
+  const uint32_t w_segs = 16u;
+  const uint32_t h_segs = (uint32_t)ceilf(w_segs * 0.5f);
+  const float p_start   = 0.0f;
+  const float p_length  = PI2;
+  const float t_start   = 0.0f;
+  const float t_length  = PI;
+  const float te        = t_start + t_length;
 
   const uint32_t num         = (w_segs + 1) * (h_segs + 1);
   const uint32_t num_indices = w_segs * h_segs * 6;
 
-  /* Set array count */
-  sphere->positions.count = num;
-  sphere->normals.count   = num;
-  sphere->uvs.count       = num;
-  sphere->indices.count   = num_indices;
-
-  /* Set array size (in bytes) */
+  sphere->positions.count     = num;
+  sphere->normals.count       = num;
+  sphere->uvs.count           = num;
+  sphere->indices.count       = num_indices;
   sphere->positions.data_size = num * 3 * sizeof(float);
   sphere->normals.data_size   = num * 3 * sizeof(float);
   sphere->uvs.data_size       = num * 2 * sizeof(float);
   sphere->indices.data_size   = num_indices * sizeof(uint32_t);
 
-  /* Generate empty arrays once */
   sphere->positions.data = (float*)malloc(sphere->positions.data_size);
   sphere->normals.data   = (float*)malloc(sphere->normals.data_size);
   sphere->uvs.data       = (float*)malloc(sphere->uvs.data_size);
   sphere->indices.data   = (uint32_t*)malloc(sphere->indices.data_size);
 
-  uint32_t i        = 0;
-  uint32_t iv       = 0;
-  uint32_t ii       = 0;
-  const uint32_t te = t_start + t_length;
-  uint32_t* grid    = (uint32_t*)malloc(num * sizeof(uint32_t));
+  uint32_t vi    = 0;
+  uint32_t iv    = 0;
+  uint32_t ii    = 0;
+  uint32_t* grid = (uint32_t*)malloc(num * sizeof(uint32_t));
+  vec3 n         = GLM_VEC3_ZERO_INIT;
 
-  vec3 n = GLM_VEC3_ZERO_INIT;
-
-  float v = 0.0f, u = 0.0f, x = 0.0f, y = 0.0f, z = 0.0f;
   for (uint32_t iy = 0; iy <= h_segs; ++iy) {
-    v = iy / (float)h_segs;
-    for (uint32_t ix = 0; ix <= w_segs; ++ix, ++i) {
-      u = ix / (float)w_segs;
-      x = -radius *                     //
-          cos(p_start + u * p_length) * //
-          sin(t_start + v * t_length);
-      y = radius * cos(t_start + v * t_length);
-      z = radius * sin(p_start + u * p_length) * sin(t_start + v * t_length);
+    float vf = iy / (float)h_segs;
+    for (uint32_t ix = 0; ix <= w_segs; ++ix, ++vi) {
+      float uf = ix / (float)w_segs;
+      float x  = -radius * cosf(p_start + uf * p_length)
+                * sinf(t_start + vf * t_length);
+      float y = radius * cosf(t_start + vf * t_length);
+      float z = radius * sinf(p_start + uf * p_length)
+                * sinf(t_start + vf * t_length);
 
-      sphere->positions.data[i * 3]     = x;
-      sphere->positions.data[i * 3 + 1] = y;
-      sphere->positions.data[i * 3 + 2] = z;
+      sphere->positions.data[vi * 3]     = x;
+      sphere->positions.data[vi * 3 + 1] = y;
+      sphere->positions.data[vi * 3 + 2] = z;
 
       glm_vec3_copy((vec3){x, y, z}, n);
       glm_vec3_normalize(n);
+      sphere->normals.data[vi * 3]     = n[0];
+      sphere->normals.data[vi * 3 + 1] = n[1];
+      sphere->normals.data[vi * 3 + 2] = n[2];
 
-      sphere->normals.data[i * 3]     = n[0];
-      sphere->normals.data[i * 3 + 1] = n[1];
-      sphere->normals.data[i * 3 + 2] = n[2];
-
-      sphere->uvs.data[i * 2]     = u;
-      sphere->uvs.data[i * 2 + 1] = 1 - v;
+      sphere->uvs.data[vi * 2]     = uf;
+      sphere->uvs.data[vi * 2 + 1] = 1.0f - vf;
 
       grid[(iy * (w_segs + 1)) + ix] = iv++;
     }
@@ -757,16 +468,12 @@ static geometry_t* create_sphere(geometry_t* sphere, sphere_desc_t* sphere_desc)
     }
   }
 
+  sphere->indices.count = ii * 3;
   free(grid);
-
-  return sphere;
 }
 
 /* -------------------------------------------------------------------------- *
- * Helper Functions
- *
- * Ref:
- * https://github.com/gnikoloff/webgpu-dojo/blob/master/src/examples/postprocessing-01/helpers.ts
+ * GPU buffer helpers
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -776,246 +483,13 @@ typedef struct {
   wgpu_buffer_t indices;
 } geometry_gpu_buffers_t;
 
-static void
-geometry_gpu_buffers_destroy(geometry_gpu_buffers_t* geometry_gpu_buffers)
-{
-  WGPU_RELEASE_RESOURCE(Buffer, geometry_gpu_buffers->vertices.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, geometry_gpu_buffers->normals.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, geometry_gpu_buffers->uvs.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, geometry_gpu_buffers->indices.buffer)
-}
-
 typedef struct {
   wgpu_buffer_t model_matrix;
   wgpu_buffer_t normal_matrix;
-} instanced_geometry_gpu_buffers_t;
+} instanced_gpu_buffers_t;
 
-static void instanced_geometry_gpu_buffers_destroy(
-  instanced_geometry_gpu_buffers_t* instanced_geometry_gpu_buffers)
-{
-  WGPU_RELEASE_RESOURCE(Buffer,
-                        instanced_geometry_gpu_buffers->model_matrix.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer,
-                        instanced_geometry_gpu_buffers->normal_matrix.buffer)
-}
-
-typedef void (*generate_instance_on_item_callback)(vec3* position,
-                                                   vec3* rotation, vec3* scale,
-                                                   bool scale_uniformly);
-
-static instanced_geometry_t*
-generate_instance_matrices(instanced_geometry_t* instanced_model,
-                           generate_instance_on_item_callback on_item_callback,
-                           bool scale_uniformly)
-{
-  uint32_t count = ARRAY_SIZE(instanced_model->model_matrix_data) / 16;
-  vec3 instance_move_vector  = GLM_VEC3_ZERO_INIT;
-  mat4 instance_model_matrix = GLM_MAT4_ZERO_INIT,
-       normal_matrix         = GLM_MAT4_ZERO_INIT;
-  vec3 position = GLM_VEC3_ZERO_INIT, rotation = GLM_VEC3_ZERO_INIT,
-       scale = GLM_VEC3_ZERO_INIT;
-  uint32_t r = 0, c = 0;
-  for (uint32_t i = 0; i < count * 16; i += 16) {
-    on_item_callback(&position, &rotation, &scale, scale_uniformly);
-
-    glm_mat4_identity(instance_model_matrix);
-    glm_vec3_copy((vec3){position[0], position[1], position[2]},
-                  instance_move_vector);
-
-    glm_translate(instance_model_matrix, instance_move_vector);
-    glm_rotate(instance_model_matrix, rotation[0], (vec3){1.0f, 0.0f, 0.0f});
-    glm_rotate(instance_model_matrix, rotation[1], (vec3){0.0f, 1.0f, 0.0f});
-    glm_rotate(instance_model_matrix, rotation[2], (vec3){0.0f, 0.0f, 1.0f});
-
-    glm_vec3_copy((vec3){scale[0], scale[1], scale[2]}, instance_move_vector);
-    glm_scale(instance_model_matrix, instance_move_vector);
-
-    glm_mat4_inv(instance_model_matrix, normal_matrix);
-    glm_mat4_transpose(normal_matrix);
-
-    for (uint32_t n = 0; n < 16; ++n) {
-      r = n / 4;
-      c = n % 4;
-
-      instanced_model->model_matrix_data[i + n]  = instance_model_matrix[r][c];
-      instanced_model->normal_matrix_data[i + n] = normal_matrix[r][c];
-    }
-  }
-
-  return instanced_model;
-}
-
-static void
-generate_gpu_buffers_from_geometry(wgpu_context_t* wgpu_context,
-                                   geometry_t* geometry,
-                                   geometry_gpu_buffers_t* gpu_buffers)
-{
-  /* Vertices */
-  gpu_buffers->vertices = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Vertices - Buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = geometry->positions.data_size,
-                    .initial.data = geometry->positions.data,
-                  });
-
-  /* Normals */
-  gpu_buffers->normals = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Normals - Buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = geometry->normals.data_size,
-                    .initial.data = geometry->normals.data,
-                  });
-
-  /* UVs */
-  gpu_buffers->uvs = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "UVs - Buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = geometry->uvs.data_size,
-                    .initial.data = geometry->uvs.data,
-                  });
-
-  /* Indices */
-  uint32_t index_count
-    = geometry->indices.data_size / sizeof(geometry->indices.data[0]);
-  gpu_buffers->indices = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Indices - Buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
-                    .size  = geometry->indices.data_size,
-                    .count = index_count,
-                    .initial.data = geometry->indices.data,
-                  });
-}
-
-static void generate_gpu_buffers_from_instanced_geometry(
-  wgpu_context_t* wgpu_context, instanced_geometry_t* geometry,
-  instanced_geometry_gpu_buffers_t* gpu_buffers)
-{
-  /* Instance model matrix */
-  gpu_buffers->model_matrix = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Instance - Model matrix",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(geometry->model_matrix_data),
-                    .initial.data = geometry->model_matrix_data,
-                  });
-
-  /* Instance model matrix */
-  gpu_buffers->normal_matrix = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Instance - Model matrix",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = sizeof(geometry->normal_matrix_data),
-                    .initial.data = geometry->normal_matrix_data,
-                  });
-}
-
-/* -------------------------------------------------------------------------- *
- * Post-processing example
- * -------------------------------------------------------------------------- */
-
-static struct {
-  bool animatable;
-  float tween_factor;
-  float tween_factor_target;
-  vec3 light_position;
-  vec3 base_colors[2];
-} options = {
-  .animatable          = true,
-  .tween_factor        = 0.0f,
-  .tween_factor_target = 0.0f,
-  .light_position      = {0.5f, 0.5f, 0.50f},
-  .base_colors[0]      = {0.3f, 0.6f, 0.70f},
-  .base_colors[1]      = {1.0f, 0.2f, 0.25f},
-};
-
-static transform_t quad_transform = {0};
-
-static struct {
-  perspective_camera_t perspective_camera;
-  orthographic_camera_t orthographic_camera;
-} cameras = {0};
-
-static struct {
-  geometry_t quad;
-  geometry_t cube;
-  geometry_t sphere;
-} geometries = {0};
-
-static struct {
-  instanced_geometry_t cube;
-  instanced_geometry_t sphere;
-} instanced_geometries = {0};
-
-static struct {
-  geometry_gpu_buffers_t quad;
-  geometry_gpu_buffers_t cube;
-  geometry_gpu_buffers_t sphere;
-  instanced_geometry_gpu_buffers_t instanced_cube;
-  instanced_geometry_gpu_buffers_t instanced_sphere;
-} vertex_buffers = {0};
-
-static struct {
-  wgpu_buffer_t persp_camera, ortho_camera, quad_transform, quad_tween_factor,
-    light_position, base_colors[2];
-} uniform_buffers = {0};
-
-static struct {
-  struct {
-    WGPUTexture texture;
-    WGPUTextureView view;
-  } post_fx0, post_fx1;
-  WGPUSampler post_fx_sampler;
-  texture_t cutoff_mask;
-} textures = {0};
-
-/* Framebuffer for offscreen rendering */
-static struct {
-  struct {
-    WGPUTexture texture;
-    WGPUTextureView texture_view;
-  } color, depth_stencil;
-} offscreen_framebuffer = {0};
-
-static struct {
-  WGPUBindGroup persp_camera;
-  WGPUBindGroup ortho_camera;
-  WGPUBindGroup quad_transform;
-  WGPUBindGroup quad_sampler;
-  WGPUBindGroup quad_tween;
-  WGPUBindGroup light_position;
-  WGPUBindGroup base_colors[2];
-} bind_groups = {0};
-
-static struct {
-  WGPURenderPipeline fullscreen_quad;
-  WGPURenderPipeline scene_meshes;
-} pipelines = {0};
-
-/* Render pass descriptor for frame buffer writes */
-typedef struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-  WGPURenderPassDescriptor descriptor;
-} render_pass_t;
-
-static struct {
-  render_pass_t scene_render;
-  render_pass_t post_fx;
-} render_passes = {0};
-
-/* Holds time info in seconds units */
-static struct {
-  float old_time;
-  float last_tween_factor_target_change_time;
-} time_info = {0};
-
-/* Other variables */
-static const char* example_title = "Post-processing";
-static bool prepared             = false;
+typedef void (*instance_callback_t)(vec3* position, vec3* rotation, vec3* scale,
+                                    bool scale_uniformly);
 
 static void get_rand_position_scale_rotation(vec3* position, vec3* rotation,
                                              vec3* scale, bool scale_uniformly)
@@ -1033,1167 +507,1391 @@ static void get_rand_position_scale_rotation(vec3* position, vec3* rotation,
   (*scale)[2] = scale_uniformly ? (*scale)[0] : random_float() + 0.25f;
 }
 
-// Set up cameras for the demo
-static void setup_cameras(wgpu_example_context_t* context)
+static void generate_instance_matrices(instanced_geometry_t* inst,
+                                       instance_callback_t callback,
+                                       bool scale_uniformly)
 {
-  const float surface_width  = (float)context->wgpu_context->surface.width;
-  const float surface_height = (float)context->wgpu_context->surface.height;
+  const uint32_t count = ARRAY_SIZE(inst->model_matrix_data) / 16;
+  mat4 model           = GLM_MAT4_ZERO_INIT;
+  mat4 norm            = GLM_MAT4_ZERO_INIT;
+  vec3 pos = GLM_VEC3_ZERO_INIT, rot = GLM_VEC3_ZERO_INIT,
+       scl = GLM_VEC3_ZERO_INIT;
 
-  /* Perspective camera */
-  {
-    perspective_camera_init(&cameras.perspective_camera, (45.0f * PI) / 180.0f,
-                            surface_width / surface_height, 0.1f, 100.0f);
-  }
+  for (uint32_t idx = 0; idx < count; ++idx) {
+    uint32_t off = idx * 16;
+    callback(&pos, &rot, &scl, scale_uniformly);
 
-  /* Orthographic camera */
-  {
-    orthographic_camera_t* camera = &cameras.orthographic_camera;
+    glm_mat4_identity(model);
+    glm_translate(model, pos);
+    glm_rotate(model, rot[0], (vec3){1.0f, 0.0f, 0.0f});
+    glm_rotate(model, rot[1], (vec3){0.0f, 1.0f, 0.0f});
+    glm_rotate(model, rot[2], (vec3){0.0f, 0.0f, 1.0f});
+    glm_scale(model, scl);
 
-    orthographic_camera_init(camera, -surface_width / 2.0f,
-                             surface_width / 2.0f, surface_height / 2.0f,
-                             -surface_height / 2.0f, 0.1f, 3.0f);
-    orthographic_camera_set_position(camera, (vec3){0.0f, 0.0f, 2.0f});
-    orthographic_camera_look_at(camera, GLM_VEC3_ZERO);
-    orthographic_camera_update_projection_matrix(camera);
-    orthographic_camera_update_view_matrix(camera);
-  }
-}
+    glm_mat4_inv(model, norm);
+    glm_mat4_transpose(norm);
 
-/* Prepare geometries */
-static void prepare_geometries(wgpu_context_t* wgpu_context)
-{
-  /* Prepare fullscreen quad gpu buffers */
-  generate_gpu_buffers_from_geometry(
-    wgpu_context,
-    create_plane(&geometries.quad,
-                 &(plane_desc_t){
-                   .width           = wgpu_context->surface.width,
-                   .height          = wgpu_context->surface.height,
-                   .width_segments  = 1u,
-                   .height_segments = 1u,
-                 }),
-    &vertex_buffers.quad);
-
-  /* Prepare cube gpu buffers */
-  generate_gpu_buffers_from_geometry(
-    wgpu_context, create_box(&geometries.cube, NULL), &vertex_buffers.cube);
-
-  /* Prepare instanced cube model matrices as gpu buffers */
-  generate_gpu_buffers_from_instanced_geometry(
-    wgpu_context,
-    generate_instance_matrices(&instanced_geometries.cube,
-                               get_rand_position_scale_rotation, false),
-    &vertex_buffers.instanced_cube);
-
-  /* Prepare sphere gpu buffers */
-  generate_gpu_buffers_from_geometry(wgpu_context,
-                                     create_sphere(&geometries.sphere, NULL),
-                                     &vertex_buffers.sphere);
-
-  /* Prepare instanced sphere model matrices as gpu buffers */
-  generate_gpu_buffers_from_instanced_geometry(
-    wgpu_context,
-    generate_instance_matrices(&instanced_geometries.sphere,
-                               get_rand_position_scale_rotation, false),
-    &vertex_buffers.instanced_sphere);
-}
-
-static void update_tween_factor(wgpu_context_t* wgpu_context)
-{
-  wgpu_queue_write_buffer(wgpu_context,
-                          uniform_buffers.quad_tween_factor.buffer, 0,
-                          &options.tween_factor, sizeof(float));
-}
-
-static void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  const float ts     = context->frame.timestamp_millis / 1000.0f;
-  const float dt     = ts - time_info.old_time;
-  time_info.old_time = ts;
-
-  if (ts - time_info.last_tween_factor_target_change_time > 4.0f) {
-    options.tween_factor_target
-      = fabs(options.tween_factor_target - 1.0f) < EPSILON ? 0 : 1;
-    time_info.last_tween_factor_target_change_time = ts;
-  }
-
-  /* Write perspective camera projection and view matrix to uniform block */
-  perspective_camera_set_position(&cameras.perspective_camera,
-                                  (vec3){
-                                    cos(ts * 0.2f) * WORLD_SIZE_X, /* x */
-                                    0.0f,                          /* y */
-                                    sin(ts * 0.2f) * WORLD_SIZE_Z, /* z */
-                                  });
-  perspective_camera_look_at(&cameras.perspective_camera, GLM_VEC3_ZERO);
-  perspective_camera_update_projection_matrix(&cameras.perspective_camera);
-  perspective_camera_update_view_matrix(&cameras.perspective_camera);
-  wgpu_queue_write_buffer(context->wgpu_context,
-                          uniform_buffers.persp_camera.buffer, 0,
-                          cameras.perspective_camera.projection_matrix,
-                          sizeof(cameras.perspective_camera.projection_matrix));
-  wgpu_queue_write_buffer(
-    context->wgpu_context, uniform_buffers.persp_camera.buffer,
-    16 * sizeof(float), cameras.perspective_camera.view_matrix,
-    sizeof(cameras.perspective_camera.view_matrix));
-
-  /* Write ortho camera projection and view matrix to uniform block */
-  wgpu_queue_write_buffer(
-    context->wgpu_context, uniform_buffers.ortho_camera.buffer, 0,
-    cameras.orthographic_camera.projection_matrix,
-    sizeof(cameras.orthographic_camera.projection_matrix));
-  wgpu_queue_write_buffer(
-    context->wgpu_context, uniform_buffers.ortho_camera.buffer,
-    16 * sizeof(float), cameras.orthographic_camera.view_matrix,
-    sizeof(cameras.orthographic_camera.view_matrix));
-
-  /* Write fullscreen quad model matrix to uniform block */
-  transform_set_rotation(&quad_transform, (vec3){PI, 0.0f, 0.0f});
-  transform_update_model_matrix(&quad_transform);
-  wgpu_queue_write_buffer(
-    context->wgpu_context, uniform_buffers.quad_transform.buffer, 0,
-    quad_transform.model_matrix, sizeof(quad_transform.model_matrix));
-
-  /* Write tween factor */
-  if (options.animatable) {
-    options.tween_factor
-      += (options.tween_factor_target - options.tween_factor) * (dt * 2.0f);
-  }
-  update_tween_factor(context->wgpu_context);
-}
-
-static void prepare_uniform_buffers(wgpu_context_t* wgpu_context)
-{
-  /* Perspective camera uniform block */
-  uniform_buffers.persp_camera = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Perspective camera - Uniform block",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = 16 * 2 * sizeof(float),
-                  });
-
-  /* Orthographic camera uniform block */
-  uniform_buffers.ortho_camera = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Orthographic camera - Uniform block",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = 16 * 2 * sizeof(float),
-                  });
-
-  /* Fullscreen quad transform uniform block */
-  transform_init(&quad_transform);
-  uniform_buffers.quad_transform = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Fullscreen quad transform - Uniform block",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = 16 * sizeof(float),
-                  });
-
-  /* Tween factor uniform block */
-  uniform_buffers.quad_tween_factor = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Tween factor - Uniform block",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(options.tween_factor),
-                    .initial.data = &options.tween_factor,
-                  });
-
-  /* Instanced scenes light position as a typed 32 bit array */
-  uniform_buffers.light_position = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Instanced scenes light position - Uniform block",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = 16,
-                    .initial.data = options.light_position,
-                  });
-
-  /* Instanced scenes base colors */
-  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(options.base_colors); ++i) {
-    uniform_buffers.base_colors[i] = wgpu_create_buffer(
-      wgpu_context,
-      &(wgpu_buffer_desc_t){
-        .label        = "Instanced scenes base colors - Uniform block",
-        .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-        .size         = 16,
-        .initial.data = options.base_colors[i],
-      });
+    for (uint32_t n = 0; n < 16; ++n) {
+      uint32_t r                        = n / 4;
+      uint32_t c                        = n % 4;
+      inst->model_matrix_data[off + n]  = model[r][c];
+      inst->normal_matrix_data[off + n] = norm[r][c];
+    }
   }
 }
 
-static void prepare_offscreen_framebuffer(wgpu_context_t* wgpu_context)
+static void create_geo_gpu_buffers(wgpu_context_t* ctx, geometry_t* geo,
+                                   geometry_gpu_buffers_t* buf)
 {
-  WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
+  buf->vertices = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Vertices buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+           .size         = geo->positions.data_size,
+           .initial.data = geo->positions.data,
+         });
+  buf->normals = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Normals buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+           .size         = geo->normals.data_size,
+           .initial.data = geo->normals.data,
+         });
+  buf->uvs = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "UVs buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+           .size         = geo->uvs.data_size,
+           .initial.data = geo->uvs.data,
+         });
+  buf->indices = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Indices buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
+           .size         = geo->indices.data_size,
+           .count        = geo->indices.count,
+           .initial.data = geo->indices.data,
+         });
+}
+
+static void create_inst_gpu_buffers(wgpu_context_t* ctx,
+                                    instanced_geometry_t* inst,
+                                    instanced_gpu_buffers_t* buf)
+{
+  buf->model_matrix = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Instance model matrix buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+           .size         = sizeof(inst->model_matrix_data),
+           .initial.data = inst->model_matrix_data,
+         });
+  buf->normal_matrix = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Instance normal matrix buffer",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+           .size         = sizeof(inst->normal_matrix_data),
+           .initial.data = inst->normal_matrix_data,
+         });
+}
+
+/* -------------------------------------------------------------------------- *
+ * Render pass helper
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  WGPURenderPassColorAttachment color_attachments[1];
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor descriptor;
+} render_pass_t;
+
+/* -------------------------------------------------------------------------- *
+ * State struct
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  /* Options / GUI state */
+  struct {
+    bool animatable;
+    float tween_factor;
+    float tween_factor_target;
+    vec3 light_position;
+    vec3 base_colors[2];
+  } options;
+
+  /* Cameras */
+  perspective_camera_t persp_camera;
+  orthographic_camera_t ortho_camera;
+
+  /* Transform for fullscreen quad */
+  transform_t quad_transform;
+
+  /* Geometries (CPU data) */
+  geometry_t quad_geo;
+  geometry_t cube_geo;
+  geometry_t sphere_geo;
+
+  /* Instanced geometry data */
+  instanced_geometry_t instanced_cube;
+  instanced_geometry_t instanced_sphere;
+
+  /* GPU buffers */
+  geometry_gpu_buffers_t quad_buf;
+  geometry_gpu_buffers_t cube_buf;
+  geometry_gpu_buffers_t sphere_buf;
+  instanced_gpu_buffers_t inst_cube_buf;
+  instanced_gpu_buffers_t inst_sphere_buf;
+
+  /* Uniform buffers */
+  struct {
+    wgpu_buffer_t persp_camera;
+    wgpu_buffer_t ortho_camera;
+    wgpu_buffer_t quad_transform;
+    wgpu_buffer_t quad_tween_factor;
+    wgpu_buffer_t light_position;
+    wgpu_buffer_t base_colors[2];
+  } uniforms;
+
+  /* Textures */
+  struct {
+    WGPUTexture post_fx0_tex;
+    WGPUTextureView post_fx0_view;
+    WGPUTexture post_fx1_tex;
+    WGPUTextureView post_fx1_view;
+    WGPUSampler sampler;
+    wgpu_texture_t cutoff_mask;
+  } textures;
+
+  /* Offscreen framebuffer */
+  struct {
+    WGPUTexture color_tex;
+    WGPUTextureView color_view;
+    WGPUTexture depth_tex;
+    WGPUTextureView depth_view;
+  } offscreen;
+
+  /* Bind groups */
+  struct {
+    WGPUBindGroup persp_camera;
+    WGPUBindGroup ortho_camera;
+    WGPUBindGroup quad_transform;
+    WGPUBindGroup quad_sampler;
+    WGPUBindGroup quad_tween;
+    WGPUBindGroup light_position;
+    WGPUBindGroup base_colors[2];
+  } bind_groups;
+
+  /* Pipelines */
+  WGPURenderPipeline quad_pipeline;
+  WGPURenderPipeline scene_pipeline;
+
+  /* Render passes */
+  render_pass_t scene_rpass;
+  render_pass_t postfx_rpass;
+
+  /* Timing */
+  float old_time;
+  float last_tween_change_time;
+  uint64_t last_frame_time;
+
+  /* Async texture loading buffer */
+  uint8_t file_buffer[2048 * 2048 * 4];
+
+  WGPUBool initialized;
+} state = {
+  .options = {
+    .animatable          = true,
+    .tween_factor        = 0.0f,
+    .tween_factor_target = 0.0f,
+    .light_position      = {0.5f, 0.5f, 0.50f},
+    .base_colors[0]      = {0.3f, 0.6f, 0.70f},
+    .base_colors[1]      = {1.0f, 0.2f, 0.25f},
+  },
+};
+
+/* -------------------------------------------------------------------------- *
+ * Setup cameras
+ * -------------------------------------------------------------------------- */
+
+static void setup_cameras(wgpu_context_t* ctx)
+{
+  const float w = (float)ctx->width;
+  const float h = (float)ctx->height;
+
+  perspective_camera_init(&state.persp_camera, (45.0f * PI) / 180.0f, w / h,
+                          0.1f, 100.0f);
+
+  orthographic_camera_t* cam = &state.ortho_camera;
+  orthographic_camera_init(cam, -w / 2.0f, w / 2.0f, h / 2.0f, -h / 2.0f, 0.1f,
+                           3.0f);
+  glm_vec3_copy((vec3){0.0f, 0.0f, 2.0f}, cam->position);
+  glm_vec3_copy(GLM_VEC3_ZERO, cam->look_at_position);
+  orthographic_camera_update_projection_matrix(cam);
+  orthographic_camera_update_view_matrix(cam);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Prepare geometries
+ * -------------------------------------------------------------------------- */
+
+static void prepare_geometries(wgpu_context_t* ctx)
+{
+  /* Fullscreen quad */
+  create_plane(&state.quad_geo, (uint32_t)ctx->width, (uint32_t)ctx->height, 1,
+               1);
+  create_geo_gpu_buffers(ctx, &state.quad_geo, &state.quad_buf);
+
+  /* Cube */
+  create_box(&state.cube_geo);
+  create_geo_gpu_buffers(ctx, &state.cube_geo, &state.cube_buf);
+
+  /* Instanced cube matrices */
+  generate_instance_matrices(&state.instanced_cube,
+                             get_rand_position_scale_rotation, false);
+  create_inst_gpu_buffers(ctx, &state.instanced_cube, &state.inst_cube_buf);
+
+  /* Sphere */
+  create_sphere(&state.sphere_geo);
+  create_geo_gpu_buffers(ctx, &state.sphere_geo, &state.sphere_buf);
+
+  /* Instanced sphere matrices */
+  generate_instance_matrices(&state.instanced_sphere,
+                             get_rand_position_scale_rotation, false);
+  create_inst_gpu_buffers(ctx, &state.instanced_sphere, &state.inst_sphere_buf);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Prepare uniform buffers
+ * -------------------------------------------------------------------------- */
+
+static void prepare_uniform_buffers(wgpu_context_t* ctx)
+{
+  transform_init(&state.quad_transform);
+
+  state.uniforms.persp_camera = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label = "Perspective camera uniform",
+           .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size  = 16 * 2 * sizeof(float),
+         });
+
+  state.uniforms.ortho_camera = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label = "Orthographic camera uniform",
+           .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size  = 16 * 2 * sizeof(float),
+         });
+
+  state.uniforms.quad_transform = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label = "Quad transform uniform",
+           .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size  = 16 * sizeof(float),
+         });
+
+  state.uniforms.quad_tween_factor = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Tween factor uniform",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size         = sizeof(float),
+           .initial.data = &state.options.tween_factor,
+         });
+
+  state.uniforms.light_position = wgpu_create_buffer(
+    ctx, &(wgpu_buffer_desc_t){
+           .label        = "Light position uniform",
+           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+           .size         = 16,
+           .initial.data = state.options.light_position,
+         });
+
+  for (uint32_t i = 0; i < 2; ++i) {
+    state.uniforms.base_colors[i] = wgpu_create_buffer(
+      ctx, &(wgpu_buffer_desc_t){
+             .label        = "Base color uniform",
+             .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+             .size         = 16,
+             .initial.data = state.options.base_colors[i],
+           });
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Prepare offscreen framebuffer
+ * -------------------------------------------------------------------------- */
+
+static void prepare_offscreen_framebuffer(wgpu_context_t* ctx)
+{
+  WGPU_RELEASE_RESOURCE(Texture, state.offscreen.color_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.offscreen.color_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.offscreen.depth_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.offscreen.depth_view)
+
+  WGPUExtent3D size = {
+    .width              = (uint32_t)ctx->width,
+    .height             = (uint32_t)ctx->height,
     .depthOrArrayLayers = 1,
   };
 
-  /* Color attachment */
+  /* Color */
   {
-    WGPUTextureDescriptor texture_desc = {
-      .label         = "Offscreen framebuffer - Color attachment texture",
-      .size          = texture_extent,
+    WGPUTextureDescriptor desc = {
+      .label         = STRVIEW("Offscreen color texture"),
+      .size          = size,
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
-      .format        = wgpu_context->swap_chain.format,
+      .format        = ctx->render_format,
       .usage         = WGPUTextureUsage_RenderAttachment
                | WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopySrc,
     };
-    offscreen_framebuffer.color.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(offscreen_framebuffer.color.texture != NULL);
+    state.offscreen.color_tex = wgpuDeviceCreateTexture(ctx->device, &desc);
+    ASSERT(state.offscreen.color_tex != NULL);
 
-    /* Create the texture view */
-    WGPUTextureViewDescriptor texture_view_dec = {
-      .label          = "Offscreen framebuffer - Color attachment texture view",
-      .dimension      = WGPUTextureViewDimension_2D,
-      .format         = texture_desc.format,
-      .baseMipLevel   = 0,
-      .mipLevelCount  = 1,
-      .baseArrayLayer = 0,
-      .arrayLayerCount = 1,
-    };
-    offscreen_framebuffer.color.texture_view = wgpuTextureCreateView(
-      offscreen_framebuffer.color.texture, &texture_view_dec);
-    ASSERT(offscreen_framebuffer.color.texture_view != NULL);
+    state.offscreen.color_view = wgpuTextureCreateView(
+      state.offscreen.color_tex, &(WGPUTextureViewDescriptor){
+                                   .label     = STRVIEW("Offscreen color view"),
+                                   .dimension = WGPUTextureViewDimension_2D,
+                                   .format    = desc.format,
+                                   .baseMipLevel    = 0,
+                                   .mipLevelCount   = 1,
+                                   .baseArrayLayer  = 0,
+                                   .arrayLayerCount = 1,
+                                 });
+    ASSERT(state.offscreen.color_view != NULL);
   }
 
-  /* Depth stencil attachment */
+  /* Depth stencil */
   {
-    WGPUTextureDescriptor texture_desc = {
-      .label         = "Offscreen framebuffer - Depth attachment texture",
-      .size          = texture_extent,
+    WGPUTextureDescriptor desc = {
+      .label         = STRVIEW("Offscreen depth texture"),
+      .size          = size,
       .mipLevelCount = 1,
       .sampleCount   = 1,
       .dimension     = WGPUTextureDimension_2D,
       .format        = WGPUTextureFormat_Depth24PlusStencil8,
-      .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
+      .usage         = WGPUTextureUsage_RenderAttachment,
     };
-    offscreen_framebuffer.depth_stencil.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(offscreen_framebuffer.depth_stencil.texture != NULL);
+    state.offscreen.depth_tex = wgpuDeviceCreateTexture(ctx->device, &desc);
+    ASSERT(state.offscreen.depth_tex != NULL);
 
-    /* Create the texture view */
-    WGPUTextureViewDescriptor texture_view_dec = {
-      .label          = "Offscreen framebuffer - Depth attachment texture view",
-      .dimension      = WGPUTextureViewDimension_2D,
-      .format         = texture_desc.format,
-      .baseMipLevel   = 0,
-      .mipLevelCount  = 1,
-      .baseArrayLayer = 0,
-      .arrayLayerCount = 1,
-      .aspect          = WGPUTextureAspect_All,
-    };
-    offscreen_framebuffer.depth_stencil.texture_view = wgpuTextureCreateView(
-      offscreen_framebuffer.depth_stencil.texture, &texture_view_dec);
-    ASSERT(offscreen_framebuffer.depth_stencil.texture_view != NULL);
+    state.offscreen.depth_view = wgpuTextureCreateView(
+      state.offscreen.depth_tex, &(WGPUTextureViewDescriptor){
+                                   .label     = STRVIEW("Offscreen depth view"),
+                                   .dimension = WGPUTextureViewDimension_2D,
+                                   .format    = desc.format,
+                                   .baseMipLevel    = 0,
+                                   .mipLevelCount   = 1,
+                                   .baseArrayLayer  = 0,
+                                   .arrayLayerCount = 1,
+                                   .aspect          = WGPUTextureAspect_All,
+                                 });
+    ASSERT(state.offscreen.depth_view != NULL);
   }
 }
 
-/* Set up texture and sampler needed for postprocessing */
-static void prepare_textures(wgpu_context_t* wgpu_context)
+/* -------------------------------------------------------------------------- *
+ * Prepare post-processing textures
+ * -------------------------------------------------------------------------- */
+
+static void prepare_post_fx_textures(wgpu_context_t* ctx)
 {
-  WGPUExtent3D texture_size = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.post_fx0_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.post_fx0_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.post_fx1_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.post_fx1_view)
+
+  WGPUExtent3D size = {
+    .width              = (uint32_t)ctx->width,
+    .height             = (uint32_t)ctx->height,
     .depthOrArrayLayers = 1,
   };
 
-  /* Post-fx0 texture and view */
+  /* Post-fx0 */
   {
-    /* Create texture */
-    WGPUTextureDescriptor texture_desc = {
-      .label     = "Post-fx0 - Texture",
+    WGPUTextureDescriptor desc = {
+      .label     = STRVIEW("Post-fx0 texture"),
       .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
       .dimension = WGPUTextureDimension_2D,
-      .size      = texture_size,
-      .format    = wgpu_context->swap_chain.format,
+      .size      = size,
+      .format    = ctx->render_format,
       .mipLevelCount = 1,
       .sampleCount   = 1,
     };
-    textures.post_fx0.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(textures.post_fx0.texture);
+    state.textures.post_fx0_tex = wgpuDeviceCreateTexture(ctx->device, &desc);
+    ASSERT(state.textures.post_fx0_tex);
 
-    /* Create texture view */
-    WGPUTextureViewDescriptor texture_view_desc = {
-      .label           = "Post-fx0 - Texture view",
-      .format          = texture_desc.format,
-      .dimension       = WGPUTextureViewDimension_2D,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
-      .aspect          = WGPUTextureAspect_All,
-    };
-    textures.post_fx0.view
-      = wgpuTextureCreateView(textures.post_fx0.texture, &texture_view_desc);
-    ASSERT(textures.post_fx0.view);
+    state.textures.post_fx0_view = wgpuTextureCreateView(
+      state.textures.post_fx0_tex, &(WGPUTextureViewDescriptor){
+                                     .label     = STRVIEW("Post-fx0 view"),
+                                     .format    = desc.format,
+                                     .dimension = WGPUTextureViewDimension_2D,
+                                     .baseMipLevel    = 0,
+                                     .mipLevelCount   = 1,
+                                     .baseArrayLayer  = 0,
+                                     .arrayLayerCount = 1,
+                                   });
+    ASSERT(state.textures.post_fx0_view);
   }
 
-  /* Post-fx1 texture and view */
+  /* Post-fx1 */
   {
-    /* Create texture */
-    WGPUTextureDescriptor texture_desc = {
-      .label     = "Post-fx1 - Texture",
+    WGPUTextureDescriptor desc = {
+      .label     = STRVIEW("Post-fx1 texture"),
       .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
       .dimension = WGPUTextureDimension_2D,
-      .size      = texture_size,
-      .format    = wgpu_context->swap_chain.format,
+      .size      = size,
+      .format    = ctx->render_format,
       .mipLevelCount = 1,
       .sampleCount   = 1,
     };
-    textures.post_fx1.texture
-      = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-    ASSERT(textures.post_fx1.texture);
+    state.textures.post_fx1_tex = wgpuDeviceCreateTexture(ctx->device, &desc);
+    ASSERT(state.textures.post_fx1_tex);
 
-    /* Create texture view */
-    WGPUTextureViewDescriptor texture_view_desc = {
-      .label           = "Post-fx1 - Texture view",
-      .format          = texture_desc.format,
-      .dimension       = WGPUTextureViewDimension_2D,
-      .baseMipLevel    = 0,
-      .mipLevelCount   = 1,
-      .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
-      .aspect          = WGPUTextureAspect_All,
-    };
-    textures.post_fx1.view
-      = wgpuTextureCreateView(textures.post_fx1.texture, &texture_view_desc);
-    ASSERT(textures.post_fx1.view);
+    state.textures.post_fx1_view = wgpuTextureCreateView(
+      state.textures.post_fx1_tex, &(WGPUTextureViewDescriptor){
+                                     .label     = STRVIEW("Post-fx1 view"),
+                                     .format    = desc.format,
+                                     .dimension = WGPUTextureViewDimension_2D,
+                                     .baseMipLevel    = 0,
+                                     .mipLevelCount   = 1,
+                                     .baseArrayLayer  = 0,
+                                     .arrayLayerCount = 1,
+                                   });
+    ASSERT(state.textures.post_fx1_view);
   }
 
-  /* Texture sampler */
-  {
-    WGPUSamplerDescriptor sampler_desc = {
-      .label         = "Post-fx1 - Texture sampler",
-      .addressModeU  = WGPUAddressMode_Repeat,
-      .addressModeV  = WGPUAddressMode_Repeat,
-      .addressModeW  = WGPUAddressMode_Repeat,
-      .magFilter     = WGPUFilterMode_Linear,
-      .minFilter     = WGPUFilterMode_Linear,
-      .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-      .lodMinClamp   = 0.0f,
-      .lodMaxClamp   = 1.0f,
-      .maxAnisotropy = 1,
-      .compare       = WGPUCompareFunction_Undefined,
-    };
-    textures.post_fx_sampler
-      = wgpuDeviceCreateSampler(wgpu_context->device, &sampler_desc);
-    ASSERT(textures.post_fx_sampler);
-  }
-
-  /* Cutoff mask transition texture */
-  {
-    const char* file     = "textures/transition2.png";
-    textures.cutoff_mask = wgpu_create_texture_from_file(
-      wgpu_context, file,
-      &(struct wgpu_texture_load_options_t){
-        .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding
-                 | WGPUTextureUsage_RenderAttachment,
-      });
+  /* Sampler (only create once) */
+  if (!state.textures.sampler) {
+    state.textures.sampler = wgpuDeviceCreateSampler(
+      ctx->device, &(WGPUSamplerDescriptor){
+                     .label         = STRVIEW("Post-fx sampler"),
+                     .addressModeU  = WGPUAddressMode_Repeat,
+                     .addressModeV  = WGPUAddressMode_Repeat,
+                     .addressModeW  = WGPUAddressMode_Repeat,
+                     .magFilter     = WGPUFilterMode_Linear,
+                     .minFilter     = WGPUFilterMode_Linear,
+                     .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                     .lodMinClamp   = 0.0f,
+                     .lodMaxClamp   = 1.0f,
+                     .maxAnisotropy = 1,
+                   });
+    ASSERT(state.textures.sampler);
   }
 }
 
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
+/* -------------------------------------------------------------------------- *
+ * Async cutoff mask texture loading via sokol_fetch
+ * -------------------------------------------------------------------------- */
+
+static void cutoff_mask_fetch_cb(const sfetch_response_t* response)
 {
-  /* Perspective camera bind group */
-  {
-    bind_groups.persp_camera = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor) {
-       .label  = "Perspective camera - Bind group",
-       .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.scene_meshes, 0),
-       .entryCount = 1,
-       .entries    = &(WGPUBindGroupEntry) {
-         .binding = 0,
-         .buffer  = uniform_buffers.persp_camera.buffer,
-         .offset  = 0,
-         .size    = uniform_buffers.persp_camera.size,
-       },
-     }
-    );
-    ASSERT(bind_groups.persp_camera != NULL);
+  if (!response->fetched) {
+    return;
   }
 
-  /* Orthographic camera bind group */
-  {
-    bind_groups.ortho_camera = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor) {
-       .label  = "Orthographic camera - Bind group",
-       .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
-                                                      0),
-       .entryCount = 1,
-       .entries    = &(WGPUBindGroupEntry) {
-         .binding = 0,
-         .buffer  = uniform_buffers.ortho_camera.buffer,
-         .offset  = 0,
-         .size    = uniform_buffers.ortho_camera.size,
-       },
-     }
-    );
-    ASSERT(bind_groups.ortho_camera != NULL);
-  }
-
-  /* Fullscreen quad transform uniform block */
-  {
-    bind_groups.quad_transform = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor) {
-       .label  = "Fullscreen quad transform - Uniform block",
-       .layout = wgpuRenderPipelineGetBindGroupLayout(pipelines.fullscreen_quad,
-                                                      1),
-       .entryCount = 1,
-       .entries    = &(WGPUBindGroupEntry) {
-         .binding = 0,
-         .buffer  = uniform_buffers.quad_transform.buffer,
-         .offset  = 0,
-         .size    = uniform_buffers.quad_transform.size,
-       },
-     }
-    );
-    ASSERT(bind_groups.quad_transform != NULL);
-  }
-
-  /* Quad sampler uniform bind group */
-  {
-    WGPUBindGroupEntry bg_entries[4] = {
-      [0] = (WGPUBindGroupEntry) {
-        .binding = 0,
-        .sampler = textures.post_fx_sampler,
-      },
-      [1] = (WGPUBindGroupEntry) {
-        .binding = 1,
-        .textureView = textures.post_fx0.view,
-      },
-      [2] = (WGPUBindGroupEntry) {
-        .binding = 2,
-        .textureView = textures.post_fx1.view,
-      },
-      [3] = (WGPUBindGroupEntry) {
-        .binding = 3,
-        .textureView = textures.cutoff_mask.view,
-      },
+  int w = 0, h = 0, ch = 0;
+  stbi_uc* pixels = stbi_load_from_memory(
+    response->data.ptr, (int)response->data.size, &w, &h, &ch, 4);
+  if (pixels) {
+    wgpu_texture_t* tex = *(wgpu_texture_t**)response->user_data;
+    tex->desc           = (wgpu_texture_desc_t){
+                .extent
+      = {.width = (uint32_t)w, .height = (uint32_t)h, .depthOrArrayLayers = 1},
+                .format = WGPUTextureFormat_RGBA8Unorm,
+                .pixels = {.ptr = pixels, .size = (size_t)(w * h * 4)},
     };
-    bind_groups.quad_sampler = wgpuDeviceCreateBindGroup(
-      wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label  = "Quad sampler uniform - Bind group",
-                              .layout = wgpuRenderPipelineGetBindGroupLayout(
-                                pipelines.fullscreen_quad, 2),
-                              .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-                              .entries    = bg_entries,
-                            });
-    ASSERT(bind_groups.quad_sampler != NULL);
-  }
-
-  /* Quad tween uniform bind group */
-  {
-    bind_groups.quad_tween = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor) {
-       .label  = "Quad tween uniform - Bind group",
-       .layout = wgpuRenderPipelineGetBindGroupLayout(
-         pipelines.fullscreen_quad, 3),
-       .entryCount = 1,
-       .entries    = &(WGPUBindGroupEntry) {
-         .binding = 0,
-         .buffer  = uniform_buffers.quad_tween_factor.buffer,
-         .offset  = 0,
-         .size    = uniform_buffers.quad_tween_factor.size,
-       },
-     }
-    );
-    ASSERT(bind_groups.quad_tween != NULL);
-  }
-
-  /* Light position uniform bind group */
-  {
-    bind_groups.light_position = wgpuDeviceCreateBindGroup(
-          wgpu_context->device,
-          &(WGPUBindGroupDescriptor) {
-           .label  = "Light position uniform - Bind group",
-           .layout = wgpuRenderPipelineGetBindGroupLayout(
-             pipelines.scene_meshes, 1),
-           .entryCount = 1,
-           .entries    = &(WGPUBindGroupEntry) {
-             .binding = 0,
-             .buffer  = uniform_buffers.light_position.buffer,
-             .offset  = 0,
-             .size    = uniform_buffers.light_position.size,
-           },
-         }
-        );
-    ASSERT(bind_groups.light_position != NULL)
-  }
-
-  /* Base color uniform bind groups */
-  {
-    uint32_t base_color_cnt = (uint32_t)ARRAY_SIZE(uniform_buffers.base_colors);
-    for (uint32_t i = 0; i < base_color_cnt; ++i) {
-      bind_groups.base_colors[i] = wgpuDeviceCreateBindGroup(
-            wgpu_context->device,
-            &(WGPUBindGroupDescriptor) {
-             .label  = "Base color uniform - Bind group",
-             .layout = wgpuRenderPipelineGetBindGroupLayout(
-               pipelines.scene_meshes, i + 1),
-             .entryCount = 1,
-             .entries    = &(WGPUBindGroupEntry) {
-               .binding = 0,
-               .buffer  = uniform_buffers.base_colors[i].buffer,
-               .offset  = 0,
-               .size    = uniform_buffers.base_colors[i].size,
-             },
-           }
-          );
-      ASSERT(bind_groups.base_colors[i] != NULL);
-    }
+    tex->desc.is_dirty = true;
   }
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void prepare_cutoff_mask_texture(wgpu_context_t* ctx)
 {
-  UNUSED_VAR(wgpu_context);
+  state.textures.cutoff_mask = wgpu_create_color_bars_texture(ctx, NULL);
 
-  /* Instanced scene render pass descriptor */
-  {
-    /* Color attachments */
-    render_passes.scene_render.color_attachments[0] =
-      (WGPURenderPassColorAttachment) {
-        .view       = NULL, /* Assigned later */
-        .depthSlice = ~0,
-        .loadOp     = WGPULoadOp_Clear,
-        .storeOp    = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor) {
-          .r = 0.0f,
-          .g = 0.0f,
-          .b = 0.0f,
-          .a = 1.0f,
-        },
-      };
-
-    /* Depth attachment */
-    render_passes.scene_render.depth_stencil_attachment
-      = (WGPURenderPassDepthStencilAttachment){
-        .view              = offscreen_framebuffer.depth_stencil.texture_view,
-        .depthLoadOp       = WGPULoadOp_Clear,
-        .depthStoreOp      = WGPUStoreOp_Store,
-        .depthClearValue   = 1.0f,
-        .stencilLoadOp     = WGPULoadOp_Clear,
-        .stencilStoreOp    = WGPUStoreOp_Store,
-        .stencilClearValue = 0,
-      };
-
-    /* Render pass descriptor */
-    render_passes.scene_render.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Instanced scene - Render pass descriptor",
-      .colorAttachmentCount = 1,
-      .colorAttachments     = render_passes.scene_render.color_attachments,
-      .depthStencilAttachment
-      = &render_passes.scene_render.depth_stencil_attachment};
-  }
-
-  /* Postfx fullscreen quad render pass descriptor */
-  {
-    /* Color attachments */
-    render_passes.post_fx.color_attachments[0] =
-      (WGPURenderPassColorAttachment) {
-        .view       = NULL,
-        .depthSlice = ~0,
-        .loadOp     = WGPULoadOp_Clear,
-        .storeOp    = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor) {
-          .r = 0.1f,
-          .g = 0.1f,
-          .b = 0.1f,
-          .a = 1.0f,
-        },
-      };
-
-    /* Render pass descriptor */
-    render_passes.post_fx.descriptor = (WGPURenderPassDescriptor){
-      .label                = "Postfx fullscreen quad - Render pass descriptor",
-      .colorAttachmentCount = 1,
-      .colorAttachments     = render_passes.post_fx.color_attachments,
-      .depthStencilAttachment = NULL,
-    };
-  }
+  wgpu_texture_t* tex_ptr = &state.textures.cutoff_mask;
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/textures/transition2.png",
+    .callback  = cutoff_mask_fetch_cb,
+    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .user_data = {.ptr = &tex_ptr, .size = sizeof(wgpu_texture_t*)},
+  });
 }
 
-/* Fullscreen quad pipeline */
-static void prepare_fullscreen_quad_pipeline(wgpu_context_t* wgpu_context)
+/* -------------------------------------------------------------------------- *
+ * Render pipelines
+ * -------------------------------------------------------------------------- */
+
+static void prepare_quad_pipeline(wgpu_context_t* ctx)
 {
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CW,
-    .cullMode  = WGPUCullMode_Back,
+  WGPUShaderModule vs
+    = wgpu_create_shader_module(ctx->device, quad_vertex_shader_wgsl);
+  WGPUShaderModule fs
+    = wgpu_create_shader_module(ctx->device, quad_fragment_shader_wgsl);
+
+  WGPUVertexAttribute pos_attr
+    = {.shaderLocation = 0, .offset = 0, .format = WGPUVertexFormat_Float32x3};
+  WGPUVertexAttribute uv_attr
+    = {.shaderLocation = 1, .offset = 0, .format = WGPUVertexFormat_Float32x2};
+
+  WGPUVertexBufferLayout vbl[2] = {
+    {.arrayStride    = 12,
+     .stepMode       = WGPUVertexStepMode_Vertex,
+     .attributeCount = 1,
+     .attributes     = &pos_attr},
+    {.arrayStride    = 8,
+     .stepMode       = WGPUVertexStepMode_Vertex,
+     .attributeCount = 1,
+     .attributes     = &uv_attr},
   };
 
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
+  WGPUBlendState blend = wgpu_create_blend_state(true);
+
+  WGPURenderPipelineDescriptor desc = {
+    .label  = STRVIEW("Fullscreen quad pipeline"),
+    .vertex = {.module      = vs,
+               .entryPoint  = STRVIEW("main"),
+               .bufferCount = 2,
+               .buffers     = vbl},
+    .fragment
+    = &(WGPUFragmentState){.module      = fs,
+                           .entryPoint  = STRVIEW("main"),
+                           .targetCount = 1,
+                           .targets     = &(
+                             WGPUColorTargetState){.format = ctx->render_format,
+                                                       .blend  = &blend,
+                                                       .writeMask
+                                                       = WGPUColorWriteMask_All}},
+    .primitive   = {.topology  = WGPUPrimitiveTopology_TriangleList,
+                    .frontFace = WGPUFrontFace_CW,
+                    .cullMode  = WGPUCullMode_Back},
+    .multisample = {.count = 1, .mask = 0xffffffff},
   };
 
-  /* Vertex buffer layout */
-  WGPUVertexBufferLayout quad_vertex_buffer_layouts[2] = {0};
-  {
-    WGPUVertexAttribute attribute = {
-      /* Shader location 0 : position attribute */
-      .shaderLocation = 0,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x3,
-    };
-    quad_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-      .arrayStride    = 3 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Vertex,
-      .attributeCount = 1,
-      .attributes     = &attribute,
-    };
-  }
-  {
-    WGPUVertexAttribute attribute = {
-      /* Shader location 1 : uv attribute */
-      .shaderLocation = 1,
-      .offset         = 0,
-      .format         = WGPUVertexFormat_Float32x2,
-    };
-    quad_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
-      .arrayStride    = 2 * sizeof(float),
-      .stepMode       = WGPUVertexStepMode_Vertex,
-      .attributeCount = 1,
-      .attributes     = &attribute,
-    };
-  }
+  state.quad_pipeline = wgpuDeviceCreateRenderPipeline(ctx->device, &desc);
+  ASSERT(state.quad_pipeline != NULL);
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Vertex shader WGSL */
-                .label = "Quad shader - Vertex shader",
-                .file  = "shaders/post_processing/quad-shader.vert.wgsl",
-                .entry = "main"
-              },
-              .buffer_count = (uint32_t)ARRAY_SIZE(quad_vertex_buffer_layouts),
-              .buffers      = quad_vertex_buffer_layouts,
-            });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Fragment shader WGSL */
-                .label = "Quad shader - Fragment shader",
-                .file  = "shaders/post_processing/quad-shader.frag.wgsl",
-                .entry = "main"
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
-
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  /* Create rendering pipeline using the specified states */
-  pipelines.fullscreen_quad = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Fullscreen quad - Render pipeline",
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
-  ASSERT(pipelines.fullscreen_quad != NULL);
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(vs);
+  wgpuShaderModuleRelease(fs);
 }
 
-/* Instanced meshes pipeline */
-static void prepare_instanced_meshes_pipeline(wgpu_context_t* wgpu_context)
+static void prepare_scene_pipeline(wgpu_context_t* ctx)
 {
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
+  WGPUShaderModule vs
+    = wgpu_create_shader_module(ctx->device, instanced_vertex_shader_wgsl);
+  WGPUShaderModule fs
+    = wgpu_create_shader_module(ctx->device, instanced_fragment_shader_wgsl);
+
+  WGPUVertexAttribute a_pos
+    = {.shaderLocation = 0, .offset = 0, .format = WGPUVertexFormat_Float32x3};
+  WGPUVertexAttribute a_norm
+    = {.shaderLocation = 1, .offset = 0, .format = WGPUVertexFormat_Float32x3};
+
+  WGPUVertexAttribute a_model[4] = {
+    {.shaderLocation = 2, .offset = 0, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 3, .offset = 16, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 4, .offset = 32, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 5, .offset = 48, .format = WGPUVertexFormat_Float32x4},
+  };
+  WGPUVertexAttribute a_nmat[4] = {
+    {.shaderLocation = 6, .offset = 0, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 7, .offset = 16, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 8, .offset = 32, .format = WGPUVertexFormat_Float32x4},
+    {.shaderLocation = 9, .offset = 48, .format = WGPUVertexFormat_Float32x4},
   };
 
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
+  WGPUVertexBufferLayout vbl[4] = {
+    {.arrayStride    = 12,
+     .stepMode       = WGPUVertexStepMode_Vertex,
+     .attributeCount = 1,
+     .attributes     = &a_pos},
+    {.arrayStride    = 12,
+     .stepMode       = WGPUVertexStepMode_Vertex,
+     .attributeCount = 1,
+     .attributes     = &a_norm},
+    {.arrayStride    = 64,
+     .stepMode       = WGPUVertexStepMode_Instance,
+     .attributeCount = 4,
+     .attributes     = a_model},
+    {.arrayStride    = 64,
+     .stepMode       = WGPUVertexStepMode_Instance,
+     .attributeCount = 4,
+     .attributes     = a_nmat},
   };
 
-  /* Depth stencil state */
-  WGPUDepthStencilState depth_stencil_state
+  WGPUDepthStencilState ds
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
       .format              = WGPUTextureFormat_Depth24PlusStencil8,
       .depth_write_enabled = true,
     });
-  depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
+  ds.depthCompare = WGPUCompareFunction_Less;
 
-  /* Vertex buffer layout */
-  WGPUVertexBufferLayout instanced_meshes_vertex_buffer_layouts[4] = {0};
+  WGPUBlendState blend = wgpu_create_blend_state(true);
 
-  WGPUVertexAttribute attribute_0 = {
-    /* Shader location 0 : position attribute */
-    .shaderLocation = 0,
-    .offset         = 0 * sizeof(float),
-    .format         = WGPUVertexFormat_Float32x3,
-  };
-  instanced_meshes_vertex_buffer_layouts[0] = (WGPUVertexBufferLayout){
-    .arrayStride    = 3 * sizeof(float),
-    .stepMode       = WGPUVertexStepMode_Vertex,
-    .attributeCount = 1,
-    .attributes     = &attribute_0,
-  };
-
-  WGPUVertexAttribute attribute_1 = {
-    /* Shader location 1 : normal attribute */
-    .shaderLocation = 1,
-    .offset         = 0,
-    .format         = WGPUVertexFormat_Float32x3,
-  };
-  instanced_meshes_vertex_buffer_layouts[1] = (WGPUVertexBufferLayout){
-    .arrayStride    = 3 * sizeof(float),
-    .stepMode       = WGPUVertexStepMode_Vertex,
-    .attributeCount = 1,
-    .attributes     = &attribute_1,
+  WGPURenderPipelineDescriptor desc = {
+    .label  = STRVIEW("Scene meshes pipeline"),
+    .vertex = {.module      = vs,
+               .entryPoint  = STRVIEW("main"),
+               .bufferCount = 4,
+               .buffers     = vbl},
+    .fragment
+    = &(WGPUFragmentState){.module      = fs,
+                           .entryPoint  = STRVIEW("main"),
+                           .targetCount = 1,
+                           .targets     = &(
+                             WGPUColorTargetState){.format = ctx->render_format,
+                                                       .blend  = &blend,
+                                                       .writeMask
+                                                       = WGPUColorWriteMask_All}},
+    .primitive    = {.topology  = WGPUPrimitiveTopology_TriangleList,
+                     .frontFace = WGPUFrontFace_CCW,
+                     .cullMode  = WGPUCullMode_None},
+    .depthStencil = &ds,
+    .multisample  = {.count = 1, .mask = 0xffffffff},
   };
 
-  // We need to pass the mat4x4<f32> instance world matrix as 4 vec4<f32>()
-  // components It will occupy 4 input slots
-  WGPUVertexAttribute attributes_2[4] = {
-       [0] = (WGPUVertexAttribute) {
-         .shaderLocation = 2,
-         .offset         = 0 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [1] = (WGPUVertexAttribute) {
-         .shaderLocation = 3,
-         .offset         = 4 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [2] = (WGPUVertexAttribute) {
-         .shaderLocation = 4,
-         .offset         = 8 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [3] = (WGPUVertexAttribute) {
-         .shaderLocation = 5,
-         .offset         = 12 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       }
-     };
-  instanced_meshes_vertex_buffer_layouts[2] = (WGPUVertexBufferLayout){
-    .arrayStride    = 16 * sizeof(float),
-    .stepMode       = WGPUVertexStepMode_Instance,
-    .attributeCount = (uint32_t)ARRAY_SIZE(attributes_2),
-    .attributes     = attributes_2,
+  state.scene_pipeline = wgpuDeviceCreateRenderPipeline(ctx->device, &desc);
+  ASSERT(state.scene_pipeline != NULL);
+
+  wgpuShaderModuleRelease(vs);
+  wgpuShaderModuleRelease(fs);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Setup bind groups
+ * -------------------------------------------------------------------------- */
+
+static void setup_bind_groups(wgpu_context_t* ctx)
+{
+  /* Perspective camera */
+  state.bind_groups.persp_camera = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Persp camera bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.scene_pipeline, 0),
+      .entryCount = 1,
+      .entries
+      = &(WGPUBindGroupEntry){.binding = 0,
+                              .buffer  = state.uniforms.persp_camera.buffer,
+                              .offset  = 0,
+                              .size    = state.uniforms.persp_camera.size},
+    });
+
+  /* Orthographic camera */
+  state.bind_groups.ortho_camera = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Ortho camera bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.quad_pipeline, 0),
+      .entryCount = 1,
+      .entries
+      = &(WGPUBindGroupEntry){.binding = 0,
+                              .buffer  = state.uniforms.ortho_camera.buffer,
+                              .offset  = 0,
+                              .size    = state.uniforms.ortho_camera.size},
+    });
+
+  /* Quad transform */
+  state.bind_groups.quad_transform = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Quad transform bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.quad_pipeline, 1),
+      .entryCount = 1,
+      .entries
+      = &(WGPUBindGroupEntry){.binding = 0,
+                              .buffer  = state.uniforms.quad_transform.buffer,
+                              .offset  = 0,
+                              .size    = state.uniforms.quad_transform.size},
+    });
+
+  /* Quad sampler */
+  WGPUBindGroupEntry sampler_entries[4] = {
+    {.binding = 0, .sampler = state.textures.sampler},
+    {.binding = 1, .textureView = state.textures.post_fx0_view},
+    {.binding = 2, .textureView = state.textures.post_fx1_view},
+    {.binding = 3, .textureView = state.textures.cutoff_mask.view},
   };
+  state.bind_groups.quad_sampler = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Quad sampler bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.quad_pipeline, 2),
+      .entryCount = 4,
+      .entries    = sampler_entries,
+    });
 
-  // We need to pass the mat4x4<f32> instance normal matrix as 4 vec4<f32>()
-  // components It will occupy 4 input slots
-  WGPUVertexAttribute attributes_3[4] = {
-       [0] = (WGPUVertexAttribute) {
-         .shaderLocation = 6,
-         .offset         = 0 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [1] = (WGPUVertexAttribute) {
-         .shaderLocation = 7,
-         .offset         = 4 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [2] = (WGPUVertexAttribute) {
-         .shaderLocation = 8,
-         .offset         = 8 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       },
-       [3] = (WGPUVertexAttribute) {
-         .shaderLocation = 9,
-         .offset         = 12 * sizeof(float),
-         .format         = WGPUVertexFormat_Float32x4,
-       }
-     };
-  instanced_meshes_vertex_buffer_layouts[3] = (WGPUVertexBufferLayout){
-    .arrayStride    = 16 * sizeof(float),
-    .stepMode       = WGPUVertexStepMode_Instance,
-    .attributeCount = (uint32_t)ARRAY_SIZE(attributes_3),
-    .attributes     = attributes_3,
-  };
+  /* Quad tween */
+  state.bind_groups.quad_tween = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Quad tween bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.quad_pipeline, 3),
+      .entryCount = 1,
+      .entries
+      = &(WGPUBindGroupEntry){.binding = 0,
+                              .buffer = state.uniforms.quad_tween_factor.buffer,
+                              .offset = 0,
+                              .size   = state.uniforms.quad_tween_factor.size},
+    });
 
-  /* Vertex state */
-  const uint32_t buffer_count
-    = (uint32_t)ARRAY_SIZE(instanced_meshes_vertex_buffer_layouts);
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-              wgpu_context, &(wgpu_vertex_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Vertex shader WGSL */
-                .label = "Instanced shader - Vertex shader",
-                .file  = "shaders/post_processing/instanced-shader.vert.wgsl",
-                .entry = "main"
-              },
-              .buffer_count = buffer_count,
-              .buffers      = instanced_meshes_vertex_buffer_layouts,
-            });
+  /* Light position */
+  state.bind_groups.light_position = wgpuDeviceCreateBindGroup(
+    ctx->device,
+    &(WGPUBindGroupDescriptor){
+      .label  = STRVIEW("Light position bind group"),
+      .layout = wgpuRenderPipelineGetBindGroupLayout(state.scene_pipeline, 1),
+      .entryCount = 1,
+      .entries
+      = &(WGPUBindGroupEntry){.binding = 0,
+                              .buffer  = state.uniforms.light_position.buffer,
+                              .offset  = 0,
+                              .size    = state.uniforms.light_position.size},
+    });
 
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-              wgpu_context, &(wgpu_fragment_state_t){
-              .shader_desc = (wgpu_shader_desc_t){
-                /* Fragment shader WGSL */
-                .label = "Instanced shader - Fragment shader",
-                .file  = "shaders/post_processing/instanced-shader.frag.wgsl",
-                .entry = "main"
-              },
-              .target_count = 1,
-              .targets      = &color_target_state,
-            });
-
-  /* Multisample state */
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
+  /* Base colors */
+  for (uint32_t i = 0; i < 2; ++i) {
+    state.bind_groups.base_colors[i] = wgpuDeviceCreateBindGroup(
+      ctx->device,
+      &(WGPUBindGroupDescriptor){
+        .label  = STRVIEW("Base color bind group"),
+        .layout = wgpuRenderPipelineGetBindGroupLayout(state.scene_pipeline, 2),
+        .entryCount = 1,
+        .entries
+        = &(WGPUBindGroupEntry){.binding = 0,
+                                .buffer  = state.uniforms.base_colors[i].buffer,
+                                .offset  = 0,
+                                .size    = state.uniforms.base_colors[i].size},
       });
-
-  /* Create rendering pipeline using the specified states */
-  pipelines.scene_meshes = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Scene meshes - Render pipeline",
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(pipelines.scene_meshes != NULL);
-
-  /* Partial cleanup */
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
-{
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Animatable",
-                           &options.animatable);
-    if (imgui_overlay_slider_float(context->imgui_overlay, "Tween Factor",
-                                   &options.tween_factor, 0.0f, 1.0f, "%.1f")) {
-      update_tween_factor(context->wgpu_context);
-    }
   }
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+/* -------------------------------------------------------------------------- *
+ * Setup render passes
+ * -------------------------------------------------------------------------- */
+
+static void setup_render_passes(void)
 {
-  if (context) {
-    setup_cameras(context);
-    prepare_geometries(context->wgpu_context);
-    prepare_uniform_buffers(context->wgpu_context);
-    prepare_offscreen_framebuffer(context->wgpu_context);
-    prepare_textures(context->wgpu_context);
-    prepare_fullscreen_quad_pipeline(context->wgpu_context);
-    prepare_instanced_meshes_pipeline(context->wgpu_context);
-    setup_bind_groups(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    prepared = true;
-    return EXIT_SUCCESS;
-  }
-
-  return EXIT_FAILURE;
-}
-
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Set target frame buffer */
-  render_passes.scene_render.color_attachments[0].view
-    = offscreen_framebuffer.color.texture_view;
-
-  /* Render instanced cubes scene to default swapchainTexture */
-  {
-    render_passes.scene_render.color_attachments[0].clearValue = (WGPUColor){
-      .r = 0.1f,
-      .g = 0.1f,
-      .b = 0.1f,
-      .a = 1.0f,
+  /* Scene render pass */
+  state.scene_rpass.color_attachments[0] = (WGPURenderPassColorAttachment){
+    .view       = NULL,
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
+  };
+  state.scene_rpass.depth_stencil_attachment
+    = (WGPURenderPassDepthStencilAttachment){
+      .view              = NULL,
+      .depthLoadOp       = WGPULoadOp_Clear,
+      .depthStoreOp      = WGPUStoreOp_Store,
+      .depthClearValue   = 1.0f,
+      .stencilLoadOp     = WGPULoadOp_Clear,
+      .stencilStoreOp    = WGPUStoreOp_Store,
+      .stencilClearValue = 0,
     };
+  state.scene_rpass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = STRVIEW("Scene render pass"),
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = state.scene_rpass.color_attachments,
+    .depthStencilAttachment = &state.scene_rpass.depth_stencil_attachment,
+  };
 
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_passes.scene_render.descriptor);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     pipelines.scene_meshes);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      bind_groups.persp_camera, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                      bind_groups.light_position, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 2,
-                                      bind_groups.base_colors[0], 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         vertex_buffers.cube.vertices.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         vertex_buffers.cube.normals.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 2,
-      vertex_buffers.instanced_cube.model_matrix.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 3,
-      vertex_buffers.instanced_cube.normal_matrix.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(
-      wgpu_context->rpass_enc, vertex_buffers.cube.indices.buffer,
-      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                     geometries.cube.indices.count,
-                                     INSTANCES_COUNT, 0, 0, 0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-  }
-
-  /**
-   * Copy offscreen texture to another texture that will be outputted on the
-   * fullscreen quad
-   */
-  {
-    wgpuCommandEncoderCopyTextureToTexture(
-      wgpu_context->cmd_enc,
-      // source
-      &(WGPUImageCopyTexture){
-        .texture  = offscreen_framebuffer.color.texture,
-        .mipLevel = 0,
-      },
-      // destination
-      &(WGPUImageCopyTexture){
-        .texture  = textures.post_fx0.texture,
-        .mipLevel = 0,
-      },
-      // copySize
-      &(WGPUExtent3D){
-        .width              = wgpu_context->surface.width,
-        .height             = wgpu_context->surface.height,
-        .depthOrArrayLayers = 1,
-      });
-  }
-
-  /**
-   * Render instanced spheres scene to default swapchainTexture
-   */
-  {
-    render_passes.scene_render.color_attachments[0].clearValue = (WGPUColor){
-      .r = 0.225f,
-      .g = 0.225f,
-      .b = 0.225f,
-      .a = 1.0f,
-    };
-
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_passes.scene_render.descriptor);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     pipelines.scene_meshes);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      bind_groups.persp_camera, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                      bind_groups.light_position, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 2,
-                                      bind_groups.base_colors[1], 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         vertex_buffers.sphere.vertices.buffer,
-                                         0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         vertex_buffers.sphere.normals.buffer,
-                                         0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 2,
-      vertex_buffers.instanced_sphere.model_matrix.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(
-      wgpu_context->rpass_enc, 3,
-      vertex_buffers.instanced_sphere.model_matrix.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(
-      wgpu_context->rpass_enc, vertex_buffers.sphere.indices.buffer,
-      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                     geometries.sphere.indices.count,
-                                     INSTANCES_COUNT, 0, 0, 0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-  }
-
-  /**
-   * Copy offscreen texture to another texture that will be outputted on the
-   * fullscreen quad
-   */
-  {
-    wgpuCommandEncoderCopyTextureToTexture(
-      wgpu_context->cmd_enc,
-      // source
-      &(WGPUImageCopyTexture){
-        .texture  = offscreen_framebuffer.color.texture,
-        .mipLevel = 0,
-      },
-      // destination
-      &(WGPUImageCopyTexture){
-        .texture  = textures.post_fx1.texture,
-        .mipLevel = 0,
-      },
-      // copySize
-      &(WGPUExtent3D){
-        .width              = wgpu_context->surface.width,
-        .height             = wgpu_context->surface.height,
-        .depthOrArrayLayers = 1,
-      });
-  }
-
-  /* Set target frame buffer */
-  render_passes.post_fx.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
-
-  /**
-   * Render postfx fullscreen quad to screen
-   */
-  {
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_passes.post_fx.descriptor);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     pipelines.fullscreen_quad);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      bind_groups.ortho_camera, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                      bind_groups.quad_transform, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 2,
-                                      bind_groups.quad_sampler, 0, 0);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 3,
-                                      bind_groups.quad_tween, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         vertex_buffers.quad.vertices.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 1,
-                                         vertex_buffers.quad.uvs.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(
-      wgpu_context->rpass_enc, vertex_buffers.quad.indices.buffer,
-      WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(wgpu_context->rpass_enc,
-                                     geometries.quad.indices.count, 1, 0, 0, 0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-  }
-
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
+  /* Post-fx render pass */
+  state.postfx_rpass.color_attachments[0] = (WGPURenderPassColorAttachment){
+    .view       = NULL,
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.1f, 0.1f, 0.1f, 1.0f},
+  };
+  state.postfx_rpass.descriptor = (WGPURenderPassDescriptor){
+    .label                  = STRVIEW("Post-fx render pass"),
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = state.postfx_rpass.color_attachments,
+    .depthStencilAttachment = NULL,
+  };
 }
 
-static int example_draw(wgpu_example_context_t* context)
+/* -------------------------------------------------------------------------- *
+ * Update uniforms
+ * -------------------------------------------------------------------------- */
+
+static void update_tween_factor(wgpu_context_t* ctx)
 {
-  /* Prepare frame */
-  prepare_frame(context);
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.quad_tween_factor.buffer, 0,
+                       &state.options.tween_factor, sizeof(float));
+}
 
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
+static void update_uniforms(wgpu_context_t* ctx, float ts, float dt)
+{
+  if (ts - state.last_tween_change_time > 4.0f) {
+    state.options.tween_factor_target
+      = fabsf(state.options.tween_factor_target - 1.0f) < PP_EPSILON ? 0.0f :
+                                                                       1.0f;
+    state.last_tween_change_time = ts;
+  }
 
-  /* Submit to queue */
-  submit_command_buffers(context);
+  /* Update perspective camera */
+  glm_vec3_copy((vec3){cosf(ts * 0.2f) * WORLD_SIZE_X, 0.0f,
+                       sinf(ts * 0.2f) * WORLD_SIZE_Z},
+                state.persp_camera.position);
+  glm_vec3_copy(GLM_VEC3_ZERO, state.persp_camera.look_at_position);
+  perspective_camera_update_projection_matrix(&state.persp_camera);
+  perspective_camera_update_view_matrix(&state.persp_camera);
 
-  /* Submit frame */
-  submit_frame(context);
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.persp_camera.buffer, 0,
+                       state.persp_camera.projection_matrix, sizeof(mat4));
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.persp_camera.buffer,
+                       16 * sizeof(float), state.persp_camera.view_matrix,
+                       sizeof(mat4));
+
+  /* Update orthographic camera */
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.ortho_camera.buffer, 0,
+                       state.ortho_camera.projection_matrix, sizeof(mat4));
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.ortho_camera.buffer,
+                       16 * sizeof(float), state.ortho_camera.view_matrix,
+                       sizeof(mat4));
+
+  /* Update quad transform */
+  transform_set_rotation(&state.quad_transform, (vec3){PI, 0.0f, 0.0f});
+  transform_update_model_matrix(&state.quad_transform);
+  wgpuQueueWriteBuffer(ctx->queue, state.uniforms.quad_transform.buffer, 0,
+                       state.quad_transform.model_matrix, sizeof(mat4));
+
+  /* Update tween factor */
+  if (state.options.animatable) {
+    state.options.tween_factor
+      += (state.options.tween_factor_target - state.options.tween_factor)
+         * (dt * 2.0f);
+  }
+  update_tween_factor(ctx);
+}
+
+/* -------------------------------------------------------------------------- *
+ * GUI
+ * -------------------------------------------------------------------------- */
+
+static void render_gui(struct wgpu_context_t* ctx)
+{
+  UNUSED_VAR(ctx);
+
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igSetNextWindowSize((ImVec2){280.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  igBegin("Post-processing Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  imgui_overlay_checkbox("Animatable", &state.options.animatable);
+  imgui_overlay_slider_float("Tween Factor", &state.options.tween_factor, 0.0f,
+                             1.0f, "%.2f");
+
+  igEnd();
+}
+
+/* -------------------------------------------------------------------------- *
+ * Input handling
+ * -------------------------------------------------------------------------- */
+
+static void input_event_cb(struct wgpu_context_t* ctx,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(ctx, input_event);
+
+  if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
+    prepare_offscreen_framebuffer(ctx);
+    prepare_post_fx_textures(ctx);
+    setup_cameras(ctx);
+
+    /* Recreate quad geometry for new dimensions */
+    geometry_destroy(&state.quad_geo);
+    WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.vertices.buffer)
+    WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.normals.buffer)
+    WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.uvs.buffer)
+    WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.indices.buffer)
+    create_plane(&state.quad_geo, (uint32_t)ctx->width, (uint32_t)ctx->height,
+                 1, 1);
+    create_geo_gpu_buffers(ctx, &state.quad_geo, &state.quad_buf);
+
+    /* Recreate bind groups that reference resized textures */
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.persp_camera)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.ortho_camera)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_transform)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_sampler)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_tween)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.light_position)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.base_colors[0])
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.base_colors[1])
+    setup_bind_groups(ctx);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Init / Frame / Shutdown
+ * -------------------------------------------------------------------------- */
+
+static int init(struct wgpu_context_t* ctx)
+{
+  if (!ctx) {
+    return EXIT_FAILURE;
+  }
+
+  stm_setup();
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+    .logger.func  = slog_func,
+  });
+
+  setup_cameras(ctx);
+  prepare_geometries(ctx);
+  prepare_uniform_buffers(ctx);
+  prepare_offscreen_framebuffer(ctx);
+  prepare_post_fx_textures(ctx);
+  prepare_cutoff_mask_texture(ctx);
+  prepare_quad_pipeline(ctx);
+  prepare_scene_pipeline(ctx);
+  setup_bind_groups(ctx);
+  setup_render_passes();
+  imgui_overlay_init(ctx);
+
+  state.initialized = true;
+  return EXIT_SUCCESS;
+}
+
+static int frame(struct wgpu_context_t* ctx)
+{
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
+
+  sfetch_dowork();
+
+  /* Update cutoff mask texture when loaded */
+  if (state.textures.cutoff_mask.desc.is_dirty) {
+    wgpu_recreate_texture(ctx, &state.textures.cutoff_mask);
+    FREE_TEXTURE_PIXELS(state.textures.cutoff_mask);
+
+    /* Recreate quad sampler bind group with new texture */
+    WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_sampler)
+    WGPUBindGroupEntry entries[4] = {
+      {.binding = 0, .sampler = state.textures.sampler},
+      {.binding = 1, .textureView = state.textures.post_fx0_view},
+      {.binding = 2, .textureView = state.textures.post_fx1_view},
+      {.binding = 3, .textureView = state.textures.cutoff_mask.view},
+    };
+    state.bind_groups.quad_sampler = wgpuDeviceCreateBindGroup(
+      ctx->device,
+      &(WGPUBindGroupDescriptor){
+        .label  = STRVIEW("Quad sampler bind group"),
+        .layout = wgpuRenderPipelineGetBindGroupLayout(state.quad_pipeline, 2),
+        .entryCount = 4,
+        .entries    = entries,
+      });
+  }
+
+  /* Timing */
+  const float ts = (float)stm_sec(stm_now());
+  const float dt = ts - state.old_time;
+  state.old_time = ts;
+
+  update_uniforms(ctx, ts, dt);
+
+  /* ImGui */
+  uint64_t now = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = now;
+  }
+  float delta           = (float)stm_sec(stm_diff(now, state.last_frame_time));
+  state.last_frame_time = now;
+  imgui_overlay_new_frame(ctx, delta);
+  render_gui(ctx);
+
+  WGPUDevice device          = ctx->device;
+  WGPUQueue queue            = ctx->queue;
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+
+  /* --- Render instanced cubes to offscreen --- */
+  state.scene_rpass.color_attachments[0].view     = state.offscreen.color_view;
+  state.scene_rpass.depth_stencil_attachment.view = state.offscreen.depth_view;
+  state.scene_rpass.color_attachments[0].clearValue
+    = (WGPUColor){0.1f, 0.1f, 0.1f, 1.0f};
+  {
+    WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.scene_rpass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(rp, state.scene_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bind_groups.persp_camera, 0,
+                                      0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 1, state.bind_groups.light_position,
+                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 2, state.bind_groups.base_colors[0],
+                                      0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.cube_buf.vertices.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 1, state.cube_buf.normals.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rp, 2, state.inst_cube_buf.model_matrix.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rp, 3, state.inst_cube_buf.normal_matrix.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(rp, state.cube_buf.indices.buffer,
+                                        WGPUIndexFormat_Uint32, 0,
+                                        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(rp, state.cube_geo.indices.count,
+                                     INSTANCES_COUNT, 0, 0, 0);
+    wgpuRenderPassEncoderEnd(rp);
+    wgpuRenderPassEncoderRelease(rp);
+  }
+
+  /* Copy offscreen to post-fx0 texture */
+  {
+    WGPUTexelCopyTextureInfo src = {.texture = state.offscreen.color_tex};
+    WGPUTexelCopyTextureInfo dst = {.texture = state.textures.post_fx0_tex};
+    WGPUExtent3D sz              = {.width              = (uint32_t)ctx->width,
+                                    .height             = (uint32_t)ctx->height,
+                                    .depthOrArrayLayers = 1};
+    wgpuCommandEncoderCopyTextureToTexture(cmd_enc, &src, &dst, &sz);
+  }
+
+  /* --- Render instanced spheres to offscreen --- */
+  state.scene_rpass.color_attachments[0].clearValue
+    = (WGPUColor){0.225f, 0.225f, 0.225f, 1.0f};
+  {
+    WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.scene_rpass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(rp, state.scene_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bind_groups.persp_camera, 0,
+                                      0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 1, state.bind_groups.light_position,
+                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 2, state.bind_groups.base_colors[1],
+                                      0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rp, 0, state.sphere_buf.vertices.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 1, state.sphere_buf.normals.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rp, 2, state.inst_sphere_buf.model_matrix.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rp, 3, state.inst_sphere_buf.normal_matrix.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(rp, state.sphere_buf.indices.buffer,
+                                        WGPUIndexFormat_Uint32, 0,
+                                        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(rp, state.sphere_geo.indices.count,
+                                     INSTANCES_COUNT, 0, 0, 0);
+    wgpuRenderPassEncoderEnd(rp);
+    wgpuRenderPassEncoderRelease(rp);
+  }
+
+  /* Copy offscreen to post-fx1 texture */
+  {
+    WGPUTexelCopyTextureInfo src = {.texture = state.offscreen.color_tex};
+    WGPUTexelCopyTextureInfo dst = {.texture = state.textures.post_fx1_tex};
+    WGPUExtent3D sz              = {.width              = (uint32_t)ctx->width,
+                                    .height             = (uint32_t)ctx->height,
+                                    .depthOrArrayLayers = 1};
+    wgpuCommandEncoderCopyTextureToTexture(cmd_enc, &src, &dst, &sz);
+  }
+
+  /* --- Render post-fx fullscreen quad to swapchain --- */
+  state.postfx_rpass.color_attachments[0].view = ctx->swapchain_view;
+  {
+    WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.postfx_rpass.descriptor);
+    wgpuRenderPassEncoderSetPipeline(rp, state.quad_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bind_groups.ortho_camera, 0,
+                                      0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 1, state.bind_groups.quad_transform,
+                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 2, state.bind_groups.quad_sampler, 0,
+                                      0);
+    wgpuRenderPassEncoderSetBindGroup(rp, 3, state.bind_groups.quad_tween, 0,
+                                      0);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.quad_buf.vertices.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 1, state.quad_buf.uvs.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(rp, state.quad_buf.indices.buffer,
+                                        WGPUIndexFormat_Uint32, 0,
+                                        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(rp, state.quad_geo.indices.count, 1, 0, 0,
+                                     0);
+    wgpuRenderPassEncoderEnd(rp);
+    wgpuRenderPassEncoderRelease(rp);
+  }
+
+  WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(cmd_enc, NULL);
+  wgpuQueueSubmit(queue, 1, &cmd);
+  wgpuCommandBufferRelease(cmd);
+  wgpuCommandEncoderRelease(cmd_enc);
+
+  /* Render ImGui overlay on top */
+  imgui_overlay_render(ctx);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* ctx)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  update_uniform_buffers(context);
-  return example_draw(context);
+  UNUSED_VAR(ctx);
+
+  imgui_overlay_shutdown();
+  sfetch_shutdown();
+
+  /* Geometry CPU data */
+  geometry_destroy(&state.quad_geo);
+  geometry_destroy(&state.cube_geo);
+  geometry_destroy(&state.sphere_geo);
+
+  /* GPU buffers */
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.normals.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.uvs.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.quad_buf.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube_buf.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube_buf.normals.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube_buf.uvs.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.cube_buf.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.sphere_buf.vertices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.sphere_buf.normals.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.sphere_buf.uvs.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.sphere_buf.indices.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.inst_cube_buf.model_matrix.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.inst_cube_buf.normal_matrix.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.inst_sphere_buf.model_matrix.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.inst_sphere_buf.normal_matrix.buffer)
+
+  /* Uniform buffers */
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.persp_camera.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.ortho_camera.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.quad_transform.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.quad_tween_factor.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.light_position.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.base_colors[0].buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.uniforms.base_colors[1].buffer)
+
+  /* Textures */
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.post_fx0_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.post_fx0_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.textures.post_fx1_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.textures.post_fx1_view)
+  WGPU_RELEASE_RESOURCE(Sampler, state.textures.sampler)
+  wgpu_destroy_texture(&state.textures.cutoff_mask);
+
+  /* Offscreen framebuffer */
+  WGPU_RELEASE_RESOURCE(Texture, state.offscreen.color_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.offscreen.color_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.offscreen.depth_tex)
+  WGPU_RELEASE_RESOURCE(TextureView, state.offscreen.depth_view)
+
+  /* Bind groups */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.persp_camera)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.ortho_camera)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_transform)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_sampler)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.quad_tween)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.light_position)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.base_colors[0])
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.base_colors[1])
+
+  /* Pipelines */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.quad_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.scene_pipeline)
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+int main(void)
 {
-  UNUSED_VAR(context);
-
-  geometry_destroy(&geometries.quad);
-  geometry_destroy(&geometries.cube);
-  geometry_destroy(&geometries.sphere);
-
-  geometry_gpu_buffers_destroy(&vertex_buffers.quad);
-  geometry_gpu_buffers_destroy(&vertex_buffers.cube);
-  geometry_gpu_buffers_destroy(&vertex_buffers.sphere);
-  instanced_geometry_gpu_buffers_destroy(&vertex_buffers.instanced_cube);
-  instanced_geometry_gpu_buffers_destroy(&vertex_buffers.instanced_sphere);
-
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.persp_camera.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.ortho_camera.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.quad_transform.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.quad_tween_factor.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.light_position.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.base_colors[0].buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, uniform_buffers.base_colors[1].buffer)
-
-  WGPU_RELEASE_RESOURCE(Texture, textures.post_fx0.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, textures.post_fx0.view)
-  WGPU_RELEASE_RESOURCE(Texture, textures.post_fx1.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, textures.post_fx1.view)
-  WGPU_RELEASE_RESOURCE(Sampler, textures.post_fx_sampler)
-  wgpu_destroy_texture(&textures.cutoff_mask);
-
-  WGPU_RELEASE_RESOURCE(Texture, offscreen_framebuffer.color.texture)
-  WGPU_RELEASE_RESOURCE(TextureView, offscreen_framebuffer.color.texture_view)
-  WGPU_RELEASE_RESOURCE(Texture, offscreen_framebuffer.depth_stencil.texture)
-  WGPU_RELEASE_RESOURCE(TextureView,
-                        offscreen_framebuffer.depth_stencil.texture_view)
-
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.persp_camera)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.ortho_camera)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.quad_transform)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.quad_sampler)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.quad_tween)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.light_position)
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.base_colors[0])
-  WGPU_RELEASE_RESOURCE(BindGroup, bind_groups.base_colors[1])
-
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.fullscreen_quad)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, pipelines.scene_meshes)
-}
-
-void example_post_processing(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = example_title,
-     .overlay = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Post-processing",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+/* Instanced vertex shader */
+// clang-format off
+static const char* instanced_vertex_shader_wgsl = CODE(
+  struct Camera {
+    projectionMatrix: mat4x4<f32>,
+    viewMatrix: mat4x4<f32>
+  }
+
+  @group(0) @binding(0)
+  var<uniform> camera: Camera;
+
+  struct Input {
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) instanceModelMatrix0: vec4<f32>,
+    @location(3) instanceModelMatrix1: vec4<f32>,
+    @location(4) instanceModelMatrix2: vec4<f32>,
+    @location(5) instanceModelMatrix3: vec4<f32>,
+    @location(6) instanceNormalMatrix0: vec4<f32>,
+    @location(7) instanceNormalMatrix1: vec4<f32>,
+    @location(8) instanceNormalMatrix2: vec4<f32>,
+    @location(9) instanceNormalMatrix3: vec4<f32>
+  }
+
+  struct Output {
+    @builtin(position) Position: vec4<f32>,
+    @location(0) normal: vec4<f32>,
+    @location(1) pos: vec4<f32>
+  }
+
+  @vertex
+  fn main(input: Input) -> Output {
+    var output: Output;
+
+    var instanceModelMatrix: mat4x4<f32> = mat4x4<f32>(
+      input.instanceModelMatrix0,
+      input.instanceModelMatrix1,
+      input.instanceModelMatrix2,
+      input.instanceModelMatrix3
+    );
+
+    var instanceModelInverseTransposeMatrix: mat4x4<f32> = mat4x4<f32>(
+      input.instanceNormalMatrix0,
+      input.instanceNormalMatrix1,
+      input.instanceNormalMatrix2,
+      input.instanceNormalMatrix3
+    );
+
+    var worldPosition: vec4<f32> = instanceModelMatrix * input.position;
+
+    output.Position = camera.projectionMatrix *
+                      camera.viewMatrix *
+                      worldPosition;
+
+    output.normal = instanceModelInverseTransposeMatrix * vec4<f32>(input.normal, 0.0);
+    output.pos = worldPosition;
+
+    return output;
+  }
+);
+// clang-format on
+
+/* Instanced fragment shader */
+// clang-format off
+static const char* instanced_fragment_shader_wgsl = CODE(
+  struct Lighting {
+    position: vec3<f32>
+  }
+
+  @group(1) @binding(0)
+  var<uniform> lighting: Lighting;
+
+  struct Material {
+    baseColor: vec3<f32>
+  }
+
+  @group(2) @binding(0)
+  var<uniform> material: Material;
+
+  struct Input {
+    @location(0) normal: vec4<f32>,
+    @location(1) pos: vec4<f32>
+  }
+
+  @fragment
+  fn main(input: Input) -> @location(0) vec4<f32> {
+    var normal: vec3<f32> = normalize(input.normal.rgb);
+    var lightColor: vec3<f32> = vec3<f32>(1.0);
+
+    var ambientFactor: f32 = 0.1;
+    var ambientLight: vec3<f32> = lightColor * ambientFactor;
+
+    var lightDirection: vec3<f32> = normalize(lighting.position - input.pos.rgb);
+    var diffuseStrength: f32 = max(dot(normal, lightDirection), 0.0);
+    var diffuseLight: vec3<f32> = lightColor * diffuseStrength;
+
+    var finalLight: vec3<f32> = diffuseLight + ambientLight;
+
+    return vec4<f32>(material.baseColor * finalLight, 1.0);
+  }
+);
+// clang-format on
+
+/* Quad vertex shader */
+// clang-format off
+static const char* quad_vertex_shader_wgsl = CODE(
+  struct Camera {
+    projectionMatrix: mat4x4<f32>,
+    viewMatrix: mat4x4<f32>
+  }
+
+  @group(0) @binding(0)
+  var<uniform> camera: Camera;
+
+  struct Transform {
+    modelMatrix: mat4x4<f32>
+  }
+
+  @group(1) @binding(0)
+  var<uniform> transform: Transform;
+
+  struct Input {
+    @location(0) position: vec4<f32>,
+    @location(1) uv: vec2<f32>
+  }
+
+  struct Output {
+    @builtin(position) Position: vec4<f32>,
+    @location(0) uv: vec2<f32>
+  }
+
+  @vertex
+  fn main(input: Input) -> Output {
+    var output: Output;
+
+    output.Position = camera.projectionMatrix *
+                      camera.viewMatrix *
+                      transform.modelMatrix *
+                      input.position;
+
+    output.uv = input.uv;
+
+    return output;
+  }
+);
+// clang-format on
+
+/* Quad fragment shader */
+// clang-format off
+static const char* quad_fragment_shader_wgsl = CODE(
+  struct Input {
+    @location(0) uv: vec2<f32>
+  }
+
+  @group(2) @binding(0) var mySampler: sampler;
+  @group(2) @binding(1) var postFX0Texture: texture_2d<f32>;
+  @group(2) @binding(2) var postFX1Texture: texture_2d<f32>;
+  @group(2) @binding(3) var cutOffTexture: texture_2d<f32>;
+
+  struct Tween {
+    factor: f32
+  }
+
+  @group(3) @binding(0)
+  var<uniform> tween: Tween;
+
+  @fragment
+  fn main(input: Input) -> @location(0) vec4<f32> {
+    var result0: vec4<f32> = textureSample(postFX0Texture, mySampler, input.uv);
+    var result1: vec4<f32> = textureSample(postFX1Texture, mySampler, input.uv);
+
+    var cutoffResult: vec4<f32> = textureSample(cutOffTexture, mySampler, input.uv);
+
+    var mixFactor: f32 = step(tween.factor * 1.05, cutoffResult.r);
+
+    return mix(result0, result1, mixFactor);
+  }
+);
+// clang-format on
