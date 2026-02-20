@@ -105,7 +105,7 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
   state.uniform_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor) {
-      .label      = STRVIEW("Bind group layout"),
+      .label      = STRVIEW("PRNG - Bind group layout"),
       .entryCount = 1,
       .entries = &(WGPUBindGroupLayoutEntry) {
         // Binding 0: Uniform buffer (Fragment shader)
