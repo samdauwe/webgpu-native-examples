@@ -1,9 +1,41 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
-#include "../webgpu/imgui_overlay.h"
+#define CGLM_CLIPSPACE_INCLUDE_ALL
+#include <cglm/cglm.h>
 
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #define PAR_SHAPES_IMPLEMENTATION
-#include "par_shapes.h"
+#include <par_shapes.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Procedural Mesh
@@ -30,14 +62,14 @@ static const char* vertex_shader_wgsl;
 static const char* fragment_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
- * Procedural Mesh example
+ * Constants
  * -------------------------------------------------------------------------- */
 
-#define ALIGNMENT 256u // 256-byte alignment
+#define ALIGNMENT 256u
 #define MESH_COUNT 11u
 
 /* -------------------------------------------------------------------------- *
- * Mesh generation
+ * Mesh generation using par_shapes
  *
  * @ref
  * https://github.com/michal-z/zig-gamedev/blob/main/libs/zmesh/src/Shape.zig
@@ -57,51 +89,34 @@ typedef struct {
     vec3* data;
     size_t len;
   } normals;
-  struct {
-    vec2* data;
-    size_t len;
-  } texcoords;
   par_shapes_mesh* handle;
 } shape_t;
 
 static void shape_deinit(shape_t* mesh)
 {
-  if (mesh->indices.len > 0) {
-    mesh->indices.data = NULL;
-    mesh->indices.len  = 0;
-  }
-  if (mesh->positions.len > 0) {
-    mesh->positions.data = NULL;
-    mesh->positions.len  = 0;
-  }
-  if (mesh->normals.len > 0) {
-    mesh->normals.data = NULL;
-    mesh->normals.len  = 0;
-  }
-  if (mesh->texcoords.len > 0) {
-    mesh->texcoords.data = NULL;
-    mesh->texcoords.len  = 0;
-  }
   if (mesh->handle != NULL) {
     par_shapes_free_mesh(mesh->handle);
     mesh->handle = NULL;
   }
+  mesh->indices.data   = NULL;
+  mesh->indices.len    = 0;
+  mesh->positions.data = NULL;
+  mesh->positions.len  = 0;
+  mesh->normals.data   = NULL;
+  mesh->normals.len    = 0;
 }
 
 static shape_t init_shape(par_shapes_mesh* handle)
 {
   return (shape_t){
     .indices.data   = (uint16_t*)&(handle->triangles[0]),
-    .indices.len    = handle->ntriangles * 3,
+    .indices.len    = (size_t)(handle->ntriangles * 3),
     .positions.data = (vec3*)&(handle->points[0]),
-    .positions.len  = handle->npoints,
+    .positions.len  = (size_t)handle->npoints,
     .normals.data
     = (handle->normals != NULL) ? (vec3*)&(handle->normals[0]) : NULL,
-    .normals.len = (handle->normals != NULL) ? handle->npoints : 0,
-    .texcoords.data
-    = (handle->tcoords != NULL) ? (vec2*)&(handle->tcoords[0]) : NULL,
-    .texcoords.len = (handle->tcoords != NULL) ? handle->npoints : 0,
-    .handle        = handle,
+    .normals.len = (handle->normals != NULL) ? (size_t)handle->npoints : 0,
+    .handle      = handle,
   };
 }
 
@@ -120,7 +135,8 @@ static void shape_merge(shape_t* dst, shape_t* src)
 static void shape_rotate(shape_t* shape, float radians, float x, float y,
                          float z)
 {
-  par_shapes_rotate(shape->handle, radians, (float[]){x, y, z});
+  float axis[3] = {x, y, z};
+  par_shapes_rotate(shape->handle, radians, axis);
   *shape = init_shape(shape->handle);
 }
 
@@ -218,7 +234,7 @@ static shape_t init_trefoil_knot(int32_t slices, int32_t stacks, float radius)
 }
 
 /* -------------------------------------------------------------------------- *
- * Procedural Mesh Example
+ * Procedural Mesh types
  * -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -227,12 +243,13 @@ typedef struct {
 } vertex_t;
 
 typedef struct {
-  mat4 projection_matrix;
-  mat4 view_matrix;
+  mat4 world_to_clip;
+  vec3 camera_position;
+  float _pad;
 } frame_uniforms_t;
 
 typedef struct {
-  mat4 model;
+  mat4 object_to_world;
   vec4 basecolor_roughness;
 } draw_uniforms_t;
 
@@ -249,20 +266,17 @@ typedef struct {
   vec4 basecolor_roughness;
 } drawable_t;
 
+/* -------------------------------------------------------------------------- *
+ * State
+ * -------------------------------------------------------------------------- */
+
 static struct {
-  WGPUBindGroupLayout frame_bind_group_layout;
-  WGPUBindGroupLayout draw_bind_group_layout;
-  WGPUPipelineLayout pipeline_layout;
-
-  WGPUBindGroup frame_bind_group;
-  WGPUBindGroup draw_bind_group;
-  WGPURenderPipeline pipeline;
-
+  /* Geometry */
   uint32_t total_num_vertices;
   uint32_t total_num_indices;
-
   wgpu_buffer_t vertex_buffer;
   wgpu_buffer_t index_buffer;
+  /* Uniform buffers */
   struct {
     wgpu_buffer_t frame;
     struct {
@@ -270,45 +284,75 @@ static struct {
       uint64_t model_size;
     } draw;
   } uniform_buffers;
-
-  WGPUTexture depth_texture;
-  WGPUTextureView depth_texture_view;
-
-  // Render pass descriptor for frame buffer writes
-  struct {
-    WGPURenderPassColorAttachment color_attachments[1];
-    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-    WGPURenderPassDescriptor descriptor;
-  } render_pass;
-
+  /* Bind groups and layouts */
+  WGPUBindGroupLayout frame_bind_group_layout;
+  WGPUBindGroupLayout draw_bind_group_layout;
+  WGPUPipelineLayout pipeline_layout;
+  WGPUBindGroup frame_bind_group;
+  WGPUBindGroup draw_bind_group;
+  /* Render pipeline */
+  WGPURenderPipeline pipeline;
+  /* Render pass */
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  /* Scene data */
   drawable_t drawables[MESH_COUNT];
   mesh_t meshes[MESH_COUNT];
-
   frame_uniforms_t frame_uniforms;
-
   struct {
     draw_uniforms_t data;
-    uint8_t padding[176];
+    uint8_t padding[ALIGNMENT - sizeof(draw_uniforms_t)];
   } draw_uniforms[MESH_COUNT];
-
-  // Other variables
-  const char* example_title;
-  bool prepared;
-} demo_state = {
-  .example_title = "Procedural Mesh",
-  .prepared      = false,
+  /* Camera */
+  struct {
+    vec3 eye;
+    vec3 target;
+    float fov;
+    float near_plane;
+    float far_plane;
+    float orbit_angle;
+    float orbit_speed;
+    bool auto_rotate;
+  } camera;
+  /* GUI */
+  uint64_t last_frame_time;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.0, 0.0, 0.0, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .depth_stencil_attachment = {
+    .depthLoadOp       = WGPULoadOp_Clear,
+    .depthStoreOp      = WGPUStoreOp_Store,
+    .depthClearValue   = 1.0f,
+    .stencilLoadOp     = WGPULoadOp_Clear,
+    .stencilStoreOp    = WGPUStoreOp_Store,
+    .stencilClearValue = 0,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount   = 1,
+    .colorAttachments       = &state.color_attachment,
+    .depthStencilAttachment = &state.depth_stencil_attachment,
+  },
+  .camera = {
+    .eye        = {0.0f, 4.0f, 0.0f},
+    .target     = {0.0f, 0.0f, 3.0f},
+    .fov        = 45.0f,
+    .near_plane = 0.01f,
+    .far_plane  = 200.0f,
+    .orbit_angle = GLM_PI + 0.25f * GLM_PI,
+    .orbit_speed = 0.0f,
+    .auto_rotate = false,
+  },
 };
 
-static void setup_camera(wgpu_example_context_t* context)
-{
-  context->camera       = camera_create();
-  context->camera->type = CameraType_LookAt;
-  camera_set_position(context->camera, (vec3){1.0f, -1.0f, -18.0f});
-  camera_set_rotation(context->camera, (vec3){3.0f * PI2, 0.0f, 0.0f});
-  camera_set_rotation_speed(context->camera, 0.25f);
-  camera_set_perspective(context->camera, 25.0f,
-                         context->window_size.aspect_ratio, 0.01f, 200.0f);
-}
+/* -------------------------------------------------------------------------- *
+ * Mesh scene building
+ * -------------------------------------------------------------------------- */
 
 static void append_mesh(uint32_t mesh_index, shape_t* mesh, mesh_t* meshes,
                         uint16_t** meshes_indices, uint32_t* meshes_indices_len,
@@ -318,50 +362,46 @@ static void append_mesh(uint32_t mesh_index, shape_t* mesh, mesh_t* meshes,
   meshes[mesh_index] = (mesh_t){
     .index_offset  = *meshes_indices_len,
     .vertex_offset = (int32_t)*meshes_positions_len,
-    .num_indices   = mesh->indices.len,
-    .num_vertices  = mesh->positions.len,
+    .num_indices   = (uint32_t)mesh->indices.len,
+    .num_vertices  = (uint32_t)mesh->positions.len,
   };
 
-  // Indices
-  *meshes_indices_len += mesh->indices.len;
-  uint32_t meshes_indices_size
-    = (*meshes_indices_len) * sizeof(**meshes_indices);
+  /* Indices */
+  *meshes_indices_len += (uint32_t)mesh->indices.len;
+  uint32_t idx_size = (*meshes_indices_len) * (uint32_t)sizeof(uint16_t);
   if (*meshes_indices == NULL) {
-    *meshes_indices = (uint16_t*)malloc(meshes_indices_size);
+    *meshes_indices = (uint16_t*)malloc(idx_size);
   }
   else {
-    *meshes_indices = (uint16_t*)realloc(*meshes_indices, meshes_indices_size);
+    *meshes_indices = (uint16_t*)realloc(*meshes_indices, idx_size);
   }
-  memcpy(&(*meshes_indices)[*meshes_indices_len - mesh->indices.len],
-         mesh->indices.data, mesh->indices.len * sizeof(*mesh->indices.data));
+  memcpy(&(*meshes_indices)[*meshes_indices_len - (uint32_t)mesh->indices.len],
+         mesh->indices.data, mesh->indices.len * sizeof(uint16_t));
 
-  // Positions
-  *meshes_positions_len += mesh->positions.len;
-  uint32_t meshes_positions_size
-    = (*meshes_positions_len) * sizeof(**meshes_positions);
+  /* Positions */
+  *meshes_positions_len += (uint32_t)mesh->positions.len;
+  uint32_t pos_size = (*meshes_positions_len) * (uint32_t)sizeof(vec3);
   if (*meshes_positions == NULL) {
-    *meshes_positions = (vec3*)malloc(meshes_positions_size);
+    *meshes_positions = (vec3*)malloc(pos_size);
   }
   else {
-    *meshes_positions
-      = (vec3*)realloc(*meshes_positions, meshes_positions_size);
+    *meshes_positions = (vec3*)realloc(*meshes_positions, pos_size);
   }
-  memcpy(&(*meshes_positions)[*meshes_positions_len - mesh->positions.len],
-         mesh->positions.data,
-         mesh->positions.len * sizeof(*mesh->positions.data));
+  memcpy(
+    &(*meshes_positions)[*meshes_positions_len - (uint32_t)mesh->positions.len],
+    mesh->positions.data, mesh->positions.len * sizeof(vec3));
 
-  // Normals
-  *meshes_normals_len += mesh->normals.len;
-  uint32_t meshes_normals_size
-    = (*meshes_normals_len) * sizeof(**meshes_normals);
+  /* Normals */
+  *meshes_normals_len += (uint32_t)mesh->normals.len;
+  uint32_t norm_size = (*meshes_normals_len) * (uint32_t)sizeof(vec3);
   if (*meshes_normals == NULL) {
-    *meshes_normals = (vec3*)malloc(meshes_normals_size);
+    *meshes_normals = (vec3*)malloc(norm_size);
   }
   else {
-    *meshes_normals = (vec3*)realloc(*meshes_normals, meshes_normals_size);
+    *meshes_normals = (vec3*)realloc(*meshes_normals, norm_size);
   }
-  memcpy(&(*meshes_normals)[*meshes_normals_len - mesh->normals.len],
-         mesh->normals.data, mesh->normals.len * sizeof(*mesh->normals.data));
+  memcpy(&(*meshes_normals)[*meshes_normals_len - (uint32_t)mesh->normals.len],
+         mesh->normals.data, mesh->normals.len * sizeof(vec3));
 }
 
 /**
@@ -378,251 +418,196 @@ static void init_scene(drawable_t* drawables, mesh_t* meshes,
   /* Trefoil knot */
   {
     shape_t mesh = init_trefoil_knot(10, 128, 0.8f);
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 0.0f, -0.5f, -1.0f);
-    shape_rotate(&mesh, PI_2, 1.0f, 0.0f, 0.0f);
+    shape_rotate(&mesh, (float)GLM_PI_2, 1.0f, 0.0f, 0.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {0.0f, 1.0f, 0.0f},
       .basecolor_roughness = {0.0f, 0.7f, 0.0f, 0.6f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Parametric sphere. */
+  /* Parametric sphere */
   {
     shape_t mesh = init_parametric_sphere(20, 20);
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 3.0f, -0.5f, -1.0f);
-    shape_rotate(&mesh, PI_2, 1.0f, 0.0f, 0.0f);
+    shape_rotate(&mesh, (float)GLM_PI_2, 1.0f, 0.0f, 0.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {3.0f, 1.0f, 0.0f},
       .basecolor_roughness = {0.7f, 0.0f, 0.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Icosahedron. */
+  /* Icosahedron */
   {
     shape_t mesh = init_icosahedron();
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, -3.0f, 1.0f, -0.5f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {-3.0f, 1.0f, 0.0f},
       .basecolor_roughness = {0.7f, 0.6f, 0.0f, 0.4f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Dodecahedron. */
+  /* Dodecahedron */
   {
     shape_t mesh = init_dodecahedron();
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 0.0f, 1.0f, 3.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {0.0f, 1.0f, 3.0f},
       .basecolor_roughness = {0.0f, 0.1f, 1.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Cylinder with top and bottom caps. */
+  /* Cylinder with top and bottom caps */
   {
     shape_t disk = init_parametric_disk(10, 2);
     shape_invert(&disk, 0, 0);
-
     shape_t cylinder = init_cylinder(10, 4);
-
     shape_merge(&cylinder, &disk);
     shape_translate(&cylinder, 0.0f, 0.0f, -1.0f);
     shape_invert(&disk, 0, 0);
     shape_merge(&cylinder, &disk);
-
     shape_scale(&cylinder, 0.5f, 0.5f, 2.0f);
-    shape_rotate(&cylinder, PI_2, 1.0f, 0.0f, 0.0f);
-
-    shape_scale(&cylinder, 0.5f, 0.5f, 0.5f);
-    shape_translate(&cylinder, -3.0f, 1.0f, 3.0f);
+    shape_rotate(&cylinder, (float)GLM_PI_2, 1.0f, 0.0f, 0.0f);
     shape_unweld(&cylinder);
     shape_compute_normals(&cylinder);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {-3.0f, 0.0f, 3.0f},
       .basecolor_roughness = {1.0f, 0.0f, 0.0f, 0.3f},
     };
-
     append_mesh(mesh_index, &cylinder, meshes, meshes_indices,
                 meshes_indices_len, meshes_positions, meshes_positions_len,
                 meshes_normals, meshes_normals_len);
-
     shape_deinit(&cylinder);
     shape_deinit(&disk);
   }
-  /* Torus. */
+  /* Torus */
   {
     shape_t mesh = init_torus(10, 20, 0.2f);
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 3.0f, 1.0f, 3.0f);
-    shape_unweld(&mesh);
-    shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {3.0f, 1.5f, 3.0f},
       .basecolor_roughness = {1.0f, 0.5f, 0.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Subdivided sphere. */
+  /* Subdivided sphere */
   {
     shape_t mesh = init_subdivided_sphere(3);
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 3.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {3.0f, 1.0f, 6.0f},
       .basecolor_roughness = {0.0f, 1.0f, 0.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Tetrahedron. */
+  /* Tetrahedron */
   {
     shape_t mesh = init_tetrahedron();
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, 0.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {0.0f, 0.5f, 6.0f},
       .basecolor_roughness = {1.0f, 0.0f, 1.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Octahedron. */
+  /* Octahedron */
   {
     shape_t mesh = init_octahedron();
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, -3.0f, 1.0f, 6.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {-3.0f, 1.0f, 6.0f},
       .basecolor_roughness = {0.2f, 0.0f, 1.0f, 0.2f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
-  /* Rock. */
+  /* Rock */
   {
     shape_t mesh = init_rock(123, 4);
-    shape_scale(&mesh, 0.5f, 0.5f, 0.5f);
-    shape_translate(&mesh, -6.0f, 1.0f, 3.0f);
     shape_unweld(&mesh);
     shape_compute_normals(&mesh);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {-6.0f, 0.0f, 3.0f},
       .basecolor_roughness = {1.0f, 1.0f, 1.0f, 1.0f},
     };
-
     append_mesh(mesh_index, &mesh, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&mesh);
   }
   /* Custom parametric (simple terrain) */
   {
     shape_t ground = init_parametric(terrain_generator, 40, 40, NULL);
-    shape_translate(&ground, -0.6f, 0.01f, -0.5f);
+    shape_translate(&ground, -0.5f, -0.0f, -0.5f);
     shape_invert(&ground, 0, 0);
-    shape_scale(&ground, 20.0f, 20.0f, 20.f);
-    shape_unweld(&ground);
+    shape_scale(&ground, 20.0f, 20.0f, 20.0f);
     shape_compute_normals(&ground);
-
     mesh_index++;
-
     drawables[mesh_index] = (drawable_t){
       .mesh_index          = mesh_index,
+      .position            = {0.0f, 0.0f, 0.0f},
       .basecolor_roughness = {0.1f, 0.1f, 0.1f, 1.0f},
     };
-
     append_mesh(mesh_index, &ground, meshes, meshes_indices, meshes_indices_len,
                 meshes_positions, meshes_positions_len, meshes_normals,
                 meshes_normals_len);
-
     shape_deinit(&ground);
   }
 }
 
-static void prepare_vertex_and_index_buffer(wgpu_context_t* wgpu_context)
+/* -------------------------------------------------------------------------- *
+ * Initialization functions
+ * -------------------------------------------------------------------------- */
+
+static void init_vertex_and_index_buffers(wgpu_context_t* wgpu_context)
 {
   uint16_t* meshes_indices      = NULL;
   uint32_t meshes_indices_len   = 0;
@@ -630,536 +615,502 @@ static void prepare_vertex_and_index_buffer(wgpu_context_t* wgpu_context)
   uint32_t meshes_positions_len = 0;
   vec3* meshes_normals          = NULL;
   uint32_t meshes_normals_len   = 0;
-  init_scene(demo_state.drawables, demo_state.meshes, &meshes_indices,
+
+  init_scene(state.drawables, state.meshes, &meshes_indices,
              &meshes_indices_len, &meshes_positions, &meshes_positions_len,
              &meshes_normals, &meshes_normals_len);
 
-  demo_state.total_num_vertices = meshes_positions_len;
-  demo_state.total_num_indices  = meshes_indices_len;
+  state.total_num_vertices = meshes_positions_len;
+  state.total_num_indices  = meshes_indices_len;
 
-  // Create a vertex buffer
+  /* Create interleaved vertex buffer */
   {
     vertex_t* vertex_data
-      = (vertex_t*)malloc(demo_state.total_num_vertices * sizeof(vertex_t));
+      = (vertex_t*)malloc(state.total_num_vertices * sizeof(vertex_t));
     for (uint32_t i = 0; i < meshes_positions_len; ++i) {
       glm_vec3_copy(meshes_positions[i], vertex_data[i].position);
       glm_vec3_copy(meshes_normals[i], vertex_data[i].normal);
     }
-    demo_state.vertex_buffer = wgpu_create_buffer(
+    state.vertex_buffer = wgpu_create_buffer(
       wgpu_context, &(wgpu_buffer_desc_t){
+                      .label = "Procedural mesh - Vertices buffer",
                       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                      .size  = demo_state.total_num_vertices * sizeof(vertex_t),
+                      .size  = state.total_num_vertices * sizeof(vertex_t),
                       .initial.data = vertex_data,
                     });
     free(vertex_data);
   }
 
-  // Create a index buffer
-  demo_state.index_buffer = wgpu_create_buffer(
+  /* Create index buffer */
+  state.index_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Procedural mesh - Indices buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
-                    .size  = demo_state.total_num_indices * sizeof(uint16_t),
+                    .size  = state.total_num_indices * sizeof(uint16_t),
                     .initial.data = meshes_indices,
                   });
 
-  // Cleanup allocated memory
-  if (meshes_indices != NULL) {
-    free(meshes_indices);
-  }
-  if (meshes_positions != NULL) {
-    free(meshes_positions);
-  }
-  if (meshes_normals != NULL) {
-    free(meshes_normals);
-  }
+  /* Cleanup temporary buffers */
+  free(meshes_indices);
+  free(meshes_positions);
+  free(meshes_normals);
 }
 
-static void setup_bind_group_layouts(wgpu_context_t* wgpu_context)
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
+{
+  /* Frame uniform buffer */
+  state.uniform_buffers.frame = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Procedural mesh - Frame uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(frame_uniforms_t),
+                  });
+
+  /* Draw uniform buffer (with alignment padding for dynamic offsets) */
+  state.uniform_buffers.draw.model_size = sizeof(draw_uniforms_t);
+  state.uniform_buffers.draw.buffer     = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                        .label = "Procedural mesh - Draw uniform buffer",
+                        .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                        .size  = sizeof(state.draw_uniforms),
+                  });
+}
+
+static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
 {
   /* Frame bind group layout */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
-          .minBindingSize =  sizeof(frame_uniforms_t),
+        .buffer = (WGPUBufferBindingLayout){
+          .type           = WGPUBufferBindingType_Uniform,
+          .minBindingSize = sizeof(frame_uniforms_t),
         },
-        .sampler = {0},
       },
     };
-    WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-      .entries    = bgl_entries,
-    };
-    demo_state.frame_bind_group_layout
-      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(demo_state.frame_bind_group_layout != NULL);
+    state.frame_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = STRVIEW("Frame - Bind group layout"),
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(state.frame_bind_group_layout != NULL);
   }
 
-  /* Draw bind group layout */
+  /* Draw bind group layout (with dynamic offset) */
   {
     WGPUBindGroupLayoutEntry bgl_entries[1] = {
-      [0] = (WGPUBindGroupLayoutEntry) {
-        .binding = 0,
+      [0] = (WGPUBindGroupLayoutEntry){
+        .binding    = 0,
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-        .buffer = (WGPUBufferBindingLayout) {
-          .type = WGPUBufferBindingType_Uniform,
+        .buffer = (WGPUBufferBindingLayout){
+          .type             = WGPUBufferBindingType_Uniform,
           .hasDynamicOffset = true,
-          .minBindingSize = demo_state.uniform_buffers.draw.model_size,
+          .minBindingSize   = state.uniform_buffers.draw.model_size,
         },
-        .sampler = {0},
       },
     };
-    WGPUBindGroupLayoutDescriptor bgl_desc = {
-      .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-      .entries    = bgl_entries,
-    };
-    demo_state.draw_bind_group_layout
-      = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-    ASSERT(demo_state.draw_bind_group_layout != NULL);
+    state.draw_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label      = STRVIEW("Draw - Bind group layout"),
+                              .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                              .entries    = bgl_entries,
+                            });
+    ASSERT(state.draw_bind_group_layout != NULL);
   }
 }
 
-static void setup_render_pipeline_layout(wgpu_context_t* wgpu_context)
+static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupLayout bind_group_layouts[2] = {
-    demo_state.frame_bind_group_layout, // Group 0
-    demo_state.draw_bind_group_layout,  // Group 1
+    state.frame_bind_group_layout, /* Group 0 */
+    state.draw_bind_group_layout,  /* Group 1 */
   };
-  demo_state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+  state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Procedural mesh - Pipeline layout"),
       .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_group_layouts),
       .bindGroupLayouts     = bind_group_layouts,
     });
-  ASSERT(demo_state.pipeline_layout != NULL);
+  ASSERT(state.pipeline_layout != NULL);
 }
 
-static void prepare_rendering_pipeline(wgpu_context_t* wgpu_context)
+static void init_pipeline(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
-  };
+  /* Merge common + vertex shader */
+  size_t common_len = strlen(common_shader_wgsl);
+  size_t vert_len   = strlen(vertex_shader_wgsl);
+  size_t frag_len   = strlen(fragment_shader_wgsl);
 
-  // Color target state
-  WGPUBlendState blend_state                   = wgpu_create_blend_state(true);
-  WGPUColorTargetState color_target_state_desc = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  char* vert_full = (char*)malloc(common_len + vert_len + 2);
+  memcpy(vert_full, common_shader_wgsl, common_len);
+  vert_full[common_len] = '\n';
+  memcpy(vert_full + common_len + 1, vertex_shader_wgsl, vert_len + 1);
 
-  // Depth stencil state
-  // Enable depth testing so that the fragment closest to the camera is rendered
-  // in front.
+  char* frag_full = (char*)malloc(common_len + frag_len + 2);
+  memcpy(frag_full, common_shader_wgsl, common_len);
+  frag_full[common_len] = '\n';
+  memcpy(frag_full + common_len + 1, fragment_shader_wgsl, frag_len + 1);
+
+  WGPUShaderModule vert_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, vert_full);
+  WGPUShaderModule frag_shader_module
+    = wgpu_create_shader_module(wgpu_context->device, frag_full);
+
+  free(vert_full);
+  free(frag_full);
+
+  /* Color blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(true);
+
+  /* Depth stencil state */
   WGPUDepthStencilState depth_stencil_state
     = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth32Float,
+      .format              = wgpu_context->depth_stencil_format,
       .depth_write_enabled = true,
     });
   depth_stencil_state.depthCompare = WGPUCompareFunction_Less;
 
-  // Vertex buffer layout
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(mesh, sizeof(vertex_t),
-                            // Attribute location 0: Position
+                            /* Attribute location 0: Position */
                             WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
                                                offsetof(vertex_t, position)),
-                            // Attribute location 1: Normal
+                            /* Attribute location 1: Normal */
                             WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
                                                offsetof(vertex_t, normal)))
 
-  // Vertex state
-  char* vertex_shader_wgsl_full
-    = concat_strings(common_shader_wgsl, vertex_shader_wgsl, "\n");
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
-                  .wgsl_code.source = vertex_shader_wgsl_full,
-                  .entry = "main",
-                },
-                .buffer_count = 1,
-                .buffers = &mesh_vertex_buffer_layout,
-              });
-  free(vertex_shader_wgsl_full);
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Procedural mesh - Render pipeline"),
+    .layout = state.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &mesh_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState){
+      .entryPoint  = STRVIEW("main"),
+      .module      = frag_shader_module,
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState){
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_TriangleList,
+      .frontFace = WGPUFrontFace_CW,
+      .cullMode  = WGPUCullMode_Back,
+    },
+    .depthStencil = &depth_stencil_state,
+    .multisample = {
+      .count = 1,
+      .mask  = 0xffffffff,
+    },
+  };
 
-  // Fragment state
-  char* fragment_shader_wgsl_full
-    = concat_strings(common_shader_wgsl, fragment_shader_wgsl, "\n");
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader WGSL
-                  .wgsl_code.source = fragment_shader_wgsl_full,
-                  .entry = "main",
-                },
-                .target_count = 1,
-                .targets = &color_target_state_desc,
-              });
-  free(fragment_shader_wgsl_full);
+  state.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.pipeline != NULL);
 
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  demo_state.pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "procedural_mesh_render_pipeline",
-                            .layout       = demo_state.pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(demo_state.pipeline != NULL);
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static void update_frame_uniform_buffers(wgpu_example_context_t* context)
-{
-  // Update camera matrices
-  camera_t* camera = context->camera;
-  glm_mat4_copy(camera->matrices.perspective,
-                demo_state.frame_uniforms.projection_matrix);
-  glm_mat4_copy(camera->matrices.view, demo_state.frame_uniforms.view_matrix);
-
-  // Map uniform buffer and update it
-  wgpu_queue_write_buffer(
-    context->wgpu_context, demo_state.uniform_buffers.frame.buffer, 0,
-    &demo_state.frame_uniforms, demo_state.uniform_buffers.frame.size);
-}
-
-static void update_draw_uniform_buffers(wgpu_context_t* wgpu_context)
-{
-  // Update "object to world" xform
-  for (uint32_t i = 0; i < MESH_COUNT; ++i) {
-    drawable_t* drawable = &demo_state.drawables[i];
-    vec3* drawable_pos   = &drawable->position;
-    mat4 model           = {
-      {1.0f, 0.0f, 0.0f, 0.0f}, //
-      {0.0f, 1.0f, 0.0f, 0.0f}, //
-      {0.0f, 0.0f, 1.0f, 0.0f}, //
-      {(*drawable_pos)[0], (*drawable_pos)[1], (*drawable_pos)[2], 1.0f}, //
-    };
-    glm_mat4_transpose(model);
-
-    draw_uniforms_t* draw_uniforms = &demo_state.draw_uniforms[i].data;
-    glm_mat4_copy(model, draw_uniforms->model);
-    glm_vec4_copy(drawable->basecolor_roughness,
-                  draw_uniforms->basecolor_roughness);
-  }
-
-  // Map uniform buffer and update it
-  wgpu_queue_write_buffer(
-    wgpu_context, demo_state.uniform_buffers.draw.buffer.buffer, 0,
-    demo_state.draw_uniforms, demo_state.uniform_buffers.draw.buffer.size);
-}
-
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
-{
-  // Create a frame uniform buffer
-  demo_state.uniform_buffers.frame = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(frame_uniforms_t),
-    });
-
-  // Create a draw uniform buffer
-  demo_state.uniform_buffers.draw.model_size = sizeof(draw_uniforms_t);
-  demo_state.uniform_buffers.draw.buffer.size
-    = sizeof(demo_state.draw_uniforms);
-  demo_state.uniform_buffers.draw.buffer = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = demo_state.uniform_buffers.draw.buffer.size,
-    });
-
-  update_frame_uniform_buffers(context);
-  update_draw_uniform_buffers(context->wgpu_context);
-}
-
-static void prepare_bind_groups(wgpu_context_t* wgpu_context)
+static void init_bind_groups(wgpu_context_t* wgpu_context)
 {
   /* Frame bind group */
   {
     WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
+      [0] = (WGPUBindGroupEntry){
         .binding = 0,
-        .buffer  = demo_state.uniform_buffers.frame.buffer,
+        .buffer  = state.uniform_buffers.frame.buffer,
         .offset  = 0,
-        .size    = demo_state.uniform_buffers.frame.size,
+        .size    = state.uniform_buffers.frame.size,
       },
     };
-    demo_state.frame_bind_group = wgpuDeviceCreateBindGroup(
+    state.frame_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout     = demo_state.frame_bind_group_layout,
+                              .label      = STRVIEW("Frame - Bind group"),
+                              .layout     = state.frame_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(demo_state.frame_bind_group != NULL);
+    ASSERT(state.frame_bind_group != NULL);
   }
 
   /* Draw bind group */
   {
     WGPUBindGroupEntry bg_entries[1] = {
-      [0] = (WGPUBindGroupEntry) {
+      [0] = (WGPUBindGroupEntry){
         .binding = 0,
-        .buffer  = demo_state.uniform_buffers.draw.buffer.buffer,
+        .buffer  = state.uniform_buffers.draw.buffer.buffer,
         .offset  = 0,
-        .size    = demo_state.uniform_buffers.draw.model_size,
+        .size    = state.uniform_buffers.draw.model_size,
       },
     };
-    demo_state.draw_bind_group = wgpuDeviceCreateBindGroup(
+    state.draw_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .layout     = demo_state.draw_bind_group_layout,
+                              .label      = STRVIEW("Draw - Bind group"),
+                              .layout     = state.draw_bind_group_layout,
                               .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                               .entries    = bg_entries,
                             });
-    ASSERT(demo_state.draw_bind_group != NULL);
+    ASSERT(state.draw_bind_group != NULL);
   }
 }
 
-static void prepare_depth_texture(wgpu_context_t* wgpu_context)
-{
-  WGPUExtent3D texture_extent = {
-    .width              = wgpu_context->surface.width,
-    .height             = wgpu_context->surface.height,
-    .depthOrArrayLayers = 1,
-  };
-  WGPUTextureDescriptor texture_desc = {
-    .size          = texture_extent,
-    .mipLevelCount = 1,
-    .sampleCount   = 1,
-    .dimension     = WGPUTextureDimension_2D,
-    .format        = WGPUTextureFormat_Depth32Float,
-    .usage
-    = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-  };
-  demo_state.depth_texture
-    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(demo_state.depth_texture != NULL);
+/* -------------------------------------------------------------------------- *
+ * Update functions
+ * -------------------------------------------------------------------------- */
 
-  // Create the texture view
-  WGPUTextureViewDescriptor texture_view_dec = {
-    .dimension       = WGPUTextureViewDimension_2D,
-    .format          = texture_desc.format,
-    .baseMipLevel    = 0,
-    .mipLevelCount   = 1,
-    .baseArrayLayer  = 0,
-    .arrayLayerCount = 1,
-  };
-  demo_state.depth_texture_view
-    = wgpuTextureCreateView(demo_state.depth_texture, &texture_view_dec);
-  ASSERT(demo_state.depth_texture_view != NULL);
+static void update_view_matrices(wgpu_context_t* wgpu_context)
+{
+  const float aspect_ratio
+    = (float)wgpu_context->width / (float)wgpu_context->height;
+
+  /* Compute camera eye position */
+  vec3 eye;
+  if (state.camera.auto_rotate) {
+    state.camera.orbit_angle += state.camera.orbit_speed * (1.0f / 60.0f);
+  }
+  float r = 18.0f;
+  eye[0]  = r * sinf(state.camera.orbit_angle);
+  eye[1]  = state.camera.eye[1];
+  eye[2]  = r * cosf(state.camera.orbit_angle);
+
+  /* View matrix (left-handed to match WebGPU clip space) */
+  mat4 view;
+  glm_lookat_lh_zo(eye, state.camera.target, (vec3){0.0f, 1.0f, 0.0f}, view);
+
+  /* Projection matrix (left-handed, zero-to-one depth for WebGPU) */
+  mat4 proj;
+  glm_perspective_lh_zo(glm_rad(state.camera.fov), aspect_ratio,
+                        state.camera.near_plane, state.camera.far_plane, proj);
+
+  /* Combined world_to_clip = projection * view */
+  mat4 world_to_clip;
+  glm_mat4_mul(proj, view, world_to_clip);
+
+  /* Transpose for row-vector shader convention (vec * mat) */
+  glm_mat4_transpose_to(world_to_clip, state.frame_uniforms.world_to_clip);
+
+  /* Camera position for PBR lighting */
+  glm_vec3_copy(eye, state.frame_uniforms.camera_position);
+
+  /* Write to GPU */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffers.frame.buffer,
+                       0, &state.frame_uniforms, sizeof(frame_uniforms_t));
 }
 
-static void setup_render_pass(wgpu_context_t* wgpu_context)
+static void update_draw_uniforms(wgpu_context_t* wgpu_context)
+{
+  for (uint32_t i = 0; i < MESH_COUNT; ++i) {
+    drawable_t* drawable = &state.drawables[i];
+    mat4 model;
+    glm_mat4_identity(model);
+    glm_translate(model, drawable->position);
+
+    draw_uniforms_t* du = &state.draw_uniforms[i].data;
+    glm_mat4_transpose_to(model, du->object_to_world);
+    glm_vec4_copy(drawable->basecolor_roughness, du->basecolor_roughness);
+  }
+
+  wgpuQueueWriteBuffer(wgpu_context->queue,
+                       state.uniform_buffers.draw.buffer.buffer, 0,
+                       state.draw_uniforms, sizeof(state.draw_uniforms));
+}
+
+/* -------------------------------------------------------------------------- *
+ * GUI
+ * -------------------------------------------------------------------------- */
+
+static void render_gui(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
-  // Color attachment
-  demo_state.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, // Assigned later
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igSetNextWindowSize((ImVec2){300.0f, 0.0f}, ImGuiCond_FirstUseEver);
 
-  // Depth stencil attachment
-  demo_state.render_pass.depth_stencil_attachment
-    = (WGPURenderPassDepthStencilAttachment){
-      .view              = demo_state.depth_texture_view,
-      .depthLoadOp       = WGPULoadOp_Clear,
-      .depthStoreOp      = WGPUStoreOp_Store,
-      .depthClearValue   = 1.0f,
-      .stencilClearValue = 1,
-    };
+  igBegin("Procedural Mesh", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  // Render pass descriptor
-  demo_state.render_pass.descriptor = (WGPURenderPassDescriptor){
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = demo_state.render_pass.color_attachments,
-    .depthStencilAttachment = &demo_state.render_pass.depth_stencil_attachment,
-  };
-}
-
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    setup_camera(context);
-    prepare_vertex_and_index_buffer(context->wgpu_context);
-    setup_bind_group_layouts(context->wgpu_context);
-    setup_render_pipeline_layout(context->wgpu_context);
-    prepare_rendering_pipeline(context->wgpu_context);
-    prepare_uniform_buffers(context);
-    prepare_bind_groups(context->wgpu_context);
-    prepare_depth_texture(context->wgpu_context);
-    setup_render_pass(context->wgpu_context);
-    demo_state.prepared = true;
-    return EXIT_SUCCESS;
+  if (igCollapsingHeaderBoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+    imgui_overlay_text("Left Mouse + drag to orbit");
+    imgui_overlay_text("Meshes: %u", MESH_COUNT);
+    imgui_overlay_text("Total vertices: %u", state.total_num_vertices);
+    imgui_overlay_text("Total indices: %u", state.total_num_indices);
   }
 
+  if (igCollapsingHeaderBoolPtr("Camera", NULL,
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    imgui_overlay_checkbox("Auto Rotate", &state.camera.auto_rotate);
+    imgui_overlay_slider_float("Orbit Speed", &state.camera.orbit_speed, 0.0f,
+                               2.0f, "%.2f");
+    imgui_overlay_slider_float("FOV", &state.camera.fov, 10.0f, 90.0f, "%.0f");
+    imgui_overlay_slider_float("Eye Y", &state.camera.eye[1], -10.0f, 10.0f,
+                               "%.1f");
+  }
+
+  igEnd();
+}
+
+/* -------------------------------------------------------------------------- *
+ * Input handling
+ * -------------------------------------------------------------------------- */
+
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
+{
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
+  /* Let ImGui handle mouse if it wants it */
+  if (imgui_overlay_want_capture_mouse()) {
+    return;
+  }
+
+  if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE
+      && input_event->mouse_btn_pressed
+      && input_event->mouse_button == BUTTON_LEFT) {
+    state.camera.orbit_angle -= input_event->mouse_dx * 0.005f;
+    state.camera.eye[1] += input_event->mouse_dy * 0.05f;
+  }
+  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_SCROLL) {
+    state.camera.fov -= input_event->scroll_y * 1.0f;
+    state.camera.fov = MAX(10.0f, MIN(90.0f, state.camera.fov));
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Lifecycle callbacks
+ * -------------------------------------------------------------------------- */
+
+static int init(struct wgpu_context_t* wgpu_context)
+{
+  if (wgpu_context) {
+    stm_setup();
+    init_vertex_and_index_buffers(wgpu_context);
+    init_uniform_buffers(wgpu_context);
+    init_bind_group_layouts(wgpu_context);
+    init_pipeline_layout(wgpu_context);
+    init_pipeline(wgpu_context);
+    init_bind_groups(wgpu_context);
+    update_draw_uniforms(wgpu_context);
+    imgui_overlay_init(wgpu_context);
+    state.initialized = true;
+    return EXIT_SUCCESS;
+  }
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Info")) {
-    UNUSED_VAR(context);
-    imgui_overlay_text("%s", "Left Mouse Btn + drag to rotate camera");
+  if (!state.initialized) {
+    return EXIT_FAILURE;
   }
-}
 
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  // Set target frame buffer
-  demo_state.render_pass.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
+  /* Update uniforms */
+  update_view_matrices(wgpu_context);
 
-  // Create command encoder
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
+  /* Calculate delta time for ImGui */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
 
-  // Create render pass
-  wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-    wgpu_context->cmd_enc, &demo_state.render_pass.descriptor);
+  /* Start ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+  render_gui(wgpu_context);
 
-  // Bind vertex buffer (contains positions and normals)
-  wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                       demo_state.vertex_buffer.buffer, 0,
-                                       demo_state.vertex_buffer.size);
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
 
-  // Bind index buffer
-  wgpuRenderPassEncoderSetIndexBuffer(
-    wgpu_context->rpass_enc, demo_state.index_buffer.buffer,
-    WGPUIndexFormat_Uint16, 0, demo_state.index_buffer.size);
+  state.color_attachment.view         = wgpu_context->swapchain_view;
+  state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
 
-  // Bind the rendering pipeline
-  wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                   demo_state.pipeline);
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+  WGPURenderPassEncoder rpass_enc
+    = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  // Set the bind group
-  wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                    demo_state.frame_bind_group, 0, 0);
+  /* Bind vertex buffer */
+  wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.vertex_buffer.buffer,
+                                       0, WGPU_WHOLE_SIZE);
 
-  // Draw indexed geometries
-  for (uint32_t i = 0; i < (uint32_t)ARRAY_SIZE(demo_state.drawables); ++i) {
+  /* Bind index buffer */
+  wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, state.index_buffer.buffer,
+                                      WGPUIndexFormat_Uint16, 0,
+                                      WGPU_WHOLE_SIZE);
+
+  /* Bind pipeline */
+  wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
+
+  /* Set frame bind group */
+  wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.frame_bind_group, 0, 0);
+
+  /* Draw indexed geometries with dynamic offsets */
+  for (uint32_t i = 0; i < MESH_COUNT; ++i) {
     uint32_t dynamic_offset = i * ALIGNMENT;
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 1,
-                                      demo_state.draw_bind_group, 1,
+    wgpuRenderPassEncoderSetBindGroup(rpass_enc, 1, state.draw_bind_group, 1,
                                       &dynamic_offset);
-    wgpuRenderPassEncoderDrawIndexed(
-      wgpu_context->rpass_enc, demo_state.meshes[i].num_indices, 1,
-      demo_state.meshes[i].index_offset, demo_state.meshes[i].vertex_offset, 0);
+    wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.meshes[i].num_indices, 1,
+                                     state.meshes[i].index_offset,
+                                     state.meshes[i].vertex_offset, 0);
   }
 
-  // End render pass
-  wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
+  wgpuRenderPassEncoderEnd(rpass_enc);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
 
-  // Draw ui overlay
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit */
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  /* Cleanup */
+  wgpuRenderPassEncoderRelease(rpass_enc);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  // Prepare frame
-  prepare_frame(context);
-
-  // Command buffer to be submitted to the queue
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  // Submit to queue
-  submit_command_buffers(context);
-
-  // Submit frame
-  submit_frame(context);
+  /* Render ImGui overlay */
+  imgui_overlay_render(wgpu_context);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!demo_state.prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
+  UNUSED_VAR(wgpu_context);
+
+  imgui_overlay_shutdown();
+
+  wgpu_destroy_buffer(&state.vertex_buffer);
+  wgpu_destroy_buffer(&state.index_buffer);
+  wgpu_destroy_buffer(&state.uniform_buffers.frame);
+  wgpu_destroy_buffer(&state.uniform_buffers.draw.buffer);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.frame_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.draw_bind_group)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.frame_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.draw_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
 }
 
-static void example_on_view_changed(wgpu_example_context_t* context)
+int main(void)
 {
-  update_frame_uniform_buffers(context);
-}
-
-static void example_destroy(wgpu_example_context_t* context)
-{
-  camera_release(context->camera);
-
-  WGPU_RELEASE_RESOURCE(Buffer, demo_state.vertex_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, demo_state.index_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, demo_state.uniform_buffers.frame.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, demo_state.uniform_buffers.draw.buffer.buffer)
-
-  WGPU_RELEASE_RESOURCE(Texture, demo_state.depth_texture)
-  WGPU_RELEASE_RESOURCE(TextureView, demo_state.depth_texture_view)
-
-  WGPU_RELEASE_RESOURCE(BindGroup, demo_state.draw_bind_group)
-  WGPU_RELEASE_RESOURCE(BindGroup, demo_state.frame_bind_group)
-
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, demo_state.draw_bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, demo_state.frame_bind_group_layout)
-
-  WGPU_RELEASE_RESOURCE(PipelineLayout, demo_state.pipeline_layout)
-
-  WGPU_RELEASE_RESOURCE(RenderPipeline, demo_state.pipeline)
-}
-
-void example_procedural_mesh(int argc, char* argv[])
-{
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title   = demo_state.example_title,
-     .overlay = true,
-     .vsync   = true,
-    },
-    .example_initialize_func      = &example_initialize,
-    .example_render_func          = &example_render,
-    .example_destroy_func         = &example_destroy,
-    .example_on_view_changed_func = &example_on_view_changed,
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Procedural Mesh",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1168,17 +1119,17 @@ void example_procedural_mesh(int argc, char* argv[])
 
 // clang-format off
 static const char* common_shader_wgsl = CODE(
-  struct FrameUniforms {
-    projection: mat4x4<f32>,
-    view: mat4x4<f32>,
-  }
-  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
-
   struct DrawUniforms {
-    model: mat4x4<f32>,
+    object_to_world: mat4x4<f32>,
     basecolor_roughness: vec4<f32>,
   }
   @group(1) @binding(0) var<uniform> draw_uniforms: DrawUniforms;
+
+  struct FrameUniforms {
+    world_to_clip: mat4x4<f32>,
+    camera_position: vec3<f32>,
+  }
+  @group(0) @binding(0) var<uniform> frame_uniforms: FrameUniforms;
 );
 
 static const char* vertex_shader_wgsl = CODE(
@@ -1193,27 +1144,28 @@ static const char* vertex_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @builtin(vertex_index) vertex_index: u32,
   ) -> VertexOut {
-      let modelView = frame_uniforms.view * draw_uniforms.model;
-      var output: VertexOut;
-      output.position_clip = frame_uniforms.projection * modelView * vec4(position.xyz, 1.0);
-      output.position = (modelView * vec4(position, 1.0)).xyz;
-      output.normal = normal * mat3x3(
-        draw_uniforms.model[0].xyz,
-        draw_uniforms.model[1].xyz,
-        draw_uniforms.model[2].xyz,
-      );
-      let index = vertex_index % 3u;
-      output.barycentrics = vec3(f32(index == 0u), f32(index == 1u), f32(index == 2u));
-      return output;
+    var output: VertexOut;
+    output.position_clip = vec4(position, 1.0) * draw_uniforms.object_to_world
+                           * frame_uniforms.world_to_clip;
+    output.position = (vec4(position, 1.0) * draw_uniforms.object_to_world).xyz;
+    output.normal = normal * mat3x3(
+      draw_uniforms.object_to_world[0].xyz,
+      draw_uniforms.object_to_world[1].xyz,
+      draw_uniforms.object_to_world[2].xyz,
+    );
+    let index = vertex_index % 3u;
+    output.barycentrics = vec3(
+      f32(index == 0u), f32(index == 1u), f32(index == 2u)
+    );
+    return output;
   }
-  );
+);
 
 static const char* fragment_shader_wgsl = CODE(
   const pi = 3.1415926;
 
   fn saturate(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
 
-  // Trowbridge-Reitz GGX normal distribution function.
   fn distributionGgx(n: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
     let alpha_sq = alpha * alpha;
     let n_dot_h = saturate(dot(n, h));
@@ -1225,14 +1177,15 @@ static const char* fragment_shader_wgsl = CODE(
     return x / (x * (1.0 - k) + k);
   }
 
-  fn geometrySmith(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, k: f32) -> f32 {
+  fn geometrySmith(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>,
+                   k: f32) -> f32 {
     let n_dot_v = saturate(dot(n, v));
     let n_dot_l = saturate(dot(n, l));
     return geometrySchlickGgx(n_dot_v, k) * geometrySchlickGgx(n_dot_l, k);
   }
 
   fn fresnelSchlick(h_dot_v: f32, f0: vec3<f32>) -> vec3<f32> {
-     return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
+    return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - h_dot_v, 5.0);
   }
 
   @fragment fn main(
@@ -1240,7 +1193,7 @@ static const char* fragment_shader_wgsl = CODE(
     @location(1) normal: vec3<f32>,
     @location(2) barycentrics: vec3<f32>,
   ) -> @location(0) vec4<f32> {
-    let v = normalize(position);
+    let v = normalize(frame_uniforms.camera_position - position);
     let n = normalize(normal);
 
     let base_color = draw_uniforms.basecolor_roughness.xyz;
@@ -1270,28 +1223,22 @@ static const char* fragment_shader_wgsl = CODE(
     );
 
     var lo = vec3(0.0);
-    for (var light_index: i32 = 0; light_index < 4; light_index = light_index + 1) {
+    for (var light_index: i32 = 0; light_index < 4;
+         light_index = light_index + 1) {
       let lvec = light_positions[light_index] - position;
-
       let l = normalize(lvec);
       let h = normalize(l + v);
-
       let distance_sq = dot(lvec, lvec);
       let attenuation = 1.0 / distance_sq;
       let radiance = light_radiance[light_index] * attenuation;
-
       let f = fresnelSchlick(saturate(dot(h, v)), f0);
-
       let ndf = distributionGgx(n, h, alpha);
       let g = geometrySmith(n, v, l, k);
-
       let numerator = ndf * g * f;
       let denominator = 4.0 * saturate(dot(n, v)) * saturate(dot(n, l));
       let specular = numerator / max(denominator, 0.001);
-
       let ks = f;
       let kd = (vec3(1.0) - ks) * (1.0 - metallic);
-
       let n_dot_l = saturate(dot(n, l));
       lo = lo + (kd * base_color / pi + specular) * radiance * n_dot_l;
     }
@@ -1301,7 +1248,6 @@ static const char* fragment_shader_wgsl = CODE(
     color = color / (color + 1.0);
     color = pow(color, vec3(1.0 / 2.2));
 
-    // wireframe
     var barys = barycentrics;
     barys.z = 1.0 - barys.x - barys.y;
     let deltas = fwidth(barys);

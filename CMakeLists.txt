@@ -135,6 +135,7 @@ function(add_example_executable EXAMPLE_NAME)
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cJSON
+        PRIVATE external/par
         PRIVATE external/rply
         PRIVATE external/sokol
         PRIVATE external/stb
@@ -210,6 +211,7 @@ add_example_executable(post_processing USE_CIMGUI)
 add_example_executable(primitive_picking USE_CIMGUI)
 add_example_executable(pristine_grid USE_CIMGUI)
 add_example_executable(prng)
+add_example_executable(procedural_mesh USE_CIMGUI)
 add_example_executable(raytracer)
 add_example_executable(render_bundles USE_CIMGUI)
 add_example_executable(reversed_z USE_CIMGUI)
