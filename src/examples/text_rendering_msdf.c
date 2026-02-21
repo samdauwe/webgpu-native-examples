@@ -515,7 +515,7 @@ static int32_t format_text(wgpu_context_t* wgpu_context, msdf_font_t* font,
   WGPURenderBundleEncoder encoder = wgpuDeviceCreateRenderBundleEncoder(
     wgpu_context->device,
     &(WGPURenderBundleEncoderDescriptor){
-      .label              = STRVIEW("MSDF text render bundle encoder"),
+      .label              = STRVIEW("MSDF text - Render bundle encoder"),
       .colorFormatCount   = 1,
       .colorFormats       = state.text_renderer.color_formats,
       .depthStencilFormat = wgpu_context->depth_stencil_format,
