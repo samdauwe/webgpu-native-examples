@@ -478,7 +478,7 @@ static int32_t format_text(wgpu_context_t* wgpu_context, msdf_font_t* font,
   WGPUBuffer text_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("MSDF text buffer"),
+      .label            = STRVIEW("MSDF text - Storage buffer"),
       .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
       .size             = buffer_size,
       .mappedAtCreation = false,
