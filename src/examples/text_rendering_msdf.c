@@ -492,7 +492,7 @@ static int32_t format_text(wgpu_context_t* wgpu_context, msdf_font_t* font,
   WGPUBindGroup text_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("MSDF text bind group"),
+      .label      = STRVIEW("MSDF text - Bind group"),
       .layout     = state.text_renderer.text_bind_group_layout,
       .entryCount = 2,
       .entries = (WGPUBindGroupEntry[]){
