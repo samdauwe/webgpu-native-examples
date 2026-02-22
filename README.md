@@ -294,6 +294,10 @@ Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGro
 
 Demonstrates basic GLTF loading and mesh skinning, ported from [webgl-skinning](https://webgl2fundamentals.org/webgl/lessons/webgl-skinning.html). Mesh data, per-vertex attributes, and skin inverseBindMatrices are taken from the JSON parsed from the binary output of the .glb file. Animations are generated programmatically, with animated joint matrices updated and passed to shaders per frame via uniform buffers.
 
+#### [Clustered Forward Shading](src/examples/clustered_shading.c)
+
+A clustered forward shading renderer using WebGPU compute shaders for light culling, with PBR (Physically Based Rendering) materials loaded from the Sponza glTF scene. Uses a 32x18x48 cluster grid to efficiently assign up to 1024 lights to screen-space tiles, with configurable debug visualizations for depth, depth slices, cluster distances, and lights per cluster. Ported from [this JavaScript implementation](https://github.com/toji/webgpu-clustered-shading) to native code.
+
 ### Advanced
 
 #### [MSAA line](src/examples/msaa_line.c)
