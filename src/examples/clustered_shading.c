@@ -1717,7 +1717,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
   };
   state.bind_group_layouts.primitive = wgpuDeviceCreateBindGroupLayout(
     device, &(WGPUBindGroupLayoutDescriptor){
-              .label      = STRVIEW("primitive-bgl"),
+              .label      = STRVIEW("Primitive - Bind group layout"),
               .entryCount = 1,
               .entries    = &prim_entry,
             });
