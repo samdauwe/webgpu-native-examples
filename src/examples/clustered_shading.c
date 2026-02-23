@@ -1704,7 +1704,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
   };
   state.bind_group_layouts.material = wgpuDeviceCreateBindGroupLayout(
     device, &(WGPUBindGroupLayoutDescriptor){
-              .label      = STRVIEW("material-bgl"),
+              .label      = STRVIEW("Material - Bind group layout"),
               .entryCount = 7,
               .entries    = mat_entries,
             });
