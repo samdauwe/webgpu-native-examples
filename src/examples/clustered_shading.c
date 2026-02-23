@@ -1728,12 +1728,12 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     .visibility = WGPUShaderStage_Fragment | WGPUShaderStage_Compute,
     .buffer     = {.type = WGPUBufferBindingType_ReadOnlyStorage},
   };
-  state.bind_group_layouts.cluster
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .label = STRVIEW("cluster-bgl"),
-                                                .entryCount = 1,
-                                                .entries    = &cluster_entry,
-                                              });
+  state.bind_group_layouts.cluster = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Cluster - Bind group layout"),
+              .entryCount = 1,
+              .entries    = &cluster_entry,
+            });
 
   /* Main pipeline layout: frame + material + primitive */
   WGPUBindGroupLayout layouts[3] = {
