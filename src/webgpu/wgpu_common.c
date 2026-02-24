@@ -24,7 +24,8 @@ static struct {
   uint32_t char_code;
   int window_width;
   int window_height;
-  uint8_t keys_down[KEY_NUM]; /* persistent key state, survives event overwrites */
+  uint8_t
+    keys_down[KEY_NUM]; /* persistent key state, survives event overwrites */
 } input_state = {0};
 
 /* Forward declarations */
