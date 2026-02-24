@@ -2552,6 +2552,18 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
         camera_rotate_view(dx * 0.025f, dy * 0.025f);
       }
       break;
+    case INPUT_EVENT_TYPE_RESIZED: {
+      uint32_t width  = (uint32_t)wgpu_context->width;
+      uint32_t height = (uint32_t)wgpu_context->height;
+      if (width > 0 && height > 0) {
+        /* Recreate MSAA and depth textures at new dimensions */
+        create_render_textures(wgpu_context);
+        /* Update projection matrix with new aspect ratio + output size */
+        update_frame_uniforms(wgpu_context);
+        /* Recompute cluster grid for new projection */
+        compute_cluster_bounds(wgpu_context);
+      }
+    } break;
     default:
       break;
   }
@@ -2734,16 +2746,6 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Update frame uniforms */
   update_frame_uniforms(wgpu_context);
-
-  /* Detect resize: recreate render textures + recompute clusters */
-  static int prev_w = 0, prev_h = 0;
-  if (wgpu_context->width != prev_w || wgpu_context->height != prev_h) {
-    prev_w = wgpu_context->width;
-    prev_h = wgpu_context->height;
-    create_render_textures(wgpu_context);
-    invalidate_render_bundles();
-    compute_cluster_bounds(wgpu_context);
-  }
 
   /* ImGui frame */
   float gui_delta = time_delta / 1000.0f;
