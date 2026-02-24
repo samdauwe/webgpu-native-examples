@@ -2506,47 +2506,39 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
 
+  /* Check if ImGui wants to capture the input */
+  ImGuiIO* io               = igGetIO();
+  bool imgui_wants_mouse    = io->WantCaptureMouse;
+  bool imgui_wants_keyboard = io->WantCaptureKeyboard;
+
+  /* Update camera key state from the persistent keys_down[] array.
+   * This is done for every dispatched event (regardless of type) because the
+   * framework dispatches at most one event per frame.  On some platforms
+   * (e.g. Linux/Wayland) MOUSE_MOVE fires every frame and would overwrite
+   * KEY_DOWN / KEY_UP events before they can be dispatched. */
+  if (!imgui_wants_keyboard) {
+    state.camera.key_w     = input_event->keys_down[KEY_W];
+    state.camera.key_s     = input_event->keys_down[KEY_S];
+    state.camera.key_a     = input_event->keys_down[KEY_A];
+    state.camera.key_d     = input_event->keys_down[KEY_D];
+    state.camera.key_space = input_event->keys_down[KEY_SPACE];
+    state.camera.key_shift = input_event->keys_down[KEY_LEFT_SHIFT]
+                             || input_event->keys_down[KEY_RIGHT_SHIFT];
+  }
+
   switch (input_event->type) {
-    case INPUT_EVENT_TYPE_KEY_DOWN: {
-      keycode_t k = input_event->key_code;
-      if (k == KEY_W)
-        state.camera.key_w = true;
-      if (k == KEY_S)
-        state.camera.key_s = true;
-      if (k == KEY_A)
-        state.camera.key_a = true;
-      if (k == KEY_D)
-        state.camera.key_d = true;
-      if (k == KEY_SPACE)
-        state.camera.key_space = true;
-      if (k == KEY_LEFT_SHIFT || k == KEY_RIGHT_SHIFT)
-        state.camera.key_shift = true;
-    } break;
-    case INPUT_EVENT_TYPE_KEY_UP: {
-      keycode_t k = input_event->key_code;
-      if (k == KEY_W)
-        state.camera.key_w = false;
-      if (k == KEY_S)
-        state.camera.key_s = false;
-      if (k == KEY_A)
-        state.camera.key_a = false;
-      if (k == KEY_D)
-        state.camera.key_d = false;
-      if (k == KEY_SPACE)
-        state.camera.key_space = false;
-      if (k == KEY_LEFT_SHIFT || k == KEY_RIGHT_SHIFT)
-        state.camera.key_shift = false;
-    } break;
     case INPUT_EVENT_TYPE_MOUSE_DOWN:
-      state.camera.moving = true;
-      state.camera.last_x = input_event->mouse_x;
-      state.camera.last_y = input_event->mouse_y;
+      if (!imgui_wants_mouse) {
+        state.camera.moving = true;
+        state.camera.last_x = input_event->mouse_x;
+        state.camera.last_y = input_event->mouse_y;
+      }
       break;
     case INPUT_EVENT_TYPE_MOUSE_UP:
       state.camera.moving = false;
       break;
     case INPUT_EVENT_TYPE_MOUSE_MOVE:
-      if (state.camera.moving) {
+      if (state.camera.moving && !imgui_wants_mouse) {
         float dx = input_event->mouse_dx;
         float dy = input_event->mouse_dy;
         camera_rotate_view(dx * 0.025f, dy * 0.025f);
