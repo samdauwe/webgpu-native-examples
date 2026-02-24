@@ -172,6 +172,7 @@ typedef struct input_event_t {
   float scroll_y;
   int window_width;
   int window_height;
+  uint8_t keys_down[KEY_NUM]; /* persistent pressed-key state, always valid */
 } input_event_t;
 
 #endif

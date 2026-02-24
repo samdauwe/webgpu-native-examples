@@ -24,6 +24,7 @@ static struct {
   uint32_t char_code;
   int window_width;
   int window_height;
+  uint8_t keys_down[KEY_NUM]; /* persistent key state, survives event overwrites */
 } input_state = {0};
 
 /* Forward declarations */
@@ -214,6 +215,13 @@ static void glfw_key_cb(GLFWwindow* window, int key, int scancode, int action,
   input_state.shift_key = (mods & GLFW_MOD_SHIFT);
   /* Remap GLFW keycode to internal code */
   input_state.key_code = remap_glfw_key_code(key);
+
+  /* Maintain persistent key state (not lost when other events overwrite
+   * event_type, e.g. continuous MOUSE_MOVE on some platforms). */
+  if (input_state.key_code < KEY_NUM) {
+    input_state.keys_down[input_state.key_code]
+      = (action == GLFW_PRESS || action == GLFW_REPEAT) ? 1 : 0;
+  }
 }
 
 static void glfw_char_cb(GLFWwindow* window, unsigned int chr)
@@ -477,6 +485,8 @@ static void update_input_event(input_event_t* input_event, uint64_t frame_count)
     .window_width      = input_state.window_width,
     .window_height     = input_state.window_height,
   };
+  memcpy(input_event->keys_down, input_state.keys_down,
+         sizeof(input_state.keys_down));
 }
 
 static void wgpu_platform_start(wgpu_context_t* wgpu_context)
