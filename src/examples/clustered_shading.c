@@ -2621,6 +2621,29 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
     igProgressBar(progress, (ImVec2){-1.0f, 0.0f}, overlay);
   }
 
+  /* Controls reference */
+  igSeparator();
+  igTextDisabled("Controls");
+  igSeparator();
+
+  /* Keyboard */
+  const ImVec4 key_col  = {0.9f, 0.9f, 0.4f, 1.0f};
+  const ImVec4 desc_col = {0.8f, 0.8f, 0.8f, 1.0f};
+#define GUI_KEY_ROW(key, description)                                          \
+  igTextColored(key_col, "%-18s", key);                                        \
+  igSameLine(0.0f, 4.0f);                                                      \
+  igTextColored(desc_col, "%s", description)
+
+  GUI_KEY_ROW("W / A / S / D", "Move camera");
+  GUI_KEY_ROW("Space", "Move up");
+  GUI_KEY_ROW("Left Shift", "Move down");
+
+  /* Mouse */
+  igSpacing();
+  GUI_KEY_ROW("Left drag", "Look around");
+
+#undef GUI_KEY_ROW
+
   igEnd();
 }
 
