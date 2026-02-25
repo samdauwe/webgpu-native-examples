@@ -128,8 +128,11 @@
 #define MAX_VERTEX_BUFFERS_PER_PRIM (4)
 #define MAX_CACHED_PIPELINES (128)
 
-/* Async image loading */
-#define IMG_FETCH_BUFFER_SIZE (6 * 1024 * 1024) /* 6 MB fetch buffer */
+/* Async GLB file loading */
+#define GLB_FETCH_BUFFER_SIZE (16 * 1024 * 1024) /* 16 MB fetch buffer */
+#define GLB_MODEL_PATH "assets/models/Sponza/glb/Sponza.glb"
+#define IMAGES_PER_FRAME                                                       \
+  (8) /* images to decode per frame during progressive loading */
 
 /* Output type enum */
 typedef enum output_type_t {
@@ -142,13 +145,13 @@ typedef enum output_type_t {
   OUTPUT_COUNT           = 6,
 } output_type_t;
 
-/* Loading phase enum — controls progressive startup */
-typedef enum load_phase_t {
-  LOAD_PHASE_INIT     = 0, /* First frames: show light sprites + GUI */
-  LOAD_PHASE_GLTF     = 1, /* Load GLTF model on this frame */
-  LOAD_PHASE_TEXTURES = 2, /* GLTF loaded, textures loading progressively */
-  LOAD_PHASE_DONE     = 3, /* Everything loaded */
-} load_phase_t;
+/* GLB loading state */
+typedef enum glb_load_state_t {
+  GLB_LOAD_PENDING = 0, /* GLB file is being fetched asynchronously */
+  GLB_LOAD_READY = 1, /* GLB data received, needs parsing + geometry creation */
+  GLB_LOAD_TEXTURES = 2, /* Geometry loaded, decoding images progressively */
+  GLB_LOAD_DONE     = 3, /* Scene fully created from GLB data */
+} glb_load_state_t;
 
 /* -------------------------------------------------------------------------- *
  * GLTF types
@@ -233,7 +236,7 @@ typedef struct pipeline_cache_entry_t {
 } pipeline_cache_entry_t;
 
 typedef struct gltf_buffer_view_t {
-  WGPUBuffer gpu_buffer;
+  uint32_t byte_offset; /* offset within GLB binary chunk */
   uint32_t byte_length;
   uint32_t byte_stride;
   bool is_vertex;
@@ -258,6 +261,8 @@ static struct {
   struct {
     gltf_buffer_view_t buffer_views[MAX_BUFFER_VIEWS];
     uint32_t buffer_view_count;
+    WGPUBuffer
+      geometry_buffer; /* single GPU buffer for all vertex/index data */
     gltf_image_t images[MAX_IMAGES];
     uint32_t image_count;
     gltf_sampler_t samplers[MAX_SAMPLERS];
@@ -383,18 +388,15 @@ static struct {
   uint64_t last_frame_time;
   int32_t frame_count;
 
-  /* Loading state machine */
-  load_phase_t load_phase;
-
-  /* Async image loading */
+  /* GLB async loading */
   struct {
-    char paths[MAX_IMAGES][512];
-    uint32_t total;
-    uint32_t loaded_count;
-    bool all_done;
-    wgpu_context_t* wgpu_context;
-  } pending_images;
-  uint8_t fetch_buffer[IMG_FETCH_BUFFER_SIZE];
+    glb_load_state_t state;
+    uint8_t* data; /* pointer into glb_fetch_buffer (no malloc) */
+    size_t data_size;
+    cgltf_data* cgltf;       /* parsed GLB — kept alive for image buffer refs */
+    uint32_t next_image_idx; /* next image to decode progressively */
+  } glb_load;
+  uint8_t glb_fetch_buffer[GLB_FETCH_BUFFER_SIZE];
 
   /* Render bundle descriptor */
   WGPURenderBundleEncoderDescriptor render_bundle_desc;
@@ -435,6 +437,9 @@ static struct {
     .render_sprites  = true,
   },
   .frame_count = -1,
+  .glb_load = {
+    .state = GLB_LOAD_PENDING,
+  },
 };
 
 /* -------------------------------------------------------------------------- *
@@ -1020,20 +1025,24 @@ static void recreate_material_bind_group(WGPUDevice device, uint32_t mat_idx)
             });
 }
 
-/* Load a GLTF file and create all GPU resources */
-static void load_gltf(wgpu_context_t* wgpu_context, const char* path)
+/* Load a GLB scene from in-memory data and create all GPU resources */
+static void load_glb_scene(wgpu_context_t* wgpu_context, const void* glb_data,
+                           size_t glb_size)
 {
   cgltf_options options = {0};
   cgltf_data* data      = NULL;
-  cgltf_result result   = cgltf_parse_file(&options, path, &data);
+  cgltf_result result   = cgltf_parse(&options, glb_data, glb_size, &data);
   if (result != cgltf_result_success) {
-    fprintf(stderr, "Failed to parse GLTF: %s (error %d)\n", path, result);
+    fprintf(stderr, "Failed to parse GLB data (error %d)\n", result);
     return;
   }
 
-  result = cgltf_load_buffers(&options, data, path);
+  /* For GLB, binary buffer data is already embedded — no I/O needed.
+   * cgltf_load_buffers with a NULL path decodes base64 data URIs and
+   * resolves GLB binary chunks that are already in memory. */
+  result = cgltf_load_buffers(&options, data, NULL);
   if (result != cgltf_result_success) {
-    fprintf(stderr, "Failed to load GLTF buffers: %s\n", path);
+    fprintf(stderr, "Failed to load GLB buffers (error %d)\n", result);
     cgltf_free(data);
     return;
   }
@@ -1045,6 +1054,7 @@ static void load_gltf(wgpu_context_t* wgpu_context, const char* path)
     = MIN((uint32_t)data->buffer_views_count, MAX_BUFFER_VIEWS);
   for (uint32_t i = 0; i < state.gltf.buffer_view_count; ++i) {
     cgltf_buffer_view* bv                  = &data->buffer_views[i];
+    state.gltf.buffer_views[i].byte_offset = (uint32_t)bv->offset;
     state.gltf.buffer_views[i].byte_length = (uint32_t)bv->size;
     state.gltf.buffer_views[i].byte_stride = (uint32_t)bv->stride;
     state.gltf.buffer_views[i].is_vertex   = false;
@@ -1075,92 +1085,31 @@ static void load_gltf(wgpu_context_t* wgpu_context, const char* path)
     }
   }
 
-  /* Create GPU buffers for buffer views */
-  for (uint32_t i = 0; i < state.gltf.buffer_view_count; ++i) {
-    gltf_buffer_view_t* gbv = &state.gltf.buffer_views[i];
-    WGPUBufferUsage usage   = 0;
-    if (gbv->is_vertex)
-      usage |= WGPUBufferUsage_Vertex;
-    if (gbv->is_index)
-      usage |= WGPUBufferUsage_Index;
-    if (!usage)
-      continue;
-
-    cgltf_buffer_view* bv = &data->buffer_views[i];
-    uint32_t aligned_len  = ((uint32_t)bv->size + 3u) & ~3u;
-
-    gbv->gpu_buffer = wgpuDeviceCreateBuffer(
+  /* Create a single GPU buffer for the entire GLB binary chunk.
+   * This replaces hundreds of individual buffer creations with one. */
+  {
+    uint32_t bin_size          = ((uint32_t)data->buffers[0].size + 3u) & ~3u;
+    state.gltf.geometry_buffer = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .usage            = usage | WGPUBufferUsage_CopyDst,
-                .size             = aligned_len,
+                .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Index
+                         | WGPUBufferUsage_CopyDst,
+                .size             = bin_size,
                 .mappedAtCreation = true,
               });
-
-    uint8_t* src = (uint8_t*)bv->buffer->data + bv->offset;
-    void* mapped = wgpuBufferGetMappedRange(gbv->gpu_buffer, 0, aligned_len);
-    memcpy(mapped, src, bv->size);
-    if (aligned_len > bv->size) {
-      memset((uint8_t*)mapped + bv->size, 0, aligned_len - bv->size);
+    void* mapped
+      = wgpuBufferGetMappedRange(state.gltf.geometry_buffer, 0, bin_size);
+    memcpy(mapped, data->buffers[0].data, data->buffers[0].size);
+    if (bin_size > data->buffers[0].size) {
+      memset((uint8_t*)mapped + data->buffers[0].size, 0,
+             bin_size - (uint32_t)data->buffers[0].size);
     }
-    wgpuBufferUnmap(gbv->gpu_buffer);
+    wgpuBufferUnmap(state.gltf.geometry_buffer);
   }
 
-  /* --- Prepare images for async loading --- */
-  state.gltf.image_count     = MIN((uint32_t)data->images_count, MAX_IMAGES);
-  state.pending_images.total = 0;
-  state.pending_images.loaded_count = 0;
-  state.pending_images.all_done     = false;
-
+  /* --- Mark images for progressive decoding (done in frame loop) --- */
+  state.gltf.image_count = MIN((uint32_t)data->images_count, MAX_IMAGES);
   for (uint32_t i = 0; i < state.gltf.image_count; ++i) {
-    cgltf_image* img            = &data->images[i];
     state.gltf.images[i].loaded = false;
-
-    /* Embedded images (buffer view): load immediately */
-    if (img->buffer_view != NULL) {
-      void* raw_data
-        = (uint8_t*)img->buffer_view->buffer->data + img->buffer_view->offset;
-      size_t raw_size = img->buffer_view->size;
-      int img_w, img_h, img_channels;
-      stbi_uc* pixels
-        = stbi_load_from_memory((const stbi_uc*)raw_data, (int)raw_size, &img_w,
-                                &img_h, &img_channels, 4);
-      if (pixels) {
-        WGPUExtent3D tex_size        = {(uint32_t)img_w, (uint32_t)img_h, 1};
-        state.gltf.images[i].texture = wgpuDeviceCreateTexture(
-          device,
-          &(WGPUTextureDescriptor){
-            .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
-            .dimension     = WGPUTextureDimension_2D,
-            .size          = tex_size,
-            .format        = WGPUTextureFormat_RGBA8Unorm,
-            .mipLevelCount = 1,
-            .sampleCount   = 1,
-          });
-        wgpu_image_to_texure(wgpu_context, state.gltf.images[i].texture, pixels,
-                             tex_size, 4);
-        state.gltf.images[i].view
-          = wgpuTextureCreateView(state.gltf.images[i].texture, NULL);
-        state.gltf.images[i].loaded = true;
-        stbi_image_free(pixels);
-      }
-      continue;
-    }
-
-    /* External URI images: save path for async loading */
-    if (img->uri != NULL) {
-      char* img_path       = state.pending_images.paths[i];
-      const char* last_sep = strrchr(path, '/');
-      if (last_sep) {
-        size_t dir_len = (size_t)(last_sep - path + 1);
-        memcpy(img_path, path, dir_len);
-        img_path[dir_len] = '\0';
-        strcat(img_path, img->uri);
-      }
-      else {
-        strcpy(img_path, img->uri);
-      }
-      state.pending_images.total++;
-    }
   }
 
   /* --- Load samplers --- */
@@ -1323,110 +1272,125 @@ static void load_gltf(wgpu_context_t* wgpu_context, const char* path)
   }
 
   state.gltf.loaded = true;
-  cgltf_free(data);
+
+  /* Keep cgltf data alive — image buffer view pointers reference it.
+   * It will be freed after all images are progressively decoded. */
+  state.glb_load.cgltf          = data;
+  state.glb_load.next_image_idx = 0;
 }
 
 /* -------------------------------------------------------------------------- *
- * Async image loading via sokol_fetch
+ * GLB async loading via sokol_fetch
  * -------------------------------------------------------------------------- */
 
-/* Callback fired by sokol_fetch when an image file has been loaded */
-static void image_fetch_callback(const sfetch_response_t* response)
+/* Callback fired when the GLB file has been fetched */
+static void glb_fetch_callback(const sfetch_response_t* response)
 {
   if (response->finished && !response->fetched) {
-    fprintf(stderr, "Image fetch failed: error %d\n", response->error_code);
+    fprintf(stderr, "GLB fetch failed: error %d\n", response->error_code);
     return;
   }
   if (!response->fetched)
     return;
 
-  uint32_t img_idx = *(const uint32_t*)response->user_data;
-  if (img_idx >= state.gltf.image_count)
-    return;
+  /* Point directly to the fetch buffer — no copy needed.
+   * The fetch buffer is a static array in the state struct, so it stays
+   * alive for the lifetime of the application.  We only issue one fetch
+   * request, so the buffer won't be overwritten. */
+  state.glb_load.data      = (uint8_t*)response->data.ptr;
+  state.glb_load.data_size = response->data.size;
+  state.glb_load.state     = GLB_LOAD_READY;
+}
 
-  wgpu_context_t* wgpu_context = state.pending_images.wgpu_context;
-  WGPUDevice device            = wgpu_context->device;
+/* -------------------------------------------------------------------------- *
+ * Progressive image decoding — decode a batch of images per frame
+ * -------------------------------------------------------------------------- *
+ * Returns true when all images have been decoded.
+ * Called each frame during GLB_LOAD_TEXTURES phase to keep the render loop
+ * responsive. Decodes up to IMAGES_PER_FRAME images, rebuilds affected
+ * material bind groups, and invalidates render bundles.
+ * -------------------------------------------------------------------------- */
 
-  int img_w, img_h, img_channels;
-  stbi_uc* pixels = stbi_load_from_memory((const stbi_uc*)response->data.ptr,
-                                          (int)response->data.size, &img_w,
-                                          &img_h, &img_channels, 4);
-  if (!pixels) {
-    fprintf(stderr, "Image decode failed for image %u\n", img_idx);
-    return;
+static bool decode_glb_images_batch(wgpu_context_t* wgpu_context)
+{
+  cgltf_data* data = state.glb_load.cgltf;
+  if (!data)
+    return true;
+
+  WGPUDevice device   = wgpu_context->device;
+  uint32_t decoded    = 0;
+  bool any_loaded     = false;
+  uint32_t idx        = state.glb_load.next_image_idx;
+  const uint32_t last = state.gltf.image_count;
+
+  while (idx < last && decoded < IMAGES_PER_FRAME) {
+    if (state.gltf.images[idx].loaded) {
+      idx++;
+      continue;
+    }
+
+    cgltf_image* img     = &data->images[idx];
+    const void* raw_data = NULL;
+    size_t raw_size      = 0;
+
+    if (img->buffer_view != NULL) {
+      raw_data = (const uint8_t*)img->buffer_view->buffer->data
+                 + img->buffer_view->offset;
+      raw_size = img->buffer_view->size;
+    }
+
+    if (raw_data && raw_size > 0) {
+      int img_w, img_h, img_channels;
+      stbi_uc* pixels
+        = stbi_load_from_memory((const stbi_uc*)raw_data, (int)raw_size, &img_w,
+                                &img_h, &img_channels, 4);
+      if (pixels) {
+        WGPUExtent3D tex_size          = {(uint32_t)img_w, (uint32_t)img_h, 1};
+        state.gltf.images[idx].texture = wgpuDeviceCreateTexture(
+          device,
+          &(WGPUTextureDescriptor){
+            .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+            .dimension     = WGPUTextureDimension_2D,
+            .size          = tex_size,
+            .format        = WGPUTextureFormat_RGBA8Unorm,
+            .mipLevelCount = 1,
+            .sampleCount   = 1,
+          });
+        wgpu_image_to_texure(wgpu_context, state.gltf.images[idx].texture,
+                             pixels, tex_size, 4);
+        state.gltf.images[idx].view
+          = wgpuTextureCreateView(state.gltf.images[idx].texture, NULL);
+        state.gltf.images[idx].loaded = true;
+        stbi_image_free(pixels);
+        any_loaded = true;
+      }
+    }
+
+    idx++;
+    decoded++;
   }
 
-  WGPUExtent3D tex_size              = {(uint32_t)img_w, (uint32_t)img_h, 1};
-  state.gltf.images[img_idx].texture = wgpuDeviceCreateTexture(
-    device,
-    &(WGPUTextureDescriptor){
-      .usage     = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
-      .dimension = WGPUTextureDimension_2D,
-      .size      = tex_size,
-      .format    = WGPUTextureFormat_RGBA8Unorm,
-      .mipLevelCount = 1,
-      .sampleCount   = 1,
-    });
-  wgpu_image_to_texure(wgpu_context, state.gltf.images[img_idx].texture, pixels,
-                       tex_size, 4);
-  state.gltf.images[img_idx].view
-    = wgpuTextureCreateView(state.gltf.images[img_idx].texture, NULL);
-  state.gltf.images[img_idx].loaded = true;
-  stbi_image_free(pixels);
+  state.glb_load.next_image_idx = idx;
 
-  state.pending_images.loaded_count++;
-
-  /* Rebuild material bind groups that reference this image */
-  for (uint32_t m = 0; m < state.gltf.material_count; ++m) {
-    gltf_material_t* mat = &state.gltf.materials[m];
-    if (mat->base_color_tex_idx == (int32_t)img_idx
-        || mat->normal_tex_idx == (int32_t)img_idx
-        || mat->metallic_roughness_tex_idx == (int32_t)img_idx
-        || mat->occlusion_tex_idx == (int32_t)img_idx
-        || mat->emissive_tex_idx == (int32_t)img_idx) {
+  /* Rebuild material bind groups that reference newly loaded images */
+  if (any_loaded) {
+    for (uint32_t m = 0; m < state.gltf.material_count; ++m) {
       recreate_material_bind_group(device, m);
     }
-  }
-
-  /* Invalidate render bundles so they pick up new textures */
-  for (int i = 0; i < OUTPUT_COUNT; ++i) {
-    if (state.render_bundle_valid[i] && state.render_bundles[i]) {
-      wgpuRenderBundleRelease(state.render_bundles[i]);
-      state.render_bundles[i] = NULL;
+    /* Invalidate render bundles so they pick up new textures */
+    for (int i = 0; i < OUTPUT_COUNT; ++i) {
+      if (state.render_bundle_valid[i] && state.render_bundles[i]) {
+        wgpuRenderBundleRelease(state.render_bundles[i]);
+        state.render_bundles[i] = NULL;
+      }
+      state.render_bundle_valid[i] = false;
     }
-    state.render_bundle_valid[i] = false;
   }
-  /* Keep pipeline cache — pipelines are still valid, only bundles need
-   * rebuilding because the bind groups changed */
 
-  if (state.pending_images.loaded_count >= state.pending_images.total) {
-    state.pending_images.all_done = true;
-  }
+  return idx >= last;
 }
 
-/* Image indices for user_data (must persist until callback fires) */
-static uint32_t image_indices[MAX_IMAGES];
-
-/* Start async loading for all pending images */
-static void start_async_image_loading(void)
-{
-  for (uint32_t i = 0; i < state.gltf.image_count; ++i) {
-    if (state.gltf.images[i].loaded)
-      continue;
-    if (state.pending_images.paths[i][0] == '\0')
-      continue;
-
-    image_indices[i] = i;
-    sfetch_send(&(sfetch_request_t){
-      .path      = state.pending_images.paths[i],
-      .callback  = image_fetch_callback,
-      .buffer    = {.ptr = state.fetch_buffer, .size = IMG_FETCH_BUFFER_SIZE},
-      .user_data = {.ptr = &image_indices[i], .size = sizeof(uint32_t)},
-    });
-  }
-}
-
-/* Forward declared above load_gltf, defined here for readability */
+/* Forward declared above load_glb_scene, defined here for readability */
 static void process_gltf_node(wgpu_context_t* wgpu_context, cgltf_data* data,
                               cgltf_node* node, mat4 parent_matrix)
 {
@@ -2342,11 +2306,12 @@ static void create_render_bundle(wgpu_context_t* wgpu_context,
     /* Set vertex buffers */
     for (uint32_t vb = 0; vb < prim->vertex_buffer_count; ++vb) {
       uint32_t bv_idx = prim->vertex_buffers[vb].buffer_view_idx;
-      if (bv_idx < state.gltf.buffer_view_count
-          && state.gltf.buffer_views[bv_idx].gpu_buffer) {
+      if (bv_idx < state.gltf.buffer_view_count && state.gltf.geometry_buffer) {
         wgpuRenderBundleEncoderSetVertexBuffer(
-          encoder, vb, state.gltf.buffer_views[bv_idx].gpu_buffer,
-          prim->vertex_buffers[vb].min_byte_offset, WGPU_WHOLE_SIZE);
+          encoder, vb, state.gltf.geometry_buffer,
+          state.gltf.buffer_views[bv_idx].byte_offset
+            + prim->vertex_buffers[vb].min_byte_offset,
+          WGPU_WHOLE_SIZE);
       }
     }
 
@@ -2354,10 +2319,12 @@ static void create_render_bundle(wgpu_context_t* wgpu_context,
     if (prim->index_buffer_view_idx != UINT32_MAX) {
       uint32_t ibv_idx = prim->index_buffer_view_idx;
       if (ibv_idx < state.gltf.buffer_view_count
-          && state.gltf.buffer_views[ibv_idx].gpu_buffer) {
+          && state.gltf.geometry_buffer) {
         wgpuRenderBundleEncoderSetIndexBuffer(
-          encoder, state.gltf.buffer_views[ibv_idx].gpu_buffer,
-          prim->index_format, prim->index_byte_offset, WGPU_WHOLE_SIZE);
+          encoder, state.gltf.geometry_buffer, prim->index_format,
+          state.gltf.buffer_views[ibv_idx].byte_offset
+            + prim->index_byte_offset,
+          WGPU_WHOLE_SIZE);
         wgpuRenderBundleEncoderDrawIndexed(encoder, prim->element_count, 1, 0,
                                            0, 0);
       }
@@ -2580,10 +2547,19 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igSetNextWindowSize((ImVec2){300.0f, 0.0f}, ImGuiCond_FirstUseEver);
   igBegin("Clustered Shading", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  /* Show loading status based on phase */
-  if (state.load_phase <= LOAD_PHASE_GLTF) {
+  /* Show loading status */
+  if (state.glb_load.state == GLB_LOAD_PENDING) {
     igTextColored((ImVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Loading model...");
     igSeparator();
+  }
+  else if (state.glb_load.state == GLB_LOAD_TEXTURES
+           && state.gltf.image_count > 0) {
+    float progress
+      = (float)state.glb_load.next_image_idx / (float)state.gltf.image_count;
+    char overlay[64];
+    snprintf(overlay, sizeof(overlay), "%u / %u textures",
+             state.glb_load.next_image_idx, state.gltf.image_count);
+    igProgressBar(progress, (ImVec2){-1.0f, 0.0f}, overlay);
   }
 
   /* Output mode selector */
@@ -2607,18 +2583,6 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   if (igSliderFloat("Max Light Range", &state.settings.max_light_range, 0.1f,
                     5.0f, "%.1f", 0)) {
     update_light_range(state.settings.max_light_range);
-  }
-
-  /* Loading progress for textures */
-  if (state.load_phase == LOAD_PHASE_TEXTURES
-      && state.pending_images.total > 0) {
-    igSeparator();
-    float progress = (float)state.pending_images.loaded_count
-                     / (float)state.pending_images.total;
-    char overlay[64];
-    snprintf(overlay, sizeof(overlay), "%u / %u textures",
-             state.pending_images.loaded_count, state.pending_images.total);
-    igProgressBar(progress, (ImVec2){-1.0f, 0.0f}, overlay);
   }
 
   /* Controls reference */
@@ -2658,7 +2622,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = MAX_IMAGES,
+    .max_requests = 1,
     .num_channels = 1,
     .num_lanes    = 1,
   });
@@ -2688,10 +2652,14 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* Init ImGui */
   imgui_overlay_init(wgpu_context);
 
-  /* GLTF model loading is deferred to frame() so that light sprites and
-   * the GUI are visible immediately while the model loads. */
-  state.pending_images.wgpu_context = wgpu_context;
-  state.load_phase                  = LOAD_PHASE_INIT;
+  /* Start asynchronous GLB file loading — light sprites render immediately
+   * while the model loads in the background */
+  state.glb_load.state = GLB_LOAD_PENDING;
+  sfetch_send(&(sfetch_request_t){
+    .path     = GLB_MODEL_PATH,
+    .callback = glb_fetch_callback,
+    .buffer   = {.ptr = state.glb_fetch_buffer, .size = GLB_FETCH_BUFFER_SIZE},
+  });
 
   state.initialized = true;
   return EXIT_SUCCESS;
@@ -2702,31 +2670,29 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized)
     return EXIT_FAILURE;
 
-  /* Process async image loading */
+  /* Process async GLB loading */
   sfetch_dowork();
 
-  /* ---- Deferred loading state machine ---- */
-  switch (state.load_phase) {
-    case LOAD_PHASE_INIT:
-      /* Let a few frames render (light sprites + GUI) before loading GLTF */
-      if (state.frame_count >= 2) {
-        state.load_phase = LOAD_PHASE_GLTF;
+  /* ---- GLB loading state machine ---- */
+  if (state.glb_load.state == GLB_LOAD_READY) {
+    /* GLB data received — parse and create geometry/materials (fast, no image
+     * decoding). Scene renders immediately with placeholder textures. */
+    load_glb_scene(wgpu_context, state.glb_load.data, state.glb_load.data_size);
+    state.glb_load.state = GLB_LOAD_TEXTURES;
+  }
+
+  if (state.glb_load.state == GLB_LOAD_TEXTURES) {
+    /* Decode a batch of images per frame — keeps render loop responsive */
+    if (decode_glb_images_batch(wgpu_context)) {
+      /* All images decoded — release cgltf data */
+      if (state.glb_load.cgltf) {
+        cgltf_free(state.glb_load.cgltf);
+        state.glb_load.cgltf = NULL;
       }
-      break;
-    case LOAD_PHASE_GLTF:
-      /* Load the GLTF model (file I/O + GPU buffer creation). This blocks
-       * for a short time, but the user already sees light sprites + GUI. */
-      load_gltf(wgpu_context, "assets/models/Sponza/glTF/Sponza.gltf");
-      start_async_image_loading();
-      state.load_phase = LOAD_PHASE_TEXTURES;
-      break;
-    case LOAD_PHASE_TEXTURES:
-      if (state.pending_images.all_done) {
-        state.load_phase = LOAD_PHASE_DONE;
-      }
-      break;
-    case LOAD_PHASE_DONE:
-      break;
+      state.glb_load.data      = NULL;
+      state.glb_load.data_size = 0;
+      state.glb_load.state     = GLB_LOAD_DONE;
+    }
   }
 
   /* Timing */
@@ -2835,13 +2801,18 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   imgui_overlay_shutdown();
   sfetch_shutdown();
 
+  /* Free any pending GLB data */
+  if (state.glb_load.cgltf) {
+    cgltf_free(state.glb_load.cgltf);
+    state.glb_load.cgltf = NULL;
+  }
+  state.glb_load.data = NULL;
+
   /* Release render bundles and cached pipelines */
   invalidate_render_bundles();
 
   /* Release GLTF resources */
-  for (uint32_t i = 0; i < state.gltf.buffer_view_count; ++i) {
-    WGPU_RELEASE_RESOURCE(Buffer, state.gltf.buffer_views[i].gpu_buffer)
-  }
+  WGPU_RELEASE_RESOURCE(Buffer, state.gltf.geometry_buffer)
   for (uint32_t i = 0; i < state.gltf.image_count; ++i) {
     WGPU_RELEASE_RESOURCE(TextureView, state.gltf.images[i].view)
     WGPU_RELEASE_RESOURCE(Texture, state.gltf.images[i].texture)
