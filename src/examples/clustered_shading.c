@@ -133,6 +133,7 @@
 #define GLB_MODEL_PATH "assets/models/Sponza/glb/Sponza.glb"
 #define IMAGES_PER_FRAME                                                       \
   (8) /* images to decode per frame during progressive loading */
+#define MAX_ASYNC_PIPELINES (16) /* max unique pipelines to pre-warm */
 
 /* Output type enum */
 typedef enum output_type_t {
@@ -147,10 +148,11 @@ typedef enum output_type_t {
 
 /* GLB loading state */
 typedef enum glb_load_state_t {
-  GLB_LOAD_PENDING = 0, /* GLB file is being fetched asynchronously */
-  GLB_LOAD_READY = 1, /* GLB data received, needs parsing + geometry creation */
-  GLB_LOAD_TEXTURES = 2, /* Geometry loaded, decoding images progressively */
-  GLB_LOAD_DONE     = 3, /* Scene fully created from GLB data */
+  GLB_LOAD_PENDING   = 0, /* GLB file is being fetched asynchronously */
+  GLB_LOAD_READY     = 1, /* GLB data received, needs parsing + geometry */
+  GLB_LOAD_PIPELINES = 2, /* Async pipeline compilation in progress */
+  GLB_LOAD_TEXTURES  = 3, /* Geometry loaded, decoding images progressively */
+  GLB_LOAD_DONE      = 4, /* Scene fully created from GLB data */
 } glb_load_state_t;
 
 /* -------------------------------------------------------------------------- *
@@ -396,6 +398,14 @@ static struct {
     cgltf_data* cgltf;       /* parsed GLB — kept alive for image buffer refs */
     uint32_t next_image_idx; /* next image to decode progressively */
   } glb_load;
+
+  /* Async pipeline pre-warming — pipelines compile in background while
+   * sprites continue to render.  Callbacks fire during ProcessEvents. */
+  struct {
+    pipeline_cache_key_t keys[MAX_ASYNC_PIPELINES];
+    uint32_t total;
+    uint32_t completed;
+  } async_pipelines;
   uint8_t glb_fetch_buffer[GLB_FETCH_BUFFER_SIZE];
 
   /* Render bundle descriptor */
@@ -1271,7 +1281,8 @@ static void load_glb_scene(wgpu_context_t* wgpu_context, const void* glb_data,
     process_gltf_node(wgpu_context, data, scene->nodes[ni], identity);
   }
 
-  state.gltf.loaded = true;
+  /* Note: state.gltf.loaded is set later, after async pipeline compilation
+   * completes, so that create_render_bundle() finds warm pipelines. */
 
   /* Keep cgltf data alive — image buffer view pointers reference it.
    * It will be freed after all images are progressively decoded. */
@@ -2094,6 +2105,200 @@ static void cache_clear_pipelines(void)
   state.pipeline_cache_count = 0;
 }
 
+/* -------------------------------------------------------------------------- *
+ * Async pipeline pre-warming
+ * -------------------------------------------------------------------------- *
+ * Dawn's wgpuDeviceCreateRenderPipeline() compiles shaders synchronously
+ * (WGSL → SPIR-V → Vulkan), which takes ~4 seconds per unique pipeline on
+ * this model.  Instead, we fire wgpuDeviceCreateRenderPipelineAsync() for
+ * every unique vertex-layout / material combination immediately after the GLB
+ * is parsed.  Dawn compiles in background threads and delivers the result via
+ * callback when we call wgpuInstanceProcessEvents() each frame.  Meanwhile
+ * the light sprites keep rendering.
+ * -------------------------------------------------------------------------- */
+
+static void async_pipeline_callback(WGPUCreatePipelineAsyncStatus status,
+                                    WGPURenderPipeline pipeline,
+                                    WGPUStringView message,
+                                    WGPU_NULLABLE void* userdata1,
+                                    WGPU_NULLABLE void* userdata2)
+{
+  (void)userdata2;
+  uint32_t idx = (uint32_t)(uintptr_t)userdata1;
+  if (status == WGPUCreatePipelineAsyncStatus_Success) {
+    cache_store_pipeline(&state.async_pipelines.keys[idx], pipeline);
+    state.async_pipelines.completed++;
+  }
+  else {
+    fprintf(stderr, "Async pipeline %u failed: %.*s\n", idx,
+            (int)message.length, message.data);
+  }
+}
+
+/* Fire async pipeline creation for every unique vertex-layout / material
+ * combination in the loaded primitives.  Uses the default output type. */
+static void start_async_pipeline_warmup(wgpu_context_t* wgpu_context)
+{
+  WGPUDevice device         = wgpu_context->device;
+  output_type_t output_type = state.settings.output_type;
+
+  /* Determine shaders for this output type */
+  const char* frag_src = NULL;
+  const char* vert_src = NULL;
+  switch (output_type) {
+    case OUTPUT_NAIVE_FORWARD:
+      frag_src = pbr_fragment_naive_wgsl;
+      vert_src = pbr_vertex_shader_wgsl;
+      break;
+    case OUTPUT_CLUSTERED_FWD:
+      frag_src = pbr_fragment_clustered_wgsl;
+      vert_src = pbr_vertex_shader_wgsl;
+      break;
+    default:
+      /* For non-PBR modes, pre-warm the clustered shaders (the heavy ones) */
+      frag_src = pbr_fragment_clustered_wgsl;
+      vert_src = pbr_vertex_shader_wgsl;
+      break;
+  }
+
+  bool is_pbr                    = (output_type == OUTPUT_NAIVE_FORWARD
+                 || output_type == OUTPUT_CLUSTERED_FWD);
+  WGPUShaderModule vs_mod        = wgpu_create_shader_module(device, vert_src);
+  WGPUShaderModule vs_no_tan_mod = NULL;
+  if (is_pbr || output_type >= OUTPUT_DEPTH) {
+    /* Always create the no-tangent variant — we need it for warm-up */
+    vs_no_tan_mod
+      = wgpu_create_shader_module(device, pbr_vertex_shader_no_tangent_wgsl);
+  }
+  WGPUShaderModule fs_mod = wgpu_create_shader_module(device, frag_src);
+
+  WGPUPipelineLayout pl_layout = (output_type == OUTPUT_CLUSTER_DIST) ?
+                                   state.cluster_dist_pipeline_layout :
+                                   state.pipeline_layout;
+
+  /* Discover unique pipeline keys from loaded primitives */
+  uint32_t representative[MAX_ASYNC_PIPELINES]; /* prim index per unique key */
+  uint32_t unique_count = 0;
+
+  for (uint32_t i = 0; i < state.gltf.primitive_count; ++i) {
+    pipeline_cache_key_t key
+      = make_pipeline_key(&state.gltf.primitives[i], output_type);
+    bool found = false;
+    for (uint32_t j = 0; j < unique_count; ++j) {
+      if (pipeline_keys_equal(&key, &state.async_pipelines.keys[j])) {
+        found = true;
+        break;
+      }
+    }
+    if (!found && unique_count < MAX_ASYNC_PIPELINES) {
+      state.async_pipelines.keys[unique_count] = key;
+      representative[unique_count]             = i;
+      unique_count++;
+    }
+  }
+
+  state.async_pipelines.total     = unique_count;
+  state.async_pipelines.completed = 0;
+
+  /* Fire async pipeline creation for each unique key */
+  for (uint32_t k = 0; k < unique_count; ++k) {
+    const gltf_primitive_t* prim = &state.gltf.primitives[representative[k]];
+
+    /* Choose vertex shader variant based on tangent presence */
+    WGPUShaderModule prim_vs
+      = (is_pbr && !prim->has_tangents && vs_no_tan_mod) ? vs_no_tan_mod :
+                                                           vs_mod;
+
+    /* Build vertex buffer layouts (same logic as create_pbr_pipeline) */
+    WGPUVertexBufferLayout vb_layouts[MAX_VERTEX_BUFFERS_PER_PRIM];
+    WGPUVertexAttribute vb_attrs[MAX_VERTEX_BUFFERS_PER_PRIM * 8];
+    uint32_t attr_offset = 0;
+
+    for (uint32_t i = 0; i < prim->vertex_buffer_count; ++i) {
+      const vertex_buffer_layout_t* vbl = &prim->vertex_buffers[i];
+      WGPUVertexAttribute* attrs        = &vb_attrs[attr_offset];
+      uint32_t valid_count              = 0;
+      for (uint32_t a = 0; a < vbl->attribute_count; ++a) {
+        attrs[valid_count++] = (WGPUVertexAttribute){
+          .shaderLocation = vbl->attributes[a].shader_location,
+          .format         = vbl->attributes[a].format,
+          .offset         = vbl->attributes[a].offset,
+        };
+      }
+      vb_layouts[i] = (WGPUVertexBufferLayout){
+        .arrayStride    = vbl->array_stride,
+        .attributeCount = valid_count,
+        .attributes     = attrs,
+      };
+      attr_offset += valid_count;
+    }
+
+    bool blend = state.async_pipelines.keys[k].blend;
+    bool cull  = !state.async_pipelines.keys[k].double_sided;
+
+    WGPUBlendState blend_state = {
+      .color = {.srcFactor = WGPUBlendFactor_SrcAlpha,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+                .operation = WGPUBlendOperation_Add},
+      .alpha = {.srcFactor = WGPUBlendFactor_One,
+                .dstFactor = WGPUBlendFactor_One,
+                .operation = WGPUBlendOperation_Add},
+    };
+
+    WGPUColorTargetState color_target = {
+      .format    = wgpu_context->render_format,
+      .blend     = blend ? &blend_state : NULL,
+      .writeMask = WGPUColorWriteMask_All,
+    };
+
+    WGPUDepthStencilState depth_stencil = {
+      .format            = DEPTH_FORMAT,
+      .depthWriteEnabled = true,
+      .depthCompare      = WGPUCompareFunction_Less,
+    };
+
+    WGPURenderPipelineDescriptor desc = {
+      .layout = pl_layout,
+      .vertex = {
+        .module      = prim_vs,
+        .entryPoint  = STRVIEW("main"),
+        .bufferCount = prim->vertex_buffer_count,
+        .buffers     = vb_layouts,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = fs_mod,
+        .entryPoint  = STRVIEW("main"),
+        .targetCount = 1,
+        .targets     = &color_target,
+      },
+      .primitive = {
+        .topology = prim->topology,
+        .cullMode = cull ? WGPUCullMode_Back : WGPUCullMode_None,
+      },
+      .depthStencil = &depth_stencil,
+      .multisample = {
+        .count = SAMPLE_COUNT,
+        .mask  = 0xFFFFFFFF,
+      },
+    };
+
+    wgpuDeviceCreateRenderPipelineAsync(
+      device, &desc,
+      (WGPUCreateRenderPipelineAsyncCallbackInfo){
+        .mode      = WGPUCallbackMode_AllowProcessEvents,
+        .callback  = async_pipeline_callback,
+        .userdata1 = (void*)(uintptr_t)k,
+      });
+  }
+
+  /* Shader modules can be released — Dawn retains internal references */
+  wgpuShaderModuleRelease(vs_mod);
+  wgpuShaderModuleRelease(fs_mod);
+  if (vs_no_tan_mod) {
+    wgpuShaderModuleRelease(vs_no_tan_mod);
+  }
+}
+
 static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
                                               const gltf_primitive_t* prim,
                                               WGPUShaderModule vs_module,
@@ -2552,6 +2757,16 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
     igTextColored((ImVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Loading model...");
     igSeparator();
   }
+  else if (state.glb_load.state == GLB_LOAD_PIPELINES) {
+    char overlay[64];
+    snprintf(overlay, sizeof(overlay), "%u / %u shaders",
+             state.async_pipelines.completed, state.async_pipelines.total);
+    float progress = state.async_pipelines.total > 0 ?
+                       (float)state.async_pipelines.completed
+                         / (float)state.async_pipelines.total :
+                       0.0f;
+    igProgressBar(progress, (ImVec2){-1.0f, 0.0f}, overlay);
+  }
   else if (state.glb_load.state == GLB_LOAD_TEXTURES
            && state.gltf.image_count > 0) {
     float progress
@@ -2621,6 +2836,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
 
   stm_setup();
+
   sfetch_setup(&(sfetch_desc_t){
     .max_requests = 1,
     .num_channels = 1,
@@ -2673,12 +2889,26 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Process async GLB loading */
   sfetch_dowork();
 
+  /* Process pending async pipeline callbacks */
+  if (state.glb_load.state == GLB_LOAD_PIPELINES) {
+    wgpuInstanceProcessEvents(wgpu_context->instance);
+  }
+
   /* ---- GLB loading state machine ---- */
   if (state.glb_load.state == GLB_LOAD_READY) {
     /* GLB data received — parse and create geometry/materials (fast, no image
-     * decoding). Scene renders immediately with placeholder textures. */
+     * decoding). Then fire async pipeline compilation. */
     load_glb_scene(wgpu_context, state.glb_load.data, state.glb_load.data_size);
-    state.glb_load.state = GLB_LOAD_TEXTURES;
+    start_async_pipeline_warmup(wgpu_context);
+    state.glb_load.state = GLB_LOAD_PIPELINES;
+  }
+
+  if (state.glb_load.state == GLB_LOAD_PIPELINES) {
+    /* Check if all async pipelines have been compiled */
+    if (state.async_pipelines.completed >= state.async_pipelines.total) {
+      state.gltf.loaded    = true;
+      state.glb_load.state = GLB_LOAD_TEXTURES;
+    }
   }
 
   if (state.glb_load.state == GLB_LOAD_TEXTURES) {
