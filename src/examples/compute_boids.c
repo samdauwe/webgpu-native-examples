@@ -477,7 +477,7 @@ static int init(struct wgpu_context_t* wgpu_context)
        * render begin/end) */
       state.query_set = wgpuDeviceCreateQuerySet(
         wgpu_context->device, &(WGPUQuerySetDescriptor){
-                                .label = STRVIEW("Timestamp query set"),
+                                .label = STRVIEW("Timestamp - Query set"),
                                 .type  = WGPUQueryType_Timestamp,
                                 .count = 4,
                               });
