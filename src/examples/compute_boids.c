@@ -670,7 +670,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
     else {
       result_buffer = wgpuDeviceCreateBuffer(
         device, &(WGPUBufferDescriptor){
-                  .label = STRVIEW("Timestamp result buffer"),
+                  .label = STRVIEW("Timestamp - Result buffer"),
                   .size  = 4 * sizeof(int64_t),
                   .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
                 });
