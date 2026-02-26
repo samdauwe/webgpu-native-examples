@@ -486,7 +486,7 @@ static int init(struct wgpu_context_t* wgpu_context)
       state.resolve_buffer = wgpuDeviceCreateBuffer(
         wgpu_context->device,
         &(WGPUBufferDescriptor){
-          .label = STRVIEW("Timestamp resolve buffer"),
+          .label = STRVIEW("Timestamp - Resolve buffer"),
           .size  = 4 * sizeof(int64_t),
           .usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc,
         });
