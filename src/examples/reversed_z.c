@@ -284,7 +284,7 @@ static void init_depth_textures(wgpu_context_t* wgpu_context)
 
   /* Create default depth texture (render attachment only) */
   WGPUTextureDescriptor default_depth_tex_desc = {
-    .label = STRVIEW("Default depth texture"),
+    .label = STRVIEW("Default - Depth Texture"),
     .size  = (WGPUExtent3D){
        .width              = width,
        .height             = height,
