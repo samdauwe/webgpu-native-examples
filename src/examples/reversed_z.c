@@ -252,7 +252,7 @@ static void init_depth_textures(wgpu_context_t* wgpu_context)
 
   /* Create depth texture with TEXTURE_BINDING usage */
   WGPUTextureDescriptor depth_tex_desc = {
-    .label = STRVIEW("Depth texture"),
+    .label = STRVIEW("Depth - Texture"),
     .size  = (WGPUExtent3D){
        .width              = width,
        .height             = height,
