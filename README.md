@@ -229,16 +229,6 @@ This example shows the use of reversed z technique for better utilization of dep
 
 Visualizes what all the sampler parameters do. Shows a textured plane at various scales (rotated, head-on, in perspective, and in vanishing perspective). The bottom-right view shows the raw contents of the 4 mipmap levels of the test texture (16x16, 8x8, 4x4, and 2x2).
 
-#### [Conservative rasterization](src/examples/conservative_raster.c)
-
-This example shows how to render with conservative rasterization (native extension with limited support).
-
-When enabled, any pixel touched by a triangle primitive is rasterized. This is useful for various advanced techniques, most prominently for implementing realtime voxelization.
-
-The demonstration here is implemented by rendering a triangle to a low-resolution target and then upscaling it with nearest-neighbor filtering. The outlines of the triangle are then rendered in the original solution, using the same vertex shader as the triangle. Pixels only drawn with conservative rasterization enabled are colored red.
-
-Note: Conservative rasterization not supported in Google Dawn.
-
 #### [Wireframe and Thick-Line Rendering](src/examples/wireframe_vertex_pulling.c)
 
 This example shows how to render a single indexed triangle model as mesh, wireframe, or wireframe with thick lines, without the need to generate additional buffers for line rendering.
