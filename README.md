@@ -1,17 +1,10 @@
 <img align="right" width="20%" src="https://github.com/samdauwe/webgpu-native-examples/blob/master/doc/images/webgpu-logo.png">
 
-<p align="center" width="100%">
-:warning: Code refactoring is ongoing! :warning:
-</p>
-
-- ▓▓▓▓▓▓▓▓▓░ 91% (50/55 examples enabled with new structure)
-- Legacy examples still using old structure: 35/55 (need refactoring)
-
 # WebGPU Native Examples and Demos
 
 [WebGPU](https://gpuweb.github.io/gpuweb/) is a new graphics and compute API designed by the [“GPU for the Web”](https://www.w3.org/community/gpu/) W3C community group. It aims to provide modern features such as “GPU compute” as well as lower overhead access to GPU hardware and better, more predictable performance. WebGPU should work with existing platform APIs such as Direct3D 12 from Microsoft, Metal from Apple, and Vulkan from the Khronos Group. 
 
-WebGPU is designed for the Web, used by JavaScript and WASM applications, and driven by the shared principles of Web APIs. However, it doesn’t have to be only for the Web though. Targeting WebGPU on native enables to write extremely portable and fairly performant graphics applications. The WebGPU API is beginner friendly, meaning that the API automates some of the aspects of low-level graphics APIs which have high complexity but low return on investment. It still has the core pieces of the next-gen APIs, such as command buffers, render passes, pipeline states and layouts. Because the complexity is reduced, users will be able to direct more focus towards writing efficiently application code.
+WebGPU is designed for the Web, used by JavaScript and WASM applications, and driven by the shared principles of Web APIs. However, it doesn't have to be only for the Web. Targeting WebGPU on native enables writing extremely portable and fairly performant graphics applications. The WebGPU API is beginner friendly, meaning that the API automates some of the aspects of low-level graphics APIs which have high complexity but low return on investment. It still has the core pieces of the next-gen APIs, such as command buffers, render passes, pipeline states and layouts. Because the complexity is reduced, users will be able to direct more focus towards writing efficient application code.
 
 From the very beginning, Google had both native and in-browser use of their implementation, which is now called [Dawn](https://dawn.googlesource.com/dawn). Mozilla has a shared interest in allowing developers to target a shared “WebGPU on native” target instead of a concrete “Dawn” or “[wgpu-native](https://github.com/gfx-rs/wgpu-native)”. This is achieved, by a [shared header](https://github.com/webgpu-native/webgpu-headers), and C-compatible libraries implementing it. However, this specification is still a moving target.
 
@@ -38,7 +31,6 @@ This repository contains a collection of open source C examples for [WebGPU](htt
     + [Compute Shader](#Compute-Shader)
     + [User Interface](#User-Interface)
     + [Effects](#Effects)
-    + [Extensions](#Extensions)
     + [Misc](#Misc)
 + [Dependencies](#Dependencies)
 + [Credits](#Credits)
@@ -163,6 +155,10 @@ This example shows how to render a static colored square in WebGPU with only usi
 
 Basic and verbose example for getting a colored triangle rendered to the screen using WebGPU. This is meant as a starting point for learning WebGPU from the ground up.
 
+#### [Hello Triangle](src/examples/hello_triangle.c)
+
+This example shows rendering a basic triangle.
+
 #### [Two cubes](src/examples/two_cubes.c)
 
 This example shows some of the alignment requirements involved when updating and binding multiple slices of a uniform buffer.
@@ -175,39 +171,17 @@ This example shows how to render points of various sizes using a quad and instan
 
 This example provides example camera implementations
 
-#### [Bind groups](src/examples/bind_groups.c)
-
-Bind groups are used to pass data to shader binding points. This example sets up bind groups & layouts, creates a single render pipeline based on the bind group layout and renders multiple objects with different bind groups.
-
 #### [Dynamic uniform buffers](src/examples/dynamic_uniform_buffer.c)
 
 Dynamic uniform buffers are used for rendering multiple objects with multiple matrices stored in a single uniform buffer object. Individual matrices are dynamically addressed upon bind group binding time, minimizing the number of required bind groups.
-
-#### [Texture mapping](src/examples/textured_quad.c)
-
-Loads a 2D texture from disk (including all mip levels), uses staging to upload it into video memory and samples from it using combined image samplers.
-
-#### [Textured cube](src/examples/textured_cube.c)
-
-This example shows how to bind and sample textures.
 
 #### [Cubemap texture](src/examples/cubemap.c)
 
 This example shows how to render and sample from a cubemap texture.
 
-#### [Cubemap textures](src/examples/texture_cubemap.c)
+#### [Textured Cube](src/examples/textured_cube.c)
 
-Loads a cube map texture from disk containing six different faces. All faces and mip levels are uploaded into video memory, and the cubemap is displayed on a skybox as a backdrop and on a 3D model as a reflection.
-
-#### [3D textures](src/examples/texture_3d.c)
-
-Generates a 3D texture on the cpu (using perlin noise), uploads it to the device and samples it to render an animation. 3D textures store volumetric data and interpolate in all three dimensions.
-
-#### [Volume Rendering - Texture 3D](src/examples/volume_rendering_texture_3d.c)
-
-This example shows how to render volumes with WebGPU using a 3D texture. It demonstrates simple direct volume rendering for photometric content through ray marching in a fragment shader, where a full-screen triangle determines the color from ray start and step size values as set in the vertex shader. This implementation employs data from the BrainWeb Simulated Brain Database, with decompression streams, to save disk space and network traffic.
-
-The original raw data is generated using [the BrainWeb Simulated Brain Database](https://brainweb.bic.mni.mcgill.ca/brainweb/) before processing in [a custom Python script](https://github.com/webgpu/webgpu-samples/tree/main/public/assets/img/volume/t1_icbm_normal_1mm_pn0_rf0.py).
+This example shows how to bind and sample textures.
 
 #### [Equirectangular panorama](src/examples/equirectangular_image.c)
 
@@ -252,17 +226,9 @@ Uses <a href="https://xeolabs.com/pdfs/OpenGLInsights.pdf">vertex pulling</a> to
 This example demonstrates drawing a wireframe from triangles in 2 ways. Both use the vertex and index buffers as storage buffers and the use \`@builtin vertex_index)\` to index the vertex data. One method generates 6 vertices per triangle and uses line-list to draw lines. The other method draws triangles with a fragment shader that uses barycentric coordinates to draw edges as detailed [here](https://web.archive.org/web/20130424093557/http://codeflow.org/entries/2012/aug/02/easy-wireframe-display-with-barycentric-coordinates/).
 
 
-#### [Offscreen rendering](src/examples/offscreen_rendering.c)
-
-Basic offscreen rendering in two passes. First pass renders the mirrored scene to a separate framebuffer with color and depth attachments, second pass samples from that color attachment for rendering a mirror surface.
-
 #### [Out-of-bounds Viewport](src/examples/out_of_bounds_viewport.c)
 
 WebGPU doesn't let you set the viewport’s values to be out-of-bounds. Therefore, the viewport’s values need to be clamped to the screen-size, which means the viewport values can’t be defined in a way that makes the viewport go off the screen. This example shows how to render a viewport out-of-bounds.
-
-#### [Stencil buffer](src/examples/stencil_buffer.c)
-
-Uses the stencil buffer and its compare functionality for rendering a 3D model with dynamic outlines.
 
 #### [Stencil mask](src/examples/stencil_mask.c)
 
@@ -271,14 +237,6 @@ Demonstrates using the stencil buffer for masking. It draws the 6 faces of a rot
 ### glTF
 
 These samples show how implement different features of the [glTF 2.0 3D format](https://www.khronos.org/gltf/) 3D transmission file format in detail.
-
-#### [glTF model loading and rendering](src/examples/gltf_loading.c)
-
-Shows how to load a complete scene from a [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The structure of the glTF 2.0 scene is converted into the data structures required to render the scene with WebGPU.
-
-#### [glTF scene rendering](src/examples/gltf_scene_rendering.c)
-
-Renders a complete scene loaded from an [glTF 2.0](https://github.com/KhronosGroup/glTF) file. The sample uses the glTF model loading functions, and adds data structures, functions and shaders required to render a more complex scene using [Crytek's Sponza model](https://casual-effects.com/data/) with per-material pipelines and normal mapping.
 
 #### [Skinned mesh (GLTF skinning)](src/examples/skinned_mesh.c)
 
@@ -294,14 +252,6 @@ A clustered forward shading renderer using WebGPU compute shaders for light cull
 
 This example shows how to achieve [multisample anti-aliasing](https://en.wikipedia.org/wiki/Multisample_anti-aliasing)(MSAA) in WebGPU. The render pipeline is created with a sample count > 1. A new texture with a sample count > 1 is created and set as the color attachment instead of the swapchain. The swapchain is now specified as a resolve_target.
 
-#### [Multi sampling](src/examples/multi_sampling.c)
-
-Implements multisample anti-aliasing (MSAA) using a renderpass with multisampled attachments that get resolved into the visible frame buffer.
-
-#### [High dynamic range](src/examples/hdr.c)
-
-Implements a high dynamic range rendering pipeline using 16/32 bit floating point precision for all internal formats, textures and calculations, including a bloom pass, manual exposure and tone mapping.
-
 #### [Cube reflection](src/examples/cube_reflection.c)
 
 This example shows how to create a basic reflection pipeline.
@@ -309,14 +259,6 @@ This example shows how to create a basic reflection pipeline.
 #### [Shadow mapping](src/examples/shadow_mapping.c)
 
 This example shows how to sample from a depth texture to render shadows from a directional light source.
-
-#### [Run-time mip-map generation](src/examples/texture_mipmap_gen.c)
-
-Generating a complete mip-chain at runtime instead of loading it from a file, by blitting from one mip level, starting with the actual texture image, down to the next smaller size until the lower 1x1 pixel end of the mip chain.
-
-#### [Capturing screenshots](src/examples/screenshot.c)
-
-This example shows how to capture an image by rendering a scene to a texture, copying the texture to a buffer, and retrieving the image from the buffer so that it can be stored into a png image. Two render pipelines are used in this example: one for rendering the scene in a window and another pipeline for offscreen rendering. Note that a single offscreen render pipeline would be sufficient for "taking a screenshot," with the added benefit that this method would not require a window to be created.
 
 #### [Primitive Picking](src/examples/primitive_picking.c)
 
@@ -345,17 +287,13 @@ This example shows how to use render bundles. It renders a large number of meshe
 
 Physical based rendering as a lighting technique that achieves a more realistic and dynamic look by applying approximations of bidirectional reflectance distribution functions based on measured real-world material parameters and environment lighting.
 
-#### [PBR basics](src/examples/pbr_basic.c)
+#### [PBR image based lighting](src/examples/gltf_pbr_ibl.c)
 
-Demonstrates a basic specular BRDF implementation with solid materials and fixed light sources on a grid of objects with varying material parameters, demonstrating how metallic reflectance and surface roughness affect the appearance of pbr lit objects.
+Adds image based lighting from an HDR environment cubemap to the PBR equation, using the surrounding environment as the light source. This adds an even more realistic look to the scene as the light contribution used by the materials is now controlled by the environment. Also shows how to generate the BRDF 2D-LUT and irradiance and filtered cube maps from the environment map.
 
-#### [PBR image based lighting](src/examples/pbr_ibl.c)
+#### [PBR image based lighting - OBJ Loader](src/examples/obj_pbr_ibl.c)
 
-Adds image based lighting from an hdr environment cubemap to the PBR equation, using the surrounding environment as the light source. This adds an even more realistic look the scene as the light contribution used by the materials is now controlled by the environment. Also shows how to generate the BRDF 2D-LUT and irradiance and filtered cube maps from the environment map.
-
-#### [Textured PBR with IBL](src/examples/pbr_texture.c)
-
-Renders a model specially crafted for a metallic-roughness PBR workflow with textures defining material parameters for the PRB equation (albedo, metallic, roughness, baked ambient occlusion, normal maps) in an image based lighting environment.
+Physically Based Rendering with Image Based Lighting using OBJ model loader.
 
 ### Deferred
 
@@ -377,7 +315,7 @@ A GPU compute particle simulation that mimics the flocking behavior of birds. A 
 
 #### [Image blur](src/examples/image_blur.c)
 
-This example shows how to blur an image using a compute shader.
+This example shows how to blur an image using a compute shader in WebGPU.
 
 #### [Image processing](src/examples/compute_shader.c)
 
@@ -391,6 +329,10 @@ Attraction based 2D GPU particle system using compute shaders. Particle data is 
 
 Particle system using compute shaders. Particle data is stored in a shader storage buffer, particle movement is implemented using easing functions.
 
+#### [GPU particle system - WebGPU logo](src/examples/compute_particles_webgpu_logo.c)
+
+This example demonstrates rendering of particles simulated with compute shaders.
+
 #### [N-body simulation](src/examples/n_body_simulation.c)
 
 A simple N-body simulation based particle system implemented using WebGPU.
@@ -403,11 +345,11 @@ Simple GPU ray tracer with shadows and reflections using a compute shader. No sc
 
 A classic Cornell box, using a lightmap generated using software ray-tracing.
 
+#### [Raytracer](src/examples/raytracer.c)
+
+WebGPU demo featuring realtime path tracing via WebGPU compute shaders.
+
 ### User Interface
-
-#### [Text rendering](src/examples/text_overlay.c)
-
-Load and render a 2D text overlay created from the bitmap glyph data of a [stb font file](https://nothings.org/stb/font/). This data is uploaded as a texture and used for displaying text on top of a 3D scene in a second pass.
 
 #### [Text rendering MSDF](src/examples/text_rendering_msdf.c)
 
@@ -421,17 +363,9 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 ### Effects
 
-#### [Fullscreen radial blur](src/examples/radial_blur.c)
-
-Demonstrates the basics of fullscreen shader effects. The scene is rendered into an offscreen framebuffer at lower resolution and rendered as a fullscreen quad atop the scene using a radial blur fragment shader.
-
 #### [Normal Mapping](src/examples/normal_map.c)
 
 This example demonstrates multiple different methods that employ fragment shaders to achieve additional perceptual depth on the surface of a cube mesh. Demonstrated methods include normal mapping, parallax mapping, and steep parallax mapping.
-
-#### [Parallax mapping](src/examples/parallax_mapping.c)
-
-Implements multiple texture mapping methods to simulate depth based on texture information: Normal mapping, parallax mapping, steep parallax mapping and parallax occlusion mapping (best quality, worst performance).
 
 #### [Post-processing](src/examples/post_processing.c)
 
@@ -450,9 +384,9 @@ This example shows how to upload video frame to WebGPU.
 giraffe by [Taryn Elliott](https://www.pexels.com/video/giraffe-walking-in-the-forest-5214261/).
 lake by [Fabio Casati](https://commons.wikimedia.org/wiki/File:Video_360%C2%B0._Timelapse._Bled_Lake_in_Slovenia..webm), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0)
 
-#### [Shadertoy](src/examples/video_uploading.c)
+#### [Shadertoy](src/examples/shadertoy.c)
 
-Minimal "[shadertoy](https://www.shadertoy.com/) launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Seascape](https://www.shadertoy.com/view/Ms2SD1)'.
+Minimal "[Shadertoy](https://www.shadertoy.com/) launcher" using WebGPU, demonstrating how to load an example Shadertoy shader '[Seascape](https://www.shadertoy.com/view/Ms2SD1)'.
 
 #### [Gerstner Waves](src/examples/gerstner_waves.c)
 
@@ -506,10 +440,6 @@ This example shows how to render tile maps using WebGPU. The map is rendered usi
 
 This example demonstrates how to render a torus knot mesh with Blinn-Phong lighting model. A small sphere represents the orbiting light source position. The scene includes diffuse texturing, ambient lighting, and specular highlights using the Blinn-Phong BRDF with point light attenuation and gamma correction. Lighting parameters such as shininess, light flux, and ambient color can be adjusted interactively via the GUI.
 
-#### [Normal Mapping](src/examples/normal_mapping.c)
-
-This example demonstrates how to achieve normal mapping in WebGPU. A normal map uses RGB information that corresponds directly with the X, Y and Z axis in 3D space. This RGB information tells the 3D application the exact direction of the surface normals are oriented in for each and every polygon.
-
 #### [Pristine Grid](src/examples/pristine_grid.c)
 
 A simple WebGPU implementation of the "Pristine Grid" technique described in [this wonderful little blog post](https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8). The example code has been ported from [this JavaScript implementation](https://github.com/toji/pristine-grid-webgpu) to native code.
@@ -526,6 +456,14 @@ This example demonstrates shadow mapping using a depth texture array. Multiple l
 #### [Water Simulation](src/examples/water_simulation.c)
 
 A real-time interactive water simulation using WebGPU. Simulates realistic water physics, reflections, refractions, and caustics in a tiled pool scene. Features include interactive ripples, a draggable floating sphere, dynamic lighting, and camera controls. Based on [Evan Wallace's WebGL Water demo](https://madebyevan.com/webgl-water/).
+
+#### [Aquarium](src/examples/aquarium.c)
+
+Aquarium is a complete port of the classic WebGL Aquarium to modern WebGPU, showcasing advanced rendering techniques and efficient GPU programming.
+
+#### [Volume Rendering - 3D Texture](src/examples/volume_rendering_texture_3d.c)
+
+This example shows how to render volumes with WebGPU using a 3D texture. It demonstrates simple direct volume rendering for photometric content through ray marching in a fragment shader, where a full-screen triangle determines the color from ray start and step size values as set in the vertex shader. This implementation employs data from the BrainWeb Simulated Brain Database, with decompression streams, to save disk space and network traffic.
 
 ## Dependencies
 
@@ -563,30 +501,6 @@ A huge thanks to the authors of the following repositories who demonstrated the 
 * [Changelog for WebGPU in Chromium / Dawn 94](https://t.co/s87U4pi4tr)
 * [Changelog for WebGPU in Chromium / Dawn 96](https://t.co/v9SFkmQAWw)
 * [Changelog for WebGPU in Chromium / Dawn 98](https://t.co/fS1NR5bog0)
-
-## Roadmap
-
-### June 2026 - ...
-
-The list given below summarizes possible examples or functionality that will be added in the future.
-
-* [x] Make wgpu_native lib compatible with latest Dawn version
-* [ ] [Aquarium](https://github.com/webatintel/aquarium)
-* [ ] [High Dynamic Range Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/hdr)
-* [ ] [Physically-Based Rendering using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
-* [ ] Building for Web with Emscripten / WebAssembly
-
-### Done
-
-* [x] ~~[Textured PBR with IBL](http://artisaverb.info/Cerberus.html)~~
-* [x] ~~[Basis Universal](https://github.com/BinomialLLC/basis_universal) supercompressed GPU textures example~~
-* [x] ~~Use helper function for buffer creation to achieve more compact code~~
-* [x] ~~[Postprocessing](https://github.com/gnikoloff/webgpu-dojo)~~
-* [x] ~~Resolve glTF model rendering / loading issues showing up in a couple of example~~
-* [x] ~~[WebGPU Fluid Simulation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation)~~
-* [x] ~~[Cornell Box](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/cornell)~~
-* [x] ~~[Procedural mesh](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu)~~
-* [x] ~~[A-Buffer](https://github.com/webgpu/webgpu-samples/tree/main/src/sample/a-buffer)~~
 
 ## License
 
