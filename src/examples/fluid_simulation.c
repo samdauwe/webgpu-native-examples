@@ -1,8 +1,24 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include <cglm/cglm.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-#include "../webgpu/imgui_overlay.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Fluid Simulation
@@ -19,6 +35,53 @@
  * Jamie Wong's Fluid simulation :
  * https://jamie-wong.com/2016/08/05/webgl-fluid-simulation/ PavelDoGreat's
  * Fluid simulation : https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+ * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* render_program_shader_wgsl_vertex_main;
+static const char* render_program_shader_wgsl_fragment_main;
+
+/* -------------------------------------------------------------------------- *
+ * Utility: read a text file into a malloc'd string
+ * -------------------------------------------------------------------------- */
+
+static char* read_file_to_string(const char* path)
+{
+  FILE* file = fopen(path, "rb");
+  if (!file) {
+    fprintf(stderr, "Failed to open file: %s\n", path);
+    return NULL;
+  }
+  fseek(file, 0, SEEK_END);
+  long size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  char* buffer = (char*)malloc((size_t)size + 1);
+  if (buffer) {
+    size_t read  = fread(buffer, 1, (size_t)size, file);
+    buffer[read] = '\0';
+  }
+  fclose(file);
+  return buffer;
+}
+
+static char* concat_strings(const char* a, const char* b, const char* sep)
+{
+  size_t la    = strlen(a);
+  size_t lb    = strlen(b);
+  size_t ls    = strlen(sep);
+  char* result = (char*)malloc(la + lb + ls + 1);
+  memcpy(result, a, la);
+  memcpy(result + la, sep, ls);
+  memcpy(result + la + ls, b, lb);
+  result[la + ls + lb] = '\0';
+  return result;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Enums & Settings
  * -------------------------------------------------------------------------- */
 
 #define MAX_DIMENSIONS 3u
@@ -125,25 +188,27 @@ static struct {
   vec2 velocity;
 } mouse_infos = {
   .current  = GLM_VEC2_ZERO_INIT,
-  .last     = {0.0f, 1.0f}, /* y position needs to be inverted */
+  .last     = {0.0f, 1.0f},
   .velocity = GLM_VEC2_ZERO_INIT,
 };
+
+/* Mouse position in pixels, tracked via input events */
+static struct {
+  float x;
+  float y;
+} mouse_pixel_pos = {0};
 
 /* -------------------------------------------------------------------------- *
  * Dynamic buffers
  * -------------------------------------------------------------------------- */
 
-/**
- * Creates and manage multi-dimensional buffers by creating a buffer for each
- * dimension
- */
 typedef struct {
-  wgpu_context_t* wgpu_context;          /* The WebGPU context*/
-  uint32_t dims;                         /* Number of dimensions */
-  uint32_t buffer_size;                  /* Size of the buffer in bytes */
-  uint32_t w;                            /* Buffer width */
-  uint32_t h;                            /* Buffer height */
-  wgpu_buffer_t buffers[MAX_DIMENSIONS]; /* Multi-dimensional buffers */
+  wgpu_context_t* wgpu_context;
+  uint32_t dims;
+  uint32_t buffer_size;
+  uint32_t w;
+  uint32_t h;
+  wgpu_buffer_t buffers[MAX_DIMENSIONS];
 } dynamic_buffer_t;
 
 static void dynamic_buffer_init_defaults(dynamic_buffer_t* this)
@@ -166,7 +231,7 @@ static void dynamic_buffer_init(dynamic_buffer_t* this,
   assert(dims <= MAX_DIMENSIONS);
   for (uint32_t dim = 0; dim < dims; ++dim) {
     WGPUBufferDescriptor buffer_desc = {
-      .label = "Dynamic - Storage buffer",
+      .label = STRVIEW("Dynamic - Storage buffer"),
       .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopySrc
                | WGPUBufferUsage_CopyDst,
       .size             = this->buffer_size,
@@ -187,11 +252,6 @@ static void dynamic_buffer_destroy(dynamic_buffer_t* this)
   }
 }
 
-/**
- * Copy each buffer to another DynamicBuffer's buffers.
- * If the dimensions don't match, the last non-empty dimension will be copied
- * instead
- */
 static void dynamic_buffer_copy_to(dynamic_buffer_t* this,
                                    dynamic_buffer_t* buffer,
                                    WGPUCommandEncoder command_encoder)
@@ -203,15 +263,14 @@ static void dynamic_buffer_copy_to(dynamic_buffer_t* this,
   }
 }
 
-/* Reset all the buffers */
 static void dynamic_buffer_clear(dynamic_buffer_t* this)
 {
   float* empty_buffer = (float*)malloc(this->buffer_size);
   memset(empty_buffer, 0, this->buffer_size);
 
   for (uint32_t i = 0; i < this->dims; ++i) {
-    wgpu_queue_write_buffer(this->wgpu_context, this->buffers[i].buffer, 0,
-                            empty_buffer, this->buffer_size);
+    wgpuQueueWriteBuffer(this->wgpu_context->queue, this->buffers[i].buffer, 0,
+                         empty_buffer, this->buffer_size);
   }
 
   free(empty_buffer);
@@ -233,11 +292,9 @@ static struct {
 
   dynamic_buffer_t vorticity;
 
-  /* The r,g,b buffer containing the data to render */
   dynamic_buffer_t rgb_buffer;
 } dynamic_buffers = {0};
 
-/* Initialize dynamic buffers */
 static void dynamic_buffers_init(wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_init(&dynamic_buffers.velocity, wgpu_context, 2,
@@ -286,30 +343,29 @@ static void dynamic_buffers_destroy(void)
  * -------------------------------------------------------------------------- */
 
 typedef enum {
-  UNIFORM_RENDER_MODE,                 /* render_mode */
-  UNIFORM_TIME,                        /* time */
-  UNIFORM_DT,                          /* dt */
-  UNIFORM_MOUSE_INFOS,                 /* mouseInfos */
-  UNIFORM_GRID_SIZE,                   /* gridSize */
-  UNIFORM_SIM_SPEED,                   /* sim_speed */
-  UNIFORM_VELOCITY_ADD_INTENSITY,      /* velocity_add_intensity */
-  UNIFORM_VELOCITY_ADD_RADIUS,         /* velocity_add_radius */
-  UNIFORM_VELOCITY_DIFFUSION,          /* velocity_diffusion */
-  UNIFORM_DYE_ADD_INTENSITY,           /* dye_add_intensity */
-  UNIFORM_DYE_ADD_RADIUS,              /* dye_add_radius */
-  UNIFORM_DYE_ADD_DIFFUSION,           /* dye_diffusion */
-  UNIFORM_VISCOSITY,                   /* viscosity */
-  UNIFORM_VORTICITY,                   /* vorticity */
-  UNIFORM_CONTAIN_FLUID,               /* contain_fluid */
-  UNIFORM_MOUSE_TYPE,                  /* mouse_type */
-  UNIFORM_SMOKE_PARAMETERS,            /* smoke_parameters */
-  UNIFORM_RENDER_INTENSITY_MULTIPLIER, /* render_intensity_multiplier */
+  UNIFORM_RENDER_MODE,
+  UNIFORM_TIME,
+  UNIFORM_DT,
+  UNIFORM_MOUSE_INFOS,
+  UNIFORM_GRID_SIZE,
+  UNIFORM_SIM_SPEED,
+  UNIFORM_VELOCITY_ADD_INTENSITY,
+  UNIFORM_VELOCITY_ADD_RADIUS,
+  UNIFORM_VELOCITY_DIFFUSION,
+  UNIFORM_DYE_ADD_INTENSITY,
+  UNIFORM_DYE_ADD_RADIUS,
+  UNIFORM_DYE_ADD_DIFFUSION,
+  UNIFORM_VISCOSITY,
+  UNIFORM_VORTICITY,
+  UNIFORM_CONTAIN_FLUID,
+  UNIFORM_MOUSE_TYPE,
+  UNIFORM_SMOKE_PARAMETERS,
+  UNIFORM_RENDER_INTENSITY_MULTIPLIER,
   UNIFORM_COUNT,
 } uniform_type_t;
 
 #define MAX_UNIFORM_VALUE_COUNT 8u
 
-/* Manage uniform buffers relative to the compute shaders & the gui */
 typedef struct {
   uniform_type_t type;
   float values[MAX_UNIFORM_VALUE_COUNT];
@@ -350,37 +406,37 @@ static void uniform_init_defaults(uniform_t* this)
 static float* uniform_get_setting_value(uniform_type_t type)
 {
   switch (type) {
-    case UNIFORM_RENDER_MODE: /* render_mode */
+    case UNIFORM_RENDER_MODE:
       return &settings.render_mode;
-    case UNIFORM_TIME: /* time */
+    case UNIFORM_TIME:
       return &settings.time;
-    case UNIFORM_DT: /* dt */
+    case UNIFORM_DT:
       return &settings.dt;
-    case UNIFORM_MOUSE_INFOS: /* mouseInfos */
+    case UNIFORM_MOUSE_INFOS:
       return settings.mouse;
-    case UNIFORM_SIM_SPEED: /* sim_speed */
+    case UNIFORM_SIM_SPEED:
       return &settings.sim_speed;
-    case UNIFORM_VELOCITY_ADD_INTENSITY: /* velocity_add_intensity */
+    case UNIFORM_VELOCITY_ADD_INTENSITY:
       return &settings.velocity_add_intensity;
-    case UNIFORM_VELOCITY_ADD_RADIUS: /* velocity_add_radius */
+    case UNIFORM_VELOCITY_ADD_RADIUS:
       return &settings.velocity_add_radius;
-    case UNIFORM_VELOCITY_DIFFUSION: /* velocity_diffusion */
+    case UNIFORM_VELOCITY_DIFFUSION:
       return &settings.velocity_diffusion;
-    case UNIFORM_DYE_ADD_INTENSITY: /* dye_add_intensity */
+    case UNIFORM_DYE_ADD_INTENSITY:
       return &settings.dye_add_intensity;
-    case UNIFORM_DYE_ADD_RADIUS: /* dye_add_radius */
+    case UNIFORM_DYE_ADD_RADIUS:
       return &settings.dye_add_radius;
-    case UNIFORM_DYE_ADD_DIFFUSION: /* dye_diffusion */
+    case UNIFORM_DYE_ADD_DIFFUSION:
       return &settings.dye_diffusion;
-    case UNIFORM_VISCOSITY: /* viscosity */
+    case UNIFORM_VISCOSITY:
       return &settings.viscosity;
-    case UNIFORM_VORTICITY: /* vorticity */
+    case UNIFORM_VORTICITY:
       return &settings.vorticity;
-    case UNIFORM_CONTAIN_FLUID: /* contain_fluid */
+    case UNIFORM_CONTAIN_FLUID:
       return &settings.contain_fluid;
-    case UNIFORM_MOUSE_TYPE: /* mouse_type */
+    case UNIFORM_MOUSE_TYPE:
       return &settings.input_symmetry;
-    case UNIFORM_RENDER_INTENSITY_MULTIPLIER: /* render_intensity_multiplier */
+    case UNIFORM_RENDER_INTENSITY_MULTIPLIER:
       return &settings.render_intensity_multiplier;
     default:
       return NULL;
@@ -392,10 +448,9 @@ static void uniform_init(uniform_t* this, wgpu_context_t* wgpu_context,
 {
   uniform_init_defaults(this);
 
-  this->type         = type;
-  this->size         = size;
-  this->needs_update = false;
-
+  this->type          = type;
+  this->size          = size;
+  this->needs_update  = false;
   this->always_update = (size == 1);
 
   if (this->size == 1 || value != NULL) {
@@ -430,7 +485,6 @@ static void uniform_destroy(uniform_t* this)
   wgpu_destroy_buffer(&this->buffer);
 }
 
-/* Update the GPU buffer if the value has changed */
 static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
                            float const* value, uint32_t value_count)
 {
@@ -446,8 +500,8 @@ static void uniform_update(uniform_t* this, wgpu_context_t* wgpu_context,
     uint32_t buff_size
       = (value_count ? MIN(this->size, value_count) : this->size)
         * sizeof(float);
-    wgpu_queue_write_buffer(wgpu_context, this->buffer.buffer, 0, this->values,
-                            buff_size);
+    wgpuQueueWriteBuffer(wgpu_context->queue, this->buffer.buffer, 0,
+                         this->values, buff_size);
     this->needs_update = false;
   }
 }
@@ -496,7 +550,6 @@ static void uniforms_buffers_init(wgpu_context_t* wgpu_context)
                UNIFORM_RENDER_INTENSITY_MULTIPLIER, 1, &uniform_value);
 }
 
-/* Destruct uniforms */
 static void uniforms_buffers_destroy(void)
 {
   uniform_destroy(&uniforms.render_mode);
@@ -526,10 +579,9 @@ static void uniforms_buffers_destroy(void)
 #define PROGRAM_MAX_BUFFER_COUNT (3u * 3u)
 #define PROGRAM_MAX_UNIFORM_COUNT 8u
 
-/* Creates a shader module, compute pipeline & bind group to use with the GPU */
 typedef struct {
-  uint32_t dispatch_x; /* Dispatch workers width */
-  uint32_t dispatch_y; /* Dispatch workers height */
+  uint32_t dispatch_x;
+  uint32_t dispatch_y;
   WGPUComputePipeline compute_pipeline;
   WGPUBindGroup bind_group;
 } program_t;
@@ -565,34 +617,34 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
 {
   program_init_defaults(this);
 
-  /*
-   * Create the shader module using the WGSL string and use it to create a
-   * compute pipeline with 'auto' binding layout
-   */
+  /* Read the WGSL shader file and create a shader module */
   {
-    char shader_wgsl_path[STRMAX] = {0};
-    snprintf(shader_wgsl_path, strlen(shader_wgsl_filename) + 25 + 1,
-             "shaders/fluid_simulation/%s", shader_wgsl_filename);
-    wgpu_shader_t comp_shader = wgpu_shader_create(
-      wgpu_context, &(wgpu_shader_desc_t){
-                      /* Compute shader WGSL */
-                      .label = "Fluid simulation - Compute shader WGSL",
-                      .file  = shader_wgsl_path,
-                      .entry = "main",
-                    });
+    char shader_wgsl_path[256] = {0};
+    snprintf(shader_wgsl_path, sizeof(shader_wgsl_path),
+             "assets/shaders/fluid_simulation/%s", shader_wgsl_filename);
+    char* shader_source = read_file_to_string(shader_wgsl_path);
+    ASSERT(shader_source != NULL);
+
+    WGPUShaderModule shader_module
+      = wgpu_create_shader_module(wgpu_context->device, shader_source);
+    ASSERT(shader_module != NULL);
+
     this->compute_pipeline = wgpuDeviceCreateComputePipeline(
       wgpu_context->device,
       &(WGPUComputePipelineDescriptor){
-        .compute = comp_shader.programmable_stage_descriptor,
+        .label   = STRVIEW("Fluid simulation - Compute pipeline"),
+        .compute = (WGPUComputeState){
+          .module     = shader_module,
+          .entryPoint = STRVIEW("main"),
+        },
       });
     ASSERT(this->compute_pipeline != NULL);
-    wgpu_shader_release(&comp_shader);
+
+    wgpuShaderModuleRelease(shader_module);
+    free(shader_source);
   }
 
-  /*
-   * Concat the buffer & uniforms and format the entries to the right WebGPU
-   * format
-   */
+  /* Build bind group entries from buffers + uniforms */
   WGPUBindGroupEntry
     bg_entries[PROGRAM_MAX_BUFFER_COUNT + PROGRAM_MAX_UNIFORM_COUNT];
   uint32_t bge_i = 0;
@@ -618,18 +670,20 @@ static void program_init(program_t* this, wgpu_context_t* wgpu_context,
     }
   }
 
-  /* Create the bind group using these entries & auto-layout detection */
+  /* Create bind group using auto-layout detection */
   {
-    WGPUBindGroupDescriptor bg_desc = {
-      .label  = "Bind group",
-      .layout = wgpuComputePipelineGetBindGroupLayout(this->compute_pipeline,
-                                                      0 /* index */),
-      .entryCount = bge_i,
-      .entries    = bg_entries,
-    };
-    this->bind_group
-      = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+    WGPUBindGroupLayout layout
+      = wgpuComputePipelineGetBindGroupLayout(this->compute_pipeline, 0);
+    this->bind_group = wgpuDeviceCreateBindGroup(
+      wgpu_context->device,
+      &(WGPUBindGroupDescriptor){
+        .label      = STRVIEW("Fluid simulation - Compute bind group"),
+        .layout     = layout,
+        .entryCount = bge_i,
+        .entries    = bg_entries,
+      });
     ASSERT(this->bind_group != NULL);
+    wgpuBindGroupLayoutRelease(layout);
   }
 
   this->dispatch_x = dispatch_x;
@@ -642,7 +696,6 @@ static void program_destroy(program_t* this)
   WGPU_RELEASE_RESOURCE(BindGroup, this->bind_group)
 }
 
-/* Dispatch the compute pipeline to the GPU */
 static void program_dispatch(program_t* this,
                              WGPUComputePassEncoder pass_encoder)
 {
@@ -654,40 +707,40 @@ static void program_dispatch(program_t* this,
     (uint32_t)ceil((float)this->dispatch_y / 8.0f), 1);
 }
 
+/* -- Program init functions ----------------------------------------------- */
+
 static void init_advect_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.dye0,     /* in_quantity  */
-    &dynamic_buffers.velocity, /* in_velocity  */
-    &dynamic_buffers.dye,      /* out_quantity */
+    &dynamic_buffers.dye0,
+    &dynamic_buffers.velocity,
+    &dynamic_buffers.dye,
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid, /* */
-    &uniforms.dt,   /* */
+    &uniforms.grid,
+    &uniforms.dt,
   };
-  const char* shader_wgsl_filename = "advect_dye_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "advect_dye_shader.wgsl",
                settings.dye_w, settings.dye_h);
 }
 
 static void init_advect_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.velocity0, /* in_quantity  */
-    &dynamic_buffers.velocity0, /* in_velocity  */
-    &dynamic_buffers.velocity,  /* out_quantity */
+    &dynamic_buffers.velocity0,
+    &dynamic_buffers.velocity0,
+    &dynamic_buffers.velocity,
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid, /* */
-    &uniforms.dt,   /* */
+    &uniforms.grid,
+    &uniforms.dt,
   };
-  const char* shader_wgsl_filename = "advect_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "advect_shader.wgsl",
                settings.grid_w, settings.grid_h);
 }
 
@@ -695,50 +748,47 @@ static void init_boundary_div_program(program_t* this,
                                       wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.divergence0, /* in_quantity  */
-    &dynamic_buffers.divergence,  /* out_quantity */
+    &dynamic_buffers.divergence0,
+    &dynamic_buffers.divergence,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "boundary_pressure_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+  program_init(
+    this, wgpu_context, program_buffers, (uint32_t)ARRAY_SIZE(program_buffers),
+    program_uniforms, (uint32_t)ARRAY_SIZE(program_uniforms),
+    "boundary_pressure_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_boundary_pressure_program(program_t* this,
                                            wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.pressure0, /* in_quantity  */
-    &dynamic_buffers.pressure,  /* out_quantity */
+    &dynamic_buffers.pressure0,
+    &dynamic_buffers.pressure,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "boundary_pressure_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+  program_init(
+    this, wgpu_context, program_buffers, (uint32_t)ARRAY_SIZE(program_buffers),
+    program_uniforms, (uint32_t)ARRAY_SIZE(program_uniforms),
+    "boundary_pressure_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_boundary_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity  */
-    &dynamic_buffers.velocity0, /* out_quantity */
+    &dynamic_buffers.velocity,
+    &dynamic_buffers.velocity0,
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid,          /* */
-    &uniforms.contain_fluid, /* */
+    &uniforms.grid,
+    &uniforms.contain_fluid,
   };
-  const char* shader_wgsl_filename = "boundary_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "boundary_shader.wgsl",
                settings.grid_w, settings.grid_h);
 }
 
@@ -746,50 +796,47 @@ static void init_clear_pressure_program(program_t* this,
                                         wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.pressure,  /* in_quantity  */
-    &dynamic_buffers.pressure0, /* out_quantity */
+    &dynamic_buffers.pressure,
+    &dynamic_buffers.pressure0,
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid,      /* */
-    &uniforms.viscosity, /* */
+    &uniforms.grid,
+    &uniforms.viscosity,
   };
-  const char* shader_wgsl_filename = "clear_pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+               (uint32_t)ARRAY_SIZE(program_uniforms),
+               "clear_pressure_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_checker_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[1] = {
-    &dynamic_buffers.dye, /* */
+    &dynamic_buffers.dye,
   };
   uniform_t* program_uniforms[2] = {
-    &uniforms.grid, /* */
-    &uniforms.time, /* */
+    &uniforms.grid,
+    &uniforms.time,
   };
-  const char* shader_wgsl_filename = "checkerboard_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.dye_w, settings.dye_h);
+               (uint32_t)ARRAY_SIZE(program_uniforms),
+               "checkerboard_shader.wgsl", settings.dye_w, settings.dye_h);
 }
 
 static void init_divergence_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity0,   /* in_velocity    */
-    &dynamic_buffers.divergence0, /* out_divergence */
+    &dynamic_buffers.velocity0,
+    &dynamic_buffers.divergence0,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "divergence_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "divergence_shader.wgsl",
                settings.grid_w, settings.grid_h);
 }
 
@@ -797,34 +844,32 @@ static void init_gradient_subtract_program(program_t* this,
                                            wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.pressure,  /* in_pressure  */
-    &dynamic_buffers.velocity0, /* in_velocity  */
-    &dynamic_buffers.velocity,  /* out_velocity */
+    &dynamic_buffers.pressure,
+    &dynamic_buffers.velocity0,
+    &dynamic_buffers.velocity,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "gradient_subtract_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+  program_init(
+    this, wgpu_context, program_buffers, (uint32_t)ARRAY_SIZE(program_buffers),
+    program_uniforms, (uint32_t)ARRAY_SIZE(program_uniforms),
+    "gradient_subtract_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_pressure_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.pressure,   /* in_pressure   */
-    &dynamic_buffers.divergence, /* in_divergence */
-    &dynamic_buffers.pressure0,  /* out_pressure  */
+    &dynamic_buffers.pressure,
+    &dynamic_buffers.divergence,
+    &dynamic_buffers.pressure0,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "pressure_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "pressure_shader.wgsl",
                settings.grid_w, settings.grid_h);
 }
 
@@ -832,83 +877,69 @@ static void init_update_dye_program(program_t* this,
                                     wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.dye,  /* in_quantity  */
-    &dynamic_buffers.dye0, /* out_quantity */
+    &dynamic_buffers.dye,
+    &dynamic_buffers.dye0,
   };
   uniform_t* program_uniforms[8] = {
-    &uniforms.grid,       /* */
-    &uniforms.mouse,      /* */
-    &uniforms.dye_force,  /* */
-    &uniforms.dye_radius, /* */
-    &uniforms.dye_diff,   /* */
-    &uniforms.time,       /* */
-    &uniforms.dt,         /* */
-    &uniforms.symmetry,   /* */
+    &uniforms.grid,       &uniforms.mouse,    &uniforms.dye_force,
+    &uniforms.dye_radius, &uniforms.dye_diff, &uniforms.time,
+    &uniforms.dt,         &uniforms.symmetry,
   };
-  const char* shader_wgsl_filename = "update_dye_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "update_dye_shader.wgsl",
                settings.dye_w, settings.dye_h);
 }
 
 static void init_update_program(program_t* this, wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_quantity  */
-    &dynamic_buffers.velocity0, /* out_quantity */
+    &dynamic_buffers.velocity,
+    &dynamic_buffers.velocity0,
   };
   uniform_t* program_uniforms[8] = {
-    &uniforms.grid,       /* */
-    &uniforms.mouse,      /* */
-    &uniforms.vel_force,  /* */
-    &uniforms.vel_radius, /* */
-    &uniforms.vel_diff,   /* */
-    &uniforms.dt,         /* */
-    &uniforms.time,       /* */
-    &uniforms.symmetry,   /* */
+    &uniforms.grid,       &uniforms.mouse,    &uniforms.vel_force,
+    &uniforms.vel_radius, &uniforms.vel_diff, &uniforms.dt,
+    &uniforms.time,       &uniforms.symmetry,
   };
-  const char* shader_wgsl_filename = "update_velocity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+               (uint32_t)ARRAY_SIZE(program_uniforms),
+               "update_velocity_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_vorticity_confinment_program(program_t* this,
                                               wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[3] = {
-    &dynamic_buffers.velocity,  /* in_velocity   */
-    &dynamic_buffers.vorticity, /* out_vorticity */
-    &dynamic_buffers.velocity0, /* out_vorticity */
+    &dynamic_buffers.velocity,
+    &dynamic_buffers.vorticity,
+    &dynamic_buffers.velocity0,
   };
   uniform_t* program_uniforms[3] = {
-    &uniforms.grid,      /* */
-    &uniforms.dt,        /* */
-    &uniforms.vorticity, /* */
+    &uniforms.grid,
+    &uniforms.dt,
+    &uniforms.vorticity,
   };
-  const char* shader_wgsl_filename = "vorticity_confinment_shader.wgsl";
-  program_init(this, wgpu_context, program_buffers,
-               (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
-               settings.grid_w, settings.grid_h);
+  program_init(
+    this, wgpu_context, program_buffers, (uint32_t)ARRAY_SIZE(program_buffers),
+    program_uniforms, (uint32_t)ARRAY_SIZE(program_uniforms),
+    "vorticity_confinment_shader.wgsl", settings.grid_w, settings.grid_h);
 }
 
 static void init_vorticity_program(program_t* this,
                                    wgpu_context_t* wgpu_context)
 {
   dynamic_buffer_t* program_buffers[2] = {
-    &dynamic_buffers.velocity,  /* in_velocity   */
-    &dynamic_buffers.vorticity, /* out_vorticity */
+    &dynamic_buffers.velocity,
+    &dynamic_buffers.vorticity,
   };
   uniform_t* program_uniforms[1] = {
-    &uniforms.grid, /* */
+    &uniforms.grid,
   };
-  const char* shader_wgsl_filename = "vorticity_shader.wgsl";
   program_init(this, wgpu_context, program_buffers,
                (uint32_t)ARRAY_SIZE(program_buffers), program_uniforms,
-               (uint32_t)ARRAY_SIZE(program_uniforms), shader_wgsl_filename,
+               (uint32_t)ARRAY_SIZE(program_uniforms), "vorticity_shader.wgsl",
                settings.grid_w, settings.grid_h);
 }
 
@@ -956,19 +987,16 @@ static void programs_destroy(void)
  * Initialization
  * -------------------------------------------------------------------------- */
 
-/* Downscale if necessary to prevent crashes */
 static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
                                          uint64_t max_buffer_size,
                                          uint64_t max_canvas_size)
 {
   float down_ratio = 1.0f;
 
-  /* Prevent buffer size overflow */
   if (w * h * 4 >= max_buffer_size) {
     down_ratio = sqrt(max_buffer_size / (float)(w * h * 4));
   }
 
-  /* Prevent canvas size overflow */
   if (w > max_canvas_size) {
     down_ratio = max_canvas_size / (float)w;
   }
@@ -982,18 +1010,17 @@ static WGPUExtent3D get_valid_dimensions(uint32_t w, uint32_t h,
   };
 }
 
-/* Fit to screen while keeping the aspect ratio */
 static WGPUExtent3D get_preferred_dimensions(uint32_t size,
                                              wgpu_context_t* wgpu_context,
                                              uint64_t max_buffer_size,
                                              uint64_t max_canvas_size)
 {
   const float aspect_ratio
-    = (float)wgpu_context->surface.width / (float)wgpu_context->surface.height;
+    = (float)wgpu_context->width / (float)wgpu_context->height;
 
   uint32_t w = 0, h = 0;
 
-  if (wgpu_context->surface.height < wgpu_context->surface.width) {
+  if (wgpu_context->height < wgpu_context->width) {
     w = floor(size * aspect_ratio);
     h = size;
   }
@@ -1005,58 +1032,39 @@ static WGPUExtent3D get_preferred_dimensions(uint32_t size,
   return get_valid_dimensions(w, h, max_buffer_size, max_canvas_size);
 }
 
-/* Init buffer & canvas dimensions to fit the screen while keeping the aspect
- * ratio and downscaling the dimensions if they exceed the device capabilities
- */
 static void init_sizes(wgpu_context_t* wgpu_context)
 {
-  uint64_t max_buffer_size          = 0;
-  uint64_t max_canvas_size          = 0;
-  WGPUSupportedLimits device_limits = {0};
-  if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)) {
-    max_buffer_size = device_limits.limits.maxStorageBufferBindingSize;
-    max_canvas_size = device_limits.limits.maxTextureDimension2D;
+  uint64_t max_buffer_size = 0;
+  uint64_t max_canvas_size = 0;
+  WGPULimits device_limits = {0};
+  if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)
+      == WGPUStatus_Success) {
+    max_buffer_size = device_limits.maxStorageBufferBindingSize;
+    max_canvas_size = device_limits.maxTextureDimension2D;
   }
 
-  /* Calculate simulation buffer dimensions */
   const WGPUExtent3D grid_size = get_preferred_dimensions(
     settings.grid_size, wgpu_context, max_buffer_size, max_canvas_size);
   settings.grid_w = grid_size.width;
   settings.grid_h = grid_size.height;
 
-  /* Calculate dye & canvas buffer dimensions */
-  settings.dye_w = (float)wgpu_context->surface.width;
-  settings.dye_h = (float)wgpu_context->surface.height;
+  settings.dye_w = (float)wgpu_context->width;
+  settings.dye_h = (float)wgpu_context->height;
 
-  /* Useful values for the simulation */
   settings.rdx     = settings.grid_size * 4;
   settings.dye_rdx = settings.dye_size * 4;
   settings.dx      = 1.0f / settings.rdx;
 }
 
 /* -------------------------------------------------------------------------- *
- * WGSL Shaders
- * -------------------------------------------------------------------------- */
-
-static const char* render_program_shader_wgsl_vertex_main;
-static const char* render_program_shader_wgsl_fragment_main;
-
-/* -------------------------------------------------------------------------- *
  * Render
  * -------------------------------------------------------------------------- */
 
-/* Renders 3 (r, g, b) storage buffers to the canvas */
 static struct {
-  /* Vertex buffer */
   wgpu_buffer_t vertex_buffer;
-
-  /* Render pipeline */
   WGPURenderPipeline render_pipeline;
-
-  /* Bind groups stores the resources bound to the binding points in a shader */
   WGPUBindGroup render_bind_group;
 
-  /* Render pass descriptor for frame buffer writes */
   struct {
     WGPURenderPassColorAttachment color_attachments[1];
     WGPURenderPassDescriptor descriptor;
@@ -1091,180 +1099,143 @@ static void render_program_destroy(void)
 
 static void render_program_prepare_pipelines(wgpu_context_t* wgpu_context)
 {
-  /* Primitive state */
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_TriangleList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_None,
-  };
+  /* Combine vertex and fragment WGSL into one shader module */
+  char* combined_shader_wgsl
+    = concat_strings(render_program_shader_wgsl_vertex_main,
+                     render_program_shader_wgsl_fragment_main, "\n");
 
-  /* Color target state */
-  WGPUBlendState blend_state              = wgpu_create_blend_state(false);
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  WGPUShaderModule shader_module
+    = wgpu_create_shader_module(wgpu_context->device, combined_shader_wgsl);
+  ASSERT(shader_module != NULL);
+  free(combined_shader_wgsl);
 
   /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     fluid_simulation, 16, WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x4, 0))
 
-  /* WGSL Shader*/
-  char* program_shader_wgsl
-    = concat_strings(render_program_shader_wgsl_vertex_main,
-                     render_program_shader_wgsl_fragment_main, "\n");
+  /* Blend state */
+  WGPUBlendState blend_state = wgpu_create_blend_state(false);
 
-  /* Vertex state */
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader WGSL
-                  .label            = "Fluid simulation - Vertex shader WGSL",
-                  .wgsl_code.source = program_shader_wgsl,
-                  .entry            = "vertex_main",
-                },
-                .buffer_count = 1,
-                .buffers      = &fluid_simulation_vertex_buffer_layout,
-              });
-
-  /* Fragment state */
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader WGSL
-                  .label            = "Fluid simulation - Fragment shader WGSL",
-                  .wgsl_code.source = program_shader_wgsl,
-                  .entry            = "fragment_main",
-                },
-                .target_count = 1,
-                .targets      = &color_target_state,
-              });
-
-  free(program_shader_wgsl);
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
   render_program.render_pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label       = "Fluid simulation - Render pipeline",
-                            .primitive   = primitive_state,
-                            .vertex      = vertex_state,
-                            .fragment    = &fragment_state,
-                            .multisample = multisample_state,
-                          });
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("Fluid simulation - Render pipeline"),
+      .vertex = (WGPUVertexState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("vertex_main"),
+        .bufferCount = 1,
+        .buffers     = &fluid_simulation_vertex_buffer_layout,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = shader_module,
+        .entryPoint  = STRVIEW("fragment_main"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format    = wgpu_context->render_format,
+          .blend     = &blend_state,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .frontFace = WGPUFrontFace_CCW,
+        .cullMode  = WGPUCullMode_None,
+      },
+      .multisample = {
+        .count = 1,
+        .mask  = 0xFFFFFFFF,
+      },
+    });
   ASSERT(render_program.render_pipeline != NULL);
 
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
+  wgpuShaderModuleRelease(shader_module);
 }
 
 static void render_program_setup_bind_group(wgpu_context_t* wgpu_context)
 {
   WGPUBindGroupEntry bg_entries[9] = {
-    /* Binding 0 : fieldX */
-    [0] = (WGPUBindGroupEntry) {
+    [0] = (WGPUBindGroupEntry){
       .binding = 0,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[0].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffers[0].size,
     },
-    /* Binding 1 : fieldY */
-    [1] = (WGPUBindGroupEntry) {
+    [1] = (WGPUBindGroupEntry){
       .binding = 1,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[1].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffers[1].size,
     },
-    /* Binding 2 : fieldZ */
-    [2] = (WGPUBindGroupEntry) {
+    [2] = (WGPUBindGroupEntry){
       .binding = 2,
       .buffer  = dynamic_buffers.rgb_buffer.buffers[2].buffer,
       .size    = dynamic_buffers.rgb_buffer.buffers[2].size,
     },
-    /* Binding 3 : uGrid */
-    [3] = (WGPUBindGroupEntry) {
+    [3] = (WGPUBindGroupEntry){
       .binding = 3,
       .buffer  = uniforms.grid.buffer.buffer,
       .size    = uniforms.grid.buffer.size,
     },
-    /* Binding 4 : uTime */
-    [4] = (WGPUBindGroupEntry) {
+    [4] = (WGPUBindGroupEntry){
       .binding = 4,
       .buffer  = uniforms.time.buffer.buffer,
       .size    = uniforms.time.buffer.size,
     },
-    /* Binding 5 : uMouse */
-    [5] = (WGPUBindGroupEntry) {
+    [5] = (WGPUBindGroupEntry){
       .binding = 5,
       .buffer  = uniforms.mouse.buffer.buffer,
       .size    = uniforms.mouse.buffer.size,
     },
-    /* Binding 6 : uRenderMode */
-    [6] = (WGPUBindGroupEntry) {
+    [6] = (WGPUBindGroupEntry){
       .binding = 6,
       .buffer  = uniforms.render_mode.buffer.buffer,
       .size    = uniforms.render_mode.buffer.size,
     },
-    /* Binding 7 : uRenderIntensity */
-    [7] = (WGPUBindGroupEntry) {
+    [7] = (WGPUBindGroupEntry){
       .binding = 7,
       .buffer  = uniforms.render_intensity.buffer.buffer,
       .size    = uniforms.render_intensity.buffer.size,
     },
-    /* Binding 8 : uSmokeParameters */
-    [8] = (WGPUBindGroupEntry) {
+    [8] = (WGPUBindGroupEntry){
       .binding = 8,
       .buffer  = uniforms.smoke_parameters.buffer.buffer,
       .size    = uniforms.smoke_parameters.buffer.size,
     },
   };
 
-  WGPUBindGroupDescriptor bg_desc = {
-    .label = "Fluid simulation - Render bind group",
-    .layout
-    = wgpuRenderPipelineGetBindGroupLayout(render_program.render_pipeline, 0),
-    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-    .entries    = bg_entries,
-  };
-  render_program.render_bind_group
-    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
+  WGPUBindGroupLayout layout
+    = wgpuRenderPipelineGetBindGroupLayout(render_program.render_pipeline, 0);
+  render_program.render_bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device,
+    &(WGPUBindGroupDescriptor){
+      .label      = STRVIEW("Fluid simulation - Render bind group"),
+      .layout     = layout,
+      .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+      .entries    = bg_entries,
+    });
   ASSERT(render_program.render_bind_group != NULL);
+  wgpuBindGroupLayoutRelease(layout);
 }
 
-/* The r,g,b buffer containing the data to render */
 static void render_program_setup_rgb_buffer(wgpu_context_t* wgpu_context)
 {
-  dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, /* dims: */ 3,
-                      /* w: */ settings.dye_w, /* h: */ settings.dye_h);
+  dynamic_buffer_init(&dynamic_buffers.rgb_buffer, wgpu_context, 3,
+                      settings.dye_w, settings.dye_h);
 }
 
 static void render_program_setup_render_pass(void)
 {
-  /* Color attachment */
-  render_program.render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
+  render_program.render_pass.color_attachments[0]
+    = (WGPURenderPassColorAttachment){
       .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
+      .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
       .loadOp     = WGPULoadOp_Clear,
       .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.0f,
-        .g = 0.0f,
-        .b = 0.0f,
-        .a = 1.0f,
-      },
-  };
+      .clearValue = (WGPUColor){0.0f, 0.0f, 0.0f, 1.0f},
+    };
 
-  /* Render pass descriptor */
   render_program.render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Fluid simulation - Render pass descriptor",
+    .label                  = STRVIEW("Fluid simulation - Render pass"),
     .colorAttachmentCount   = 1,
-    .colorAttachments       = &render_program.render_pass.color_attachments[0],
+    .colorAttachments       = render_program.render_pass.color_attachments,
     .depthStencilAttachment = NULL,
   };
 }
@@ -1278,12 +1249,11 @@ static void render_program_init(wgpu_context_t* wgpu_context)
   render_program_setup_render_pass();
 }
 
-/* Dispatch a draw command to render on the canvas */
 static void render_program_dispatch(wgpu_context_t* wgpu_context,
                                     WGPUCommandEncoder command_encoder)
 {
   render_program.render_pass.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
+    = wgpu_context->swapchain_view;
 
   WGPURenderPassEncoder render_pass_encoder = wgpuCommandEncoderBeginRenderPass(
     command_encoder, &render_program.render_pass.descriptor);
@@ -1291,28 +1261,29 @@ static void render_program_dispatch(wgpu_context_t* wgpu_context,
   wgpuRenderPassEncoderSetPipeline(render_pass_encoder,
                                    render_program.render_pipeline);
   wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0,
-                                    render_program.render_bind_group, 0, 0);
+                                    render_program.render_bind_group, 0, NULL);
   wgpuRenderPassEncoderSetVertexBuffer(render_pass_encoder, 0,
                                        render_program.vertex_buffer.buffer, 0,
                                        WGPU_WHOLE_SIZE);
   wgpuRenderPassEncoderDraw(render_pass_encoder, 6, 1, 0, 0);
   wgpuRenderPassEncoderEnd(render_pass_encoder);
-  WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass_encoder)
+  wgpuRenderPassEncoderRelease(render_pass_encoder);
 }
 
 /* -------------------------------------------------------------------------- *
  * Fluid simulation
  * -------------------------------------------------------------------------- */
 
-static const char* example_title = "Fluid Simulation";
-static bool prepared             = false;
-
 static struct {
   uint64_t loop;
+  uint64_t last_frame_ticks;
   float last_frame;
+  WGPUBool initialized;
 } simulation = {
-  .loop       = 0,
-  .last_frame = 0,
+  .loop             = 0,
+  .last_frame_ticks = 0,
+  .last_frame       = 0.0f,
+  .initialized      = false,
 };
 
 /* Simulation reset */
@@ -1330,120 +1301,111 @@ static void simulation_reset(void)
 static void
 simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 {
-  /* Add velocity and dye at the mouse position */
   program_dispatch(&programs.update_dye_program, pass_encoder);
   program_dispatch(&programs.update_program, pass_encoder);
 
-  /* Advect the velocity field through itself */
   program_dispatch(&programs.advect_program, pass_encoder);
   program_dispatch(&programs.boundary_program, pass_encoder);
 
-  /* Compute the divergence */
   program_dispatch(&programs.divergence_program, pass_encoder);
   program_dispatch(&programs.boundary_div_program, pass_encoder);
 
-  /* Solve the jacobi-pressure equation */
   for (int32_t i = 0; i < settings.pressure_iterations; ++i) {
     program_dispatch(&programs.pressure_program, pass_encoder);
-    /* boundary conditions */
     program_dispatch(&programs.boundary_pressure_program, pass_encoder);
   }
 
-  /* Subtract the pressure from the velocity field */
   program_dispatch(&programs.gradient_subtract_program, pass_encoder);
   program_dispatch(&programs.clear_pressure_program, pass_encoder);
 
-  /* Compute & apply vorticity confinment */
   program_dispatch(&programs.vorticity_program, pass_encoder);
   program_dispatch(&programs.vorticity_confinment_program, pass_encoder);
 
-  /* Advect the dye through the velocity field */
   program_dispatch(&programs.advect_dye_program, pass_encoder);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
-{
-  if (context) {
-    init_sizes(context->wgpu_context);
-    /* Init buffers, uniforms and programs */
-    dynamic_buffers_init(context->wgpu_context);
-    uniforms_buffers_init(context->wgpu_context);
-    programs_init(context->wgpu_context);
-    render_program_init(context->wgpu_context);
-    prepared = true;
-    return EXIT_SUCCESS;
-  }
+/* -- GUI ------------------------------------------------------------------ */
 
-  return EXIT_FAILURE;
-}
-
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static void render_gui(wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Settings")) {
-#if _DEBUG_RENDER_MODES_
-    static const char* render_modes[7] = {
-      "Classic",           "Smoke 2D",           "Smoke 3D + Shadows",
-      "Debug - Velocity",  "Debug - Divergence", "Debug - Pressure",
-      "Debug - Vorticity",
-    };
-    static const float render_intensity_multipliers[7]
-      = {1, 1, 1, 100, 10, 1e6, 1};
-    int32_t render_mode_int = (int32_t)settings.render_mode;
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Mouse Symmetry",
-                                &render_mode_int, render_modes,
-                                ARRAY_SIZE(render_modes))) {
-      uniform_update(&uniforms.render_intensity, context->wgpu_context,
-                     &render_intensity_multipliers[render_mode_int], 1);
-      settings.render_mode = (float)render_mode_int;
-    }
-#endif
-    imgui_overlay_slider_int(context->imgui_overlay, "Pressure Iterations",
-                             &settings.pressure_iterations, 0, 50);
+  const uint64_t now = stm_now();
+  const float dt_sec
+    = (float)stm_sec(stm_diff(now, simulation.last_frame_ticks));
+  simulation.last_frame_ticks = now;
+
+  imgui_overlay_new_frame(wgpu_context, dt_sec);
+
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+  if (igCollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+    igSliderInt("Pressure Iterations", &settings.pressure_iterations, 0, 50,
+                "%d");
+
     static const char* symmetry_types[5]
       = {"None", "Horizontal", "Vertical", "Both", "Center"};
     int32_t symmetry_value_int = (int32_t)settings.input_symmetry;
-    if (imgui_overlay_combo_box(context->imgui_overlay, "Mouse Symmetry",
-                                &symmetry_value_int, symmetry_types,
-                                ARRAY_SIZE(symmetry_types))) {
+    if (igCombo("Mouse Symmetry", &symmetry_value_int, symmetry_types, 5, 5)) {
       settings.input_symmetry = (float)symmetry_value_int;
-      uniform_update(&uniforms.symmetry, context->wgpu_context,
-                     &settings.input_symmetry, 1);
+      uniform_update(&uniforms.symmetry, wgpu_context, &settings.input_symmetry,
+                     1);
     }
-    if (imgui_overlay_button(context->imgui_overlay, "Reset")) {
+
+    if (igButton("Reset", (ImVec2){0, 0})) {
       simulation_reset();
     }
-    if (imgui_overlay_header("Smoke Parameters")) {
-      imgui_overlay_slider_int(context->imgui_overlay, "3D resolution",
-                               &settings.raymarch_steps, 5, 20);
-      imgui_overlay_slider_float(context->imgui_overlay, "Light Elevation",
-                                 &settings.light_height, 0.5f, 1.0f, "%.3f");
-      imgui_overlay_slider_float(context->imgui_overlay, "Light Intensity",
-                                 &settings.light_intensity, 0.0f, 1.0f, "%.3f");
-      imgui_overlay_slider_float(context->imgui_overlay, "Light Falloff",
-                                 &settings.light_falloff, 0.5f, 10.0f, "%.3f");
+
+    if (igCollapsingHeader("Smoke Parameters", 0)) {
+      igSliderInt("3D resolution", &settings.raymarch_steps, 5, 20, "%d");
+      igSliderFloat("Light Elevation", &settings.light_height, 0.5f, 1.0f,
+                    "%.3f", 0);
+      igSliderFloat("Light Intensity", &settings.light_intensity, 0.0f, 1.0f,
+                    "%.3f", 0);
+      igSliderFloat("Light Falloff", &settings.light_falloff, 0.5f, 10.0f,
+                    "%.3f", 0);
       bool enable_shadows = settings.enable_shadows != 0.0f;
-      if (imgui_overlay_checkBox(context->imgui_overlay, "Enable Shadows",
-                                 &enable_shadows)) {
+      if (igCheckbox("Enable Shadows", &enable_shadows)) {
         settings.enable_shadows = enable_shadows ? 1.0f : 0.0f;
       }
-      imgui_overlay_slider_float(context->imgui_overlay, "Shadow Intensity",
-                                 &settings.shadow_intensity, 0.0f, 50.0f,
-                                 "%.3f");
+      igSliderFloat("Shadow Intensity", &settings.shadow_intensity, 0.0f, 50.0f,
+                    "%.3f", 0);
     }
   }
+
+  igEnd();
 }
 
-/* Render loop */
-static WGPUCommandBuffer
-build_simulation_step_command_buffer(wgpu_example_context_t* context)
+/* -- Init / Frame / Shutdown ---------------------------------------------- */
+
+static int init(struct wgpu_context_t* wgpu_context)
 {
-  /* WebGPU context */
-  wgpu_context_t* wgpu_context = context->wgpu_context;
+  if (wgpu_context) {
+    stm_setup();
+
+    init_sizes(wgpu_context);
+    dynamic_buffers_init(wgpu_context);
+    uniforms_buffers_init(wgpu_context);
+    programs_init(wgpu_context);
+    render_program_init(wgpu_context);
+    imgui_overlay_init(wgpu_context);
+
+    simulation.initialized = true;
+    return EXIT_SUCCESS;
+  }
+  return EXIT_FAILURE;
+}
+
+static int frame(struct wgpu_context_t* wgpu_context)
+{
+  if (!simulation.initialized) {
+    return EXIT_FAILURE;
+  }
 
   /* Update time */
-  const float now = context->frame.timestamp_millis;
-  settings.dt     = MIN(1.0f / 60.0f, (now - simulation.last_frame) / 1000.0f)
-                * settings.sim_speed;
+  const float now = (float)stm_ms(stm_now()) / 1000.0f;
+  settings.dt
+    = MIN(1.0f / 60.0f, (now - simulation.last_frame)) * settings.sim_speed;
   settings.time += settings.dt;
   simulation.last_frame = now;
 
@@ -1452,21 +1414,22 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
     uniform_update(global_uniforms[i], wgpu_context, NULL, 0);
   }
 
-  /* Updated  mouse state */
-  mouse_infos.current[0]
-    = context->mouse_position[0] / context->wgpu_context->surface.width;
+  /* Update mouse state */
+  mouse_infos.current[0] = mouse_pixel_pos.x / (float)wgpu_context->width;
   mouse_infos.current[1]
-    = 1.0f - context->mouse_position[1] / context->wgpu_context->surface.height;
+    = 1.0f - mouse_pixel_pos.y / (float)wgpu_context->height;
 
-  /* Update custom uniform */
   glm_vec2_sub(mouse_infos.current, mouse_infos.last, mouse_infos.velocity);
   float mouse_values[4] = {
-    mouse_infos.current[0], mouse_infos.current[1],   /* current */
-    mouse_infos.velocity[0], mouse_infos.velocity[1], /* velocity */
+    mouse_infos.current[0],
+    mouse_infos.current[1],
+    mouse_infos.velocity[0],
+    mouse_infos.velocity[1],
   };
   uniform_update(&uniforms.mouse, wgpu_context, mouse_values,
                  (uint32_t)ARRAY_SIZE(mouse_values));
   glm_vec2_copy(mouse_infos.current, mouse_infos.last);
+
   float smoke_parameter_values[8] = {
     settings.raymarch_steps,   settings.smoke_density, settings.enable_shadows,
     settings.shadow_intensity, settings.smoke_height,  settings.light_height,
@@ -1476,114 +1439,102 @@ build_simulation_step_command_buffer(wgpu_example_context_t* context)
                  smoke_parameter_values,
                  (uint32_t)ARRAY_SIZE(smoke_parameter_values));
 
-  /* Compute fluid */
-  render_program.render_pass.color_attachments[0].view
-    = wgpu_context->swap_chain.frame_buffer;
-  wgpu_context->cmd_enc
+  /* Render GUI */
+  render_gui(wgpu_context);
+
+  /* Create command encoder */
+  WGPUCommandEncoder cmd_enc
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
+  /* Compute pass */
   {
-    wgpu_context->cpass_enc
-      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
-    simulation_dispatch_compute_pipeline(wgpu_context->cpass_enc);
-    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-    WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
+    WGPUComputePassEncoder cpass_enc
+      = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
+    simulation_dispatch_compute_pipeline(cpass_enc);
+    wgpuComputePassEncoderEnd(cpass_enc);
+    wgpuComputePassEncoderRelease(cpass_enc);
   }
 
+  /* Copy buffers */
   dynamic_buffer_copy_to(&dynamic_buffers.velocity0, &dynamic_buffers.velocity,
-                         wgpu_context->cmd_enc);
+                         cmd_enc);
   dynamic_buffer_copy_to(&dynamic_buffers.pressure0, &dynamic_buffers.pressure,
-                         wgpu_context->cmd_enc);
+                         cmd_enc);
 
   /* Configure render mode */
   if ((int)settings.render_mode == RENDER_MODE_DEBUG_VELOCITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.velocity,
-                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+                           &dynamic_buffers.rgb_buffer, cmd_enc);
   }
   else if ((int)settings.render_mode == RENDER_MODE_DEBUG_DIVERGENCE) {
     dynamic_buffer_copy_to(&dynamic_buffers.divergence,
-                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+                           &dynamic_buffers.rgb_buffer, cmd_enc);
   }
   else if ((int)settings.render_mode == RENDER_MODE_DEBUG_PRESSURE) {
     dynamic_buffer_copy_to(&dynamic_buffers.pressure,
-                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+                           &dynamic_buffers.rgb_buffer, cmd_enc);
   }
   else if ((int)settings.render_mode == RENDER_MODE_DEBUG_VORTICITY) {
     dynamic_buffer_copy_to(&dynamic_buffers.vorticity,
-                           &dynamic_buffers.rgb_buffer, wgpu_context->cmd_enc);
+                           &dynamic_buffers.rgb_buffer, cmd_enc);
   }
   else {
     dynamic_buffer_copy_to(&dynamic_buffers.dye, &dynamic_buffers.rgb_buffer,
-                           wgpu_context->cmd_enc);
+                           cmd_enc);
   }
 
   /* Draw fluid */
-  render_program_dispatch(wgpu_context, wgpu_context->cmd_enc);
+  render_program_dispatch(wgpu_context, cmd_enc);
 
-  // Draw ui overlay
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
+  /* Submit */
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+  wgpuQueueSubmit(wgpu_context->queue, 1, &cmd_buffer);
 
-  // Get command buffer
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
 
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_simulation_step_command_buffer(context);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Send commands to the GPU */
-  submit_frame(context);
+  /* Cleanup */
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
 
   return EXIT_SUCCESS;
 }
 
-static int example_render(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  if (!prepared) {
-    return EXIT_FAILURE;
-  }
-  return example_draw(context);
-}
-
-static void example_destroy(wgpu_example_context_t* context)
-{
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
 
   dynamic_buffers_destroy();
   uniforms_buffers_destroy();
   programs_destroy();
   render_program_destroy();
+  imgui_overlay_shutdown();
 }
 
-void example_fluid_simulation(int argc, char* argv[])
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-    .title   = example_title,
-    .overlay = true,
-    .vsync   = true,
-  },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
+  /* Track mouse position for simulation */
+  if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
+    mouse_pixel_pos.x = input_event->mouse_x;
+    mouse_pixel_pos.y = input_event->mouse_y;
+  }
+}
+
+int main(void)
+{
+  wgpu_start(&(wgpu_desc_t){
+    .title           = "Fluid Simulation",
+    .no_depth_buffer = true,
+    .init_cb         = init,
+    .frame_cb        = frame,
+    .input_event_cb  = input_event_cb,
+    .shutdown_cb     = shutdown,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
 
 /* -------------------------------------------------------------------------- *

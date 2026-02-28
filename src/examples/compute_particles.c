@@ -1,106 +1,219 @@
-#include "example_base.h"
+#include "webgpu/imgui_overlay.h"
+#include "webgpu/wgpu_common.h"
 
-#include <string.h>
+#include <cglm/cglm.h>
 
-#include "../webgpu/imgui_overlay.h"
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Compute Shader Particle System
  *
  * Attraction based 2D GPU particle system using compute shaders. Particle data
- * is stored in a shader storage buffer.
+ * is stored in a shader storage buffer. A compute shader updates particle
+ * positions based on attraction/repulsion forces, and the particles are
+ * rendered as points with gradient coloring.
  *
  * Ref:
- * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles/computeparticles.cpp
- * https://github.com/gpuweb/gpuweb/issues/332
+ * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles
+ * -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+static const char* particle_vertex_shader_wgsl;
+static const char* particle_fragment_shader_wgsl;
+static const char* particle_compute_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * Compute Shader Particle System example
  * -------------------------------------------------------------------------- */
 
 #define PARTICLE_COUNT (256u * 1024u)
 
-static float timer           = 0.0f;
-static float animStart       = 20.0f;
-static bool attach_to_cursor = false;
+/* Gradient ramp size */
+#define GRADIENT_WIDTH 256
+#define GRADIENT_HEIGHT 1
 
-static struct {
-  texture_t particle;
-  texture_t gradient;
-} textures = {0};
-
-// Resources for the graphics part of the example
-static struct {
-  WGPUBindGroupLayout bind_group_layout; // Particle system rendering shader
-                                         // binding layout
-  WGPUBindGroup bind_group; // Particle system rendering shader bindings
-  WGPUPipelineLayout pipeline_layout; // Layout of the graphics pipeline
-  WGPURenderPipeline pipeline;        // Particle rendering pipeline
-} graphics = {0};
-
-// Resources for the compute part of the example
-static struct {
-  wgpu_buffer_t storage_buffer; // (Shader) storage buffer object containing the
-                                // particles
-  wgpu_buffer_t uniform_buffer; // Uniform buffer object containing particle
-                                // system parameters
-  WGPUBindGroupLayout bind_group_layout; // Compute shader binding layout
-  WGPUBindGroup bind_group;              // Compute shader bindings
-  WGPUPipelineLayout pipeline_layout;    // Layout of the compute pipeline
-  WGPUComputePipeline pipeline; // Compute pipeline for updating particle
-                                // positions
-  struct compute_ubo_t {        // Compute shader uniform block object
-    float delta_t;              // Frame delta time
-    float dest_x;               // x position of the attractor
-    float dest_y;               // y position of the attractor
-    int32_t particle_count;
-  } ubo;
-} compute = {0};
-
-// Render pass descriptor for frame buffer writes
-static struct {
-  WGPURenderPassColorAttachment color_attachments[1];
-  WGPURenderPassDescriptor descriptor;
-} render_pass = {0};
-
-// SSBO particle declaration
+/* SSBO particle declaration */
 typedef struct particle_t {
-  vec2 pos;          // Particle position
-  vec2 vel;          // Particle velocity
-  vec4 gradient_pos; // Texture coordinates for the gradient ramp map
+  float pos[2];          /* Particle position */
+  float vel[2];          /* Particle velocity */
+  float gradient_pos[4]; /* Texture coord for gradient ramp map */
 } particle_t;
 
-// Other variables
-static const char* example_title = "Compute Shader Particle System";
-static bool prepared             = false;
+/* State struct */
+static struct {
+  /* Gradient ramp texture */
+  struct {
+    wgpu_texture_t texture;
+    uint8_t pixels[GRADIENT_WIDTH * GRADIENT_HEIGHT * 4];
+  } gradient;
+  /* Graphics resources */
+  struct {
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPUPipelineLayout pipeline_layout;
+    WGPURenderPipeline pipeline;
+  } graphics;
+  /* Compute resources */
+  struct {
+    wgpu_buffer_t storage_buffer;
+    wgpu_buffer_t uniform_buffer;
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUComputePipeline pipeline;
+    struct {
+      float delta_t;
+      float dest_x;
+      float dest_y;
+      int32_t particle_count;
+    } ubo;
+  } compute;
+  /* Render pass */
+  WGPURenderPassColorAttachment color_attachment;
+  WGPURenderPassDescriptor render_pass_descriptor;
+  /* Animation */
+  float timer;
+  float anim_start;
+  /* Settings */
+  struct {
+    bool attach_to_cursor;
+  } settings;
+  /* Mouse state (normalized -1..1) */
+  float cursor_x;
+  float cursor_y;
+  /* GUI timing */
+  uint64_t last_frame_time;
+  float frame_timer;
+  WGPUBool initialized;
+} state = {
+  .color_attachment = {
+    .loadOp     = WGPULoadOp_Clear,
+    .storeOp    = WGPUStoreOp_Store,
+    .clearValue = {0.025, 0.025, 0.025, 1.0},
+    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+  },
+  .render_pass_descriptor = {
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &state.color_attachment,
+  },
+  .anim_start = 20.0f,
+  .settings = {
+    .attach_to_cursor = false,
+  },
+};
 
-static void load_assets(wgpu_context_t* wgpu_context)
+/* -- Procedural gradient ramp ---------------------------------------------- */
+
+static uint8_t clamp_u8(float v)
 {
-  textures.particle = wgpu_create_texture_from_file(
-    wgpu_context, "textures/particle01_rgba.ktx", NULL);
-  textures.gradient = wgpu_create_texture_from_file(
-    wgpu_context, "textures/particle_gradient_rgba.ktx", NULL);
+  if (v < 0.0f)
+    return 0;
+  if (v > 255.0f)
+    return 255;
+  return (uint8_t)v;
 }
 
-/* Setup and fill the compute shader storage buffers containing the particles */
-static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
+static void generate_gradient_ramp(void)
 {
-  /* Initial particle positions */
-  static particle_t particle_buffer[PARTICLE_COUNT] = {0};
-  for (uint32_t i = 0; i < (uint32_t)PARTICLE_COUNT; ++i) {
+  /* Generate a smooth gradient ramp:
+   * 0.00 - 0.25: blue   -> cyan
+   * 0.25 - 0.50: cyan   -> green
+   * 0.50 - 0.75: green  -> yellow
+   * 0.75 - 1.00: yellow -> red
+   */
+  for (int i = 0; i < GRADIENT_WIDTH; ++i) {
+    float t = (float)i / (float)(GRADIENT_WIDTH - 1);
+    float r, g, b;
+
+    if (t < 0.25f) {
+      float s = t / 0.25f;
+      r       = 0.0f;
+      g       = s;
+      b       = 1.0f;
+    }
+    else if (t < 0.5f) {
+      float s = (t - 0.25f) / 0.25f;
+      r       = 0.0f;
+      g       = 1.0f;
+      b       = 1.0f - s;
+    }
+    else if (t < 0.75f) {
+      float s = (t - 0.5f) / 0.25f;
+      r       = s;
+      g       = 1.0f;
+      b       = 0.0f;
+    }
+    else {
+      float s = (t - 0.75f) / 0.25f;
+      r       = 1.0f;
+      g       = 1.0f - s;
+      b       = 0.0f;
+    }
+
+    state.gradient.pixels[i * 4 + 0] = clamp_u8(r * 255.0f);
+    state.gradient.pixels[i * 4 + 1] = clamp_u8(g * 255.0f);
+    state.gradient.pixels[i * 4 + 2] = clamp_u8(b * 255.0f);
+    state.gradient.pixels[i * 4 + 3] = 255;
+  }
+}
+
+/* -- Texture init ---------------------------------------------------------- */
+
+static void init_gradient_texture(wgpu_context_t* wgpu_context)
+{
+  generate_gradient_ramp();
+
+  state.gradient.texture = wgpu_create_texture(
+    wgpu_context,
+    &(wgpu_texture_desc_t){
+      .extent = (WGPUExtent3D){
+        .width              = GRADIENT_WIDTH,
+        .height             = GRADIENT_HEIGHT,
+        .depthOrArrayLayers = 1,
+      },
+      .format = WGPUTextureFormat_RGBA8Unorm,
+      .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .pixels = {
+        .ptr  = state.gradient.pixels,
+        .size = sizeof(state.gradient.pixels),
+      },
+    });
+}
+
+/* -- Storage buffer -------------------------------------------------------- */
+
+static void init_storage_buffer(wgpu_context_t* wgpu_context)
+{
+  static particle_t particle_buffer[PARTICLE_COUNT];
+  for (uint32_t i = 0; i < PARTICLE_COUNT; ++i) {
     particle_buffer[i] = (particle_t){
       .pos = {
-        random_float_min_max(-1.0f, 1.0f), /* x */
-        random_float_min_max(-1.0f, 1.0f)  /* y */
-       },
-      .vel = GLM_VEC2_ZERO_INIT,
-      .gradient_pos = GLM_VEC4_ZERO_INIT,
+        random_float_min_max(-1.0f, 1.0f),
+        random_float_min_max(-1.0f, 1.0f),
+      },
+      .vel = {0.0f, 0.0f},
+      .gradient_pos = {0.0f, 0.0f, 0.0f, 0.0f},
     };
     particle_buffer[i].gradient_pos[0] = particle_buffer[i].pos[0] / 2.0f;
   }
 
-  /* Staging */
-  /* SSBO won't be changed on the host after upload */
-  compute.storage_buffer = wgpu_create_buffer(
+  state.compute.storage_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Compute shader - Storage buffer",
+                    .label = "Particle storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = PARTICLE_COUNT * sizeof(particle_t),
@@ -108,519 +221,529 @@ static void prepare_storage_buffers(wgpu_context_t* wgpu_context)
                   });
 }
 
-static void update_uniform_buffers(wgpu_example_context_t* context)
-{
-  wgpu_context_t* wgpu_context = context->wgpu_context;
+/* -- Uniform buffer -------------------------------------------------------- */
 
-  /* Update uniform buffer data */
-  compute.ubo.delta_t = context->frame_timer * 2.5f;
-  if (!attach_to_cursor) {
-    compute.ubo.dest_x = sin(glm_rad(timer * 360.0f)) * 0.75f;
-    compute.ubo.dest_y = 0.0f;
+static void init_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  state.compute.ubo.particle_count = PARTICLE_COUNT;
+
+  state.compute.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Compute uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(state.compute.ubo),
+                  });
+}
+
+static void update_uniform_buffer(wgpu_context_t* wgpu_context)
+{
+  state.compute.ubo.delta_t = state.frame_timer * 2.5f;
+
+  if (state.settings.attach_to_cursor) {
+    state.compute.ubo.dest_x = state.cursor_x;
+    state.compute.ubo.dest_y = state.cursor_y;
   }
   else {
-    const float width  = (float)wgpu_context->surface.width;
-    const float height = (float)wgpu_context->surface.height;
-
-    const float normalized_mx
-      = (context->mouse_position[0] - (width / 2.0f)) / (width / 2.0f);
-    const float normalized_my
-      = ((height / 2.0f) - context->mouse_position[1]) / (height / 2.0f);
-    compute.ubo.dest_x = normalized_mx;
-    compute.ubo.dest_y = normalized_my;
+    state.compute.ubo.dest_x = sinf(state.timer * PI2) * 0.75f;
+    state.compute.ubo.dest_y = 0.0f;
   }
 
-  /* Map uniform buffer and update it */
-  wgpu_queue_write_buffer(wgpu_context, compute.uniform_buffer.buffer, 0,
-                          &compute.ubo, compute.uniform_buffer.size);
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.compute.uniform_buffer.buffer,
+                       0, &state.compute.ubo, sizeof(state.compute.ubo));
 }
 
-/* Prepare and initialize uniform buffer containing shader uniforms */
-static void prepare_uniform_buffers(wgpu_example_context_t* context)
+/* -- Graphics pipeline ----------------------------------------------------- */
+
+static void init_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
 {
-  /* Initialize the uniform buffer block */
-  compute.ubo.particle_count = PARTICLE_COUNT;
-
-  /* Compute shader uniform buffer block */
-  compute.uniform_buffer = wgpu_create_buffer(
-    context->wgpu_context,
-    &(wgpu_buffer_desc_t){
-      .label = "Compute shader - Uniform buffer",
-      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      .size  = sizeof(compute.ubo),
-    });
-
-  update_uniform_buffers(context);
-}
-
-static void setup_render_pass(wgpu_context_t* wgpu_context)
-{
-  /* Color attachment */
-  render_pass.color_attachments[0] = (WGPURenderPassColorAttachment) {
-      .view       = NULL, /* Assigned later */
-      .depthSlice = ~0,
-      .loadOp     = WGPULoadOp_Clear,
-      .storeOp    = WGPUStoreOp_Store,
-      .clearValue = (WGPUColor) {
-        .r = 0.025f,
-        .g = 0.025f,
-        .b = 0.025f,
-        .a = 1.0f,
-      },
-  };
-
-  /* Depth attachment */
-  wgpu_setup_deph_stencil(wgpu_context, NULL);
-
-  /* Render pass descriptor */
-  render_pass.descriptor = (WGPURenderPassDescriptor){
-    .label                  = "Render pass descriptor",
-    .colorAttachmentCount   = 1,
-    .colorAttachments       = render_pass.color_attachments,
-    .depthStencilAttachment = &wgpu_context->depth_stencil.att_desc,
-  };
-}
-
-static void setup_pipeline_layout(wgpu_context_t* wgpu_context)
-{
-  WGPUBindGroupLayoutEntry bgl_entries[4] = {
-    [0] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 0 : Particle color map texture */
+  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
-      .texture = (WGPUTextureBindingLayout) {
+      .texture = (WGPUTextureBindingLayout){
         .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
         .multisampled  = false,
       },
-      .storageTexture = {0},
     },
-    [1] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 1 : Particle color map sampler */
+    [1] = (WGPUBindGroupLayoutEntry){
       .binding    = 1,
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
         .type = WGPUSamplerBindingType_Filtering,
       },
-      .texture = {0},
     },
-    [2] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 2 : Particle gradient ramp texture */
-      .binding    = 2,
-      .visibility = WGPUShaderStage_Fragment,
-      .texture = (WGPUTextureBindingLayout) {
-        .sampleType    = WGPUTextureSampleType_Float,
-        .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled  = false,
-      },
-      .storageTexture = {0},
-    },
-    [3] = (WGPUBindGroupLayoutEntry) {
-      /* Binding 3 : Particle gradient ramp sampler */
-      .binding    = 3,
-      .visibility = WGPUShaderStage_Fragment,
-      .sampler = (WGPUSamplerBindingLayout){
-        .type = WGPUSamplerBindingType_Filtering,
-      },
-      .texture = {0},
-    }
   };
-  WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .label      = "Graphics - Bind group layout",
-    .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-    .entries    = bgl_entries,
-  };
-  graphics.bind_group_layout
-    = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(graphics.bind_group_layout != NULL)
 
-  // Create the pipeline layout
-  WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-    .label                = "Graphics - Pipeline layout",
-    .bindGroupLayoutCount = 1,
-    .bindGroupLayouts     = &graphics.bind_group_layout,
-  };
-  graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &pipeline_layout_desc);
-  ASSERT(graphics.pipeline_layout != NULL);
+  state.graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("Graphics bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.graphics.bind_group_layout != NULL);
 }
 
-static void prepare_pipelines(wgpu_context_t* wgpu_context)
+static void init_graphics_bind_group(wgpu_context_t* wgpu_context)
 {
-  // Primitive state
-  WGPUPrimitiveState primitive_state = {
-    .topology  = WGPUPrimitiveTopology_PointList,
-    .frontFace = WGPUFrontFace_CCW,
-    .cullMode  = WGPUCullMode_Back,
+  UNUSED_VAR(wgpu_context);
+
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.gradient.texture.view,
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = state.gradient.texture.sampler,
+    },
   };
 
-  // Color target state
-  WGPUBlendState blend_state              = wgpu_create_blend_state(true);
-  blend_state.color.srcFactor             = WGPUBlendFactor_One;
-  blend_state.color.dstFactor             = WGPUBlendFactor_One;
-  blend_state.alpha.srcFactor             = WGPUBlendFactor_SrcAlpha;
-  blend_state.alpha.dstFactor             = WGPUBlendFactor_DstAlpha;
-  WGPUColorTargetState color_target_state = (WGPUColorTargetState){
-    .format    = wgpu_context->swap_chain.format,
-    .blend     = &blend_state,
-    .writeMask = WGPUColorWriteMask_All,
-  };
+  state.graphics.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Graphics bind group"),
+                            .layout     = state.graphics.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.graphics.bind_group != NULL);
+}
 
-  // Depth stencil state
-  WGPUDepthStencilState depth_stencil_state
-    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
-      .format              = WGPUTextureFormat_Depth24PlusStencil8,
-      .depth_write_enabled = false,
+static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
+{
+  /* Pipeline layout */
+  state.graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Graphics pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.graphics.bind_group_layout,
     });
+  ASSERT(state.graphics.pipeline_layout != NULL);
 
-  // Vertex buffer layout
+  /* Shader modules */
+  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_vertex_shader_wgsl);
+  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_fragment_shader_wgsl);
+
+  /* Blend state: additive blending */
+  WGPUBlendState blend_state  = wgpu_create_blend_state(true);
+  blend_state.color.srcFactor = WGPUBlendFactor_One;
+  blend_state.color.dstFactor = WGPUBlendFactor_One;
+  blend_state.alpha.srcFactor = WGPUBlendFactor_SrcAlpha;
+  blend_state.alpha.dstFactor = WGPUBlendFactor_DstAlpha;
+
+  /* Vertex buffer layout */
   WGPU_VERTEX_BUFFER_LAYOUT(
     particle, sizeof(particle_t),
-    // Attribute descriptions
-    // Describes memory layout and shader positions
-    // Attribute location 0: Position
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
                        offsetof(particle_t, pos)),
-    // Attribute location 1: Gradient position
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4,
                        offsetof(particle_t, gradient_pos)))
 
-  // Vertex state
-  WGPUVertexState vertex_state = wgpu_create_vertex_state(
-                wgpu_context, &(wgpu_vertex_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Vertex shader SPIR-V
-                  .label = "Particle - Vertex shader SPIR-V",
-                  .file  = "shaders/compute_particles/particle.vert.spv",
-                },
-                .buffer_count = 1,
-                .buffers      = &particle_vertex_buffer_layout,
-              });
-
-  // Fragment state
-  WGPUFragmentState fragment_state = wgpu_create_fragment_state(
-                wgpu_context, &(wgpu_fragment_state_t){
-                .shader_desc = (wgpu_shader_desc_t){
-                  // Fragment shader SPIR-V
-                  .label = "Particle - Fragment shader SPIR-V",
-                  .file  = "shaders/compute_particles/particle.frag.spv",
-                },
-                .target_count = 1,
-                .targets      = &color_target_state,
-              });
-
-  // Multisample state
-  WGPUMultisampleState multisample_state
-    = wgpu_create_multisample_state_descriptor(
-      &(create_multisample_state_desc_t){
-        .sample_count = 1,
-      });
-
-  // Create rendering pipeline using the specified states
-  graphics.pipeline = wgpuDeviceCreateRenderPipeline(
-    wgpu_context->device, &(WGPURenderPipelineDescriptor){
-                            .label        = "Particle - Render pipeline",
-                            .layout       = graphics.pipeline_layout,
-                            .primitive    = primitive_state,
-                            .vertex       = vertex_state,
-                            .fragment     = &fragment_state,
-                            .depthStencil = &depth_stencil_state,
-                            .multisample  = multisample_state,
-                          });
-  ASSERT(graphics.pipeline != NULL)
-
-  // Partial cleanup
-  WGPU_RELEASE_RESOURCE(ShaderModule, vertex_state.module);
-  WGPU_RELEASE_RESOURCE(ShaderModule, fragment_state.module);
-}
-
-static void setup_bind_groups(wgpu_context_t* wgpu_context)
-{
-  WGPUBindGroupEntry bg_entries[4] = {
-    [0] = (WGPUBindGroupEntry) {
-      /* Binding 0 : Particle color map texture */
-      .binding     = 0,
-      .textureView = textures.particle.view,
+  WGPURenderPipelineDescriptor rp_desc = {
+    .label  = STRVIEW("Particle render pipeline"),
+    .layout = state.graphics.pipeline_layout,
+    .vertex = {
+      .module      = vert_shader_module,
+      .entryPoint  = STRVIEW("vs_main"),
+      .bufferCount = 1,
+      .buffers     = &particle_vertex_buffer_layout,
     },
-    [1] = (WGPUBindGroupEntry) {
-       /* Binding 1 : Particle color map sampler */
-      .binding = 1,
-      .sampler = textures.particle.sampler,
+    .fragment = &(WGPUFragmentState){
+      .module      = frag_shader_module,
+      .entryPoint  = STRVIEW("fs_main"),
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState){
+        .format    = wgpu_context->render_format,
+        .blend     = &blend_state,
+        .writeMask = WGPUColorWriteMask_All,
+      },
     },
-    [2] = (WGPUBindGroupEntry) {
-       /* Binding 2 : Particle gradient ramp texture */
-      .binding     = 2,
-      .textureView = textures.gradient.view,
+    .primitive = {
+      .topology  = WGPUPrimitiveTopology_PointList,
+      .frontFace = WGPUFrontFace_CCW,
+      .cullMode  = WGPUCullMode_None,
     },
-    [3] = (WGPUBindGroupEntry) {
-      /* Binding 3 : Particle gradient ramp sampler */
-      .binding = 3,
-      .sampler = textures.gradient.sampler,
-    }
+    .multisample = {
+      .count = 1,
+      .mask  = 0xffffffff,
+    },
   };
 
-  WGPUBindGroupDescriptor bg_desc = {
-    .label      = "Particle color and gradient - Bind group",
-    .layout     = graphics.bind_group_layout,
-    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-    .entries    = bg_entries,
-  };
+  state.graphics.pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
+  ASSERT(state.graphics.pipeline != NULL);
 
-  graphics.bind_group
-    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
-  ASSERT(graphics.bind_group != NULL)
+  wgpuShaderModuleRelease(vert_shader_module);
+  wgpuShaderModuleRelease(frag_shader_module);
 }
 
-static void prepare_graphics(wgpu_example_context_t* context)
-{
-  wgpu_context_t* wgpu_context = context->wgpu_context;
+/* -- Compute pipeline ------------------------------------------------------ */
 
-  prepare_storage_buffers(wgpu_context);
-  prepare_uniform_buffers(context);
-  setup_pipeline_layout(wgpu_context);
-  prepare_pipelines(wgpu_context);
-  setup_bind_groups(wgpu_context);
-  setup_render_pass(wgpu_context);
-}
-
-static void prepare_compute(wgpu_context_t* wgpu_context)
+static void init_compute_pipeline(wgpu_context_t* wgpu_context)
 {
-  /* Compute pipeline layout */
+  /* Bind group layout */
   WGPUBindGroupLayoutEntry bgl_entries[2] = {
-    [0] = (WGPUBindGroupLayoutEntry) {
-      // Binding 0 : Particle position storage buffer
+    [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
       .visibility = WGPUShaderStage_Compute,
-      .buffer = (WGPUBufferBindingLayout) {
+      .buffer = (WGPUBufferBindingLayout){
         .type           = WGPUBufferBindingType_Storage,
         .minBindingSize = PARTICLE_COUNT * sizeof(particle_t),
       },
-      .sampler = {0},
     },
-    [1] = (WGPUBindGroupLayoutEntry) {
-      // Binding 1 : Uniform buffer
+    [1] = (WGPUBindGroupLayoutEntry){
       .binding    = 1,
       .visibility = WGPUShaderStage_Compute,
-      .buffer = (WGPUBufferBindingLayout) {
+      .buffer = (WGPUBufferBindingLayout){
         .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(compute.ubo),
+        .minBindingSize = sizeof(state.compute.ubo),
       },
-      .sampler = {0},
-    }
+    },
   };
-  WGPUBindGroupLayoutDescriptor bgl_desc = {
-    .label      = "Compute - Bind group layout",
-    .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
-    .entries    = bgl_entries,
-  };
-  compute.bind_group_layout
-    = wgpuDeviceCreateBindGroupLayout(wgpu_context->device, &bgl_desc);
-  ASSERT(compute.bind_group_layout != NULL)
 
-  WGPUPipelineLayoutDescriptor compute_pipeline_layout_desc = {
-    .bindGroupLayoutCount = 1,
-    .bindGroupLayouts     = &compute.bind_group_layout,
-  };
-  compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device, &compute_pipeline_layout_desc);
-  ASSERT(compute.pipeline_layout != NULL)
+  state.compute.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("Compute bind group layout"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
+                            .entries    = bgl_entries,
+                          });
+  ASSERT(state.compute.bind_group_layout != NULL);
 
-  /* Compute pipeline bind group */
+  /* Pipeline layout */
+  state.compute.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label                = STRVIEW("Compute pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.compute.bind_group_layout,
+    });
+  ASSERT(state.compute.pipeline_layout != NULL);
+
+  /* Bind group */
   WGPUBindGroupEntry bg_entries[2] = {
-    [0] = (WGPUBindGroupEntry) {
-      // Binding 0 : Particle position storage buffer
+    [0] = (WGPUBindGroupEntry){
       .binding = 0,
-      .buffer  = compute.storage_buffer.buffer,
-      .size    = compute.storage_buffer.size,
+      .buffer  = state.compute.storage_buffer.buffer,
+      .size    = state.compute.storage_buffer.size,
     },
-    [1] = (WGPUBindGroupEntry) {
-     // Binding 1 : Uniform buffer
+    [1] = (WGPUBindGroupEntry){
       .binding = 1,
-      .buffer  = compute.uniform_buffer.buffer,
+      .buffer  = state.compute.uniform_buffer.buffer,
       .offset  = 0,
-      .size    = compute.uniform_buffer.size,
+      .size    = state.compute.uniform_buffer.size,
     },
   };
-  WGPUBindGroupDescriptor bg_desc = {
-    .layout     = compute.bind_group_layout,
-    .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
-    .entries    = bg_entries,
-  };
-  compute.bind_group
-    = wgpuDeviceCreateBindGroup(wgpu_context->device, &bg_desc);
 
-  /* Compute shader */
-  wgpu_shader_t particle_comp_shader = wgpu_shader_create(
-    wgpu_context, &(wgpu_shader_desc_t){
-                    // Compute shader SPIR-V
-                    .label = "Particle - Compute shader SPIR-V",
-                    .file  = "shaders/compute_particles/particle.comp.spv",
-                  });
+  state.compute.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Compute bind group"),
+                            .layout     = state.compute.bind_group_layout,
+                            .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
+                            .entries    = bg_entries,
+                          });
+  ASSERT(state.compute.bind_group != NULL);
 
-  /* Create pipeline */
-  compute.pipeline = wgpuDeviceCreateComputePipeline(
+  /* Compute shader module */
+  WGPUShaderModule comp_shader_module = wgpu_create_shader_module(
+    wgpu_context->device, particle_compute_shader_wgsl);
+
+  /* Compute pipeline */
+  state.compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = "Particle - Compute pipeline",
-      .layout  = compute.pipeline_layout,
-      .compute = particle_comp_shader.programmable_stage_descriptor,
+      .label   = STRVIEW("Particle compute pipeline"),
+      .layout  = state.compute.pipeline_layout,
+      .compute = {
+        .module     = comp_shader_module,
+        .entryPoint = STRVIEW("main"),
+      },
     });
+  ASSERT(state.compute.pipeline != NULL);
 
-  /* Partial clean-up */
-  wgpu_shader_release(&particle_comp_shader);
+  wgpuShaderModuleRelease(comp_shader_module);
 }
 
-static int example_initialize(wgpu_example_context_t* context)
+/* -- GUI ------------------------------------------------------------------- */
+
+static void render_gui(wgpu_context_t* wgpu_context)
 {
-  if (context) {
-    load_assets(context->wgpu_context);
-    prepare_graphics(context);
-    prepare_compute(context->wgpu_context);
-    prepared = true;
+  UNUSED_VAR(wgpu_context);
+
+  igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
+                     (ImVec2){0.0f, 0.0f});
+  igSetNextWindowSize((ImVec2){260.0f, 0.0f}, ImGuiCond_FirstUseEver);
+
+  igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+  igCheckbox("Attach Attractor to Cursor", &state.settings.attach_to_cursor);
+  igEnd();
+}
+
+/* -- Main callbacks -------------------------------------------------------- */
+
+static int init(struct wgpu_context_t* wgpu_context)
+{
+  if (wgpu_context) {
+    stm_setup();
+    init_storage_buffer(wgpu_context);
+    init_uniform_buffer(wgpu_context);
+    init_gradient_texture(wgpu_context);
+    init_graphics_bind_group_layout(wgpu_context);
+    init_graphics_bind_group(wgpu_context);
+    init_graphics_pipeline(wgpu_context);
+    init_compute_pipeline(wgpu_context);
+    imgui_overlay_init(wgpu_context);
+    state.initialized = true;
     return EXIT_SUCCESS;
   }
 
   return EXIT_FAILURE;
 }
 
-static void example_on_update_ui_overlay(wgpu_example_context_t* context)
+static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (imgui_overlay_header("Settings")) {
-    imgui_overlay_checkBox(context->imgui_overlay, "Attach Attractor to Cursor",
-                           &attach_to_cursor);
-  }
-}
-
-static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
-{
-  render_pass.color_attachments[0].view = wgpu_context->swap_chain.frame_buffer;
-
-  /* Create command encoder */
-  wgpu_context->cmd_enc
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Compute pass: Compute particle movement */
-  {
-    wgpu_context->cpass_enc
-      = wgpuCommandEncoderBeginComputePass(wgpu_context->cmd_enc, NULL);
-    /* Dispatch the compute job */
-    wgpuComputePassEncoderSetPipeline(wgpu_context->cpass_enc,
-                                      compute.pipeline);
-    wgpuComputePassEncoderSetBindGroup(wgpu_context->cpass_enc, 0,
-                                       compute.bind_group, 0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(wgpu_context->cpass_enc,
-                                             PARTICLE_COUNT / 256, 1, 1);
-    wgpuComputePassEncoderEnd(wgpu_context->cpass_enc);
-    WGPU_RELEASE_RESOURCE(ComputePassEncoder, wgpu_context->cpass_enc)
-  }
-
-  /* Render pass: Draw the particle system using the update vertex buffer */
-  {
-    wgpu_context->rpass_enc = wgpuCommandEncoderBeginRenderPass(
-      wgpu_context->cmd_enc, &render_pass.descriptor);
-    wgpuRenderPassEncoderSetPipeline(wgpu_context->rpass_enc,
-                                     graphics.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(wgpu_context->rpass_enc, 0,
-                                      graphics.bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(wgpu_context->rpass_enc, 0,
-                                         compute.storage_buffer.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(wgpu_context->rpass_enc, PARTICLE_COUNT, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(wgpu_context->rpass_enc);
-    WGPU_RELEASE_RESOURCE(RenderPassEncoder, wgpu_context->rpass_enc)
-  }
-
-  /* Draw ui overlay */
-  draw_ui(wgpu_context->context, example_on_update_ui_overlay);
-
-  /* Get command buffer */
-  WGPUCommandBuffer command_buffer
-    = wgpu_get_command_buffer(wgpu_context->cmd_enc);
-  ASSERT(command_buffer != NULL)
-  WGPU_RELEASE_RESOURCE(CommandEncoder, wgpu_context->cmd_enc)
-
-  return command_buffer;
-}
-
-static int example_draw(wgpu_example_context_t* context)
-{
-  /* Prepare frame */
-  prepare_frame(context);
-
-  /* Command buffer to be submitted to the queue */
-  wgpu_context_t* wgpu_context                   = context->wgpu_context;
-  wgpu_context->submit_info.command_buffer_count = 1;
-  wgpu_context->submit_info.command_buffers[0]
-    = build_command_buffer(context->wgpu_context);
-
-  /* Submit to queue */
-  submit_command_buffers(context);
-
-  /* Submit frame */
-  submit_frame(context);
-
-  return EXIT_SUCCESS;
-}
-
-static int example_render(wgpu_example_context_t* context)
-{
-  if (!prepared) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
-  int result = example_draw(context);
 
-  if (!attach_to_cursor) {
-    if (animStart > 0.0f) {
-      animStart -= context->frame_timer * 5.0f;
+  /* Calculate delta time */
+  uint64_t current_time = stm_now();
+  if (state.last_frame_time == 0) {
+    state.last_frame_time = current_time;
+  }
+  float delta_time
+    = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
+  state.last_frame_time = current_time;
+  state.frame_timer     = delta_time;
+
+  /* Update animation */
+  if (!state.settings.attach_to_cursor) {
+    if (state.anim_start > 0.0f) {
+      state.anim_start -= delta_time * 5.0f;
     }
-    else if (animStart <= 0.0f) {
-      timer += context->frame_timer * 0.04f;
-      if (timer > 1.f) {
-        timer = 0.f;
+    else {
+      state.timer += delta_time * 0.04f;
+      if (state.timer > 1.0f) {
+        state.timer = 0.0f;
       }
     }
   }
 
-  update_uniform_buffers(context);
+  /* Update uniform buffer */
+  update_uniform_buffer(wgpu_context);
 
-  return result;
+  /* ImGui frame */
+  imgui_overlay_new_frame(wgpu_context, delta_time);
+  render_gui(wgpu_context);
+
+  WGPUDevice device = wgpu_context->device;
+  WGPUQueue queue   = wgpu_context->queue;
+
+  state.color_attachment.view = wgpu_context->swapchain_view;
+
+  WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
+
+  /* Compute pass: update particle positions */
+  {
+    WGPUComputePassEncoder cpass_enc
+      = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
+    wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute.pipeline);
+    wgpuComputePassEncoderSetBindGroup(cpass_enc, 0, state.compute.bind_group,
+                                       0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(cpass_enc, PARTICLE_COUNT / 256, 1,
+                                             1);
+    wgpuComputePassEncoderEnd(cpass_enc);
+    wgpuComputePassEncoderRelease(cpass_enc);
+  }
+
+  /* Render pass: draw particles */
+  {
+    WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
+      cmd_enc, &state.render_pass_descriptor);
+    wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.graphics.bind_group,
+                                      0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(
+      rpass_enc, 0, state.compute.storage_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDraw(rpass_enc, PARTICLE_COUNT, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(rpass_enc);
+    wgpuRenderPassEncoderRelease(rpass_enc);
+  }
+
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
+
+  wgpuQueueSubmit(queue, 1, &cmd_buffer);
+
+  /* Render imgui overlay */
+  imgui_overlay_render(wgpu_context);
+
+  /* Cleanup */
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(cmd_enc);
+
+  return EXIT_SUCCESS;
 }
 
-static void example_destroy(wgpu_example_context_t* context)
+static void shutdown(struct wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(context);
+  UNUSED_VAR(wgpu_context);
+  imgui_overlay_shutdown();
 
-  // Textures
-  wgpu_destroy_texture(&textures.particle);
-  wgpu_destroy_texture(&textures.gradient);
+  /* Gradient texture */
+  wgpu_destroy_texture(&state.gradient.texture);
 
-  // Graphics pipeline
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, graphics.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, graphics.bind_group)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, graphics.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(RenderPipeline, graphics.pipeline)
+  /* Graphics pipeline */
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.graphics.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.graphics.bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.graphics.pipeline)
 
-  // Compute pipeline
-  WGPU_RELEASE_RESOURCE(Buffer, compute.storage_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, compute.uniform_buffer.buffer)
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, compute.bind_group_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, compute.bind_group)
-  WGPU_RELEASE_RESOURCE(PipelineLayout, compute.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(ComputePipeline, compute.pipeline)
+  /* Compute pipeline */
+  WGPU_RELEASE_RESOURCE(Buffer, state.compute.storage_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.compute.uniform_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.compute.bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.compute.bind_group)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.compute.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
 }
 
-void example_compute_particles(int argc, char* argv[])
+static void input_event_cb(struct wgpu_context_t* wgpu_context,
+                           const input_event_t* input_event)
 {
-  // clang-format off
-  example_run(argc, argv, &(refexport_t){
-    .example_settings = (wgpu_example_settings_t){
-     .title  = example_title,
-     .overlay = true,
-     .vsync   = true,
-    },
-    .example_initialize_func = &example_initialize,
-    .example_render_func     = &example_render,
-    .example_destroy_func    = &example_destroy,
+  imgui_overlay_handle_input(wgpu_context, input_event);
+
+  /* Track cursor position for attractor */
+  if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
+    if (input_event->window_width > 0 && input_event->window_height > 0) {
+      state.cursor_x
+        = (input_event->mouse_x / (float)input_event->window_width) * 2.0f
+          - 1.0f;
+      state.cursor_y
+        = -((input_event->mouse_y / (float)input_event->window_height) * 2.0f
+            - 1.0f);
+    }
+  }
+}
+
+int main(void)
+{
+  wgpu_start(&(wgpu_desc_t){
+    .title          = "Compute Shader Particle System",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
-  // clang-format on
+
+  return EXIT_SUCCESS;
 }
+
+/* -------------------------------------------------------------------------- *
+ * WGSL Shaders
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+static const char* particle_vertex_shader_wgsl = CODE(
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) gradient_pos : f32,
+  };
+
+  @vertex
+  fn vs_main(
+    @location(0) pos : vec2<f32>,
+    @location(1) gradient_pos_in : vec4<f32>
+  ) -> VertexOutput {
+    var output : VertexOutput;
+    output.position = vec4<f32>(pos, 1.0, 1.0);
+    output.gradient_pos = gradient_pos_in.x;
+    return output;
+  }
+);
+
+static const char* particle_fragment_shader_wgsl = CODE(
+  @group(0) @binding(0) var gradient_texture : texture_2d<f32>;
+  @group(0) @binding(1) var gradient_sampler : sampler;
+
+  @fragment
+  fn fs_main(
+    @location(0) gradient_pos : f32
+  ) -> @location(0) vec4<f32> {
+    let gradient_color = textureSample(
+      gradient_texture, gradient_sampler, vec2<f32>(gradient_pos, 0.0)
+    );
+    return vec4<f32>(gradient_color.rgb, 1.0);
+  }
+);
+
+static const char* particle_compute_shader_wgsl = CODE(
+  struct Particle {
+    pos : vec2<f32>,
+    vel : vec2<f32>,
+    gradient_pos : vec4<f32>,
+  };
+
+  struct Params {
+    delta_t : f32,
+    dest_x : f32,
+    dest_y : f32,
+    particle_count : i32,
+  };
+
+  @group(0) @binding(0) var<storage, read_write> particles : array<Particle>;
+  @group(0) @binding(1) var<uniform> params : Params;
+
+  fn attraction(pos : vec2<f32>, attract_pos : vec2<f32>) -> vec2<f32> {
+    let delta = attract_pos - pos;
+    let damp = 0.5;
+    let d_damped_dot = dot(delta, delta) + damp;
+    let inv_dist = 1.0 / sqrt(d_damped_dot);
+    let inv_dist_cubed = inv_dist * inv_dist * inv_dist;
+    return delta * inv_dist_cubed * 0.0035;
+  }
+
+  fn repulsion(pos : vec2<f32>, attract_pos : vec2<f32>) -> vec2<f32> {
+    let delta = attract_pos - pos;
+    let target_distance = sqrt(dot(delta, delta));
+    return delta * (1.0 / (target_distance * target_distance * target_distance))
+           * -0.000035;
+  }
+
+  @compute @workgroup_size(256)
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    let index = global_id.x;
+    if (index >= u32(params.particle_count)) {
+      return;
+    }
+
+    var v_vel = particles[index].vel;
+    var v_pos = particles[index].pos;
+
+    let dest_pos = vec2<f32>(params.dest_x, params.dest_y);
+
+    v_vel = v_vel + attraction(v_pos, dest_pos) * 0.5;
+    v_vel = v_vel + repulsion(v_pos, dest_pos) * 0.05;
+
+    /* Move by velocity */
+    v_pos = v_pos + v_vel * params.delta_t;
+
+    /* Collide with boundary */
+    if (v_pos.x < -1.0 || v_pos.x > 1.0 || v_pos.y < -1.0 || v_pos.y > 1.0) {
+      v_vel = (-v_vel * 0.1) + attraction(v_pos, dest_pos) * 12.0;
+    } else {
+      particles[index].pos = v_pos;
+    }
+
+    /* Write back velocity */
+    particles[index].vel = v_vel;
+    particles[index].gradient_pos.x = particles[index].gradient_pos.x
+                                      + 0.02 * params.delta_t;
+    if (particles[index].gradient_pos.x > 1.0) {
+      particles[index].gradient_pos.x =
+        particles[index].gradient_pos.x - 1.0;
+    }
+  }
+);
+// clang-format on
