@@ -1127,14 +1127,14 @@ static void init_file_loading(void)
 {
   /* Start loading OBJ file */
   sfetch_send(&(sfetch_request_t){
-    .path     = "assets/sphere.obj",
+    .path     = "assets/models/sphere.obj",
     .callback = obj_fetch_callback,
     .buffer   = SFETCH_RANGE(state.obj_file_buffer),
   });
 
   /* Start loading HDR file */
   sfetch_send(&(sfetch_request_t){
-    .path     = "assets/venice_sunset_1k.hdr",
+    .path     = "assets/textures/venice_sunset_1k.hdr",
     .callback = hdr_fetch_callback,
     .buffer   = SFETCH_RANGE(state.hdr_file_buffer),
   });
