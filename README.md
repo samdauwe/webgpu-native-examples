@@ -518,7 +518,7 @@ This example shows how to render tile maps using WebGPU. The map is rendered usi
 
 #### [Blinn-Phong Lighting](src/examples/blinn_phong_lighting.c)
 
-This example demonstrates how to render a torus knot mesh with blinn-phong lighting model.
+This example demonstrates how to render a torus knot mesh with Blinn-Phong lighting model. A small sphere represents the orbiting light source position. The scene includes diffuse texturing, ambient lighting, and specular highlights using the Blinn-Phong BRDF with point light attenuation and gamma correction. Lighting parameters such as shininess, light flux, and ambient color can be adjusted interactively via the GUI.
 
 #### [Normal Mapping](src/examples/normal_mapping.c)
 
