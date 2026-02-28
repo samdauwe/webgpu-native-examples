@@ -435,10 +435,6 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 Demonstrates the basics of fullscreen shader effects. The scene is rendered into an offscreen framebuffer at lower resolution and rendered as a fullscreen quad atop the scene using a radial blur fragment shader.
 
-#### [Bloom](src/examples/bloom.c)
-
-Advanced fullscreen effect example adding a bloom effect to a scene. Glowing scene parts are rendered to a low res offscreen framebuffer that is applied atop the scene using a two pass separated gaussian blur.
-
 #### [Normal Mapping](src/examples/normal_map.c)
 
 This example demonstrates multiple different methods that employ fragment shaders to achieve additional perceptual depth on the surface of a cube mesh. Demonstrated methods include normal mapping, parallax mapping, and steep parallax mapping.
