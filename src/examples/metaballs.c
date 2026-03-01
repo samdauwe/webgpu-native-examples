@@ -23,18 +23,8 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
 /* Forward declare - not included directly due to header conflicts */
@@ -1062,9 +1052,9 @@ static void load_environment_model(wgpu_context_t* wgpu_context)
 
     if (raw_data && raw_size > 0) {
       int img_w, img_h, img_channels;
-      stbi_uc* pixels
-        = stbi_load_from_memory((const stbi_uc*)raw_data, (int)raw_size, &img_w,
-                                &img_h, &img_channels, 4);
+      uint8_t* pixels
+        = image_pixels_from_memory((const uint8_t*)raw_data, (int)raw_size,
+                                   &img_w, &img_h, &img_channels, 4);
       if (pixels) {
         WGPUExtent3D tex_size = {
           .width              = (uint32_t)img_w,
@@ -1090,7 +1080,7 @@ static void load_environment_model(wgpu_context_t* wgpu_context)
                                     .mipLevelCount   = 1,
                                     .arrayLayerCount = 1,
                                   });
-        stbi_image_free(pixels);
+        image_free(pixels);
       }
     }
   }
@@ -1320,9 +1310,9 @@ static void fetch_callback(const sfetch_response_t* response)
     return;
   }
   int img_width, img_height, num_channels;
-  stbi_uc* pixels
-    = stbi_load_from_memory(response->data.ptr, (int)response->data.size,
-                            &img_width, &img_height, &num_channels, 4);
+  uint8_t* pixels
+    = image_pixels_from_memory(response->data.ptr, (int)response->data.size,
+                               &img_width, &img_height, &num_channels, 4);
   if (pixels) {
     state.texture.desc = (wgpu_texture_desc_t){
       .extent = (WGPUExtent3D){

@@ -23,16 +23,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Post-processing
@@ -990,7 +981,7 @@ static void cutoff_mask_fetch_cb(const sfetch_response_t* response)
   }
 
   int w = 0, h = 0, ch = 0;
-  stbi_uc* pixels = stbi_load_from_memory(
+  uint8_t* pixels = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &w, &h, &ch, 4);
   if (pixels) {
     wgpu_texture_t* tex = *(wgpu_texture_t**)response->user_data;

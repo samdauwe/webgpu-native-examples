@@ -13,19 +13,9 @@
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -1342,7 +1332,7 @@ static void skybox_fetch_callback(const sfetch_response_t* response)
   /* Decode the image data */
   int img_width, img_height, num_channels;
   const int desired_channels = 4;
-  stbi_uc* decoded_pixels    = stbi_load_from_memory(
+  uint8_t* decoded_pixels    = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_width, &img_height,
     &num_channels, desired_channels);
 
@@ -1350,7 +1340,7 @@ static void skybox_fetch_callback(const sfetch_response_t* response)
     assert(img_width == SKYBOX_FACE_WIDTH);
     assert(img_height == SKYBOX_FACE_HEIGHT);
     memcpy((void*)response->buffer.ptr, decoded_pixels, SKYBOX_FACE_BYTES);
-    stbi_image_free(decoded_pixels);
+    image_free(decoded_pixels);
     ++state.skybox.load_count;
 
     /* Mark texture as dirty if all faces are loaded */

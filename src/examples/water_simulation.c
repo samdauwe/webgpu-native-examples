@@ -27,16 +27,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Water Simulation
@@ -676,9 +667,9 @@ static int example_frame(wgpu_context_t* wgpu_context)
   /* Create tiles texture if data is loaded but texture not yet created */
   if (state.file_loading.tiles_loaded && !state.tiles_texture.handle) {
     int width, height, channels;
-    stbi_uc* pixels = stbi_load_from_memory(
+    uint8_t* pixels = image_pixels_from_memory(
       state.file_loading.file_buffer, (int)state.file_loading.loaded_data_size,
-      &width, &height, &channels, STBI_rgb_alpha);
+      &width, &height, &channels, 4);
 
     if (pixels) {
       state.tiles_texture = wgpu_create_texture(
@@ -700,7 +691,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
                                 .maxAnisotropy = 1,
                               });
 
-      stbi_image_free(pixels);
+      image_free(pixels);
     }
     else {
       /* Create fallback texture if loading fails */
@@ -727,15 +718,14 @@ static int example_frame(wgpu_context_t* wgpu_context)
   if (state.file_loading.skybox_ready && !state.skybox_texture.handle) {
     /* Decode all 6 faces and determine dimensions */
     int width = 0, height = 0;
-    stbi_uc* face_pixels[6] = {NULL};
+    uint8_t* face_pixels[6] = {NULL};
     bool all_loaded         = true;
 
     for (int i = 0; i < 6 && all_loaded; i++) {
       int w, h, channels;
-      face_pixels[i]
-        = stbi_load_from_memory(state.file_loading.skybox_buffers[i],
-                                (int)state.file_loading.skybox_sizes[i], &w, &h,
-                                &channels, STBI_rgb_alpha);
+      face_pixels[i] = image_pixels_from_memory(
+        state.file_loading.skybox_buffers[i],
+        (int)state.file_loading.skybox_sizes[i], &w, &h, &channels, 4);
       if (face_pixels[i]) {
         if (width == 0) {
           width  = w;
@@ -815,7 +805,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
     /* Free face pixels */
     for (int i = 0; i < 6; i++) {
       if (face_pixels[i]) {
-        stbi_image_free(face_pixels[i]);
+        image_free(face_pixels[i]);
       }
     }
   }

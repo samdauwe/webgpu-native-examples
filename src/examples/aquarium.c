@@ -28,16 +28,7 @@
 /* cJSON for JSON parsing */
 #include <cJSON.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Aquarium
@@ -2349,14 +2340,14 @@ static texture_record_t* texture_cache_load_texture(texture_cache_t* this,
   /* Load texture data */
   int32_t img_width = 0, img_height = 0, img_channels = 0, depth = 4,
           mip_levels = 1;
-  stbi_set_flip_vertically_on_load(true);
-  uint8_t* img_data
-    = stbi_load(url, &img_width, &img_height, &img_channels, depth);
+  image_set_flip_vertically_on_load(true);
+  uint8_t* img_data = image_pixels_from_file(url, &img_width, &img_height,
+                                             &img_channels, depth);
 
   /* Check if image loaded successfully */
   if (img_data == NULL || img_width == 0 || img_height == 0) {
     fprintf(stderr, "Failed to load texture: %s (reason: %s)\n", url,
-            stbi_failure_reason());
+            image_failure_reason());
     return NULL;
   }
 
@@ -2412,7 +2403,7 @@ static texture_record_t* texture_cache_load_texture(texture_cache_t* this,
   record->url[sizeof(record->url) - 1] = '\0';
 
   if (img_data) {
-    stbi_image_free(img_data);
+    image_free(img_data);
   }
 
   return record;
@@ -2460,13 +2451,14 @@ texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
    * Load faces in standard order: +X, -X, +Y, -Y, +Z, -Z (indices 0-5)
    * No swapping or flipping needed - the source images are already correctly
    * oriented for WebGPU's coordinate system. */
-  stbi_set_flip_vertically_on_load(false);
+  image_set_flip_vertically_on_load(false);
   for (uint8_t face = 0; face < NUM_FACES; ++face) {
     bitmap_t* bitmap   = &bitmaps[face];
     bitmap->depth      = 4;
     bitmap->mip_levels = 1;
-    bitmap->pixels     = stbi_load(urls[face], &bitmap->width, &bitmap->height,
-                                   &bitmap->channels, bitmap->depth);
+    bitmap->pixels
+      = image_pixels_from_file(urls[face], &bitmap->width, &bitmap->height,
+                               &bitmap->channels, bitmap->depth);
   }
 
   const int32_t width      = bitmaps[0].width;
@@ -2568,7 +2560,7 @@ texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
     /* Clean up staging resources and pixel data */
     for (uint32_t face = 0; face < NUM_FACES; ++face) {
       WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face]);
-      stbi_image_free(bitmaps[face].pixels);
+      image_free(bitmaps[face].pixels);
     }
   }
 

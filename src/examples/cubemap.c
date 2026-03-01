@@ -11,16 +11,7 @@
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Cubemap
@@ -210,14 +201,14 @@ static void fetch_callback(const sfetch_response_t* response)
    * can be sure that all data has been loaded here */
   int img_width, img_height, num_channels;
   const int desired_channels = 4;
-  stbi_uc* decoded_pixels    = stbi_load_from_memory(
+  uint8_t* decoded_pixels    = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_width, &img_height,
     &num_channels, desired_channels);
   if (decoded_pixels) {
     assert(img_width == FACE_WIDTH);
     assert(img_height == FACE_HEIGHT);
     memcpy((void*)response->buffer.ptr, decoded_pixels, FACE_NUM_BYTES);
-    stbi_image_free(decoded_pixels);
+    image_free(decoded_pixels);
     ++state.load_count;
   }
 }

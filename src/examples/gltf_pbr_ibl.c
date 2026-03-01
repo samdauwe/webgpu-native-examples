@@ -8,19 +8,9 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -1589,8 +1579,6 @@ static uint32_t hash_string(const char* value)
  * HDR Image Loading using stb_image
  * -------------------------------------------------------------------------- */
 
-/* stb_image already included at top of file - removed duplicate include */
-
 /* HDR image data structure */
 typedef struct {
   uint32_t width;
@@ -1598,24 +1586,24 @@ typedef struct {
   float exposure;
   float gamma;
   float* data; /* RGBA32F data */
-} hdr_image_t;
+} pbr_hdr_image_t;
 
 /**
  * @brief Load HDR image from memory buffer
  */
 static bool load_hdr_image(const void* buffer, size_t buffer_size,
-                           hdr_image_t* out_image)
+                           pbr_hdr_image_t* out_image)
 {
   if (!buffer || !out_image) {
     return false;
   }
 
-  memset(out_image, 0, sizeof(hdr_image_t));
+  memset(out_image, 0, sizeof(pbr_hdr_image_t));
 
   int width, height, channels;
-  float* data
-    = stbi_loadf_from_memory((const unsigned char*)buffer, (int)buffer_size,
-                             &width, &height, &channels, 4);
+  float* data = image_pixels_hdr_from_memory((const unsigned char*)buffer,
+                                             (int)buffer_size, &width, &height,
+                                             &channels, 4);
 
   if (!data) {
     return false;
@@ -1633,10 +1621,10 @@ static bool load_hdr_image(const void* buffer, size_t buffer_size,
 /**
  * @brief Free HDR image data
  */
-static void free_hdr_image(hdr_image_t* image)
+static void free_hdr_image(pbr_hdr_image_t* image)
 {
   if (image && image->data) {
-    stbi_image_free(image->data);
+    image_free(image->data);
     image->data = NULL;
   }
 }
@@ -1672,7 +1660,7 @@ static const char* cubemap_vertex_shader_wgsl = CODE(
  */
 static WGPUTexture
 convert_equirectangular_to_cubemap(wgpu_context_t* wgpu_context,
-                                   hdr_image_t* hdr, uint32_t size)
+                                   pbr_hdr_image_t* hdr, uint32_t size)
 {
   /* Create vertex buffer */
   WGPUBuffer cubemap_vertices_buffer = create_buffer_with_data(
@@ -3262,8 +3250,8 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
       if (image->buffer_view) {
         cgltf_buffer_view* view = image->buffer_view;
         uint8_t* data           = (uint8_t*)view->buffer->data + view->offset;
-        pixels = stbi_load_from_memory(data, (int)view->size, &width, &height,
-                                       &channels, 4);
+        pixels = image_pixels_from_memory(data, (int)view->size, &width,
+                                          &height, &channels, 4);
       }
 
       if (pixels) {
@@ -3308,7 +3296,7 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
           generate_mipmaps(wgpu_context, state.gltf_textures[i], width, height,
                            mip_levels);
         }
-        stbi_image_free(pixels);
+        image_free(pixels);
       }
     }
   }
@@ -3579,7 +3567,7 @@ static void process_hdr_data(wgpu_context_t* wgpu_context)
   }
 
   /* Load HDR image */
-  hdr_image_t hdr;
+  pbr_hdr_image_t hdr;
   if (!load_hdr_image(state.hdr_buffer, state.hdr_buffer_size, &hdr)) {
     return;
   }

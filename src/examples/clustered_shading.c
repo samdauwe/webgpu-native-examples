@@ -5,7 +5,6 @@
 #define CGLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <cglm/cglm.h>
 
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
 #define SOKOL_TIME_IMPL
@@ -15,16 +14,7 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -1352,9 +1342,9 @@ static bool decode_glb_images_batch(wgpu_context_t* wgpu_context)
 
     if (raw_data && raw_size > 0) {
       int img_w, img_h, img_channels;
-      stbi_uc* pixels
-        = stbi_load_from_memory((const stbi_uc*)raw_data, (int)raw_size, &img_w,
-                                &img_h, &img_channels, 4);
+      uint8_t* pixels
+        = image_pixels_from_memory((const uint8_t*)raw_data, (int)raw_size,
+                                   &img_w, &img_h, &img_channels, 4);
       if (pixels) {
         WGPUExtent3D tex_size          = {(uint32_t)img_w, (uint32_t)img_h, 1};
         state.gltf.images[idx].texture = wgpuDeviceCreateTexture(
@@ -1372,7 +1362,7 @@ static bool decode_glb_images_batch(wgpu_context_t* wgpu_context)
         state.gltf.images[idx].view
           = wgpuTextureCreateView(state.gltf.images[idx].texture, NULL);
         state.gltf.images[idx].loaded = true;
-        stbi_image_free(pixels);
+        image_free(pixels);
         any_loaded = true;
       }
     }

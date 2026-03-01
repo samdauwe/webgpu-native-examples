@@ -8,16 +8,7 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#endif
-#include <stb_image.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-#undef STB_IMAGE_IMPLEMENTATION
+#include "core/image_loader.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -415,7 +406,7 @@ typedef struct {
   uint32_t width;
   uint32_t height;
   uint16_t* data; /* Float16 data (RGBA) */
-} hdr_image_t;
+} obj_hdr_image_t;
 
 /* -------------------------------------------------------------------------- *
  * Main state structure
@@ -424,7 +415,7 @@ typedef struct {
 static struct {
   camera_t camera;
   obj_data_t obj;
-  hdr_image_t hdr;
+  obj_hdr_image_t hdr;
 
   /* File loading */
   uint8_t obj_file_buffer[1024 * 1024];     /* 1MB for OBJ file */
@@ -1038,7 +1029,7 @@ static void init_cubemap_view_matrices(void)
  * @brief Load HDR file using stb_image and convert to float16
  */
 static bool load_hdr_file(const uint8_t* buffer, size_t buffer_size,
-                          hdr_image_t* hdr)
+                          obj_hdr_image_t* hdr)
 {
   if (!buffer || !hdr || buffer_size == 0) {
     return false;
@@ -1046,17 +1037,17 @@ static bool load_hdr_file(const uint8_t* buffer, size_t buffer_size,
 
   /* Load HDR using stb_image */
   int width, height, channels;
-  float* hdr_data = stbi_loadf_from_memory(buffer, (int)buffer_size, &width,
-                                           &height, &channels, 4);
+  float* hdr_data = image_pixels_hdr_from_memory(buffer, (int)buffer_size,
+                                                 &width, &height, &channels, 4);
   if (!hdr_data) {
-    printf("Failed to load HDR: %s\n", stbi_failure_reason());
+    printf("Failed to load HDR: %s\n", image_failure_reason());
     return false;
   }
 
   /* Convert float32 to float16 */
   hdr->data = (uint16_t*)malloc(width * height * 4 * sizeof(uint16_t));
   if (!hdr->data) {
-    stbi_image_free(hdr_data);
+    image_free(hdr_data);
     return false;
   }
 
@@ -1064,7 +1055,7 @@ static bool load_hdr_file(const uint8_t* buffer, size_t buffer_size,
     hdr->data[i] = float32_to_float16(hdr_data[i]);
   }
 
-  stbi_image_free(hdr_data);
+  image_free(hdr_data);
 
   hdr->width  = (uint32_t)width;
   hdr->height = (uint32_t)height;
