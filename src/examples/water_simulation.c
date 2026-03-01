@@ -667,9 +667,10 @@ static int example_frame(wgpu_context_t* wgpu_context)
   /* Create tiles texture if data is loaded but texture not yet created */
   if (state.file_loading.tiles_loaded && !state.tiles_texture.handle) {
     int width, height, channels;
-    uint8_t* pixels = image_pixels_from_memory(
+    const int desired_channels = 4;
+    uint8_t* pixels            = image_pixels_from_memory(
       state.file_loading.file_buffer, (int)state.file_loading.loaded_data_size,
-      &width, &height, &channels, 4);
+      &width, &height, &channels, desired_channels);
 
     if (pixels) {
       state.tiles_texture = wgpu_create_texture(
@@ -723,9 +724,11 @@ static int example_frame(wgpu_context_t* wgpu_context)
 
     for (int i = 0; i < 6 && all_loaded; i++) {
       int w, h, channels;
-      face_pixels[i] = image_pixels_from_memory(
-        state.file_loading.skybox_buffers[i],
-        (int)state.file_loading.skybox_sizes[i], &w, &h, &channels, 4);
+      const int desired_channels = 4;
+      face_pixels[i]
+        = image_pixels_from_memory(state.file_loading.skybox_buffers[i],
+                                   (int)state.file_loading.skybox_sizes[i], &w,
+                                   &h, &channels, desired_channels);
       if (face_pixels[i]) {
         if (width == 0) {
           width  = w;

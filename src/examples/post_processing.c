@@ -981,8 +981,10 @@ static void cutoff_mask_fetch_cb(const sfetch_response_t* response)
   }
 
   int w = 0, h = 0, ch = 0;
-  uint8_t* pixels = image_pixels_from_memory(
-    response->data.ptr, (int)response->data.size, &w, &h, &ch, 4);
+  const int desired_channels = 4;
+  uint8_t* pixels
+    = image_pixels_from_memory(response->data.ptr, (int)response->data.size, &w,
+                               &h, &ch, desired_channels);
   if (pixels) {
     wgpu_texture_t* tex = *(wgpu_texture_t**)response->user_data;
     tex->desc           = (wgpu_texture_desc_t){

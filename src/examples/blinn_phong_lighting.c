@@ -373,9 +373,10 @@ static void texture_fetch_callback(const sfetch_response_t* response)
   }
 
   int img_width, img_height, num_channels;
-  uint8_t* pixels
-    = image_pixels_from_memory(response->data.ptr, (int)response->data.size,
-                               &img_width, &img_height, &num_channels, 4);
+  const int desired_channels = 4;
+  uint8_t* pixels            = image_pixels_from_memory(
+    response->data.ptr, (int)response->data.size, &img_width, &img_height,
+    &num_channels, desired_channels);
   if (pixels) {
     wgpu_texture_t* texture = &state.textures.face;
     texture->desc           = (wgpu_texture_desc_t){

@@ -1342,9 +1342,10 @@ static bool decode_glb_images_batch(wgpu_context_t* wgpu_context)
 
     if (raw_data && raw_size > 0) {
       int img_w, img_h, img_channels;
-      uint8_t* pixels
-        = image_pixels_from_memory((const uint8_t*)raw_data, (int)raw_size,
-                                   &img_w, &img_h, &img_channels, 4);
+      const int desired_channels = 4;
+      uint8_t* pixels            = image_pixels_from_memory(
+        (const uint8_t*)raw_data, (int)raw_size, &img_w, &img_h, &img_channels,
+        desired_channels);
       if (pixels) {
         WGPUExtent3D tex_size          = {(uint32_t)img_w, (uint32_t)img_h, 1};
         state.gltf.images[idx].texture = wgpuDeviceCreateTexture(

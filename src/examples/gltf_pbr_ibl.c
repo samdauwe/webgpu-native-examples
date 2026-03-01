@@ -3248,10 +3248,11 @@ static void process_gltf_data(wgpu_context_t* wgpu_context)
       uint8_t* pixels = NULL;
 
       if (image->buffer_view) {
-        cgltf_buffer_view* view = image->buffer_view;
-        uint8_t* data           = (uint8_t*)view->buffer->data + view->offset;
-        pixels = image_pixels_from_memory(data, (int)view->size, &width,
-                                          &height, &channels, 4);
+        const int desired_channels = 4;
+        cgltf_buffer_view* view    = image->buffer_view;
+        uint8_t* data = (uint8_t*)view->buffer->data + view->offset;
+        pixels        = image_pixels_from_memory(data, (int)view->size, &width,
+                                                 &height, &channels, desired_channels);
       }
 
       if (pixels) {
