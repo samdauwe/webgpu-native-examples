@@ -166,6 +166,28 @@ void wgpu_destroy_texture(wgpu_texture_t* texture);
 
 /* -------------------------------------------------------------------------- *
  * WebGPU mipmap generator
+ *
+ * Usage example:
+ *
+ *  // Simple: auto mip levels + generation
+ *  wgpu_texture_t tex = wgpu_create_texture(ctx, &(wgpu_texture_desc_t){
+ *    .extent = {512, 512, 1},
+ *    .format = WGPUTextureFormat_RGBA8Unorm,
+ *    .pixels = { .ptr = data, .size = data_size },
+ *    .generate_mipmaps = 1, // <-- just set this
+ *  });
+ *
+ *  // Cube texture with explicit view hint
+ *  wgpu_texture_t cube = wgpu_create_texture(ctx, &(wgpu_texture_desc_t){
+ *    .extent = {256, 256, 6},
+ *    .format = WGPUTextureFormat_RGBA8Unorm,
+ *    .pixels = { .ptr = cube_data, .size = cube_data_size },
+ *    .generate_mipmaps = 1,
+ *    .mipmap_view_dimension = WGPU_MIPMAP_VIEW_CUBE,
+ *  });
+ *
+ *  // Or call directly on an existing texture
+ *  gpu_generate_mipmaps(ctx, my_texture, WGPU_MIPMAP_VIEW_2D);
  * -------------------------------------------------------------------------- */
 
 /**
