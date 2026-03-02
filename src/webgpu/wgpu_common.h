@@ -45,6 +45,9 @@ typedef struct {
   uint32_t required_feature_count;
 } wgpu_desc_t;
 
+/* Forward declaration */
+typedef struct wgpu_mipmap_generator_t wgpu_mipmap_generator_t;
+
 struct wgpu_context_t {
   wgpu_desc_t desc;
   WGPUBool async_setup_failed;
@@ -64,6 +67,7 @@ struct wgpu_context_t {
   WGPUTextureView swapchain_view;
   WGPUTextureView msaa_view;
   WGPUTextureView depth_stencil_view;
+  wgpu_mipmap_generator_t* mipmap_generator; /* Lazily created on demand */
 };
 
 void wgpu_start(const wgpu_desc_t* desc);
@@ -114,6 +118,18 @@ void wgpu_destroy_buffer(wgpu_buffer_t* buffer);
  * WebGPU texture helper functions
  * -------------------------------------------------------------------------- */
 
+/**
+ * @brief Texture view dimension hint for mipmap generation.
+ * When set to _Undefined, the dimension is auto-detected from the texture.
+ */
+typedef enum wgpu_mipmap_view_dimension_t {
+  WGPU_MIPMAP_VIEW_UNDEFINED = 0, /* Auto-detect from texture */
+  WGPU_MIPMAP_VIEW_2D,            /* 2D texture */
+  WGPU_MIPMAP_VIEW_2D_ARRAY,      /* 2D array texture */
+  WGPU_MIPMAP_VIEW_CUBE,          /* Cube texture */
+  WGPU_MIPMAP_VIEW_CUBE_ARRAY,    /* Cube array texture */
+} wgpu_mipmap_view_dimension_t;
+
 typedef struct wgpu_texture_desc_t {
   WGPUExtent3D extent;
   WGPUTextureFormat format;
@@ -123,7 +139,9 @@ typedef struct wgpu_texture_desc_t {
     const void* ptr;
     size_t size;
   } pixels;
-  int8_t is_dirty; /* Pixel data has been update */
+  int8_t is_dirty;         /* Pixel data has been updated */
+  int8_t generate_mipmaps; /* Generate mipmaps after texture creation */
+  wgpu_mipmap_view_dimension_t mipmap_view_dimension; /* View dimension hint */
 } wgpu_texture_desc_t;
 
 typedef struct wgpu_texture_t {
@@ -145,6 +163,38 @@ void wgpu_recreate_texture(struct wgpu_context_t* wgpu_context,
 void wgpu_image_to_texure(wgpu_context_t* wgpu_context, WGPUTexture texture,
                           void* pixels, WGPUExtent3D size, uint32_t channels);
 void wgpu_destroy_texture(wgpu_texture_t* texture);
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU mipmap generator
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Computes the number of mip levels for a texture of the given size.
+ */
+uint32_t wgpu_texture_mip_level_count(uint32_t width, uint32_t height);
+
+/**
+ * @brief Generates mipmaps for the given texture.
+ *
+ * Creates a render pipeline (cached per format+view dimension) that samples
+ * from mip level N-1 and renders into mip level N using a fullscreen triangle
+ * with bilinear filtering. Supports 2D, 2D-array, cube, and cube-array
+ * textures.
+ *
+ * The mipmap generator is lazily created and cached in wgpu_context_t.
+ *
+ * @param wgpu_context  The WebGPU context (generator is cached here)
+ * @param texture       The texture to generate mipmaps for
+ * @param view_dim      View dimension hint (0 = auto-detect)
+ */
+void wgpu_generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
+                           wgpu_mipmap_view_dimension_t view_dim);
+
+/**
+ * @brief Destroys the cached mipmap generator and frees all resources.
+ * Called automatically during context shutdown.
+ */
+void wgpu_mipmap_generator_destroy(wgpu_mipmap_generator_t* generator);
 
 /* -------------------------------------------------------------------------- *
  * WebGPU shader helper functions

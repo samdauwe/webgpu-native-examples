@@ -571,6 +571,11 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
     frame_count++;
   }
   wgpu_context->desc.shutdown_cb(wgpu_context_struct);
+  /* Clean up mipmap generator if it was created */
+  if (wgpu_context->mipmap_generator) {
+    wgpu_mipmap_generator_destroy(wgpu_context->mipmap_generator);
+    wgpu_context->mipmap_generator = NULL;
+  }
   wgpu_swapchain_discard(wgpu_context);
   wgpuDeviceRelease(wgpu_context->device);
   wgpuAdapterRelease(wgpu_context->adapter);
@@ -923,6 +928,10 @@ void wgpu_destroy_buffer(wgpu_buffer_t* buffer)
  * WebGPU texture helper functions
  * -------------------------------------------------------------------------- */
 
+/* Forward declaration for mipmap_view_to_wgpu (defined in mipmap generator) */
+static WGPUTextureViewDimension
+mipmap_view_to_wgpu(wgpu_mipmap_view_dimension_t dim);
+
 wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
                                    const wgpu_texture_desc_t* desc)
 {
@@ -934,13 +943,23 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
   const uint32_t width  = VALUE_OR_DEFAULT(desc, extent.width, 16);
   const uint32_t height = VALUE_OR_DEFAULT(desc, extent.height, 16);
   const uint32_t depth_or_array_layers
-    = VALUE_OR_DEFAULT(desc, extent.depthOrArrayLayers, 1);
-  (void)depth_or_array_layers; /* Currently unused, texture depth is hardcoded
-                                  to 1 */
+    = MAX(1, VALUE_OR_DEFAULT(desc, extent.depthOrArrayLayers, 1));
   const WGPUTextureFormat format
     = VALUE_OR_DEFAULT(desc, format, WGPUTextureFormat_RGBA8Unorm);
-  const uint32_t mip_level_count
-    = MAX(1, VALUE_OR_DEFAULT(desc, mip_level_count, 1));
+  const int8_t gen_mipmaps = desc ? desc->generate_mipmaps : 0;
+
+  /* Calculate mip level count: auto-compute if generate_mipmaps is set and
+   * mip_level_count is 0 or 1 */
+  uint32_t mip_level_count;
+  if (gen_mipmaps && (!desc || desc->mip_level_count <= 1)) {
+    mip_level_count = wgpu_texture_mip_level_count(width, height);
+  }
+  else {
+    mip_level_count = MAX(1, VALUE_OR_DEFAULT(desc, mip_level_count, 1));
+  }
+
+  /* Store computed mip level count back */
+  texture.desc.mip_level_count = mip_level_count;
 
   /* Texture */
   {
@@ -949,10 +968,17 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
           desc->usage :
           WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
 
+    /* Mipmap generation requires RenderAttachment usage for the destination
+     * views and TextureBinding for the source views */
+    if (gen_mipmaps && mip_level_count > 1) {
+      usage
+        |= WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
+    }
+
     WGPUTextureDescriptor tdesc = {
       .usage         = usage,
       .dimension     = WGPUTextureDimension_2D,
-      .size          = {width, height, 1},
+      .size          = {width, height, depth_or_array_layers},
       .format        = format,
       .mipLevelCount = mip_level_count,
       .sampleCount   = 1,
@@ -965,17 +991,25 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
     /* Calculate bytes per pixel based on format */
     uint32_t bytes_per_pixel = 4; /* RGBA8Unorm = 4 bytes */
 
-    wgpuQueueWriteTexture(wgpu_context->queue,
-                          &(WGPUTexelCopyTextureInfo){
-                            .texture = texture.handle,
-                            .aspect  = WGPUTextureAspect_All,
-                          },
-                          desc->pixels.ptr, desc->pixels.size,
-                          &(WGPUTexelCopyBufferLayout){
-                            .bytesPerRow  = width * bytes_per_pixel,
-                            .rowsPerImage = height,
-                          },
-                          &(WGPUExtent3D){width, height, 1});
+    wgpuQueueWriteTexture(
+      wgpu_context->queue,
+      &(WGPUTexelCopyTextureInfo){
+        .texture = texture.handle,
+        .aspect  = WGPUTextureAspect_All,
+      },
+      desc->pixels.ptr, desc->pixels.size,
+      &(WGPUTexelCopyBufferLayout){
+        .bytesPerRow  = width * bytes_per_pixel,
+        .rowsPerImage = height,
+      },
+      &(WGPUExtent3D){width, height, depth_or_array_layers});
+  }
+
+  /* Generate mipmaps if requested */
+  if (gen_mipmaps && mip_level_count > 1 && desc && desc->pixels.ptr) {
+    wgpu_mipmap_view_dimension_t mip_view
+      = desc ? desc->mipmap_view_dimension : WGPU_MIPMAP_VIEW_UNDEFINED;
+    wgpu_generate_mipmaps(wgpu_context, texture.handle, mip_view);
   }
 
   /* Texture view */
@@ -985,13 +1019,25 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
           desc->usage :
           WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
 
+    /* Determine the view dimension for the final texture view */
+    WGPUTextureViewDimension view_dim = WGPUTextureViewDimension_2D;
+    if (desc && desc->mipmap_view_dimension != WGPU_MIPMAP_VIEW_UNDEFINED) {
+      view_dim = mipmap_view_to_wgpu(desc->mipmap_view_dimension);
+    }
+    else if (depth_or_array_layers == 6) {
+      view_dim = WGPUTextureViewDimension_Cube;
+    }
+    else if (depth_or_array_layers > 1) {
+      view_dim = WGPUTextureViewDimension_2DArray;
+    }
+
     WGPUTextureViewDescriptor view_desc = {
       .format          = format,
-      .dimension       = WGPUTextureViewDimension_2D,
+      .dimension       = view_dim,
       .baseMipLevel    = 0,
       .mipLevelCount   = mip_level_count,
       .baseArrayLayer  = 0,
-      .arrayLayerCount = 1,
+      .arrayLayerCount = depth_or_array_layers,
       .aspect          = WGPUTextureAspect_All,
       .usage           = usage,
     };
@@ -1001,14 +1047,15 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
   /* Texture sampler */
   {
     WGPUSamplerDescriptor sampler_desc = {
-      .addressModeU  = WGPUAddressMode_Repeat,
-      .addressModeV  = WGPUAddressMode_Repeat,
-      .addressModeW  = WGPUAddressMode_Repeat,
-      .magFilter     = WGPUFilterMode_Linear,
-      .minFilter     = WGPUFilterMode_Nearest,
+      .addressModeU = WGPUAddressMode_Repeat,
+      .addressModeV = WGPUAddressMode_Repeat,
+      .addressModeW = WGPUAddressMode_Repeat,
+      .magFilter    = WGPUFilterMode_Linear,
+      .minFilter
+      = (mip_level_count > 1) ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest,
       .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-      .lodMinClamp   = 0,
-      .lodMaxClamp   = 1,
+      .lodMinClamp   = 0.0f,
+      .lodMaxClamp   = (float)mip_level_count,
       .compare       = WGPUCompareFunction_Undefined,
       .maxAnisotropy = 1,
     };
@@ -1149,6 +1196,598 @@ void wgpu_destroy_texture(wgpu_texture_t* texture)
   WGPU_RELEASE_RESOURCE(Sampler, texture->sampler);
   WGPU_RELEASE_RESOURCE(TextureView, texture->view);
   WGPU_RELEASE_RESOURCE(Texture, texture->handle);
+}
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU mipmap generator
+ *
+ * Generates mipmaps using render-based downsampling with a fullscreen triangle
+ * and hardware bilinear filtering. Supports 2D, 2D-array, cube, and cube-array
+ * textures. Pipelines are cached per format+view dimension combination.
+ *
+ * Based on:
+ * - webgpu-samples generateMipmap (render approach with textureSample)
+ * - webgpu-gltf-viewer mipmap_generator (compute approach, used for reference)
+ * -------------------------------------------------------------------------- */
+
+/* -- Mipmap generation WGSL shader code ----------------------------------- */
+
+// clang-format off
+
+/**
+ * Fullscreen triangle vertex shader + fragment shaders for 2D, 2D-array,
+ * cube, and cube-array textures.
+ *
+ * The vertex shader generates a fullscreen triangle using vertex_index.
+ * The fragment shaders sample from the previous mip level using bilinear
+ * filtering. For cube textures, UV coordinates are converted to 3D cube
+ * directions using face matrices.
+ */
+static const char* mipmap_generator_shader_wgsl_part1 = CODE(
+  const faceMat = array(
+    mat3x3f( 0,  0, -2,  0, -2,  0,  1,  1,  1),
+    mat3x3f( 0,  0,  2,  0, -2,  0, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0,  2, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0, -2, -1, -1,  1),
+    mat3x3f( 2,  0,  0,  0, -2,  0, -1,  1,  1),
+    mat3x3f(-2,  0,  0,  0, -2,  0,  1,  1, -1)
+  );
+
+  struct VSOutput {
+    @builtin(position) position: vec4f,
+    @location(0) texcoord: vec2f,
+    @location(1) @interpolate(flat, either) baseArrayLayer: u32,
+  };
+
+  @vertex fn vs(
+    @builtin(vertex_index) vertexIndex : u32,
+    @builtin(instance_index) baseArrayLayer: u32,
+  ) -> VSOutput {
+    var pos = array<vec2f, 3>(
+      vec2f(-1.0, -1.0),
+      vec2f(-1.0,  3.0),
+      vec2f( 3.0, -1.0),
+    );
+    var vsOutput: VSOutput;
+    let xy = pos[vertexIndex];
+    vsOutput.position = vec4f(xy, 0.0, 1.0);
+    vsOutput.texcoord = xy * vec2f(0.5, -0.5) + vec2f(0.5);
+    vsOutput.baseArrayLayer = baseArrayLayer;
+    return vsOutput;
+  }
+
+  @group(0) @binding(0) var ourSampler: sampler;
+
+  @group(0) @binding(1) var ourTexture2d: texture_2d<f32>;
+  @fragment fn fs2d(fsInput: VSOutput) -> @location(0) vec4f {
+    return textureSample(ourTexture2d, ourSampler, fsInput.texcoord);
+  }
+);
+
+static const char* mipmap_generator_shader_wgsl_part2 = CODE(
+  const faceMat = array(
+    mat3x3f( 0,  0, -2,  0, -2,  0,  1,  1,  1),
+    mat3x3f( 0,  0,  2,  0, -2,  0, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0,  2, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0, -2, -1, -1,  1),
+    mat3x3f( 2,  0,  0,  0, -2,  0, -1,  1,  1),
+    mat3x3f(-2,  0,  0,  0, -2,  0,  1,  1, -1)
+  );
+
+  struct VSOutput {
+    @builtin(position) position: vec4f,
+    @location(0) texcoord: vec2f,
+    @location(1) @interpolate(flat, either) baseArrayLayer: u32,
+  };
+
+  @vertex fn vs(
+    @builtin(vertex_index) vertexIndex : u32,
+    @builtin(instance_index) baseArrayLayer: u32,
+  ) -> VSOutput {
+    var pos = array<vec2f, 3>(
+      vec2f(-1.0, -1.0),
+      vec2f(-1.0,  3.0),
+      vec2f( 3.0, -1.0),
+    );
+    var vsOutput: VSOutput;
+    let xy = pos[vertexIndex];
+    vsOutput.position = vec4f(xy, 0.0, 1.0);
+    vsOutput.texcoord = xy * vec2f(0.5, -0.5) + vec2f(0.5);
+    vsOutput.baseArrayLayer = baseArrayLayer;
+    return vsOutput;
+  }
+
+  @group(0) @binding(0) var ourSampler: sampler;
+
+  @group(0) @binding(1) var ourTexture2dArray: texture_2d_array<f32>;
+  @fragment fn fs2darray(fsInput: VSOutput) -> @location(0) vec4f {
+    return textureSample(
+      ourTexture2dArray,
+      ourSampler,
+      fsInput.texcoord,
+      fsInput.baseArrayLayer);
+  }
+);
+
+static const char* mipmap_generator_shader_wgsl_part3 = CODE(
+  const faceMat = array(
+    mat3x3f( 0,  0, -2,  0, -2,  0,  1,  1,  1),
+    mat3x3f( 0,  0,  2,  0, -2,  0, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0,  2, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0, -2, -1, -1,  1),
+    mat3x3f( 2,  0,  0,  0, -2,  0, -1,  1,  1),
+    mat3x3f(-2,  0,  0,  0, -2,  0,  1,  1, -1)
+  );
+
+  struct VSOutput {
+    @builtin(position) position: vec4f,
+    @location(0) texcoord: vec2f,
+    @location(1) @interpolate(flat, either) baseArrayLayer: u32,
+  };
+
+  @vertex fn vs(
+    @builtin(vertex_index) vertexIndex : u32,
+    @builtin(instance_index) baseArrayLayer: u32,
+  ) -> VSOutput {
+    var pos = array<vec2f, 3>(
+      vec2f(-1.0, -1.0),
+      vec2f(-1.0,  3.0),
+      vec2f( 3.0, -1.0),
+    );
+    var vsOutput: VSOutput;
+    let xy = pos[vertexIndex];
+    vsOutput.position = vec4f(xy, 0.0, 1.0);
+    vsOutput.texcoord = xy * vec2f(0.5, -0.5) + vec2f(0.5);
+    vsOutput.baseArrayLayer = baseArrayLayer;
+    return vsOutput;
+  }
+
+  @group(0) @binding(0) var ourSampler: sampler;
+
+  @group(0) @binding(1) var ourTextureCube: texture_cube<f32>;
+  @fragment fn fscube(fsInput: VSOutput) -> @location(0) vec4f {
+    return textureSample(
+      ourTextureCube,
+      ourSampler,
+      faceMat[fsInput.baseArrayLayer] * vec3f(fract(fsInput.texcoord), 1));
+  }
+);
+
+static const char* mipmap_generator_shader_wgsl_part4 = CODE(
+  const faceMat = array(
+    mat3x3f( 0,  0, -2,  0, -2,  0,  1,  1,  1),
+    mat3x3f( 0,  0,  2,  0, -2,  0, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0,  2, -1,  1, -1),
+    mat3x3f( 2,  0,  0,  0,  0, -2, -1, -1,  1),
+    mat3x3f( 2,  0,  0,  0, -2,  0, -1,  1,  1),
+    mat3x3f(-2,  0,  0,  0, -2,  0,  1,  1, -1)
+  );
+
+  struct VSOutput {
+    @builtin(position) position: vec4f,
+    @location(0) texcoord: vec2f,
+    @location(1) @interpolate(flat, either) baseArrayLayer: u32,
+  };
+
+  @vertex fn vs(
+    @builtin(vertex_index) vertexIndex : u32,
+    @builtin(instance_index) baseArrayLayer: u32,
+  ) -> VSOutput {
+    var pos = array<vec2f, 3>(
+      vec2f(-1.0, -1.0),
+      vec2f(-1.0,  3.0),
+      vec2f( 3.0, -1.0),
+    );
+    var vsOutput: VSOutput;
+    let xy = pos[vertexIndex];
+    vsOutput.position = vec4f(xy, 0.0, 1.0);
+    vsOutput.texcoord = xy * vec2f(0.5, -0.5) + vec2f(0.5);
+    vsOutput.baseArrayLayer = baseArrayLayer;
+    return vsOutput;
+  }
+
+  @group(0) @binding(0) var ourSampler: sampler;
+
+  @group(0) @binding(1) var ourTextureCubeArray: texture_cube_array<f32>;
+  @fragment fn fscubearray(fsInput: VSOutput) -> @location(0) vec4f {
+    return textureSample(
+      ourTextureCubeArray,
+      ourSampler,
+      faceMat[fsInput.baseArrayLayer] * vec3f(fract(fsInput.texcoord), 1),
+      fsInput.baseArrayLayer);
+  }
+);
+
+// clang-format on
+
+/* -- Mipmap generator pipeline cache -------------------------------------- */
+
+/**
+ * Maximum number of cached pipelines per generator.
+ * Each unique (format, view_dimension) pair requires a separate pipeline.
+ */
+#define MIPMAP_MAX_CACHED_PIPELINES 16
+
+typedef struct mipmap_pipeline_cache_entry_t {
+  WGPUTextureFormat format;
+  WGPUTextureViewDimension view_dimension;
+  WGPURenderPipeline pipeline;
+} mipmap_pipeline_cache_entry_t;
+
+struct wgpu_mipmap_generator_t {
+  WGPUDevice device;
+  WGPUSampler sampler;
+  WGPUShaderModule module_2d;
+  WGPUShaderModule module_2d_array;
+  WGPUShaderModule module_cube;
+  WGPUShaderModule module_cube_array;
+  mipmap_pipeline_cache_entry_t cache[MIPMAP_MAX_CACHED_PIPELINES];
+  uint32_t cache_count;
+};
+
+/* -- Internal helpers ----------------------------------------------------- */
+
+uint32_t wgpu_texture_mip_level_count(uint32_t width, uint32_t height)
+{
+  const uint32_t max_dim = (width > height) ? width : height;
+  if (max_dim == 0) {
+    return 1;
+  }
+  uint32_t levels = 1;
+  uint32_t dim    = max_dim;
+  while (dim > 1) {
+    dim >>= 1;
+    levels++;
+  }
+  return levels;
+}
+
+/**
+ * @brief Map mipmap_view_dimension enum to WGPUTextureViewDimension.
+ */
+static WGPUTextureViewDimension
+mipmap_view_to_wgpu(wgpu_mipmap_view_dimension_t dim)
+{
+  switch (dim) {
+    case WGPU_MIPMAP_VIEW_2D:
+      return WGPUTextureViewDimension_2D;
+    case WGPU_MIPMAP_VIEW_2D_ARRAY:
+      return WGPUTextureViewDimension_2DArray;
+    case WGPU_MIPMAP_VIEW_CUBE:
+      return WGPUTextureViewDimension_Cube;
+    case WGPU_MIPMAP_VIEW_CUBE_ARRAY:
+      return WGPUTextureViewDimension_CubeArray;
+    default:
+      return WGPUTextureViewDimension_2D;
+  }
+}
+
+/**
+ * @brief Auto-detect the default view dimension from texture properties.
+ */
+static WGPUTextureViewDimension
+mipmap_detect_view_dimension(uint32_t depth_or_array_layers)
+{
+  if (depth_or_array_layers == 6) {
+    return WGPUTextureViewDimension_Cube;
+  }
+  else if (depth_or_array_layers > 1) {
+    return WGPUTextureViewDimension_2DArray;
+  }
+  return WGPUTextureViewDimension_2D;
+}
+
+/**
+ * @brief Get the shader module for the given view dimension.
+ */
+static WGPUShaderModule
+mipmap_get_shader_module(wgpu_mipmap_generator_t* gen,
+                         WGPUTextureViewDimension view_dim)
+{
+  switch (view_dim) {
+    case WGPUTextureViewDimension_2D:
+      return gen->module_2d;
+    case WGPUTextureViewDimension_2DArray:
+      return gen->module_2d_array;
+    case WGPUTextureViewDimension_Cube:
+      return gen->module_cube;
+    case WGPUTextureViewDimension_CubeArray:
+      return gen->module_cube_array;
+    default:
+      return gen->module_2d;
+  }
+}
+
+/**
+ * @brief Get the fragment shader entry point for the given view dimension.
+ */
+static const char* mipmap_get_fragment_entry(WGPUTextureViewDimension view_dim)
+{
+  switch (view_dim) {
+    case WGPUTextureViewDimension_2D:
+      return "fs2d";
+    case WGPUTextureViewDimension_2DArray:
+      return "fs2darray";
+    case WGPUTextureViewDimension_Cube:
+      return "fscube";
+    case WGPUTextureViewDimension_CubeArray:
+      return "fscubearray";
+    default:
+      return "fs2d";
+  }
+}
+
+/**
+ * @brief Create the mipmap generator, allocating shader modules and sampler.
+ */
+static wgpu_mipmap_generator_t* mipmap_generator_create(WGPUDevice device)
+{
+  wgpu_mipmap_generator_t* gen = calloc(1, sizeof(wgpu_mipmap_generator_t));
+  if (!gen) {
+    return NULL;
+  }
+
+  gen->device = device;
+
+  /* Create shader modules for each view dimension */
+  gen->module_2d
+    = wgpu_create_shader_module(device, mipmap_generator_shader_wgsl_part1);
+  gen->module_2d_array
+    = wgpu_create_shader_module(device, mipmap_generator_shader_wgsl_part2);
+  gen->module_cube
+    = wgpu_create_shader_module(device, mipmap_generator_shader_wgsl_part3);
+  gen->module_cube_array
+    = wgpu_create_shader_module(device, mipmap_generator_shader_wgsl_part4);
+
+  /* Create linear sampler for bilinear downsampling */
+  WGPUSamplerDescriptor sampler_desc = {
+    .label     = STRVIEW("mipmap generator sampler"),
+    .minFilter = WGPUFilterMode_Linear,
+    .magFilter = WGPUFilterMode_Linear,
+  };
+  gen->sampler = wgpuDeviceCreateSampler(device, &sampler_desc);
+
+  gen->cache_count = 0;
+
+  return gen;
+}
+
+/**
+ * @brief Find or create a render pipeline for the given format + view dim.
+ */
+static WGPURenderPipeline mipmap_get_pipeline(wgpu_mipmap_generator_t* gen,
+                                              WGPUTextureFormat format,
+                                              WGPUTextureViewDimension view_dim)
+{
+  /* Search cache */
+  for (uint32_t i = 0; i < gen->cache_count; i++) {
+    if (gen->cache[i].format == format
+        && gen->cache[i].view_dimension == view_dim) {
+      return gen->cache[i].pipeline;
+    }
+  }
+
+  /* Cache miss - create new pipeline */
+  ASSERT(gen->cache_count < MIPMAP_MAX_CACHED_PIPELINES);
+  if (gen->cache_count >= MIPMAP_MAX_CACHED_PIPELINES) {
+    fprintf(stderr, "wgpu_mipmap: pipeline cache full (max %d)\n",
+            MIPMAP_MAX_CACHED_PIPELINES);
+    return NULL;
+  }
+
+  WGPUShaderModule module    = mipmap_get_shader_module(gen, view_dim);
+  const char* fragment_entry = mipmap_get_fragment_entry(view_dim);
+
+  WGPUColorTargetState color_target = {
+    .format    = format,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  WGPUFragmentState fragment_state = {
+    .module      = module,
+    .entryPoint  = {.data = fragment_entry, .length = WGPU_STRLEN},
+    .targetCount = 1,
+    .targets     = &color_target,
+  };
+
+  WGPURenderPipelineDescriptor pipeline_desc = {
+    .label = STRVIEW("mipmap generator pipeline"),
+    .layout = NULL, /* auto layout */
+    .vertex = {
+      .module     = module,
+      .entryPoint = STRVIEW("vs"),
+    },
+    .fragment   = &fragment_state,
+    .primitive  = {
+      .topology = WGPUPrimitiveTopology_TriangleList,
+    },
+    .multisample = {
+      .count = 1,
+      .mask  = 0xFFFFFFFF,
+    },
+  };
+
+  WGPURenderPipeline pipeline
+    = wgpuDeviceCreateRenderPipeline(gen->device, &pipeline_desc);
+  ASSERT(pipeline != NULL);
+
+  /* Store in cache */
+  gen->cache[gen->cache_count] = (mipmap_pipeline_cache_entry_t){
+    .format         = format,
+    .view_dimension = view_dim,
+    .pipeline       = pipeline,
+  };
+  gen->cache_count++;
+
+  return pipeline;
+}
+
+/* -- Public API ----------------------------------------------------------- */
+
+void wgpu_generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
+                           wgpu_mipmap_view_dimension_t view_dim)
+{
+  if (!texture) {
+    return;
+  }
+
+  const uint32_t mip_count = wgpuTextureGetMipLevelCount(texture);
+  if (mip_count <= 1) {
+    return; /* Nothing to generate */
+  }
+
+  const uint32_t depth_or_array_layers
+    = wgpuTextureGetDepthOrArrayLayers(texture);
+  const WGPUTextureFormat format = wgpuTextureGetFormat(texture);
+
+  /* Determine view dimension */
+  WGPUTextureViewDimension wgpu_view_dim;
+  if (view_dim != WGPU_MIPMAP_VIEW_UNDEFINED) {
+    wgpu_view_dim = mipmap_view_to_wgpu(view_dim);
+  }
+  else {
+    wgpu_view_dim = mipmap_detect_view_dimension(depth_or_array_layers);
+  }
+
+  /* Lazily create mipmap generator */
+  if (!wgpu_context->mipmap_generator) {
+    wgpu_context->mipmap_generator
+      = mipmap_generator_create(wgpu_context->device);
+    if (!wgpu_context->mipmap_generator) {
+      fprintf(stderr, "wgpu_mipmap: failed to create generator\n");
+      return;
+    }
+  }
+
+  wgpu_mipmap_generator_t* gen = wgpu_context->mipmap_generator;
+
+  /* Get or create cached pipeline */
+  WGPURenderPipeline pipeline = mipmap_get_pipeline(gen, format, wgpu_view_dim);
+  if (!pipeline) {
+    return;
+  }
+
+  /* Create command encoder */
+  WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
+    wgpu_context->device, &(WGPUCommandEncoderDescriptor){
+                            .label = STRVIEW("mipmap generation encoder"),
+                          });
+
+  /* For each mip level > 0, sample from previous level */
+  for (uint32_t mip = 1; mip < mip_count; ++mip) {
+    for (uint32_t layer = 0; layer < depth_or_array_layers; ++layer) {
+      /* Source: previous mip level, all layers visible via view_dim */
+      WGPUTextureView src_view = wgpuTextureCreateView(
+        texture, &(WGPUTextureViewDescriptor){
+                   .label           = STRVIEW("mipmap src view"),
+                   .format          = format,
+                   .dimension       = wgpu_view_dim,
+                   .baseMipLevel    = mip - 1,
+                   .mipLevelCount   = 1,
+                   .baseArrayLayer  = 0,
+                   .arrayLayerCount = depth_or_array_layers,
+                   .aspect          = WGPUTextureAspect_All,
+                 });
+
+      /* Create bind group for this mip level */
+      WGPUBindGroupLayout bgl
+        = wgpuRenderPipelineGetBindGroupLayout(pipeline, 0);
+
+      WGPUBindGroupEntry entries[2] = {
+        {
+          .binding = 0,
+          .sampler = gen->sampler,
+        },
+        {
+          .binding     = 1,
+          .textureView = src_view,
+        },
+      };
+
+      WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
+        wgpu_context->device, &(WGPUBindGroupDescriptor){
+                                .label      = STRVIEW("mipmap bind group"),
+                                .layout     = bgl,
+                                .entryCount = 2,
+                                .entries    = entries,
+                              });
+
+      /* Destination: this mip level, single layer */
+      WGPUTextureView dst_view = wgpuTextureCreateView(
+        texture, &(WGPUTextureViewDescriptor){
+                   .label           = STRVIEW("mipmap dst view"),
+                   .format          = format,
+                   .dimension       = WGPUTextureViewDimension_2D,
+                   .baseMipLevel    = mip,
+                   .mipLevelCount   = 1,
+                   .baseArrayLayer  = layer,
+                   .arrayLayerCount = 1,
+                   .aspect          = WGPUTextureAspect_All,
+                 });
+
+      WGPURenderPassColorAttachment color_attachment = {
+        .view       = dst_view,
+        .loadOp     = WGPULoadOp_Clear,
+        .storeOp    = WGPUStoreOp_Store,
+        .clearValue = {0},
+      };
+
+      WGPURenderPassDescriptor rp_desc = {
+        .label                = STRVIEW("mipmap render pass"),
+        .colorAttachmentCount = 1,
+        .colorAttachments     = &color_attachment,
+      };
+
+      WGPURenderPassEncoder pass
+        = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
+      wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+      wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
+      /* Draw 3 vertices, 1 instance; first instance = layer index */
+      wgpuRenderPassEncoderDraw(pass, 3, 1, 0, layer);
+      wgpuRenderPassEncoderEnd(pass);
+
+      /* Release per-iteration resources */
+      WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass);
+      WGPU_RELEASE_RESOURCE(BindGroup, bind_group);
+      WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl);
+      WGPU_RELEASE_RESOURCE(TextureView, src_view);
+      WGPU_RELEASE_RESOURCE(TextureView, dst_view);
+    }
+  }
+
+  /* Submit command buffer */
+  WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(
+    encoder, &(WGPUCommandBufferDescriptor){
+               .label = STRVIEW("mipmap generation commands"),
+             });
+  wgpuQueueSubmit(wgpu_context->queue, 1, &cmd);
+
+  WGPU_RELEASE_RESOURCE(CommandBuffer, cmd);
+  WGPU_RELEASE_RESOURCE(CommandEncoder, encoder);
+}
+
+void wgpu_mipmap_generator_destroy(wgpu_mipmap_generator_t* generator)
+{
+  if (!generator) {
+    return;
+  }
+
+  /* Release cached pipelines */
+  for (uint32_t i = 0; i < generator->cache_count; i++) {
+    WGPU_RELEASE_RESOURCE(RenderPipeline, generator->cache[i].pipeline);
+  }
+  generator->cache_count = 0;
+
+  /* Release shader modules */
+  WGPU_RELEASE_RESOURCE(ShaderModule, generator->module_2d);
+  WGPU_RELEASE_RESOURCE(ShaderModule, generator->module_2d_array);
+  WGPU_RELEASE_RESOURCE(ShaderModule, generator->module_cube);
+  WGPU_RELEASE_RESOURCE(ShaderModule, generator->module_cube_array);
+
+  /* Release sampler */
+  WGPU_RELEASE_RESOURCE(Sampler, generator->sampler);
+
+  free(generator);
 }
 
 /* -------------------------------------------------------------------------- *
