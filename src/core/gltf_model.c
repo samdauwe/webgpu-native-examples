@@ -237,7 +237,7 @@ static void load_texture_images(const cgltf_data* gltf_data,
         image_t decoded = {0};
         if (image_load_from_memory(buf_data, (int)img->buffer_view->size, 4,
                                    &decoded)) {
-          tex->data = decoded.pixels;
+          tex->data = decoded.pixels.u8;
           w         = decoded.width;
           h         = decoded.height;
         }
@@ -249,7 +249,7 @@ static void load_texture_images(const cgltf_data* gltf_data,
       build_path(model->file_path, img->uri, image_path, sizeof(image_path));
       image_t decoded = {0};
       if (image_load_from_file(image_path, 4, &decoded)) {
-        tex->data = decoded.pixels;
+        tex->data = decoded.pixels.u8;
         w         = decoded.width;
         h         = decoded.height;
       }
