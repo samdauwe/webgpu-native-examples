@@ -47,8 +47,10 @@ typedef struct {
   uint32_t required_feature_count;
 } wgpu_desc_t;
 
-/* Forward declaration */
+/* Forward declarations */
 typedef struct wgpu_mipmap_generator_t wgpu_mipmap_generator_t;
+typedef struct wgpu_panorama_to_cubemap_converter_t
+  wgpu_panorama_to_cubemap_converter_t;
 
 struct wgpu_context_t {
   wgpu_desc_t desc;
@@ -219,6 +221,63 @@ void wgpu_generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
  * Called automatically during context shutdown.
  */
 void wgpu_mipmap_generator_destroy(wgpu_mipmap_generator_t* generator);
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU panorama-to-cubemap converter
+ *
+ * Converts an equirectangular panorama texture to a cubemap using a compute
+ * shader. The panorama is uploaded as RGBA32Float and converted to an
+ * RGBA16Float cubemap with manual bilinear filtering.
+ *
+ * Usage example:
+ *
+ *  // Create a reusable converter
+ *  wgpu_panorama_to_cubemap_converter_t* converter
+ *    = wgpu_panorama_to_cubemap_converter_create(device);
+ *
+ *  // Convert panorama data to an existing cubemap texture
+ *  wgpu_panorama_to_cubemap_converter_convert(
+ *    converter, panorama_rgba, width, height, cubemap_texture);
+ *
+ *  // Cleanup when done
+ *  wgpu_panorama_to_cubemap_converter_destroy(converter);
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Creates a panorama-to-cubemap converter.
+ *        Initializes the compute pipeline, sampler, and per-face uniform
+ *        buffers. The converter can be reused for multiple conversions.
+ *
+ * @param device  The WebGPU device
+ * @return Pointer to the converter, or NULL on failure.
+ */
+wgpu_panorama_to_cubemap_converter_t*
+wgpu_panorama_to_cubemap_converter_create(WGPUDevice device);
+
+/**
+ * @brief Uploads equirectangular panorama data and converts it to a cubemap.
+ *        The panorama is uploaded as RGBA32Float, then a compute shader
+ *        performs the equirectangular-to-cubemap projection with bilinear
+ *        filtering, writing RGBA16Float output per face.
+ *
+ * @param converter        The converter instance
+ * @param panorama_data    RGBA float pixel data (4 floats per pixel)
+ * @param panorama_width   Width of the panorama (should be 2× height)
+ * @param panorama_height  Height of the panorama
+ * @param environment_cubemap  Output cubemap texture (must be created with
+ *                         RGBA16Float format, StorageBinding usage, 6 layers)
+ * @return true on success, false on failure.
+ */
+bool wgpu_panorama_to_cubemap_converter_convert(
+  wgpu_panorama_to_cubemap_converter_t* converter, const float* panorama_data,
+  uint32_t panorama_width, uint32_t panorama_height,
+  WGPUTexture environment_cubemap);
+
+/**
+ * @brief Destroys the converter and frees all GPU resources.
+ */
+void wgpu_panorama_to_cubemap_converter_destroy(
+  wgpu_panorama_to_cubemap_converter_t* converter);
 
 /* -------------------------------------------------------------------------- *
  * WebGPU environment map (IBL) helper functions

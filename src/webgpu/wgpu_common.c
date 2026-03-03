@@ -2238,53 +2238,36 @@ static WGPUTextureView ibl_create_cube_view(WGPUTexture tex,
   return wgpuTextureCreateView(tex, &vd);
 }
 
-/* -- Internal: panorama-to-cubemap compute pass --------------------------- */
+/* -------------------------------------------------------------------------- *
+ * WebGPU panorama-to-cubemap converter
+ * -------------------------------------------------------------------------- */
 
-static bool ibl_panorama_to_cubemap(wgpu_context_t* ctx,
-                                    const wgpu_environment_t* env,
-                                    WGPUTexture env_cubemap,
-                                    uint32_t cubemap_size)
+struct wgpu_panorama_to_cubemap_converter_t {
+  WGPUDevice device;
+  WGPUSampler sampler;
+  WGPUBindGroupLayout bind_group_layouts[2]; /* 0: common, 1: per-face */
+  WGPUComputePipeline pipeline;
+  WGPUBuffer per_face_uniform_buffers[6];
+  WGPUBindGroup per_face_bind_groups[6];
+};
+
+wgpu_panorama_to_cubemap_converter_t*
+wgpu_panorama_to_cubemap_converter_create(WGPUDevice device)
 {
-  WGPUDevice device = ctx->device;
-  WGPUQueue queue   = ctx->queue;
-
-  /* Upload panorama as RGBA32Float 2D texture */
-  WGPUTexture panorama_tex
-    = wgpuDeviceCreateTexture(device, &(WGPUTextureDescriptor){
-                                        .usage = WGPUTextureUsage_TextureBinding
-                                                 | WGPUTextureUsage_CopyDst,
-                                        .dimension = WGPUTextureDimension_2D,
-                                        .size   = {env->width, env->height, 1},
-                                        .format = WGPUTextureFormat_RGBA32Float,
-                                        .mipLevelCount = 1,
-                                        .sampleCount   = 1,
-                                      });
-
-  if (!panorama_tex) {
-    fprintf(stderr, "ibl: failed to create panorama texture\n");
-    return false;
+  if (!device) {
+    return NULL;
   }
 
-  const size_t data_size = (size_t)4 * env->width * env->height * sizeof(float);
-  wgpuQueueWriteTexture(
-    queue,
-    &(WGPUTexelCopyTextureInfo){
-      .texture = panorama_tex,
-      .aspect  = WGPUTextureAspect_All,
-    },
-    env->data, data_size,
-    &(WGPUTexelCopyBufferLayout){
-      .bytesPerRow  = 4 * env->width * (uint32_t)sizeof(float),
-      .rowsPerImage = env->height,
-    },
-    &(WGPUExtent3D){env->width, env->height, 1});
+  wgpu_panorama_to_cubemap_converter_t* c
+    = (wgpu_panorama_to_cubemap_converter_t*)calloc(
+      1, sizeof(wgpu_panorama_to_cubemap_converter_t));
+  if (!c) {
+    return NULL;
+  }
+  c->device = device;
 
-  /* Shader module */
-  WGPUShaderModule shader
-    = wgpu_create_shader_module(device, panorama_to_cubemap_shader_wgsl);
-
-  /* Sampler (nearest, repeat-U, clamp-V) */
-  WGPUSampler sampler = wgpuDeviceCreateSampler(
+  /* Sampler (nearest, repeat-U, clamp-V — matches C++ original) */
+  c->sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
               .addressModeU = WGPUAddressMode_Repeat,
               .addressModeV = WGPUAddressMode_ClampToEdge,
@@ -2319,7 +2302,7 @@ static bool ibl_panorama_to_cubemap(wgpu_context_t* ctx,
       },
     },
   };
-  WGPUBindGroupLayout bgl0
+  c->bind_group_layouts[0]
     = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
                                                 .entryCount = 3,
                                                 .entries    = bg0_entries,
@@ -2336,53 +2319,113 @@ static bool ibl_panorama_to_cubemap(wgpu_context_t* ctx,
       },
     },
   };
-  WGPUBindGroupLayout bgl1
+  c->bind_group_layouts[1]
     = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
                                                 .entryCount = 1,
                                                 .entries    = bg1_entries,
                                               });
 
-  /* Pipeline layout */
-  WGPUBindGroupLayout bgls[] = {bgl0, bgl1};
+  /* Per-face uniform buffers + bind groups */
+  WGPUQueue queue = wgpuDeviceGetQueue(device);
+  for (uint32_t face = 0; face < 6; ++face) {
+    c->per_face_uniform_buffers[face] = wgpuDeviceCreateBuffer(
+      device, &(WGPUBufferDescriptor){
+                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                .size  = sizeof(uint32_t),
+              });
+    uint32_t face_val = face;
+    wgpuQueueWriteBuffer(queue, c->per_face_uniform_buffers[face], 0, &face_val,
+                         sizeof(uint32_t));
+
+    WGPUBindGroupEntry bg1_e[1] = {
+      {.binding = 0,
+       .buffer  = c->per_face_uniform_buffers[face],
+       .size    = sizeof(uint32_t)},
+    };
+    c->per_face_bind_groups[face]
+      = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
+                                            .layout = c->bind_group_layouts[1],
+                                            .entryCount = 1,
+                                            .entries    = bg1_e,
+                                          });
+  }
+  WGPU_RELEASE_RESOURCE(Queue, queue);
+
+  /* Compute pipeline */
+  WGPUShaderModule shader
+    = wgpu_create_shader_module(device, panorama_to_cubemap_shader_wgsl);
+
+  WGPUBindGroupLayout bgls[]
+    = {c->bind_group_layouts[0], c->bind_group_layouts[1]};
   WGPUPipelineLayout pipe_layout
     = wgpuDeviceCreatePipelineLayout(device, &(WGPUPipelineLayoutDescriptor){
                                                .bindGroupLayoutCount = 2,
                                                .bindGroupLayouts     = bgls,
                                              });
 
-  /* Compute pipeline */
-  WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(device,
-    &(WGPUComputePipelineDescriptor){
-      .layout  = pipe_layout,
-      .compute = {
-        .module     = shader,
-        .entryPoint = STRVIEW("panoramaToCubemap"),
-      },
-    });
+  c->pipeline = wgpuDeviceCreateComputePipeline(
+    device, &(WGPUComputePipelineDescriptor){
+              .layout  = pipe_layout,
+              .compute = {
+                .module     = shader,
+                .entryPoint = STRVIEW("panoramaToCubemap"),
+              },
+            });
 
-  /* Per-face uniform buffers + bind groups */
-  WGPUBuffer face_bufs[6];
-  WGPUBindGroup face_bgs[6];
-  for (uint32_t face = 0; face < 6; ++face) {
-    face_bufs[face] = wgpuDeviceCreateBuffer(
-      device, &(WGPUBufferDescriptor){
-                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                .size  = sizeof(uint32_t),
-              });
-    wgpuQueueWriteBuffer(queue, face_bufs[face], 0, &face, sizeof(uint32_t));
+  WGPU_RELEASE_RESOURCE(PipelineLayout, pipe_layout);
+  WGPU_RELEASE_RESOURCE(ShaderModule, shader);
 
-    WGPUBindGroupEntry bg1_e[1] = {
-      {.binding = 0, .buffer = face_bufs[face], .size = sizeof(uint32_t)},
-    };
-    face_bgs[face]
-      = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
-                                            .layout     = bgl1,
-                                            .entryCount = 1,
-                                            .entries    = bg1_e,
-                                          });
+  return c;
+}
+
+bool wgpu_panorama_to_cubemap_converter_convert(
+  wgpu_panorama_to_cubemap_converter_t* converter, const float* panorama_data,
+  uint32_t panorama_width, uint32_t panorama_height,
+  WGPUTexture environment_cubemap)
+{
+  if (!converter || !panorama_data || !environment_cubemap) {
+    return false;
+  }
+  if (panorama_width == 0 || panorama_height == 0) {
+    return false;
   }
 
-  /* Bind group 0: common for all faces */
+  WGPUDevice device = converter->device;
+  WGPUQueue queue   = wgpuDeviceGetQueue(device);
+
+  /* Upload panorama as RGBA32Float 2D texture */
+  WGPUTexture panorama_tex = wgpuDeviceCreateTexture(
+    device,
+    &(WGPUTextureDescriptor){
+      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .dimension = WGPUTextureDimension_2D,
+      .size      = {panorama_width, panorama_height, 1},
+      .format    = WGPUTextureFormat_RGBA32Float,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+    });
+  if (!panorama_tex) {
+    fprintf(stderr, "panorama_to_cubemap: failed to create panorama texture\n");
+    WGPU_RELEASE_RESOURCE(Queue, queue);
+    return false;
+  }
+
+  const size_t data_size
+    = (size_t)4 * panorama_width * panorama_height * sizeof(float);
+  wgpuQueueWriteTexture(
+    queue,
+    &(WGPUTexelCopyTextureInfo){
+      .texture = panorama_tex,
+      .aspect  = WGPUTextureAspect_All,
+    },
+    panorama_data, data_size,
+    &(WGPUTexelCopyBufferLayout){
+      .bytesPerRow  = 4 * panorama_width * (uint32_t)sizeof(float),
+      .rowsPerImage = panorama_height,
+    },
+    &(WGPUExtent3D){panorama_width, panorama_height, 1});
+
+  /* Create views for input panorama and output cubemap */
   WGPUTextureView input_view = wgpuTextureCreateView(
     panorama_tex, &(WGPUTextureViewDescriptor){
                     .format    = WGPUTextureFormat_RGBA32Float,
@@ -2390,43 +2433,46 @@ static bool ibl_panorama_to_cubemap(wgpu_context_t* ctx,
                   });
 
   WGPUTextureView output_view = wgpuTextureCreateView(
-    env_cubemap, &(WGPUTextureViewDescriptor){
-                   .format          = WGPUTextureFormat_RGBA16Float,
-                   .dimension       = WGPUTextureViewDimension_2DArray,
-                   .baseMipLevel    = 0,
-                   .mipLevelCount   = 1,
-                   .baseArrayLayer  = 0,
-                   .arrayLayerCount = 6,
-                   .aspect          = WGPUTextureAspect_All,
-                 });
+    environment_cubemap, &(WGPUTextureViewDescriptor){
+                           .format          = WGPUTextureFormat_RGBA16Float,
+                           .dimension       = WGPUTextureViewDimension_2DArray,
+                           .baseMipLevel    = 0,
+                           .mipLevelCount   = 1,
+                           .baseArrayLayer  = 0,
+                           .arrayLayerCount = 6,
+                           .aspect          = WGPUTextureAspect_All,
+                         });
 
+  /* Bind group 0: common for all faces */
   WGPUBindGroupEntry bg0_e[3] = {
-    {.binding = 0, .sampler = sampler},
+    {.binding = 0, .sampler = converter->sampler},
     {.binding = 1, .textureView = input_view},
     {.binding = 2, .textureView = output_view},
   };
-  WGPUBindGroup bg0
-    = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
-                                          .layout     = bgl0,
-                                          .entryCount = 3,
-                                          .entries    = bg0_e,
-                                        });
+  WGPUBindGroup bg0 = wgpuDeviceCreateBindGroup(
+    device, &(WGPUBindGroupDescriptor){
+              .layout     = converter->bind_group_layouts[0],
+              .entryCount = 3,
+              .entries    = bg0_e,
+            });
 
-  /* Dispatch compute passes */
+  /* Encode compute pass: dispatch per face */
   WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
     device, &(WGPUCommandEncoderDescriptor){
               .label = STRVIEW("panorama to cubemap encoder"),
             });
   WGPUComputePassEncoder pass
     = wgpuCommandEncoderBeginComputePass(encoder, NULL);
-  wgpuComputePassEncoderSetPipeline(pass, pipeline);
+  wgpuComputePassEncoderSetPipeline(pass, converter->pipeline);
   wgpuComputePassEncoderSetBindGroup(pass, 0, bg0, 0, NULL);
 
-  const uint32_t wg   = 8;
-  const uint32_t wg_x = (cubemap_size + wg - 1) / wg;
-  const uint32_t wg_y = (cubemap_size + wg - 1) / wg;
+  const uint32_t cubemap_size = wgpuTextureGetWidth(environment_cubemap);
+  const uint32_t wg           = 8;
+  const uint32_t wg_x         = (cubemap_size + wg - 1) / wg;
+  const uint32_t wg_y         = (cubemap_size + wg - 1) / wg;
   for (uint32_t face = 0; face < 6; ++face) {
-    wgpuComputePassEncoderSetBindGroup(pass, 1, face_bgs[face], 0, NULL);
+    wgpuComputePassEncoderSetBindGroup(
+      pass, 1, converter->per_face_bind_groups[face], 0, NULL);
     wgpuComputePassEncoderDispatchWorkgroups(pass, wg_x, wg_y, 1);
   }
 
@@ -2434,26 +2480,34 @@ static bool ibl_panorama_to_cubemap(wgpu_context_t* ctx,
   WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, NULL);
   wgpuQueueSubmit(queue, 1, &cmd);
 
-  /* Cleanup */
+  /* Cleanup per-conversion resources */
   WGPU_RELEASE_RESOURCE(CommandBuffer, cmd);
   WGPU_RELEASE_RESOURCE(ComputePassEncoder, pass);
   WGPU_RELEASE_RESOURCE(CommandEncoder, encoder);
   WGPU_RELEASE_RESOURCE(BindGroup, bg0);
   WGPU_RELEASE_RESOURCE(TextureView, input_view);
   WGPU_RELEASE_RESOURCE(TextureView, output_view);
-  for (uint32_t i = 0; i < 6; ++i) {
-    WGPU_RELEASE_RESOURCE(BindGroup, face_bgs[i]);
-    WGPU_RELEASE_RESOURCE(Buffer, face_bufs[i]);
-  }
-  WGPU_RELEASE_RESOURCE(ComputePipeline, pipeline);
-  WGPU_RELEASE_RESOURCE(PipelineLayout, pipe_layout);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl0);
-  WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl1);
-  WGPU_RELEASE_RESOURCE(Sampler, sampler);
-  WGPU_RELEASE_RESOURCE(ShaderModule, shader);
   WGPU_RELEASE_RESOURCE(Texture, panorama_tex);
+  WGPU_RELEASE_RESOURCE(Queue, queue);
 
   return true;
+}
+
+void wgpu_panorama_to_cubemap_converter_destroy(
+  wgpu_panorama_to_cubemap_converter_t* converter)
+{
+  if (!converter) {
+    return;
+  }
+  for (uint32_t i = 0; i < 6; ++i) {
+    WGPU_RELEASE_RESOURCE(BindGroup, converter->per_face_bind_groups[i]);
+    WGPU_RELEASE_RESOURCE(Buffer, converter->per_face_uniform_buffers[i]);
+  }
+  WGPU_RELEASE_RESOURCE(ComputePipeline, converter->pipeline);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, converter->bind_group_layouts[0]);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, converter->bind_group_layouts[1]);
+  WGPU_RELEASE_RESOURCE(Sampler, converter->sampler);
+  free(converter);
 }
 
 /* -- Internal: IBL precomputation (irradiance, specular, BRDF LUT) -------- */
@@ -3003,8 +3057,17 @@ bool wgpu_ibl_textures_from_environment(wgpu_context_t* wgpu_context,
   }
 
   /* --- Step 2: Convert panorama to cubemap --- */
-  if (!ibl_panorama_to_cubemap(wgpu_context, env, ibl->environment_cubemap,
-                               env_size)) {
+  wgpu_panorama_to_cubemap_converter_t* converter
+    = wgpu_panorama_to_cubemap_converter_create(device);
+  if (!converter) {
+    fprintf(stderr, "ibl: failed to create panorama converter\n");
+    wgpu_ibl_textures_destroy(ibl);
+    return false;
+  }
+  bool convert_ok = wgpu_panorama_to_cubemap_converter_convert(
+    converter, env->data, env->width, env->height, ibl->environment_cubemap);
+  wgpu_panorama_to_cubemap_converter_destroy(converter);
+  if (!convert_ok) {
     fprintf(stderr, "ibl: panorama-to-cubemap conversion failed\n");
     wgpu_ibl_textures_destroy(ibl);
     return false;
