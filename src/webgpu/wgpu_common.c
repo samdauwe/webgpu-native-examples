@@ -1544,7 +1544,7 @@ static wgpu_mipmap_generator_t* mipmap_generator_create(WGPUDevice device)
 
   /* Create linear sampler for bilinear downsampling */
   WGPUSamplerDescriptor sampler_desc = {
-    .label     = STRVIEW("mipmap generator sampler"),
+    .label     = STRVIEW("Mipmap generator - Sampler"),
     .minFilter = WGPUFilterMode_Linear,
     .magFilter = WGPUFilterMode_Linear,
   };
