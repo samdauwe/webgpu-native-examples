@@ -295,6 +295,10 @@ Adds image based lighting from an HDR environment cubemap to the PBR equation, u
 
 Physically Based Rendering with Image Based Lighting using OBJ model loader.
 
+#### [glTF PBR Viewer](src/examples/gltf_viewer.c)
+
+A physically based glTF 2.0 model viewer with Image Based Lighting. Loads a glTF binary (.glb) model and an HDR environment map, generates IBL textures (irradiance, prefiltered specular, BRDF LUT) on the GPU, and renders the model with a metallic-roughness PBR workflow. Features orbit camera controls (tumble, pan, zoom), normal mapping, emissive, occlusion, alpha mask/blend modes with transparent mesh depth-sorting, and environment skybox rendering with PBR Neutral tone mapping.
+
 ### Deferred
 
 These examples use a [deferred shading](https://en.wikipedia.org/wiki/Deferred_shading) setup.
