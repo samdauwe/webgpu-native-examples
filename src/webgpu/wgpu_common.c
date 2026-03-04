@@ -1544,9 +1544,10 @@ static wgpu_mipmap_generator_t* mipmap_generator_create(WGPUDevice device)
 
   /* Create linear sampler for bilinear downsampling */
   WGPUSamplerDescriptor sampler_desc = {
-    .label     = STRVIEW("Mipmap generator - Sampler"),
-    .minFilter = WGPUFilterMode_Linear,
-    .magFilter = WGPUFilterMode_Linear,
+    .label         = STRVIEW("Mipmap generator - Sampler"),
+    .minFilter     = WGPUFilterMode_Linear,
+    .magFilter     = WGPUFilterMode_Linear,
+    .maxAnisotropy = 1,
   };
   gen->sampler = wgpuDeviceCreateSampler(device, &sampler_desc);
 
@@ -1733,6 +1734,7 @@ void wgpu_generate_mipmaps(wgpu_context_t* wgpu_context, WGPUTexture texture,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
         .clearValue = {0},
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
       };
 
       WGPURenderPassDescriptor rp_desc = {
@@ -2269,12 +2271,13 @@ wgpu_panorama_to_cubemap_converter_create(WGPUDevice device)
   /* Sampler (nearest, repeat-U, clamp-V — matches C++ original) */
   c->sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .addressModeU = WGPUAddressMode_Repeat,
-              .addressModeV = WGPUAddressMode_ClampToEdge,
-              .addressModeW = WGPUAddressMode_Repeat,
-              .minFilter    = WGPUFilterMode_Nearest,
-              .magFilter    = WGPUFilterMode_Nearest,
-              .mipmapFilter = WGPUMipmapFilterMode_Nearest,
+              .addressModeU  = WGPUAddressMode_Repeat,
+              .addressModeV  = WGPUAddressMode_ClampToEdge,
+              .addressModeW  = WGPUAddressMode_Repeat,
+              .minFilter     = WGPUFilterMode_Nearest,
+              .magFilter     = WGPUFilterMode_Nearest,
+              .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
+              .maxAnisotropy = 1,
             });
 
   /* Bind group layout 0: sampler + input 2D + output 2D-array */
@@ -2428,8 +2431,10 @@ bool wgpu_panorama_to_cubemap_converter_convert(
   /* Create views for input panorama and output cubemap */
   WGPUTextureView input_view = wgpuTextureCreateView(
     panorama_tex, &(WGPUTextureViewDescriptor){
-                    .format    = WGPUTextureFormat_RGBA32Float,
-                    .dimension = WGPUTextureViewDimension_2D,
+                    .format          = WGPUTextureFormat_RGBA32Float,
+                    .dimension       = WGPUTextureViewDimension_2D,
+                    .mipLevelCount   = 1,
+                    .arrayLayerCount = 1,
                   });
 
   WGPUTextureView output_view = wgpuTextureCreateView(
@@ -2551,12 +2556,13 @@ static bool ibl_generate_maps(wgpu_context_t* ctx, WGPUTexture env_cubemap,
   /* Sampler (trilinear, repeat) */
   WGPUSampler env_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .addressModeU = WGPUAddressMode_Repeat,
-              .addressModeV = WGPUAddressMode_Repeat,
-              .addressModeW = WGPUAddressMode_Repeat,
-              .minFilter    = WGPUFilterMode_Linear,
-              .magFilter    = WGPUFilterMode_Linear,
-              .mipmapFilter = WGPUMipmapFilterMode_Linear,
+              .addressModeU  = WGPUAddressMode_Repeat,
+              .addressModeV  = WGPUAddressMode_Repeat,
+              .addressModeW  = WGPUAddressMode_Repeat,
+              .minFilter     = WGPUFilterMode_Linear,
+              .magFilter     = WGPUFilterMode_Linear,
+              .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+              .maxAnisotropy = 1,
             });
 
   /* numSamples uniform buffer */
@@ -3125,24 +3131,26 @@ bool wgpu_ibl_textures_from_environment(wgpu_context_t* wgpu_context,
   /* --- Step 7: Create samplers --- */
   ibl->environment_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .addressModeU = WGPUAddressMode_Repeat,
-              .addressModeV = WGPUAddressMode_Repeat,
-              .addressModeW = WGPUAddressMode_Repeat,
-              .minFilter    = WGPUFilterMode_Linear,
-              .magFilter    = WGPUFilterMode_Linear,
-              .mipmapFilter = WGPUMipmapFilterMode_Linear,
-              .lodMinClamp  = 0.0f,
-              .lodMaxClamp  = (float)env_mip_levels,
+              .addressModeU  = WGPUAddressMode_Repeat,
+              .addressModeV  = WGPUAddressMode_Repeat,
+              .addressModeW  = WGPUAddressMode_Repeat,
+              .minFilter     = WGPUFilterMode_Linear,
+              .magFilter     = WGPUFilterMode_Linear,
+              .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+              .lodMinClamp   = 0.0f,
+              .lodMaxClamp   = (float)env_mip_levels,
+              .maxAnisotropy = 1,
             });
 
   ibl->brdf_lut_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .addressModeU = WGPUAddressMode_ClampToEdge,
-              .addressModeV = WGPUAddressMode_ClampToEdge,
-              .addressModeW = WGPUAddressMode_ClampToEdge,
-              .minFilter    = WGPUFilterMode_Linear,
-              .magFilter    = WGPUFilterMode_Linear,
-              .mipmapFilter = WGPUMipmapFilterMode_Nearest,
+              .addressModeU  = WGPUAddressMode_ClampToEdge,
+              .addressModeV  = WGPUAddressMode_ClampToEdge,
+              .addressModeW  = WGPUAddressMode_ClampToEdge,
+              .minFilter     = WGPUFilterMode_Linear,
+              .magFilter     = WGPUFilterMode_Linear,
+              .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
+              .maxAnisotropy = 1,
             });
 
   return true;
