@@ -620,7 +620,9 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
   }
   if (gltf_node->has_rotation) {
     /* cgltf stores rotation as [x, y, z, w], cglm versor is [x, y, z, w] */
-    glm_vec4_copy((float*)gltf_node->rotation, node->rotation);
+    /* Use memcpy instead of glm_vec4_copy to avoid SSE alignment issues
+     * with cgltf data which may not be 16-byte aligned. */
+    memcpy(node->rotation, gltf_node->rotation, sizeof(vec4));
   }
   if (gltf_node->has_scale) {
     glm_vec3_copy((float*)gltf_node->scale, node->scale);
