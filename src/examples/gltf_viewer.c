@@ -9,7 +9,7 @@
  *   - Normal mapping, occlusion, emissive
  *   - Alpha mask & alpha blend (transparent sorting)
  *   - Orbit camera controls (tumble, pan, zoom)
- *   - Skeletal animation support
+ *   - Turntable rotation animation
  *   - GUI controls for animation and camera
  *
  * Based on: https://github.com/ArnCarve);
@@ -193,8 +193,9 @@ static struct {
   gltf_model_t model;
   bool model_loaded;
   bool animate_model;
-  float animation_time;
+  float rotation_angle;
   mat4 model_transform;
+  mat4 node_base_transform;
 
   /* Environment data */
   wgpu_environment_t environment;
@@ -1316,11 +1317,26 @@ static void process_loaded_assets(wgpu_context_t* ctx)
     create_submeshes();
     create_materials(ctx);
 
-    /* Position camera to view model */
+    /* Compute node base transform (first mesh-bearing node's world matrix).
+     * The C++ reference bakes node transforms into vertex positions at load
+     * time. Since gltf_model.c does NOT bake transforms, we must multiply
+     * the first mesh node's world matrix into the model transform so that
+     * vertices are rendered in world space. */
+    glm_mat4_identity(state.node_base_transform);
+    for (uint32_t ni = 0; ni < state.model.linear_node_count; ++ni) {
+      gltf_node_t* nd = state.model.linear_nodes[ni];
+      if (nd->mesh) {
+        gltf_node_get_world_matrix(nd, state.node_base_transform);
+        break;
+      }
+    }
+
+    /* Initial model transform = node base transform (no rotation yet) */
+    glm_mat4_copy(state.node_base_transform, state.model_transform);
+
+    /* Position camera to view model (dimensions already in world space) */
     camera_reset_to_model(&state.camera, state.model.dimensions.min,
                           state.model.dimensions.max);
-
-    glm_mat4_identity(state.model_transform);
 
     printf(
       "[gltf_viewer] Model resources created: %u opaque, "
@@ -1371,10 +1387,6 @@ static void render_gui(wgpu_context_t* ctx)
       igSeparator();
       igCheckbox("Animate", &state.animate_model);
 
-      if (state.model.animation_count > 0) {
-        igText("Animations: %u", state.model.animation_count);
-      }
-
       igSeparator();
       igText("Camera:");
       igText("  Pos: %.1f, %.1f, %.1f", state.camera.position[0],
@@ -1383,6 +1395,7 @@ static void render_gui(wgpu_context_t* ctx)
       if (igButton("Reset Camera", (ImVec2){0, 0})) {
         camera_reset_to_model(&state.camera, state.model.dimensions.min,
                               state.model.dimensions.max);
+        state.rotation_angle = 0.0f;
       }
     }
   }
@@ -1564,11 +1577,16 @@ static int frame(wgpu_context_t* ctx)
   if (delta_time <= 0.0f || delta_time > 0.1f)
     delta_time = 1.0f / 60.0f;
 
-  /* Animate model */
-  if (state.model_loaded && state.animate_model
-      && state.model.animation_count > 0) {
-    state.animation_time += delta_time;
-    gltf_model_update_animation(&state.model, 0, state.animation_time);
+  /* Animate model (turntable rotation around Y-axis) */
+  if (state.model_loaded && state.animate_model) {
+    state.rotation_angle += delta_time;
+    if (state.rotation_angle > 2.0f * GLM_PIf)
+      state.rotation_angle -= 2.0f * GLM_PIf;
+  }
+  if (state.model_loaded) {
+    mat4 turntable;
+    glm_rotate_make(turntable, -state.rotation_angle, (vec3){0.0f, 1.0f, 0.0f});
+    glm_mat4_mul(turntable, state.node_base_transform, state.model_transform);
   }
 
   /* GUI */
