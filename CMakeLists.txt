@@ -73,6 +73,7 @@ set(COMMON_SOURCES
     src/core/image_loader.c
     src/webgpu/wgpu_common.c
     src/examples/meshes.c
+    external/mikktspace/mikktspace.c
 )
 
 # ==============================================================================
@@ -139,6 +140,7 @@ function(add_example_executable EXAMPLE_NAME)
         PRIVATE external/cglm/include
         PRIVATE external/cgltf
         PRIVATE external/cJSON
+        PRIVATE external/mikktspace
         PRIVATE external/par
         PRIVATE external/rply
         PRIVATE external/sokol
