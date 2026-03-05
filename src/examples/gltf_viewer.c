@@ -170,6 +170,7 @@ static struct {
   WGPUBool glb_loaded;
   WGPUBool hdr_loaded;
   WGPUBool resources_ready;
+  WGPUBool model_resources_created;
 
   /* File loading buffers */
   uint8_t* glb_file_buffer;
@@ -902,28 +903,98 @@ static WGPUTexture create_model_texture(wgpu_context_t* ctx,
   uint32_t h         = tex->height;
   uint32_t mip_count = wgpu_texture_mip_level_count(w, h);
 
-  WGPUTextureDescriptor td = {
-    .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
-             | WGPUTextureUsage_RenderAttachment,
-    .size          = {w, h, 1},
-    .format        = format,
-    .mipLevelCount = mip_count,
-    .sampleCount   = 1,
-  };
-  WGPUTexture texture = wgpuDeviceCreateTexture(ctx->device, &td);
+  bool is_srgb = (format == WGPUTextureFormat_RGBA8UnormSrgb);
 
-  /* Upload level 0 */
-  WGPUTexelCopyTextureInfo dst_info = {.texture = texture, .mipLevel = 0};
-  WGPUTexelCopyBufferLayout src_layout
-    = {.bytesPerRow = 4 * w, .rowsPerImage = h};
-  WGPUExtent3D extent = {w, h, 1};
-  wgpuQueueWriteTexture(ctx->queue, &dst_info, tex->data, (size_t)4 * w * h,
-                        &src_layout, &extent);
+  if (is_srgb) {
+    /* SRGB textures: create directly with RenderAttachment for render-based
+     * mipmap generation. The GPU handles sRGB↔linear conversion during
+     * sampling and render target writes automatically. */
+    WGPUTextureDescriptor td = {
+      .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_RenderAttachment,
+      .size          = {w, h, 1},
+      .format        = format,
+      .mipLevelCount = mip_count,
+      .sampleCount   = 1,
+    };
+    WGPUTexture texture = wgpuDeviceCreateTexture(ctx->device, &td);
 
-  /* Generate mipmaps */
-  wgpu_generate_mipmaps(ctx, texture, WGPU_MIPMAP_VIEW_2D);
+    /* Upload level 0 */
+    WGPUTexelCopyTextureInfo dst_info = {.texture = texture, .mipLevel = 0};
+    WGPUTexelCopyBufferLayout src_layout
+      = {.bytesPerRow = 4 * w, .rowsPerImage = h};
+    WGPUExtent3D extent = {w, h, 1};
+    wgpuQueueWriteTexture(ctx->queue, &dst_info, tex->data, (size_t)4 * w * h,
+                          &src_layout, &extent);
 
-  return texture;
+    /* Generate mipmaps via render passes */
+    wgpu_generate_mipmaps(ctx, texture, WGPU_MIPMAP_VIEW_2D);
+    return texture;
+  }
+  else {
+    /* UNORM textures (metallic-roughness, normal, occlusion): use a two-stage
+     * approach matching the C++ reference. Create an intermediate texture with
+     * RenderAttachment for mipmap generation, then copy all mips to the final
+     * texture which only has TextureBinding | CopyDst. This makes RenderDoc
+     * correctly classify these as '2D Image' instead of '2D Color Attachment'.
+     */
+
+    /* Stage 1: intermediate texture with RenderAttachment for mipmap gen */
+    WGPUTextureDescriptor tmp_desc = {
+      .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment,
+      .size          = {w, h, 1},
+      .format        = format,
+      .mipLevelCount = mip_count,
+      .sampleCount   = 1,
+    };
+    WGPUTexture tmp_tex = wgpuDeviceCreateTexture(ctx->device, &tmp_desc);
+
+    /* Upload level 0 to intermediate */
+    WGPUTexelCopyTextureInfo dst_info = {.texture = tmp_tex, .mipLevel = 0};
+    WGPUTexelCopyBufferLayout src_layout
+      = {.bytesPerRow = 4 * w, .rowsPerImage = h};
+    WGPUExtent3D extent = {w, h, 1};
+    wgpuQueueWriteTexture(ctx->queue, &dst_info, tex->data, (size_t)4 * w * h,
+                          &src_layout, &extent);
+
+    /* Generate mipmaps on intermediate */
+    wgpu_generate_mipmaps(ctx, tmp_tex, WGPU_MIPMAP_VIEW_2D);
+
+    /* Stage 2: final texture without RenderAttachment */
+    WGPUTextureDescriptor final_desc = {
+      .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .size   = {w, h, 1},
+      .format = format,
+      .mipLevelCount = mip_count,
+      .sampleCount   = 1,
+    };
+    WGPUTexture final_tex = wgpuDeviceCreateTexture(ctx->device, &final_desc);
+
+    /* Copy all mip levels from intermediate to final */
+    WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(ctx->device, NULL);
+    uint32_t mip_w = w, mip_h = h;
+    for (uint32_t mip = 0; mip < mip_count; ++mip) {
+      WGPUTexelCopyTextureInfo src = {.texture = tmp_tex, .mipLevel = mip};
+      WGPUTexelCopyTextureInfo dst = {.texture = final_tex, .mipLevel = mip};
+      WGPUExtent3D mip_size        = {mip_w, mip_h, 1};
+      wgpuCommandEncoderCopyTextureToTexture(enc, &src, &dst, &mip_size);
+      if (mip_w > 1)
+        mip_w /= 2;
+      if (mip_h > 1)
+        mip_h /= 2;
+    }
+    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(enc, NULL);
+    wgpuQueueSubmit(ctx->queue, 1, &cmd);
+    wgpuCommandBufferRelease(cmd);
+    wgpuCommandEncoderRelease(enc);
+
+    /* Release intermediate texture */
+    wgpuTextureDestroy(tmp_tex);
+    wgpuTextureRelease(tmp_tex);
+
+    return final_tex;
+  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1060,6 +1131,10 @@ static void create_materials(wgpu_context_t* ctx)
       dst->base_color_texture
         = create_model_texture(ctx, &m->textures[src->base_color_tex_index],
                                WGPUTextureFormat_RGBA8UnormSrgb);
+      if (!dst->base_color_texture) {
+        printf("[gltf_viewer] WARN: base color texture %d failed to create\n",
+               src->base_color_tex_index);
+      }
     }
 
     /* Metallic-roughness texture */
@@ -1306,7 +1381,9 @@ static void process_loaded_assets(wgpu_context_t* ctx)
   }
 
   /* Process GLB model */
-  if (state.glb_loaded && state.model_loaded && !state.resources_ready) {
+  if (state.glb_loaded && state.model_loaded
+      && !state.model_resources_created) {
+    state.model_resources_created = true;
     printf("[gltf_viewer] Creating model GPU resources...\n");
 
     /* Release previous model resources */
@@ -1345,7 +1422,7 @@ static void process_loaded_assets(wgpu_context_t* ctx)
     need_rebuild = true;
   }
 
-  if (state.glb_loaded && state.hdr_loaded) {
+  if (state.model_resources_created && state.environment_loaded) {
     state.resources_ready = true;
   }
 
