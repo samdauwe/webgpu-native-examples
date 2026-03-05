@@ -17,6 +17,8 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
+#include <mikktspace.h>
+
 #include <assert.h>
 #include <float.h>
 #include <math.h>
@@ -599,6 +601,151 @@ void gltf_node_update(gltf_node_t* node)
   }
 }
 
+/* -------------------------------------------------------------------------- *
+ * MikkTSpace tangent generation
+ *
+ * Generates tangent vectors for primitives that don't include them.
+ * Follows the same approach as the C++ webgpu-gltf-viewer reference.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  gltf_vertex_t* vertices;
+  uint32_t* indices;
+  uint32_t first_index;
+  uint32_t index_count;
+} mikkt_mesh_data_t;
+
+static int mikkt_get_num_faces(const SMikkTSpaceContext* ctx)
+{
+  const mikkt_mesh_data_t* md = (const mikkt_mesh_data_t*)ctx->m_pUserData;
+  return (int)(md->index_count / 3);
+}
+
+static int mikkt_get_num_vertices_of_face(const SMikkTSpaceContext* ctx,
+                                          const int face)
+{
+  (void)ctx;
+  (void)face;
+  return 3;
+}
+
+static void mikkt_get_position(const SMikkTSpaceContext* ctx, float out[],
+                               const int face, const int vert)
+{
+  const mikkt_mesh_data_t* md = (const mikkt_mesh_data_t*)ctx->m_pUserData;
+  uint32_t idx
+    = md->indices[md->first_index + (uint32_t)face * 3 + (uint32_t)vert];
+  const gltf_vertex_t* v = &md->vertices[idx];
+  out[0]                 = v->position[0];
+  out[1]                 = v->position[1];
+  out[2]                 = v->position[2];
+}
+
+static void mikkt_get_normal(const SMikkTSpaceContext* ctx, float out[],
+                             const int face, const int vert)
+{
+  const mikkt_mesh_data_t* md = (const mikkt_mesh_data_t*)ctx->m_pUserData;
+  uint32_t idx
+    = md->indices[md->first_index + (uint32_t)face * 3 + (uint32_t)vert];
+  const gltf_vertex_t* v = &md->vertices[idx];
+  out[0]                 = v->normal[0];
+  out[1]                 = v->normal[1];
+  out[2]                 = v->normal[2];
+}
+
+static void mikkt_get_tex_coord(const SMikkTSpaceContext* ctx, float out[],
+                                const int face, const int vert)
+{
+  const mikkt_mesh_data_t* md = (const mikkt_mesh_data_t*)ctx->m_pUserData;
+  uint32_t idx
+    = md->indices[md->first_index + (uint32_t)face * 3 + (uint32_t)vert];
+  const gltf_vertex_t* v = &md->vertices[idx];
+  out[0]                 = v->uv0[0];
+  out[1]                 = v->uv0[1];
+}
+
+static void mikkt_set_tspace_basic(const SMikkTSpaceContext* ctx,
+                                   const float tangent[], const float sign,
+                                   const int face, const int vert)
+{
+  mikkt_mesh_data_t* md = (mikkt_mesh_data_t*)ctx->m_pUserData;
+  uint32_t idx
+    = md->indices[md->first_index + (uint32_t)face * 3 + (uint32_t)vert];
+  gltf_vertex_t* v = &md->vertices[idx];
+
+  /* Get the vertex normal for orthogonality check */
+  float n[3];
+  ctx->m_pInterface->m_getNormal(ctx, n, face, vert);
+
+  /* Normalize the computed tangent */
+  float t[3] = {tangent[0], tangent[1], tangent[2]};
+  float len  = sqrtf(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+  if (len > 1e-6f) {
+    t[0] /= len;
+    t[1] /= len;
+    t[2] /= len;
+  }
+
+  /* Check if tangent is sufficiently orthogonal to the normal */
+  float dot_tn = fabsf(t[0] * n[0] + t[1] * n[1] + t[2] * n[2]);
+  if (dot_tn < 0.9f) {
+    /* Good tangent — negate sign to match glTF convention */
+    v->tangent[0] = tangent[0];
+    v->tangent[1] = tangent[1];
+    v->tangent[2] = tangent[2];
+    v->tangent[3] = -sign;
+  }
+  else {
+    /* Fallback: generate an orthogonal tangent */
+    const float singularity_threshold = -0.99998796f;
+    if (n[2] < singularity_threshold) {
+      v->tangent[0] = 0.0f;
+      v->tangent[1] = -1.0f;
+      v->tangent[2] = 0.0f;
+      v->tangent[3] = 1.0f;
+    }
+    else {
+      float a       = 1.0f / (1.0f + n[2]);
+      float b       = -n[0] * n[1] * a;
+      v->tangent[0] = 1.0f - n[0] * n[0] * a;
+      v->tangent[1] = b;
+      v->tangent[2] = -n[0];
+      v->tangent[3] = 1.0f;
+    }
+  }
+}
+
+static void gltf_generate_tangents(gltf_vertex_t* vertices, uint32_t* indices,
+                                   uint32_t first_index, uint32_t index_count)
+{
+  if (index_count < 3) {
+    return;
+  }
+
+  SMikkTSpaceInterface iface   = {0};
+  iface.m_getNumFaces          = mikkt_get_num_faces;
+  iface.m_getNumVerticesOfFace = mikkt_get_num_vertices_of_face;
+  iface.m_getPosition          = mikkt_get_position;
+  iface.m_getNormal            = mikkt_get_normal;
+  iface.m_getTexCoord          = mikkt_get_tex_coord;
+  iface.m_setTSpaceBasic       = mikkt_set_tspace_basic;
+
+  mikkt_mesh_data_t mesh_data = {
+    .vertices    = vertices,
+    .indices     = indices,
+    .first_index = first_index,
+    .index_count = index_count,
+  };
+
+  SMikkTSpaceContext context = {0};
+  context.m_pInterface       = &iface;
+  context.m_pUserData        = &mesh_data;
+
+  if (!genTangSpaceDefault(&context)) {
+    gltf_log_warn("MikkTSpace tangent generation failed");
+  }
+}
+
 /* Load a single node and its children recursively */
 static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
                       uint32_t node_index, const cgltf_data* gltf_data,
@@ -881,7 +1028,11 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
           glm_vec4_copy((float*)tan, vert->tangent);
         }
         else {
-          glm_vec4_zero(vert->tangent);
+          /* Default tangent: valid unit tangent along X with +1 handedness */
+          vert->tangent[0] = 1.0f;
+          vert->tangent[1] = 0.0f;
+          vert->tangent[2] = 0.0f;
+          vert->tangent[3] = 1.0f;
         }
 
         /* Color */
@@ -970,6 +1121,13 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
           glm_vec3_minv(mesh->bb.min, prim->bb.min, mesh->bb.min);
           glm_vec3_maxv(mesh->bb.max, prim->bb.max, mesh->bb.max);
         }
+      }
+
+      /* Generate tangents via MikkTSpace when not provided by the glTF */
+      if (!tangent_data && prim->has_indices && prim->index_count >= 3) {
+        gltf_generate_tangents(loader_info->vertex_buffer,
+                               loader_info->index_buffer, prim->first_index,
+                               prim->index_count);
       }
     } /* end primitives loop */
 
