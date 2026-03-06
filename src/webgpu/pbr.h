@@ -126,4 +126,164 @@ bool wgpu_ibl_textures_from_environment(wgpu_context_t* wgpu_context,
  */
 void wgpu_ibl_textures_destroy(wgpu_ibl_textures_t* ibl);
 
+/* -------------------------------------------------------------------------- *
+ * Shared WGSL PBR shader snippets
+ *
+ * These are commonly-needed PBR/lighting WGSL functions provided as C string
+ * constants.  Each snippet is a self-contained set of WGSL functions that can
+ * be concatenated (e.g. with string literal juxtaposition or at runtime) into
+ * a complete shader module together with the caller's own bindings, structs,
+ * and entry points.
+ *
+ * Usage example (compile-time concatenation):
+ *
+ *   static const char* my_shader = CODE(
+ *     @group(0) @binding(0) var<uniform> exposure : f32;
+ *     @group(0) @binding(1) var<uniform> gamma    : f32;
+ *   )
+ *   WGPU_PBR_WGSL_SRGB           // adds SRGBtoLINEAR, linearToSRGB
+ *   WGPU_PBR_WGSL_TONE_MAPPING   // adds toneMapPBRNeutral, Uncharted2, …
+ *   CODE(
+ *     @fragment fn fs_main() -> @location(0) vec4f {
+ *       var c = SRGBtoLINEAR(…);
+ *       c = toneMap(c, exposure, gamma, 0);
+ *       return vec4f(c, 1.0);
+ *     }
+ *   );
+ *
+ * Alternatively, reference the const-char* variables at runtime:
+ *
+ *   const char* parts[] = {
+ *     my_bindings_code,
+ *     wgpu_pbr_wgsl_srgb,
+ *     wgpu_pbr_wgsl_tone_mapping,
+ *     my_main_code,
+ *   };
+ *   // concatenate parts → create shader module
+ * -------------------------------------------------------------------------- */
+
+/**
+ * sRGB ↔ linear colour-space conversion (accurate piecewise functions).
+ * Provides: SRGBtoLINEAR(vec4f) → vec4f, linearToSRGB(vec3f) → vec3f
+ */
+extern const char* wgpu_pbr_wgsl_srgb;
+
+/**
+ * Compile-time string-literal version (for static concatenation with CODE()).
+ */
+#define WGPU_PBR_WGSL_SRGB                                                     \
+  "fn SRGBtoLINEAR(srgbIn : vec4f) -> vec4f {"                                 \
+  "  let bLess = step(vec3f(0.04045), srgbIn.xyz);"                            \
+  "  let linOut = mix(srgbIn.xyz / vec3f(12.92),"                              \
+  "    pow((srgbIn.xyz + vec3f(0.055)) / vec3f(1.055), vec3f(2.4)), bLess);"   \
+  "  return vec4f(linOut, srgbIn.w);"                                          \
+  "}"                                                                          \
+  "fn linearToSRGB(linIn : vec3f) -> vec3f {"                                  \
+  "  let cutoff = step(vec3f(0.0031308), linIn);"                              \
+  "  let higher = vec3f(1.055) * pow(linIn, vec3f(1.0/2.4)) - vec3f(0.055);"   \
+  "  let lower  = linIn * vec3f(12.92);"                                       \
+  "  return mix(lower, higher, cutoff);"                                       \
+  "}"
+
+/**
+ * Tone-mapping functions (PBR Neutral, Uncharted2, Reinhard).
+ * Provides: toneMapPBRNeutral(vec3f) → vec3f
+ *           Uncharted2Tonemap(vec3f) → vec3f
+ *           toneMap(color: vec3f, exposure: f32, gamma: f32, type: i32) → vec3f
+ *             type: 0 = PBR Neutral, 1 = Uncharted2 filmic, 2 = Reinhard
+ */
+extern const char* wgpu_pbr_wgsl_tone_mapping;
+
+#define WGPU_PBR_WGSL_TONE_MAPPING                                             \
+  "fn Uncharted2Tonemap(x : vec3f) -> vec3f {"                                 \
+  "  let A=0.15; let B=0.50; let C=0.10;"                                      \
+  "  let D=0.20; let E=0.02; let F=0.30;"                                      \
+  "  return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;"                          \
+  "}"                                                                          \
+  "fn toneMapPBRNeutral(colorIn : vec3f) -> vec3f {"                           \
+  "  let startCompression = 0.8 - 0.04;"                                       \
+  "  let desaturation = 0.15;"                                                 \
+  "  let x = min(colorIn.r, min(colorIn.g, colorIn.b));"                       \
+  "  let offset = select(0.04, x - 6.25*x*x, x < 0.08);"                       \
+  "  var color = colorIn - offset;"                                            \
+  "  let peak = max(color.r, max(color.g, color.b));"                          \
+  "  if (peak < startCompression) { return color; }"                           \
+  "  let d = 1.0 - startCompression;"                                          \
+  "  let newPeak = 1.0 - d*d/(peak+d-startCompression);"                       \
+  "  color = color * (newPeak / peak);"                                        \
+  "  let g = 1.0 - 1.0/(desaturation*(peak-newPeak)+1.0);"                     \
+  "  return mix(color, newPeak * vec3f(1.0), g);"                              \
+  "}"                                                                          \
+  "fn toneMap(colorIn: vec3f, exposure: f32, gamma: f32, tmType: i32)"         \
+  "    -> vec3f {"                                                             \
+  "  let invGamma = 1.0 / gamma;"                                              \
+  "  var c = colorIn * exposure;"                                              \
+  "  if (tmType == 1) {"                                                       \
+  "    let W = 11.2;"                                                          \
+  "    c = Uncharted2Tonemap(c) * (1.0/Uncharted2Tonemap(vec3f(W)));"          \
+  "  } else if (tmType == 2) {"                                                \
+  "    c = c / (c + vec3f(1.0));"                                              \
+  "  } else {"                                                                 \
+  "    c = toneMapPBRNeutral(c);"                                              \
+  "  }"                                                                        \
+  "  return pow(c, vec3f(invGamma));"                                          \
+  "}"
+
+/**
+ * Cook-Torrance specular micro-facet BRDF components.
+ * Provides:
+ *   FSchlick(f0, f90, VdotH) → vec3f            Fresnel (Schlick approx)
+ *   VGGX(NdotL, NdotV, alphaRoughness) → f32    Smith-GGX visibility
+ *   DGGX(NdotH, alphaRoughness) → f32           GGX normal distribution
+ *   BRDFLambertian(f0,f90,diffColor,sw,VdotH)   Lambertian diffuse w/ Fresnel
+ *   BRDFSpecularGGX(f0,f90,aR,sw,VdotH,NdotL,NdotV,NdotH) Specular BRDF
+ *
+ * Requires: const pi = 3.141592653589793; (defined by caller)
+ */
+extern const char* wgpu_pbr_wgsl_brdf;
+
+#define WGPU_PBR_WGSL_BRDF                                                     \
+  "fn FSchlick(f0: vec3f, f90: vec3f, vDotH: f32) -> vec3f {"                  \
+  "  return f0 + (f90-f0)*pow(clamp(1.0-vDotH, 0.0, 1.0), 5.0);"               \
+  "}"                                                                          \
+  "fn VGGX(nDotL: f32, nDotV: f32, alphaRoughness: f32) -> f32 {"              \
+  "  let a2 = alphaRoughness * alphaRoughness;"                                \
+  "  let ggxV = nDotL * sqrt(nDotV*nDotV*(1.0-a2)+a2);"                        \
+  "  let ggxL = nDotV * sqrt(nDotL*nDotL*(1.0-a2)+a2);"                        \
+  "  let ggx = ggxV + ggxL;"                                                   \
+  "  if (ggx > 0.0) { return 0.5 / ggx; } return 0.0;"                         \
+  "}"                                                                          \
+  "fn DGGX(nDotH: f32, alphaRoughness: f32) -> f32 {"                          \
+  "  let a2 = alphaRoughness * alphaRoughness;"                                \
+  "  let f = (nDotH*nDotH)*(a2-1.0)+1.0;"                                      \
+  "  return a2 / (3.141592653589793 * f * f);"                                 \
+  "}"                                                                          \
+  "fn BRDFLambertian(f0: vec3f, f90: vec3f, diffuseColor: vec3f,"              \
+  "    specularWeight: f32, vDotH: f32) -> vec3f {"                            \
+  "  return (1.0-specularWeight*FSchlick(f0,f90,vDotH))"                       \
+  "    * (diffuseColor / 3.141592653589793);"                                  \
+  "}"                                                                          \
+  "fn BRDFSpecularGGX(f0: vec3f, f90: vec3f, alphaRoughness: f32,"             \
+  "    specularWeight: f32, vDotH: f32, nDotL: f32,"                           \
+  "    nDotV: f32, nDotH: f32) -> vec3f {"                                     \
+  "  let F = FSchlick(f0, f90, vDotH);"                                        \
+  "  let V = VGGX(nDotL, nDotV, alphaRoughness);"                              \
+  "  let D = DGGX(nDotH, alphaRoughness);"                                     \
+  "  return specularWeight * F * V * D;"                                       \
+  "}"
+
+/**
+ * IBL multi-scattering Fresnel (Fdez-Agüera approximation).
+ * Provides:
+ *   getIBLGGXFresnel(N, V, roughness, F0, specularWeight,
+ *                    brdfLUT_tex, brdfLUT_sampler) → vec3f
+ *
+ * The function reads the BRDF LUT texture directly.  The caller must ensure
+ * that the texture and sampler bindings are in scope (any binding slot).
+ *
+ * NOTE: this snippet references global bindings by name; callers must have
+ * `iblBRDFIntegrationLUTTexture` and `iblBRDFIntegrationLUTSampler` in scope.
+ */
+extern const char* wgpu_pbr_wgsl_ibl_fresnel;
+
 #endif /* PBR_H_ */

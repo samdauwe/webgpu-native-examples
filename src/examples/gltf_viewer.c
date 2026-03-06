@@ -86,13 +86,22 @@ static const char* gltf_pbr_shader_wgsl;
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  mat4 view_matrix;               /* offset 0   */
-  mat4 projection_matrix;         /* offset 64  */
-  mat4 inverse_view_matrix;       /* offset 128 */
-  mat4 inverse_projection_matrix; /* offset 192 */
-  vec3 camera_position;           /* offset 256 */
-  float _pad;                     /* offset 268 */
-} global_uniforms_t;              /* size: 272  */
+  mat4 view_matrix;                  /* offset 0   */
+  mat4 projection_matrix;            /* offset 64  */
+  mat4 inverse_view_matrix;          /* offset 128 */
+  mat4 inverse_projection_matrix;    /* offset 192 */
+  vec3 camera_position;              /* offset 256 */
+  float exposure;                    /* offset 268 */
+  vec4 light_dir;                    /* offset 272 */
+  float gamma;                       /* offset 288 */
+  float prefiltered_cube_mip_levels; /* offset 292 */
+  float scale_ibl_ambient;           /* offset 296 */
+  float debug_view_inputs;           /* offset 300 */
+  float debug_view_equation;         /* offset 304 */
+  int32_t
+    tone_mapping_type; /* offset 308: 0=PBRNeutral, 1=Uncharted2, 2=Reinhard */
+  float _pad2[2];      /* pad to 320 */
+} global_uniforms_t;   /* size: 320  */
 
 typedef struct {
   mat4 model_matrix;  /* offset 0  */
@@ -108,8 +117,10 @@ typedef struct {
   float occlusion_strength; /* offset 40 */
   float alpha_cutoff;       /* offset 44 */
   int32_t alpha_mode;       /* offset 48, 0=Opaque, 1=Mask, 2=Blend */
-  float _pad[3];            /* pad to 64 */
-} material_uniforms_t;      /* size: 64  */
+  float emissive_strength;  /* offset 52 */
+  int32_t workflow; /* offset 56, 0=MetallicRoughness, 1=SpecularGlossiness */
+  float _pad[1];    /* pad to 64 */
+} material_uniforms_t; /* size: 64  */
 
 /* -------------------------------------------------------------------------- *
  * Per-material GPU data
@@ -262,6 +273,18 @@ static struct {
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
 
+  /* PBR settings (GUI-controlled) */
+  struct {
+    float exposure;
+    float gamma;
+    float scale_ibl_ambient;
+    float light_dir[4];        /* xyz = direction, w = unused */
+    float debug_view_inputs;   /* 0=none, 1..6 = texture channels */
+    float debug_view_equation; /* 0=none, 1..5 = BRDF terms */
+    int tone_mapping_type;     /* 0=PBRNeutral, 1=Uncharted2, 2=Reinhard */
+    bool enable_direct_light;  /* Toggle analytical directional light */
+  } pbr;
+
   /* GUI */
   struct {
     bool show_gui;
@@ -269,6 +292,16 @@ static struct {
 
 } state = {
   .animate_model = true,
+  .pbr = {
+    .exposure           = 1.0f,
+    .gamma              = 2.2f,
+    .scale_ibl_ambient  = 1.0f,
+    .light_dir          = {0.75f, 0.75f, 1.0f, 0.0f},
+    .debug_view_inputs  = 0.0f,
+    .debug_view_equation = 0.0f,
+    .tone_mapping_type  = 0,
+    .enable_direct_light = false,
+  },
   .settings.show_gui = true,
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -1121,6 +1154,9 @@ static void create_materials(wgpu_context_t* ctx)
       dst->uniforms.occlusion_strength = src->occlusion_strength;
       dst->uniforms.alpha_cutoff       = src->alpha_cutoff;
       dst->uniforms.alpha_mode         = (int32_t)src->alpha_mode;
+      dst->uniforms.emissive_strength
+        = src->emissive_strength > 0.0f ? src->emissive_strength : 1.0f;
+      dst->uniforms.workflow = 0; /* Metallic-Roughness */
 
       wgpuQueueWriteBuffer(ctx->queue, dst->uniform_buffer, 0, &dst->uniforms,
                            sizeof(material_uniforms_t));
@@ -1236,12 +1272,22 @@ static void update_uniforms(wgpu_context_t* ctx)
 
   /* Global uniforms */
   global_uniforms_t gu;
+  memset(&gu, 0, sizeof(gu));
   camera_get_view_matrix(cam, gu.view_matrix);
   camera_get_projection_matrix(cam, gu.projection_matrix);
   glm_mat4_inv(gu.view_matrix, gu.inverse_view_matrix);
   glm_mat4_inv(gu.projection_matrix, gu.inverse_projection_matrix);
   glm_vec3_copy(cam->position, gu.camera_position);
-  gu._pad = 0.0f;
+
+  /* PBR parameters */
+  gu.exposure = state.pbr.exposure;
+  memcpy(gu.light_dir, state.pbr.light_dir, sizeof(vec4));
+  gu.gamma                       = state.pbr.gamma;
+  gu.prefiltered_cube_mip_levels = (float)state.ibl.prefiltered_mip_levels;
+  gu.scale_ibl_ambient           = state.pbr.scale_ibl_ambient;
+  gu.debug_view_inputs           = state.pbr.debug_view_inputs;
+  gu.debug_view_equation         = state.pbr.debug_view_equation;
+  gu.tone_mapping_type           = state.pbr.tone_mapping_type;
 
   wgpuQueueWriteBuffer(ctx->queue, state.gpu.global_uniform_buffer, 0, &gu,
                        sizeof(global_uniforms_t));
@@ -1442,7 +1488,7 @@ static void render_gui(wgpu_context_t* ctx)
 
   igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
                      (ImVec2){0, 0});
-  igSetNextWindowSize((ImVec2){260.0f, 160.0f}, ImGuiCond_FirstUseEver);
+  igSetNextWindowSize((ImVec2){300.0f, 420.0f}, ImGuiCond_FirstUseEver);
 
   if (igBegin("glTF PBR Viewer", NULL, ImGuiWindowFlags_None)) {
     if (!state.resources_ready) {
@@ -1465,15 +1511,49 @@ static void render_gui(wgpu_context_t* ctx)
       igSeparator();
       igCheckbox("Animate", &state.animate_model);
 
-      igSeparator();
-      igText("Camera:");
-      igText("  Pos: %.1f, %.1f, %.1f", state.camera.position[0],
-             state.camera.position[1], state.camera.position[2]);
+      /* --- PBR Settings --- */
+      if (igCollapsingHeaderBoolPtr("PBR Settings", NULL,
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+        igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 0);
+        igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 0);
+        igSliderFloat("IBL Scale", &state.pbr.scale_ibl_ambient, 0.0f, 2.0f,
+                      "%.2f", 0);
+        igCheckbox("Direct Light", &state.pbr.enable_direct_light);
 
-      if (igButton("Reset Camera", (ImVec2){0, 0})) {
-        camera_reset_to_model(&state.camera, state.model.dimensions.min,
-                              state.model.dimensions.max);
-        state.rotation_angle = 0.0f;
+        /* Tone mapping selector */
+        const char* tone_map_items[]
+          = {"PBR Neutral", "Uncharted2", "Reinhard"};
+        igCombo("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 3,
+                0);
+      }
+
+      /* --- Debug Visualization --- */
+      if (igCollapsingHeaderBoolPtr("Debug Views", NULL, 0)) {
+        const char* input_items[]
+          = {"None",     "Base Color", "Normals",  "Occlusion",
+             "Emissive", "Metallic",   "Roughness"};
+        int debug_input = (int)state.pbr.debug_view_inputs;
+        if (igCombo("Inputs", &debug_input, input_items, 7, 0)) {
+          state.pbr.debug_view_inputs = (float)debug_input;
+        }
+        const char* equation_items[]
+          = {"None",         "Diffuse",          "F (Fresnel)",
+             "G (Geometry)", "D (Distribution)", "Specular"};
+        int debug_eq = (int)state.pbr.debug_view_equation;
+        if (igCombo("Equation", &debug_eq, equation_items, 6, 0)) {
+          state.pbr.debug_view_equation = (float)debug_eq;
+        }
+      }
+
+      /* --- Camera --- */
+      if (igCollapsingHeaderBoolPtr("Camera", NULL, 0)) {
+        igText("  Pos: %.1f, %.1f, %.1f", state.camera.position[0],
+               state.camera.position[1], state.camera.position[2]);
+        if (igButton("Reset Camera", (ImVec2){0, 0})) {
+          camera_reset_to_model(&state.camera, state.model.dimensions.min,
+                                state.model.dimensions.max);
+          state.rotation_angle = 0.0f;
+        }
       }
     }
   }
@@ -1877,6 +1957,14 @@ static const char* environment_shader_wgsl = CODE(
     inverseViewMatrix : mat4x4<f32>,
     inverseProjectionMatrix : mat4x4<f32>,
     cameraPositionWorld : vec3<f32>,
+    exposure : f32,
+    lightDir : vec4<f32>,
+    gamma : f32,
+    prefilteredCubeMipLevels : f32,
+    scaleIBLAmbient : f32,
+    debugViewInputs : f32,
+    debugViewEquation : f32,
+    toneMappingType : i32,
   };
 
   @group(0) @binding(0) var<uniform> globalUniforms : GlobalUniforms;
@@ -1889,6 +1977,12 @@ static const char* environment_shader_wgsl = CODE(
     @builtin(position) position : vec4f,
     @location(0) uv : vec2f,
   };
+
+  fn Uncharted2Tonemap(colorIn : vec3f) -> vec3f {
+    let A = 0.15; let B = 0.50; let C = 0.10;
+    let D = 0.20; let E = 0.02; let F = 0.30;
+    return ((colorIn * (A * colorIn + C * B) + D * E) / (colorIn * (A * colorIn + B) + D * F)) - E / F;
+  }
 
   fn toneMapPBRNeutral(colorIn : vec3f) -> vec3f {
     let startCompression : f32 = 0.8 - 0.04;
@@ -1906,11 +2000,16 @@ static const char* environment_shader_wgsl = CODE(
   }
 
   fn toneMap(colorIn : vec3f) -> vec3f {
-    const gamma = 2.2;
-    const invGamma = 1.0 / gamma;
-    const exposure = 1.0;
-    var color = colorIn * exposure;
-    color = toneMapPBRNeutral(color);
+    let invGamma = 1.0 / globalUniforms.gamma;
+    var color = colorIn * globalUniforms.exposure;
+    if (globalUniforms.toneMappingType == 1) {
+      let W = 11.2;
+      color = Uncharted2Tonemap(color) * (1.0 / Uncharted2Tonemap(vec3f(W)));
+    } else if (globalUniforms.toneMappingType == 2) {
+      color = color / (color + vec3f(1.0));
+    } else {
+      color = toneMapPBRNeutral(color);
+    }
     color = pow(color, vec3f(invGamma));
     return color;
   }
@@ -1957,6 +2056,14 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     inverseViewMatrix : mat4x4<f32>,
     inverseProjectionMatrix : mat4x4<f32>,
     cameraPositionWorld : vec3<f32>,
+    exposure : f32,
+    lightDir : vec4<f32>,
+    gamma : f32,
+    prefilteredCubeMipLevels : f32,
+    scaleIBLAmbient : f32,
+    debugViewInputs : f32,
+    debugViewEquation : f32,
+    toneMappingType : i32,
   };
 
   struct ModelUniforms {
@@ -1973,6 +2080,8 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     occlusionStrength : f32,
     alphaCutoff : f32,
     alphaMode : i32,
+    emissiveStrength : f32,
+    workflow : i32,
   };
 
   @group(0) @binding(0) var<uniform> globalUniforms : GlobalUniforms;
@@ -1993,6 +2102,24 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   @group(1) @binding(7) var emissiveTexture : texture_2d<f32>;
 
   const pi = 3.141592653589793;
+  const c_MinRoughness = 0.04;
+  const PBR_WORKFLOW_METALLIC_ROUGHNESS = 0;
+  const PBR_WORKFLOW_SPECULAR_GLOSSINESS = 1;
+
+  struct PBRInfo {
+    NdotL : f32,
+    NdotV : f32,
+    NdotH : f32,
+    LdotH : f32,
+    VdotH : f32,
+    perceptualRoughness : f32,
+    metalness : f32,
+    reflectance0 : vec3f,
+    reflectance90 : vec3f,
+    alphaRoughness : f32,
+    diffuseColor : vec3f,
+    specularColor : vec3f,
+  };
 
   struct MaterialInfo {
     baseColor : vec4f,
@@ -2023,10 +2150,20 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     @location(3) normalWorld : vec3<f32>,
     @location(4) tangentWorld : vec4<f32>,
     @location(5) viewDirectionWorld : vec3<f32>,
+    @location(6) worldPosition : vec3<f32>,
   };
 
   fn clampedDot(a : vec3f, b : vec3f) -> f32 {
     return clamp(dot(a, b), 0.0, 1.0);
+  }
+
+  // sRGB to linear conversion (accurate piecewise function)
+  fn SRGBtoLINEAR(srgbIn : vec4f) -> vec4f {
+    let bLess = step(vec3f(0.04045), srgbIn.xyz);
+    let linOut = mix(srgbIn.xyz / vec3f(12.92),
+                     pow((srgbIn.xyz + vec3f(0.055)) / vec3f(1.055), vec3f(2.4)),
+                     bLess);
+    return vec4f(linOut, srgbIn.w);
   }
 
   fn getNormal(in : VertexOutput) -> vec3f {
@@ -2039,24 +2176,100 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return normalize(TBN * sampledNormal);
   }
 
+  // Fresnel-Schlick approximation
   fn FSchlick(f0 : vec3f, f90 : vec3f, vDotH : f32) -> vec3f {
     return f0 + (f90 - f0) * pow(clamp(1.0 - vDotH, 0.0, 1.0), 5.0);
   }
 
+  // Lambertian diffuse BRDF
+  fn diffuse(pbrInputs : PBRInfo) -> vec3f {
+    return pbrInputs.diffuseColor / pi;
+  }
+
+  // Fresnel reflectance (for analytical light)
+  fn specularReflection(pbrInputs : PBRInfo) -> vec3f {
+    return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) *
+           pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
+  }
+
+  // Geometric occlusion (Smith GGX)
+  fn geometricOcclusion(pbrInputs : PBRInfo) -> f32 {
+    let NdotL = pbrInputs.NdotL;
+    let NdotV = pbrInputs.NdotV;
+    let r = pbrInputs.alphaRoughness;
+    let attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
+    let attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
+    return attenuationL * attenuationV;
+  }
+
+  // GGX/Trowbridge-Reitz Normal Distribution Function
+  fn microfacetDistribution(pbrInputs : PBRInfo) -> f32 {
+    let roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
+    let f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
+    return roughnessSq / (pi * f * f);
+  }
+
+  // Lambertian diffuse with energy conservation
   fn BRDFLambertian(f0 : vec3f, f90 : vec3f, diffuseColor : vec3f, specularWeight : f32, vDotH : f32) -> vec3f {
     return (1.0 - specularWeight * FSchlick(f0, f90, vDotH)) * (diffuseColor / pi);
   }
 
-  fn samplePrefilteredSpecularIBL(reflection : vec3<f32>, lod : f32) -> vec4<f32> {
-    let sampleColor = textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod);
-    return sampleColor;
+  // Height-correlated Smith visibility function
+  fn VGGX(nDotL : f32, nDotV : f32, alphaRoughness : f32) -> f32 {
+    let a2 = alphaRoughness * alphaRoughness;
+    let ggxV = nDotL * sqrt(nDotV * nDotV * (1.0 - a2) + a2);
+    let ggxL = nDotV * sqrt(nDotL * nDotL * (1.0 - a2) + a2);
+    let ggx = ggxV + ggxL;
+    if (ggx > 0.0) { return 0.5 / ggx; }
+    return 0.0;
   }
 
+  // GGX Normal Distribution Function
+  fn DGGX(nDotH : f32, alphaRoughness : f32) -> f32 {
+    let alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    let f = (nDotH * nDotH) * (alphaRoughnessSq - 1.0) + 1.0;
+    return alphaRoughnessSq / (pi * f * f);
+  }
+
+  // Cook-Torrance specular BRDF (for IBL path)
+  fn BRDFSpecularGGX(f0 : vec3f, f90 : vec3f, alphaRoughness : f32, specularWeight : f32, vDotH : f32, nDotL : f32, nDotV : f32, nDotH : f32) -> vec3f {
+    let F = FSchlick(f0, f90, vDotH);
+    let V = VGGX(nDotL, nDotV, alphaRoughness);
+    let D = DGGX(nDotH, alphaRoughness);
+    return specularWeight * F * V * D;
+  }
+
+  // Specular-glossiness to metallic-roughness conversion
+  fn convertMetallic(diffuse : vec3f, specular : vec3f, maxSpecular : f32) -> f32 {
+    let perceivedDiffuse = sqrt(0.299 * diffuse.r * diffuse.r + 0.587 * diffuse.g * diffuse.g + 0.114 * diffuse.b * diffuse.b);
+    let perceivedSpecular = sqrt(0.299 * specular.r * specular.r + 0.587 * specular.g * specular.g + 0.114 * specular.b * specular.b);
+    if (perceivedSpecular < c_MinRoughness) { return 0.0; }
+    let a = c_MinRoughness;
+    let b = perceivedDiffuse * (1.0 - maxSpecular) / (1.0 - c_MinRoughness) + perceivedSpecular - 2.0 * c_MinRoughness;
+    let c = c_MinRoughness - perceivedSpecular;
+    let D = max(b * b - 4.0 * a * c, 0.0);
+    return clamp((-b + sqrt(D)) / (2.0 * a), 0.0, 1.0);
+  }
+
+  // IBL: Sample prefiltered specular environment map
+  fn getIBLContribution(pbrInputs : PBRInfo, n : vec3f, reflection : vec3f) -> vec3f {
+    let lod = pbrInputs.perceptualRoughness * globalUniforms.prefilteredCubeMipLevels;
+    let brdfSample = textureSample(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler,
+                                   vec2f(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness));
+    let brdf = brdfSample.rgb;
+    let diffuseLight = textureSample(iblIrradianceTexture, iblSampler, n).rgb;
+    let specularLight = textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod).rgb;
+    let diffuseContrib = diffuseLight * pbrInputs.diffuseColor;
+    let specularContrib = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
+    return (diffuseContrib + specularContrib) * globalUniforms.scaleIBLAmbient;
+  }
+
+  // IBL: Multi-scattering Fresnel (Fdez-Aguera approximation)
   fn getIBLRadianceGGX(n : vec3<f32>, v : vec3<f32>, roughness : f32) -> vec3<f32> {
     let NdotV = max(dot(n, v), 0.0);
-    let lod = roughness * (f32(10) - 1.0);
+    let lod = roughness * globalUniforms.prefilteredCubeMipLevels;
     let reflection = normalize(reflect(-v, n));
-    let specularSample = samplePrefilteredSpecularIBL(reflection, lod);
+    let specularSample = textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod);
     return specularSample.rgb;
   }
 
@@ -2074,26 +2287,11 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return FssEss + FmsEms;
   }
 
-  fn VGGX(nDotL : f32, nDotV : f32, alphaRoughness : f32) -> f32 {
-    let a2 = alphaRoughness * alphaRoughness;
-    let ggxV = nDotL * sqrt(nDotV * nDotV * (1.0 - a2) + a2);
-    let ggxL = nDotV * sqrt(nDotL * nDotL * (1.0 - a2) + a2);
-    let ggx = ggxV + ggxL;
-    if (ggx > 0.0) { return 0.5 / ggx; }
-    return 0.0;
-  }
-
-  fn DGGX(nDotH : f32, alphaRoughness : f32) -> f32 {
-    let alphaRoughnessSq = alphaRoughness * alphaRoughness;
-    let f = (nDotH * nDotH) * (alphaRoughnessSq - 1.0) + 1.0;
-    return alphaRoughnessSq / (pi * f * f);
-  }
-
-  fn BRDFSpecularGGX(f0 : vec3f, f90 : vec3f, alphaRoughness : f32, specularWeight : f32, vDotH : f32, nDotL : f32, nDotV : f32, nDotH : f32) -> vec3f {
-    let F = FSchlick(f0, f90, vDotH);
-    let V = VGGX(nDotL, nDotV, alphaRoughness);
-    let D = DGGX(nDotH, alphaRoughness);
-    return specularWeight * F * V * D;
+  // Uncharted2 tone mapping (from Vulkan reference)
+  fn Uncharted2Tonemap(colorIn : vec3f) -> vec3f {
+    let A = 0.15; let B = 0.50; let C = 0.10;
+    let D = 0.20; let E = 0.02; let F = 0.30;
+    return ((colorIn * (A * colorIn + C * B) + D * E) / (colorIn * (A * colorIn + B) + D * F)) - E / F;
   }
 
   fn toneMapPBRNeutral(colorIn : vec3f) -> vec3f {
@@ -2112,11 +2310,19 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   }
 
   fn toneMap(colorIn : vec3f) -> vec3f {
-    const gamma = 2.2;
-    const invGamma = 1.0 / gamma;
-    const exposure = 1.0;
-    var color = colorIn * exposure;
-    color = toneMapPBRNeutral(color);
+    let invGamma = 1.0 / globalUniforms.gamma;
+    var color = colorIn * globalUniforms.exposure;
+    if (globalUniforms.toneMappingType == 1) {
+      // Uncharted2 filmic
+      let W = 11.2;
+      color = Uncharted2Tonemap(color) * (1.0 / Uncharted2Tonemap(vec3f(W)));
+    } else if (globalUniforms.toneMappingType == 2) {
+      // Reinhard
+      color = color / (color + vec3f(1.0));
+    } else {
+      // PBR Neutral (Khronos)
+      color = toneMapPBRNeutral(color);
+    }
     color = pow(color, vec3f(invGamma));
     return color;
   }
@@ -2137,55 +2343,147 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     output.normalWorld = worldNormal;
     output.tangentWorld = worldTangent;
     output.viewDirectionWorld = globalUniforms.cameraPositionWorld - worldPosition.xyz;
+    output.worldPosition = worldPosition.xyz;
     return output;
   }
 
   @fragment
   fn fs_main(in : VertexOutput) -> @location(0) vec4f {
-    let baseColor = textureSample(baseColorTexture, textureSampler, in.texCoord0).rgba;
-    let metallicRoughness = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).rgb;
+    var perceptualRoughness : f32;
+    var metallic : f32;
+    var diffuseColor : vec3f;
+    var baseColor : vec4f;
+    let f0 = vec3f(0.04);
 
-    var materialInfo : MaterialInfo;
-    materialInfo.baseColor = baseColor * in.color * materialUniforms.baseColorFactor;
-    materialInfo.metallic = metallicRoughness.b * materialUniforms.metallicFactor;
-    materialInfo.perceptualRoughness = metallicRoughness.g * materialUniforms.roughnessFactor;
-    materialInfo.f0_dielectric = vec3f(0.04);
-    materialInfo.specularWeight = 1.0;
-    materialInfo.alphaRoughness = metallicRoughness.g * metallicRoughness.g;
-    materialInfo.f0 = mix(vec3f(0.04), materialInfo.baseColor.rgb, materialInfo.metallic);
-    materialInfo.f90 = vec3f(1.0);
-    materialInfo.cDiffuse = mix(materialInfo.baseColor.rgb * 0.5, vec3f(0.0), materialInfo.metallic);
+    // Alpha mask early discard
+    if (materialUniforms.alphaMode == 1) {
+      let earlyAlpha = textureSample(baseColorTexture, textureSampler, in.texCoord0).a;
+      if (earlyAlpha * materialUniforms.baseColorFactor.a < materialUniforms.alphaCutoff) { discard; }
+    }
+
+    if (materialUniforms.workflow == PBR_WORKFLOW_METALLIC_ROUGHNESS) {
+      // Metallic-Roughness workflow
+      perceptualRoughness = materialUniforms.roughnessFactor;
+      metallic = materialUniforms.metallicFactor;
+      let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
+      perceptualRoughness = mrSample.g * perceptualRoughness;
+      metallic = mrSample.b * metallic;
+      baseColor = SRGBtoLINEAR(textureSample(baseColorTexture, textureSampler, in.texCoord0)) * materialUniforms.baseColorFactor;
+    } else {
+      // Specular-Glossiness workflow
+      let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
+      perceptualRoughness = 1.0 - mrSample.a;
+      let diffuseSample = SRGBtoLINEAR(textureSample(baseColorTexture, textureSampler, in.texCoord0));
+      let specularSample = SRGBtoLINEAR(textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0)).rgb;
+      let maxSpecular = max(max(specularSample.r, specularSample.g), specularSample.b);
+      metallic = convertMetallic(diffuseSample.rgb, specularSample, maxSpecular);
+      let epsilon = 1e-6;
+      let baseColorDiffuse = diffuseSample.rgb * ((1.0 - maxSpecular) / (1.0 - c_MinRoughness) / max(1.0 - metallic, epsilon));
+      let baseColorSpecular = specularSample - (vec3f(c_MinRoughness) * (1.0 - metallic) * (1.0 / max(metallic, epsilon)));
+      baseColor = vec4f(mix(baseColorDiffuse, baseColorSpecular, metallic * metallic), diffuseSample.a);
+    }
+
+    baseColor *= in.color;
+
+    // PBR material setup
+    perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
+    metallic = clamp(metallic, 0.0, 1.0);
+    let alphaRoughness = perceptualRoughness * perceptualRoughness;
+
+    diffuseColor = baseColor.rgb * (vec3f(1.0) - f0) * (1.0 - metallic);
+    let specularColor = mix(f0, baseColor.rgb, metallic);
+
+    // Reflectance (for analytical light F90 computation)
+    let reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+    let reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
+    let specularEnvironmentR0 = specularColor;
+    let specularEnvironmentR90 = vec3f(reflectance90);
 
     let n = getNormal(in);
     let v = normalize(in.viewDirectionWorld);
+    let reflection = normalize(reflect(-v, n));
+
+    let NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
 
     var color = vec3f(0.0);
 
+    // --- Analytical directional light (Cook-Torrance BRDF) ---
     {
-      let diffuseEnv = textureSample(iblIrradianceTexture, iblSampler, in.normalWorld).rgb;
-      let iblDiffuse = diffuseEnv * materialInfo.baseColor.rgb;
-      let iblSpecular = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness);
-      let fresnelDielectric = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight);
-      let iblDielectric = mix(iblDiffuse, iblSpecular, fresnelDielectric);
-      let fresnelMetal = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.baseColor.rgb, 1.0);
-      let iblMetal = fresnelMetal * iblSpecular;
-      color += mix(iblDielectric, iblMetal, materialInfo.metallic);
+      let l = normalize(globalUniforms.lightDir.xyz);
+      let h = normalize(l + v);
+      let NdotL = clamp(dot(n, l), 0.001, 1.0);
+      let NdotH = clamp(dot(n, h), 0.0, 1.0);
+      let LdotH = clamp(dot(l, h), 0.0, 1.0);
+      let VdotH = clamp(dot(v, h), 0.0, 1.0);
+
+      let pbrInputs = PBRInfo(
+        NdotL, NdotV, NdotH, LdotH, VdotH,
+        perceptualRoughness, metallic,
+        specularEnvironmentR0, specularEnvironmentR90,
+        alphaRoughness, diffuseColor, specularColor
+      );
+
+      let F = specularReflection(pbrInputs);
+      let G = geometricOcclusion(pbrInputs);
+      let D = microfacetDistribution(pbrInputs);
+
+      let diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
+      let specContrib = F * G * D / (4.0 * NdotL * NdotV);
+
+      // Only apply if direct light is enabled (scaleIBLAmbient-based or always)
+      if (globalUniforms.debugViewEquation > 0.0) {
+        // Debug: always compute for equation debug display
+        let debugIndex = i32(globalUniforms.debugViewEquation);
+        if (debugIndex == 1) { color = diffuseContrib; }
+        else if (debugIndex == 2) { color = F; }
+        else if (debugIndex == 3) { color = vec3f(G); }
+        else if (debugIndex == 4) { color = vec3f(D); }
+        else if (debugIndex == 5) { color = specContrib; }
+        color = toneMap(color);
+        return vec4f(color, 1.0);
+      }
+
+      // Direct lighting contribution
+      color = NdotL * vec3f(1.0) * (diffuseContrib + specContrib);
     }
 
-    let ao = textureSample(occlusionTexture, textureSampler, in.texCoord0).r * materialUniforms.occlusionStrength;
-    color *= vec3f(ao);
+    // --- IBL contribution ---
+    {
+      let pbrInputsIBL = PBRInfo(
+        0.0, NdotV, 0.0, 0.0, 0.0,
+        perceptualRoughness, metallic,
+        specularEnvironmentR0, specularEnvironmentR90,
+        alphaRoughness, diffuseColor, specularColor
+      );
+      color += getIBLContribution(pbrInputsIBL, n, reflection);
+    }
 
-    var emissive = textureSample(emissiveTexture, textureSampler, in.texCoord0).rgb;
-    emissive *= materialUniforms.emissiveFactor;
+    // --- Occlusion ---
+    let ao = textureSample(occlusionTexture, textureSampler, in.texCoord0).r;
+    color = mix(color, color * ao, materialUniforms.occlusionStrength);
+
+    // --- Emissive ---
+    var emissive = materialUniforms.emissiveFactor * materialUniforms.emissiveStrength;
+    emissive *= SRGBtoLINEAR(textureSample(emissiveTexture, textureSampler, in.texCoord0)).rgb;
     color += emissive;
 
-    if (materialUniforms.alphaMode == 1) {
-      if (baseColor.a < materialUniforms.alphaCutoff) { discard; }
+    // --- Debug visualization: shader inputs ---
+    if (globalUniforms.debugViewInputs > 0.0) {
+      let idx = i32(globalUniforms.debugViewInputs);
+      var debugColor = vec4f(0.0);
+      if (idx == 1) { debugColor = textureSample(baseColorTexture, textureSampler, in.texCoord0); }
+      else if (idx == 2) { debugColor = vec4f(textureSample(normalTexture, textureSampler, in.texCoord0).rgb, 1.0); }
+      else if (idx == 3) { let aoVal = textureSample(occlusionTexture, textureSampler, in.texCoord0).r; debugColor = vec4f(aoVal, aoVal, aoVal, 1.0); }
+      else if (idx == 4) { debugColor = vec4f(textureSample(emissiveTexture, textureSampler, in.texCoord0).rgb, 1.0); }
+      else if (idx == 5) { let m = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).b; debugColor = vec4f(m, m, m, 1.0); }
+      else if (idx == 6) { let r = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).g; debugColor = vec4f(r, r, r, 1.0); }
+      return SRGBtoLINEAR(debugColor);
     }
 
+    // --- Tone mapping ---
     color = toneMap(color);
 
-    var alpha = select(materialInfo.baseColor.a, 1.0, materialUniforms.alphaMode == 0);
+    var alpha = select(baseColor.a, 1.0, materialUniforms.alphaMode == 0);
     return vec4f(color, alpha);
   }
 );

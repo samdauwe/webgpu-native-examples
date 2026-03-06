@@ -1014,3 +1014,150 @@ void wgpu_ibl_textures_destroy(wgpu_ibl_textures_t* ibl)
 
   memset(ibl, 0, sizeof(wgpu_ibl_textures_t));
 }
+
+/* -------------------------------------------------------------------------- *
+ * Shared WGSL PBR shader snippets (runtime const-char* versions)
+ *
+ * These mirror the compile-time WGPU_PBR_WGSL_* macros in pbr.h and are
+ * provided for callers that build shader source strings at runtime (e.g.
+ * concatenating parts into a buffer before calling
+ * wgpuDeviceCreateShaderModule).
+ * -------------------------------------------------------------------------- */
+
+// clang-format off
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverlength-strings"
+#endif
+
+const char* wgpu_pbr_wgsl_srgb = CODE(
+  // sRGB ↔ linear conversion (IEC 61966-2-1 accurate piecewise)
+  fn SRGBtoLINEAR(srgbIn : vec4f) -> vec4f {
+    let bLess = step(vec3f(0.04045), srgbIn.xyz);
+    let linOut = mix(srgbIn.xyz / vec3f(12.92),
+                     pow((srgbIn.xyz + vec3f(0.055)) / vec3f(1.055), vec3f(2.4)),
+                     bLess);
+    return vec4f(linOut, srgbIn.w);
+  }
+  fn linearToSRGB(linIn : vec3f) -> vec3f {
+    let cutoff = step(vec3f(0.0031308), linIn);
+    let higher = vec3f(1.055) * pow(linIn, vec3f(1.0 / 2.4)) - vec3f(0.055);
+    let lower  = linIn * vec3f(12.92);
+    return mix(lower, higher, cutoff);
+  }
+);
+
+const char* wgpu_pbr_wgsl_tone_mapping = CODE(
+  // Uncharted2 filmic tone mapping operator
+  fn Uncharted2Tonemap(x : vec3f) -> vec3f {
+    let A = 0.15; let B = 0.50; let C = 0.10;
+    let D = 0.20; let E = 0.02; let F = 0.30;
+    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F))
+           - E / F;
+  }
+
+  // PBR Neutral tone mapping (Khronos specification)
+  fn toneMapPBRNeutral(colorIn : vec3f) -> vec3f {
+    let startCompression : f32 = 0.8 - 0.04;
+    let desaturation : f32 = 0.15;
+    let x : f32 = min(colorIn.r, min(colorIn.g, colorIn.b));
+    let offset : f32 = select(0.04, x - 6.25 * x * x, x < 0.08);
+    var color = colorIn - offset;
+    let peak : f32 = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) { return color; }
+    let d : f32 = 1.0 - startCompression;
+    let newPeak : f32 = 1.0 - d * d / (peak + d - startCompression);
+    color = color * (newPeak / peak);
+    let g : f32 = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+    return mix(color, newPeak * vec3f(1.0, 1.0, 1.0), g);
+  }
+
+  // Dispatched tone mapping with exposure and gamma correction
+  // tmType: 0 = PBR Neutral, 1 = Uncharted2 filmic, 2 = Reinhard
+  fn toneMap(colorIn : vec3f, exposure : f32, gamma : f32,
+             tmType : i32) -> vec3f {
+    let invGamma = 1.0 / gamma;
+    var color = colorIn * exposure;
+    if (tmType == 1) {
+      let W = 11.2;
+      color = Uncharted2Tonemap(color)
+              * (1.0 / Uncharted2Tonemap(vec3f(W)));
+    } else if (tmType == 2) {
+      color = color / (color + vec3f(1.0));
+    } else {
+      color = toneMapPBRNeutral(color);
+    }
+    color = pow(color, vec3f(invGamma));
+    return color;
+  }
+);
+
+const char* wgpu_pbr_wgsl_brdf = CODE(
+  // Fresnel-Schlick approximation
+  fn FSchlick(f0 : vec3f, f90 : vec3f, vDotH : f32) -> vec3f {
+    return f0 + (f90 - f0) * pow(clamp(1.0 - vDotH, 0.0, 1.0), 5.0);
+  }
+
+  // Height-correlated Smith visibility function (GGX)
+  fn VGGX(nDotL : f32, nDotV : f32, alphaRoughness : f32) -> f32 {
+    let a2 = alphaRoughness * alphaRoughness;
+    let ggxV = nDotL * sqrt(nDotV * nDotV * (1.0 - a2) + a2);
+    let ggxL = nDotV * sqrt(nDotL * nDotL * (1.0 - a2) + a2);
+    let ggx = ggxV + ggxL;
+    if (ggx > 0.0) { return 0.5 / ggx; }
+    return 0.0;
+  }
+
+  // GGX / Trowbridge-Reitz Normal Distribution Function
+  fn DGGX(nDotH : f32, alphaRoughness : f32) -> f32 {
+    let alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    let f = (nDotH * nDotH) * (alphaRoughnessSq - 1.0) + 1.0;
+    return alphaRoughnessSq / (3.141592653589793 * f * f);
+  }
+
+  // Lambertian diffuse BRDF with energy conservation via Fresnel weighting
+  fn BRDFLambertian(f0 : vec3f, f90 : vec3f, diffuseColor : vec3f,
+                    specularWeight : f32, vDotH : f32) -> vec3f {
+    return (1.0 - specularWeight * FSchlick(f0, f90, vDotH))
+           * (diffuseColor / 3.141592653589793);
+  }
+
+  // Cook-Torrance specular micro-facet BRDF
+  fn BRDFSpecularGGX(f0 : vec3f, f90 : vec3f, alphaRoughness : f32,
+                     specularWeight : f32, vDotH : f32, nDotL : f32,
+                     nDotV : f32, nDotH : f32) -> vec3f {
+    let F = FSchlick(f0, f90, vDotH);
+    let V = VGGX(nDotL, nDotV, alphaRoughness);
+    let D = DGGX(nDotH, alphaRoughness);
+    return specularWeight * F * V * D;
+  }
+);
+
+const char* wgpu_pbr_wgsl_ibl_fresnel = CODE(
+  // IBL multi-scattering Fresnel (Fdez-Aguera approximation)
+  // Requires: iblBRDFIntegrationLUTTexture (texture_2d<f32>) and
+  //           iblBRDFIntegrationLUTSampler (sampler) in scope.
+  fn getIBLGGXFresnel(n : vec3f, v : vec3f, roughness : f32,
+                      F0 : vec3f, specularWeight : f32) -> vec3f {
+    let NdotV = max(dot(n, v), 0.0);
+    let brdfLUTCoords = vec2f(NdotV, roughness);
+    let brdfLUTSample = textureSample(
+      iblBRDFIntegrationLUTTexture,
+      iblBRDFIntegrationLUTSampler,
+      brdfLUTCoords);
+    let brdfLUT = brdfLUTSample.rg;
+    let fresnelPivot = max(vec3f(1.0 - roughness), F0) - F0;
+    let fresnelSingleScatter = F0 + fresnelPivot * pow(1.0 - NdotV, 5.0);
+    let FssEss = specularWeight
+                 * (fresnelSingleScatter * brdfLUT.x + brdfLUT.y);
+    let Ems = 1.0 - (brdfLUT.x + brdfLUT.y);
+    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);
+    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
+    return FssEss + FmsEms;
+  }
+);
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+// clang-format on
