@@ -2368,13 +2368,13 @@ static const char* gltf_pbr_shader_wgsl = CODE(
       let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
       perceptualRoughness = mrSample.g * perceptualRoughness;
       metallic = mrSample.b * metallic;
-      baseColor = SRGBtoLINEAR(textureSample(baseColorTexture, textureSampler, in.texCoord0)) * materialUniforms.baseColorFactor;
+      baseColor = textureSample(baseColorTexture, textureSampler, in.texCoord0) * materialUniforms.baseColorFactor;
     } else {
       // Specular-Glossiness workflow
       let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
       perceptualRoughness = 1.0 - mrSample.a;
-      let diffuseSample = SRGBtoLINEAR(textureSample(baseColorTexture, textureSampler, in.texCoord0));
-      let specularSample = SRGBtoLINEAR(textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0)).rgb;
+      let diffuseSample = textureSample(baseColorTexture, textureSampler, in.texCoord0);
+      let specularSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).rgb;
       let maxSpecular = max(max(specularSample.r, specularSample.g), specularSample.b);
       metallic = convertMetallic(diffuseSample.rgb, specularSample, maxSpecular);
       let epsilon = 1e-6;
