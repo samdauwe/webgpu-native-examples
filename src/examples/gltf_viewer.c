@@ -15,6 +15,7 @@
  * Based on: https://github.com/ArnCarve);
  * -------------------------------------------------------------------------- */
 
+#include "webgpu/pbr.h"
 #include "webgpu/wgpu_common.h"
 
 /* GUI overlay */

@@ -62,6 +62,7 @@ set(COMMON_HEADERS
     src/core/gltf_model.h
     src/core/image_loader.h
     src/core/input.h
+    src/webgpu/pbr.h
     src/webgpu/wgpu_common.h
     src/examples/common_shaders.h
     src/examples/meshes.h
@@ -71,6 +72,7 @@ set(COMMON_SOURCES
     src/core/camera.c
     src/core/gltf_model.c
     src/core/image_loader.c
+    src/webgpu/pbr.c
     src/webgpu/wgpu_common.c
     src/examples/meshes.c
     external/mikktspace/mikktspace.c
