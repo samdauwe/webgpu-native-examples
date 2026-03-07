@@ -336,7 +336,7 @@ static void load_materials(const cgltf_data* gltf_data, gltf_model_t* model)
     if (gm->has_pbr_metallic_roughness) {
       const cgltf_pbr_metallic_roughness* pbr = &gm->pbr_metallic_roughness;
 
-      glm_vec4_copy((float*)pbr->base_color_factor, mat->base_color_factor);
+      memcpy(mat->base_color_factor, pbr->base_color_factor, sizeof(vec4));
       mat->metallic_factor  = pbr->metallic_factor;
       mat->roughness_factor = pbr->roughness_factor;
 
@@ -402,8 +402,8 @@ static void load_materials(const cgltf_data* gltf_data, gltf_model_t* model)
       mat->pbr_workflow = GltfPbrWorkflow_SpecularGlossiness;
       const cgltf_pbr_specular_glossiness* sg = &gm->pbr_specular_glossiness;
 
-      glm_vec4_copy((float*)sg->diffuse_factor, mat->diffuse_factor);
-      glm_vec3_copy((float*)sg->specular_factor, mat->specular_factor);
+      memcpy(mat->diffuse_factor, sg->diffuse_factor, sizeof(vec4));
+      memcpy(mat->specular_factor, sg->specular_factor, sizeof(vec3));
       mat->glossiness_factor = sg->glossiness_factor;
 
       if (sg->diffuse_texture.texture) {
@@ -436,8 +436,8 @@ static void load_materials(const cgltf_data* gltf_data, gltf_model_t* model)
     if (gm->has_sheen) {
       mat->has_sheen              = true;
       mat->sheen_roughness_factor = gm->sheen.sheen_roughness_factor;
-      glm_vec3_copy((float*)gm->sheen.sheen_color_factor,
-                    mat->sheen_color_factor);
+      memcpy(mat->sheen_color_factor, gm->sheen.sheen_color_factor,
+             sizeof(vec3));
     }
   }
 
@@ -779,7 +779,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
 
   /* --- Transform --- */
   if (gltf_node->has_translation) {
-    glm_vec3_copy((float*)gltf_node->translation, node->translation);
+    memcpy(node->translation, gltf_node->translation, sizeof(vec3));
   }
   if (gltf_node->has_rotation) {
     /* cgltf stores rotation as [x, y, z, w], cglm versor is [x, y, z, w] */
@@ -788,7 +788,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
     memcpy(node->rotation, gltf_node->rotation, sizeof(vec4));
   }
   if (gltf_node->has_scale) {
-    glm_vec3_copy((float*)gltf_node->scale, node->scale);
+    memcpy(node->scale, gltf_node->scale, sizeof(vec3));
   }
   if (gltf_node->has_matrix) {
     /* cgltf stores column-major, cglm mat4 is column-major */
@@ -944,8 +944,8 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
             /* Bounding box from accessor min/max */
             if (accessor->has_min && accessor->has_max) {
               prim->bb.valid = true;
-              glm_vec3_copy((float*)accessor->min, prim->bb.min);
-              glm_vec3_copy((float*)accessor->max, prim->bb.max);
+              memcpy(prim->bb.min, accessor->min, sizeof(vec3));
+              memcpy(prim->bb.max, accessor->max, sizeof(vec3));
               /* Apply global scale */
               glm_vec3_scale(prim->bb.min, global_scale, prim->bb.min);
               glm_vec3_scale(prim->bb.max, global_scale, prim->bb.max);
@@ -1004,14 +1004,18 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
         if (pos_data) {
           const float* pos
             = (const float*)((const uint8_t*)pos_data + v * pos_stride);
-          glm_vec3_scale((float*)pos, global_scale, vert->position);
+          vec3 pos_tmp;
+          memcpy(pos_tmp, pos, sizeof(vec3));
+          glm_vec3_scale(pos_tmp, global_scale, vert->position);
         }
 
         /* Normal */
         if (normal_data) {
           const float* nrm
             = (const float*)((const uint8_t*)normal_data + v * normal_stride);
-          glm_vec3_normalize_to((float*)nrm, vert->normal);
+          vec3 nrm_tmp;
+          memcpy(nrm_tmp, nrm, sizeof(vec3));
+          glm_vec3_normalize_to(nrm_tmp, vert->normal);
         }
         else {
           glm_vec3_zero(vert->normal);
@@ -1021,7 +1025,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
         if (uv0_data) {
           const float* uv
             = (const float*)((const uint8_t*)uv0_data + v * uv0_stride);
-          glm_vec2_copy((float*)uv, vert->uv0);
+          memcpy(vert->uv0, uv, sizeof(vec2));
         }
         else {
           glm_vec2_zero(vert->uv0);
@@ -1031,7 +1035,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
         if (uv1_data) {
           const float* uv
             = (const float*)((const uint8_t*)uv1_data + v * uv1_stride);
-          glm_vec2_copy((float*)uv, vert->uv1);
+          memcpy(vert->uv1, uv, sizeof(vec2));
         }
         else {
           glm_vec2_zero(vert->uv1);
@@ -1041,7 +1045,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
         if (tangent_data) {
           const float* tan
             = (const float*)((const uint8_t*)tangent_data + v * tangent_stride);
-          glm_vec4_copy((float*)tan, vert->tangent);
+          memcpy(vert->tangent, tan, sizeof(vec4));
         }
         else {
           /* Default tangent: valid unit tangent along X with +1 handedness */
@@ -1062,7 +1066,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
             vert->color[3] = 1.0f;
           }
           else {
-            glm_vec4_copy((float*)col, vert->color);
+            memcpy(vert->color, col, sizeof(vec4));
           }
         }
         else {
@@ -1096,7 +1100,7 @@ static void load_node(gltf_node_t* parent, const cgltf_node* gltf_node,
         if (weights_data) {
           const float* w
             = (const float*)((const uint8_t*)weights_data + v * weights_stride);
-          glm_vec4_copy((float*)w, vert->weight0);
+          memcpy(vert->weight0, w, sizeof(vec4));
         }
         else {
           glm_vec4_zero(vert->weight0);
