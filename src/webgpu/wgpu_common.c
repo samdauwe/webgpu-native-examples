@@ -29,6 +29,9 @@ static struct {
   int window_height;
   uint8_t
     keys_down[KEY_NUM]; /* persistent key state, survives event overwrites */
+  /* File drop state */
+  char drop_paths[MAX_DROP_PATHS][MAX_DROP_PATH_LEN];
+  int drop_count;
 } input_state = {0};
 
 /* Forward declarations */
@@ -322,6 +325,18 @@ static void glfw_resize_cb(GLFWwindow* window, int width, int height)
   input_state.window_height = wgpu_context->height;
 }
 
+static void glfw_drop_cb(GLFWwindow* window, int count, const char** paths)
+{
+  UNUSED_VAR(window);
+
+  input_state.event_type = INPUT_EVENT_TYPE_FILE_DROP;
+  input_state.drop_count = (count > MAX_DROP_PATHS) ? MAX_DROP_PATHS : count;
+  for (int i = 0; i < input_state.drop_count; i++) {
+    strncpy(input_state.drop_paths[i], paths[i], MAX_DROP_PATH_LEN - 1);
+    input_state.drop_paths[i][MAX_DROP_PATH_LEN - 1] = '\0';
+  }
+}
+
 static void uncaptured_error_cb(const WGPUDevice* dev, WGPUErrorType type,
                                 WGPUStringView message, void* userdata1,
                                 void* userdata2)
@@ -491,6 +506,12 @@ static void update_input_event(input_event_t* input_event, uint64_t frame_count)
   };
   memcpy(input_event->keys_down, input_state.keys_down,
          sizeof(input_state.keys_down));
+  /* Copy file drop data */
+  input_event->drop_count = input_state.drop_count;
+  if (input_state.event_type == INPUT_EVENT_TYPE_FILE_DROP) {
+    memcpy(input_event->drop_paths, input_state.drop_paths,
+           sizeof(input_state.drop_paths));
+  }
 }
 
 static void wgpu_platform_start(wgpu_context_t* wgpu_context)
@@ -525,6 +546,7 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
   glfwSetCursorPosCallback(window, glfw_cursorpos_cb);
   glfwSetScrollCallback(window, glfw_scroll_cb);
   glfwSetWindowSizeCallback(window, glfw_resize_cb);
+  glfwSetDropCallback(window, glfw_drop_cb);
 
   wgpu_context->surface
     = glfw_create_surface_for_window(wgpu_context->instance, window);

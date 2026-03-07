@@ -155,7 +155,11 @@ typedef enum input_event_type_t {
   INPUT_EVENT_TYPE_MOUSE_SCROLL,
   INPUT_EVENT_TYPE_MOUSE_MOVE,
   INPUT_EVENT_TYPE_RESIZED,
+  INPUT_EVENT_TYPE_FILE_DROP,
 } input_event_type_t;
+
+#define MAX_DROP_PATHS 8
+#define MAX_DROP_PATH_LEN 1024
 
 typedef struct input_event_t {
   uint64_t frame_count;
@@ -173,6 +177,9 @@ typedef struct input_event_t {
   int window_width;
   int window_height;
   uint8_t keys_down[KEY_NUM]; /* persistent pressed-key state, always valid */
+  /* File drop event data */
+  char drop_paths[MAX_DROP_PATHS][MAX_DROP_PATH_LEN];
+  int drop_count;
 } input_event_t;
 
 #endif

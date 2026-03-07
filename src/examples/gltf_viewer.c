@@ -199,6 +199,18 @@ static struct {
   WGPUBool resources_ready;
   WGPUBool model_resources_created;
 
+  /* Active file paths (may be updated by drag & drop) */
+  char model_path[MAX_DROP_PATH_LEN];
+  char hdr_path[MAX_DROP_PATH_LEN];
+
+  /* Pending reload requests (set by drag & drop, consumed next frame) */
+  struct {
+    bool model;
+    bool hdr;
+    char model_path[MAX_DROP_PATH_LEN];
+    char hdr_path[MAX_DROP_PATH_LEN];
+  } pending_reload;
+
   /* File type detection */
   bool is_gltf; /* true = .gltf (separate files), false = .glb (single file) */
 
@@ -1483,6 +1495,28 @@ static bool path_is_gltf(const char* path)
 }
 
 /**
+ * Detect whether a path is a 3D model file (.gltf or .glb).
+ */
+static bool path_is_model(const char* path)
+{
+  const char* dot = strrchr(path, '.');
+  if (!dot)
+    return false;
+  return (strcmp(dot, ".gltf") == 0 || strcmp(dot, ".glb") == 0);
+}
+
+/**
+ * Detect whether a path is an HDR environment file.
+ */
+static bool path_is_hdr(const char* path)
+{
+  const char* dot = strrchr(path, '.');
+  if (!dot)
+    return false;
+  return (strcmp(dot, ".hdr") == 0);
+}
+
+/**
  * Extract directory from a file path (e.g., "a/b/file.gltf" -> "a/b/").
  */
 static void extract_dir(const char* filepath, char* dir, size_t dir_size)
@@ -1733,7 +1767,7 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
 
     /* Discover base directory for resolving relative URIs */
     char base_dir[GLTF_MODEL_MAX_URI_LENGTH];
-    extract_dir(MODEL_FILE_PATH, base_dir, sizeof(base_dir));
+    extract_dir(state.model_path, base_dir, sizeof(base_dir));
 
     /* Process external buffer (.bin) */
     state.gltf.has_external_bin = false;
@@ -1923,7 +1957,7 @@ static void hdr_fetch_callback(const sfetch_response_t* response)
 static void gltf_start_external_loads(void)
 {
   char base_dir[GLTF_MODEL_MAX_URI_LENGTH];
-  extract_dir(MODEL_FILE_PATH, base_dir, sizeof(base_dir));
+  extract_dir(state.model_path, base_dir, sizeof(base_dir));
 
   /* Fetch .bin buffer if needed */
   if (state.gltf.has_external_bin) {
@@ -1980,7 +2014,7 @@ static void gltf_process_geometry(void)
   /* Load model with deferred images (geometry + materials, NO texture data) */
   if (gltf_model_load_gltf_deferred(
         &state.model, state.gltf.json_buffer, state.gltf.json_buffer_size,
-        MODEL_FILE_PATH, 1.0f, &preloaded, num_preloaded)) {
+        state.model_path, 1.0f, &preloaded, num_preloaded)) {
     state.model_loaded         = true;
     state.gltf.geometry_loaded = true;
     printf(
@@ -1992,6 +2026,232 @@ static void gltf_process_geometry(void)
   else {
     printf("[gltf_viewer] ERROR: Failed to load glTF model\n");
   }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Cleanup helpers — release resources for hot-reload via drag & drop
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Release all model-related GPU resources, CPU buffers, and reset state flags.
+ * Call before loading a new model to avoid leaking memory and GPU objects.
+ */
+static void cleanup_model_resources(void)
+{
+  printf("[gltf_viewer] Cleaning up model resources...\n");
+
+  /* Release texture store (GPU textures created from model data) */
+  for (uint32_t i = 0; i < state.texture_store_count; ++i) {
+    if (state.texture_store[i].created) {
+      if (state.texture_store[i].view) {
+        wgpuTextureViewRelease(state.texture_store[i].view);
+        state.texture_store[i].view = NULL;
+      }
+      if (state.texture_store[i].texture) {
+        wgpuTextureDestroy(state.texture_store[i].texture);
+        wgpuTextureRelease(state.texture_store[i].texture);
+        state.texture_store[i].texture = NULL;
+      }
+      state.texture_store[i].created = false;
+    }
+  }
+  state.texture_store_count = 0;
+  state.textures_uploaded   = 0;
+
+  /* Release material bind groups and uniform buffers */
+  for (uint32_t i = 0; i < state.material_count; ++i) {
+    viewer_material_t* mat = &state.materials[i];
+    WGPU_RELEASE_RESOURCE(Buffer, mat->uniform_buffer)
+    WGPU_RELEASE_RESOURCE(BindGroup, mat->bind_group)
+  }
+  state.material_count = 0;
+
+  /* Release vertex/index buffers */
+  WGPU_RELEASE_RESOURCE(Buffer, state.gpu.vertex_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.gpu.index_buffer)
+
+  /* Reset mesh counts */
+  state.opaque_mesh_count        = 0;
+  state.transparent_mesh_count   = 0;
+  state.transparent_sorted_count = 0;
+
+  /* Free GLB file buffer */
+  free(state.glb_file_buffer);
+  state.glb_file_buffer      = NULL;
+  state.glb_file_buffer_size = 0;
+
+  /* Free glTF multi-phase loading buffers */
+  free(state.gltf.json_buffer);
+  state.gltf.json_buffer      = NULL;
+  state.gltf.json_buffer_size = 0;
+
+  free(state.gltf.bin_buffer);
+  state.gltf.bin_buffer      = NULL;
+  state.gltf.bin_buffer_size = 0;
+
+  for (uint32_t i = 0; i < state.gltf.num_images; i++) {
+    free(state.gltf.images[i].buffer);
+    state.gltf.images[i].buffer      = NULL;
+    state.gltf.images[i].buffer_size = 0;
+    state.gltf.images[i].loaded      = false;
+  }
+  state.gltf.num_images        = 0;
+  state.gltf.num_images_loaded = 0;
+
+  /* Destroy the model (frees all CPU-side model data) */
+  gltf_model_destroy(&state.model);
+  memset(&state.model, 0, sizeof(state.model));
+
+  /* Reset loading flags */
+  state.glb_loaded              = false;
+  state.model_loaded            = false;
+  state.model_resources_created = false;
+  state.resources_ready         = false;
+  state.gltf.json_loaded        = false;
+  state.gltf.bin_loaded         = false;
+  state.gltf.has_external_bin   = false;
+  state.gltf.geometry_loaded    = false;
+
+  /* Reset animation state */
+  state.rotation_angle = 0.0f;
+  glm_mat4_identity(state.model_transform);
+  glm_mat4_identity(state.node_base_transform);
+
+  printf("[gltf_viewer] Model resources cleaned up\n");
+}
+
+/**
+ * Release HDR/IBL GPU resources and reset state flags.
+ * Call before loading a new HDR environment.
+ */
+static void cleanup_hdr_resources(void)
+{
+  printf("[gltf_viewer] Cleaning up HDR resources...\n");
+
+  /* Destroy IBL textures */
+  wgpu_ibl_textures_destroy(&state.ibl);
+  memset(&state.ibl, 0, sizeof(state.ibl));
+
+  /* Release raw environment data */
+  wgpu_environment_release(&state.environment);
+  memset(&state.environment, 0, sizeof(state.environment));
+
+  /* Free HDR file buffer */
+  free(state.hdr_file_buffer);
+  state.hdr_file_buffer      = NULL;
+  state.hdr_file_buffer_size = 0;
+
+  /* Reset flags */
+  state.hdr_loaded         = false;
+  state.environment_loaded = false;
+  state.resources_ready    = false;
+
+  printf("[gltf_viewer] HDR resources cleaned up\n");
+}
+
+/**
+ * Initiate loading of a new 3D model (GLB or glTF).
+ * The path must be an absolute or valid relative path to the model file.
+ */
+static void reload_model(wgpu_context_t* ctx, const char* path)
+{
+  UNUSED_VAR(ctx);
+
+  printf("[gltf_viewer] Reloading model: %s\n", path);
+
+  /* Update active model path */
+  strncpy(state.model_path, path, sizeof(state.model_path) - 1);
+  state.model_path[sizeof(state.model_path) - 1] = '\0';
+
+  /* Detect file type */
+  state.is_gltf = path_is_gltf(state.model_path);
+  printf("[gltf_viewer] File type: %s\n", state.is_gltf ? "glTF" : "GLB");
+
+  /* Determine file size */
+  size_t file_size = get_file_size(state.model_path);
+  if (file_size == 0) {
+    printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
+           state.model_path);
+    return;
+  }
+
+  if (state.is_gltf) {
+    /* Allocate buffer for glTF JSON */
+    state.gltf.json_buffer      = (uint8_t*)malloc(file_size);
+    state.gltf.json_buffer_size = file_size;
+    if (!state.gltf.json_buffer) {
+      printf("[gltf_viewer] ERROR: Failed to allocate glTF buffer (%zu)\n",
+             file_size);
+      return;
+    }
+    /* Fetch the .gltf JSON file */
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = gltf_json_fetch_callback,
+      .buffer
+      = {.ptr = state.gltf.json_buffer, .size = state.gltf.json_buffer_size},
+      .channel = 0,
+    });
+  }
+  else {
+    /* Allocate buffer for GLB */
+    state.glb_file_buffer      = (uint8_t*)malloc(file_size);
+    state.glb_file_buffer_size = file_size;
+    if (!state.glb_file_buffer) {
+      printf("[gltf_viewer] ERROR: Failed to allocate GLB buffer (%zu)\n",
+             file_size);
+      return;
+    }
+    /* Fetch the GLB file */
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = glb_fetch_callback,
+      .buffer
+      = {.ptr = state.glb_file_buffer, .size = state.glb_file_buffer_size},
+      .channel = 0,
+    });
+  }
+}
+
+/**
+ * Initiate loading of a new HDR environment.
+ * The path must be an absolute or valid relative path to the HDR file.
+ */
+static void reload_hdr(wgpu_context_t* ctx, const char* path)
+{
+  UNUSED_VAR(ctx);
+
+  printf("[gltf_viewer] Reloading HDR: %s\n", path);
+
+  /* Update active HDR path */
+  strncpy(state.hdr_path, path, sizeof(state.hdr_path) - 1);
+  state.hdr_path[sizeof(state.hdr_path) - 1] = '\0';
+
+  /* Determine file size */
+  size_t file_size = get_file_size(state.hdr_path);
+  if (file_size == 0) {
+    printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
+           state.hdr_path);
+    return;
+  }
+
+  /* Allocate HDR buffer */
+  state.hdr_file_buffer      = (uint8_t*)malloc(file_size);
+  state.hdr_file_buffer_size = file_size;
+  if (!state.hdr_file_buffer) {
+    printf("[gltf_viewer] ERROR: Failed to allocate HDR buffer (%zu)\n",
+           file_size);
+    return;
+  }
+
+  /* Fetch the HDR file */
+  sfetch_send(&(sfetch_request_t){
+    .path     = state.hdr_path,
+    .callback = hdr_fetch_callback,
+    .buffer
+    = {.ptr = state.hdr_file_buffer, .size = state.hdr_file_buffer_size},
+    .channel = 1,
+  });
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2301,6 +2561,35 @@ static void input_event_cb(wgpu_context_t* ctx,
                            (uint32_t)input_event->window_height);
       break;
     }
+    case INPUT_EVENT_TYPE_FILE_DROP: {
+      /* Handle drag & drop of 3D model and HDR environment files.
+       * Multiple files can be dropped at once — process each by extension. */
+      for (int i = 0; i < input_event->drop_count; i++) {
+        const char* path = input_event->drop_paths[i];
+        if (path_is_model(path)) {
+          printf("[gltf_viewer] File dropped (model): %s\n", path);
+          state.pending_reload.model = true;
+          strncpy(state.pending_reload.model_path, path,
+                  sizeof(state.pending_reload.model_path) - 1);
+          state.pending_reload
+            .model_path[sizeof(state.pending_reload.model_path) - 1]
+            = '\0';
+        }
+        else if (path_is_hdr(path)) {
+          printf("[gltf_viewer] File dropped (HDR): %s\n", path);
+          state.pending_reload.hdr = true;
+          strncpy(state.pending_reload.hdr_path, path,
+                  sizeof(state.pending_reload.hdr_path) - 1);
+          state.pending_reload
+            .hdr_path[sizeof(state.pending_reload.hdr_path) - 1]
+            = '\0';
+        }
+        else {
+          printf("[gltf_viewer] Unsupported file type dropped: %s\n", path);
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -2316,9 +2605,13 @@ static int init(wgpu_context_t* ctx)
   stm_setup();
   state.last_frame_time = stm_now();
 
+  /* Initialize default file paths */
+  strncpy(state.model_path, MODEL_FILE_PATH, sizeof(state.model_path) - 1);
+  strncpy(state.hdr_path, HDR_FILE_PATH, sizeof(state.hdr_path) - 1);
+
   /* Detect file type */
-  state.is_gltf = path_is_gltf(MODEL_FILE_PATH);
-  printf("[gltf_viewer] Model file: %s (%s)\n", MODEL_FILE_PATH,
+  state.is_gltf = path_is_gltf(state.model_path);
+  printf("[gltf_viewer] Model file: %s (%s)\n", state.model_path,
          state.is_gltf ? "glTF" : "GLB");
 
   /* Async file loading — optimized for parallel requests.
@@ -2333,10 +2626,10 @@ static int init(wgpu_context_t* ctx)
   });
 
   /* Allocate HDR buffer (always needed) */
-  state.hdr_file_buffer_size = get_file_size(HDR_FILE_PATH);
+  state.hdr_file_buffer_size = get_file_size(state.hdr_path);
   if (state.hdr_file_buffer_size == 0) {
     printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
-           HDR_FILE_PATH);
+           state.hdr_path);
     return EXIT_FAILURE;
   }
   state.hdr_file_buffer = (uint8_t*)malloc(state.hdr_file_buffer_size);
@@ -2347,10 +2640,10 @@ static int init(wgpu_context_t* ctx)
   }
 
   /* Allocate model file buffer */
-  size_t model_file_size = get_file_size(MODEL_FILE_PATH);
+  size_t model_file_size = get_file_size(state.model_path);
   if (model_file_size == 0) {
     printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
-           MODEL_FILE_PATH);
+           state.model_path);
     free(state.hdr_file_buffer);
     state.hdr_file_buffer = NULL;
     return EXIT_FAILURE;
@@ -2421,7 +2714,7 @@ static int init(wgpu_context_t* ctx)
   if (state.is_gltf) {
     /* Phase 1: Fetch the .gltf JSON file */
     sfetch_send(&(sfetch_request_t){
-      .path     = MODEL_FILE_PATH,
+      .path     = state.model_path,
       .callback = gltf_json_fetch_callback,
       .buffer
       = {.ptr = state.gltf.json_buffer, .size = state.gltf.json_buffer_size},
@@ -2431,7 +2724,7 @@ static int init(wgpu_context_t* ctx)
   else {
     /* GLB: single file fetch */
     sfetch_send(&(sfetch_request_t){
-      .path     = MODEL_FILE_PATH,
+      .path     = state.model_path,
       .callback = glb_fetch_callback,
       .buffer
       = {.ptr = state.glb_file_buffer, .size = state.glb_file_buffer_size},
@@ -2441,7 +2734,7 @@ static int init(wgpu_context_t* ctx)
 
   /* HDR environment (always) */
   sfetch_send(&(sfetch_request_t){
-    .path     = HDR_FILE_PATH,
+    .path     = state.hdr_path,
     .callback = hdr_fetch_callback,
     .buffer
     = {.ptr = state.hdr_file_buffer, .size = state.hdr_file_buffer_size},
@@ -2456,6 +2749,21 @@ static int frame(wgpu_context_t* ctx)
 {
   if (!state.initialized)
     return EXIT_FAILURE;
+
+  /* Handle pending reload requests from drag & drop.
+   * Cleanup old resources first, then start async loading of new assets. */
+  if (state.pending_reload.model) {
+    state.pending_reload.model = false;
+    cleanup_model_resources();
+    reload_model(ctx, state.pending_reload.model_path);
+  }
+  if (state.pending_reload.hdr) {
+    state.pending_reload.hdr = false;
+    cleanup_hdr_resources();
+    /* Recreate global bind group with default cube after IBL cleanup */
+    create_global_bind_group(ctx);
+    reload_hdr(ctx, state.pending_reload.hdr_path);
+  }
 
   /* Pump async I/O */
   sfetch_dowork();
