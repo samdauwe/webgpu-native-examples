@@ -179,6 +179,16 @@ typedef struct gltf_material_t {
   bool double_sided;               /* Default: false                          */
   bool unlit;                      /* KHR_materials_unlit extension           */
 
+  /* --- KHR_materials_clearcoat extension --- */
+  bool has_clearcoat;
+  float clearcoat_factor;           /* Default: 0.0                           */
+  float clearcoat_roughness_factor; /* Default: 0.0                           */
+
+  /* --- KHR_materials_sheen extension --- */
+  bool has_sheen;
+  vec3 sheen_color_factor;      /* Default: [0, 0, 0]                     */
+  float sheen_roughness_factor; /* Default: 0.0                           */
+
   /* --- Workflow selection --- */
   gltf_pbr_workflow_enum pbr_workflow;
 

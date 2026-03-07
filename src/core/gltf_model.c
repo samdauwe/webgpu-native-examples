@@ -423,6 +423,22 @@ static void load_materials(const cgltf_data* gltf_data, gltf_model_t* model)
     if (gm->has_emissive_strength) {
       mat->emissive_strength = gm->emissive_strength.emissive_strength;
     }
+
+    /* --- KHR_materials_clearcoat extension --- */
+    if (gm->has_clearcoat) {
+      mat->has_clearcoat    = true;
+      mat->clearcoat_factor = gm->clearcoat.clearcoat_factor;
+      mat->clearcoat_roughness_factor
+        = gm->clearcoat.clearcoat_roughness_factor;
+    }
+
+    /* --- KHR_materials_sheen extension --- */
+    if (gm->has_sheen) {
+      mat->has_sheen              = true;
+      mat->sheen_roughness_factor = gm->sheen.sheen_roughness_factor;
+      glm_vec3_copy((float*)gm->sheen.sheen_color_factor,
+                    mat->sheen_color_factor);
+    }
   }
 
   /* --- Default material at index mat_count --- */
