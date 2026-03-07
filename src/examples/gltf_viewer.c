@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -61,10 +62,6 @@
 
 #define GLB_FILE_PATH "assets/models/DamagedHelmet.glb"
 #define HDR_FILE_PATH "assets/textures/venice_sunset_1k.hdr"
-
-/* File buffer sizes for sokol_fetch */
-#define GLB_FILE_BUFFER_SIZE (8 * 1024 * 1024) /* 8 MB */
-#define HDR_FILE_BUFFER_SIZE (4 * 1024 * 1024) /* 4 MB */
 
 /* Camera defaults */
 #define CAMERA_FOV 45.0f
@@ -194,9 +191,11 @@ static struct {
   WGPUBool resources_ready;
   WGPUBool model_resources_created;
 
-  /* File loading buffers */
+  /* File loading buffers (dynamically sized via stat()) */
   uint8_t* glb_file_buffer;
+  size_t glb_file_buffer_size;
   uint8_t* hdr_file_buffer;
+  size_t hdr_file_buffer_size;
 
   /* Timer */
   uint64_t last_frame_time;
@@ -1376,6 +1375,24 @@ static void sort_transparent_meshes(void)
 }
 
 /* -------------------------------------------------------------------------- *
+ * File size helper
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Query the size of a file on disk using stat().
+ * Returns the file size in bytes, or 0 on error.
+ */
+static size_t get_file_size(const char* path)
+{
+  struct stat st;
+  if (stat(path, &st) != 0) {
+    printf("[gltf_viewer] WARNING: Could not stat file '%s'\n", path);
+    return 0;
+  }
+  return (size_t)st.st_size;
+}
+
+/* -------------------------------------------------------------------------- *
  * Async file loading callbacks
  * -------------------------------------------------------------------------- */
 
@@ -1691,9 +1708,31 @@ static int init(wgpu_context_t* ctx)
     .num_lanes    = 1,
   });
 
-  /* Allocate file buffers */
-  state.glb_file_buffer = (uint8_t*)malloc(GLB_FILE_BUFFER_SIZE);
-  state.hdr_file_buffer = (uint8_t*)malloc(HDR_FILE_BUFFER_SIZE);
+  /* Allocate file buffers sized to actual files on disk */
+  state.glb_file_buffer_size = get_file_size(GLB_FILE_PATH);
+  state.hdr_file_buffer_size = get_file_size(HDR_FILE_PATH);
+  if (state.glb_file_buffer_size == 0 || state.hdr_file_buffer_size == 0) {
+    printf(
+      "[gltf_viewer] ERROR: Cannot determine file sizes for '%s' and/or "
+      "'%s'\n",
+      GLB_FILE_PATH, HDR_FILE_PATH);
+    return EXIT_FAILURE;
+  }
+  state.glb_file_buffer = (uint8_t*)malloc(state.glb_file_buffer_size);
+  state.hdr_file_buffer = (uint8_t*)malloc(state.hdr_file_buffer_size);
+  if (!state.glb_file_buffer || !state.hdr_file_buffer) {
+    printf(
+      "[gltf_viewer] ERROR: Failed to allocate file buffers "
+      "(GLB: %zu bytes, HDR: %zu bytes)\n",
+      state.glb_file_buffer_size, state.hdr_file_buffer_size);
+    free(state.glb_file_buffer);
+    free(state.hdr_file_buffer);
+    state.glb_file_buffer = NULL;
+    state.hdr_file_buffer = NULL;
+    return EXIT_FAILURE;
+  }
+  printf("[gltf_viewer] Allocated buffers: GLB=%zu bytes, HDR=%zu bytes\n",
+         state.glb_file_buffer_size, state.hdr_file_buffer_size);
 
   /* Camera */
   camera_init(&state.camera, ctx->width, ctx->height);
@@ -1725,14 +1764,16 @@ static int init(wgpu_context_t* ctx)
   sfetch_send(&(sfetch_request_t){
     .path     = GLB_FILE_PATH,
     .callback = glb_fetch_callback,
-    .buffer   = {.ptr = state.glb_file_buffer, .size = GLB_FILE_BUFFER_SIZE},
-    .channel  = 0,
+    .buffer
+    = {.ptr = state.glb_file_buffer, .size = state.glb_file_buffer_size},
+    .channel = 0,
   });
   sfetch_send(&(sfetch_request_t){
     .path     = HDR_FILE_PATH,
     .callback = hdr_fetch_callback,
-    .buffer   = {.ptr = state.hdr_file_buffer, .size = HDR_FILE_BUFFER_SIZE},
-    .channel  = 1,
+    .buffer
+    = {.ptr = state.hdr_file_buffer, .size = state.hdr_file_buffer_size},
+    .channel = 1,
   });
 
   state.initialized = true;
