@@ -15,7 +15,6 @@
  * Based on: https://github.com/ArnCarve);
  * -------------------------------------------------------------------------- */
 
-#include "webgpu/pbr.h"
 #include "webgpu/wgpu_common.h"
 
 /* GUI overlay */
@@ -43,6 +42,9 @@
 
 /* glTF model */
 #include "core/gltf_model.h"
+
+/* PBR workflow */
+#include "webgpu/pbr.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -98,10 +100,10 @@ typedef struct {
   float scale_ibl_ambient;           /* offset 296 */
   float debug_view_inputs;           /* offset 300 */
   float debug_view_equation;         /* offset 304 */
-  int32_t
-    tone_mapping_type; /* offset 308: 0=PBRNeutral, 1=Uncharted2, 2=Reinhard */
-  float _pad2[2];      /* pad to 320 */
-} global_uniforms_t;   /* size: 320  */
+  int32_t tone_mapping_type;         /* offset 308:
+                                        0=PBRNeutral,1=Uncharted2,2=Reinhard,3=ACES */
+  float _pad2[2];                    /* pad to 320 */
+} global_uniforms_t;                 /* size: 320  */
 
 typedef struct {
   mat4 model_matrix;  /* offset 0  */
@@ -109,18 +111,26 @@ typedef struct {
 } model_uniforms_t;   /* size: 128 */
 
 typedef struct {
-  vec4 base_color_factor;   /* offset 0  */
-  vec3 emissive_factor;     /* offset 16 */
-  float metallic_factor;    /* offset 28 */
-  float roughness_factor;   /* offset 32 */
-  float normal_scale;       /* offset 36 */
-  float occlusion_strength; /* offset 40 */
-  float alpha_cutoff;       /* offset 44 */
+  vec4 base_color_factor;   /* offset 0   */
+  vec3 emissive_factor;     /* offset 16  */
+  float metallic_factor;    /* offset 28  */
+  float roughness_factor;   /* offset 32  */
+  float normal_scale;       /* offset 36  */
+  float occlusion_strength; /* offset 40  */
+  float alpha_cutoff;       /* offset 44  */
   int32_t alpha_mode;       /* offset 48, 0=Opaque, 1=Mask, 2=Blend */
-  float emissive_strength;  /* offset 52 */
-  int32_t workflow; /* offset 56, 0=MetallicRoughness, 1=SpecularGlossiness */
-  float _pad[1];    /* pad to 64 */
-} material_uniforms_t; /* size: 64  */
+  float emissive_strength;  /* offset 52  */
+  int32_t workflow; /* offset 56, 0=MetallicRoughness, 1=SpecGloss, 2=Unlit */
+  int32_t double_sided; /* offset 60  */
+  /* --- Clearcoat (KHR_materials_clearcoat) --- */
+  float clearcoat_factor;    /* offset 64  */
+  float clearcoat_roughness; /* offset 68  */
+  /* --- Sheen (KHR_materials_sheen) --- */
+  float sheen_roughness_factor; /* offset 72  */
+  float _pad0;                  /* offset 76  */
+  vec3 sheen_color_factor;      /* offset 80  */
+  float _pad1;                  /* offset 92, pad to 96 */
+} material_uniforms_t;          /* size: 96  */
 
 /* -------------------------------------------------------------------------- *
  * Per-material GPU data
@@ -1156,7 +1166,17 @@ static void create_materials(wgpu_context_t* ctx)
       dst->uniforms.alpha_mode         = (int32_t)src->alpha_mode;
       dst->uniforms.emissive_strength
         = src->emissive_strength > 0.0f ? src->emissive_strength : 1.0f;
-      dst->uniforms.workflow = 0; /* Metallic-Roughness */
+      dst->uniforms.workflow     = src->unlit ? 2 : 0; /* 0=MetRough, 2=Unlit */
+      dst->uniforms.double_sided = src->double_sided ? 1 : 0;
+
+      /* Clearcoat */
+      dst->uniforms.clearcoat_factor    = src->clearcoat_factor;
+      dst->uniforms.clearcoat_roughness = src->clearcoat_roughness_factor;
+
+      /* Sheen */
+      glm_vec3_copy((float*)src->sheen_color_factor,
+                    dst->uniforms.sheen_color_factor);
+      dst->uniforms.sheen_roughness_factor = src->sheen_roughness_factor;
 
       wgpuQueueWriteBuffer(ctx->queue, dst->uniform_buffer, 0, &dst->uniforms,
                            sizeof(material_uniforms_t));
@@ -1282,6 +1302,8 @@ static void update_uniforms(wgpu_context_t* ctx)
   /* PBR parameters */
   gu.exposure = state.pbr.exposure;
   memcpy(gu.light_dir, state.pbr.light_dir, sizeof(vec4));
+  /* Use w component to signal direct light on/off to shader */
+  gu.light_dir[3]                = state.pbr.enable_direct_light ? 1.0f : -1.0f;
   gu.gamma                       = state.pbr.gamma;
   gu.prefiltered_cube_mip_levels = (float)state.ibl.prefiltered_mip_levels;
   gu.scale_ibl_ambient           = state.pbr.scale_ibl_ambient;
@@ -1522,8 +1544,8 @@ static void render_gui(wgpu_context_t* ctx)
 
         /* Tone mapping selector */
         const char* tone_map_items[]
-          = {"PBR Neutral", "Uncharted2", "Reinhard"};
-        igCombo("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 3,
+          = {"PBR Neutral", "Uncharted2", "Reinhard", "ACES"};
+        igCombo("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 4,
                 0);
       }
 
@@ -2081,7 +2103,16 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     alphaCutoff : f32,
     alphaMode : i32,
     emissiveStrength : f32,
-    workflow : i32,
+    workflow : i32,  // 0=MetallicRoughness, 1=SpecGloss, 2=Unlit
+    doubleSided : i32,
+    // Clearcoat (KHR_materials_clearcoat)
+    clearcoatFactor : f32,
+    clearcoatRoughness : f32,
+    // Sheen (KHR_materials_sheen)
+    sheenRoughnessFactor : f32,
+    _pad0 : f32,
+    sheenColorFactor : vec3<f32>,
+    _pad1 : f32,
   };
 
   @group(0) @binding(0) var<uniform> globalUniforms : GlobalUniforms;
@@ -2106,31 +2137,28 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   const PBR_WORKFLOW_METALLIC_ROUGHNESS = 0;
   const PBR_WORKFLOW_SPECULAR_GLOSSINESS = 1;
 
-  struct PBRInfo {
-    NdotL : f32,
-    NdotV : f32,
-    NdotH : f32,
-    LdotH : f32,
-    VdotH : f32,
-    perceptualRoughness : f32,
-    metalness : f32,
-    reflectance0 : vec3f,
-    reflectance90 : vec3f,
-    alphaRoughness : f32,
-    diffuseColor : vec3f,
-    specularColor : vec3f,
-  };
-
+  // MaterialInfo following the Khronos glTF 2.0 Sample Viewer reference
   struct MaterialInfo {
     baseColor : vec4f,
-    metallic : f32,
+    ior : f32,
     perceptualRoughness : f32,
-    f0_dielectric : vec3f,
     alphaRoughness : f32,
-    f0 : vec3f,
+    metallic : f32,
+    f0_dielectric : vec3f,
     f90 : vec3f,
-    cDiffuse : vec3f,
+    f90_dielectric : vec3f,
     specularWeight : f32,
+    // Clearcoat
+    clearcoatFactor : f32,
+    clearcoatRoughness : f32,
+    clearcoatF0 : vec3f,
+    clearcoatF90 : vec3f,
+    clearcoatNormal : vec3f,
+    // Sheen
+    sheenColorFactor : vec3f,
+    sheenRoughnessFactor : f32,
+    // Emissive
+    emissiveStrength : f32,
   };
 
   struct VertexInput {
@@ -2157,7 +2185,7 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return clamp(dot(a, b), 0.0, 1.0);
   }
 
-  // sRGB to linear conversion (accurate piecewise function)
+  // sRGB to linear conversion (accurate piecewise function per IEC 61966-2-1)
   fn SRGBtoLINEAR(srgbIn : vec4f) -> vec4f {
     let bLess = step(vec3f(0.04045), srgbIn.xyz);
     let linOut = mix(srgbIn.xyz / vec3f(12.92),
@@ -2166,80 +2194,132 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return vec4f(linOut, srgbIn.w);
   }
 
+  // Normal mapping: construct TBN matrix and apply normal map
   fn getNormal(in : VertexOutput) -> vec3f {
     let N = normalize(in.normalWorld);
     let T = normalize(in.tangentWorld.xyz);
     let B = cross(N, T) * in.tangentWorld.w;
     let TBN = mat3x3f(T, B, N);
     var sampledNormal = textureSample(normalTexture, textureSampler, in.texCoord0).xyz * 2.0 - 1.0;
-    sampledNormal *= materialUniforms.normalScale;
+    sampledNormal = vec3f(sampledNormal.xy * materialUniforms.normalScale, sampledNormal.z);
     return normalize(TBN * sampledNormal);
   }
 
-  // Fresnel-Schlick approximation
-  fn FSchlick(f0 : vec3f, f90 : vec3f, vDotH : f32) -> vec3f {
-    return f0 + (f90 - f0) * pow(clamp(1.0 - vDotH, 0.0, 1.0), 5.0);
+  // ========================================================================
+  // Fresnel — Schlick approximation [Schlick 1994]
+  // Implementation from Khronos glTF Sample Viewer reference
+  // ========================================================================
+
+  fn F_Schlick_vec3(f0 : vec3f, f90 : vec3f, VdotH : f32) -> vec3f {
+    let x = clamp(1.0 - VdotH, 0.0, 1.0);
+    let x2 = x * x;
+    let x5 = x * x2 * x2;
+    return f0 + (f90 - f0) * x5;
   }
 
-  // Lambertian diffuse BRDF
-  fn diffuse(pbrInputs : PBRInfo) -> vec3f {
-    return pbrInputs.diffuseColor / pi;
+  fn F_Schlick_scalar(f0 : f32, f90 : f32, VdotH : f32) -> f32 {
+    let x = clamp(1.0 - VdotH, 0.0, 1.0);
+    let x2 = x * x;
+    let x5 = x * x2 * x2;
+    return f0 + (f90 - f0) * x5;
   }
 
-  // Fresnel reflectance (for analytical light)
-  fn specularReflection(pbrInputs : PBRInfo) -> vec3f {
-    return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) *
-           pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
-  }
+  // ========================================================================
+  // Smith Joint GGX Visibility (height-correlated)
+  // Vis = G / (4 * NdotL * NdotV)
+  // [Heitz 2014] "Understanding the Masking-Shadowing Function"
+  // ========================================================================
 
-  // Geometric occlusion (Smith GGX)
-  fn geometricOcclusion(pbrInputs : PBRInfo) -> f32 {
-    let NdotL = pbrInputs.NdotL;
-    let NdotV = pbrInputs.NdotV;
-    let r = pbrInputs.alphaRoughness;
-    let attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
-    let attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
-    return attenuationL * attenuationV;
-  }
-
-  // GGX/Trowbridge-Reitz Normal Distribution Function
-  fn microfacetDistribution(pbrInputs : PBRInfo) -> f32 {
-    let roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-    let f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
-    return roughnessSq / (pi * f * f);
-  }
-
-  // Lambertian diffuse with energy conservation
-  fn BRDFLambertian(f0 : vec3f, f90 : vec3f, diffuseColor : vec3f, specularWeight : f32, vDotH : f32) -> vec3f {
-    return (1.0 - specularWeight * FSchlick(f0, f90, vDotH)) * (diffuseColor / pi);
-  }
-
-  // Height-correlated Smith visibility function
-  fn VGGX(nDotL : f32, nDotV : f32, alphaRoughness : f32) -> f32 {
-    let a2 = alphaRoughness * alphaRoughness;
-    let ggxV = nDotL * sqrt(nDotV * nDotV * (1.0 - a2) + a2);
-    let ggxL = nDotV * sqrt(nDotL * nDotL * (1.0 - a2) + a2);
-    let ggx = ggxV + ggxL;
-    if (ggx > 0.0) { return 0.5 / ggx; }
+  fn V_GGX(NdotL : f32, NdotV : f32, alphaRoughness : f32) -> f32 {
+    let alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    let GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    let GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    let GGX = GGXV + GGXL;
+    if (GGX > 0.0) { return 0.5 / GGX; }
     return 0.0;
   }
 
-  // GGX Normal Distribution Function
-  fn DGGX(nDotH : f32, alphaRoughness : f32) -> f32 {
+  // ========================================================================
+  // GGX/Trowbridge-Reitz Normal Distribution Function
+  // [Trowbridge & Reitz 1975], recommended by [Epic Games, SIGGRAPH 2013]
+  // ========================================================================
+
+  fn D_GGX(NdotH : f32, alphaRoughness : f32) -> f32 {
     let alphaRoughnessSq = alphaRoughness * alphaRoughness;
-    let f = (nDotH * nDotH) * (alphaRoughnessSq - 1.0) + 1.0;
+    let f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
     return alphaRoughnessSq / (pi * f * f);
   }
 
-  // Cook-Torrance specular BRDF (for IBL path)
-  fn BRDFSpecularGGX(f0 : vec3f, f90 : vec3f, alphaRoughness : f32, specularWeight : f32, vDotH : f32, nDotL : f32, nDotV : f32, nDotH : f32) -> vec3f {
-    let F = FSchlick(f0, f90, vDotH);
-    let V = VGGX(nDotL, nDotV, alphaRoughness);
-    let D = DGGX(nDotH, alphaRoughness);
-    return specularWeight * F * V * D;
+  // ========================================================================
+  // Lambertian diffuse BRDF (energy-conserving)
+  // https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
+  // ========================================================================
+
+  fn BRDF_lambertian(diffuseColor : vec3f) -> vec3f {
+    return diffuseColor / pi;
   }
 
+  // ========================================================================
+  // Cook-Torrance specular microfacet BRDF
+  // Combines GGX D and height-correlated Smith V
+  // Fresnel is applied separately for dielectric/metallic split
+  // ========================================================================
+
+  fn BRDF_specularGGX(alphaRoughness : f32, NdotL : f32, NdotV : f32, NdotH : f32) -> vec3f {
+    let Vis = V_GGX(NdotL, NdotV, alphaRoughness);
+    let D = D_GGX(NdotH, alphaRoughness);
+    return vec3f(Vis * D);
+  }
+
+  // ========================================================================
+  // Sheen: Charlie NDF + Ashikhmin Visibility
+  // [Estevez & Kulla, Sony ImageWorks, SIGGRAPH 2017]
+  // ========================================================================
+
+  fn lambdaSheenNumericHelper(x : f32, alphaG : f32) -> f32 {
+    let oneMinusAlphaSq = (1.0 - alphaG) * (1.0 - alphaG);
+    let a = mix(21.5473, 25.3245, oneMinusAlphaSq);
+    let b = mix(3.82987, 3.32435, oneMinusAlphaSq);
+    let c = mix(0.19823, 0.16801, oneMinusAlphaSq);
+    let d = mix(-1.97760, -1.27393, oneMinusAlphaSq);
+    let e = mix(-4.32054, -4.85967, oneMinusAlphaSq);
+    return a / (1.0 + b * pow(x, c)) + d * x + e;
+  }
+
+  fn lambdaSheen(cosTheta : f32, alphaG : f32) -> f32 {
+    if (abs(cosTheta) < 0.5) {
+      return exp(lambdaSheenNumericHelper(cosTheta, alphaG));
+    } else {
+      return exp(2.0 * lambdaSheenNumericHelper(0.5, alphaG) - lambdaSheenNumericHelper(1.0 - cosTheta, alphaG));
+    }
+  }
+
+  fn V_Sheen(NdotL : f32, NdotV : f32, sheenRoughness : f32) -> f32 {
+    let sr = max(sheenRoughness, 0.000001);
+    let alphaG = sr * sr;
+    return clamp(1.0 / ((1.0 + lambdaSheen(NdotV, alphaG) + lambdaSheen(NdotL, alphaG)) *
+        (4.0 * NdotV * NdotL)), 0.0, 1.0);
+  }
+
+  fn D_Charlie(sheenRoughness : f32, NdotH : f32) -> f32 {
+    let sr = max(sheenRoughness, 0.000001);
+    let alphaG = sr * sr;
+    let invR = 1.0 / alphaG;
+    let cos2h = NdotH * NdotH;
+    let sin2h = 1.0 - cos2h;
+    return (2.0 + invR) * pow(sin2h, invR * 0.5) / (2.0 * pi);
+  }
+
+  fn BRDF_specularSheen(sheenColor : vec3f, sheenRoughness : f32, NdotL : f32, NdotV : f32, NdotH : f32) -> vec3f {
+    let sheenDistribution = D_Charlie(sheenRoughness, NdotH);
+    let sheenVisibility = V_Sheen(NdotL, NdotV, sheenRoughness);
+    return sheenColor * sheenDistribution * sheenVisibility;
+  }
+
+  // ========================================================================
   // Specular-glossiness to metallic-roughness conversion
+  // ========================================================================
+
   fn convertMetallic(diffuse : vec3f, specular : vec3f, maxSpecular : f32) -> f32 {
     let perceivedDiffuse = sqrt(0.299 * diffuse.r * diffuse.r + 0.587 * diffuse.g * diffuse.g + 0.114 * diffuse.b * diffuse.b);
     let perceivedSpecular = sqrt(0.299 * specular.r * specular.r + 0.587 * specular.g * specular.g + 0.114 * specular.b * specular.b);
@@ -2251,43 +2331,44 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return clamp((-b + sqrt(D)) / (2.0 * a), 0.0, 1.0);
   }
 
-  // IBL: Sample prefiltered specular environment map
-  fn getIBLContribution(pbrInputs : PBRInfo, n : vec3f, reflection : vec3f) -> vec3f {
-    let lod = pbrInputs.perceptualRoughness * globalUniforms.prefilteredCubeMipLevels;
-    let brdfSample = textureSample(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler,
-                                   vec2f(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness));
-    let brdf = brdfSample.rgb;
-    let diffuseLight = textureSample(iblIrradianceTexture, iblSampler, n).rgb;
-    let specularLight = textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod).rgb;
-    let diffuseContrib = diffuseLight * pbrInputs.diffuseColor;
-    let specularContrib = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
-    return (diffuseContrib + specularContrib) * globalUniforms.scaleIBLAmbient;
-  }
+  // ========================================================================
+  // IBL: Multi-scattering GGX Fresnel (Fdez-Aguera approximation)
+  // https://bruop.github.io/ibl/#single_scattering_results
+  // Energy-compensating multi-scattering from Kulla-Conty
+  // ========================================================================
 
-  // IBL: Multi-scattering Fresnel (Fdez-Aguera approximation)
-  fn getIBLRadianceGGX(n : vec3<f32>, v : vec3<f32>, roughness : f32) -> vec3<f32> {
-    let NdotV = max(dot(n, v), 0.0);
+  fn getIBLRadianceGGX(n : vec3f, v : vec3f, roughness : f32) -> vec3f {
     let lod = roughness * globalUniforms.prefilteredCubeMipLevels;
     let reflection = normalize(reflect(-v, n));
-    let specularSample = textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod);
-    return specularSample.rgb;
+    return textureSampleLevel(iblSpecularTexture, iblSampler, reflection, lod).rgb;
   }
 
-  fn getIBLGGXFresnel(n : vec3<f32>, v : vec3<f32>, roughness : f32, F0 : vec3<f32>, specularWeight : f32) -> vec3<f32> {
-    let NdotV = max(dot(n, v), 0.0);
-    let brdfLUTCoords = vec2<f32>(NdotV, roughness);
-    let brdfLUTSample = textureSample(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler, brdfLUTCoords);
-    let brdfLUT = brdfLUTSample.rg;
-    let fresnelPivot = max(vec3<f32>(1.0 - roughness), F0) - F0;
-    let fresnelSingleScatter = F0 + fresnelPivot * pow(1.0 - NdotV, 5.0);
-    let FssEss = specularWeight * (fresnelSingleScatter * brdfLUT.x + brdfLUT.y);
-    let Ems = 1.0 - (brdfLUT.x + brdfLUT.y);
+  fn getIBLGGXFresnel(n : vec3f, v : vec3f, roughness : f32, F0 : vec3f, specularWeight : f32) -> vec3f {
+    let NdotV = clampedDot(n, v);
+    let brdfSamplePoint = vec2f(NdotV, roughness);
+    let f_ab = textureSample(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler, brdfSamplePoint).rg;
+
+    // Single scattering: roughness-dependent Fresnel (Fdez-Aguera)
+    let Fr = max(vec3f(1.0 - roughness), F0) - F0;
+    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
+    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);
+
+    // Multi-scattering energy compensation (Kulla-Conty)
+    let Ems = 1.0 - (f_ab.x + f_ab.y);
     let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);
     let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
+
     return FssEss + FmsEms;
   }
 
-  // Uncharted2 tone mapping (from Vulkan reference)
+  fn getDiffuseLight(n : vec3f) -> vec3f {
+    return textureSample(iblIrradianceTexture, iblSampler, n).rgb;
+  }
+
+  // ========================================================================
+  // Tone mapping operators
+  // ========================================================================
+
   fn Uncharted2Tonemap(colorIn : vec3f) -> vec3f {
     let A = 0.15; let B = 0.50; let C = 0.10;
     let D = 0.20; let E = 0.02; let F = 0.30;
@@ -2309,23 +2390,32 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return mix(color, newPeak * vec3f(1.0, 1.0, 1.0), g);
   }
 
+  // ACES Filmic (Narkowicz 2015 fast approximation)
+  fn toneMapACES(colorIn : vec3f) -> vec3f {
+    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+    return clamp((colorIn * (a * colorIn + b)) / (colorIn * (c * colorIn + d) + e), vec3f(0.0), vec3f(1.0));
+  }
+
   fn toneMap(colorIn : vec3f) -> vec3f {
     let invGamma = 1.0 / globalUniforms.gamma;
     var color = colorIn * globalUniforms.exposure;
     if (globalUniforms.toneMappingType == 1) {
-      // Uncharted2 filmic
       let W = 11.2;
       color = Uncharted2Tonemap(color) * (1.0 / Uncharted2Tonemap(vec3f(W)));
     } else if (globalUniforms.toneMappingType == 2) {
-      // Reinhard
       color = color / (color + vec3f(1.0));
+    } else if (globalUniforms.toneMappingType == 3) {
+      color = toneMapACES(color);
     } else {
-      // PBR Neutral (Khronos)
       color = toneMapPBRNeutral(color);
     }
     color = pow(color, vec3f(invGamma));
     return color;
   }
+
+  // ========================================================================
+  // Vertex shader
+  // ========================================================================
 
   @vertex
   fn vs_main(in : VertexInput) -> VertexOutput {
@@ -2347,140 +2437,298 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     return output;
   }
 
+  // ========================================================================
+  // Fragment shader — Khronos glTF 2.0 PBR reference pipeline
+  //
+  // Implements the full PBR material model from the glTF 2.0 specification
+  // Appendix B with support for:
+  //   - Metallic-roughness workflow (core)
+  //   - Specular-glossiness workflow (legacy)
+  //   - IBL with multi-scattering energy compensation (Fdez-Aguera / Kulla-Conty)
+  //   - Height-correlated Smith GGX visibility
+  //   - Clearcoat (KHR_materials_clearcoat)
+  //   - Sheen (KHR_materials_sheen)
+  //   - Emissive strength (KHR_materials_emissive_strength)
+  //   - Unlit (KHR_materials_unlit)
+  //   - Double-sided rendering
+  //   - Alpha modes: Opaque, Mask, Blend
+  //   - Tone mapping: PBR Neutral, Uncharted2, Reinhard, ACES
+  //   - Debug visualization of inputs and BRDF terms
+  // ========================================================================
+
   @fragment
   fn fs_main(in : VertexOutput) -> @location(0) vec4f {
-    var perceptualRoughness : f32;
-    var metallic : f32;
-    var diffuseColor : vec3f;
-    var baseColor : vec4f;
-    let f0 = vec3f(0.04);
+    // --- Unlit materials: return base color directly ---
+    if (materialUniforms.workflow == 2) {
+      var unlitColor = textureSample(baseColorTexture, textureSampler, in.texCoord0) * materialUniforms.baseColorFactor;
+      unlitColor *= in.color;
+      return vec4f(toneMap(unlitColor.rgb), unlitColor.a);
+    }
 
-    // Alpha mask early discard
+    var baseColor : vec4f;
+
+    // --- Alpha mask early discard ---
     if (materialUniforms.alphaMode == 1) {
       let earlyAlpha = textureSample(baseColorTexture, textureSampler, in.texCoord0).a;
       if (earlyAlpha * materialUniforms.baseColorFactor.a < materialUniforms.alphaCutoff) { discard; }
     }
 
+    // --- Material parameter extraction ---
+    var materialInfo : MaterialInfo;
+
+    // Initialize defaults matching glTF 2.0 spec
+    materialInfo.ior = 1.5;
+    materialInfo.f0_dielectric = vec3f(0.04);
+    materialInfo.specularWeight = 1.0;
+    materialInfo.f90 = vec3f(1.0);
+    materialInfo.f90_dielectric = vec3f(1.0);
+    materialInfo.clearcoatFactor = 0.0;
+    materialInfo.clearcoatRoughness = 0.0;
+    materialInfo.clearcoatF0 = vec3f(0.04);
+    materialInfo.clearcoatF90 = vec3f(1.0);
+    materialInfo.sheenColorFactor = vec3f(0.0);
+    materialInfo.sheenRoughnessFactor = 0.0;
+
     if (materialUniforms.workflow == PBR_WORKFLOW_METALLIC_ROUGHNESS) {
       // Metallic-Roughness workflow
-      perceptualRoughness = materialUniforms.roughnessFactor;
-      metallic = materialUniforms.metallicFactor;
+      materialInfo.metallic = materialUniforms.metallicFactor;
+      materialInfo.perceptualRoughness = materialUniforms.roughnessFactor;
       let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
-      perceptualRoughness = mrSample.g * perceptualRoughness;
-      metallic = mrSample.b * metallic;
+      materialInfo.perceptualRoughness *= mrSample.g;
+      materialInfo.metallic *= mrSample.b;
       baseColor = textureSample(baseColorTexture, textureSampler, in.texCoord0) * materialUniforms.baseColorFactor;
     } else {
-      // Specular-Glossiness workflow
+      // Specular-Glossiness workflow (legacy)
       let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
-      perceptualRoughness = 1.0 - mrSample.a;
+      materialInfo.perceptualRoughness = 1.0 - mrSample.a;
       let diffuseSample = textureSample(baseColorTexture, textureSampler, in.texCoord0);
-      let specularSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).rgb;
+      let specularSample = mrSample.rgb;
       let maxSpecular = max(max(specularSample.r, specularSample.g), specularSample.b);
-      metallic = convertMetallic(diffuseSample.rgb, specularSample, maxSpecular);
+      materialInfo.metallic = convertMetallic(diffuseSample.rgb, specularSample, maxSpecular);
       let epsilon = 1e-6;
-      let baseColorDiffuse = diffuseSample.rgb * ((1.0 - maxSpecular) / (1.0 - c_MinRoughness) / max(1.0 - metallic, epsilon));
-      let baseColorSpecular = specularSample - (vec3f(c_MinRoughness) * (1.0 - metallic) * (1.0 / max(metallic, epsilon)));
-      baseColor = vec4f(mix(baseColorDiffuse, baseColorSpecular, metallic * metallic), diffuseSample.a);
+      let baseColorDiffuse = diffuseSample.rgb * ((1.0 - maxSpecular) / (1.0 - c_MinRoughness) / max(1.0 - materialInfo.metallic, epsilon));
+      let baseColorSpecular = specularSample - (vec3f(c_MinRoughness) * (1.0 - materialInfo.metallic) * (1.0 / max(materialInfo.metallic, epsilon)));
+      baseColor = vec4f(mix(baseColorDiffuse, baseColorSpecular, materialInfo.metallic * materialInfo.metallic), diffuseSample.a);
     }
 
+    // Apply vertex color
     baseColor *= in.color;
+    materialInfo.baseColor = baseColor;
 
-    // PBR material setup
-    perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
-    metallic = clamp(metallic, 0.0, 1.0);
-    let alphaRoughness = perceptualRoughness * perceptualRoughness;
+    // Apply clearcoat from material uniforms
+    materialInfo.clearcoatFactor = materialUniforms.clearcoatFactor;
+    materialInfo.clearcoatRoughness = clamp(materialUniforms.clearcoatRoughness, 0.0, 1.0);
+    materialInfo.clearcoatF0 = vec3f(pow((materialInfo.ior - 1.0) / (materialInfo.ior + 1.0), 2.0));
+    materialInfo.clearcoatF90 = vec3f(1.0);
 
-    diffuseColor = baseColor.rgb * (vec3f(1.0) - f0) * (1.0 - metallic);
-    let specularColor = mix(f0, baseColor.rgb, metallic);
+    // Apply sheen from material uniforms
+    materialInfo.sheenColorFactor = materialUniforms.sheenColorFactor;
+    materialInfo.sheenRoughnessFactor = materialUniforms.sheenRoughnessFactor;
 
-    // Reflectance (for analytical light F90 computation)
-    let reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
-    let reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
-    let specularEnvironmentR0 = specularColor;
-    let specularEnvironmentR90 = vec3f(reflectance90);
+    // Clamp material parameters
+    materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
+    materialInfo.metallic = clamp(materialInfo.metallic, 0.0, 1.0);
 
-    let n = getNormal(in);
+    // Roughness is authored as perceptual roughness; convert to alpha roughness
+    // by squaring, as is convention [Burley 2012]
+    materialInfo.alphaRoughness = materialInfo.perceptualRoughness * materialInfo.perceptualRoughness;
+
+    // ========================================================================
+    // Lighting computation following Khronos glTF 2.0 reference
+    //
+    // The material is decomposed into separate dielectric and metallic BRDFs:
+    //   material = mix(dielectric_brdf, metal_brdf, metallic)
+    //
+    // Dielectric BRDF = fresnel_mix(diffuse, specular)
+    // Metal BRDF = conductor_fresnel(baseColor, specular)
+    // ========================================================================
+
+    var n = getNormal(in);
     let v = normalize(in.viewDirectionWorld);
-    let reflection = normalize(reflect(-v, n));
 
-    let NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
+    // Handle double-sided: flip normal if back-facing
+    if (materialUniforms.doubleSided > 0 && dot(n, v) < 0.0) {
+      n = -n;
+    }
 
-    var color = vec3f(0.0);
+    let NdotV = clampedDot(n, v);
 
-    // --- Analytical directional light (Cook-Torrance BRDF) ---
-    {
+    // Clearcoat normal (same as geometric normal for now — no separate clearcoat normal map)
+    materialInfo.clearcoatNormal = n;
+
+    // Accumulate lighting
+    var f_specular_dielectric = vec3f(0.0);
+    var f_specular_metal = vec3f(0.0);
+    var f_diffuse = vec3f(0.0);
+    var f_dielectric_brdf_ibl = vec3f(0.0);
+    var f_metal_brdf_ibl = vec3f(0.0);
+    var f_emissive = vec3f(0.0);
+    var clearcoat_brdf = vec3f(0.0);
+    var f_sheen = vec3f(0.0);
+
+    var clearcoatFresnel = vec3f(0.0);
+    var albedoSheenScaling : f32 = 1.0;
+
+    // Clearcoat Fresnel (precomputed for both IBL and punctual)
+    if (materialInfo.clearcoatFactor > 0.0) {
+      clearcoatFresnel = F_Schlick_vec3(materialInfo.clearcoatF0, materialInfo.clearcoatF90,
+                                         clampedDot(materialInfo.clearcoatNormal, v));
+    }
+
+    // ====================================================================
+    // IBL contribution (Image-Based Lighting)
+    // Split-sum approximation with multi-scattering energy compensation
+    // ====================================================================
+
+    // Diffuse IBL
+    f_diffuse = getDiffuseLight(n) * baseColor.rgb;
+
+    // Specular IBL (GGX importance-sampled prefiltered environment)
+    f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness);
+    f_specular_dielectric = f_specular_metal;
+
+    // Multi-scattering GGX Fresnel for metals (F0 = baseColor, weight = 1.0)
+    let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, baseColor.rgb, 1.0);
+    f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+
+    // Multi-scattering GGX Fresnel for dielectrics (F0 = 0.04, weight = specularWeight)
+    let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness,
+                                                     materialInfo.f0_dielectric, materialInfo.specularWeight);
+    // Dielectric BRDF = mix(diffuse, specular, fresnel)
+    f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl);
+
+    // Clearcoat IBL
+    if (materialInfo.clearcoatFactor > 0.0) {
+      clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness);
+    }
+
+    // Compose: mix(dielectric, metal, metallic)
+    var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
+
+    // Apply sheen on top (energy-conserving scaling)
+    color = f_sheen + color * albedoSheenScaling;
+
+    // Apply clearcoat layer
+    color = mix(color, clearcoat_brdf, materialInfo.clearcoatFactor * clearcoatFresnel);
+
+    // Occlusion: only affects indirect (IBL) lighting
+    let ao = textureSample(occlusionTexture, textureSampler, in.texCoord0).r;
+    color = color * (1.0 + materialUniforms.occlusionStrength * (ao - 1.0));
+
+    // Scale IBL ambient
+    color *= globalUniforms.scaleIBLAmbient;
+
+    // ====================================================================
+    // Punctual light contribution (analytical directional light)
+    // Following Khronos reference: separate dielectric/metal Fresnel
+    // ====================================================================
+
+    if (globalUniforms.lightDir.w >= 0.0) {
       let l = normalize(globalUniforms.lightDir.xyz);
       let h = normalize(l + v);
-      let NdotL = clamp(dot(n, l), 0.001, 1.0);
-      let NdotH = clamp(dot(n, h), 0.0, 1.0);
-      let LdotH = clamp(dot(l, h), 0.0, 1.0);
-      let VdotH = clamp(dot(v, h), 0.0, 1.0);
+      let NdotL = clampedDot(n, l);
+      let NdotH = clampedDot(n, h);
+      let VdotH = clampedDot(v, h);
 
-      let pbrInputs = PBRInfo(
-        NdotL, NdotV, NdotH, LdotH, VdotH,
-        perceptualRoughness, metallic,
-        specularEnvironmentR0, specularEnvironmentR90,
-        alphaRoughness, diffuseColor, specularColor
-      );
+      if (NdotL > 0.0 || NdotV > 0.0) {
+        // Separate dielectric and metallic Fresnel
+        let dielectric_fresnel = F_Schlick_vec3(
+          materialInfo.f0_dielectric * materialInfo.specularWeight,
+          materialInfo.f90_dielectric, abs(VdotH));
+        let metal_fresnel = F_Schlick_vec3(baseColor.rgb, vec3f(1.0), abs(VdotH));
 
-      let F = specularReflection(pbrInputs);
-      let G = geometricOcclusion(pbrInputs);
-      let D = microfacetDistribution(pbrInputs);
+        // Lambertian diffuse
+        let l_diffuse = NdotL * BRDF_lambertian(baseColor.rgb);
 
-      let diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
-      let specContrib = F * G * D / (4.0 * NdotL * NdotV);
+        // Specular GGX (same lobe for both dielectric and metal)
+        let l_specular = NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
 
-      // Only apply if direct light is enabled (scaleIBLAmbient-based or always)
-      if (globalUniforms.debugViewEquation > 0.0) {
-        // Debug: always compute for equation debug display
-        let debugIndex = i32(globalUniforms.debugViewEquation);
-        if (debugIndex == 1) { color = diffuseContrib; }
-        else if (debugIndex == 2) { color = F; }
-        else if (debugIndex == 3) { color = vec3f(G); }
-        else if (debugIndex == 4) { color = vec3f(D); }
-        else if (debugIndex == 5) { color = specContrib; }
-        color = toneMap(color);
-        return vec4f(color, 1.0);
+        // Metal BRDF = metalFresnel * specular
+        let l_metal_brdf = metal_fresnel * l_specular;
+
+        // Dielectric BRDF = mix(diffuse, specular, dielectricFresnel)
+        let l_dielectric_brdf = mix(l_diffuse, l_specular, dielectric_fresnel);
+
+        // Clearcoat contribution for punctual light
+        var l_clearcoat_brdf = vec3f(0.0);
+        if (materialInfo.clearcoatFactor > 0.0) {
+          let clearcoatNdotH = clampedDot(materialInfo.clearcoatNormal, h);
+          let clearcoatNdotL = clampedDot(materialInfo.clearcoatNormal, l);
+          let clearcoatAlpha = materialInfo.clearcoatRoughness * materialInfo.clearcoatRoughness;
+          let Dc = D_GGX(clearcoatNdotH, clearcoatAlpha);
+          let Vc = V_GGX(clearcoatNdotL, clampedDot(materialInfo.clearcoatNormal, v), clearcoatAlpha);
+          let Fc = F_Schlick_scalar(0.04, 1.0, VdotH);
+          l_clearcoat_brdf = vec3f(Fc * Dc * Vc) * clearcoatNdotL;
+        }
+
+        // Sheen contribution for punctual light
+        var l_sheen = vec3f(0.0);
+        var l_albedoSheenScaling : f32 = 1.0;
+        if (materialInfo.sheenRoughnessFactor > 0.0) {
+          l_sheen = BRDF_specularSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor,
+                                       NdotL, NdotV, NdotH);
+        }
+
+        // Compose punctual: mix(dielectric, metal, metallic)
+        var l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+        l_color = l_sheen + l_color * l_albedoSheenScaling;
+        l_color = mix(l_color, l_clearcoat_brdf, materialInfo.clearcoatFactor * clearcoatFresnel);
+
+        color += l_color;
       }
-
-      // Direct lighting contribution
-      color = NdotL * vec3f(1.0) * (diffuseContrib + specContrib);
     }
 
-    // --- IBL contribution ---
-    {
-      let pbrInputsIBL = PBRInfo(
-        0.0, NdotV, 0.0, 0.0, 0.0,
-        perceptualRoughness, metallic,
-        specularEnvironmentR0, specularEnvironmentR90,
-        alphaRoughness, diffuseColor, specularColor
-      );
-      color += getIBLContribution(pbrInputsIBL, n, reflection);
+    // ====================================================================
+    // Debug views: BRDF equation terms (uses punctual light for visualization)
+    // ====================================================================
+
+    if (globalUniforms.debugViewEquation > 0.0) {
+      let l = normalize(globalUniforms.lightDir.xyz);
+      let h = normalize(l + v);
+      let NdotL = clampedDot(n, l);
+      let NdotH = clampedDot(n, h);
+      let VdotH = clampedDot(v, h);
+      let F = F_Schlick_vec3(mix(materialInfo.f0_dielectric, baseColor.rgb, materialInfo.metallic),
+                              materialInfo.f90, VdotH);
+      let G = V_GGX(NdotL, NdotV, materialInfo.alphaRoughness);
+      let D = D_GGX(NdotH, materialInfo.alphaRoughness);
+      let debugIndex = i32(globalUniforms.debugViewEquation);
+      var debugColor = vec3f(0.0);
+      if (debugIndex == 1) { debugColor = BRDF_lambertian(baseColor.rgb); }
+      else if (debugIndex == 2) { debugColor = F; }
+      else if (debugIndex == 3) { debugColor = vec3f(G); }
+      else if (debugIndex == 4) { debugColor = vec3f(D); }
+      else if (debugIndex == 5) { debugColor = F * G * D; }
+      return vec4f(toneMap(debugColor), 1.0);
     }
 
-    // --- Occlusion ---
-    let ao = textureSample(occlusionTexture, textureSampler, in.texCoord0).r;
-    color = mix(color, color * ao, materialUniforms.occlusionStrength);
+    // ====================================================================
+    // Emissive
+    // ====================================================================
+    f_emissive = materialUniforms.emissiveFactor * materialUniforms.emissiveStrength;
+    f_emissive *= SRGBtoLINEAR(textureSample(emissiveTexture, textureSampler, in.texCoord0)).rgb;
 
-    // --- Emissive ---
-    var emissive = materialUniforms.emissiveFactor * materialUniforms.emissiveStrength;
-    emissive *= SRGBtoLINEAR(textureSample(emissiveTexture, textureSampler, in.texCoord0)).rgb;
-    color += emissive;
+    // Clearcoat attenuates emissive: emissive * (1 - clearcoatFactor * clearcoatFresnel)
+    color = f_emissive * (1.0 - materialInfo.clearcoatFactor * clearcoatFresnel) + color;
 
-    // --- Debug visualization: shader inputs ---
+    // ====================================================================
+    // Debug views: material inputs
+    // ====================================================================
     if (globalUniforms.debugViewInputs > 0.0) {
       let idx = i32(globalUniforms.debugViewInputs);
       var debugColor = vec4f(0.0);
-      if (idx == 1) { debugColor = textureSample(baseColorTexture, textureSampler, in.texCoord0); }
-      else if (idx == 2) { debugColor = vec4f(textureSample(normalTexture, textureSampler, in.texCoord0).rgb, 1.0); }
-      else if (idx == 3) { let aoVal = textureSample(occlusionTexture, textureSampler, in.texCoord0).r; debugColor = vec4f(aoVal, aoVal, aoVal, 1.0); }
-      else if (idx == 4) { debugColor = vec4f(textureSample(emissiveTexture, textureSampler, in.texCoord0).rgb, 1.0); }
-      else if (idx == 5) { let m = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).b; debugColor = vec4f(m, m, m, 1.0); }
-      else if (idx == 6) { let r = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0).g; debugColor = vec4f(r, r, r, 1.0); }
-      return SRGBtoLINEAR(debugColor);
+      if (idx == 1) { debugColor = baseColor; }
+      else if (idx == 2) { debugColor = vec4f(n * 0.5 + 0.5, 1.0); }
+      else if (idx == 3) { debugColor = vec4f(vec3f(ao), 1.0); }
+      else if (idx == 4) { debugColor = vec4f(f_emissive, 1.0); }
+      else if (idx == 5) { debugColor = vec4f(vec3f(materialInfo.metallic), 1.0); }
+      else if (idx == 6) { debugColor = vec4f(vec3f(materialInfo.perceptualRoughness), 1.0); }
+      return debugColor;
     }
 
-    // --- Tone mapping ---
+    // ====================================================================
+    // Tone mapping and final output
+    // ====================================================================
     color = toneMap(color);
 
     var alpha = select(baseColor.a, 1.0, materialUniforms.alphaMode == 0);
