@@ -1702,14 +1702,17 @@ static void load_extensions(const cgltf_data* gltf_data, gltf_model_t* model)
  * -------------------------------------------------------------------------- */
 
 static bool load_model_internal(gltf_model_t* model,
-                                const cgltf_data* gltf_data, float scale)
+                                const cgltf_data* gltf_data, float scale,
+                                bool load_images)
 {
   /* --- Load extensions --- */
   load_extensions(gltf_data, model);
 
-  /* --- Load texture samplers and images --- */
+  /* --- Load texture samplers and (optionally) images --- */
   load_texture_samplers(gltf_data, model);
-  load_texture_images(gltf_data, model);
+  if (load_images) {
+    load_texture_images(gltf_data, model);
+  }
 
   /* --- Load materials --- */
   load_materials(gltf_data, model);
@@ -1862,7 +1865,7 @@ bool gltf_model_load_from_file(gltf_model_t* model, const char* filename,
   }
 
   /* Load model */
-  bool success = load_model_internal(model, gltf_data, scale);
+  bool success = load_model_internal(model, gltf_data, scale, true);
 
   /* Free cgltf data (all data has been copied) */
   cgltf_free(gltf_data);
@@ -1917,7 +1920,7 @@ bool gltf_model_load_from_memory(gltf_model_t* model, const void* data,
   }
 
   /* Load model */
-  bool success = load_model_internal(model, gltf_data, scale);
+  bool success = load_model_internal(model, gltf_data, scale, true);
 
   /* Free cgltf data */
   cgltf_free(gltf_data);
@@ -1927,6 +1930,215 @@ bool gltf_model_load_from_memory(gltf_model_t* model, const void* data,
     return false;
   }
 
+  return true;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Deferred (async-friendly) loading API
+ * -------------------------------------------------------------------------- */
+
+bool gltf_model_load_gltf_deferred(gltf_model_t* model, const void* gltf_json,
+                                   size_t gltf_json_size, const char* base_path,
+                                   float scale,
+                                   const gltf_preloaded_buffer_t* buffers,
+                                   uint32_t num_buffers)
+{
+  if (!model || !gltf_json || gltf_json_size == 0) {
+    gltf_log_error("Invalid arguments to gltf_model_load_gltf_deferred");
+    return false;
+  }
+
+  memset(model, 0, sizeof(gltf_model_t));
+
+  if (base_path) {
+    extract_directory(base_path, model->file_path, sizeof(model->file_path));
+  }
+
+  /* Parse JSON */
+  cgltf_options options = {0};
+  cgltf_data* gltf_data = NULL;
+  cgltf_result result
+    = cgltf_parse(&options, gltf_json, gltf_json_size, &gltf_data);
+  if (result != cgltf_result_success) {
+    gltf_log_error("Failed to parse glTF JSON (error: %d)", (int)result);
+    memset(model, 0, sizeof(gltf_model_t));
+    return false;
+  }
+
+  /* Inject pre-loaded buffer data so cgltf_load_buffers can be skipped */
+  bool buffers_ok = true;
+  for (cgltf_size i = 0; i < gltf_data->buffers_count; i++) {
+    cgltf_buffer* buf = &gltf_data->buffers[i];
+
+    if (buf->data) {
+      /* Already has data (embedded base64 in JSON — cgltf_parse decoded it) */
+      continue;
+    }
+
+    if (buf->uri && i < num_buffers && buffers[i].data && buffers[i].size > 0) {
+      /* Use pre-loaded data. We must allocate a copy because cgltf_free()
+       * will call free() on buf->data when data_free_method != none. */
+      void* copy = malloc(buffers[i].size);
+      if (!copy) {
+        gltf_log_error("Failed to allocate buffer copy for buffer %zu", i);
+        buffers_ok = false;
+        break;
+      }
+      memcpy(copy, buffers[i].data, buffers[i].size);
+      buf->data             = copy;
+      buf->size             = buffers[i].size;
+      buf->data_free_method = cgltf_data_free_method_memory_free;
+    }
+    else if (buf->uri && base_path) {
+      /* No pre-loaded data — fall back to loading from disk */
+      result = cgltf_load_buffers(&options, gltf_data, base_path);
+      if (result != cgltf_result_success) {
+        gltf_log_warn("Failed to load external buffer '%s' from disk",
+                      buf->uri);
+        buffers_ok = false;
+      }
+      break; /* cgltf_load_buffers handles all buffers at once */
+    }
+  }
+
+  if (!buffers_ok) {
+    gltf_log_error("Could not resolve all external buffers");
+    cgltf_free(gltf_data);
+    memset(model, 0, sizeof(gltf_model_t));
+    return false;
+  }
+
+  /* Validate */
+  result = cgltf_validate(gltf_data);
+  if (result != cgltf_result_success) {
+    gltf_log_warn("glTF validation warning (error: %d)", (int)result);
+  }
+
+  /* Load model WITHOUT images (deferred) */
+  bool success = load_model_internal(model, gltf_data, scale, false);
+
+  cgltf_free(gltf_data);
+
+  if (!success) {
+    gltf_model_destroy(model);
+    return false;
+  }
+
+  return true;
+}
+
+bool gltf_model_load_texture_from_memory(gltf_model_t* model,
+                                         uint32_t texture_index,
+                                         const void* file_data,
+                                         size_t file_size)
+{
+  if (!model || !file_data || file_size == 0) {
+    gltf_log_error("Invalid arguments to gltf_model_load_texture_from_memory");
+    return false;
+  }
+
+  if (texture_index >= model->texture_count) {
+    gltf_log_error("Texture index %u out of range (count: %u)", texture_index,
+                   model->texture_count);
+    return false;
+  }
+
+  gltf_texture_t* tex = &model->textures[texture_index];
+
+  /* Free any existing pixel data */
+  if (tex->data) {
+    image_free(tex->data);
+    tex->data = NULL;
+  }
+
+  /* Decode image from memory */
+  image_t decoded = {0};
+  if (!image_load_from_memory((const uint8_t*)file_data, (int)file_size, 4,
+                              &decoded)) {
+    gltf_log_error("Failed to decode texture image at index %u", texture_index);
+    return false;
+  }
+
+  tex->data     = decoded.pixels.u8;
+  tex->width    = (uint32_t)decoded.width;
+  tex->height   = (uint32_t)decoded.height;
+  tex->channels = 4;
+
+  return true;
+}
+
+/* -------------------------------------------------------------------------- *
+ * External resource discovery
+ * -------------------------------------------------------------------------- */
+
+bool gltf_model_discover_external_resources(
+  const void* gltf_json, size_t gltf_json_size,
+  gltf_external_resources_t* resources)
+{
+  if (!gltf_json || gltf_json_size == 0 || !resources) {
+    gltf_log_error(
+      "Invalid arguments to gltf_model_discover_external_resources");
+    return false;
+  }
+
+  memset(resources, 0, sizeof(gltf_external_resources_t));
+
+  /* Parse JSON with cgltf */
+  cgltf_options options = {0};
+  cgltf_data* gltf_data = NULL;
+  cgltf_result result
+    = cgltf_parse(&options, gltf_json, gltf_json_size, &gltf_data);
+  if (result != cgltf_result_success) {
+    gltf_log_error(
+      "Failed to parse glTF JSON for resource discovery (error: %d)",
+      (int)result);
+    return false;
+  }
+
+  /* Discover external buffer (.bin) files — skip embedded/data URIs */
+  resources->has_external_buffer = false;
+  for (cgltf_size i = 0; i < gltf_data->buffers_count; i++) {
+    const cgltf_buffer* buf = &gltf_data->buffers[i];
+    if (buf->data) {
+      continue; /* Already decoded (embedded in GLB or base64 data URI) */
+    }
+    if (!buf->uri) {
+      continue; /* No URI */
+    }
+    if (strncmp(buf->uri, "data:", 5) == 0) {
+      continue; /* Data URI — will be decoded by cgltf internally */
+    }
+    /* External buffer file */
+    safe_strncpy(resources->buffer_uri, buf->uri, GLTF_MODEL_MAX_URI_LENGTH);
+    resources->has_external_buffer = true;
+    break; /* Only handle first external buffer (per spec, typically one) */
+  }
+
+  /* Discover external image files */
+  resources->image_count = 0;
+  for (cgltf_size ti = 0; ti < gltf_data->textures_count; ti++) {
+    const cgltf_texture* gt = &gltf_data->textures[ti];
+    if (!gt->image || !gt->image->uri) {
+      continue; /* Embedded image or no image — skip */
+    }
+    if (strncmp(gt->image->uri, "data:", 5) == 0) {
+      continue; /* Data URI — will be decoded internally */
+    }
+
+    if (resources->image_count >= GLTF_MODEL_MAX_EXTERNAL_IMAGES) {
+      gltf_log_warn("Too many external images, max %d supported",
+                    GLTF_MODEL_MAX_EXTERNAL_IMAGES);
+      break;
+    }
+
+    uint32_t idx = resources->image_count;
+    safe_strncpy(resources->images[idx].uri, gt->image->uri,
+                 GLTF_MODEL_MAX_URI_LENGTH);
+    resources->images[idx].texture_index = (uint32_t)ti;
+    resources->image_count++;
+  }
+
+  cgltf_free(gltf_data);
   return true;
 }
 

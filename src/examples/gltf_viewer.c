@@ -46,6 +46,7 @@
 /* PBR workflow */
 #include "webgpu/pbr.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -59,9 +60,17 @@
 
 #define GLTF_VIEWER_MAX_MATERIALS 64
 #define GLTF_VIEWER_MAX_SUBMESHES 256
+#define GLTF_VIEWER_MAX_TEXTURES 64
+#define GLTF_VIEWER_MAX_EXTERNAL_IMAGES 32
 
-#define GLB_FILE_PATH "assets/models/DamagedHelmet.glb"
+/* File paths — change MODEL_FILE_PATH to load a different model */
+#define MODEL_FILE_PATH "assets/models/DamagedHelmet.glb"
 #define HDR_FILE_PATH "assets/textures/venice_sunset_1k.hdr"
+
+/* sokol_fetch configuration — tuned for parallel external resource loading */
+#define SFETCH_MAX_REQUESTS 48
+#define SFETCH_NUM_CHANNELS 4
+#define SFETCH_NUM_LANES 8
 
 /* Camera defaults */
 #define CAMERA_FOV 45.0f
@@ -186,14 +195,48 @@ typedef struct {
 static struct {
   /* Initialization flags */
   WGPUBool initialized;
-  WGPUBool glb_loaded;
   WGPUBool hdr_loaded;
   WGPUBool resources_ready;
   WGPUBool model_resources_created;
 
-  /* File loading buffers (dynamically sized via stat()) */
+  /* File type detection */
+  bool is_gltf; /* true = .gltf (separate files), false = .glb (single file) */
+
+  /* ---- GLB loading (single-file path) ---- */
+  WGPUBool glb_loaded;
   uint8_t* glb_file_buffer;
   size_t glb_file_buffer_size;
+
+  /* ---- glTF multi-phase loading state ---- */
+  struct {
+    /* Phase 1: main .gltf JSON */
+    uint8_t* json_buffer;
+    size_t json_buffer_size;
+    bool json_loaded;
+
+    /* Phase 2: external .bin buffer(s) */
+    uint8_t* bin_buffer;
+    size_t bin_buffer_size;
+    bool bin_loaded;
+    bool has_external_bin; /* false if buffer is embedded (data URI) */
+    char bin_uri[GLTF_MODEL_MAX_URI_LENGTH];
+
+    /* Phase 3: external image files */
+    struct {
+      char path[GLTF_MODEL_MAX_URI_LENGTH];
+      uint8_t* buffer;
+      size_t buffer_size;
+      bool loaded;
+      uint32_t texture_index; /* index into model->textures[] */
+    } images[GLTF_VIEWER_MAX_EXTERNAL_IMAGES];
+    uint32_t num_images;
+    uint32_t num_images_loaded;
+
+    /* Geometry loaded flag (after .bin available) */
+    bool geometry_loaded;
+  } gltf;
+
+  /* HDR environment loading */
   uint8_t* hdr_file_buffer;
   size_t hdr_file_buffer_size;
 
@@ -223,6 +266,16 @@ static struct {
   wgpu_environment_t environment;
   wgpu_ibl_textures_t ibl;
   bool environment_loaded;
+
+  /* Texture store: GPU textures for model, with progressive loading */
+  struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+    bool created;
+    WGPUTextureFormat format;
+  } texture_store[GLTF_VIEWER_MAX_TEXTURES];
+  uint32_t texture_store_count;
+  uint32_t textures_uploaded; /* count of textures uploaded to GPU */
 
   /* GPU resources */
   struct {
@@ -1041,6 +1094,123 @@ static WGPUTexture create_model_texture(wgpu_context_t* ctx,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Pre-bake per-node world transforms into vertex positions
+ *
+ * glTF models can have per-node transforms (translation, rotation, scale)
+ * that place each mesh part in the correct world-space position. Since the
+ * viewer uses a single model matrix for all draw calls, we bake these
+ * transforms into the CPU vertex data before creating GPU buffers.
+ * -------------------------------------------------------------------------- */
+
+static void apply_node_world_transforms(void)
+{
+  gltf_model_t* m = &state.model;
+  if (!m->vertices || m->vertex_count == 0) {
+    return;
+  }
+
+  /* Track which vertices have been transformed to avoid double-transforms */
+  bool* transformed = (bool*)calloc(m->vertex_count, sizeof(bool));
+  if (!transformed) {
+    printf(
+      "[gltf_viewer] WARNING: Could not allocate transform tracking "
+      "array\n");
+    return;
+  }
+
+  for (uint32_t ni = 0; ni < m->linear_node_count; ++ni) {
+    gltf_node_t* node = m->linear_nodes[ni];
+    if (!node->mesh) {
+      continue;
+    }
+
+    /* Get this node's world matrix */
+    mat4 world_mat;
+    gltf_node_get_world_matrix(node, world_mat);
+
+    /* Check if the world matrix is identity — skip if so */
+    mat4 identity;
+    glm_mat4_identity(identity);
+    bool is_identity = true;
+    for (int c = 0; c < 4 && is_identity; ++c) {
+      for (int r = 0; r < 4 && is_identity; ++r) {
+        if (fabsf(world_mat[c][r] - identity[c][r]) > 1e-6f) {
+          is_identity = false;
+        }
+      }
+    }
+    if (is_identity) {
+      continue;
+    }
+
+    /* Compute the normal matrix (transpose of inverse of upper-left 3x3) */
+    mat3 normal_mat;
+    glm_mat4_pick3(world_mat, normal_mat);
+    glm_mat3_inv(normal_mat, normal_mat);
+    glm_mat3_transpose(normal_mat);
+
+    /* Transform vertices for each primitive of this node's mesh */
+    gltf_mesh_t* mesh = node->mesh;
+    for (uint32_t pi = 0; pi < mesh->primitive_count; ++pi) {
+      gltf_primitive_t* prim = &mesh->primitives[pi];
+
+      for (uint32_t ii = 0; ii < prim->index_count; ++ii) {
+        uint32_t vi = m->indices[prim->first_index + ii];
+        if (vi >= m->vertex_count || transformed[vi]) {
+          continue;
+        }
+        transformed[vi] = true;
+
+        gltf_vertex_t* vert = &m->vertices[vi];
+
+        /* Transform position */
+        vec4 pos4
+          = {vert->position[0], vert->position[1], vert->position[2], 1.0f};
+        vec4 result;
+        glm_mat4_mulv(world_mat, pos4, result);
+        vert->position[0] = result[0];
+        vert->position[1] = result[1];
+        vert->position[2] = result[2];
+
+        /* Transform normal */
+        vec3 n;
+        glm_mat3_mulv(normal_mat, vert->normal, n);
+        glm_vec3_normalize(n);
+        glm_vec3_copy(n, vert->normal);
+
+        /* Transform tangent (xyz only, w is handedness sign) */
+        vec3 t = {vert->tangent[0], vert->tangent[1], vert->tangent[2]};
+        vec3 t_out;
+        glm_mat3_mulv(normal_mat, t, t_out);
+        glm_vec3_normalize(t_out);
+        vert->tangent[0] = t_out[0];
+        vert->tangent[1] = t_out[1];
+        vert->tangent[2] = t_out[2];
+        /* vert->tangent[3] (handedness) remains unchanged */
+      }
+    }
+  }
+
+  free(transformed);
+
+  /* Recompute scene dimensions from transformed vertices */
+  vec3 scene_min = {FLT_MAX, FLT_MAX, FLT_MAX};
+  vec3 scene_max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+  for (uint32_t vi = 0; vi < m->vertex_count; ++vi) {
+    glm_vec3_minv(scene_min, m->vertices[vi].position, scene_min);
+    glm_vec3_maxv(scene_max, m->vertices[vi].position, scene_max);
+  }
+  glm_vec3_copy(scene_min, m->dimensions.min);
+  glm_vec3_copy(scene_max, m->dimensions.max);
+  glm_vec3_sub(scene_max, scene_min, m->dimensions.size);
+  glm_vec3_add(scene_min, scene_max, m->dimensions.center);
+  glm_vec3_scale(m->dimensions.center, 0.5f, m->dimensions.center);
+  m->dimensions.radius = glm_vec3_distance(scene_min, scene_max) * 0.5f;
+
+  printf("[gltf_viewer] Applied per-node world transforms to vertices\n");
+}
+
+/* -------------------------------------------------------------------------- *
  * Model buffers + submeshes + materials (called after glb loading)
  * -------------------------------------------------------------------------- */
 
@@ -1126,6 +1296,9 @@ static void create_submeshes(void)
   }
 }
 
+/* Forward declaration (defined after texture store helpers) */
+static void rebuild_material_bind_group(wgpu_context_t* ctx, uint32_t mat_idx);
+
 static void create_materials(wgpu_context_t* ctx)
 {
   gltf_model_t* m   = &state.model;
@@ -1181,103 +1354,8 @@ static void create_materials(wgpu_context_t* ctx)
                            sizeof(material_uniforms_t));
     }
 
-    /* Base color texture */
-    if (src->base_color_tex_index >= 0
-        && (uint32_t)src->base_color_tex_index < m->texture_count) {
-      dst->base_color_texture
-        = create_model_texture(ctx, &m->textures[src->base_color_tex_index],
-                               WGPUTextureFormat_RGBA8UnormSrgb);
-      if (!dst->base_color_texture) {
-        printf("[gltf_viewer] WARN: base color texture %d failed to create\n",
-               src->base_color_tex_index);
-      }
-    }
-
-    /* Metallic-roughness texture */
-    if (src->metallic_roughness_tex_index >= 0
-        && (uint32_t)src->metallic_roughness_tex_index < m->texture_count) {
-      dst->metallic_roughness_texture = create_model_texture(
-        ctx, &m->textures[src->metallic_roughness_tex_index],
-        WGPUTextureFormat_RGBA8Unorm);
-    }
-
-    /* Normal texture */
-    if (src->normal_tex_index >= 0
-        && (uint32_t)src->normal_tex_index < m->texture_count) {
-      dst->normal_texture = create_model_texture(
-        ctx, &m->textures[src->normal_tex_index], WGPUTextureFormat_RGBA8Unorm);
-    }
-
-    /* Occlusion texture */
-    if (src->occlusion_tex_index >= 0
-        && (uint32_t)src->occlusion_tex_index < m->texture_count) {
-      dst->occlusion_texture
-        = create_model_texture(ctx, &m->textures[src->occlusion_tex_index],
-                               WGPUTextureFormat_RGBA8Unorm);
-    }
-
-    /* Emissive texture */
-    if (src->emissive_tex_index >= 0
-        && (uint32_t)src->emissive_tex_index < m->texture_count) {
-      dst->emissive_texture
-        = create_model_texture(ctx, &m->textures[src->emissive_tex_index],
-                               WGPUTextureFormat_RGBA8UnormSrgb);
-    }
-
-    /* Create material bind group */
-    WGPUTextureView bc_view
-      = dst->base_color_texture ?
-          wgpuTextureCreateView(dst->base_color_texture, NULL) :
-          state.gpu.default_srgb_view;
-    WGPUTextureView mr_view
-      = dst->metallic_roughness_texture ?
-          wgpuTextureCreateView(dst->metallic_roughness_texture, NULL) :
-          state.gpu.default_unorm_view;
-    WGPUTextureView nm_view
-      = dst->normal_texture ? wgpuTextureCreateView(dst->normal_texture, NULL) :
-                              state.gpu.default_normal_view;
-    WGPUTextureView ao_view
-      = dst->occlusion_texture ?
-          wgpuTextureCreateView(dst->occlusion_texture, NULL) :
-          state.gpu.default_unorm_view;
-    WGPUTextureView em_view
-      = dst->emissive_texture ?
-          wgpuTextureCreateView(dst->emissive_texture, NULL) :
-          state.gpu.default_srgb_view;
-
-    WGPUBindGroupEntry entries[8] = {
-      [0] = {.binding = 0,
-             .buffer  = state.gpu.model_uniform_buffer,
-             .size    = sizeof(model_uniforms_t)},
-      [1] = {.binding = 1,
-             .buffer  = dst->uniform_buffer,
-             .size    = sizeof(material_uniforms_t)},
-      [2] = {.binding = 2, .sampler = state.gpu.model_texture_sampler},
-      [3] = {.binding = 3, .textureView = bc_view},
-      [4] = {.binding = 4, .textureView = mr_view},
-      [5] = {.binding = 5, .textureView = nm_view},
-      [6] = {.binding = 6, .textureView = ao_view},
-      [7] = {.binding = 7, .textureView = em_view},
-    };
-    WGPUBindGroupDescriptor bg_desc = {
-      .layout     = state.gpu.model_bind_group_layout,
-      .entryCount = ARRAY_SIZE(entries),
-      .entries    = entries,
-    };
-    dst->bind_group = wgpuDeviceCreateBindGroup(device, &bg_desc);
-
-    /* Release temporary views (they are now referenced by the bind group) */
-    if (dst->base_color_texture && bc_view != state.gpu.default_srgb_view)
-      wgpuTextureViewRelease(bc_view);
-    if (dst->metallic_roughness_texture
-        && mr_view != state.gpu.default_unorm_view)
-      wgpuTextureViewRelease(mr_view);
-    if (dst->normal_texture && nm_view != state.gpu.default_normal_view)
-      wgpuTextureViewRelease(nm_view);
-    if (dst->occlusion_texture && ao_view != state.gpu.default_unorm_view)
-      wgpuTextureViewRelease(ao_view);
-    if (dst->emissive_texture && em_view != state.gpu.default_srgb_view)
-      wgpuTextureViewRelease(em_view);
+    /* Build bind group using texture store (with fallback to defaults) */
+    rebuild_material_bind_group(ctx, i);
   }
 }
 
@@ -1375,7 +1453,7 @@ static void sort_transparent_meshes(void)
 }
 
 /* -------------------------------------------------------------------------- *
- * File size helper
+ * File type / path helpers
  * -------------------------------------------------------------------------- */
 
 /**
@@ -1392,10 +1470,222 @@ static size_t get_file_size(const char* path)
   return (size_t)st.st_size;
 }
 
+/**
+ * Detect whether a path is a .gltf file (returns true) or .glb (returns false).
+ */
+static bool path_is_gltf(const char* path)
+{
+  const char* dot = strrchr(path, '.');
+  if (dot && strcmp(dot, ".gltf") == 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extract directory from a file path (e.g., "a/b/file.gltf" -> "a/b/").
+ */
+static void extract_dir(const char* filepath, char* dir, size_t dir_size)
+{
+  strncpy(dir, filepath, dir_size - 1);
+  dir[dir_size - 1] = '\0';
+  char* last_sep    = strrchr(dir, '/');
+  if (last_sep) {
+    last_sep[1] = '\0';
+  }
+  else {
+    dir[0] = '\0';
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Texture store helpers
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Get the texture view for a texture store entry, or the appropriate default.
+ */
+static WGPUTextureView get_texture_view(uint32_t tex_index,
+                                        WGPUTextureView default_view)
+{
+  if (tex_index < state.texture_store_count
+      && state.texture_store[tex_index].created) {
+    return state.texture_store[tex_index].view;
+  }
+  return default_view;
+}
+
+/**
+ * Upload a loaded texture to the GPU texture store.
+ * Returns true if the GPU texture was created.
+ */
+static bool upload_texture_to_store(wgpu_context_t* ctx, uint32_t tex_index,
+                                    WGPUTextureFormat format)
+{
+  if (tex_index >= state.texture_store_count) {
+    return false;
+  }
+
+  const gltf_texture_t* tex = &state.model.textures[tex_index];
+  if (!tex->data || tex->width == 0 || tex->height == 0) {
+    return false;
+  }
+
+  /* Release any previous GPU texture for this slot */
+  if (state.texture_store[tex_index].created) {
+    if (state.texture_store[tex_index].view) {
+      wgpuTextureViewRelease(state.texture_store[tex_index].view);
+    }
+    if (state.texture_store[tex_index].texture) {
+      wgpuTextureDestroy(state.texture_store[tex_index].texture);
+      wgpuTextureRelease(state.texture_store[tex_index].texture);
+    }
+  }
+
+  WGPUTexture gpu_tex = create_model_texture(ctx, tex, format);
+  if (!gpu_tex) {
+    state.texture_store[tex_index].created = false;
+    return false;
+  }
+
+  state.texture_store[tex_index].texture = gpu_tex;
+  state.texture_store[tex_index].view    = wgpuTextureCreateView(gpu_tex, NULL);
+  state.texture_store[tex_index].format  = format;
+  state.texture_store[tex_index].created = true;
+  return true;
+}
+
+/**
+ * Determine the format for each texture in the texture store based on how
+ * materials reference it, then upload all textures that have pixel data.
+ */
+static void initialize_texture_store(wgpu_context_t* ctx)
+{
+  gltf_model_t* m           = &state.model;
+  state.texture_store_count = m->texture_count;
+  state.textures_uploaded   = 0;
+
+  if (m->texture_count == 0) {
+    return;
+  }
+
+  /* Initialize all entries */
+  for (uint32_t i = 0; i < m->texture_count && i < GLTF_VIEWER_MAX_TEXTURES;
+       ++i) {
+    memset(&state.texture_store[i], 0, sizeof(state.texture_store[i]));
+
+    /* Default format — will be overridden by material references */
+    state.texture_store[i].format = WGPUTextureFormat_RGBA8Unorm;
+  }
+
+  /* Determine format from material references */
+  for (uint32_t mi = 0; mi < m->material_count; ++mi) {
+    const gltf_material_t* mat = &m->materials[mi];
+    if (mat->base_color_tex_index >= 0
+        && (uint32_t)mat->base_color_tex_index < m->texture_count) {
+      state.texture_store[mat->base_color_tex_index].format
+        = WGPUTextureFormat_RGBA8UnormSrgb;
+    }
+    if (mat->emissive_tex_index >= 0
+        && (uint32_t)mat->emissive_tex_index < m->texture_count) {
+      state.texture_store[mat->emissive_tex_index].format
+        = WGPUTextureFormat_RGBA8UnormSrgb;
+    }
+    /* metallic_roughness, normal, occlusion stay RGBA8Unorm */
+  }
+
+  /* Upload any textures that already have pixel data (GLB / embedded) */
+  for (uint32_t i = 0; i < m->texture_count && i < GLTF_VIEWER_MAX_TEXTURES;
+       ++i) {
+    if (m->textures[i].data) {
+      if (upload_texture_to_store(ctx, i, state.texture_store[i].format)) {
+        state.textures_uploaded++;
+      }
+    }
+  }
+}
+
+/**
+ * Rebuild the bind group for a single material using current texture store
+ * state. Uses default fallback textures for any slot not yet loaded.
+ */
+static void rebuild_material_bind_group(wgpu_context_t* ctx, uint32_t mat_idx)
+{
+  if (mat_idx >= state.material_count) {
+    return;
+  }
+
+  WGPUDevice device          = ctx->device;
+  viewer_material_t* dst     = &state.materials[mat_idx];
+  const gltf_material_t* src = &state.model.materials[mat_idx];
+
+  /* Release old bind group */
+  if (dst->bind_group) {
+    wgpuBindGroupRelease(dst->bind_group);
+    dst->bind_group = NULL;
+  }
+
+  /* Get texture views — use texture store if available, else default */
+  WGPUTextureView bc_view = state.gpu.default_srgb_view;
+  WGPUTextureView mr_view = state.gpu.default_unorm_view;
+  WGPUTextureView nm_view = state.gpu.default_normal_view;
+  WGPUTextureView ao_view = state.gpu.default_unorm_view;
+  WGPUTextureView em_view = state.gpu.default_srgb_view;
+
+  if (src->base_color_tex_index >= 0) {
+    bc_view = get_texture_view((uint32_t)src->base_color_tex_index,
+                               state.gpu.default_srgb_view);
+  }
+  if (src->metallic_roughness_tex_index >= 0) {
+    mr_view = get_texture_view((uint32_t)src->metallic_roughness_tex_index,
+                               state.gpu.default_unorm_view);
+  }
+  if (src->normal_tex_index >= 0) {
+    nm_view = get_texture_view((uint32_t)src->normal_tex_index,
+                               state.gpu.default_normal_view);
+  }
+  if (src->occlusion_tex_index >= 0) {
+    ao_view = get_texture_view((uint32_t)src->occlusion_tex_index,
+                               state.gpu.default_unorm_view);
+  }
+  if (src->emissive_tex_index >= 0) {
+    em_view = get_texture_view((uint32_t)src->emissive_tex_index,
+                               state.gpu.default_srgb_view);
+  }
+
+  WGPUBindGroupEntry entries[8] = {
+    [0] = {.binding = 0,
+           .buffer  = state.gpu.model_uniform_buffer,
+           .size    = sizeof(model_uniforms_t)},
+    [1] = {.binding = 1,
+           .buffer  = dst->uniform_buffer,
+           .size    = sizeof(material_uniforms_t)},
+    [2] = {.binding = 2, .sampler = state.gpu.model_texture_sampler},
+    [3] = {.binding = 3, .textureView = bc_view},
+    [4] = {.binding = 4, .textureView = mr_view},
+    [5] = {.binding = 5, .textureView = nm_view},
+    [6] = {.binding = 6, .textureView = ao_view},
+    [7] = {.binding = 7, .textureView = em_view},
+  };
+  WGPUBindGroupDescriptor bg_desc = {
+    .layout     = state.gpu.model_bind_group_layout,
+    .entryCount = ARRAY_SIZE(entries),
+    .entries    = entries,
+  };
+  dst->bind_group = wgpuDeviceCreateBindGroup(device, &bg_desc);
+}
+
 /* -------------------------------------------------------------------------- *
  * Async file loading callbacks
  * -------------------------------------------------------------------------- */
 
+/* Forward declarations for multi-phase loading */
+static void gltf_start_external_loads(void);
+static void gltf_process_geometry(void);
+
+/**
+ * GLB fetch callback — single-file loading path.
+ */
 static void glb_fetch_callback(const sfetch_response_t* response)
 {
   if (response->fetched) {
@@ -1420,6 +1710,187 @@ static void glb_fetch_callback(const sfetch_response_t* response)
   }
 }
 
+/**
+ * glTF JSON fetch callback — Phase 1 of multi-phase loading.
+ *
+ * After loading the .gltf JSON, we use gltf_model_discover_external_resources()
+ * to enumerate external resources (.bin buffer + image files), then start
+ * fetching them.
+ */
+static void gltf_json_fetch_callback(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    printf("[gltf_viewer] glTF JSON loaded: %zu bytes\n", response->data.size);
+    state.gltf.json_loaded = true;
+
+    /* Discover external resources (buffers + images) from the glTF JSON */
+    gltf_external_resources_t resources = {0};
+    if (!gltf_model_discover_external_resources(
+          response->data.ptr, response->data.size, &resources)) {
+      printf("[gltf_viewer] ERROR: Failed to discover external resources\n");
+      return;
+    }
+
+    /* Discover base directory for resolving relative URIs */
+    char base_dir[GLTF_MODEL_MAX_URI_LENGTH];
+    extract_dir(MODEL_FILE_PATH, base_dir, sizeof(base_dir));
+
+    /* Process external buffer (.bin) */
+    state.gltf.has_external_bin = false;
+    if (resources.has_external_buffer) {
+      char bin_path[GLTF_MODEL_MAX_URI_LENGTH * 2];
+      snprintf(bin_path, sizeof(bin_path), "%s%s", base_dir,
+               resources.buffer_uri);
+
+      size_t bin_size = get_file_size(bin_path);
+      if (bin_size == 0) {
+        printf("[gltf_viewer] ERROR: Cannot stat external buffer '%s'\n",
+               bin_path);
+        return;
+      }
+
+      state.gltf.bin_buffer = (uint8_t*)malloc(bin_size);
+      if (!state.gltf.bin_buffer) {
+        printf(
+          "[gltf_viewer] ERROR: Failed to allocate %zu bytes for "
+          "buffer '%s'\n",
+          bin_size, resources.buffer_uri);
+        return;
+      }
+      state.gltf.bin_buffer_size  = bin_size;
+      state.gltf.has_external_bin = true;
+      strncpy(state.gltf.bin_uri, resources.buffer_uri,
+              sizeof(state.gltf.bin_uri) - 1);
+      printf("[gltf_viewer] External buffer: %s (%zu bytes)\n", bin_path,
+             bin_size);
+    }
+
+    /* Process external image files */
+    state.gltf.num_images        = 0;
+    state.gltf.num_images_loaded = 0;
+
+    for (uint32_t ri = 0; ri < resources.image_count; ri++) {
+      if (state.gltf.num_images >= GLTF_VIEWER_MAX_EXTERNAL_IMAGES) {
+        printf(
+          "[gltf_viewer] WARNING: Too many external images, "
+          "max %d supported\n",
+          GLTF_VIEWER_MAX_EXTERNAL_IMAGES);
+        break;
+      }
+
+      /* Build full path and stat the file */
+      uint32_t idx = state.gltf.num_images;
+      char img_path[GLTF_MODEL_MAX_URI_LENGTH * 2];
+      snprintf(img_path, sizeof(img_path), "%s%s", base_dir,
+               resources.images[ri].uri);
+      strncpy(state.gltf.images[idx].path, img_path,
+              sizeof(state.gltf.images[idx].path) - 1);
+      state.gltf.images[idx].path[sizeof(state.gltf.images[idx].path) - 1]
+        = '\0';
+
+      size_t img_size = get_file_size(state.gltf.images[idx].path);
+      if (img_size == 0) {
+        printf("[gltf_viewer] WARNING: Cannot stat image '%s', skipping\n",
+               state.gltf.images[idx].path);
+        continue;
+      }
+
+      state.gltf.images[idx].buffer = (uint8_t*)malloc(img_size);
+      if (!state.gltf.images[idx].buffer) {
+        printf("[gltf_viewer] WARNING: Failed to allocate %zu bytes for '%s'\n",
+               img_size, resources.images[ri].uri);
+        continue;
+      }
+      state.gltf.images[idx].buffer_size   = img_size;
+      state.gltf.images[idx].loaded        = false;
+      state.gltf.images[idx].texture_index = resources.images[ri].texture_index;
+
+      printf("[gltf_viewer] External image [%u]: %s (%zu bytes)\n", idx,
+             resources.images[ri].uri, img_size);
+      state.gltf.num_images++;
+    }
+
+    printf("[gltf_viewer] Discovered: %s external buffer, %u external images\n",
+           state.gltf.has_external_bin ? "1" : "0", state.gltf.num_images);
+
+    /* Start fetching external resources */
+    gltf_start_external_loads();
+  }
+  else if (response->failed) {
+    printf("[gltf_viewer] ERROR: Failed to fetch glTF JSON file\n");
+  }
+}
+
+/**
+ * glTF binary buffer (.bin) fetch callback — Phase 2.
+ */
+static void gltf_bin_fetch_callback(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    printf("[gltf_viewer] Binary buffer loaded: %zu bytes\n",
+           response->data.size);
+    state.gltf.bin_loaded = true;
+
+    /* Now we can load geometry */
+    gltf_process_geometry();
+  }
+  else if (response->failed) {
+    printf("[gltf_viewer] ERROR: Failed to fetch binary buffer\n");
+  }
+}
+
+/**
+ * glTF image fetch callback — Phase 3 (progressive).
+ * Each image is decoded and uploaded to the texture store as it arrives.
+ */
+static void gltf_image_fetch_callback(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    /* Find which image this response belongs to by matching buffer pointer */
+    int found = -1;
+    for (uint32_t i = 0; i < state.gltf.num_images; i++) {
+      if (response->data.ptr >= (const void*)state.gltf.images[i].buffer
+          && response->data.ptr
+               < (const void*)(state.gltf.images[i].buffer
+                               + state.gltf.images[i].buffer_size)) {
+        found = (int)i;
+        break;
+      }
+    }
+
+    if (found < 0) {
+      printf(
+        "[gltf_viewer] WARNING: Received image data for unknown request\n");
+      return;
+    }
+
+    uint32_t img_idx                  = (uint32_t)found;
+    state.gltf.images[img_idx].loaded = true;
+    state.gltf.num_images_loaded++;
+
+    uint32_t tex_idx = state.gltf.images[img_idx].texture_index;
+    printf("[gltf_viewer] Image [%u] loaded: %zu bytes (texture %u, %u/%u)\n",
+           img_idx, response->data.size, tex_idx, state.gltf.num_images_loaded,
+           state.gltf.num_images);
+
+    /* Decode and store in model texture */
+    if (gltf_model_load_texture_from_memory(
+          &state.model, tex_idx, response->data.ptr, response->data.size)) {
+      /* Image loaded flag will be checked in process_loaded_assets */
+    }
+    else {
+      printf("[gltf_viewer] WARNING: Failed to decode image [%u]\n", img_idx);
+    }
+  }
+  else if (response->failed) {
+    printf("[gltf_viewer] ERROR: Failed to fetch an image file\n");
+    state.gltf.num_images_loaded++; /* Count failures to not block forever */
+  }
+}
+
+/**
+ * HDR environment fetch callback.
+ */
 static void hdr_fetch_callback(const sfetch_response_t* response)
 {
   if (response->fetched) {
@@ -1442,16 +1913,93 @@ static void hdr_fetch_callback(const sfetch_response_t* response)
 }
 
 /* -------------------------------------------------------------------------- *
+ * glTF multi-phase loading orchestration
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Start async fetches for external .bin buffer and image files.
+ * Called after the .gltf JSON has been parsed and resources enumerated.
+ */
+static void gltf_start_external_loads(void)
+{
+  char base_dir[GLTF_MODEL_MAX_URI_LENGTH];
+  extract_dir(MODEL_FILE_PATH, base_dir, sizeof(base_dir));
+
+  /* Fetch .bin buffer if needed */
+  if (state.gltf.has_external_bin) {
+    char bin_path[GLTF_MODEL_MAX_URI_LENGTH * 2];
+    snprintf(bin_path, sizeof(bin_path), "%s%s", base_dir, state.gltf.bin_uri);
+
+    sfetch_send(&(sfetch_request_t){
+      .path     = bin_path,
+      .callback = gltf_bin_fetch_callback,
+      .buffer
+      = {.ptr = state.gltf.bin_buffer, .size = state.gltf.bin_buffer_size},
+      .channel = 2, /* Dedicated channel for buffer data */
+    });
+  }
+  else {
+    /* No external buffer (embedded data URI) — geometry can proceed now */
+    state.gltf.bin_loaded = true;
+    gltf_process_geometry();
+  }
+
+  /* Fetch all external images in parallel (channel 3, multiple lanes) */
+  for (uint32_t i = 0; i < state.gltf.num_images; i++) {
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.gltf.images[i].path,
+      .callback = gltf_image_fetch_callback,
+      .buffer   = {.ptr  = state.gltf.images[i].buffer,
+                   .size = state.gltf.images[i].buffer_size},
+      .channel  = 3, /* Dedicated channel for images, with multiple lanes */
+    });
+  }
+}
+
+/**
+ * Load geometry from the .gltf JSON + pre-loaded .bin buffer.
+ * Called when binary buffer is available (either loaded or embedded).
+ * This makes the model displayable with fallback textures.
+ */
+static void gltf_process_geometry(void)
+{
+  if (state.gltf.geometry_loaded) {
+    return;
+  }
+
+  /* Prepare pre-loaded buffers */
+  gltf_preloaded_buffer_t preloaded = {0};
+  uint32_t num_preloaded            = 0;
+
+  if (state.gltf.has_external_bin && state.gltf.bin_buffer) {
+    preloaded.data = state.gltf.bin_buffer;
+    preloaded.size = state.gltf.bin_buffer_size;
+    num_preloaded  = 1;
+  }
+
+  /* Load model with deferred images (geometry + materials, NO texture data) */
+  if (gltf_model_load_gltf_deferred(
+        &state.model, state.gltf.json_buffer, state.gltf.json_buffer_size,
+        MODEL_FILE_PATH, 1.0f, &preloaded, num_preloaded)) {
+    state.model_loaded         = true;
+    state.gltf.geometry_loaded = true;
+    printf(
+      "[gltf_viewer] Geometry loaded (deferred textures): %u vertices, "
+      "%u indices, %u materials, %u textures\n",
+      state.model.vertex_count, state.model.index_count,
+      state.model.material_count, state.model.texture_count);
+  }
+  else {
+    printf("[gltf_viewer] ERROR: Failed to load glTF model\n");
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Process loaded assets (called each frame until all resources ready)
  * -------------------------------------------------------------------------- */
 
 static void process_loaded_assets(wgpu_context_t* ctx)
 {
-  if (state.resources_ready)
-    return;
-
-  bool need_rebuild = false;
-
   /* Process HDR environment */
   if (state.hdr_loaded && !state.environment_loaded) {
     printf("[gltf_viewer] Processing IBL textures...\n");
@@ -1462,42 +2010,27 @@ static void process_loaded_assets(wgpu_context_t* ctx)
       wgpu_environment_release(&state.environment);
       create_global_bind_group(ctx);
       printf("[gltf_viewer] IBL textures created\n");
-      need_rebuild = true;
     }
   }
 
-  /* Process GLB model */
-  if (state.glb_loaded && state.model_loaded
+  /* Process model (GLB path: all-in-one) */
+  if (!state.is_gltf && state.glb_loaded && state.model_loaded
       && !state.model_resources_created) {
     state.model_resources_created = true;
-    printf("[gltf_viewer] Creating model GPU resources...\n");
+    printf("[gltf_viewer] Creating model GPU resources (GLB)...\n");
 
-    /* Release previous model resources */
     WGPU_RELEASE_RESOURCE(Buffer, state.gpu.vertex_buffer)
     WGPU_RELEASE_RESOURCE(Buffer, state.gpu.index_buffer)
 
+    apply_node_world_transforms();
     create_model_buffers(ctx);
     create_submeshes();
+    initialize_texture_store(ctx);
     create_materials(ctx);
 
-    /* Compute node base transform (first mesh-bearing node's world matrix).
-     * The C++ reference bakes node transforms into vertex positions at load
-     * time. Since gltf_model.c does NOT bake transforms, we must multiply
-     * the first mesh node's world matrix into the model transform so that
-     * vertices are rendered in world space. */
+    /* Per-node transforms are baked into vertices, so use identity */
     glm_mat4_identity(state.node_base_transform);
-    for (uint32_t ni = 0; ni < state.model.linear_node_count; ++ni) {
-      gltf_node_t* nd = state.model.linear_nodes[ni];
-      if (nd->mesh) {
-        gltf_node_get_world_matrix(nd, state.node_base_transform);
-        break;
-      }
-    }
-
-    /* Initial model transform = node base transform (no rotation yet) */
-    glm_mat4_copy(state.node_base_transform, state.model_transform);
-
-    /* Position camera to view model (dimensions already in world space) */
+    glm_mat4_identity(state.model_transform);
     camera_reset_to_model(&state.camera, state.model.dimensions.min,
                           state.model.dimensions.max);
 
@@ -1505,14 +2038,70 @@ static void process_loaded_assets(wgpu_context_t* ctx)
       "[gltf_viewer] Model resources created: %u opaque, "
       "%u transparent meshes\n",
       state.opaque_mesh_count, state.transparent_mesh_count);
-    need_rebuild = true;
   }
 
+  /* Process model (glTF path: geometry first, then progressive textures) */
+  if (state.is_gltf && state.model_loaded && !state.model_resources_created) {
+    state.model_resources_created = true;
+    printf("[gltf_viewer] Creating model GPU resources (glTF deferred)...\n");
+
+    WGPU_RELEASE_RESOURCE(Buffer, state.gpu.vertex_buffer)
+    WGPU_RELEASE_RESOURCE(Buffer, state.gpu.index_buffer)
+
+    apply_node_world_transforms();
+    create_model_buffers(ctx);
+    create_submeshes();
+    initialize_texture_store(ctx); /* Will upload any already-loaded textures */
+    create_materials(ctx);
+
+    /* Per-node transforms are baked into vertices, so use identity */
+    glm_mat4_identity(state.node_base_transform);
+    glm_mat4_identity(state.model_transform);
+    camera_reset_to_model(&state.camera, state.model.dimensions.min,
+                          state.model.dimensions.max);
+
+    printf(
+      "[gltf_viewer] Model resources created (deferred textures): "
+      "%u opaque, %u transparent meshes\n",
+      state.opaque_mesh_count, state.transparent_mesh_count);
+  }
+
+  /* Progressive texture loading (glTF path): upload newly loaded textures */
+  if (state.is_gltf && state.model_resources_created
+      && state.textures_uploaded < state.texture_store_count) {
+    gltf_model_t* m = &state.model;
+
+    for (uint32_t ti = 0;
+         ti < m->texture_count && ti < GLTF_VIEWER_MAX_TEXTURES; ++ti) {
+      if (state.texture_store[ti].created || !m->textures[ti].data) {
+        continue; /* Already uploaded or not yet loaded */
+      }
+
+      /* New texture data available — upload to GPU */
+      if (upload_texture_to_store(ctx, ti, state.texture_store[ti].format)) {
+        state.textures_uploaded++;
+        printf("[gltf_viewer] Texture %u uploaded to GPU (%u/%u)\n", ti,
+               state.textures_uploaded, state.texture_store_count);
+
+        /* Rebuild bind groups for all materials that reference this texture */
+        for (uint32_t mi = 0; mi < state.material_count; ++mi) {
+          const gltf_material_t* mat = &m->materials[mi];
+          if (mat->base_color_tex_index == (int32_t)ti
+              || mat->metallic_roughness_tex_index == (int32_t)ti
+              || mat->normal_tex_index == (int32_t)ti
+              || mat->occlusion_tex_index == (int32_t)ti
+              || mat->emissive_tex_index == (int32_t)ti) {
+            rebuild_material_bind_group(ctx, mi);
+          }
+        }
+      }
+    }
+  }
+
+  /* Check if all resources are ready */
   if (state.model_resources_created && state.environment_loaded) {
     state.resources_ready = true;
   }
-
-  UNUSED_VAR(need_rebuild);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1532,10 +2121,32 @@ static void render_gui(wgpu_context_t* ctx)
   if (igBegin("glTF PBR Viewer", NULL, ImGuiWindowFlags_None)) {
     if (!state.resources_ready) {
       igText("Loading assets...");
-      if (state.glb_loaded)
-        igText("  Model: loaded");
-      else
-        igText("  Model: loading...");
+      if (state.is_gltf) {
+        igText("  Format: glTF (multi-file)");
+        if (state.gltf.json_loaded)
+          igText("  JSON: loaded");
+        else
+          igText("  JSON: loading...");
+        if (state.gltf.has_external_bin) {
+          if (state.gltf.bin_loaded)
+            igText("  Buffer: loaded");
+          else
+            igText("  Buffer: loading...");
+        }
+        if (state.gltf.num_images > 0) {
+          igText("  Images: %u/%u", state.gltf.num_images_loaded,
+                 state.gltf.num_images);
+        }
+        if (state.model_loaded)
+          igText("  Geometry: ready");
+      }
+      else {
+        igText("  Format: GLB (single file)");
+        if (state.glb_loaded)
+          igText("  Model: loaded");
+        else
+          igText("  Model: loading...");
+      }
       if (state.hdr_loaded)
         igText("  HDR: loaded");
       else
@@ -1547,6 +2158,10 @@ static void render_gui(wgpu_context_t* ctx)
       igText("Materials: %u", state.material_count);
       igText("Meshes: %u opaque, %u transparent", state.opaque_mesh_count,
              state.transparent_mesh_count);
+      if (state.texture_store_count > 0) {
+        igText("Textures: %u/%u loaded", state.textures_uploaded,
+               state.texture_store_count);
+      }
       igSeparator();
       igCheckbox("Animate", &state.animate_model);
 
@@ -1701,38 +2316,80 @@ static int init(wgpu_context_t* ctx)
   stm_setup();
   state.last_frame_time = stm_now();
 
-  /* Async file loading */
+  /* Detect file type */
+  state.is_gltf = path_is_gltf(MODEL_FILE_PATH);
+  printf("[gltf_viewer] Model file: %s (%s)\n", MODEL_FILE_PATH,
+         state.is_gltf ? "glTF" : "GLB");
+
+  /* Async file loading — optimized for parallel requests.
+   * Channel 0: model file (GLB or glTF JSON)
+   * Channel 1: HDR environment
+   * Channel 2: glTF binary buffer (.bin)
+   * Channel 3: glTF external images (multiple lanes for parallelism) */
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 2,
-    .num_channels = 2,
-    .num_lanes    = 1,
+    .max_requests = SFETCH_MAX_REQUESTS,
+    .num_channels = SFETCH_NUM_CHANNELS,
+    .num_lanes    = SFETCH_NUM_LANES,
   });
 
-  /* Allocate file buffers sized to actual files on disk */
-  state.glb_file_buffer_size = get_file_size(GLB_FILE_PATH);
+  /* Allocate HDR buffer (always needed) */
   state.hdr_file_buffer_size = get_file_size(HDR_FILE_PATH);
-  if (state.glb_file_buffer_size == 0 || state.hdr_file_buffer_size == 0) {
-    printf(
-      "[gltf_viewer] ERROR: Cannot determine file sizes for '%s' and/or "
-      "'%s'\n",
-      GLB_FILE_PATH, HDR_FILE_PATH);
+  if (state.hdr_file_buffer_size == 0) {
+    printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
+           HDR_FILE_PATH);
     return EXIT_FAILURE;
   }
-  state.glb_file_buffer = (uint8_t*)malloc(state.glb_file_buffer_size);
   state.hdr_file_buffer = (uint8_t*)malloc(state.hdr_file_buffer_size);
-  if (!state.glb_file_buffer || !state.hdr_file_buffer) {
-    printf(
-      "[gltf_viewer] ERROR: Failed to allocate file buffers "
-      "(GLB: %zu bytes, HDR: %zu bytes)\n",
-      state.glb_file_buffer_size, state.hdr_file_buffer_size);
-    free(state.glb_file_buffer);
+  if (!state.hdr_file_buffer) {
+    printf("[gltf_viewer] ERROR: Failed to allocate HDR buffer (%zu bytes)\n",
+           state.hdr_file_buffer_size);
+    return EXIT_FAILURE;
+  }
+
+  /* Allocate model file buffer */
+  size_t model_file_size = get_file_size(MODEL_FILE_PATH);
+  if (model_file_size == 0) {
+    printf("[gltf_viewer] ERROR: Cannot determine file size for '%s'\n",
+           MODEL_FILE_PATH);
     free(state.hdr_file_buffer);
-    state.glb_file_buffer = NULL;
     state.hdr_file_buffer = NULL;
     return EXIT_FAILURE;
   }
-  printf("[gltf_viewer] Allocated buffers: GLB=%zu bytes, HDR=%zu bytes\n",
-         state.glb_file_buffer_size, state.hdr_file_buffer_size);
+
+  if (state.is_gltf) {
+    /* glTF: allocate buffer for JSON file */
+    state.gltf.json_buffer      = (uint8_t*)malloc(model_file_size);
+    state.gltf.json_buffer_size = model_file_size;
+    if (!state.gltf.json_buffer) {
+      printf(
+        "[gltf_viewer] ERROR: Failed to allocate glTF JSON buffer "
+        "(%zu bytes)\n",
+        model_file_size);
+      free(state.hdr_file_buffer);
+      state.hdr_file_buffer = NULL;
+      return EXIT_FAILURE;
+    }
+    printf(
+      "[gltf_viewer] Allocated buffers: glTF JSON=%zu bytes, "
+      "HDR=%zu bytes\n",
+      model_file_size, state.hdr_file_buffer_size);
+  }
+  else {
+    /* GLB: allocate buffer for single binary file */
+    state.glb_file_buffer      = (uint8_t*)malloc(model_file_size);
+    state.glb_file_buffer_size = model_file_size;
+    if (!state.glb_file_buffer) {
+      printf(
+        "[gltf_viewer] ERROR: Failed to allocate GLB buffer "
+        "(%zu bytes)\n",
+        model_file_size);
+      free(state.hdr_file_buffer);
+      state.hdr_file_buffer = NULL;
+      return EXIT_FAILURE;
+    }
+    printf("[gltf_viewer] Allocated buffers: GLB=%zu bytes, HDR=%zu bytes\n",
+           model_file_size, state.hdr_file_buffer_size);
+  }
 
   /* Camera */
   camera_init(&state.camera, ctx->width, ctx->height);
@@ -1761,13 +2418,28 @@ static int init(wgpu_context_t* ctx)
   imgui_overlay_init(ctx);
 
   /* Start async file loading */
-  sfetch_send(&(sfetch_request_t){
-    .path     = GLB_FILE_PATH,
-    .callback = glb_fetch_callback,
-    .buffer
-    = {.ptr = state.glb_file_buffer, .size = state.glb_file_buffer_size},
-    .channel = 0,
-  });
+  if (state.is_gltf) {
+    /* Phase 1: Fetch the .gltf JSON file */
+    sfetch_send(&(sfetch_request_t){
+      .path     = MODEL_FILE_PATH,
+      .callback = gltf_json_fetch_callback,
+      .buffer
+      = {.ptr = state.gltf.json_buffer, .size = state.gltf.json_buffer_size},
+      .channel = 0,
+    });
+  }
+  else {
+    /* GLB: single file fetch */
+    sfetch_send(&(sfetch_request_t){
+      .path     = MODEL_FILE_PATH,
+      .callback = glb_fetch_callback,
+      .buffer
+      = {.ptr = state.glb_file_buffer, .size = state.glb_file_buffer_size},
+      .channel = 0,
+    });
+  }
+
+  /* HDR environment (always) */
   sfetch_send(&(sfetch_request_t){
     .path     = HDR_FILE_PATH,
     .callback = hdr_fetch_callback,
@@ -1907,31 +2579,31 @@ static void shutdown(wgpu_context_t* ctx)
   free(state.glb_file_buffer);
   free(state.hdr_file_buffer);
 
+  /* Free glTF loading buffers */
+  free(state.gltf.json_buffer);
+  free(state.gltf.bin_buffer);
+  for (uint32_t i = 0; i < state.gltf.num_images; i++) {
+    free(state.gltf.images[i].buffer);
+  }
+
+  /* Release texture store */
+  for (uint32_t i = 0; i < state.texture_store_count; ++i) {
+    if (state.texture_store[i].created) {
+      if (state.texture_store[i].view) {
+        wgpuTextureViewRelease(state.texture_store[i].view);
+      }
+      if (state.texture_store[i].texture) {
+        wgpuTextureDestroy(state.texture_store[i].texture);
+        wgpuTextureRelease(state.texture_store[i].texture);
+      }
+    }
+  }
+
   /* Release materials */
   for (uint32_t i = 0; i < state.material_count; ++i) {
     viewer_material_t* mat = &state.materials[i];
     WGPU_RELEASE_RESOURCE(Buffer, mat->uniform_buffer)
     WGPU_RELEASE_RESOURCE(BindGroup, mat->bind_group)
-    if (mat->base_color_texture) {
-      wgpuTextureDestroy(mat->base_color_texture);
-      wgpuTextureRelease(mat->base_color_texture);
-    }
-    if (mat->metallic_roughness_texture) {
-      wgpuTextureDestroy(mat->metallic_roughness_texture);
-      wgpuTextureRelease(mat->metallic_roughness_texture);
-    }
-    if (mat->normal_texture) {
-      wgpuTextureDestroy(mat->normal_texture);
-      wgpuTextureRelease(mat->normal_texture);
-    }
-    if (mat->occlusion_texture) {
-      wgpuTextureDestroy(mat->occlusion_texture);
-      wgpuTextureRelease(mat->occlusion_texture);
-    }
-    if (mat->emissive_texture) {
-      wgpuTextureDestroy(mat->emissive_texture);
-      wgpuTextureRelease(mat->emissive_texture);
-    }
   }
 
   /* Release GPU resources */

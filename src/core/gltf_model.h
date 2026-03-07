@@ -467,6 +467,72 @@ bool gltf_model_load_from_memory(gltf_model_t* model, const void* data,
                                  size_t size, const char* base_path,
                                  float scale);
 
+/* -------------------------------------------------------------------------- *
+ * Async / deferred-texture loading API
+ *
+ * These functions support progressive loading workflows where the caller
+ * fetches external files (buffers, images) asynchronously and feeds them
+ * into the model loader in stages:
+ *
+ *   1. Fetch the .gltf JSON file
+ *   2. Call gltf_model_load_gltf_deferred() — geometry and materials are
+ *      loaded; texture pixel data is NOT loaded (tex->data remains NULL).
+ *   3. For each external image, fetch the file, then call
+ *      gltf_model_load_texture_from_memory() to decode and store it.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Pre-loaded buffer data descriptor for deferred loading.
+ */
+typedef struct {
+  const void* data; /**< Pointer to buffer file contents               */
+  size_t size;      /**< Size in bytes                                  */
+} gltf_preloaded_buffer_t;
+
+/**
+ * @brief Load model geometry and materials with deferred image loading.
+ *
+ * Parses the .gltf JSON, injects pre-loaded binary buffer data, builds the
+ * full scene graph (nodes, meshes, skins, animations), and sets up materials
+ * with texture indices — but does NOT load any texture image data.
+ *
+ * Textures are allocated (sampler params set, mip_levels = 1) but their
+ * pixel data pointers remain NULL. Call gltf_model_load_texture_from_memory()
+ * later for each texture that needs pixel data.
+ *
+ * @param model          Pointer to an uninitialized model struct.
+ * @param gltf_json      Raw .gltf JSON data.
+ * @param gltf_json_size Size of the JSON data in bytes.
+ * @param base_path      Path to the .gltf file (for URI resolution).
+ * @param scale          Global scale factor applied to all positions.
+ * @param buffers        Array of pre-loaded buffer descriptors (index must
+ *                       match the glTF buffers[] array order).
+ * @param num_buffers    Number of entries in @p buffers.
+ * @return true on success, false on error.
+ */
+bool gltf_model_load_gltf_deferred(gltf_model_t* model, const void* gltf_json,
+                                   size_t gltf_json_size, const char* base_path,
+                                   float scale,
+                                   const gltf_preloaded_buffer_t* buffers,
+                                   uint32_t num_buffers);
+
+/**
+ * @brief Decode and store a single texture image from raw file data.
+ *
+ * Used in progressive loading: after the model has been loaded with
+ * deferred images, call this for each texture as its file arrives.
+ *
+ * @param model         Model containing the texture array.
+ * @param texture_index Index into model->textures[].
+ * @param file_data     Raw image file contents (PNG, JPEG, etc.).
+ * @param file_size     Size of the file data in bytes.
+ * @return true on success (tex->data is set), false on error.
+ */
+bool gltf_model_load_texture_from_memory(gltf_model_t* model,
+                                         uint32_t texture_index,
+                                         const void* file_data,
+                                         size_t file_size);
+
 /**
  * @brief Free all memory owned by the model.
  *
@@ -475,6 +541,53 @@ bool gltf_model_load_from_memory(gltf_model_t* model, const void* data,
  * @param model  Pointer to the model to destroy.
  */
 void gltf_model_destroy(gltf_model_t* model);
+
+/* -------------------------------------------------------------------------- *
+ * External resource discovery
+ *
+ * Used by async loaders to discover external files referenced by a glTF JSON
+ * before the model is fully loaded. This allows the caller to start fetching
+ * external buffers and images in parallel.
+ * -------------------------------------------------------------------------- */
+
+#define GLTF_MODEL_MAX_EXTERNAL_IMAGES 64
+
+/**
+ * @brief Descriptor for an external image file referenced by the glTF.
+ */
+typedef struct {
+  char uri[GLTF_MODEL_MAX_URI_LENGTH]; /**< Relative URI from glTF JSON     */
+  uint32_t texture_index; /**< Index into the glTF textures[] array          */
+} gltf_external_image_info_t;
+
+/**
+ * @brief Collection of external resources discovered in a glTF JSON file.
+ */
+typedef struct {
+  /* External binary buffer (.bin) */
+  bool has_external_buffer;
+  char buffer_uri[GLTF_MODEL_MAX_URI_LENGTH];
+
+  /* External image files */
+  gltf_external_image_info_t images[GLTF_MODEL_MAX_EXTERNAL_IMAGES];
+  uint32_t image_count;
+} gltf_external_resources_t;
+
+/**
+ * @brief Discover external resources referenced by a glTF JSON file.
+ *
+ * Parses the glTF JSON to enumerate external buffer (.bin) files and
+ * external image files without loading any data. This is useful for async
+ * loaders that need to know what files to fetch before loading the model.
+ *
+ * @param gltf_json      Raw .gltf JSON data.
+ * @param gltf_json_size Size of the JSON data in bytes.
+ * @param resources      Output struct filled with discovered resources.
+ * @return true on success, false on parse error.
+ */
+bool gltf_model_discover_external_resources(
+  const void* gltf_json, size_t gltf_json_size,
+  gltf_external_resources_t* resources);
 
 /**
  * @brief Update an animation by index at the given time.
