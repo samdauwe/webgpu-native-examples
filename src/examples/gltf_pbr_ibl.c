@@ -4758,7 +4758,7 @@ static int init(wgpu_context_t* wgpu_context)
   load_file_sync(gltf_path, &state.gltf_buffer, &state.gltf_buffer_size);
 
   /* Load HDR environment synchronously */
-  const char* hdr_path = "assets/textures/venice_sunset_1k.hdr";
+  const char* hdr_path = "assets/textures/environments/venice_sunset_1k.hdr";
   if (load_file_sync(hdr_path, &state.hdr_buffer, &state.hdr_buffer_size)) {
     printf("HDR file loaded, will process in first frame\n");
   }

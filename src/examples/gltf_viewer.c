@@ -68,7 +68,7 @@
 
 /* File paths — change MODEL_FILE_PATH to load a different model */
 #define MODEL_FILE_PATH "assets/models/DamagedHelmet.glb"
-#define HDR_FILE_PATH "assets/textures/venice_sunset_1k.hdr"
+#define HDR_FILE_PATH "assets/textures/environments/footprint_court.hdr"
 
 /* sokol_fetch configuration — tuned for parallel external resource loading */
 #define SFETCH_MAX_REQUESTS 48

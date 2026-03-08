@@ -16,7 +16,10 @@
  *
  *  // Load HDR panorama from file
  *  wgpu_environment_t env = {0};
- *  wgpu_environment_load_from_file(&env, "assets/environments/pisa.hdr");
+ *  wgpu_environment_load_from_file(
+ *    &env,
+ *    "assets/textures/environments/pisa.hdr"
+ *  );
  *
  *  // Create all IBL textures from the loaded panorama
  *  wgpu_ibl_textures_t ibl = {0};

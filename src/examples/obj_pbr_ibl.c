@@ -1125,7 +1125,7 @@ static void init_file_loading(void)
 
   /* Start loading HDR file */
   sfetch_send(&(sfetch_request_t){
-    .path     = "assets/textures/venice_sunset_1k.hdr",
+    .path     = "assets/textures/environments/venice_sunset_1k.hdr",
     .callback = hdr_fetch_callback,
     .buffer   = SFETCH_RANGE(state.hdr_file_buffer),
   });
