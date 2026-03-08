@@ -10,7 +10,9 @@
  *   - Alpha mask & alpha blend (transparent sorting)
  *   - Orbit camera controls (tumble, pan, zoom)
  *   - Turntable rotation animation
- *   - GUI controls for animation and camera
+ *   - glTF 2.0 skeletal animation with GPU skinning
+ *   - LINEAR, STEP, CUBICSPLINE interpolation
+ *   - GUI controls for animation, camera, and playback
  *
  * Based on: https://github.com/ArnCarve);
  * -------------------------------------------------------------------------- */
@@ -62,6 +64,7 @@
 #define GLTF_VIEWER_MAX_SUBMESHES 256
 #define GLTF_VIEWER_MAX_TEXTURES 64
 #define GLTF_VIEWER_MAX_EXTERNAL_IMAGES 32
+#define GLTF_VIEWER_MAX_SKINNED_SUBMESHES 256
 
 /* File paths — change MODEL_FILE_PATH to load a different model */
 #define MODEL_FILE_PATH "assets/models/DamagedHelmet.glb"
@@ -88,6 +91,8 @@
 
 static const char* environment_shader_wgsl;
 static const char* gltf_pbr_shader_wgsl;
+/* Skinned shader: built at runtime from PBR shader + skinning additions */
+static char* gltf_pbr_skinned_shader_wgsl = NULL;
 
 /* -------------------------------------------------------------------------- *
  * Uniform structures (match WGSL layout)
@@ -163,6 +168,18 @@ typedef struct {
   int32_t material_index;
   vec3 centroid;
 } viewer_sub_mesh_t;
+
+/**
+ * Skinned sub-mesh: references a node with skin for GPU-skinned draw calls.
+ * Joint matrices are uploaded per-node and the vertex shader applies them.
+ */
+typedef struct {
+  uint32_t first_index;
+  uint32_t index_count;
+  int32_t material_index;
+  vec3 centroid;
+  gltf_node_t* node; /* Source node (provides joint matrices & world matrix) */
+} viewer_skinned_sub_mesh_t;
 
 /* Transparent mesh sorting helper */
 typedef struct {
@@ -269,10 +286,19 @@ static struct {
   /* Model data */
   gltf_model_t model;
   bool model_loaded;
+  bool model_has_skins; /* true if model has skinned meshes (animation) */
   bool animate_model;
   float rotation_angle;
   mat4 model_transform;
   mat4 node_base_transform;
+
+  /* Animation playback state */
+  struct {
+    bool play;            /* true = animation is playing                   */
+    int32_t active_index; /* currently selected animation (-1 = none)      */
+    float time;           /* accumulated animation time (seconds)          */
+    float speed;          /* playback speed multiplier (default: 1.0)      */
+  } animation;
 
   /* Environment data */
   wgpu_environment_t environment;
@@ -324,6 +350,16 @@ static struct {
     WGPURenderPipeline model_pipeline_opaque;
     WGPURenderPipeline model_pipeline_transparent;
 
+    /* Skinned model pipelines (with joint matrix storage buffer in group 2) */
+    WGPUShaderModule skinned_shader_module;
+    WGPURenderPipeline skinned_pipeline_opaque;
+    WGPURenderPipeline skinned_pipeline_transparent;
+
+    /* Skin bind group (group 2): joint matrices storage buffer */
+    WGPUBindGroupLayout skin_bind_group_layout;
+    WGPUBuffer joint_matrix_buffer; /* Storage buffer for joint matrices     */
+    WGPUBindGroup skin_bind_group;
+
     /* Depth texture */
     WGPUTexture depth_texture;
     WGPUTextureView depth_texture_view;
@@ -338,6 +374,15 @@ static struct {
 
   viewer_sub_mesh_t transparent_meshes[GLTF_VIEWER_MAX_SUBMESHES];
   uint32_t transparent_mesh_count;
+
+  /* Skinned meshes (drawn with per-node joint matrices) */
+  viewer_skinned_sub_mesh_t
+    skinned_opaque_meshes[GLTF_VIEWER_MAX_SKINNED_SUBMESHES];
+  uint32_t skinned_opaque_mesh_count;
+
+  viewer_skinned_sub_mesh_t
+    skinned_transparent_meshes[GLTF_VIEWER_MAX_SKINNED_SUBMESHES];
+  uint32_t skinned_transparent_mesh_count;
 
   sub_mesh_depth_info_t transparent_sorted[GLTF_VIEWER_MAX_SUBMESHES];
   uint32_t transparent_sorted_count;
@@ -366,6 +411,12 @@ static struct {
 
 } state = {
   .animate_model = true,
+  .animation = {
+    .play         = true,
+    .active_index = 0,
+    .time         = 0.0f,
+    .speed        = 1.0f,
+  },
   .pbr = {
     .exposure           = 1.0f,
     .gamma              = 2.2f,
@@ -711,6 +762,24 @@ static void create_bind_group_layouts(WGPUDevice device)
   };
   state.gpu.model_bind_group_layout
     = wgpuDeviceCreateBindGroupLayout(device, &model_desc);
+
+  /* Skin bind group layout (group 2): 1 read-only storage buffer for joint
+   * matrices. Each joint has a 4x4 float matrix = 64 bytes.
+   * Max joints = GLTF_MODEL_MAX_NUM_JOINTS (128), so max size = 8192 bytes. */
+  WGPUBindGroupLayoutEntry skin_entries[1] = {
+    [0] = {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer     = {.type           = WGPUBufferBindingType_ReadOnlyStorage,
+                     .minBindingSize = GLTF_MODEL_MAX_NUM_JOINTS * 64},
+    },
+  };
+  WGPUBindGroupLayoutDescriptor skin_desc = {
+    .entryCount = ARRAY_SIZE(skin_entries),
+    .entries    = skin_entries,
+  };
+  state.gpu.skin_bind_group_layout
+    = wgpuDeviceCreateBindGroupLayout(device, &skin_desc);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -753,6 +822,30 @@ static void create_uniform_buffers(WGPUDevice device)
       .size  = sizeof(model_uniforms_t),
     };
     state.gpu.model_uniform_buffer = wgpuDeviceCreateBuffer(device, &bd);
+  }
+
+  /* Joint matrices storage buffer for skinning (group 2, binding 0).
+   * Stores up to GLTF_MODEL_MAX_NUM_JOINTS 4x4 matrices = 128 * 64 bytes. */
+  {
+    size_t buf_size         = GLTF_MODEL_MAX_NUM_JOINTS * sizeof(mat4);
+    WGPUBufferDescriptor bd = {
+      .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+      .size  = buf_size,
+    };
+    state.gpu.joint_matrix_buffer = wgpuDeviceCreateBuffer(device, &bd);
+
+    /* Create skin bind group */
+    WGPUBindGroupEntry entries[1] = {
+      [0] = {.binding = 0,
+             .buffer  = state.gpu.joint_matrix_buffer,
+             .size    = buf_size},
+    };
+    WGPUBindGroupDescriptor bg_desc = {
+      .layout     = state.gpu.skin_bind_group_layout,
+      .entryCount = ARRAY_SIZE(entries),
+      .entries    = entries,
+    };
+    state.gpu.skin_bind_group = wgpuDeviceCreateBindGroup(device, &bg_desc);
   }
 }
 
@@ -939,6 +1032,140 @@ static void create_model_render_pipelines(wgpu_context_t* ctx)
   depth_stencil.depthWriteEnabled = false;
 
   state.gpu.model_pipeline_transparent
+    = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+
+  wgpuPipelineLayoutRelease(pipeline_layout);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Skinned model render pipelines
+ *
+ * Uses 3 bind groups:
+ *   Group 0: Global uniforms + IBL textures
+ *   Group 1: Model/material uniforms + textures
+ *   Group 2: Joint matrices storage buffer (read-only)
+ *
+ * Vertex attributes include joints (location 6) and weights (location 7)
+ * for GPU-based linear blend skinning.
+ * -------------------------------------------------------------------------- */
+
+static void create_skinned_render_pipelines(wgpu_context_t* ctx)
+{
+  WGPUDevice device = ctx->device;
+
+  /* Shader module (skinned variant — built at init from PBR shader + skinning
+   * additions) */
+  if (!gltf_pbr_skinned_shader_wgsl) {
+    printf("[gltf_viewer] ERROR: Skinned shader not built yet\n");
+    return;
+  }
+  state.gpu.skinned_shader_module
+    = wgpu_create_shader_module(device, gltf_pbr_skinned_shader_wgsl);
+
+  /* Vertex buffer layout with joints and weights */
+  WGPUVertexAttribute skinned_vertex_attrs[] = {
+    {.format         = WGPUVertexFormat_Float32x3,
+     .offset         = offsetof(gltf_vertex_t, position),
+     .shaderLocation = 0},
+    {.format         = WGPUVertexFormat_Float32x3,
+     .offset         = offsetof(gltf_vertex_t, normal),
+     .shaderLocation = 1},
+    {.format         = WGPUVertexFormat_Float32x4,
+     .offset         = offsetof(gltf_vertex_t, tangent),
+     .shaderLocation = 2},
+    {.format         = WGPUVertexFormat_Float32x2,
+     .offset         = offsetof(gltf_vertex_t, uv0),
+     .shaderLocation = 3},
+    {.format         = WGPUVertexFormat_Float32x2,
+     .offset         = offsetof(gltf_vertex_t, uv1),
+     .shaderLocation = 4},
+    {.format         = WGPUVertexFormat_Float32x4,
+     .offset         = offsetof(gltf_vertex_t, color),
+     .shaderLocation = 5},
+    /* JOINTS_0: stored as uint32[4], use Uint32x4 format */
+    {.format         = WGPUVertexFormat_Uint32x4,
+     .offset         = offsetof(gltf_vertex_t, joint0),
+     .shaderLocation = 6},
+    /* WEIGHTS_0: stored as float[4], use Float32x4 format */
+    {.format         = WGPUVertexFormat_Float32x4,
+     .offset         = offsetof(gltf_vertex_t, weight0),
+     .shaderLocation = 7},
+  };
+
+  WGPUVertexBufferLayout vbl = {
+    .arrayStride    = sizeof(gltf_vertex_t),
+    .stepMode       = WGPUVertexStepMode_Vertex,
+    .attributeCount = ARRAY_SIZE(skinned_vertex_attrs),
+    .attributes     = skinned_vertex_attrs,
+  };
+
+  WGPUColorTargetState color_target = {
+    .format    = ctx->render_format,
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  WGPUFragmentState fragment = {
+    .module      = state.gpu.skinned_shader_module,
+    .entryPoint  = STRVIEW("fs_main"),
+    .targetCount = 1,
+    .targets     = &color_target,
+  };
+
+  WGPUDepthStencilState depth_stencil = {
+    .format            = WGPUTextureFormat_Depth24PlusStencil8,
+    .depthWriteEnabled = true,
+    .depthCompare      = WGPUCompareFunction_LessEqual,
+    .stencilFront      = {.compare = WGPUCompareFunction_Always},
+    .stencilBack       = {.compare = WGPUCompareFunction_Always},
+  };
+
+  WGPUBindGroupLayout layouts[3] = {
+    state.gpu.global_bind_group_layout,
+    state.gpu.model_bind_group_layout,
+    state.gpu.skin_bind_group_layout,
+  };
+
+  WGPUPipelineLayoutDescriptor pl_desc = {
+    .bindGroupLayoutCount = 3,
+    .bindGroupLayouts     = layouts,
+  };
+  WGPUPipelineLayout pipeline_layout
+    = wgpuDeviceCreatePipelineLayout(device, &pl_desc);
+
+  WGPURenderPipelineDescriptor rp_desc = {
+    .layout   = pipeline_layout,
+    .vertex   = {
+      .module      = state.gpu.skinned_shader_module,
+      .entryPoint  = STRVIEW("vs_main"),
+      .bufferCount = 1,
+      .buffers     = &vbl,
+    },
+    .primitive = {
+      .topology = WGPUPrimitiveTopology_TriangleList,
+    },
+    .depthStencil = &depth_stencil,
+    .fragment     = &fragment,
+    .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+  };
+
+  /* Opaque skinned pipeline */
+  state.gpu.skinned_pipeline_opaque
+    = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
+
+  /* Transparent skinned pipeline */
+  WGPUBlendComponent blend_comp = {
+    .operation = WGPUBlendOperation_Add,
+    .srcFactor = WGPUBlendFactor_SrcAlpha,
+    .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+  };
+  WGPUBlendState blend_state = {
+    .color = blend_comp,
+    .alpha = blend_comp,
+  };
+  color_target.blend              = &blend_state;
+  depth_stencil.depthWriteEnabled = false;
+
+  state.gpu.skinned_pipeline_transparent
     = wgpuDeviceCreateRenderPipeline(device, &rp_desc);
 
   wgpuPipelineLayoutRelease(pipeline_layout);
@@ -1136,6 +1363,12 @@ static void apply_node_world_transforms(void)
       continue;
     }
 
+    /* Skip skinned nodes — their transforms are applied by the GPU via
+     * joint matrices in the vertex shader, not baked into vertices. */
+    if (node->skin) {
+      continue;
+    }
+
     /* Get this node's world matrix */
     mat4 world_mat;
     gltf_node_get_world_matrix(node, world_mat);
@@ -1205,13 +1438,65 @@ static void apply_node_world_transforms(void)
 
   free(transformed);
 
-  /* Recompute scene dimensions from transformed vertices */
+  /* Recompute scene dimensions from transformed vertices.
+   *
+   * Non-skinned vertices have been baked into world space above, so their
+   * positions can be used directly.  Skinned vertices are still in mesh-local
+   * space (they are transformed on the GPU via joint matrices), so we must
+   * apply their node's world matrix when computing the bounding box to get the
+   * correct world-space extent.  Otherwise the camera targets the local-space
+   * center, which is wrong whenever the mesh node has non-identity ancestors
+   * (e.g. CesiumMan's Z_UP rotation).
+   */
   vec3 scene_min = {FLT_MAX, FLT_MAX, FLT_MAX};
   vec3 scene_max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
-  for (uint32_t vi = 0; vi < m->vertex_count; ++vi) {
-    glm_vec3_minv(scene_min, m->vertices[vi].position, scene_min);
-    glm_vec3_maxv(scene_max, m->vertices[vi].position, scene_max);
+
+  /* First include all non-skinned (already baked) vertices */
+  for (uint32_t ni = 0; ni < m->linear_node_count; ++ni) {
+    gltf_node_t* node = m->linear_nodes[ni];
+    if (!node->mesh || node->skin) {
+      continue; /* skip non-mesh nodes and skinned nodes */
+    }
+    gltf_mesh_t* mesh = node->mesh;
+    for (uint32_t pi = 0; pi < mesh->primitive_count; ++pi) {
+      gltf_primitive_t* prim = &mesh->primitives[pi];
+      for (uint32_t ii = 0; ii < prim->index_count; ++ii) {
+        uint32_t vi = m->indices[prim->first_index + ii];
+        if (vi < m->vertex_count) {
+          glm_vec3_minv(scene_min, m->vertices[vi].position, scene_min);
+          glm_vec3_maxv(scene_max, m->vertices[vi].position, scene_max);
+        }
+      }
+    }
   }
+
+  /* Then include skinned vertices, transformed by their node's world matrix */
+  for (uint32_t ni = 0; ni < m->linear_node_count; ++ni) {
+    gltf_node_t* node = m->linear_nodes[ni];
+    if (!node->mesh || !node->skin) {
+      continue; /* only skinned nodes */
+    }
+    mat4 world_mat;
+    gltf_node_get_world_matrix(node, world_mat);
+
+    gltf_mesh_t* mesh = node->mesh;
+    for (uint32_t pi = 0; pi < mesh->primitive_count; ++pi) {
+      gltf_primitive_t* prim = &mesh->primitives[pi];
+      for (uint32_t ii = 0; ii < prim->index_count; ++ii) {
+        uint32_t vi = m->indices[prim->first_index + ii];
+        if (vi < m->vertex_count) {
+          vec4 pos4 = {m->vertices[vi].position[0], m->vertices[vi].position[1],
+                       m->vertices[vi].position[2], 1.0f};
+          vec4 world_pos;
+          glm_mat4_mulv(world_mat, pos4, world_pos);
+          vec3 wp = {world_pos[0], world_pos[1], world_pos[2]};
+          glm_vec3_minv(scene_min, wp, scene_min);
+          glm_vec3_maxv(scene_max, wp, scene_max);
+        }
+      }
+    }
+  }
+
   glm_vec3_copy(scene_min, m->dimensions.min);
   glm_vec3_copy(scene_max, m->dimensions.max);
   glm_vec3_sub(scene_max, scene_min, m->dimensions.size);
@@ -1264,8 +1549,11 @@ static void create_submeshes(void)
 {
   gltf_model_t* m = &state.model;
 
-  state.opaque_mesh_count      = 0;
-  state.transparent_mesh_count = 0;
+  state.opaque_mesh_count              = 0;
+  state.transparent_mesh_count         = 0;
+  state.skinned_opaque_mesh_count      = 0;
+  state.skinned_transparent_mesh_count = 0;
+  state.model_has_skins                = false;
 
   for (uint32_t ni = 0; ni < m->linear_node_count; ++ni) {
     gltf_node_t* node = m->linear_nodes[ni];
@@ -1273,19 +1561,18 @@ static void create_submeshes(void)
       continue;
 
     gltf_mesh_t* mesh = node->mesh;
+    bool is_skinned   = (node->skin != NULL);
+
+    if (is_skinned) {
+      state.model_has_skins = true;
+    }
+
     for (uint32_t pi = 0; pi < mesh->primitive_count; ++pi) {
       gltf_primitive_t* prim = &mesh->primitives[pi];
 
       vec3 centroid;
       glm_vec3_add(prim->bb.min, prim->bb.max, centroid);
       glm_vec3_scale(centroid, 0.5f, centroid);
-
-      viewer_sub_mesh_t sm = {
-        .first_index    = prim->first_index,
-        .index_count    = prim->index_count,
-        .material_index = prim->material_index,
-      };
-      glm_vec3_copy(centroid, sm.centroid);
 
       int mat_idx         = prim->material_index;
       bool is_transparent = false;
@@ -1294,16 +1581,63 @@ static void create_submeshes(void)
           = (m->materials[mat_idx].alpha_mode == GltfAlphaMode_Blend);
       }
 
-      if (is_transparent) {
-        if (state.transparent_mesh_count < GLTF_VIEWER_MAX_SUBMESHES) {
-          state.transparent_meshes[state.transparent_mesh_count++] = sm;
+      if (is_skinned) {
+        /* Skinned mesh: store with node reference for per-node joint upload */
+        viewer_skinned_sub_mesh_t ssm = {
+          .first_index    = prim->first_index,
+          .index_count    = prim->index_count,
+          .material_index = prim->material_index,
+          .node           = node,
+        };
+        glm_vec3_copy(centroid, ssm.centroid);
+
+        if (is_transparent) {
+          if (state.skinned_transparent_mesh_count
+              < GLTF_VIEWER_MAX_SKINNED_SUBMESHES) {
+            state.skinned_transparent_meshes
+              [state.skinned_transparent_mesh_count++]
+              = ssm;
+          }
+        }
+        else {
+          if (state.skinned_opaque_mesh_count
+              < GLTF_VIEWER_MAX_SKINNED_SUBMESHES) {
+            state.skinned_opaque_meshes[state.skinned_opaque_mesh_count++]
+              = ssm;
+          }
         }
       }
       else {
-        if (state.opaque_mesh_count < GLTF_VIEWER_MAX_SUBMESHES) {
-          state.opaque_meshes[state.opaque_mesh_count++] = sm;
+        /* Non-skinned mesh: transforms baked into vertices */
+        viewer_sub_mesh_t sm = {
+          .first_index    = prim->first_index,
+          .index_count    = prim->index_count,
+          .material_index = prim->material_index,
+        };
+        glm_vec3_copy(centroid, sm.centroid);
+
+        if (is_transparent) {
+          if (state.transparent_mesh_count < GLTF_VIEWER_MAX_SUBMESHES) {
+            state.transparent_meshes[state.transparent_mesh_count++] = sm;
+          }
+        }
+        else {
+          if (state.opaque_mesh_count < GLTF_VIEWER_MAX_SUBMESHES) {
+            state.opaque_meshes[state.opaque_mesh_count++] = sm;
+          }
         }
       }
+    }
+  }
+
+  if (state.model_has_skins) {
+    printf(
+      "[gltf_viewer] Model has %u skinned opaque + %u skinned transparent "
+      "submeshes\n",
+      state.skinned_opaque_mesh_count, state.skinned_transparent_mesh_count);
+    /* Auto-select first animation if available */
+    if (m->animation_count > 0 && state.animation.active_index < 0) {
+      state.animation.active_index = 0;
     }
   }
 }
@@ -1420,6 +1754,61 @@ static void update_uniforms(wgpu_context_t* ctx)
 
   wgpuQueueWriteBuffer(ctx->queue, state.gpu.model_uniform_buffer, 0, &mu,
                        sizeof(model_uniforms_t));
+}
+
+/**
+ * @brief Upload per-node model matrix and joint matrices for skinned rendering.
+ *
+ * For skinned meshes, the model matrix is the node's world transform (from the
+ * joint hierarchy), and the joint matrices are computed relative to the node.
+ * Per glTF 2.0 spec, the skinned mesh node's own transform is already folded
+ * into the joint matrix computation (inverseTransform * jointWorld * IBM).
+ */
+static void upload_skinned_node_uniforms(wgpu_context_t* ctx,
+                                         const gltf_node_t* node)
+{
+  model_uniforms_t mu;
+
+  /* For skinned meshes the joint matrix formula is:
+   *   jointMatrix[i] = inverse(meshNodeWorld) * jointWorld[i] * inverseBind[i]
+   *
+   * The inverse(meshNodeWorld) cancels out any ancestor transforms (e.g. the
+   * Z_UP root rotation in CesiumMan), so the joint matrices operate in the
+   * mesh's local space. To get the correct world-space result we must
+   * re-apply the mesh node's world transform as part of the model matrix:
+   *
+   *   modelMatrix = turntable * meshNodeWorld
+   *
+   * Without this, models whose mesh node has non-identity ancestors would
+   * appear incorrectly oriented (e.g. lying on their side).
+   */
+  mat4 node_world;
+  memcpy(node_world, node->cached_world_matrix, sizeof(mat4));
+  glm_mat4_mul(state.model_transform, node_world, mu.model_matrix);
+
+  /* Normal matrix = transpose(inverse(model_matrix[3x3])) */
+  mat3 normal_mat3;
+  glm_mat4_pick3(mu.model_matrix, normal_mat3);
+  glm_mat3_inv(normal_mat3, normal_mat3);
+  glm_mat3_transpose(normal_mat3);
+
+  glm_mat4_identity(mu.normal_matrix);
+  for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r)
+      mu.normal_matrix[c][r] = normal_mat3[c][r];
+
+  wgpuQueueWriteBuffer(ctx->queue, state.gpu.model_uniform_buffer, 0, &mu,
+                       sizeof(model_uniforms_t));
+
+  /* Upload joint matrices from the node's mesh */
+  if (node->mesh && node->mesh->joint_count > 0) {
+    uint32_t jc = node->mesh->joint_count;
+    uint32_t count
+      = jc < GLTF_MODEL_MAX_NUM_JOINTS ? jc : GLTF_MODEL_MAX_NUM_JOINTS;
+    size_t size = count * sizeof(mat4);
+    wgpuQueueWriteBuffer(ctx->queue, state.gpu.joint_matrix_buffer, 0,
+                         node->mesh->joint_matrices, size);
+  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2071,9 +2460,16 @@ static void cleanup_model_resources(void)
   WGPU_RELEASE_RESOURCE(Buffer, state.gpu.index_buffer)
 
   /* Reset mesh counts */
-  state.opaque_mesh_count        = 0;
-  state.transparent_mesh_count   = 0;
-  state.transparent_sorted_count = 0;
+  state.opaque_mesh_count              = 0;
+  state.transparent_mesh_count         = 0;
+  state.transparent_sorted_count       = 0;
+  state.skinned_opaque_mesh_count      = 0;
+  state.skinned_transparent_mesh_count = 0;
+  state.model_has_skins                = false;
+
+  /* Reset animation state */
+  state.animation.time         = 0.0f;
+  state.animation.active_index = 0;
 
   /* Free GLB file buffer */
   free(state.glb_file_buffer);
@@ -2423,7 +2819,53 @@ static void render_gui(wgpu_context_t* ctx)
                state.texture_store_count);
       }
       igSeparator();
-      igCheckbox("Animate", &state.animate_model);
+      igCheckbox("Turntable", &state.animate_model);
+
+      /* --- Animation controls (shown only when model has animations) --- */
+      if (state.model_has_skins && state.model.animation_count > 0) {
+        if (igCollapsingHeaderBoolPtr("Animation", NULL,
+                                      ImGuiTreeNodeFlags_DefaultOpen)) {
+          igCheckbox("Play", &state.animation.play);
+          igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 0);
+
+          /* Animation selector */
+          if (state.model.animation_count > 1) {
+            /* Build label for current animation */
+            char label[GLTF_MODEL_MAX_NAME_LENGTH + 32];
+            for (uint32_t ai = 0; ai < state.model.animation_count; ++ai) {
+              const gltf_animation_t* anim = &state.model.animations[ai];
+              if (anim->name[0] != '\0') {
+                snprintf(label, sizeof(label), "%s", anim->name);
+              }
+              else {
+                snprintf(label, sizeof(label), "Animation %u", ai);
+              }
+              bool selected = ((int32_t)ai == state.animation.active_index);
+              if (igSelectable(label, selected, 0, (ImVec2){0, 0})) {
+                state.animation.active_index = (int32_t)ai;
+                state.animation.time         = 0.0f;
+              }
+            }
+          }
+
+          /* Animation time info */
+          if (state.animation.active_index >= 0
+              && (uint32_t)state.animation.active_index
+                   < state.model.animation_count) {
+            const gltf_animation_t* anim
+              = &state.model.animations[state.animation.active_index];
+            float duration = anim->end_time - anim->start_time;
+            igText("  Time: %.2f / %.2f s", state.animation.time, duration);
+            igText("  Channels: %u, Samplers: %u", anim->channel_count,
+                   anim->sampler_count);
+          }
+
+          /* Reset button */
+          if (igButton("Reset Animation", (ImVec2){0, 0})) {
+            state.animation.time = 0.0f;
+          }
+        }
+      }
 
       /* --- PBR Settings --- */
       if (igCollapsingHeaderBoolPtr("PBR Settings", NULL,
@@ -2596,6 +3038,193 @@ static void input_event_cb(wgpu_context_t* ctx,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Build skinned PBR shader at runtime
+ *
+ * Takes the base PBR shader and adds:
+ *   - Joint/weight vertex inputs (@location 6,7)
+ *   - Joint matrices storage buffer binding (@group 2, @binding 0)
+ *   - GPU skinning in the vertex shader (linear blend skinning)
+ *
+ * This avoids duplicating the entire 600+ line PBR fragment shader.
+ * -------------------------------------------------------------------------- */
+
+static void build_skinned_shader(void)
+{
+  if (gltf_pbr_skinned_shader_wgsl) {
+    return; /* Already built */
+  }
+
+  const char* base = gltf_pbr_shader_wgsl;
+  if (!base) {
+    printf("[gltf_viewer] ERROR: Base PBR shader not available\n");
+    return;
+  }
+
+  /* The skinned shader modifications:
+   * 1. Add @group(2) joint matrices storage buffer after @group(1) bindings
+   * 2. Add joints/weights to VertexInput struct
+   * 3. Replace vs_main with skinned version
+   */
+
+  /* Find key insertion/replacement points in the base shader */
+  const char* emissive_binding
+    = strstr(base, "@group(1) @binding(7) var emissiveTexture");
+  const char* vertex_input_start = strstr(base, "struct VertexInput {");
+  const char* vertex_input_end
+    = vertex_input_start ? strstr(vertex_input_start, "};") : NULL;
+  const char* vs_main_start  = strstr(base, "@vertex");
+  const char* fs_main_marker = strstr(base, "@fragment");
+
+  if (!emissive_binding || !vertex_input_start || !vertex_input_end
+      || !vs_main_start || !fs_main_marker) {
+    printf(
+      "[gltf_viewer] ERROR: Could not find shader markers for skinned "
+      "variant\n");
+    return;
+  }
+
+  /* Find end of emissive binding line */
+  const char* after_emissive = strchr(emissive_binding, ';');
+  if (after_emissive) {
+    after_emissive++; /* skip ';' */
+    /* Skip whitespace/newline */
+    while (*after_emissive == ' ' || *after_emissive == '\n'
+           || *after_emissive == '\r')
+      after_emissive++;
+  }
+  else {
+    printf("[gltf_viewer] ERROR: Malformed emissive binding\n");
+    return;
+  }
+
+  /* Skip past "};" of VertexInput */
+  const char* after_vertex_input = vertex_input_end + 2;
+
+  /* Skin storage buffer declaration */
+  static const char skin_binding[]
+    = " @group(2) @binding(0) var<storage, read> jointMatrices"
+      " : array<mat4x4<f32>>; ";
+
+  /* Skinned VertexInput struct */
+  static const char skinned_vertex_input[]
+    = " struct VertexInput { "
+      " @location(0) position : vec3<f32>, "
+      " @location(1) normal : vec3<f32>, "
+      " @location(2) tangent : vec4<f32>, "
+      " @location(3) texCoord0 : vec2<f32>, "
+      " @location(4) texCoord1 : vec2<f32>, "
+      " @location(5) color : vec4<f32>, "
+      " @location(6) joints : vec4<u32>, "
+      " @location(7) weights : vec4<f32>, "
+      " }; ";
+
+  /* Skinned vertex shader */
+  static const char skinned_vs_main[]
+    = " @vertex "
+      " fn vs_main(in : VertexInput) -> VertexOutput { "
+      "   var skinMatrix = mat4x4<f32>( "
+      "     vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0) "
+      "   ); "
+      "   skinMatrix = skinMatrix "
+      "     + in.weights.x * jointMatrices[in.joints.x] "
+      "     + in.weights.y * jointMatrices[in.joints.y] "
+      "     + in.weights.z * jointMatrices[in.joints.z] "
+      "     + in.weights.w * jointMatrices[in.joints.w]; "
+      "   let skinnedPosition = skinMatrix * vec4<f32>(in.position, 1.0); "
+      "   let worldPosition = modelUniforms.modelMatrix * skinnedPosition; "
+      "   let skinNormal3 = mat3x3<f32>( "
+      "     skinMatrix[0].xyz, skinMatrix[1].xyz, skinMatrix[2].xyz "
+      "   ); "
+      "   let normalMat3 = mat3x3<f32>( "
+      "     modelUniforms.normalMatrix[0].xyz, "
+      "     modelUniforms.normalMatrix[1].xyz, "
+      "     modelUniforms.normalMatrix[2].xyz "
+      "   ); "
+      "   let worldNormal = normalize(normalMat3 * skinNormal3 * in.normal); "
+      "   let worldTangent = vec4<f32>( "
+      "     normalize(normalMat3 * skinNormal3 * in.tangent.xyz), "
+      "     in.tangent.w "
+      "   ); "
+      "   var output : VertexOutput; "
+      "   output.position = globalUniforms.projectionMatrix "
+      "     * globalUniforms.viewMatrix * worldPosition; "
+      "   output.color = in.color; "
+      "   output.texCoord0 = in.texCoord0; "
+      "   output.texCoord1 = in.texCoord1; "
+      "   output.normalWorld = worldNormal; "
+      "   output.tangentWorld = worldTangent; "
+      "   output.viewDirectionWorld = globalUniforms.cameraPositionWorld "
+      "     - worldPosition.xyz; "
+      "   output.worldPosition = worldPosition.xyz; "
+      "   return output; "
+      " } ";
+
+  /* Calculate total size needed */
+  size_t base_len = strlen(base);
+  size_t extra    = strlen(skin_binding) + strlen(skinned_vertex_input)
+                 + strlen(skinned_vs_main) + 64; /* safety margin */
+  size_t total = base_len + extra;
+
+  char* shader = (char*)malloc(total);
+  if (!shader) {
+    printf("[gltf_viewer] ERROR: Failed to allocate skinned shader buffer\n");
+    return;
+  }
+
+  /* Build the shader by copying segments and inserting modifications:
+   * 1. Copy everything from start up to (including) the emissive binding line
+   * 2. Insert skin storage buffer binding
+   * 3. Copy from after emissive binding to start of VertexInput struct
+   * 4. Insert skinned VertexInput (replacing original)
+   * 5. Copy from after original VertexInput to start of @vertex
+   * 6. Insert skinned vs_main (replacing original)
+   * 7. Copy from @fragment to end (the entire fragment shader)
+   */
+  char* p = shader;
+
+  /* Part 1: start to after_emissive */
+  size_t len1 = (size_t)(after_emissive - base);
+  memcpy(p, base, len1);
+  p += len1;
+
+  /* Part 2: skin binding */
+  size_t len_skin = strlen(skin_binding);
+  memcpy(p, skin_binding, len_skin);
+  p += len_skin;
+
+  /* Part 3: after_emissive to vertex_input_start */
+  size_t len3 = (size_t)(vertex_input_start - after_emissive);
+  memcpy(p, after_emissive, len3);
+  p += len3;
+
+  /* Part 4: skinned vertex input (replaces original struct) */
+  size_t len_vi = strlen(skinned_vertex_input);
+  memcpy(p, skinned_vertex_input, len_vi);
+  p += len_vi;
+
+  /* Part 5: after original VertexInput to @vertex */
+  size_t len5 = (size_t)(vs_main_start - after_vertex_input);
+  memcpy(p, after_vertex_input, len5);
+  p += len5;
+
+  /* Part 6: skinned vs_main (replaces original) */
+  size_t len_vs = strlen(skinned_vs_main);
+  memcpy(p, skinned_vs_main, len_vs);
+  p += len_vs;
+
+  /* Part 7: @fragment to end (entire fragment shader unchanged) */
+  size_t len7 = strlen(fs_main_marker);
+  memcpy(p, fs_main_marker, len7);
+  p += len7;
+
+  *p = '\0';
+
+  gltf_pbr_skinned_shader_wgsl = shader;
+  printf("[gltf_viewer] Built skinned PBR shader: %zu bytes\n",
+         (size_t)(p - shader));
+}
+
+/* -------------------------------------------------------------------------- *
  * Init / Frame / Shutdown
  * -------------------------------------------------------------------------- */
 
@@ -2698,6 +3327,8 @@ static int init(wgpu_context_t* ctx)
   create_depth_texture(ctx, (uint32_t)ctx->width, (uint32_t)ctx->height);
   create_global_bind_group(ctx);
   create_model_render_pipelines(ctx);
+  build_skinned_shader();
+  create_skinned_render_pipelines(ctx);
   create_environment_pipeline(ctx);
 
   /* Render pass descriptor */
@@ -2790,6 +3421,18 @@ static int frame(wgpu_context_t* ctx)
     glm_mat4_mul(turntable, state.node_base_transform, state.model_transform);
   }
 
+  /* Update glTF skeletal animation (if model has animations and playback is
+   * active). This interpolates keyframes for all animated channels and
+   * recomputes the node hierarchy + joint matrices. */
+  if (state.model_loaded && state.model_has_skins && state.animation.play
+      && state.animation.active_index >= 0
+      && (uint32_t)state.animation.active_index < state.model.animation_count) {
+    state.animation.time += delta_time * state.animation.speed;
+    gltf_model_update_animation(&state.model,
+                                (uint32_t)state.animation.active_index,
+                                state.animation.time);
+  }
+
   /* GUI */
   imgui_overlay_new_frame(ctx, delta_time);
   render_gui(ctx);
@@ -2851,6 +3494,57 @@ static int frame(wgpu_context_t* ctx)
           rpass, 1, state.materials[sm->material_index].bind_group, 0, NULL);
         wgpuRenderPassEncoderDrawIndexed(rpass, sm->index_count, 1,
                                          sm->first_index, 0, 0);
+      }
+    }
+
+    /* ---- Skinned mesh rendering ----
+     * Draw skinned meshes with per-node joint matrix upload.
+     * Each skinned node gets its own set of joint matrices uploaded to the
+     * storage buffer (group 2) before drawing its primitives. */
+    if (state.model_has_skins) {
+      /* Draw opaque skinned meshes */
+      wgpuRenderPassEncoderSetPipeline(rpass,
+                                       state.gpu.skinned_pipeline_opaque);
+      wgpuRenderPassEncoderSetBindGroup(rpass, 2, state.gpu.skin_bind_group, 0,
+                                        NULL);
+
+      gltf_node_t* last_node = NULL;
+      for (uint32_t i = 0; i < state.skinned_opaque_mesh_count; ++i) {
+        viewer_skinned_sub_mesh_t* ssm = &state.skinned_opaque_meshes[i];
+        if (ssm->material_index >= 0
+            && (uint32_t)ssm->material_index < state.material_count) {
+          /* Upload joint matrices only when the node changes */
+          if (ssm->node != last_node) {
+            upload_skinned_node_uniforms(ctx, ssm->node);
+            last_node = ssm->node;
+          }
+          wgpuRenderPassEncoderSetBindGroup(
+            rpass, 1, state.materials[ssm->material_index].bind_group, 0, NULL);
+          wgpuRenderPassEncoderDrawIndexed(rpass, ssm->index_count, 1,
+                                           ssm->first_index, 0, 0);
+        }
+      }
+
+      /* Draw transparent skinned meshes */
+      wgpuRenderPassEncoderSetPipeline(rpass,
+                                       state.gpu.skinned_pipeline_transparent);
+      wgpuRenderPassEncoderSetBindGroup(rpass, 2, state.gpu.skin_bind_group, 0,
+                                        NULL);
+
+      last_node = NULL;
+      for (uint32_t i = 0; i < state.skinned_transparent_mesh_count; ++i) {
+        viewer_skinned_sub_mesh_t* ssm = &state.skinned_transparent_meshes[i];
+        if (ssm->material_index >= 0
+            && (uint32_t)ssm->material_index < state.material_count) {
+          if (ssm->node != last_node) {
+            upload_skinned_node_uniforms(ctx, ssm->node);
+            last_node = ssm->node;
+          }
+          wgpuRenderPassEncoderSetBindGroup(
+            rpass, 1, state.materials[ssm->material_index].bind_group, 0, NULL);
+          wgpuRenderPassEncoderDrawIndexed(rpass, ssm->index_count, 1,
+                                           ssm->first_index, 0, 0);
+        }
       }
     }
   }
@@ -2928,6 +3622,18 @@ static void shutdown(wgpu_context_t* ctx)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.gpu.model_pipeline_transparent)
   WGPU_RELEASE_RESOURCE(ShaderModule, state.gpu.env_shader_module)
   WGPU_RELEASE_RESOURCE(ShaderModule, state.gpu.model_shader_module)
+
+  /* Skinned pipeline resources */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.gpu.skinned_pipeline_opaque)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.gpu.skinned_pipeline_transparent)
+  WGPU_RELEASE_RESOURCE(ShaderModule, state.gpu.skinned_shader_module)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.gpu.skin_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.gpu.skin_bind_group)
+  WGPU_RELEASE_RESOURCE(Buffer, state.gpu.joint_matrix_buffer)
+  if (gltf_pbr_skinned_shader_wgsl) {
+    free(gltf_pbr_skinned_shader_wgsl);
+    gltf_pbr_skinned_shader_wgsl = NULL;
+  }
 
   /* Depth texture */
   if (state.gpu.depth_texture_view)
