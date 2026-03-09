@@ -3748,6 +3748,12 @@ static const char* environment_shader_wgsl = CODE(
     return mix(color, newPeak * vec3f(1.0, 1.0, 1.0), g);
   }
 
+  // ACES Filmic (Narkowicz 2015 fast approximation)
+  fn toneMapACES(colorIn : vec3f) -> vec3f {
+    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+    return clamp((colorIn * (a * colorIn + b)) / (colorIn * (c * colorIn + d) + e), vec3f(0.0), vec3f(1.0));
+  }
+
   fn toneMap(colorIn : vec3f) -> vec3f {
     let invGamma = 1.0 / globalUniforms.gamma;
     var color = colorIn * globalUniforms.exposure;
@@ -3756,6 +3762,8 @@ static const char* environment_shader_wgsl = CODE(
       color = Uncharted2Tonemap(color) * (1.0 / Uncharted2Tonemap(vec3f(W)));
     } else if (globalUniforms.toneMappingType == 2) {
       color = color / (color + vec3f(1.0));
+    } else if (globalUniforms.toneMappingType == 3) {
+      color = toneMapACES(color);
     } else {
       color = toneMapPBRNeutral(color);
     }
@@ -3922,12 +3930,14 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   }
 
   // Normal mapping: construct TBN matrix and apply normal map
-  fn getNormal(in : VertexOutput) -> vec3f {
+  // Accepts pre-sampled normal texture value to avoid textureSample in
+  // non-uniform control flow (after potential discard)
+  fn getNormal(in : VertexOutput, normalSample : vec4f) -> vec3f {
     let N = normalize(in.normalWorld);
     let T = normalize(in.tangentWorld.xyz);
     let B = cross(N, T) * in.tangentWorld.w;
     let TBN = mat3x3f(T, B, N);
-    var sampledNormal = textureSample(normalTexture, textureSampler, in.texCoord0).xyz * 2.0 - 1.0;
+    var sampledNormal = normalSample.xyz * 2.0 - 1.0;
     sampledNormal = vec3f(sampledNormal.xy * materialUniforms.normalScale, sampledNormal.z);
     return normalize(TBN * sampledNormal);
   }
@@ -4073,7 +4083,9 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   fn getIBLGGXFresnel(n : vec3f, v : vec3f, roughness : f32, F0 : vec3f, specularWeight : f32) -> vec3f {
     let NdotV = clampedDot(n, v);
     let brdfSamplePoint = vec2f(NdotV, roughness);
-    let f_ab = textureSample(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler, brdfSamplePoint).rg;
+    // Use textureSampleLevel: BRDF LUT has 1 mip level, and this avoids
+    // the uniform control flow requirement of textureSample
+    let f_ab = textureSampleLevel(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler, brdfSamplePoint, 0.0).rg;
 
     // Single scattering: roughness-dependent Fresnel (Fdez-Aguera)
     let Fr = max(vec3f(1.0 - roughness), F0) - F0;
@@ -4089,7 +4101,9 @@ static const char* gltf_pbr_shader_wgsl = CODE(
   }
 
   fn getDiffuseLight(n : vec3f) -> vec3f {
-    return textureSample(iblIrradianceTexture, iblSampler, n).rgb;
+    // Use textureSampleLevel: irradiance cubemap has 1 mip level, and this
+    // avoids the uniform control flow requirement of textureSample
+    return textureSampleLevel(iblIrradianceTexture, iblSampler, n, 0.0).rgb;
   }
 
   // ========================================================================
@@ -4185,9 +4199,21 @@ static const char* gltf_pbr_shader_wgsl = CODE(
 
   @fragment
   fn fs_main(in : VertexOutput) -> @location(0) vec4f {
+    // ================================================================
+    // Pre-sample ALL material textures before any discard/early return.
+    // WGSL requires textureSample to be called from uniform control flow.
+    // After a discard (which depends on per-fragment alpha), control flow
+    // becomes non-uniform, so all sampling must happen first.
+    // ================================================================
+    let baseColorSample = textureSample(baseColorTexture, textureSampler, in.texCoord0);
+    let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
+    let normalSample = textureSample(normalTexture, textureSampler, in.texCoord0);
+    let aoValue = textureSample(occlusionTexture, textureSampler, in.texCoord0).r;
+    let emissiveSample = textureSample(emissiveTexture, textureSampler, in.texCoord0);
+
     // --- Unlit materials: return base color directly ---
     if (materialUniforms.workflow == 2) {
-      var unlitColor = textureSample(baseColorTexture, textureSampler, in.texCoord0) * materialUniforms.baseColorFactor;
+      var unlitColor = baseColorSample * materialUniforms.baseColorFactor;
       unlitColor *= in.color;
       return vec4f(toneMap(unlitColor.rgb), unlitColor.a);
     }
@@ -4196,8 +4222,7 @@ static const char* gltf_pbr_shader_wgsl = CODE(
 
     // --- Alpha mask early discard ---
     if (materialUniforms.alphaMode == 1) {
-      let earlyAlpha = textureSample(baseColorTexture, textureSampler, in.texCoord0).a;
-      if (earlyAlpha * materialUniforms.baseColorFactor.a < materialUniforms.alphaCutoff) { discard; }
+      if (baseColorSample.a * materialUniforms.baseColorFactor.a < materialUniforms.alphaCutoff) { discard; }
     }
 
     // --- Material parameter extraction ---
@@ -4220,22 +4245,19 @@ static const char* gltf_pbr_shader_wgsl = CODE(
       // Metallic-Roughness workflow
       materialInfo.metallic = materialUniforms.metallicFactor;
       materialInfo.perceptualRoughness = materialUniforms.roughnessFactor;
-      let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
       materialInfo.perceptualRoughness *= mrSample.g;
       materialInfo.metallic *= mrSample.b;
-      baseColor = textureSample(baseColorTexture, textureSampler, in.texCoord0) * materialUniforms.baseColorFactor;
+      baseColor = baseColorSample * materialUniforms.baseColorFactor;
     } else {
       // Specular-Glossiness workflow (legacy)
-      let mrSample = textureSample(metallicRoughnessTexture, textureSampler, in.texCoord0);
       materialInfo.perceptualRoughness = 1.0 - mrSample.a;
-      let diffuseSample = textureSample(baseColorTexture, textureSampler, in.texCoord0);
       let specularSample = mrSample.rgb;
       let maxSpecular = max(max(specularSample.r, specularSample.g), specularSample.b);
-      materialInfo.metallic = convertMetallic(diffuseSample.rgb, specularSample, maxSpecular);
+      materialInfo.metallic = convertMetallic(baseColorSample.rgb, specularSample, maxSpecular);
       let epsilon = 1e-6;
-      let baseColorDiffuse = diffuseSample.rgb * ((1.0 - maxSpecular) / (1.0 - c_MinRoughness) / max(1.0 - materialInfo.metallic, epsilon));
+      let baseColorDiffuse = baseColorSample.rgb * ((1.0 - maxSpecular) / (1.0 - c_MinRoughness) / max(1.0 - materialInfo.metallic, epsilon));
       let baseColorSpecular = specularSample - (vec3f(c_MinRoughness) * (1.0 - materialInfo.metallic) * (1.0 / max(materialInfo.metallic, epsilon)));
-      baseColor = vec4f(mix(baseColorDiffuse, baseColorSpecular, materialInfo.metallic * materialInfo.metallic), diffuseSample.a);
+      baseColor = vec4f(mix(baseColorDiffuse, baseColorSpecular, materialInfo.metallic * materialInfo.metallic), baseColorSample.a);
     }
 
     // Apply vertex color
@@ -4270,7 +4292,7 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     // Metal BRDF = conductor_fresnel(baseColor, specular)
     // ========================================================================
 
-    var n = getNormal(in);
+    var n = getNormal(in, normalSample);
     let v = normalize(in.viewDirectionWorld);
 
     // Handle double-sided: flip normal if back-facing
@@ -4329,6 +4351,22 @@ static const char* gltf_pbr_shader_wgsl = CODE(
       clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness);
     }
 
+    // Sheen IBL (Charlie distribution for fabric-like highlights)
+    // Uses prefiltered specular cubemap sampled at sheen roughness LOD
+    if (materialInfo.sheenRoughnessFactor > 0.0) {
+      let sheenLod = materialInfo.sheenRoughnessFactor * globalUniforms.prefilteredCubeMipLevels;
+      let sheenReflection = normalize(reflect(-v, n));
+      let sheenSample = textureSampleLevel(iblSpecularTexture, iblSampler, sheenReflection, sheenLod).rgb;
+      // Approximate Charlie LUT using BRDF LUT (r channel serves as energy integral)
+      let sheenBrdfSample = textureSampleLevel(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler,
+                                           vec2f(NdotV, materialInfo.sheenRoughnessFactor), 0.0);
+      f_sheen = sheenSample * materialInfo.sheenColorFactor * sheenBrdfSample.b;
+      // Energy-conserving scaling: reduce base layer energy by max sheen contribution
+      let maxSheen = max(materialInfo.sheenColorFactor.r,
+                         max(materialInfo.sheenColorFactor.g, materialInfo.sheenColorFactor.b));
+      albedoSheenScaling = 1.0 - maxSheen * sheenBrdfSample.b;
+    }
+
     // Compose: mix(dielectric, metal, metallic)
     var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
 
@@ -4339,10 +4377,10 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     color = mix(color, clearcoat_brdf, materialInfo.clearcoatFactor * clearcoatFresnel);
 
     // Occlusion: only affects indirect (IBL) lighting
-    let ao = textureSample(occlusionTexture, textureSampler, in.texCoord0).r;
-    color = color * (1.0 + materialUniforms.occlusionStrength * (ao - 1.0));
+    // Applied before IBL scaling per Khronos reference
+    color = color * (1.0 + materialUniforms.occlusionStrength * (aoValue - 1.0));
 
-    // Scale IBL ambient
+    // Scale IBL ambient — applied only to indirect lighting, before punctual
     color *= globalUniforms.scaleIBLAmbient;
 
     // ====================================================================
@@ -4389,11 +4427,21 @@ static const char* gltf_pbr_shader_wgsl = CODE(
         }
 
         // Sheen contribution for punctual light
+        // Reference: getPunctualRadianceSheen() — NdotL * BRDF_specularSheen()
         var l_sheen = vec3f(0.0);
         var l_albedoSheenScaling : f32 = 1.0;
         if (materialInfo.sheenRoughnessFactor > 0.0) {
-          l_sheen = BRDF_specularSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor,
-                                       NdotL, NdotV, NdotH);
+          l_sheen = NdotL * BRDF_specularSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor,
+                                                NdotL, NdotV, NdotH);
+          // Per-light energy-conserving sheen scaling (Khronos reference)
+          let maxSheen = max(materialInfo.sheenColorFactor.r,
+                             max(materialInfo.sheenColorFactor.g, materialInfo.sheenColorFactor.b));
+          let sheenBrdfV = textureSampleLevel(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler,
+                                          vec2f(NdotV, materialInfo.sheenRoughnessFactor), 0.0).b;
+          let sheenBrdfL = textureSampleLevel(iblBRDFIntegrationLUTTexture, iblBRDFIntegrationLUTSampler,
+                                          vec2f(NdotL, materialInfo.sheenRoughnessFactor), 0.0).b;
+          l_albedoSheenScaling = min(1.0 - maxSheen * sheenBrdfV,
+                                     1.0 - maxSheen * sheenBrdfL);
         }
 
         // Compose punctual: mix(dielectric, metal, metallic)
@@ -4433,7 +4481,7 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     // Emissive
     // ====================================================================
     f_emissive = materialUniforms.emissiveFactor * materialUniforms.emissiveStrength;
-    f_emissive *= SRGBtoLINEAR(textureSample(emissiveTexture, textureSampler, in.texCoord0)).rgb;
+    f_emissive *= SRGBtoLINEAR(emissiveSample).rgb;
 
     // Clearcoat attenuates emissive: emissive * (1 - clearcoatFactor * clearcoatFresnel)
     color = f_emissive * (1.0 - materialInfo.clearcoatFactor * clearcoatFresnel) + color;
@@ -4446,7 +4494,7 @@ static const char* gltf_pbr_shader_wgsl = CODE(
       var debugColor = vec4f(0.0);
       if (idx == 1) { debugColor = baseColor; }
       else if (idx == 2) { debugColor = vec4f(n * 0.5 + 0.5, 1.0); }
-      else if (idx == 3) { debugColor = vec4f(vec3f(ao), 1.0); }
+      else if (idx == 3) { debugColor = vec4f(vec3f(aoValue), 1.0); }
       else if (idx == 4) { debugColor = vec4f(f_emissive, 1.0); }
       else if (idx == 5) { debugColor = vec4f(vec3f(materialInfo.metallic), 1.0); }
       else if (idx == 6) { debugColor = vec4f(vec3f(materialInfo.perceptualRoughness), 1.0); }
