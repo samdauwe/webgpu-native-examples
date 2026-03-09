@@ -130,6 +130,21 @@ static const char* environment_prefilter_shader_wgsl_part2 = CODE(
     return 0.5 / (GGXV + GGXL);
   }
 
+  // Charlie NDF for sheen [Estevez & Kulla 2017]
+  fn dCharlie(sheenRoughness: f32, NdotH: f32) -> f32 {
+    let sr = max(sheenRoughness, 0.000001);
+    let alphaG = sr * sr;
+    let invR = 1.0 / alphaG;
+    let cos2h = NdotH * NdotH;
+    let sin2h = 1.0 - cos2h;
+    return (2.0 + invR) * pow(sin2h, invR * 0.5) / (2.0 * PI);
+  }
+
+  // Ashikhmin visibility for sheen
+  fn vAshikhmin(NdotL: f32, NdotV: f32) -> f32 {
+    return clamp(1.0 / (4.0 * (NdotL + NdotV - NdotL * NdotV)), 0.0, 1.0);
+  }
+
   fn importanceSampleGGX(sampleIndex: u32, sampleCount: u32, normal: vec3<f32>, roughness: f32) -> vec4<f32> {
     let xi = hammersley2D(sampleIndex, sampleCount);
     let alpha = roughness * roughness;
@@ -232,6 +247,7 @@ static const char* environment_prefilter_shader_wgsl_part3 = CODE(
 
     var A = 0.0;
     var B = 0.0;
+    var C = 0.0;
 
     for (var i = 0u; i < numSamples; i++) {
       let sample = importanceSampleGGX(i, numSamples, N, roughness);
@@ -243,19 +259,29 @@ static const char* environment_prefilter_shader_wgsl_part3 = CODE(
       let VdotH = saturate(dot(V, H));
 
       if (NdotL > 0.0) {
+        // GGX BRDF LUT terms (split-sum)
         let G = vSmithGGXCorrelated(NdotV, NdotL, roughness);
         let Gv = (G * VdotH * NdotL) / NdotH;
         let Fc = pow(1.0 - VdotH, 5.0);
         A += (1.0 - Fc) * Gv;
         B += Fc * Gv;
+
+        // Charlie (sheen) LUT term — energy integral for sheen layer
+        let sheenD = dCharlie(roughness, NdotH);
+        let sheenV = vAshikhmin(NdotL, NdotV);
+        C += sheenD * sheenV * NdotL * VdotH;
       }
     }
 
+    // The 4.0 scale factor comes from the Jacobian transform when
+    // parametrizing the PDF over L instead of H:
+    //   pdf(v, l) = NDF * <N·H> / (4 * <V·H>)
     let scale = 4.0;
     A = (A * scale) / f32(numSamples);
     B = (B * scale) / f32(numSamples);
+    C = (C * scale * 2.0 * PI) / f32(numSamples);
 
-    textureStore(brdfLut2D, id.xy, vec4<f32>(A, B, 0.0, 1.0));
+    textureStore(brdfLut2D, id.xy, vec4<f32>(A, B, C, 1.0));
   }
 );
 
