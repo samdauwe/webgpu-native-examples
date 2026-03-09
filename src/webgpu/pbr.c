@@ -369,6 +369,7 @@ static WGPUTextureView ibl_create_cube_view(WGPUTexture tex,
                                             uint32_t mip_levels)
 {
   WGPUTextureViewDescriptor vd = {
+    .label           = STRVIEW("IBL Cube - Texture view"),
     .format          = WGPUTextureFormat_RGBA16Float,
     .dimension       = WGPUTextureViewDimension_Cube,
     .baseMipLevel    = 0,
