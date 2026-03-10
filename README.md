@@ -183,6 +183,10 @@ This example shows how to render and sample from a cubemap texture.
 
 This example shows how to bind and sample textures.
 
+#### [Textured Quad](src/examples/textured_quad.c)
+
+This example shows how to upload a 2D texture to the GPU and display it on a quad with Phong lighting.
+
 #### [Equirectangular panorama](src/examples/equirectangular_image.c)
 
 This example shows how to render an equirectangular panorama consisting of a single rectangular image. The equirectangular input can be used for a 360 degrees viewing experience to achieve more realistic surroundings and convincing real-time effects.
