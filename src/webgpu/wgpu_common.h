@@ -130,6 +130,7 @@ typedef enum wgpu_mipmap_view_dimension_t {
   WGPU_MIPMAP_VIEW_UNDEFINED = 0, /* Auto-detect from texture */
   WGPU_MIPMAP_VIEW_2D,            /* 2D texture */
   WGPU_MIPMAP_VIEW_2D_ARRAY,      /* 2D array texture */
+  WGPU_MIPMAP_VIEW_3D,            /* 3D texture */
   WGPU_MIPMAP_VIEW_CUBE,          /* Cube texture */
   WGPU_MIPMAP_VIEW_CUBE_ARRAY,    /* Cube array texture */
 } wgpu_mipmap_view_dimension_t;
@@ -137,8 +138,10 @@ typedef enum wgpu_mipmap_view_dimension_t {
 typedef struct wgpu_texture_desc_t {
   WGPUExtent3D extent;
   WGPUTextureFormat format;
+  WGPUTextureDimension dimension; /* 0 = auto (2D) */
   uint32_t mip_level_count;
   WGPUTextureUsage usage;
+  WGPUAddressMode address_mode; /* 0 = default (Repeat) */
   struct {
     const void* ptr;
     size_t size;
@@ -188,6 +191,15 @@ void wgpu_destroy_texture(wgpu_texture_t* texture);
  *    .pixels = { .ptr = cube_data, .size = cube_data_size },
  *    .generate_mipmaps = 1,
  *    .mipmap_view_dimension = WGPU_MIPMAP_VIEW_CUBE,
+ *  });
+ *
+ *  // 3D texture with clamp-to-edge addressing
+ *  wgpu_texture_t vol = wgpu_create_texture(ctx, &(wgpu_texture_desc_t){
+ *    .extent = {128, 128, 128},
+ *    .format = WGPUTextureFormat_R8Unorm,
+ *    .dimension = WGPUTextureDimension_3D,
+ *    .address_mode = WGPUAddressMode_ClampToEdge,
+ *    .pixels = { .ptr = volume_data, .size = volume_size },
  *  });
  *
  *  // Or call directly on an existing texture

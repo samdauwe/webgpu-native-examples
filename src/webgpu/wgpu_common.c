@@ -1,9 +1,6 @@
 #include "wgpu_common.h"
 
-#include "core/image_loader.h"
-
 #include <assert.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1000,9 +997,18 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
         |= WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
     }
 
+    /* Determine texture dimension: 0 (default / zero-initialized) = 2D */
+    WGPUTextureDimension tex_dim = WGPUTextureDimension_2D;
+    if (desc && desc->dimension == WGPUTextureDimension_3D) {
+      tex_dim = WGPUTextureDimension_3D;
+    }
+    else if (desc && desc->dimension == WGPUTextureDimension_1D) {
+      tex_dim = WGPUTextureDimension_1D;
+    }
+
     WGPUTextureDescriptor tdesc = {
       .usage         = usage,
-      .dimension     = WGPUTextureDimension_2D,
+      .dimension     = tex_dim,
       .size          = {width, height, depth_or_array_layers},
       .format        = format,
       .mipLevelCount = mip_level_count,
@@ -1014,7 +1020,40 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
   /* Texture data */
   if (desc && desc->pixels.ptr) {
     /* Calculate bytes per pixel based on format */
-    uint32_t bytes_per_pixel = 4; /* RGBA8Unorm = 4 bytes */
+    uint32_t bytes_per_pixel;
+    switch (format) {
+      case WGPUTextureFormat_R8Unorm:
+      case WGPUTextureFormat_R8Snorm:
+      case WGPUTextureFormat_R8Uint:
+      case WGPUTextureFormat_R8Sint:
+        bytes_per_pixel = 1;
+        break;
+      case WGPUTextureFormat_RG8Unorm:
+      case WGPUTextureFormat_RG8Snorm:
+      case WGPUTextureFormat_RG8Uint:
+      case WGPUTextureFormat_RG8Sint:
+      case WGPUTextureFormat_R16Float:
+      case WGPUTextureFormat_R16Uint:
+      case WGPUTextureFormat_R16Sint:
+        bytes_per_pixel = 2;
+        break;
+      case WGPUTextureFormat_RGBA16Float:
+      case WGPUTextureFormat_RGBA16Uint:
+      case WGPUTextureFormat_RGBA16Sint:
+      case WGPUTextureFormat_RG32Float:
+      case WGPUTextureFormat_RG32Uint:
+      case WGPUTextureFormat_RG32Sint:
+        bytes_per_pixel = 8;
+        break;
+      case WGPUTextureFormat_RGBA32Float:
+      case WGPUTextureFormat_RGBA32Uint:
+      case WGPUTextureFormat_RGBA32Sint:
+        bytes_per_pixel = 16;
+        break;
+      default:
+        bytes_per_pixel = 4; /* RGBA8, BGRA8, RGB10A2, R32Float, etc. */
+        break;
+    }
 
     wgpuQueueWriteTexture(
       wgpu_context->queue,
@@ -1046,7 +1085,11 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
 
     /* Determine the view dimension for the final texture view */
     WGPUTextureViewDimension view_dim = WGPUTextureViewDimension_2D;
-    if (desc && desc->mipmap_view_dimension != WGPU_MIPMAP_VIEW_UNDEFINED) {
+    if (desc && desc->dimension == WGPUTextureDimension_3D) {
+      view_dim = WGPUTextureViewDimension_3D;
+    }
+    else if (desc
+             && desc->mipmap_view_dimension != WGPU_MIPMAP_VIEW_UNDEFINED) {
       view_dim = mipmap_view_to_wgpu(desc->mipmap_view_dimension);
     }
     else if (depth_or_array_layers == 6) {
@@ -1056,13 +1099,17 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
       view_dim = WGPUTextureViewDimension_2DArray;
     }
 
+    /* For 3D textures, arrayLayerCount must be 1 */
+    uint32_t array_layer_count
+      = (view_dim == WGPUTextureViewDimension_3D) ? 1 : depth_or_array_layers;
+
     WGPUTextureViewDescriptor view_desc = {
       .format          = format,
       .dimension       = view_dim,
       .baseMipLevel    = 0,
       .mipLevelCount   = mip_level_count,
       .baseArrayLayer  = 0,
-      .arrayLayerCount = depth_or_array_layers,
+      .arrayLayerCount = array_layer_count,
       .aspect          = WGPUTextureAspect_All,
       .usage           = usage,
     };
@@ -1071,10 +1118,15 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
 
   /* Texture sampler */
   {
+    /* Use specified address mode, default to Repeat (0 maps to Repeat) */
+    WGPUAddressMode addr_mode = (desc && desc->address_mode) ?
+                                  desc->address_mode :
+                                  WGPUAddressMode_Repeat;
+
     WGPUSamplerDescriptor sampler_desc = {
-      .addressModeU = WGPUAddressMode_Repeat,
-      .addressModeV = WGPUAddressMode_Repeat,
-      .addressModeW = WGPUAddressMode_Repeat,
+      .addressModeU = addr_mode,
+      .addressModeV = addr_mode,
+      .addressModeW = addr_mode,
       .magFilter    = WGPUFilterMode_Linear,
       .minFilter
       = (mip_level_count > 1) ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest,
@@ -1162,7 +1214,7 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
                                                  .extent = (WGPUExtent3D) {
                                                    .width              = width,
                                                    .height             = height,
-                                                   .depthOrArrayLayers = 4,
+                                                   .depthOrArrayLayers = 1,
                                                  },
                                                  .format = WGPUTextureFormat_RGBA8Unorm,
                                                  .mip_level_count = 1,
@@ -1478,6 +1530,8 @@ mipmap_view_to_wgpu(wgpu_mipmap_view_dimension_t dim)
       return WGPUTextureViewDimension_2D;
     case WGPU_MIPMAP_VIEW_2D_ARRAY:
       return WGPUTextureViewDimension_2DArray;
+    case WGPU_MIPMAP_VIEW_3D:
+      return WGPUTextureViewDimension_3D;
     case WGPU_MIPMAP_VIEW_CUBE:
       return WGPUTextureViewDimension_Cube;
     case WGPU_MIPMAP_VIEW_CUBE_ARRAY:
