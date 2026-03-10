@@ -187,6 +187,10 @@ This example shows how to bind and sample textures.
 
 This example shows how to upload a 2D texture to the GPU and display it on a quad with Phong lighting.
 
+#### [3D Textures](src/examples/texture_3d.c)
+
+This example demonstrates procedural 3D texture generation using fractal Perlin noise. A 128x128x128 R8 noise volume is created on the CPU and uploaded as a 3D texture. An animated depth value sweeps through the volume, revealing smoothly changing cross-sections rendered with Phong lighting on a quad.
+
 #### [Equirectangular panorama](src/examples/equirectangular_image.c)
 
 This example shows how to render an equirectangular panorama consisting of a single rectangular image. The equirectangular input can be used for a 360 degrees viewing experience to achieve more realistic surroundings and convincing real-time effects.
