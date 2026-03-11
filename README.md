@@ -272,6 +272,10 @@ This example shows how to sample from a depth texture to render shadows from a d
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
 
+#### [Bloom (Fullscreen Blur)](src/examples/bloom.c)
+
+This example implements a bloom post-processing effect using a separable two-pass Gaussian blur. A glTF model's emissive (glow) parts are first rendered to an offscreen texture, then blurred vertically and horizontally via fullscreen passes with additive blending. The final scene composites the blurred glow on top of the Phong-lit model and a cubemap skybox. Includes ImGui controls for toggling bloom and adjusting blur intensity.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)
