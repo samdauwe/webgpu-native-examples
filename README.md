@@ -329,6 +329,10 @@ A WebGPU port of the Animometer MotionMark benchmark.
 
 A GPU compute particle simulation that mimics the flocking behavior of birds. A compute shader updates two ping-pong buffers which store particle data. The data is used to draw instanced particles.
 
+#### [Cloth simulation](src/examples/compute_cloth.c)
+
+Mass-spring-damper cloth simulation using compute shaders. A 60×60 grid of particles connected by structural and shear springs is simulated with Verlet integration. The cloth drapes over a sphere and can be affected by wind. Normals are recalculated on the GPU each frame.
+
 #### [Image blur](src/examples/image_blur.c)
 
 This example shows how to blur an image using a compute shader in WebGPU.
