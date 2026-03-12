@@ -491,87 +491,15 @@ static void load_models(void)
   state.models_loaded = true;
 }
 
-/* Bake per-node world matrices into vertex positions and normals, and
- * pre-multiply material baseColorFactor into vertex colors.
+/* Loading descriptor: pre-transform vertices by node world matrices and
+ * pre-multiply vertex colors by material baseColorFactor.
  *
- * The glTF model stores vertices in raw object space. The node hierarchy
- * (which includes root-node scale of 0.05 for the UFO model) must be
- * applied to place vertices in world space. Since this example uses a
- * single global model matrix (the animation transform), we pre-transform
- * vertices by each node's world matrix at buffer creation time.
- *
- * The model has no COLOR_0 vertex attributes (default white), but has
- * distinct material baseColorFactors (green, cyan, red, etc.). The Vulkan
- * reference uses PreMultiplyVertexColors to bake these into vertex colors.
- * We replicate that here so the Phong shader can use vertex colors directly.
- */
-static void bake_node_transforms(gltf_model_t* m, gltf_vertex_t* xformed)
-{
-  /* Track which vertices have already been transformed (prevents
-   * double-transforming vertices shared by multiple triangles) */
-  bool* done = (bool*)calloc(m->vertex_count, sizeof(bool));
-
-  for (uint32_t n = 0; n < m->linear_node_count; n++) {
-    gltf_node_t* node = m->linear_nodes[n];
-    if (!node->mesh) {
-      continue;
-    }
-
-    /* Get full world matrix (includes parent chain, e.g. root scale 0.05) */
-    mat4 world;
-    gltf_node_get_world_matrix(node, world);
-
-    /* Extract upper-left 3×3 for normal transformation */
-    mat3 normal_mat;
-    glm_mat4_pick3(world, normal_mat);
-
-    /* Transform vertices referenced by this node's mesh primitives */
-    gltf_mesh_t* mesh = node->mesh;
-    for (uint32_t p = 0; p < mesh->primitive_count; p++) {
-      gltf_primitive_t* prim = &mesh->primitives[p];
-      if (!prim->has_indices || prim->index_count == 0) {
-        continue;
-      }
-
-      /* Look up material baseColorFactor for this primitive */
-      vec4 base_color = {1.0f, 1.0f, 1.0f, 1.0f};
-      if (prim->material_index >= 0
-          && (uint32_t)prim->material_index < m->material_count) {
-        glm_vec4_copy(m->materials[prim->material_index].base_color_factor,
-                      base_color);
-      }
-
-      for (uint32_t i = 0; i < prim->index_count; i++) {
-        uint32_t vi = m->indices[prim->first_index + i];
-        if (vi >= m->vertex_count || done[vi]) {
-          continue;
-        }
-        done[vi] = true;
-
-        gltf_vertex_t* v = &xformed[vi];
-
-        /* Transform position: world * vec4(pos, 1.0) */
-        vec4 pos4 = {v->position[0], v->position[1], v->position[2], 1.0f};
-        vec4 result;
-        glm_mat4_mulv(world, pos4, result);
-        v->position[0] = result[0];
-        v->position[1] = result[1];
-        v->position[2] = result[2];
-
-        /* Transform normal: mat3(world) * normal, then normalize */
-        vec3 nrm;
-        glm_mat3_mulv(normal_mat, v->normal, nrm);
-        glm_vec3_normalize(nrm);
-        glm_vec3_copy(nrm, v->normal);
-
-        /* Pre-multiply vertex color by material baseColorFactor */
-        glm_vec4_mul(v->color, base_color, v->color);
-      }
-    }
-  }
-
-  free(done);
-}
+ * The Vulkan reference uses PreTransformVertices | PreMultiplyVertexColors
+ * | FlipY. FlipY is omitted here (WebGPU uses Y-up like OpenGL). */
+static const gltf_model_desc_t ufo_load_desc = {
+  .loading_flags = GltfLoadingFlag_PreTransformVertices
+                   | GltfLoadingFlag_PreMultiplyVertexColors,
+};
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
 {
@@ -602,7 +530,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     /* Create a copy of vertex data and bake node world transforms */
     gltf_vertex_t* xformed = (gltf_vertex_t*)malloc(vb_size);
     memcpy(xformed, m->vertices, vb_size);
-    bake_node_transforms(m, xformed);
+    gltf_model_bake_node_transforms(m, xformed, &ufo_load_desc);
 
     /* Upload transformed vertices to GPU */
     *items[mi].vb = wgpuDeviceCreateBuffer(

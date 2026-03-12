@@ -37,6 +37,48 @@ typedef struct gltf_node_t gltf_node_t;
 typedef struct gltf_model_t gltf_model_t;
 
 /* -------------------------------------------------------------------------- *
+ * Loading flags & descriptor
+ *
+ * These flags control optional post-load transforms that bake scene-graph
+ * information directly into vertex data. This is an optimization for
+ * renderers that use a single global model matrix rather than per-node
+ * transforms at draw time.
+ *
+ * Reference: Sascha Willems' Vulkan glTF loader FileLoadingFlags.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Bitflags for optional vertex post-processing at load time.
+ */
+typedef enum gltf_loading_flags {
+  /** No post-processing (default). Vertices remain in local/object space. */
+  GltfLoadingFlag_None = 0x00,
+  /** Pre-transform vertex positions and normals by each node's world matrix.
+   *  After this, vertices are in model root space and per-node transforms
+   *  can be ignored at draw time. */
+  GltfLoadingFlag_PreTransformVertices = 0x01,
+  /** Pre-multiply vertex colors by the primitive's material baseColorFactor.
+   *  Useful when the shader reads vertex colors directly without separate
+   *  material uniform lookup. */
+  GltfLoadingFlag_PreMultiplyVertexColors = 0x02,
+  /** Flip the Y axis of positions and normals (Vulkan Y-down convention).
+   *  Generally NOT needed for WebGPU or OpenGL. */
+  GltfLoadingFlag_FlipY = 0x04
+} gltf_loading_flags;
+
+/**
+ * @brief Optional loading descriptor for controlling post-load transforms.
+ *
+ * Pass to gltf_model_load_from_file_ext() or gltf_model_bake_node_transforms()
+ * to enable vertex pre-processing. A NULL descriptor means no post-processing
+ * (backward-compatible behavior).
+ */
+typedef struct gltf_model_desc_t {
+  /** Bitwise OR of gltf_loading_flags values. */
+  uint32_t loading_flags;
+} gltf_model_desc_t;
+
+/* -------------------------------------------------------------------------- *
  * Enumerations
  * -------------------------------------------------------------------------- */
 
@@ -660,5 +702,55 @@ gltf_node_t* gltf_model_find_node(gltf_model_t* model, uint32_t index);
  */
 void gltf_bounding_box_get_aabb(const gltf_bounding_box_t* bb, mat4 m,
                                 gltf_bounding_box_t* dest);
+
+/* -------------------------------------------------------------------------- *
+ * Vertex post-processing
+ *
+ * These functions apply optional post-load transforms to vertex data.
+ * They match the Vulkan reference loader's PreTransformVertices,
+ * PreMultiplyVertexColors, and FlipY flags.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Load a glTF 2.0 model from a file with optional post-processing.
+ *
+ * Same as gltf_model_load_from_file() but accepts a descriptor for enabling
+ * vertex post-processing (pre-transform, pre-multiply colors, flip Y).
+ *
+ * @param model    Pointer to an uninitialized model struct.
+ * @param filename Path to the .gltf or .glb file.
+ * @param scale    Global scale factor applied to all positions.
+ * @param desc     Loading descriptor (NULL for default behavior).
+ * @return true on success, false on error.
+ */
+bool gltf_model_load_from_file_ext(gltf_model_t* model, const char* filename,
+                                   float scale, const gltf_model_desc_t* desc);
+
+/**
+ * @brief Bake node world transforms into a copy of the model's vertex data.
+ *
+ * Applies the post-processing steps specified by @p desc to the output
+ * vertex array @p out_vertices. The model's original vertex data is not
+ * modified.
+ *
+ * Supported flags (bitwise OR in desc->loading_flags):
+ *   - GltfLoadingFlag_PreTransformVertices : multiply each vertex's position
+ *     by its owning node's world matrix; transform normals by the upper-left
+ *     3×3 and re-normalize.
+ *   - GltfLoadingFlag_PreMultiplyVertexColors : multiply vertex colors by the
+ *     primitive's material baseColorFactor.
+ *   - GltfLoadingFlag_FlipY : negate Y component of positions and normals.
+ *
+ * The caller must allocate @p out_vertices with at least
+ * model->vertex_count elements before calling.
+ *
+ * @param model          The loaded model (read-only).
+ * @param out_vertices   Output vertex array (caller-allocated, will be
+ *                       written with transformed data).
+ * @param desc           Loading descriptor with flags. Must not be NULL.
+ */
+void gltf_model_bake_node_transforms(const gltf_model_t* model,
+                                     gltf_vertex_t* out_vertices,
+                                     const gltf_model_desc_t* desc);
 
 #endif /* GLTF_MODEL_H */

@@ -2244,3 +2244,117 @@ void gltf_model_destroy(gltf_model_t* model)
   /* Zero the struct */
   memset(model, 0, sizeof(gltf_model_t));
 }
+
+/* -------------------------------------------------------------------------- *
+ * Vertex post-processing
+ * -------------------------------------------------------------------------- */
+
+void gltf_model_bake_node_transforms(const gltf_model_t* model,
+                                     gltf_vertex_t* out_vertices,
+                                     const gltf_model_desc_t* desc)
+{
+  if (!model || !out_vertices || !desc || desc->loading_flags == 0) {
+    return;
+  }
+
+  const bool pre_transform
+    = (desc->loading_flags & GltfLoadingFlag_PreTransformVertices) != 0;
+  const bool pre_multiply_color
+    = (desc->loading_flags & GltfLoadingFlag_PreMultiplyVertexColors) != 0;
+  const bool flip_y = (desc->loading_flags & GltfLoadingFlag_FlipY) != 0;
+
+  /* Track which vertices have already been processed. This prevents
+   * double-transforming vertices that are referenced by multiple indices
+   * within the same or across different primitives. */
+  bool* done = (bool*)calloc(model->vertex_count, sizeof(bool));
+  if (!done) {
+    gltf_log_error("Failed to allocate done[] array for bake_node_transforms");
+    return;
+  }
+
+  for (uint32_t n = 0; n < model->linear_node_count; n++) {
+    const gltf_node_t* node = model->linear_nodes[n];
+    if (!node->mesh) {
+      continue;
+    }
+
+    /* Compute full world matrix (walks entire parent chain) */
+    mat4 world;
+    gltf_node_get_world_matrix(node, world);
+
+    /* Extract upper-left 3×3 for normal transformation */
+    mat3 normal_mat;
+    glm_mat4_pick3(world, normal_mat);
+
+    const gltf_mesh_t* mesh = node->mesh;
+    for (uint32_t p = 0; p < mesh->primitive_count; p++) {
+      const gltf_primitive_t* prim = &mesh->primitives[p];
+      if (!prim->has_indices || prim->index_count == 0) {
+        continue;
+      }
+
+      /* Look up material baseColorFactor for this primitive */
+      vec4 base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+      if (pre_multiply_color && prim->material_index >= 0
+          && (uint32_t)prim->material_index < model->material_count) {
+        glm_vec4_copy(model->materials[prim->material_index].base_color_factor,
+                      base_color);
+      }
+
+      for (uint32_t i = 0; i < prim->index_count; i++) {
+        const uint32_t vi = model->indices[prim->first_index + i];
+        if (vi >= model->vertex_count || done[vi]) {
+          continue;
+        }
+        done[vi] = true;
+
+        gltf_vertex_t* v = &out_vertices[vi];
+
+        /* Pre-transform position: world * vec4(pos, 1.0) */
+        if (pre_transform) {
+          vec4 pos4   = {v->position[0], v->position[1], v->position[2], 1.0f};
+          vec4 result = {0};
+          glm_mat4_mulv(world, pos4, result);
+          v->position[0] = result[0];
+          v->position[1] = result[1];
+          v->position[2] = result[2];
+
+          /* Transform normal: mat3(world) * normal, then normalize */
+          vec3 nrm;
+          glm_mat3_mulv(normal_mat, v->normal, nrm);
+          glm_vec3_normalize(nrm);
+          glm_vec3_copy(nrm, v->normal);
+        }
+
+        /* Flip Y axis (Vulkan convention — generally not needed for WebGPU) */
+        if (flip_y) {
+          v->position[1] *= -1.0f;
+          v->normal[1] *= -1.0f;
+        }
+
+        /* Pre-multiply vertex color by material baseColorFactor */
+        if (pre_multiply_color) {
+          glm_vec4_mul(v->color, base_color, v->color);
+        }
+      }
+    }
+  }
+
+  free(done);
+}
+
+bool gltf_model_load_from_file_ext(gltf_model_t* model, const char* filename,
+                                   float scale, const gltf_model_desc_t* desc)
+{
+  /* Load the model normally */
+  if (!gltf_model_load_from_file(model, filename, scale)) {
+    return false;
+  }
+
+  /* Apply optional post-processing if flags are set */
+  if (desc && desc->loading_flags != 0 && model->vertex_count > 0) {
+    gltf_model_bake_node_transforms(model, model->vertices, desc);
+  }
+
+  return true;
+}
