@@ -190,14 +190,16 @@ static struct {
 
   WGPUBool initialized;
 } state = {
-  .graphics_ubo_data.light_pos = {-2.0f, -4.0f, -2.0f, 1.0f},
+  /* Vulkan original: {-2, 4, -2, 1} — Y negated for WebGPU Y-up */
+  .graphics_ubo_data.light_pos = VKY_TO_WGPU_VEC4(-2.0f, 4.0f, -2.0f, 1.0f),
   .compute_ubo_data = {
     .particle_mass    = 0.1f,
     .spring_stiffness = 2000.0f,
     .damping          = 0.25f,
     .sphere_radius    = 1.0f,
     .sphere_pos       = {0.0f, 0.0f, 0.0f, 0.0f},
-    .gravity          = {0.0f, -9.8f, 0.0f, 0.0f},
+    /* Vulkan original: {0, 9.8, 0, 0} — Y negated for WebGPU Y-up */
+    .gravity          = VKY_TO_WGPU_VEC4(0.0f, 9.8f, 0.0f, 0.0f),
     .particle_count   = {CLOTH_GRID_X, CLOTH_GRID_Y},
   },
   .settings.simulate_wind = false,
@@ -242,12 +244,12 @@ static void init_cloth_particles(particle_t* particles)
   const float du = 1.0f / (float)(CLOTH_GRID_X - 1);
   const float dv = 1.0f / (float)(CLOTH_GRID_Y - 1);
 
-  /* Translation: center the cloth at X and Z, place at Y = +2.0
-   * (above the sphere at origin, so it drapes downward under gravity) */
+  /* Vulkan original: Y = -2.0 (above sphere in Y-down convention).
+   * Y negated for WebGPU Y-up: cloth starts above the sphere. */
   mat4 trans;
   glm_mat4_identity(trans);
-  glm_translate(trans,
-                (vec3){-CLOTH_SIZE_X / 2.0f, 2.0f, -CLOTH_SIZE_Y / 2.0f});
+  glm_translate(trans, (vec3)VKY_TO_WGPU_VEC3(-CLOTH_SIZE_X / 2.0f, -2.0f,
+                                              -CLOTH_SIZE_Y / 2.0f));
 
   for (uint32_t i = 0; i < CLOTH_GRID_Y; i++) {
     for (uint32_t j = 0; j < CLOTH_GRID_X; j++) {
@@ -832,7 +834,7 @@ static void create_render_pipelines(struct wgpu_context_t* wgpu_context)
 
   state.cloth_pipeline = wgpuDeviceCreateRenderPipeline(
     device, &(WGPURenderPipelineDescriptor){
-              .label  = STRVIEW("Cloth Pipeline"),
+              .label  = STRVIEW("Cloth - Render pipeline"),
               .layout = state.graphics_pipeline_layout,
               .vertex = {
                 .module      = cloth_sm,
@@ -1003,13 +1005,13 @@ static int init(struct wgpu_context_t* wgpu_context)
     .logger.func  = slog_func,
   });
 
-  /* Camera setup — adapted for WebGPU Y-up convention.
-   * Vulkan (Y-down, flipY=false) used rotation (-30, -45, 0).
-   * WebGPU (Y-up) needs X rotation negated to look downward at the scene. */
+  /* Camera setup — Vulkan rotation (-30, -45, 0) adapted for WebGPU Y-up.
+   * See doc/vulkan_to_webgpu_porting_guide.md for details. */
   camera_init(&state.camera);
   state.camera.type = CameraType_LookAt;
   camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -5.0f});
-  camera_set_rotation(&state.camera, (vec3){30.0f, -45.0f, 0.0f});
+  camera_set_rotation(&state.camera,
+                      (vec3)VKY_TO_WGPU_CAM_ROT(-30.0f, -45.0f, 0.0f));
   float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
   camera_set_perspective(&state.camera, 60.0f, aspect, 0.1f, 512.0f);
 
