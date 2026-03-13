@@ -190,7 +190,7 @@ static struct {
 
   WGPUBool initialized;
 } state = {
-  .graphics_ubo_data.light_pos = {-2.0f, 4.0f, -2.0f, 1.0f},
+  .graphics_ubo_data.light_pos = {-2.0f, -4.0f, -2.0f, 1.0f},
   .compute_ubo_data = {
     .particle_mass    = 0.1f,
     .spring_stiffness = 2000.0f,
@@ -243,7 +243,7 @@ static void init_cloth_particles(particle_t* particles)
   const float dv = 1.0f / (float)(CLOTH_GRID_Y - 1);
 
   /* Translation: center the cloth at X and Z, place at Y = +2.0
-   * (WebGPU Y-up: cloth starts above the sphere at origin) */
+   * (above the sphere at origin, so it drapes downward under gravity) */
   mat4 trans;
   glm_mat4_identity(trans);
   glm_translate(trans,
@@ -1003,7 +1003,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .logger.func  = slog_func,
   });
 
-  /* Camera setup — match Vulkan reference */
+  /* Camera setup — adapted for WebGPU Y-up convention.
+   * Vulkan (Y-down, flipY=false) used rotation (-30, -45, 0).
+   * WebGPU (Y-up) needs X rotation negated to look downward at the scene. */
   camera_init(&state.camera);
   state.camera.type = CameraType_LookAt;
   camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -5.0f});
@@ -1249,7 +1251,10 @@ static const char* cloth_shader_wgsl = CODE(
   ) -> VSOutput {
     var out : VSOutput;
     out.uv = inUV;
-    out.normal = inNormal;
+    /* Negate normal: the compute shader's cross products produce normals
+     * oriented for Vulkan's Y-down convention. In WebGPU (Y-up) we negate
+     * them so the lit face matches the Vulkan visual appearance. */
+    out.normal = -inNormal;
     let eyePos = ubo.view * vec4f(inPos, 1.0);
     out.position = ubo.projection * eyePos;
     let pos = vec4f(inPos, 1.0);
