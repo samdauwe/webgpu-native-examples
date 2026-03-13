@@ -342,6 +342,69 @@ float random_float_min_max(float min, float max);
 float random_float(void);
 
 /* -------------------------------------------------------------------------- *
+ * Vulkan → WebGPU Porting Helpers
+ *
+ * Vulkan NDC has +Y pointing downward; WebGPU has +Y pointing upward.
+ * When porting Vulkan examples (e.g., Sascha Willems) that use the default
+ * camera.flipY = false, all Y-dependent world-space parameters must be
+ * negated. These macros make the conversion explicit and self-documenting.
+ *
+ * See doc/vulkan_to_webgpu_porting_guide.md for the full porting checklist.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Negate the Y component of a vec3 for Vulkan→WebGPU Y-axis
+ * adaptation.
+ *
+ * Use on: gravity vectors, light positions, object placements, initial
+ * normals, camera rotation — any world-space vec3 whose Y meaning inverts
+ * between Vulkan (Y-down) and WebGPU (Y-up).
+ *
+ * @param x,y,z  Components from Vulkan source
+ * @return        Brace-enclosed initializer: {x, -y, z}
+ *
+ * Example:
+ *   // Vulkan: gravity = {0, 9.8, 0} (downward in Y-down NDC)
+ *   // WebGPU: gravity = {0, -9.8, 0} (downward in Y-up NDC)
+ *   vec3 gravity = VKY_TO_WGPU_VEC3(0.0f, 9.8f, 0.0f);
+ */
+#define VKY_TO_WGPU_VEC3(x, y, z) {(x), -(y), (z)}
+
+/**
+ * @brief Negate the Y component of a vec4 for Vulkan→WebGPU Y-axis
+ * adaptation.
+ *
+ * Use on: light positions (vec4), sphere positions, and other homogeneous
+ * coordinates from Vulkan sources.
+ *
+ * @param x,y,z,w  Components from Vulkan source
+ * @return          Brace-enclosed initializer: {x, -y, z, w}
+ *
+ * Example:
+ *   // Vulkan: lightPos = {-2, 4, -2, 1} (below scene in Y-down)
+ *   // WebGPU: lightPos = {-2, -4, -2, 1} (below scene in Y-up)
+ *   float light[4] = VKY_TO_WGPU_VEC4(-2.0f, 4.0f, -2.0f, 1.0f);
+ */
+#define VKY_TO_WGPU_VEC4(x, y, z, w) {(x), -(y), (z), (w)}
+
+/**
+ * @brief Negate the X rotation for Vulkan→WebGPU camera adaptation.
+ *
+ * In Vulkan (Y-down, flipY=false), a negative X rotation looks "downward"
+ * on screen. In WebGPU (Y-up), the same angle looks "upward". This macro
+ * negates only the X (pitch) component of a camera rotation vec3.
+ *
+ * @param pitch,yaw,roll  Camera rotation from Vulkan source
+ * @return                 Brace-enclosed initializer: {-pitch, yaw, roll}
+ *
+ * Example:
+ *   // Vulkan: rotation = {-30, -45, 0} (looks down at scene)
+ *   // WebGPU: rotation = {30, -45, 0} (looks down at scene)
+ *   camera_set_rotation(&cam, (vec3)VKY_TO_WGPU_CAM_ROT(-30, -45, 0));
+ */
+#define VKY_TO_WGPU_CAM_ROT(pitch, yaw, roll) {-(pitch), (yaw), (roll)}
+
+/* -------------------------------------------------------------------------- *
  * Macros
  * -------------------------------------------------------------------------- */
 
