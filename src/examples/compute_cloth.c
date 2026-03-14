@@ -399,7 +399,7 @@ static void load_sphere_model(struct wgpu_context_t* wgpu_context)
   size_t vb_size             = m->vertex_count * sizeof(gltf_vertex_t);
   state.sphere_vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Sphere Vertex Buffer"),
+              .label = STRVIEW("Sphere - Vertex Buffer"),
               .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
               .size  = vb_size,
               .mappedAtCreation = true,
