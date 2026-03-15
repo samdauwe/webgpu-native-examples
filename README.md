@@ -357,6 +357,10 @@ This example demonstrates rendering of particles simulated with compute shaders.
 
 A simple N-body simulation based particle system implemented using WebGPU.
 
+#### [Compute N-body](src/examples/compute_n_body.c)
+
+N-body gravity simulation using compute shaders. Uses two compute passes (force calculation with shared memory tiling and integration) to simulate 24,576 particles attracted to six fixed points. Particles are rendered as instanced camera-facing billboard quads with a gradient color ramp.
+
 #### [Ray tracing](src/examples/compute_ray_tracing.c)
 
 Simple GPU ray tracer with shadows and reflections using a compute shader. No scene geometry is rendered in the graphics pass.
