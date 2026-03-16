@@ -37,7 +37,7 @@ static const char* fullscreen_quad_shader_wgsl;
  * Compute Shader Ray Tracing example
  * -------------------------------------------------------------------------- */
 
-#define TEX_DIM 1024u
+#define TEX_DIM 2048u
 
 /* SSBO sphere declaration */
 typedef struct sphere_t {
@@ -177,8 +177,6 @@ static uint32_t current_id = 0;
 static void init_sphere(sphere_t* sphere, vec3 pos, float radius, vec3 diffuse,
                         float specular)
 {
-  pos[1] *= -1.0f; /* Flip y */
-
   sphere->id = current_id++;
   glm_vec3_copy(pos, sphere->pos);
   sphere->radius = radius;
@@ -265,6 +263,8 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 
 static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
+  state.compute.ubo.aspectRatio
+    = (float)wgpu_context->width / (float)wgpu_context->height;
   state.compute.ubo.lightPos[0] = 0.0f
                                   + sinf(glm_rad(state.timer * 360.0f))
                                       * cosf(glm_rad(state.timer * 360.0f))
@@ -550,7 +550,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Update timer (slower rotation for the light) */
   if (!state.paused) {
-    state.timer += delta_time * 0.25f * 0.04f;
+    state.timer += delta_time * 0.0625f;
     if (state.timer > 1.0f) {
       state.timer -= 1.0f;
     }
@@ -681,8 +681,7 @@ static const char* fullscreen_quad_shader_wgsl = CODE(
 
   @fragment
   fn fs_main(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {
-    return textureSample(color_texture, color_sampler,
-                         vec2<f32>(uv.x, 1.0 - uv.y));
+    return textureSample(color_texture, color_sampler, uv);
   }
 );
 
@@ -827,6 +826,17 @@ static const char* raytracing_compute_shader_wgsl = CODE(
       let tSphere = sphereIntersect(rayO, rayD, spheres[i]);
       if (tSphere > EPSILON && tSphere < t) {
         t = tSphere;
+        return vec2<f32>(SHADOW_FACTOR, t);
+      }
+    }
+    let plane_count = arrayLength(&planes);
+    for (var i : u32 = 0u; i < plane_count; i = i + 1u) {
+      if (planes[i].id == objectId) {
+        continue;
+      }
+      let tPlane = planeIntersect(rayO, rayD, planes[i]);
+      if (tPlane > EPSILON && tPlane < t) {
+        t = tPlane;
         return vec2<f32>(SHADOW_FACTOR, t);
       }
     }
