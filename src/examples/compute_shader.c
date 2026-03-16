@@ -75,6 +75,12 @@ static struct {
     mat4 model_view;
   } ubo_vs;
 
+  /* Camera */
+  struct {
+    float rotation[2]; /* pitch (x), yaw (y) in degrees */
+    float zoom;        /* camera distance from origin */
+  } camera;
+
   /* Graphics resources */
   struct {
     WGPUBindGroupLayout bind_group_layout;
@@ -124,6 +130,10 @@ static struct {
     .colorAttachmentCount   = 1,
     .colorAttachments       = &state.color_attachment,
     .depthStencilAttachment = &state.depth_stencil_attachment,
+  },
+  .camera = {
+    .rotation = {0.0f, 0.0f},
+    .zoom     = 2.0f,
   },
   .compute = {
     .pipeline_index = 0,
@@ -297,10 +307,14 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   glm_perspective(glm_rad(60.0f), aspect_ratio, 0.1f, 256.0f,
                   state.ubo_vs.projection);
 
-  vec3 eye    = {0.0f, 0.0f, -2.0f};
-  vec3 center = {0.0f, 0.0f, 0.0f};
-  vec3 up     = {0.0f, 1.0f, 0.0f};
-  glm_lookat(eye, center, up, state.ubo_vs.model_view);
+  /* Build model-view: translate(0,0,-zoom) * rotateX(pitch) * rotateY(yaw) */
+  glm_mat4_identity(state.ubo_vs.model_view);
+  glm_translate(state.ubo_vs.model_view,
+                (vec3){0.0f, 0.0f, -state.camera.zoom});
+  glm_rotate(state.ubo_vs.model_view, glm_rad(state.camera.rotation[0]),
+             (vec3){1.0f, 0.0f, 0.0f});
+  glm_rotate(state.ubo_vs.model_view, glm_rad(state.camera.rotation[1]),
+             (vec3){0.0f, 1.0f, 0.0f});
 
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer, 0,
                        &state.ubo_vs, sizeof(state.ubo_vs));
@@ -582,10 +596,10 @@ static void render_gui(wgpu_context_t* wgpu_context)
                      (ImVec2){0.0f, 0.0f});
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  igText("Compute Shader Filter");
-  igSeparator();
-
-  igCombo("Shader", &state.compute.pipeline_index, shader_names, 3, 3);
+  if (imgui_overlay_header("Settings")) {
+    imgui_overlay_combo_box("Shader", &state.compute.pipeline_index,
+                            shader_names, 3);
+  }
 
   igEnd();
 }
@@ -680,24 +694,26 @@ static int frame(struct wgpu_context_t* wgpu_context)
                                         WGPUIndexFormat_Uint32, 0,
                                         WGPU_WHOLE_SIZE);
 
-    /* Left half: original image (pre-compute) */
-    wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
-                                     (float)wgpu_context->width * 0.5f,
-                                     (float)wgpu_context->height, 0.0f, 1.0f);
-    wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0, 0,
-                                        (uint32_t)wgpu_context->width,
-                                        (uint32_t)wgpu_context->height);
+    const uint32_t half_width  = (uint32_t)wgpu_context->width / 2;
+    const uint32_t full_height = (uint32_t)wgpu_context->height;
+
     wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
+
+    /* Left half: original image (pre-compute) */
+    wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f, (float)half_width,
+                                     (float)full_height, 0.0f, 1.0f);
+    wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0, 0, half_width,
+                                        full_height);
     wgpuRenderPassEncoderSetBindGroup(
       rpass_enc, 0, state.graphics.bind_group_pre_compute, 0, NULL);
     wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.index_count, 1, 0, 0, 0);
 
     /* Right half: processed image (post-compute) */
-    wgpuRenderPassEncoderSetViewport(rpass_enc,
-                                     (float)wgpu_context->width * 0.5f, 0.0f,
-                                     (float)wgpu_context->width * 0.5f,
-                                     (float)wgpu_context->height, 0.0f, 1.0f);
-    wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
+    wgpuRenderPassEncoderSetViewport(rpass_enc, (float)half_width, 0.0f,
+                                     (float)half_width, (float)full_height,
+                                     0.0f, 1.0f);
+    wgpuRenderPassEncoderSetScissorRect(rpass_enc, half_width, 0, half_width,
+                                        full_height);
     wgpuRenderPassEncoderSetBindGroup(
       rpass_enc, 0, state.graphics.bind_group_post_compute, 0, NULL);
     wgpuRenderPassEncoderDrawIndexed(rpass_enc, state.index_count, 1, 0, 0, 0);
@@ -758,6 +774,21 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
+
+  switch (input_event->type) {
+    case INPUT_EVENT_TYPE_MOUSE_MOVE: {
+      if (input_event->mouse_btn_pressed == BUTTON_LEFT) {
+        state.camera.rotation[0] += input_event->mouse_dy * 0.25f;
+        state.camera.rotation[1] -= input_event->mouse_dx * 0.25f;
+      }
+    } break;
+    case INPUT_EVENT_TYPE_MOUSE_SCROLL: {
+      state.camera.zoom -= input_event->scroll_y * 0.1f;
+      state.camera.zoom = GLM_MAX(0.5f, GLM_MIN(state.camera.zoom, 10.0f));
+    } break;
+    default:
+      break;
+  }
 }
 
 int main(void)
