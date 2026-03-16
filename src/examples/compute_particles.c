@@ -1,7 +1,29 @@
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Compute Shader Particle System
+ *
+ * Attraction based 2D GPU particle system using compute shaders. Particle data
+ * is stored in a shader storage buffer. A compute shader updates particle
+ * positions based on attraction/repulsion forces, and the particles are
+ * rendered as instanced billboard quads with gradient coloring sampled from a
+ * color ramp texture and a particle sprite texture.
+ *
+ * Ref:
+ * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles
+ * -------------------------------------------------------------------------- */
+
+#include "core/image_loader.h"
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
+#include <math.h>
+#include <string.h>
+
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
@@ -17,19 +39,7 @@
 #endif
 
 /* -------------------------------------------------------------------------- *
- * WebGPU Example - Compute Shader Particle System
- *
- * Attraction based 2D GPU particle system using compute shaders. Particle data
- * is stored in a shader storage buffer. A compute shader updates particle
- * positions based on attraction/repulsion forces, and the particles are
- * rendered as points with gradient coloring.
- *
- * Ref:
- * https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeparticles
- * -------------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------------- *
- * WGSL Shaders
+ * WGSL Shaders (forward declarations)
  * -------------------------------------------------------------------------- */
 
 static const char* particle_vertex_shader_wgsl;
@@ -37,35 +47,57 @@ static const char* particle_fragment_shader_wgsl;
 static const char* particle_compute_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
- * Compute Shader Particle System example
+ * Constants
  * -------------------------------------------------------------------------- */
 
 #define PARTICLE_COUNT (256u * 1024u)
 
-/* Gradient ramp size */
-#define GRADIENT_WIDTH 256
-#define GRADIENT_HEIGHT 1
+/* File buffer size for async texture loading */
+#define TEXTURE_FILE_BUFFER_SIZE (256 * 1024)
 
-/* SSBO particle declaration */
+/* -------------------------------------------------------------------------- *
+ * Types
+ * -------------------------------------------------------------------------- */
+
+/* SSBO particle layout (matches Vulkan: vec2 pos, vec2 vel, vec4 gradientPos)
+ * Total: 32 bytes per particle */
 typedef struct particle_t {
   float pos[2];          /* Particle position */
   float vel[2];          /* Particle velocity */
   float gradient_pos[4]; /* Texture coord for gradient ramp map */
 } particle_t;
 
-/* State struct */
+/* Graphics uniform: screen dimensions for billboard sizing */
+typedef struct graphics_ubo_t {
+  float screen_width;
+  float screen_height;
+  float point_size; /* In pixels, matching Vulkan gl_PointSize */
+  float _pad;       /* Padding to 16 bytes */
+} graphics_ubo_t;
+
+/* -------------------------------------------------------------------------- *
+ * State
+ * -------------------------------------------------------------------------- */
+
 static struct {
-  /* Gradient ramp texture */
+  /* Textures */
   struct {
-    wgpu_texture_t texture;
-    uint8_t pixels[GRADIENT_WIDTH * GRADIENT_HEIGHT * 4];
-  } gradient;
+    wgpu_texture_t particle; /* Point sprite texture (particle01_rgba.png) */
+    wgpu_texture_t
+      gradient; /* Color gradient ramp (particle_gradient_rgba.png) */
+    uint8_t particle_buf[TEXTURE_FILE_BUFFER_SIZE];
+    uint8_t gradient_buf[TEXTURE_FILE_BUFFER_SIZE];
+    bool particle_loaded;
+    bool gradient_loaded;
+  } textures;
   /* Graphics resources */
   struct {
     WGPUBindGroupLayout bind_group_layout;
     WGPUBindGroup bind_group;
     WGPUPipelineLayout pipeline_layout;
     WGPURenderPipeline pipeline;
+    wgpu_buffer_t uniform_buffer;
+    graphics_ubo_t ubo;
   } graphics;
   /* Compute resources */
   struct {
@@ -95,7 +127,7 @@ static struct {
   /* Mouse state (normalized -1..1) */
   float cursor_x;
   float cursor_y;
-  /* GUI timing */
+  /* Timing */
   uint64_t last_frame_time;
   float frame_timer;
   WGPUBool initialized;
@@ -103,7 +135,7 @@ static struct {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
     .storeOp    = WGPUStoreOp_Store,
-    .clearValue = {0.025, 0.025, 0.025, 1.0},
+    .clearValue = {0.0f, 0.0f, 0.0f, 1.0f},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
   .render_pass_descriptor = {
@@ -116,88 +148,85 @@ static struct {
   },
 };
 
-/* -- Procedural gradient ramp ---------------------------------------------- */
+/* -------------------------------------------------------------------------- *
+ * Async texture loading
+ * -------------------------------------------------------------------------- */
 
-static uint8_t clamp_u8(float v)
+static void particle_texture_fetch_cb(const sfetch_response_t* response)
 {
-  if (v < 0.0f)
-    return 0;
-  if (v > 255.0f)
-    return 255;
-  return (uint8_t)v;
-}
+  if (!response->fetched) {
+    printf("ERROR: Failed to fetch particle texture\n");
+    return;
+  }
 
-static void generate_gradient_ramp(void)
-{
-  /* Generate a smooth gradient ramp:
-   * 0.00 - 0.25: blue   -> cyan
-   * 0.25 - 0.50: cyan   -> green
-   * 0.50 - 0.75: green  -> yellow
-   * 0.75 - 1.00: yellow -> red
-   */
-  for (int i = 0; i < GRADIENT_WIDTH; ++i) {
-    float t = (float)i / (float)(GRADIENT_WIDTH - 1);
-    float r, g, b;
-
-    if (t < 0.25f) {
-      float s = t / 0.25f;
-      r       = 0.0f;
-      g       = s;
-      b       = 1.0f;
-    }
-    else if (t < 0.5f) {
-      float s = (t - 0.25f) / 0.25f;
-      r       = 0.0f;
-      g       = 1.0f;
-      b       = 1.0f - s;
-    }
-    else if (t < 0.75f) {
-      float s = (t - 0.5f) / 0.25f;
-      r       = s;
-      g       = 1.0f;
-      b       = 0.0f;
-    }
-    else {
-      float s = (t - 0.75f) / 0.25f;
-      r       = 1.0f;
-      g       = 1.0f - s;
-      b       = 0.0f;
-    }
-
-    state.gradient.pixels[i * 4 + 0] = clamp_u8(r * 255.0f);
-    state.gradient.pixels[i * 4 + 1] = clamp_u8(g * 255.0f);
-    state.gradient.pixels[i * 4 + 2] = clamp_u8(b * 255.0f);
-    state.gradient.pixels[i * 4 + 3] = 255;
+  image_t img = {0};
+  if (image_load_from_memory(response->data.ptr, (int)response->data.size, 4,
+                             &img)) {
+    state.textures.particle.desc = (wgpu_texture_desc_t){
+      .extent       = {.width              = (uint32_t)img.width,
+                       .height             = (uint32_t)img.height,
+                       .depthOrArrayLayers = 1},
+      .format       = WGPUTextureFormat_RGBA8Unorm,
+      .address_mode = WGPUAddressMode_ClampToEdge,
+      .pixels
+      = {.ptr = img.pixels.u8, .size = (size_t)(img.width * img.height * 4)},
+    };
+    state.textures.particle.desc.is_dirty = true;
+    state.textures.particle_loaded        = true;
   }
 }
 
-/* -- Texture init ---------------------------------------------------------- */
-
-static void init_gradient_texture(wgpu_context_t* wgpu_context)
+static void gradient_texture_fetch_cb(const sfetch_response_t* response)
 {
-  generate_gradient_ramp();
+  if (!response->fetched) {
+    printf("ERROR: Failed to fetch gradient texture\n");
+    return;
+  }
 
-  state.gradient.texture = wgpu_create_texture(
-    wgpu_context,
-    &(wgpu_texture_desc_t){
-      .extent = (WGPUExtent3D){
-        .width              = GRADIENT_WIDTH,
-        .height             = GRADIENT_HEIGHT,
-        .depthOrArrayLayers = 1,
-      },
-      .format = WGPUTextureFormat_RGBA8Unorm,
-      .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-      .pixels = {
-        .ptr  = state.gradient.pixels,
-        .size = sizeof(state.gradient.pixels),
-      },
-    });
+  image_t img = {0};
+  if (image_load_from_memory(response->data.ptr, (int)response->data.size, 4,
+                             &img)) {
+    state.textures.gradient.desc = (wgpu_texture_desc_t){
+      .extent       = {.width              = (uint32_t)img.width,
+                       .height             = (uint32_t)img.height,
+                       .depthOrArrayLayers = 1},
+      .format       = WGPUTextureFormat_RGBA8Unorm,
+      .address_mode = WGPUAddressMode_ClampToEdge,
+      .pixels
+      = {.ptr = img.pixels.u8, .size = (size_t)(img.width * img.height * 4)},
+    };
+    state.textures.gradient.desc.is_dirty = true;
+    state.textures.gradient_loaded        = true;
+  }
 }
 
-/* -- Storage buffer -------------------------------------------------------- */
+static void init_textures(wgpu_context_t* wgpu_context)
+{
+  /* Create placeholder textures */
+  state.textures.particle = wgpu_create_color_bars_texture(wgpu_context, NULL);
+  state.textures.gradient = wgpu_create_color_bars_texture(wgpu_context, NULL);
+
+  /* Kick off async loads */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/particle01_rgba.png",
+    .callback = particle_texture_fetch_cb,
+    .buffer   = SFETCH_RANGE(state.textures.particle_buf),
+  });
+
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/particle_gradient_rgba.png",
+    .callback = gradient_texture_fetch_cb,
+    .buffer   = SFETCH_RANGE(state.textures.gradient_buf),
+  });
+}
+
+/* -------------------------------------------------------------------------- *
+ * Storage buffer (particle SSBO)
+ * -------------------------------------------------------------------------- */
 
 static void init_storage_buffer(wgpu_context_t* wgpu_context)
 {
+  /* Match Vulkan: pos = random [-1,1], vel = 0, gradientPos.x = pos.x/2 */
   static particle_t particle_buffer[PARTICLE_COUNT];
   for (uint32_t i = 0; i < PARTICLE_COUNT; ++i) {
     particle_buffer[i] = (particle_t){
@@ -221,10 +250,13 @@ static void init_storage_buffer(wgpu_context_t* wgpu_context)
                   });
 }
 
-/* -- Uniform buffer -------------------------------------------------------- */
+/* -------------------------------------------------------------------------- *
+ * Uniform buffers
+ * -------------------------------------------------------------------------- */
 
-static void init_uniform_buffer(wgpu_context_t* wgpu_context)
+static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 {
+  /* Compute UBO */
   state.compute.ubo.particle_count = PARTICLE_COUNT;
 
   state.compute.uniform_buffer = wgpu_create_buffer(
@@ -233,10 +265,26 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(state.compute.ubo),
                   });
+
+  /* Graphics UBO (screen dimensions for billboard sizing) */
+  state.graphics.ubo = (graphics_ubo_t){
+    .screen_width  = (float)wgpu_context->width,
+    .screen_height = (float)wgpu_context->height,
+    .point_size    = 8.0f, /* Match Vulkan gl_PointSize */
+  };
+
+  state.graphics.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Graphics uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(graphics_ubo_t),
+                    .initial.data = &state.graphics.ubo,
+                  });
 }
 
-static void update_uniform_buffer(wgpu_context_t* wgpu_context)
+static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
+  /* Compute: match Vulkan — deltaT = frameTimer * 2.5 */
   state.compute.ubo.delta_t = state.frame_timer * 2.5f;
 
   if (state.settings.attach_to_cursor) {
@@ -250,20 +298,29 @@ static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 
   wgpuQueueWriteBuffer(wgpu_context->queue, state.compute.uniform_buffer.buffer,
                        0, &state.compute.ubo, sizeof(state.compute.ubo));
+
+  /* Graphics: update screen dimensions for correct billboard sizing */
+  state.graphics.ubo.screen_width  = (float)wgpu_context->width;
+  state.graphics.ubo.screen_height = (float)wgpu_context->height;
+
+  wgpuQueueWriteBuffer(wgpu_context->queue,
+                       state.graphics.uniform_buffer.buffer, 0,
+                       &state.graphics.ubo, sizeof(state.graphics.ubo));
 }
 
-/* -- Graphics pipeline ----------------------------------------------------- */
+/* -------------------------------------------------------------------------- *
+ * Graphics pipeline
+ * -------------------------------------------------------------------------- */
 
 static void init_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
 {
-  WGPUBindGroupLayoutEntry bgl_entries[2] = {
+  WGPUBindGroupLayoutEntry bgl_entries[4] = {
     [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
       .visibility = WGPUShaderStage_Fragment,
       .texture = (WGPUTextureBindingLayout){
         .sampleType    = WGPUTextureSampleType_Float,
         .viewDimension = WGPUTextureViewDimension_2D,
-        .multisampled  = false,
       },
     },
     [1] = (WGPUBindGroupLayoutEntry){
@@ -271,6 +328,22 @@ static void init_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
       .visibility = WGPUShaderStage_Fragment,
       .sampler = (WGPUSamplerBindingLayout){
         .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+    [2] = (WGPUBindGroupLayoutEntry){
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = (WGPUTextureBindingLayout){
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_2D,
+      },
+    },
+    [3] = (WGPUBindGroupLayoutEntry){
+      .binding    = 3,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout){
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(graphics_ubo_t),
       },
     },
   };
@@ -284,18 +357,28 @@ static void init_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
   ASSERT(state.graphics.bind_group_layout != NULL);
 }
 
-static void init_graphics_bind_group(wgpu_context_t* wgpu_context)
+static void rebuild_graphics_bind_group(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
+  /* Release previous bind group if any */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.graphics.bind_group)
 
-  WGPUBindGroupEntry bg_entries[2] = {
+  WGPUBindGroupEntry bg_entries[4] = {
     [0] = (WGPUBindGroupEntry){
       .binding     = 0,
-      .textureView = state.gradient.texture.view,
+      .textureView = state.textures.particle.view,
     },
     [1] = (WGPUBindGroupEntry){
       .binding = 1,
-      .sampler = state.gradient.texture.sampler,
+      .sampler = state.textures.particle.sampler,
+    },
+    [2] = (WGPUBindGroupEntry){
+      .binding     = 2,
+      .textureView = state.textures.gradient.view,
+    },
+    [3] = (WGPUBindGroupEntry){
+      .binding = 3,
+      .buffer  = state.graphics.uniform_buffer.buffer,
+      .size    = state.graphics.uniform_buffer.size,
     },
   };
 
@@ -322,19 +405,26 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
   ASSERT(state.graphics.pipeline_layout != NULL);
 
   /* Shader modules */
-  WGPUShaderModule vert_shader_module = wgpu_create_shader_module(
+  WGPUShaderModule vert_module = wgpu_create_shader_module(
     wgpu_context->device, particle_vertex_shader_wgsl);
-  WGPUShaderModule frag_shader_module = wgpu_create_shader_module(
+  WGPUShaderModule frag_module = wgpu_create_shader_module(
     wgpu_context->device, particle_fragment_shader_wgsl);
 
-  /* Blend state: additive blending */
-  WGPUBlendState blend_state  = wgpu_create_blend_state(true);
-  blend_state.color.srcFactor = WGPUBlendFactor_One;
-  blend_state.color.dstFactor = WGPUBlendFactor_One;
-  blend_state.alpha.srcFactor = WGPUBlendFactor_SrcAlpha;
-  blend_state.alpha.dstFactor = WGPUBlendFactor_DstAlpha;
+  /* Additive blending (matches Vulkan: src=ONE, dst=ONE) */
+  WGPUBlendState additive_blend = {
+    .color = {
+      .operation = WGPUBlendOperation_Add,
+      .srcFactor = WGPUBlendFactor_One,
+      .dstFactor = WGPUBlendFactor_One,
+    },
+    .alpha = {
+      .operation = WGPUBlendOperation_Add,
+      .srcFactor = WGPUBlendFactor_SrcAlpha,
+      .dstFactor = WGPUBlendFactor_DstAlpha,
+    },
+  };
 
-  /* Vertex buffer layout */
+  /* Vertex buffer layout: per-instance particle data */
   WGPU_VERTEX_BUFFER_LAYOUT(
     particle, sizeof(particle_t),
     WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x2,
@@ -342,33 +432,36 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
     WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x4,
                        offsetof(particle_t, gradient_pos)))
 
+  /* Override step mode to per-instance (billboard quads via vertex_index) */
+  particle_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
+
   WGPURenderPipelineDescriptor rp_desc = {
     .label  = STRVIEW("Particle render pipeline"),
     .layout = state.graphics.pipeline_layout,
     .vertex = {
-      .module      = vert_shader_module,
+      .module      = vert_module,
       .entryPoint  = STRVIEW("vs_main"),
       .bufferCount = 1,
       .buffers     = &particle_vertex_buffer_layout,
     },
     .fragment = &(WGPUFragmentState){
-      .module      = frag_shader_module,
+      .module      = frag_module,
       .entryPoint  = STRVIEW("fs_main"),
       .targetCount = 1,
       .targets = &(WGPUColorTargetState){
         .format    = wgpu_context->render_format,
-        .blend     = &blend_state,
+        .blend     = &additive_blend,
         .writeMask = WGPUColorWriteMask_All,
       },
     },
     .primitive = {
-      .topology  = WGPUPrimitiveTopology_PointList,
+      .topology  = WGPUPrimitiveTopology_TriangleList,
       .frontFace = WGPUFrontFace_CCW,
       .cullMode  = WGPUCullMode_None,
     },
     .multisample = {
       .count = 1,
-      .mask  = 0xffffffff,
+      .mask  = 0xFFFFFFFF,
     },
   };
 
@@ -376,11 +469,13 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &rp_desc);
   ASSERT(state.graphics.pipeline != NULL);
 
-  wgpuShaderModuleRelease(vert_shader_module);
-  wgpuShaderModuleRelease(frag_shader_module);
+  wgpuShaderModuleRelease(vert_module);
+  wgpuShaderModuleRelease(frag_module);
 }
 
-/* -- Compute pipeline ------------------------------------------------------ */
+/* -------------------------------------------------------------------------- *
+ * Compute pipeline
+ * -------------------------------------------------------------------------- */
 
 static void init_compute_pipeline(wgpu_context_t* wgpu_context)
 {
@@ -447,7 +542,7 @@ static void init_compute_pipeline(wgpu_context_t* wgpu_context)
   ASSERT(state.compute.bind_group != NULL);
 
   /* Compute shader module */
-  WGPUShaderModule comp_shader_module = wgpu_create_shader_module(
+  WGPUShaderModule comp_module = wgpu_create_shader_module(
     wgpu_context->device, particle_compute_shader_wgsl);
 
   /* Compute pipeline */
@@ -457,16 +552,18 @@ static void init_compute_pipeline(wgpu_context_t* wgpu_context)
       .label   = STRVIEW("Particle compute pipeline"),
       .layout  = state.compute.pipeline_layout,
       .compute = {
-        .module     = comp_shader_module,
+        .module     = comp_module,
         .entryPoint = STRVIEW("main"),
       },
     });
   ASSERT(state.compute.pipeline != NULL);
 
-  wgpuShaderModuleRelease(comp_shader_module);
+  wgpuShaderModuleRelease(comp_module);
 }
 
-/* -- GUI ------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- *
+ * GUI
+ * -------------------------------------------------------------------------- */
 
 static void render_gui(wgpu_context_t* wgpu_context)
 {
@@ -481,31 +578,66 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igEnd();
 }
 
-/* -- Main callbacks -------------------------------------------------------- */
+/* -------------------------------------------------------------------------- *
+ * Main callbacks
+ * -------------------------------------------------------------------------- */
 
 static int init(struct wgpu_context_t* wgpu_context)
 {
-  if (wgpu_context) {
-    stm_setup();
-    init_storage_buffer(wgpu_context);
-    init_uniform_buffer(wgpu_context);
-    init_gradient_texture(wgpu_context);
-    init_graphics_bind_group_layout(wgpu_context);
-    init_graphics_bind_group(wgpu_context);
-    init_graphics_pipeline(wgpu_context);
-    init_compute_pipeline(wgpu_context);
-    imgui_overlay_init(wgpu_context);
-    state.initialized = true;
-    return EXIT_SUCCESS;
+  if (!wgpu_context) {
+    return EXIT_FAILURE;
   }
 
-  return EXIT_FAILURE;
+  stm_setup();
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 4,
+    .num_channels = 2,
+    .num_lanes    = 2,
+    .logger.func  = slog_func,
+  });
+
+  init_storage_buffer(wgpu_context);
+  init_uniform_buffers(wgpu_context);
+  init_textures(wgpu_context);
+
+  /* Graphics pipeline */
+  init_graphics_bind_group_layout(wgpu_context);
+  rebuild_graphics_bind_group(wgpu_context);
+  init_graphics_pipeline(wgpu_context);
+
+  /* Compute pipeline */
+  init_compute_pipeline(wgpu_context);
+
+  /* GUI */
+  imgui_overlay_init(wgpu_context);
+
+  state.initialized = true;
+  return EXIT_SUCCESS;
 }
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+  /* Process async texture loads */
+  sfetch_dowork();
+
+  /* Recreate textures if loaded from disk */
+  bool rebind = false;
+  if (state.textures.particle.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.textures.particle);
+    FREE_TEXTURE_PIXELS(state.textures.particle);
+    rebind = true;
+  }
+  if (state.textures.gradient.desc.is_dirty) {
+    wgpu_recreate_texture(wgpu_context, &state.textures.gradient);
+    FREE_TEXTURE_PIXELS(state.textures.gradient);
+    rebind = true;
+  }
+  if (rebind) {
+    rebuild_graphics_bind_group(wgpu_context);
   }
 
   /* Calculate delta time */
@@ -518,12 +650,12 @@ static int frame(struct wgpu_context_t* wgpu_context)
   state.last_frame_time = current_time;
   state.frame_timer     = delta_time;
 
-  /* Update animation */
+  /* Update animation (matches Vulkan exactly) */
   if (!state.settings.attach_to_cursor) {
     if (state.anim_start > 0.0f) {
       state.anim_start -= delta_time * 5.0f;
     }
-    else {
+    else if (state.anim_start <= 0.0f) {
       state.timer += delta_time * 0.04f;
       if (state.timer > 1.0f) {
         state.timer = 0.0f;
@@ -531,8 +663,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Update uniform buffer */
-  update_uniform_buffer(wgpu_context);
+  /* Update uniform buffers */
+  update_uniform_buffers(wgpu_context);
 
   /* ImGui frame */
   imgui_overlay_new_frame(wgpu_context, delta_time);
@@ -547,36 +679,35 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Compute pass: update particle positions */
   {
-    WGPUComputePassEncoder cpass_enc
+    WGPUComputePassEncoder cpass
       = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
-    wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute.pipeline);
-    wgpuComputePassEncoderSetBindGroup(cpass_enc, 0, state.compute.bind_group,
-                                       0, NULL);
-    wgpuComputePassEncoderDispatchWorkgroups(cpass_enc, PARTICLE_COUNT / 256, 1,
-                                             1);
-    wgpuComputePassEncoderEnd(cpass_enc);
-    wgpuComputePassEncoderRelease(cpass_enc);
+    wgpuComputePassEncoderSetPipeline(cpass, state.compute.pipeline);
+    wgpuComputePassEncoderSetBindGroup(cpass, 0, state.compute.bind_group, 0,
+                                       NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(cpass, PARTICLE_COUNT / 256, 1, 1);
+    wgpuComputePassEncoderEnd(cpass);
+    wgpuComputePassEncoderRelease(cpass);
   }
 
-  /* Render pass: draw particles */
+  /* Render pass: draw particles as instanced billboard quads */
   {
-    WGPURenderPassEncoder rpass_enc = wgpuCommandEncoderBeginRenderPass(
+    WGPURenderPassEncoder rpass = wgpuCommandEncoderBeginRenderPass(
       cmd_enc, &state.render_pass_descriptor);
-    wgpuRenderPassEncoderSetPipeline(rpass_enc, state.graphics.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.graphics.bind_group,
-                                      0, 0);
+    wgpuRenderPassEncoderSetPipeline(rpass, state.graphics.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rpass, 0, state.graphics.bind_group, 0,
+                                      NULL);
     wgpuRenderPassEncoderSetVertexBuffer(
-      rpass_enc, 0, state.compute.storage_buffer.buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(rpass_enc, PARTICLE_COUNT, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(rpass_enc);
-    wgpuRenderPassEncoderRelease(rpass_enc);
+      rpass, 0, state.compute.storage_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+    /* 6 vertices per quad (2 triangles), PARTICLE_COUNT instances */
+    wgpuRenderPassEncoderDraw(rpass, 6, PARTICLE_COUNT, 0, 0);
+    wgpuRenderPassEncoderEnd(rpass);
+    wgpuRenderPassEncoderRelease(rpass);
   }
 
   WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(cmd_enc, NULL);
-
   wgpuQueueSubmit(queue, 1, &cmd_buffer);
 
-  /* Render imgui overlay */
+  /* Render GUI overlay */
   imgui_overlay_render(wgpu_context);
 
   /* Cleanup */
@@ -591,10 +722,12 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
   imgui_overlay_shutdown();
 
-  /* Gradient texture */
-  wgpu_destroy_texture(&state.gradient.texture);
+  /* Textures */
+  wgpu_destroy_texture(&state.textures.particle);
+  wgpu_destroy_texture(&state.textures.gradient);
 
   /* Graphics pipeline */
+  WGPU_RELEASE_RESOURCE(Buffer, state.graphics.uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.graphics.bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, state.graphics.bind_group)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.graphics.pipeline_layout)
@@ -607,6 +740,8 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(BindGroup, state.compute.bind_group)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.compute.pipeline_layout)
   WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute.pipeline)
+
+  sfetch_shutdown();
 }
 
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
@@ -614,15 +749,15 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
 
-  /* Track cursor position for attractor */
+  /* Track cursor position for attractor (normalized to -1..1).
+   * Use wgpu_context dimensions which are always valid (unlike
+   * input_event->window_width which is only set after a resize event). */
   if (input_event->type == INPUT_EVENT_TYPE_MOUSE_MOVE) {
-    if (input_event->window_width > 0 && input_event->window_height > 0) {
+    if (wgpu_context->width > 0 && wgpu_context->height > 0) {
       state.cursor_x
-        = (input_event->mouse_x / (float)input_event->window_width) * 2.0f
-          - 1.0f;
+        = (input_event->mouse_x / (float)wgpu_context->width) * 2.0f - 1.0f;
       state.cursor_y
-        = -((input_event->mouse_y / (float)input_event->window_height) * 2.0f
-            - 1.0f);
+        = -((input_event->mouse_y / (float)wgpu_context->height) * 2.0f - 1.0f);
     }
   }
 }
@@ -646,35 +781,83 @@ int main(void)
 
 // clang-format off
 static const char* particle_vertex_shader_wgsl = CODE(
+  struct ScreenParams {
+    screen_width : f32,
+    screen_height : f32,
+    point_size : f32,
+  };
+
   struct VertexOutput {
     @builtin(position) position : vec4<f32>,
     @location(0) gradient_pos : f32,
+    @location(1) uv : vec2<f32>,
   };
+
+  @group(0) @binding(3) var<uniform> screen_params : ScreenParams;
 
   @vertex
   fn vs_main(
+    @builtin(vertex_index) vertex_index : u32,
     @location(0) pos : vec2<f32>,
-    @location(1) gradient_pos_in : vec4<f32>
+    @location(1) gradient_pos_in : vec4<f32>,
   ) -> VertexOutput {
+    /* Billboard quad corners (2 triangles = 6 vertices) */
+    var corners = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>( 1.0, -1.0),
+      vec2<f32>( 1.0,  1.0),
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>( 1.0,  1.0),
+      vec2<f32>(-1.0,  1.0),
+    );
+
+    /* UV coordinates matching Vulkan gl_PointCoord convention:
+     * (0,0) at top-left, (1,1) at bottom-right */
+    var uvs = array<vec2<f32>, 6>(
+      vec2<f32>(0.0, 1.0),
+      vec2<f32>(1.0, 1.0),
+      vec2<f32>(1.0, 0.0),
+      vec2<f32>(0.0, 1.0),
+      vec2<f32>(1.0, 0.0),
+      vec2<f32>(0.0, 0.0),
+    );
+
+    let corner = corners[vertex_index];
+
+    /* Convert pixel-space point size to NDC offset.
+     * In clip space with w=1: 1 pixel = 2.0 / screenDim
+     * Half of point_size in NDC = point_size / screenDim */
+    let pixel_scale = vec2<f32>(
+      screen_params.point_size / screen_params.screen_width,
+      screen_params.point_size / screen_params.screen_height,
+    );
+
     var output : VertexOutput;
-    output.position = vec4<f32>(pos, 1.0, 1.0);
+    output.position = vec4<f32>(pos + corner * pixel_scale, 1.0, 1.0);
     output.gradient_pos = gradient_pos_in.x;
+    output.uv = uvs[vertex_index];
     return output;
   }
 );
 
 static const char* particle_fragment_shader_wgsl = CODE(
-  @group(0) @binding(0) var gradient_texture : texture_2d<f32>;
-  @group(0) @binding(1) var gradient_sampler : sampler;
+  @group(0) @binding(0) var color_map : texture_2d<f32>;
+  @group(0) @binding(1) var color_sampler : sampler;
+  @group(0) @binding(2) var gradient_ramp : texture_2d<f32>;
 
   @fragment
   fn fs_main(
-    @location(0) gradient_pos : f32
+    @location(0) gradient_pos : f32,
+    @location(1) uv : vec2<f32>,
   ) -> @location(0) vec4<f32> {
+    /* Sample particle sprite texture (equivalent of Vulkan gl_PointCoord) */
+    let sprite_color = textureSample(color_map, color_sampler, uv);
+    /* Sample gradient ramp for color animation */
     let gradient_color = textureSample(
-      gradient_texture, gradient_sampler, vec2<f32>(gradient_pos, 0.0)
+      gradient_ramp, color_sampler, vec2<f32>(gradient_pos, 0.0)
     );
-    return vec4<f32>(gradient_color.rgb, 1.0);
+    /* Combine: sprite shape * gradient color (matches Vulkan fragment shader) */
+    return vec4<f32>(sprite_color.rgb * gradient_color.rgb, sprite_color.a);
   }
 );
 
@@ -718,12 +901,14 @@ static const char* particle_compute_shader_wgsl = CODE(
       return;
     }
 
+    /* Read position and velocity */
     var v_vel = particles[index].vel;
     var v_pos = particles[index].pos;
+    let g_pos = particles[index].gradient_pos;
 
     let dest_pos = vec2<f32>(params.dest_x, params.dest_y);
 
-    v_vel = v_vel + attraction(v_pos, dest_pos) * 0.5;
+    /* Apply repulsion force only (matches Vulkan exactly) */
     v_vel = v_vel + repulsion(v_pos, dest_pos) * 0.05;
 
     /* Move by velocity */
@@ -738,8 +923,9 @@ static const char* particle_compute_shader_wgsl = CODE(
 
     /* Write back velocity */
     particles[index].vel = v_vel;
-    particles[index].gradient_pos.x = particles[index].gradient_pos.x
-                                      + 0.02 * params.delta_t;
+
+    /* Animate gradient position */
+    particles[index].gradient_pos.x = g_pos.x + 0.02 * params.delta_t;
     if (particles[index].gradient_pos.x > 1.0) {
       particles[index].gradient_pos.x =
         particles[index].gradient_pos.x - 1.0;

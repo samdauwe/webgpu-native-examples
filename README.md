@@ -343,7 +343,7 @@ Uses a compute shader to apply different convolution kernels (and effects) on an
 
 #### [GPU particle system](src/examples/compute_particles.c)
 
-Attraction based 2D GPU particle system using compute shaders. Particle data is stored in a shader storage buffer and only modified on the GPU using compute particle updates with graphics pipeline vertex access.
+Attraction based 2D GPU particle system using compute shaders. Particle data is stored in a shader storage buffer and updated on the GPU using attraction/repulsion forces. Particles are rendered as instanced billboard quads with additive blending and animated gradient coloring.
 
 #### [GPU particle system easing](src/examples/compute_particles_easing.c)
 
