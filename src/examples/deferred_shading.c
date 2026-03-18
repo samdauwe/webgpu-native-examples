@@ -34,10 +34,10 @@
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define GBUFFER_DIM 2048u
-#define NUM_LIGHTS 6u
-#define NUM_INSTANCES 3u
-#define NUM_TEXTURES 4u
+#define GBUFFER_DIM (2048u)
+#define NUM_LIGHTS (6u)
+#define NUM_INSTANCES (3u)
+#define NUM_TEXTURES (4u)
 
 /* Texture fetch buffer size (1024x1024 RGBA = 4 MB max compressed) */
 #define TEXTURE_FILE_BUFFER_SIZE (5 * 1024 * 1024)
