@@ -323,6 +323,10 @@ This example shows how to do deferred rendering with webgpu. Render geometry inf
 
 This example Renders the scene into three off-screen render targets (position, normal, albedo+specular) which are then sampled in a composition pass that evaluates 6 animated point lights per pixel using Blinn-Phong shading. Debug visualization modes allow inspecting individual G-Buffer channels.
 
+#### [Deferred shadows](src/examples/deferred_shadows.c)
+
+This example extends deferred shading with shadow mapping from three animated spot lights. Shadow maps are stored in a layered depth texture array, with each layer rendered in a separate depth-only pass. The composition pass applies PCF-filtered shadow sampling combined with spot light attenuation. Debug visualization modes allow inspecting shadow maps and individual G-Buffer channels.
+
 ### Compute Shader
 
 #### [Animometer](src/examples/animometer.c)
