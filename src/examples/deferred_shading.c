@@ -195,7 +195,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   /* Position: RGBA16Float */
   {
     WGPUTextureDescriptor desc = {
-      .label = STRVIEW("GBuffer Position"),
+      .label = STRVIEW("GBuffer - Position"),
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension     = WGPUTextureDimension_2D,
