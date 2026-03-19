@@ -327,6 +327,10 @@ This example Renders the scene into three off-screen render targets (position, n
 
 This example extends deferred shading with shadow mapping from three animated spot lights. Shadow maps are stored in a layered depth texture array, with each layer rendered in a separate depth-only pass. The composition pass applies PCF-filtered shadow sampling combined with spot light attenuation. Debug visualization modes allow inspecting shadow maps and individual G-Buffer channels.
 
+#### [Deferred multi sampling](src/examples/deferred_multi_sampling.c)
+
+Adds multi sampling to a deferred renderer using manual resolve in the fragment shader. The G-Buffer pass renders to multisampled color attachments (position, normal, albedo) that are automatically resolved. The composition pass supports two modes: MSAA mode reads multisampled textures directly with per-sample shading, while the non-MSAA mode uses the resolved textures. Debug visualization modes allow inspecting individual G-Buffer channels and specular highlights.
+
 ### Compute Shader
 
 #### [Animometer](src/examples/animometer.c)
