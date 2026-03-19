@@ -71,10 +71,10 @@ static const char* bloom_skybox_shader_wgsl;
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define OFFSCREEN_WIDTH 256
-#define OFFSCREEN_HEIGHT 256
-#define NUM_CUBEMAP_FACES 6
-#define CUBEMAP_FACE_SIZE 512
+#define OFFSCREEN_WIDTH (256)
+#define OFFSCREEN_HEIGHT (256)
+#define NUM_CUBEMAP_FACES (6)
+#define CUBEMAP_FACE_SIZE (512)
 #define CUBEMAP_FACE_NUM_BYTES (CUBEMAP_FACE_SIZE * CUBEMAP_FACE_SIZE * 4)
 
 /* -------------------------------------------------------------------------- *
