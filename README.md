@@ -276,6 +276,10 @@ This example demonstrates primitive picking by computing a primitive ID from ver
 
 This example implements a bloom post-processing effect using a separable two-pass Gaussian blur. A glTF model's emissive (glow) parts are first rendered to an offscreen texture, then blurred vertically and horizontally via fullscreen passes with additive blending. The final scene composites the blurred glow on top of the Phong-lit model and a cubemap skybox. Includes ImGui controls for toggling bloom and adjusting blur intensity.
 
+#### [High Dynamic Range Rendering](src/examples/hdr.c)
+
+Implements a high dynamic range rendering pipeline with RGBA16Float offscreen textures, a Cook-Torrance specular BRDF with Schlick Fresnel approximation, and environment cubemap reflections. The scene is rendered to a multi-render-target G-buffer, tone-mapped with an adjustable exposure parameter, then optionally enhanced with a separable 25-tap Gaussian bloom filter using additive blending. Includes ImGui controls for switching between glTF model types, adjusting exposure, and toggling bloom and skybox display.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)
