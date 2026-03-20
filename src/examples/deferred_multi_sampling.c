@@ -270,7 +270,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
 
     /* Resolve texture (sampleCount = 1) */
     WGPUTextureDescriptor resolve_desc = {
-      .label         = STRVIEW("Resolve Texture"),
+      .label         = STRVIEW("Resolve - Texture"),
       .usage         = resolve_usage,
       .dimension     = WGPUTextureDimension_2D,
       .size          = {GBUFFER_DIM, GBUFFER_DIM, 1},
