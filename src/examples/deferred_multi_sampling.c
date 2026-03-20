@@ -256,7 +256,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < ARRAY_SIZE(color_attachments); i++) {
     /* Multisample texture */
     WGPUTextureDescriptor ms_desc = {
-      .label         = STRVIEW("MS Texture"),
+      .label         = STRVIEW("MS - Texture"),
       .usage         = ms_usage,
       .dimension     = WGPUTextureDimension_2D,
       .size          = {GBUFFER_DIM, GBUFFER_DIM, 1},
