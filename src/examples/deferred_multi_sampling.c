@@ -287,7 +287,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   /* Depth: Depth24PlusStencil8, multisampled */
   {
     WGPUTextureDescriptor desc = {
-      .label         = STRVIEW("GBuffer Depth MS"),
+      .label         = STRVIEW("GBuffer Depth MS - Texture"),
       .usage         = WGPUTextureUsage_RenderAttachment,
       .dimension     = WGPUTextureDimension_2D,
       .size          = {GBUFFER_DIM, GBUFFER_DIM, 1},
