@@ -299,10 +299,6 @@ This example shows how to use render bundles. It renders a large number of meshe
 
 Physical based rendering as a lighting technique that achieves a more realistic and dynamic look by applying approximations of bidirectional reflectance distribution functions based on measured real-world material parameters and environment lighting.
 
-#### [PBR image based lighting](src/examples/gltf_pbr_ibl.c)
-
-Adds image based lighting from an HDR environment cubemap to the PBR equation, using the surrounding environment as the light source. This adds an even more realistic look to the scene as the light contribution used by the materials is now controlled by the environment. Also shows how to generate the BRDF 2D-LUT and irradiance and filtered cube maps from the environment map.
-
 #### [PBR image based lighting - OBJ Loader](src/examples/obj_pbr_ibl.c)
 
 Physically Based Rendering with Image Based Lighting using OBJ model loader.
