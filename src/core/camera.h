@@ -25,6 +25,8 @@ typedef struct {
   float movement_speed;
   bool updated;
   bool flip_y;
+  bool invert_dx;
+  bool invert_dy;
   struct {
     mat4 perspective;
     mat4 view;

@@ -27,20 +27,24 @@ void camera_on_input_event(camera_t* camera, const input_event_t* input_event)
   switch (input_event->type) {
     case INPUT_EVENT_TYPE_MOUSE_MOVE: {
       if (input_event->mouse_btn_pressed) {
+        const float inv_dx = camera->invert_dx ? -1.0f : 1.0f;
+        const float inv_dy = camera->invert_dy ? -1.0f : 1.0f;
         if (input_event->mouse_button == BUTTON_LEFT) {
-          camera_rotate(camera,
-                        (vec3){input_event->mouse_dy * camera->rotation_speed,
-                               -input_event->mouse_dx * camera->rotation_speed,
-                               0.0f});
+          camera_rotate(
+            camera,
+            (vec3){input_event->mouse_dy * inv_dx * camera->rotation_speed,
+                   -input_event->mouse_dx * inv_dy * camera->rotation_speed,
+                   0.0f});
         }
         else if (input_event->mouse_button == BUTTON_MIDDLE) {
-          camera_translate(camera,
-                           (vec3){-input_event->mouse_dx * 0.01f,
-                                  -input_event->mouse_dy * 0.01f, 0.0f});
+          camera_translate(
+            camera, (vec3){-input_event->mouse_dx * inv_dx * 0.01f,
+                           -input_event->mouse_dy * inv_dy * 0.01f, 0.0f});
         }
         if (input_event->mouse_button == BUTTON_RIGHT) {
-          camera_translate(camera,
-                           (vec3){-0.0f, 0.0f, input_event->mouse_dy * 0.005f});
+          camera_translate(
+            camera,
+            (vec3){-0.0f, 0.0f, input_event->mouse_dy * inv_dy * 0.005f});
         }
       }
     } break;
