@@ -260,6 +260,10 @@ A clustered forward shading renderer using WebGPU compute shaders for light cull
 
 This example shows how to achieve [multisample anti-aliasing](https://en.wikipedia.org/wiki/Multisample_anti-aliasing)(MSAA) in WebGPU. The render pipeline is created with a sample count > 1. A new texture with a sample count > 1 is created and set as the color attachment instead of the swapchain. The swapchain is now specified as a resolve_target.
 
+#### [Multisampling](src/examples/multi_sampling.c)
+
+Demonstrates multisampled anti-aliasing (MSAA) using resolve attachments. Renders a glTF model (Voyager spacecraft) with 4× MSAA — the multisampled color attachment is automatically resolved to the swapchain image at the end of the render pass. Per-material textures are uploaded from the embedded glTF data and applied via Blinn-Phong shading. Includes a GUI checkbox for a sample rate shading toggle.
+
 #### [Cube reflection](src/examples/cube_reflection.c)
 
 This example shows how to create a basic reflection pipeline.
