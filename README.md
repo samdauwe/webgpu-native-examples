@@ -407,6 +407,10 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 This example demonstrates multiple different methods that employ fragment shaders to achieve additional perceptual depth on the surface of a cube mesh. Demonstrated methods include normal mapping, parallax mapping, and steep parallax mapping.
 
+#### [Parallax Mapping](src/examples/parallax_mapping.c)
+
+Demonstrates parallax mapping techniques on a textured plane using a height map. Supports five rendering modes selectable via GUI: color only, normal mapping, basic parallax mapping, steep parallax mapping, and parallax occlusion mapping. The light orbits the plane to showcase the depth effect from different angles.
+
 #### [Post-processing](src/examples/post_processing.c)
 
 This example shows how to use a post-processing effect to blend between two scenes. This example has been ported from [this JavaScript implementation](https://github.com/gnikoloff/webgpu-dojo/tree/master/src/examples/postprocessing-01) to native code.
