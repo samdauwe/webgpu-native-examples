@@ -403,6 +403,10 @@ Generates and renders a complex user interface with multiple windows, controls a
 
 ### Effects
 
+#### [CPU Based Particle System](src/examples/particle_system.c)
+
+Simulates a campfire as a CPU-based particle system with two particle types (flame and smoke). Particles are updated every frame on the CPU and uploaded to a dynamic GPU vertex buffer. Each particle is rendered as an instanced billboard quad with rotation and size animation. A normal-mapped fireplace model serves as the environment, lit by an animated point light.
+
 #### [Normal Mapping](src/examples/normal_map.c)
 
 This example demonstrates multiple different methods that employ fragment shaders to achieve additional perceptual depth on the surface of a cube mesh. Demonstrated methods include normal mapping, parallax mapping, and steep parallax mapping.
