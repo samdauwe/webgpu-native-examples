@@ -264,6 +264,10 @@ This example shows how to achieve [multisample anti-aliasing](https://en.wikiped
 
 Demonstrates multisampled anti-aliasing (MSAA) using resolve attachments. Renders a glTF model (Voyager spacecraft) with 4× MSAA — the multisampled color attachment is automatically resolved to the swapchain image at the end of the render pass. Per-material textures are uploaded from the embedded glTF data and applied via Blinn-Phong shading. Includes a GUI checkbox for a sample rate shading toggle.
 
+#### [Pipelines](src/examples/pipelines.c)
+
+Demonstrates using different graphics pipelines within a single render pass. The treasure_smooth glTF model is rendered three times side-by-side in separate viewports with different shading techniques: Phong shading (left), toon shading (center), and wireframe rendering (right). The wireframe viewport uses a line-list topology with an edge-extracted index buffer since WebGPU does not support polygon fill mode line.
+
 #### [Cube reflection](src/examples/cube_reflection.c)
 
 This example shows how to create a basic reflection pipeline.
