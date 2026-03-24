@@ -280,6 +280,10 @@ This example shows how to sample from a depth texture to render shadows from a d
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
 
+#### [Screenshot](src/examples/screenshot.c)
+
+Demonstrates how to capture the current framebuffer and save it to disk as a PPM image. The scene renders a Chinese Dragon glTF model with Phong shading (per-vertex color plus ambient/diffuse/specular lighting computed in view space). Each frame the scene is rendered to an offscreen RGBA8Unorm texture with `CopySrc` usage, which is then blitted to the swapchain via a fullscreen triangle. Pressing the "Take Screenshot" GUI button triggers a `CopyTextureToBuffer` into a CPU-mappable staging buffer; the buffer is mapped asynchronously via `wgpuBufferMapAsync` and the pixel data is written out as `screenshot.ppm` without blocking the render loop.
+
 #### [Bloom (Fullscreen Blur)](src/examples/bloom.c)
 
 This example implements a bloom post-processing effect using a separable two-pass Gaussian blur. A glTF model's emissive (glow) parts are first rendered to an offscreen texture, then blurred vertically and horizontally via fullscreen passes with additive blending. The final scene composites the blurred glow on top of the Phong-lit model and a cubemap skybox. Includes ImGui controls for toggling bloom and adjusting blur intensity.
