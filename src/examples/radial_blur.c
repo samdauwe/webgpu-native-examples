@@ -63,7 +63,6 @@
 static const char* radial_blur_colorpass_shader_wgsl;
 static const char* radial_blur_phongpass_shader_wgsl;
 static const char* radial_blur_radialblur_shader_wgsl;
-static const char* radial_blur_offscreen_display_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -337,12 +336,13 @@ static void init_gradient_texture(struct wgpu_context_t* wgpu_context)
                                      .aspect          = WGPUTextureAspect_All,
                                    });
 
-  /* Sampler for gradient ramp */
+  /* Sampler for gradient ramp — use Repeat to cycle the gradient continuously
+   * (matching the Vulkan KTX loader default sampler address mode) */
   WGPUSamplerDescriptor sampler_desc = {
     .label         = STRVIEW("Gradient Sampler"),
-    .addressModeU  = WGPUAddressMode_ClampToEdge,
-    .addressModeV  = WGPUAddressMode_ClampToEdge,
-    .addressModeW  = WGPUAddressMode_ClampToEdge,
+    .addressModeU  = WGPUAddressMode_Repeat,
+    .addressModeV  = WGPUAddressMode_Repeat,
+    .addressModeW  = WGPUAddressMode_Repeat,
     .magFilter     = WGPUFilterMode_Linear,
     .minFilter     = WGPUFilterMode_Linear,
     .mipmapFilter  = WGPUMipmapFilterMode_Linear,
@@ -883,10 +883,13 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
     wgpuShaderModuleRelease(sm);
   }
 
-  /* ------ Offscreen display pipeline (debug, no blending) ------ */
+  /* ------ Offscreen display pipeline (radial blur without additive blend) --
+   * In Vulkan, this uses the same radial blur shaders as the blur pipeline,
+   * but with blending disabled, so you see the blur result only (no scene
+   * underneath). This is the "Display render target" debug mode. ------ */
   {
-    WGPUShaderModule sm = wgpu_create_shader_module(
-      device, radial_blur_offscreen_display_shader_wgsl);
+    WGPUShaderModule sm
+      = wgpu_create_shader_module(device, radial_blur_radialblur_shader_wgsl);
 
     WGPUColorTargetState color_target = {
       .format    = wgpu_context->render_format,
@@ -1421,44 +1424,6 @@ static const char* radial_blur_radialblur_shader_wgsl = CODE(
     }
 
     return (color / 32.0) * params.radialBlurStrength;
-  }
-);
-// clang-format on
-
-/* ---- Offscreen display: debug view of the offscreen texture ---- */
-// clang-format off
-static const char* radial_blur_offscreen_display_shader_wgsl = CODE(
-  struct BlurParams {
-    radialBlurScale    : f32,
-    radialBlurStrength : f32,
-    radialOriginX      : f32,
-    radialOriginY      : f32,
-  };
-
-  @group(0) @binding(0) var<uniform> params : BlurParams;
-  @group(0) @binding(1) var texSampler : sampler;
-  @group(0) @binding(2) var texColor : texture_2d<f32>;
-
-  struct VertexOutput {
-    @builtin(position) position : vec4f,
-    @location(0) uv : vec2f,
-  };
-
-  @vertex
-  fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
-    var out : VertexOutput;
-    let uv = vec2f(
-      f32((vertexIndex << 1u) & 2u),
-      f32(vertexIndex & 2u)
-    );
-    out.uv = vec2f(uv.x, 1.0 - uv.y);
-    out.position = vec4f(uv * 2.0 - 1.0, 0.0, 1.0);
-    return out;
-  }
-
-  @fragment
-  fn fs_main(in : VertexOutput) -> @location(0) vec4f {
-    return textureSample(texColor, texSampler, in.uv);
   }
 );
 // clang-format on
