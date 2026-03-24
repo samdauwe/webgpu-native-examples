@@ -284,6 +284,10 @@ This example demonstrates primitive picking by computing a primitive ID from ver
 
 This example implements a bloom post-processing effect using a separable two-pass Gaussian blur. A glTF model's emissive (glow) parts are first rendered to an offscreen texture, then blurred vertically and horizontally via fullscreen passes with additive blending. The final scene composites the blurred glow on top of the Phong-lit model and a cubemap skybox. Includes ImGui controls for toggling bloom and adjusting blur intensity.
 
+#### [Radial Blur](src/examples/radial_blur.c)
+
+Demonstrates a fullscreen radial blur post-processing effect. The scene is rendered into an offscreen framebuffer where bright emitters are detected by vertex color. A fullscreen triangle then applies a 32-sample radial blur to the offscreen texture and composites it onto the Phong-lit scene with additive blending. Includes ImGui controls for toggling the blur, adjusting blur scale, strength, and radial origin.
+
 #### [Input Attachments](src/examples/input_attachments.c)
 
 Demonstrates the WebGPU equivalent of Vulkan input attachments: reading attachment contents from a previous render pass at the same pixel position. A glTF model is rendered with toon shading to offscreen color and depth textures in the first pass. A fullscreen triangle in the second pass reads those textures and applies either brightness/contrast adjustment (color attachment) or depth range visualization (depth attachment). Includes ImGui controls for selecting the attachment and adjusting post-processing parameters.
