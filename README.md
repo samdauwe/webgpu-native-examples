@@ -276,6 +276,10 @@ This example shows how to create a basic reflection pipeline.
 
 This example shows how to sample from a depth texture to render shadows from a directional light source.
 
+#### [Projected Shadow Mapping](src/examples/projected_shadow_mapping.c)
+
+This example demonstrates projected shadow mapping with a single animated point light. A 2048x2048 depth-only shadow map is rendered in an offscreen pass, then projected onto the scene in the main pass using a bias matrix for WebGPU NDC. Includes PCF (Percentage Closer Filtering) via pipeline override constants, scene selection between two glTF models, and a debug fullscreen quad for visualizing the linearized shadow map depth. Ported from the Vulkan [Shadow mapping](src/examples/Vulkan/examples/shadowmapping/) example.
+
 #### [Primitive Picking](src/examples/primitive_picking.c)
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
