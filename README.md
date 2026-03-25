@@ -280,6 +280,10 @@ This example shows how to sample from a depth texture to render shadows from a d
 
 This example demonstrates projected shadow mapping with a single animated point light. A 2048x2048 depth-only shadow map is rendered in an offscreen pass, then projected onto the scene in the main pass using a bias matrix for WebGPU NDC. Includes PCF (Percentage Closer Filtering) via pipeline override constants, scene selection between two glTF models, and a debug fullscreen quad for visualizing the linearized shadow map depth. Ported from the Vulkan [Shadow mapping](src/examples/Vulkan/examples/shadowmapping/) example.
 
+#### [Cascaded Shadow Mapping](src/examples/cascaded_shadow_mapping.c)
+
+This example implements cascaded shadow mapping (CSM) for directional light sources. The camera frustum is split into four sub-frustums using the GPU Gems 3 logarithmic/uniform hybrid partitioning scheme, each receiving its own full-resolution depth layer in a 2048x2048 layered depth texture array. The fragment shader selects the appropriate cascade based on view-space depth and samples the shadow map via textureLoad. Includes an ImGui overlay with controls for the split lambda, cascade coloring, PCF toggle, and a debug depth map display per cascade. Ported from the Vulkan [Cascaded shadow mapping](src/examples/Vulkan/examples/shadowmappingcascade/) example.
+
 #### [Primitive Picking](src/examples/primitive_picking.c)
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
