@@ -1,15 +1,3 @@
-/**
- * @brief Parallax Mapping.
- *
- * Ported from the Vulkan parallax mapping example. Renders a textured plane
- * with a height map using different parallax mapping techniques: normal
- * mapping, basic parallax, steep parallax, and parallax occlusion mapping.
- * A GUI combo box lets you switch between mapping modes.
- *
- * @ref
- * https://github.com/SaschaWillems/Vulkan/tree/master/examples/parallaxmapping
- */
-
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
@@ -40,6 +28,18 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Example - Parallax Mapping.
+ *
+ * Ported from the Vulkan parallax mapping example. Renders a textured plane
+ * with a height map using different parallax mapping techniques: normal
+ * mapping, basic parallax, steep parallax, and parallax occlusion mapping.
+ * A GUI combo box lets you switch between mapping modes.
+ *
+ * @ref
+ * https://github.com/SaschaWillems/Vulkan/tree/master/examples/parallaxmapping
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders (forward declarations — defined at bottom of file)
