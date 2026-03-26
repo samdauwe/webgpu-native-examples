@@ -284,6 +284,10 @@ This example demonstrates projected shadow mapping with a single animated point 
 
 This example implements cascaded shadow mapping (CSM) for directional light sources. The camera frustum is split into four sub-frustums using the GPU Gems 3 logarithmic/uniform hybrid partitioning scheme, each receiving its own full-resolution depth layer in a 2048x2048 layered depth texture array. The fragment shader selects the appropriate cascade based on view-space depth and samples the shadow map via textureLoad. Includes an ImGui overlay with controls for the split lambda, cascade coloring, PCF toggle, and a debug depth map display per cascade. Ported from the Vulkan [Cascaded shadow mapping](src/examples/Vulkan/examples/shadowmappingcascade/) example.
 
+#### [Point Light Shadows](src/examples/point_light_shadows.c)
+
+This example demonstrates omnidirectional shadow mapping from a point light source using a dynamic cube map. The scene is rendered six times from the light's perspective into each face of a 1024x1024 R32Float cube map, storing the linear distance from the light to each fragment. In the main scene pass, the cube map is sampled using the world-space light-to-fragment direction vector to determine shadowing. The point light orbits in a small circle, producing animated shadows on all surrounding geometry. Includes a debug mode to visualize all six cube map faces. Ported from the Vulkan [Omnidirectional shadow mapping](src/examples/Vulkan/examples/shadowmappingomni/) example.
+
 #### [Primitive Picking](src/examples/primitive_picking.c)
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
