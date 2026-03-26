@@ -536,13 +536,19 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   GLFWwindow* window = glfwCreateWindow(
     wgpu_context->width, wgpu_context->height, wgpu_context->desc.title, 0, 0);
+  /* On HiDPI displays the framebuffer (physical pixels) may be larger than the
+   * logical window size.  Always use the framebuffer dimensions so that the
+   * WebGPU surface, depth textures, and viewports are consistent. */
+  glfwGetFramebufferSize(window, &wgpu_context->width, &wgpu_context->height);
   glfwSetWindowUserPointer(window, wgpu_context);
   glfwSetKeyCallback(window, glfw_key_cb);
   glfwSetCharCallback(window, glfw_char_cb);
   glfwSetMouseButtonCallback(window, glfw_mousebutton_cb);
   glfwSetCursorPosCallback(window, glfw_cursorpos_cb);
   glfwSetScrollCallback(window, glfw_scroll_cb);
-  glfwSetWindowSizeCallback(window, glfw_resize_cb);
+  /* Use framebuffer-size callback so width/height are always in physical
+   * (device) pixels, matching what Dawn uses for the swapchain texture. */
+  glfwSetFramebufferSizeCallback(window, glfw_resize_cb);
   glfwSetDropCallback(window, glfw_drop_cb);
 
   wgpu_context->surface
