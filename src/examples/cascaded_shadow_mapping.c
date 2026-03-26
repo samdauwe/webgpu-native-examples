@@ -153,6 +153,7 @@ static struct {
     WGPUTexture depth_texture; /* 2D array, 4 layers */
     WGPUTextureView full_view; /* all layers (for sampling) */
     WGPUTextureView cascade_views[SHADOW_MAP_CASCADE_COUNT]; /* per-layer */
+    WGPUSampler comparison_sampler; /* shadow comparison sampler */
   } shadow_map;
 
   cascade_t cascades[SHADOW_MAP_CASCADE_COUNT];
@@ -187,6 +188,7 @@ static struct {
   struct {
     WGPUPipelineLayout scene;
     WGPUPipelineLayout depth;
+    WGPUPipelineLayout debug;
   } pipeline_layouts;
 
   /* Bind groups */
@@ -442,6 +444,20 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
                                 .aspect          = WGPUTextureAspect_DepthOnly,
                               });
   }
+
+  /* Comparison sampler for hardware shadow testing (gives free 2×2 bilinear
+   * PCF when the GPU linearly interpolates comparison results). */
+  state.shadow_map.comparison_sampler = wgpuDeviceCreateSampler(
+    device, &(WGPUSamplerDescriptor){
+              .label         = STRVIEW("Shadow Comparison Sampler"),
+              .addressModeU  = WGPUAddressMode_ClampToEdge,
+              .addressModeV  = WGPUAddressMode_ClampToEdge,
+              .addressModeW  = WGPUAddressMode_ClampToEdge,
+              .magFilter     = WGPUFilterMode_Linear,
+              .minFilter     = WGPUFilterMode_Linear,
+              .compare       = WGPUCompareFunction_Less,
+              .maxAnisotropy = 1,
+            });
 }
 
 /* -------------------------------------------------------------------------- *
@@ -635,6 +651,31 @@ static void update_cascades(void)
     glm_ortho_rh_zo(min_extents[0], max_extents[0], min_extents[1],
                     max_extents[1], 0.0f, max_extents[2] - min_extents[2],
                     light_ortho);
+
+    /* ---- Texel snapping: stabilize shadow map when camera moves ---- *
+     * Snap the light-space origin to shadow texel boundaries so that   *
+     * sub-texel camera movement doesn't shift the whole shadow map.    */
+    {
+      mat4 shadow_matrix;
+      glm_mat4_mul(light_ortho, light_view, shadow_matrix);
+
+      vec4 shadow_origin = {0.0f, 0.0f, 0.0f, 1.0f};
+      vec4 shadow_origin_proj;
+      glm_mat4_mulv(shadow_matrix, shadow_origin, shadow_origin_proj);
+
+      float half_dim = (float)SHADOW_MAP_DIM * 0.5f;
+      shadow_origin_proj[0] *= half_dim;
+      shadow_origin_proj[1] *= half_dim;
+
+      float rounded_x = roundf(shadow_origin_proj[0]);
+      float rounded_y = roundf(shadow_origin_proj[1]);
+
+      float offset_x = (rounded_x - shadow_origin_proj[0]) / half_dim;
+      float offset_y = (rounded_y - shadow_origin_proj[1]) / half_dim;
+
+      light_ortho[3][0] += offset_x;
+      light_ortho[3][1] += offset_y;
+    }
 
     /* Store cascade data */
     state.cascades[i].split_depth
@@ -894,13 +935,14 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 {
   WGPUDevice device = wgpu_context->device;
 
-  /* Scene layout (set 0) – 4 bindings:
+  /* Scene layout (set 0) – 5 bindings:
      0: vertex UBO (vert)
-     1: shadow map 2D array (frag) – UnfilterableFloat
+     1: shadow map 2D depth array (frag)
      2: fragment UBO (frag)
-     3: cascade VP matrices (vert+frag) */
+     3: cascade VP matrices (vert+frag)
+     4: shadow comparison sampler (frag) */
   {
-    WGPUBindGroupLayoutEntry entries[4] = {
+    WGPUBindGroupLayoutEntry entries[5] = {
       [0] = {
         .binding    = 0,
         .visibility = WGPUShaderStage_Vertex,
@@ -910,7 +952,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
       [1] = {
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
-        .texture    = {.sampleType    = WGPUTextureSampleType_UnfilterableFloat,
+        .texture    = {.sampleType    = WGPUTextureSampleType_Depth,
                        .viewDimension = WGPUTextureViewDimension_2DArray,
                        .multisampled  = false},
       },
@@ -925,6 +967,11 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
         .buffer     = {.type = WGPUBufferBindingType_Uniform,
                        .minBindingSize = sizeof(mat4) * SHADOW_MAP_CASCADE_COUNT},
+      },
+      [4] = {
+        .binding    = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .sampler    = {.type = WGPUSamplerBindingType_Comparison},
       },
     };
     state.bind_group_layouts.scene = wgpuDeviceCreateBindGroupLayout(
@@ -1023,15 +1070,30 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
               });
   }
 
-  /* Depth: set 0 = depth, set 1 = push_const */
+  /* Depth: set 0 = depth, set 1 = push_const, set 2 = material (alpha test) */
   {
-    WGPUBindGroupLayout layouts[2] = {
+    WGPUBindGroupLayout layouts[3] = {
       state.bind_group_layouts.depth,
       state.bind_group_layouts.push_const,
+      state.bind_group_layouts.material,
     };
     state.pipeline_layouts.depth = wgpuDeviceCreatePipelineLayout(
       device, &(WGPUPipelineLayoutDescriptor){
                 .label                = STRVIEW("Depth PipelineLayout"),
+                .bindGroupLayoutCount = ARRAY_SIZE(layouts),
+                .bindGroupLayouts     = layouts,
+              });
+  }
+
+  /* Debug: set 0 = scene, set 1 = push_const (no material group needed) */
+  {
+    WGPUBindGroupLayout layouts[2] = {
+      state.bind_group_layouts.scene,
+      state.bind_group_layouts.push_const,
+    };
+    state.pipeline_layouts.debug = wgpuDeviceCreatePipelineLayout(
+      device, &(WGPUPipelineLayoutDescriptor){
+                .label                = STRVIEW("Debug PipelineLayout"),
                 .bindGroupLayoutCount = ARRAY_SIZE(layouts),
                 .bindGroupLayouts     = layouts,
               });
@@ -1046,9 +1108,10 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
 {
   WGPUDevice device = wgpu_context->device;
 
-  /* Scene (set 0): vertex UBO, shadow map array, fragment UBO, cascade VP */
+  /* Scene (set 0): vertex UBO, shadow map array, fragment UBO, cascade VP,
+   *                 shadow comparison sampler */
   {
-    WGPUBindGroupEntry entries[4] = {
+    WGPUBindGroupEntry entries[5] = {
       [0] = {.binding = 0,
              .buffer  = state.uniform_buffers.vertex,
              .size    = sizeof(uniform_data_vertex_t)},
@@ -1059,6 +1122,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
       [3] = {.binding = 3,
              .buffer  = state.uniform_buffers.cascade_vp,
              .size    = sizeof(mat4) * SHADOW_MAP_CASCADE_COUNT},
+      [4] = {.binding = 4, .sampler = state.shadow_map.comparison_sampler},
     };
     state.bind_groups.scene = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
@@ -1138,8 +1202,8 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
       .format              = WGPUTextureFormat_Depth32Float,
       .depthWriteEnabled   = WGPUOptionalBool_True,
       .depthCompare        = WGPUCompareFunction_LessEqual,
-      .depthBias           = 2,
-      .depthBiasSlopeScale = 1.75f,
+      .depthBias           = 0,
+      .depthBiasSlopeScale = 0.0f,
       .depthBiasClamp      = 0.0f,
     };
 
@@ -1163,8 +1227,12 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
           .count = 1,
           .mask  = 0xFFFFFFFF,
         },
-        .fragment = NULL, /* depth only - no alpha test needed for these
-                             models (vertex colors, no transparency) */
+        .fragment = &(WGPUFragmentState){
+          .module      = shader,
+          .entryPoint  = STRVIEW("fs_main"),
+          .targetCount = 0,
+          .targets     = NULL,
+        },
       });
 
     WGPU_RELEASE_RESOURCE(ShaderModule, shader);
@@ -1305,7 +1373,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
     state.pipelines.debug = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
         .label  = STRVIEW("Debug Pipeline"),
-        .layout = state.pipeline_layouts.scene,
+        .layout = state.pipeline_layouts.debug,
         .vertex = (WGPUVertexState){
           .module      = shader,
           .entryPoint  = STRVIEW("vs_main"),
@@ -1531,7 +1599,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
                                       NULL);
 
     /* base_slot = c * (1 + NUM_TREE_POSITIONS) */
-    render_scene(pass, c * (1u + NUM_TREE_POSITIONS), false);
+    render_scene(pass, c * (1u + NUM_TREE_POSITIONS), true);
 
     wgpuRenderPassEncoderEnd(pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, pass);
@@ -1610,6 +1678,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   }
   WGPU_RELEASE_RESOURCE(TextureView, state.shadow_map.full_view);
   WGPU_RELEASE_RESOURCE(Texture, state.shadow_map.depth_texture);
+  WGPU_RELEASE_RESOURCE(Sampler, state.shadow_map.comparison_sampler);
 
   /* Depth */
   WGPU_RELEASE_RESOURCE(TextureView, state.depth.view);
@@ -1630,6 +1699,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   /* Pipeline layouts */
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layouts.scene);
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layouts.depth);
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layouts.debug);
 
   /* Bind groups */
   WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.scene);
@@ -1688,7 +1758,7 @@ int main(void)
 
 // clang-format off
 
-/* Depth pass shader: vertex transforms, no color output */
+/* Depth pass shader: vertex transforms + alpha-test fragment (for tree leaves) */
 static const char* depth_pass_shader_wgsl = CODE(
   const CASCADE_COUNT = 4u;
 
@@ -1703,19 +1773,36 @@ static const char* depth_pass_shader_wgsl = CODE(
 
   @group(0) @binding(0) var<uniform> cascadeVP : CascadeVP;
   @group(1) @binding(0) var<uniform> pc : PushConst;
+  @group(2) @binding(0) var colorMap    : texture_2d<f32>;
+  @group(2) @binding(1) var colorSampler : sampler;
+
+  struct VSOutput {
+    @builtin(position) position : vec4f,
+    @location(0) uv : vec2f,
+  }
 
   @vertex
   fn vs_main(@location(0) inPos : vec3f,
-             @location(1) inUV  : vec2f) -> @builtin(position) vec4f {
+             @location(1) inUV  : vec2f) -> VSOutput {
+    var out : VSOutput;
     let pos = inPos + pc.position.xyz;
-    return cascadeVP.matrices[pc.cascadeIndex] * vec4f(pos, 1.0);
+    out.position = cascadeVP.matrices[pc.cascadeIndex] * vec4f(pos, 1.0);
+    out.uv = inUV;
+    return out;
+  }
+
+  @fragment
+  fn fs_main(in : VSOutput) {
+    let alpha = textureSample(colorMap, colorSampler, in.uv).a;
+    if (alpha < 0.5) {
+      discard;
+    }
   }
 );
 
 /* Scene shader: shadow-mapped rendering with cascaded lookup */
 static const char* scene_shader_wgsl = CODE(
   const CASCADE_COUNT = 4u;
-  const SHADOW_MAP_SIZE : i32 = 2048;
   const ambient : f32 = 0.3;
 
   struct VertexUBO {
@@ -1742,9 +1829,10 @@ static const char* scene_shader_wgsl = CODE(
   }
 
   @group(0) @binding(0) var<uniform> ubo : VertexUBO;
-  @group(0) @binding(1) var shadowMap : texture_2d_array<f32>;
+  @group(0) @binding(1) var shadowMap : texture_depth_2d_array;
   @group(0) @binding(2) var<uniform> uboFrag : FragmentUBO;
   @group(0) @binding(3) var<uniform> cascadeVP : CascadeVP;
+  @group(0) @binding(4) var shadowSampler : sampler_comparison;
   @group(1) @binding(0) var<uniform> pc : PushConst;
   @group(2) @binding(0) var colorMap    : texture_2d<f32>;
   @group(2) @binding(1) var colorSampler : sampler;
@@ -1786,30 +1874,31 @@ static const char* scene_shader_wgsl = CODE(
     return out;
   }
 
-  fn textureProj(shadowCoord : vec4f, offset : vec2i,
+  /* Shadow test via comparison sampler — returns a value in [0,1]:
+   * 0.0 = fully in shadow, 1.0 = fully lit, with free 2×2 bilinear PCF. */
+  fn textureProj(shadowCoord : vec4f, offset : vec2f,
                  cascadeIndex : u32) -> f32 {
-    var shadow : f32 = 1.0;
     let bias : f32 = 0.005;
-
-    if (shadowCoord.z >= 0.0 && shadowCoord.z <= 1.0) {
-      let tc = vec2i(shadowCoord.xy * vec2f(f32(SHADOW_MAP_SIZE)))
-               + offset;
-      let clamped = clamp(tc, vec2i(0), vec2i(SHADOW_MAP_SIZE - 1));
-      let dist = textureLoad(shadowMap, clamped, cascadeIndex, 0).r;
-      if (shadowCoord.w > 0.0 && dist < shadowCoord.z - bias) {
-        shadow = ambient;
-      }
+    if (shadowCoord.z >= 0.0 && shadowCoord.z <= 1.0 && shadowCoord.w > 0.0) {
+      let uv = shadowCoord.xy + offset;
+      let visibility = textureSampleCompareLevel(
+        shadowMap, shadowSampler, uv, i32(cascadeIndex),
+        shadowCoord.z - bias);
+      return ambient + (1.0 - ambient) * visibility;
     }
-    return shadow;
+    return 1.0;
   }
 
   fn filterPCF(sc : vec4f, cascadeIndex : u32) -> f32 {
+    let texelSize : f32 = 1.0 / 2048.0;
+    let scale : f32 = 1.5;
     var shadowFactor : f32 = 0.0;
     var count : i32 = 0;
 
     for (var x : i32 = -1; x <= 1; x++) {
       for (var y : i32 = -1; y <= 1; y++) {
-        shadowFactor += textureProj(sc, vec2i(x, y), cascadeIndex);
+        let off = vec2f(f32(x), f32(y)) * texelSize * scale;
+        shadowFactor += textureProj(sc, off, cascadeIndex);
         count++;
       }
     }
@@ -1843,7 +1932,7 @@ static const char* scene_shader_wgsl = CODE(
     if (enablePCF == 1u) {
       shadow = filterPCF(sc, cascadeIndex);
     } else {
-      shadow = textureProj(sc, vec2i(0, 0), cascadeIndex);
+      shadow = textureProj(sc, vec2f(0.0), cascadeIndex);
     }
 
     /* Directional lighting */
@@ -1875,7 +1964,7 @@ static const char* debug_shader_wgsl = CODE(
     cascadeIndex : u32,
   }
 
-  @group(0) @binding(1) var shadowMap : texture_2d_array<f32>;
+  @group(0) @binding(1) var shadowMap : texture_depth_2d_array;
   @group(1) @binding(0) var<uniform> pc : PushConst;
 
   struct VSOutput {
@@ -1899,7 +1988,7 @@ static const char* debug_shader_wgsl = CODE(
     let tc = clamp(
       vec2i(in.uv * vec2f(f32(texSize))),
       vec2i(0), vec2i(texSize - 1));
-    let depth = textureLoad(shadowMap, tc, pc.cascadeIndex, 0).r;
+    let depth = textureLoad(shadowMap, tc, i32(pc.cascadeIndex), 0);
     return vec4f(vec3f(depth), 1.0);
   }
 );
