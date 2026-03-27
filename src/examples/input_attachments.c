@@ -741,7 +741,11 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
-  camera_on_input_event(&state.camera, input_event);
+
+  /* Skip camera input when ImGui captures the mouse */
+  if (!imgui_overlay_want_capture_mouse()) {
+    camera_on_input_event(&state.camera, input_event);
+  }
 
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
     /* Recreate offscreen attachments + bind groups on resize */
