@@ -1,4 +1,22 @@
-/**
+#include "webgpu/wgpu_common.h"
+
+#include "core/camera.h"
+#include "core/gltf_model.h"
+#include "core/image_loader.h"
+#include "webgpu/imgui_overlay.h"
+
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include <cimgui.h>
+#include <string.h>
+
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+
+/* -------------------------------------------------------------------------- *
  * @brief Multi-sampled deferred shading with explicit MSAA resolve.
  *
  * Ported from the Vulkan deferred multisampling example. Renders the scene
@@ -17,25 +35,7 @@
  *
  * @ref
  * https://github.com/SaschaWillems/Vulkan/tree/master/examples/deferredmultisampling
- */
-
-#include "webgpu/wgpu_common.h"
-
-#include "core/camera.h"
-#include "core/gltf_model.h"
-#include "core/image_loader.h"
-#include "webgpu/imgui_overlay.h"
-
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include <cimgui.h>
-#include <string.h>
-
-#define SOKOL_TIME_IMPL
-#include <sokol_time.h>
-#define SOKOL_FETCH_IMPL
-#include <sokol_fetch.h>
-#define SOKOL_LOG_IMPL
-#include <sokol_log.h>
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * Constants
