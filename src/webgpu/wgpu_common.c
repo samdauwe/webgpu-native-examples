@@ -511,6 +511,87 @@ static void update_input_event(input_event_t* input_event, uint64_t frame_count)
   }
 }
 
+static const char* backend_type_str(WGPUBackendType type)
+{
+  switch (type) {
+    case WGPUBackendType_Null:
+      return "Null";
+    case WGPUBackendType_WebGPU:
+      return "WebGPU";
+    case WGPUBackendType_D3D11:
+      return "D3D11";
+    case WGPUBackendType_D3D12:
+      return "D3D12";
+    case WGPUBackendType_Metal:
+      return "Metal";
+    case WGPUBackendType_Vulkan:
+      return "Vulkan";
+    case WGPUBackendType_OpenGL:
+      return "OpenGL";
+    case WGPUBackendType_OpenGLES:
+      return "OpenGL ES";
+    default:
+      return "Unknown";
+  }
+}
+
+static const char* adapter_type_str(WGPUAdapterType type)
+{
+  switch (type) {
+    case WGPUAdapterType_DiscreteGPU:
+      return "Discrete GPU";
+    case WGPUAdapterType_IntegratedGPU:
+      return "Integrated GPU";
+    case WGPUAdapterType_CPU:
+      return "CPU";
+    default:
+      return "Unknown";
+  }
+}
+
+static void copy_string_view(char* dst, size_t dst_size, WGPUStringView sv)
+{
+  if (sv.data && sv.length > 0) {
+    size_t n = sv.length < dst_size - 1 ? sv.length : dst_size - 1;
+    memcpy(dst, sv.data, n);
+    dst[n] = '\0';
+  }
+  else {
+    dst[0] = '\0';
+  }
+}
+
+static void query_platform_info(wgpu_context_t* wgpu_context)
+{
+  wgpu_platform_info_t* info = &wgpu_context->platform_info;
+  memset(info, 0, sizeof(*info));
+
+  WGPUAdapterInfo ai = {0};
+  if (wgpuAdapterGetInfo(wgpu_context->adapter, &ai) == WGPUStatus_Success) {
+    copy_string_view(info->vendor, sizeof(info->vendor), ai.vendor);
+    copy_string_view(info->architecture, sizeof(info->architecture),
+                     ai.architecture);
+    copy_string_view(info->device, sizeof(info->device), ai.device);
+    copy_string_view(info->description, sizeof(info->description),
+                     ai.description);
+    snprintf(info->backend, sizeof(info->backend), "%s",
+             backend_type_str(ai.backendType));
+    snprintf(info->adapter_type, sizeof(info->adapter_type), "%s",
+             adapter_type_str(ai.adapterType));
+    info->vendor_id = ai.vendorID;
+    info->device_id = ai.deviceID;
+    wgpuAdapterInfoFreeMembers(ai);
+  }
+
+  printf("WebGPU Platform Info:\n");
+  printf("  Backend:      %s\n", info->backend);
+  printf("  Adapter:      %s\n", info->adapter_type);
+  printf("  Device:       %s\n", info->device);
+  printf("  Vendor:       %s (0x%04X)\n", info->vendor, info->vendor_id);
+  printf("  Architecture: %s\n", info->architecture);
+  printf("  Description:  %s\n", info->description);
+}
+
 static void wgpu_platform_start(wgpu_context_t* wgpu_context)
 {
 #define wgpu_context_struct ((struct wgpu_context_t*)wgpu_context)
@@ -526,6 +607,7 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
   assert(wgpu_context->instance);
   request_adapter(wgpu_context);
   request_device(wgpu_context);
+  query_platform_info(wgpu_context);
 
   wgpuDeviceSetLoggingCallback(
     wgpu_context->device, (WGPULoggingCallbackInfo){.callback = logging_cb});

@@ -52,6 +52,18 @@ typedef struct wgpu_mipmap_generator_t wgpu_mipmap_generator_t;
 typedef struct wgpu_panorama_to_cubemap_converter_t
   wgpu_panorama_to_cubemap_converter_t;
 
+/* Platform / adapter metadata queried once at startup */
+typedef struct {
+  char vendor[128];
+  char architecture[128];
+  char device[128];
+  char description[256];
+  char backend[32];
+  char adapter_type[32];
+  uint32_t vendor_id;
+  uint32_t device_id;
+} wgpu_platform_info_t;
+
 struct wgpu_context_t {
   wgpu_desc_t desc;
   WGPUBool async_setup_failed;
@@ -72,6 +84,7 @@ struct wgpu_context_t {
   WGPUTextureView msaa_view;
   WGPUTextureView depth_stencil_view;
   wgpu_mipmap_generator_t* mipmap_generator; /* Lazily created on demand */
+  wgpu_platform_info_t platform_info;
 };
 
 void wgpu_start(const wgpu_desc_t* desc);
