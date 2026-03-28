@@ -158,7 +158,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
   /* Upload vertex buffer */
   state.vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label            = STRVIEW("Pipelines Vertex Buffer"),
+              .label            = STRVIEW("Pipelines - Vertex Buffer"),
               .usage            = WGPUBufferUsage_Vertex,
               .size             = vb_size,
               .mappedAtCreation = true,
