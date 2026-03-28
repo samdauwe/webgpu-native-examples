@@ -964,7 +964,6 @@ static void q2_wal_print_info(const uint8_t* data, uint32_t size,
  * - First-person camera with WASD movement
  * - ImGui debug overlay
  *
- * Port of go-quake2/render (OpenGL) to native WebGPU C99.
  * ========================================================================== */
 
 /* -------------------------------------------------------------------------- *
@@ -978,7 +977,7 @@ static const char* q2_fragment_shader_wgsl;
  * Lightmap Atlas BSP Tree Allocator
  *
  * Allocates rectangular regions on a 512x512 lightmap atlas using a binary
- * space partitioning tree. Matches the algorithm in go-quake2 lightmap.go.
+ * space partitioning tree.
  * -------------------------------------------------------------------------- */
 
 #define LM_NODE_POOL_SIZE 16384
@@ -1103,8 +1102,8 @@ static int32_t lm_allocate(lm_atlas_t* atlas, int32_t idx, int32_t w, int32_t h)
 }
 
 /**
- * @brief Copy a face's lightmap data into the atlas with 4x brightness
- *        scaling and proportional clamping (matches go-quake2 lightmap.go).
+ * @brief Copy a face's lightmap data into the atlas with 4x brightness  scaling
+ * and proportional clamping.
  */
 static void lm_copy_face_data(lm_atlas_t* atlas, const lm_node_t* node,
                               const uint8_t* lm_data, uint32_t offset,
@@ -1212,7 +1211,7 @@ static uint8_t* q2_create_placeholder_texture(uint32_t* w, uint32_t* h)
  * Geometry Types and Helpers
  * -------------------------------------------------------------------------- */
 
-/* Render vertex: 7 floats = 28 bytes, matching go-quake2 TexturedVertex */
+/* Render vertex: 7 floats = 28 bytes */
 typedef struct {
   float pos[3];    /* World position (Y-up coordinate system) */
   float tex_uv[2]; /* Diffuse texture UV */
@@ -1256,8 +1255,7 @@ typedef struct {
 #define Q2_CLUSTER_INVALID 0xFFFF
 
 /**
- * @brief Compute texture-space UV for a vertex (matches go-quake2
- * getTextureUV).
+ * @brief Compute texture-space UV for a vertex getTextureUV).
  */
 static void q2_get_tex_uv(const q2_vertex_t* v, const q2_texinfo_t* ti,
                           float* u, float* vv)
@@ -1269,9 +1267,8 @@ static void q2_get_tex_uv(const q2_vertex_t* v, const q2_texinfo_t* ti,
 }
 
 /**
- * @brief Compute lightmap dimensions for a face (matches go-quake2
- *        getLightmapDimensions). Returns width/height in luxels and the minimum
- *        texture-space UV coordinates.
+ * @brief Compute lightmap dimensions for a face getLightmapDimensions). Returns
+ * width/height in luxels and the minimum texture-space UV coordinates.
  */
 static void q2_get_lm_dims(const q2_bsp_map_t* map, const q2_face_t* face,
                            int32_t* w, int32_t* h, float* min_u, float* min_v)
@@ -1331,42 +1328,125 @@ static uint16_t q2_face_vertex_idx(const q2_bsp_map_t* map,
  * -------------------------------------------------------------------------- */
 
 /**
- * @brief Find the first info_player_start entity and extract its origin and
- *        angle. Returns true on success.
+ * @brief Find the best info_player_start entity in the BSP entity string.
+ *
+ * Quake 2 BSP files may contain several info_player_start entities:
+ *  - Entities WITH a "targetname" field are scripted/triggered spawns used for
+ *    chapter transitions or co-op.  They should NOT be used as the default
+ *    single-player spawn point.
+ *  - Entities WITHOUT a "targetname" are the plain, default spawn point that
+ *    the single-player game uses when loading the map fresh.
+ *
+ * Strategy:
+ *  1. Collect all info_player_start blocks.
+ *  2. Return the first one that has NO "targetname".
+ *  3. Fall back to the first one found if every block has a "targetname".
+ *
+ * Also handles both "angle" (single yaw value) and "angles" (pitch yaw roll)
+ * entity fields for the spawn facing direction.
+ *
+ * @param entities  BSP entity string (null-terminated).
+ * @param out_pos   Receives Q2 world coords (X right, Y fwd, Z up).
+ * @param out_angle Receives the yaw angle in degrees.
+ * @return true on success.
  */
 static bool q2_find_player_start(const char* entities, float out_pos[3],
                                  float* out_angle)
 {
+  /* First candidate (any entity, kept as fallback) */
+  bool found_fallback   = false;
+  float fallback_pos[3] = {0};
+  float fallback_angle  = 0.0f;
+
   const char* p = entities;
   while ((p = strstr(p, "info_player_start")) != NULL) {
-    /* Walk back to find the containing '{' */
-    const char* block = p;
-    while (block > entities && *block != '{') {
-      block--;
+    /* Walk back to find the containing opening brace. */
+    const char* block_start = p;
+    while (block_start > entities && *block_start != '{') {
+      block_start--;
     }
 
-    /* Find "origin" within this entity block */
-    const char* origin = strstr(block, "\"origin\"");
-    if (origin && origin < p + 256) {
-      origin = strchr(origin + 8, '"');
-      if (origin) {
-        origin++;
-        if (sscanf(origin, "%f %f %f", &out_pos[0], &out_pos[1], &out_pos[2])
-            == 3) {
-          *out_angle        = 0.0f;
-          const char* angle = strstr(block, "\"angle\"");
-          if (angle && angle < p + 256) {
-            angle = strchr(angle + 7, '"');
-            if (angle) {
-              sscanf(angle + 1, "%f", out_angle);
-            }
-          }
-          return true;
+    /* Find the closing brace of this entity block. */
+    const char* block_end = strchr(p, '}');
+    if (!block_end) {
+      p++;
+      continue;
+    }
+
+    /* --- Extract "origin" ------------------------------------------------ */
+    float pos[3]    = {0};
+    bool has_origin = false;
+
+    const char* origin = strstr(block_start, "\"origin\"");
+    if (origin && origin < block_end) {
+      const char* q = strchr(origin + 8, '"');
+      if (q && q < block_end) {
+        q++;
+        if (sscanf(q, "%f %f %f", &pos[0], &pos[1], &pos[2]) == 3) {
+          has_origin = true;
         }
       }
     }
+
+    if (!has_origin) {
+      p++;
+      continue;
+    }
+
+    /* --- Extract facing angle -------------------------------------------- */
+    float angle = 0.0f;
+
+    /* Try "angles" (3-vector: pitch yaw roll) first */
+    const char* angles_key = strstr(block_start, "\"angles\"");
+    if (angles_key && angles_key < block_end) {
+      const char* q = strchr(angles_key + 8, '"');
+      if (q && q < block_end) {
+        float pitch = 0.0f, yaw = 0.0f, roll = 0.0f;
+        if (sscanf(q + 1, "%f %f %f", &pitch, &yaw, &roll) >= 2) {
+          angle = yaw;
+        }
+      }
+    }
+    else {
+      /* Fall back to single-value "angle" (yaw only) */
+      const char* angle_key = strstr(block_start, "\"angle\"");
+      if (angle_key && angle_key < block_end) {
+        const char* q = strchr(angle_key + 7, '"');
+        if (q && q < block_end) {
+          sscanf(q + 1, "%f", &angle);
+        }
+      }
+    }
+
+    /* --- Check whether this is a targeted (scripted) spawn --------------- */
+    bool has_targetname
+      = (strstr(block_start, "\"targetname\"") != NULL
+         && strstr(block_start, "\"targetname\"") < block_end);
+
+    if (!has_targetname) {
+      /* Plain spawn — this is the default single-player start. Use it. */
+      glm_vec3_copy((vec3){pos[0], pos[1], pos[2]}, out_pos);
+      *out_angle = angle;
+      return true;
+    }
+
+    /* Remember as fallback in case no plain spawn exists. */
+    if (!found_fallback) {
+      glm_vec3_copy((vec3){pos[0], pos[1], pos[2]}, fallback_pos);
+      fallback_angle = angle;
+      found_fallback = true;
+    }
+
     p++;
   }
+
+  /* All info_player_start entities had a targetname — use the fallback. */
+  if (found_fallback) {
+    glm_vec3_copy(fallback_pos, out_pos);
+    *out_angle = fallback_angle;
+    return true;
+  }
+
   return false;
 }
 
@@ -1583,6 +1663,12 @@ static struct {
 
   /* Timing */
   uint64_t last_frame_time;
+
+  /* Performance stats (updated per-frame) */
+  float fps;
+  float frame_time_ms;
+  uint32_t fps_frame_count;
+  uint64_t fps_accum_start;
 
   /* Texture batches */
   q2_tex_batch_t textures[Q2_MAX_RENDER_TEXTURES];
@@ -2302,7 +2388,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
       .primitive = {
         .topology  = WGPUPrimitiveTopology_TriangleList,
         .cullMode  = WGPUCullMode_Back,
-        .frontFace = WGPUFrontFace_CCW,
+        .frontFace = WGPUFrontFace_CW,
       },
       .depthStencil = &depth_stencil,
       .multisample  = {
@@ -2323,8 +2409,13 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
 static void init_camera(wgpu_context_t* wgpu_context)
 {
   camera_init(&state.camera);
-  state.camera.type   = CameraType_FirstPerson;
-  state.camera.flip_y = true;
+  state.camera.type = CameraType_FirstPerson;
+  /* WebGPU uses Y-up NDC (same as OpenGL), not Vulkan's Y-down NDC.
+   * flip_y=false means no projection Y-flip; the coordinate conversion
+   * (Q2 Z-up → WebGPU Y-up) is done in the vertex data instead. */
+  state.camera.flip_y    = false;
+  state.camera.invert_dx = true;
+  state.camera.invert_dy = true;
 
   /* Try to get spawn position from entity string */
   float spawn_pos[3] = {0};
@@ -2332,15 +2423,24 @@ static void init_camera(wgpu_context_t* wgpu_context)
 
   if (state.bsp.entities
       && q2_find_player_start(state.bsp.entities, spawn_pos, &spawn_angle)) {
-    /* Convert Q2 coords (X right, Y fwd, Z up) to render (X right, Y up, -Z
-     * fwd). With flip_y=true the view matrix negates Y internally, so we store
-     * the Y component with its natural sign: position = (-wx, +wy, -wz). */
-    camera_set_position(&state.camera,
-                        (vec3){-spawn_pos[0], spawn_pos[2], spawn_pos[1]});
+    /* Quake 2's DEFAULT_VIEWHEIGHT is 22 units above the player's waist
+     * origin.  The BSP info_player_start origin is at the player origin, not
+     * the eye, so we lift the camera by this amount in Q2's Z axis. */
+    const float Q2_PLAYER_EYE_HEIGHT = 22.0f;
+
+    /* Convert Q2 coords (X right, Y fwd, Z up) to render space (X right, Y up,
+     * -Z fwd).  camera_set_position() expects (−render_X, +render_Y, −render_Z)
+     * because it stores the negative world position for the view-matrix
+     * translation.  render = (Q2_x, Q2_z, −Q2_y), so input is:
+     *   (-Q2_x,  Q2_z + eye_height,  Q2_y) */
+    camera_set_position(
+      &state.camera,
+      (vec3){-spawn_pos[0], spawn_pos[2] + Q2_PLAYER_EYE_HEIGHT, spawn_pos[1]});
     camera_set_rotation(&state.camera,
                         (vec3){0.0f, -(spawn_angle - 90.0f), 0.0f});
-    printf("[Q2] Spawn: (%.0f, %.0f, %.0f) angle=%.0f\n", spawn_pos[0],
-           spawn_pos[1], spawn_pos[2], spawn_angle);
+    printf("[Q2] Spawn: Q2=(%.0f, %.0f, %.0f) angle=%.0f [eye at Q2_Z=%.0f]\n",
+           spawn_pos[0], spawn_pos[1], spawn_pos[2], spawn_angle,
+           spawn_pos[2] + Q2_PLAYER_EYE_HEIGHT);
   }
   else if (state.bsp.num_models > 0) {
     const q2_model_t* world = &state.bsp.models[0];
@@ -2364,32 +2464,47 @@ static void init_camera(wgpu_context_t* wgpu_context)
 
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
-
   igSetNextWindowPos((ImVec2){10.0f, 10.0f}, ImGuiCond_FirstUseEver,
                      (ImVec2){0.0f, 0.0f});
   igSetNextWindowSize((ImVec2){300.0f, 0.0f}, ImGuiCond_FirstUseEver);
 
   igBegin("Quake 2 Renderer", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  igText("Faces: %u / %u (visible/total)", state.total_vertices / 3,
-         state.master_vert_count / 3);
-  igText("Vertices: %u", state.total_vertices);
-  igText("Textures: %u", state.num_textures);
+  /* --- Performance --- */
+  igTextColored((ImVec4){1.0f, 0.85f, 0.0f, 1.0f}, "Performance");
+  igText("Resolution : %d x %d", wgpu_context->width, wgpu_context->height);
+  igText("FPS        : %.1f", state.fps);
+  igText("Frame time : %.2f ms", state.frame_time_ms);
   igSeparator();
-  igText("BSP Leaf: %d", state.current_leaf);
+
+  /* --- Geometry --- */
+  igTextColored((ImVec4){0.6f, 0.9f, 1.0f, 1.0f}, "Geometry");
+  igText("Faces      : %u / %u (vis/total)", state.total_vertices / 3,
+         state.master_vert_count / 3);
+  igText("Vertices   : %u / %u (vis/total)", state.total_vertices,
+         state.master_vert_count);
+  igText("Textures   : %u", state.num_textures);
+  igSeparator();
+
+  /* --- BSP / PVS --- */
+  igTextColored((ImVec4){0.6f, 1.0f, 0.7f, 1.0f}, "BSP / PVS");
+  igText("Leaf       : %d", state.current_leaf);
   if (state.current_leaf >= 0
       && (uint32_t)state.current_leaf < state.bsp.num_leaves) {
     uint16_t cluster = state.bsp.leaves[state.current_leaf].cluster;
-    igText("Cluster: %u", (uint32_t)cluster);
+    igText("Cluster    : %u / %u", (uint32_t)cluster, state.num_pvs_clusters);
   }
   igSeparator();
-  igText("Camera: (%.0f, %.0f, %.0f)", -state.camera.position[0],
+
+  /* --- Camera --- */
+  igTextColored((ImVec4){1.0f, 0.7f, 0.5f, 1.0f}, "Camera");
+  igText("Position   : (%.0f, %.0f, %.0f)", -state.camera.position[0],
          state.camera.position[1], -state.camera.position[2]);
-  igText("Rotation: (%.1f, %.1f)", state.camera.rotation[0],
+  igText("Rotation   : (%.1f, %.1f)", state.camera.rotation[0],
          state.camera.rotation[1]);
   igSeparator();
-  igText("WASD = move, Mouse = look");
+
+  igTextDisabled("WASD = move  |  Mouse = look");
 
   igEnd();
 }
@@ -2524,18 +2639,35 @@ static int frame(wgpu_context_t* wgpu_context)
                             (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 
+  /* Performance stats: smooth FPS averaged over 0.5-second windows */
+  state.frame_time_ms = dt * 1000.0f;
+  state.fps_frame_count++;
+  if (state.fps_accum_start == 0) {
+    state.fps_accum_start = now;
+  }
+  double fps_elapsed = stm_sec(stm_diff(now, state.fps_accum_start));
+  if (fps_elapsed >= 0.5) {
+    state.fps             = (float)(state.fps_frame_count / fps_elapsed);
+    state.fps_frame_count = 0;
+    state.fps_accum_start = now;
+  }
+
   /* Update camera */
   camera_update(&state.camera, dt);
 
   /* --- BSP traversal: find current leaf and update VBO via PVS --- */
   if (state.cluster_faces && state.num_pvs_clusters > 0) {
-    /* Convert camera position to Q2 coordinate space for BSP traversal.
-     * With flip_y=true: world=(−pos.x, pos.y, −pos.z)
-     * Q2 coords: x=world_x, y=−world_z, z=world_y */
+    /* Convert stored camera position back to Q2 coordinate space for BSP leaf
+     * traversal. camera_set_position() stores camera->position as the negative
+     * world position needed for the view-matrix translation:
+     *   position[0] = -Q2_x
+     *   position[1] = -Q2_z  (Q2 height; negated by camera_set_position)
+     *   position[2] =  Q2_y  (Q2 forward/backward)
+     * Recover Q2 coords by inverting those relationships: */
     float q2_pos[3] = {
-      -state.camera.position[0], /* Q2 X = render X */
-      state.camera.position[2],  /* Q2 Y = −render Z */
-      state.camera.position[1],  /* Q2 Z = render Y */
+      -state.camera.position[0], /* Q2 X */
+      state.camera.position[2],  /* Q2 Y (forward) */
+      -state.camera.position[1], /* Q2 Z (height; stored negated) */
     };
 
     int32_t leaf_idx   = q2_find_leaf(&state.bsp, q2_pos);
