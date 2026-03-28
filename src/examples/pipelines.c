@@ -1,15 +1,3 @@
-/**
- * @brief Using different pipelines in a single renderpass.
- *
- * Ported from the Vulkan pipelines example. Demonstrates how to use different
- * graphics pipelines within a single render pass. The scene (treasure_smooth
- * glTF model) is rendered three times side-by-side with different shading:
- * phong, toon, and wireframe.
- *
- * @ref
- * https://github.com/SaschaWillems/Vulkan/tree/master/examples/pipelines
- */
-
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
@@ -36,6 +24,18 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+/* -------------------------------------------------------------------------- *
+ * @brief Using different pipelines in a single renderpass.
+ *
+ * Ported from the Vulkan pipelines example. Demonstrates how to use different
+ * graphics pipelines within a single render pass. The scene (treasure_smooth
+ * glTF model) is rendered three times side-by-side with different shading:
+ * phong, toon, and wireframe.
+ *
+ * @ref
+ * https://github.com/SaschaWillems/Vulkan/tree/master/examples/pipelines
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders (forward declarations — defined at bottom of file)
