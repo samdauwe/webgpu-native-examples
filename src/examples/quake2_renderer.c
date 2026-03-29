@@ -1921,6 +1921,23 @@ static void q2_cluster_faces_destroy(q2_cluster_faces_t* clusters,
 }
 
 /* -------------------------------------------------------------------------- *
+ * Renderer Uniform Buffer Layout
+ *
+ * Packed struct mirroring the WGSL `Uniforms` block used by both the vertex
+ * and fragment shaders.  Size must be a multiple of 16 bytes.
+ *
+ *  Offset  0 : mvp (mat4x4 = 64 bytes)
+ *  Offset 64 : wireframe_mode (u32, 0 = normal, 1 = wireframe)
+ *  Offset 68 : _pad[3]        (12 bytes padding to reach 80 bytes)
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  mat4 mvp;                /* 64 bytes */
+  uint32_t wireframe_mode; /* 4 bytes  */
+  uint32_t _pad[3];        /* 12 bytes padding (total 80 = 5 × 16) */
+} q2_uniforms_t;
+
+/* -------------------------------------------------------------------------- *
  * Renderer State
  * -------------------------------------------------------------------------- */
 
@@ -1973,6 +1990,9 @@ static struct {
   WGPURenderPipeline pipeline;
   WGPUPipelineLayout pipeline_layout;
   WGPUSampler sampler;
+
+  /* Render settings */
+  bool show_wireframe; /* Overlay wireframe edges on all geometry */
 
   /* Skybox */
   struct {
@@ -2506,10 +2526,10 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayoutEntry shared_entries[3] = {
     [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
-      .visibility = WGPUShaderStage_Vertex,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
       .buffer = (WGPUBufferBindingLayout){
         .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(mat4),
+        .minBindingSize = sizeof(q2_uniforms_t),
       },
       .sampler = {0},
     },
@@ -2568,7 +2588,7 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       .binding = 0,
       .buffer  = state.uniform_buffer.buffer,
       .offset  = 0,
-      .size    = sizeof(mat4),
+      .size    = sizeof(q2_uniforms_t),
     },
     [1] = (WGPUBindGroupEntry){
       .binding = 1,
@@ -2999,6 +3019,17 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igSeparator();
 
   igTextDisabled("WASD = move  |  Mouse = look");
+  igSeparator();
+
+  /* --- Render Settings --- */
+  igTextColored((ImVec4){1.0f, 1.0f, 0.6f, 1.0f}, "Render Settings");
+  igCheckbox("Wireframe", &state.show_wireframe);
+  if (state.skybox.cubemap_handle) {
+    igCheckbox("Skybox", &state.skybox.enabled);
+  }
+  else {
+    igTextDisabled("Skybox  (not available)");
+  }
 
   igEnd();
 }
@@ -3095,12 +3126,12 @@ static int init(wgpu_context_t* wgpu_context)
   /* Decode and upload WAL textures */
   init_gpu_textures(wgpu_context);
 
-  /* Uniform buffer (MVP matrix) */
+  /* Uniform buffer (MVP matrix + render flags) */
   state.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Q2 uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(mat4),
+                    .size  = sizeof(q2_uniforms_t),
                   });
 
   /* GPU pipeline setup */
@@ -3184,12 +3215,13 @@ static int frame(wgpu_context_t* wgpu_context)
     }
   }
 
-  /* Compute and upload MVP matrix */
-  mat4 mvp;
+  /* Compute and upload uniforms (MVP matrix + render flags) */
+  q2_uniforms_t uniforms = {0};
   glm_mat4_mul(state.camera.matrices.perspective, state.camera.matrices.view,
-               mvp);
+               uniforms.mvp);
+  uniforms.wireframe_mode = state.show_wireframe ? 1u : 0u;
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
-                       &mvp, sizeof(mat4));
+                       &uniforms, sizeof(q2_uniforms_t));
 
   /* Skybox: compute inverse of rotation-only view-projection matrix.
    * Strip translation from the view matrix so the skybox follows camera
@@ -3360,7 +3392,8 @@ int main(int argc, char* argv[])
 // clang-format off
 static const char* q2_vertex_shader_wgsl = CODE(
   struct Uniforms {
-    mvp : mat4x4f,
+    mvp            : mat4x4f,
+    wireframe_mode : u32,
   };
 
   @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -3375,30 +3408,63 @@ static const char* q2_vertex_shader_wgsl = CODE(
     @builtin(position) position : vec4f,
     @location(0) tex_uv : vec2f,
     @location(1) lm_uv : vec2f,
+    @location(2) bary  : vec3f,
   };
 
+  /* Barycentric coordinate per vertex within its triangle (TriangleList).
+   * vertex_index % 3 cycles 0,1,2 for each triangle regardless of the
+   * global draw offset, giving (1,0,0), (0,1,0), (0,0,1) per corner. */
+  const BARY = array<vec3f, 3>(
+    vec3f(1.0, 0.0, 0.0),
+    vec3f(0.0, 1.0, 0.0),
+    vec3f(0.0, 0.0, 1.0)
+  );
+
   @vertex
-  fn main(in : VertexInput) -> VertexOutput {
+  fn main(
+    in : VertexInput,
+    @builtin(vertex_index) vertex_index : u32
+  ) -> VertexOutput {
     var out : VertexOutput;
     out.position = uniforms.mvp * vec4f(in.position, 1.0);
-    out.tex_uv = in.tex_uv;
-    out.lm_uv = in.lm_uv;
+    out.tex_uv   = in.tex_uv;
+    out.lm_uv    = in.lm_uv;
+    out.bary     = BARY[vertex_index % 3u];
     return out;
   }
 );
 
 static const char* q2_fragment_shader_wgsl = CODE(
-  @group(0) @binding(1) var tex_sampler : sampler;
-  @group(0) @binding(2) var lightmap_tex : texture_2d<f32>;
-  @group(1) @binding(0) var diffuse_tex : texture_2d<f32>;
+  struct Uniforms {
+    mvp            : mat4x4f,
+    wireframe_mode : u32,
+  };
+
+  @group(0) @binding(0) var<uniform> uniforms    : Uniforms;
+  @group(0) @binding(1) var          tex_sampler : sampler;
+  @group(0) @binding(2) var          lightmap_tex: texture_2d<f32>;
+  @group(1) @binding(0) var          diffuse_tex : texture_2d<f32>;
+
+  /* Wireframe edge width in barycentric space.  Larger = thicker lines. */
+  const WIRE_THRESHOLD : f32 = 0.018;
+
+  /* Wireframe overlay colour: bright cyan, fully opaque. */
+  const WIRE_COLOR : vec4f = vec4f(0.0, 0.9, 1.0, 1.0);
 
   @fragment
   fn main(
     @location(0) tex_uv : vec2f,
-    @location(1) lm_uv : vec2f,
+    @location(1) lm_uv  : vec2f,
+    @location(2) bary   : vec3f,
   ) -> @location(0) vec4f {
+    /* In wireframe mode discard interior fragments; keep only edge pixels. */
+    if (uniforms.wireframe_mode != 0u) {
+      let d = min(min(bary.x, bary.y), bary.z);
+      if (d > WIRE_THRESHOLD) { discard; }
+      return WIRE_COLOR;
+    }
     let diffuse = textureSample(diffuse_tex, tex_sampler, tex_uv);
-    let light = textureSample(lightmap_tex, tex_sampler, lm_uv);
+    let light   = textureSample(lightmap_tex, tex_sampler, lm_uv);
     return vec4f(diffuse.rgb * light.rgb, diffuse.a);
   }
 );
