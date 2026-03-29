@@ -972,6 +972,8 @@ static void q2_wal_print_info(const uint8_t* data, uint32_t size,
 
 static const char* q2_vertex_shader_wgsl;
 static const char* q2_fragment_shader_wgsl;
+static const char* q2_skybox_vs_wgsl;
+static const char* q2_skybox_fs_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Lightmap Atlas BSP Tree Allocator
@@ -1205,6 +1207,275 @@ static uint8_t* q2_create_placeholder_texture(uint32_t* w, uint32_t* h)
     }
   }
   return rgba;
+}
+
+/* -------------------------------------------------------------------------- *
+ * PCX Image Decoder (Quake 2 sky textures)
+ *
+ * Quake 2 uses PCX format for sky environment textures stored in the PAK
+ * archive under env/{skyname}{suffix}.pcx. The format uses RLE compression
+ * with a 256-color palette appended at the end of the file.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Decode a Quake 2 PCX image to RGBA. Handles RLE decompression and
+ *        palette lookup. Caller must free() the returned buffer.
+ */
+static uint8_t* q2_pcx_decode(const uint8_t* data, uint32_t size,
+                              uint32_t* out_w, uint32_t* out_h)
+{
+  if (size < 128 + 769) {
+    return NULL; /* Too small for header + palette */
+  }
+
+  /* PCX header fields */
+  uint8_t manufacturer = data[0];
+  uint8_t version      = data[1];
+  uint8_t encoding     = data[2];
+  uint8_t bpp          = data[3];
+
+  if (manufacturer != 0x0A || version != 5 || bpp != 8) {
+    return NULL;
+  }
+
+  uint16_t xmin = (uint16_t)(data[4] | (data[5] << 8));
+  uint16_t ymin = (uint16_t)(data[6] | (data[7] << 8));
+  uint16_t xmax = (uint16_t)(data[8] | (data[9] << 8));
+  uint16_t ymax = (uint16_t)(data[10] | (data[11] << 8));
+
+  uint32_t w = (uint32_t)(xmax - xmin + 1);
+  uint32_t h = (uint32_t)(ymax - ymin + 1);
+
+  if (w == 0 || h == 0 || w > 4096 || h > 4096) {
+    return NULL;
+  }
+
+  /* Read 256-color palette from last 769 bytes (0x0C marker + 768 RGB) */
+  if (data[size - 769] != 0x0C) {
+    return NULL;
+  }
+  const uint8_t* palette = data + size - 768;
+
+  /* Decode palette indices (RLE or raw) */
+  uint32_t total  = w * h;
+  uint8_t* pixels = (uint8_t*)malloc(total);
+  if (!pixels) {
+    return NULL;
+  }
+
+  const uint8_t* src = data + 128; /* Pixel data starts after header */
+  const uint8_t* end = data + size - 769;
+  uint32_t idx       = 0;
+
+  if (encoding) {
+    /* RLE decoding */
+    while (idx < total && src < end) {
+      uint8_t byte = *src++;
+      if ((byte & 0xC0) == 0xC0) {
+        uint32_t run = byte & 0x3F;
+        if (src >= end) {
+          break;
+        }
+        byte = *src++;
+        while (run-- > 0 && idx < total) {
+          pixels[idx++] = byte;
+        }
+      }
+      else {
+        pixels[idx++] = byte;
+      }
+    }
+  }
+  else {
+    /* Raw pixel data */
+    uint32_t copy
+      = total < (uint32_t)(end - src) ? total : (uint32_t)(end - src);
+    memcpy(pixels, src, copy);
+    idx = copy;
+  }
+
+  /* Convert palette indices to RGBA */
+  uint8_t* rgba = (uint8_t*)malloc(w * h * 4);
+  if (!rgba) {
+    free(pixels);
+    return NULL;
+  }
+
+  for (uint32_t i = 0; i < w * h; i++) {
+    uint8_t pi      = pixels[i];
+    rgba[i * 4 + 0] = palette[pi * 3 + 0];
+    rgba[i * 4 + 1] = palette[pi * 3 + 1];
+    rgba[i * 4 + 2] = palette[pi * 3 + 2];
+    rgba[i * 4 + 3] = 255;
+  }
+
+  free(pixels);
+  *out_w = w;
+  *out_h = h;
+  return rgba;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Skybox Loading
+ *
+ * Extracts the "sky" key from the BSP worldspawn entity and loads 6 PCX face
+ * textures from the PAK archive at env/{skyname}{suffix}.pcx.
+ *
+ * Face order matches the standard cubemap layout:
+ *   0: +X (right), 1: -X (left), 2: +Y (up),
+ *   3: -Y (down),  4: +Z (front), 5: -Z (back)
+ *
+ * Pixel transformations are applied per the q2-veldrid-viewer reference:
+ *   - Side faces (rt, lf, ft, bk): horizontally flipped
+ *   - Top/bottom faces (up, dn): XY transposed
+ * -------------------------------------------------------------------------- */
+
+/* Quake 2 sky texture suffixes and their cubemap face mapping */
+static const char* q2_sky_suffixes[6] = {"rt", "lf", "up", "dn", "ft", "bk"};
+
+/**
+ * @brief Extract the sky texture name from the BSP entity string.
+ *
+ * Searches the worldspawn entity (first entity block) for the "sky" key
+ * and returns the value (e.g., "unit1"). Returns false if not found.
+ */
+static bool q2_get_sky_name(const char* entities, char* out_name,
+                            uint32_t name_size)
+{
+  if (!entities || !out_name || name_size == 0) {
+    return false;
+  }
+
+  const char* sky_key = strstr(entities, "\"sky\"");
+  if (!sky_key) {
+    return false;
+  }
+
+  /* Skip past "sky" key and find the opening quote of the value */
+  const char* q1 = strchr(sky_key + 5, '"');
+  if (!q1) {
+    return false;
+  }
+
+  const char* q2 = strchr(q1 + 1, '"');
+  if (!q2) {
+    return false;
+  }
+
+  uint32_t len = (uint32_t)(q2 - q1 - 1);
+  if (len == 0 || len >= name_size) {
+    return false;
+  }
+
+  memcpy(out_name, q1 + 1, len);
+  out_name[len] = '\0';
+  return true;
+}
+
+/**
+ * @brief Load 6 sky face textures from the PAK and assemble a cubemap.
+ *
+ * @param pak      PAK archive.
+ * @param sky_name Sky texture base name (e.g., "unit1").
+ * @param out_data Output: interleaved RGBA pixel data for 6 faces.
+ * @param out_size Output: cube face dimension (faces are square).
+ * @return true on success.
+ */
+static bool q2_load_sky_faces(const q2_pak_t* pak, const char* sky_name,
+                              uint8_t** out_data, uint32_t* out_size)
+{
+  uint8_t* face_pixels[6] = {NULL};
+  uint32_t face_w[6]      = {0};
+  uint32_t face_h[6]      = {0};
+  uint32_t cube_size      = 0;
+
+  for (int i = 0; i < 6; i++) {
+    char path[128];
+    snprintf(path, sizeof(path), "env/%s%s.pcx", sky_name, q2_sky_suffixes[i]);
+
+    const q2_pak_entry_t* entry = q2_pak_find(pak, path);
+    if (!entry) {
+      printf("[Q2] Sky face missing: %s\n", path);
+      goto fail;
+    }
+
+    uint32_t file_size       = 0;
+    const uint8_t* file_data = q2_pak_get_data(pak, entry, &file_size);
+    if (!file_data) {
+      goto fail;
+    }
+
+    face_pixels[i]
+      = q2_pcx_decode(file_data, file_size, &face_w[i], &face_h[i]);
+    if (!face_pixels[i]) {
+      printf("[Q2] Failed to decode: %s\n", path);
+      goto fail;
+    }
+
+    /* Verify square and consistent size */
+    if (face_w[i] != face_h[i]) {
+      printf("[Q2] Sky face %s not square: %ux%u\n", path, face_w[i],
+             face_h[i]);
+      goto fail;
+    }
+    if (i == 0) {
+      cube_size = face_w[0];
+    }
+    else if (face_w[i] != cube_size) {
+      printf("[Q2] Sky face %s size mismatch: %u vs %u\n", path, face_w[i],
+             cube_size);
+      goto fail;
+    }
+  }
+
+  /* Allocate interleaved cubemap data: 6 faces × size × size × 4 bytes */
+  uint32_t face_bytes  = cube_size * cube_size * 4;
+  uint32_t total_bytes = 6 * face_bytes;
+  uint8_t* cubemap     = (uint8_t*)malloc(total_bytes);
+  if (!cubemap) {
+    goto fail;
+  }
+
+  /* Apply per-face pixel transformations and copy into cubemap layout */
+  for (int f = 0; f < 6; f++) {
+    uint8_t* dst       = cubemap + f * face_bytes;
+    const uint8_t* src = face_pixels[f];
+
+    for (uint32_t y = 0; y < cube_size; y++) {
+      for (uint32_t x = 0; x < cube_size; x++) {
+        uint32_t src_idx, dst_idx;
+
+        if (f == 2 || f == 3) {
+          /* Up / Down: XY transpose */
+          src_idx = (y + x * cube_size) * 4;
+          dst_idx = (x + y * cube_size) * 4;
+        }
+        else {
+          /* Side faces (rt, lf, ft, bk): horizontal flip */
+          src_idx = (x + y * cube_size) * 4;
+          dst_idx = ((cube_size - 1 - x) + y * cube_size) * 4;
+        }
+
+        dst[dst_idx + 0] = src[src_idx + 0];
+        dst[dst_idx + 1] = src[src_idx + 1];
+        dst[dst_idx + 2] = src[src_idx + 2];
+        dst[dst_idx + 3] = src[src_idx + 3];
+      }
+    }
+
+    free(face_pixels[f]);
+    face_pixels[f] = NULL;
+  }
+
+  *out_data = cubemap;
+  *out_size = cube_size;
+  return true;
+
+fail:
+  for (int i = 0; i < 6; i++) {
+    free(face_pixels[i]);
+  }
+  return false;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1702,6 +1973,19 @@ static struct {
   WGPURenderPipeline pipeline;
   WGPUPipelineLayout pipeline_layout;
   WGPUSampler sampler;
+
+  /* Skybox */
+  struct {
+    bool enabled;
+    WGPUTexture cubemap_handle;
+    WGPUTextureView cubemap_view;
+    WGPUSampler cubemap_sampler;
+    wgpu_buffer_t uniform_buffer; /* view-rotation-projection inverse */
+    WGPUBindGroupLayout bind_group_layout;
+    WGPUBindGroup bind_group;
+    WGPURenderPipeline pipeline;
+    WGPUPipelineLayout pipeline_layout;
+  } skybox;
 
   /* Render pass */
   WGPURenderPassColorAttachment color_att;
@@ -2403,6 +2687,216 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Skybox Initialization
+ *
+ * Loads sky textures from the PAK file and creates a separate render pipeline
+ * for drawing the skybox cubemap. Uses a fullscreen triangle approach with
+ * the inverse view-rotation-projection matrix to compute cubemap directions.
+ * -------------------------------------------------------------------------- */
+
+static void init_skybox(wgpu_context_t* wgpu_context)
+{
+  /* Extract sky name from BSP entity string */
+  char sky_name[64] = {0};
+  if (!state.bsp.entities
+      || !q2_get_sky_name(state.bsp.entities, sky_name, sizeof(sky_name))) {
+    printf("[Q2] No sky name found in BSP entities — skybox disabled\n");
+    return;
+  }
+
+  printf("[Q2] Sky texture name: \"%s\"\n", sky_name);
+
+  /* Load 6 PCX face textures and compose cubemap data */
+  uint8_t* cubemap_data = NULL;
+  uint32_t cube_size    = 0;
+  if (!q2_load_sky_faces(&state.pak, sky_name, &cubemap_data, &cube_size)) {
+    printf("[Q2] Failed to load sky faces — skybox disabled\n");
+    return;
+  }
+
+  /* Create cubemap GPU texture */
+  WGPUTextureDescriptor tex_desc = {
+    .label     = STRVIEW("Q2 skybox cubemap"),
+    .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+    .dimension = WGPUTextureDimension_2D,
+    .size = {.width = cube_size, .height = cube_size, .depthOrArrayLayers = 6},
+    .format          = WGPUTextureFormat_RGBA8Unorm,
+    .mipLevelCount   = 1,
+    .sampleCount     = 1,
+    .viewFormatCount = 0,
+  };
+  state.skybox.cubemap_handle
+    = wgpuDeviceCreateTexture(wgpu_context->device, &tex_desc);
+  ASSERT(state.skybox.cubemap_handle != NULL);
+
+  /* Upload each face */
+  uint32_t face_bytes = cube_size * cube_size * 4;
+  for (uint32_t face = 0; face < 6; face++) {
+    wgpuQueueWriteTexture(wgpu_context->queue,
+                          &(WGPUTexelCopyTextureInfo){
+                            .texture  = state.skybox.cubemap_handle,
+                            .mipLevel = 0,
+                            .origin   = {.x = 0, .y = 0, .z = face},
+                            .aspect   = WGPUTextureAspect_All,
+                          },
+                          cubemap_data + face * face_bytes, face_bytes,
+                          &(WGPUTexelCopyBufferLayout){
+                            .offset       = 0,
+                            .bytesPerRow  = cube_size * 4,
+                            .rowsPerImage = cube_size,
+                          },
+                          &(WGPUExtent3D){.width              = cube_size,
+                                          .height             = cube_size,
+                                          .depthOrArrayLayers = 1});
+  }
+  free(cubemap_data);
+
+  /* Create cubemap texture view */
+  state.skybox.cubemap_view = wgpuTextureCreateView(
+    state.skybox.cubemap_handle, &(WGPUTextureViewDescriptor){
+                                   .label  = STRVIEW("Q2 skybox cubemap view"),
+                                   .format = WGPUTextureFormat_RGBA8Unorm,
+                                   .dimension = WGPUTextureViewDimension_Cube,
+                                   .baseMipLevel    = 0,
+                                   .mipLevelCount   = 1,
+                                   .baseArrayLayer  = 0,
+                                   .arrayLayerCount = 6,
+                                 });
+  ASSERT(state.skybox.cubemap_view != NULL);
+
+  /* Cubemap sampler (clamp-to-edge for seamless edges) */
+  state.skybox.cubemap_sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Q2 skybox sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .maxAnisotropy = 1,
+                          });
+  ASSERT(state.skybox.cubemap_sampler != NULL);
+
+  /* Uniform buffer for inverse view-projection (rotation only) */
+  state.skybox.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Q2 skybox uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(mat4),
+                  });
+
+  /* Bind group layout: uniform + sampler + cubemap texture */
+  WGPUBindGroupLayoutEntry sky_entries[3] = {
+    [0] = {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+      .buffer = {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(mat4),
+      },
+    },
+    [1] = {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = {.type = WGPUSamplerBindingType_Filtering},
+    },
+    [2] = {
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Fragment,
+      .texture = {
+        .sampleType    = WGPUTextureSampleType_Float,
+        .viewDimension = WGPUTextureViewDimension_Cube,
+      },
+    },
+  };
+  state.skybox.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label = STRVIEW("Q2 skybox bind group layout"),
+                            .entryCount = 3,
+                            .entries    = sky_entries,
+                          });
+  ASSERT(state.skybox.bind_group_layout != NULL);
+
+  /* Bind group */
+  WGPUBindGroupEntry sky_bg_entries[3] = {
+    [0] = {.binding = 0,
+           .buffer  = state.skybox.uniform_buffer.buffer,
+           .offset  = 0,
+           .size    = sizeof(mat4)},
+    [1] = {.binding = 1, .sampler = state.skybox.cubemap_sampler},
+    [2] = {.binding = 2, .textureView = state.skybox.cubemap_view},
+  };
+  state.skybox.bind_group = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("Q2 skybox bind group"),
+                            .layout     = state.skybox.bind_group_layout,
+                            .entryCount = 3,
+                            .entries    = sky_bg_entries,
+                          });
+  ASSERT(state.skybox.bind_group != NULL);
+
+  /* Pipeline layout */
+  state.skybox.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("Q2 skybox pipeline layout"),
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts = &state.skybox.bind_group_layout,
+                          });
+  ASSERT(state.skybox.pipeline_layout != NULL);
+
+  /* Shader modules */
+  WGPUShaderModule sky_vs
+    = wgpu_create_shader_module(wgpu_context->device, q2_skybox_vs_wgsl);
+  WGPUShaderModule sky_fs
+    = wgpu_create_shader_module(wgpu_context->device, q2_skybox_fs_wgsl);
+
+  /* Render pipeline: fullscreen triangle, no vertex buffers, depth <= */
+  WGPUDepthStencilState sky_depth
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = wgpu_context->depth_stencil_format,
+      .depth_write_enabled = false, /* Don't write depth — skybox at infinity */
+    });
+  sky_depth.depthCompare = WGPUCompareFunction_LessEqual;
+
+  state.skybox.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("Q2 skybox pipeline"),
+      .layout = state.skybox.pipeline_layout,
+      .vertex = {
+        .module      = sky_vs,
+        .entryPoint  = STRVIEW("main"),
+        .bufferCount = 0,
+        .buffers     = NULL,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = sky_fs,
+        .entryPoint  = STRVIEW("main"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format    = wgpu_context->render_format,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_None,
+        .frontFace = WGPUFrontFace_CCW,
+      },
+      .depthStencil = &sky_depth,
+      .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+    });
+  ASSERT(state.skybox.pipeline != NULL);
+
+  wgpuShaderModuleRelease(sky_vs);
+  wgpuShaderModuleRelease(sky_fs);
+
+  state.skybox.enabled = true;
+  printf("[Q2] Skybox loaded: \"%s\" (%ux%u per face)\n", sky_name, cube_size,
+         cube_size);
+}
+
+/* -------------------------------------------------------------------------- *
  * Camera Setup
  * -------------------------------------------------------------------------- */
 
@@ -2615,6 +3109,9 @@ static int init(wgpu_context_t* wgpu_context)
   init_bind_groups(wgpu_context);
   init_pipeline(wgpu_context);
 
+  /* Skybox */
+  init_skybox(wgpu_context);
+
   /* Camera */
   init_camera(wgpu_context);
 
@@ -2694,6 +3191,25 @@ static int frame(wgpu_context_t* wgpu_context)
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
                        &mvp, sizeof(mat4));
 
+  /* Skybox: compute inverse of rotation-only view-projection matrix.
+   * Strip translation from the view matrix so the skybox follows camera
+   * rotation but stays at infinity. */
+  if (state.skybox.enabled) {
+    mat4 view_rot;
+    glm_mat4_copy(state.camera.matrices.view, view_rot);
+    /* Zero out translation (column 3, rows 0-2) */
+    view_rot[3][0] = 0.0f;
+    view_rot[3][1] = 0.0f;
+    view_rot[3][2] = 0.0f;
+
+    mat4 vp_rot, vp_rot_inv;
+    glm_mat4_mul(state.camera.matrices.perspective, view_rot, vp_rot);
+    glm_mat4_inv(vp_rot, vp_rot_inv);
+    wgpuQueueWriteBuffer(wgpu_context->queue,
+                         state.skybox.uniform_buffer.buffer, 0, &vp_rot_inv,
+                         sizeof(mat4));
+  }
+
   /* ImGui frame */
   imgui_overlay_new_frame(wgpu_context, dt);
   render_gui(wgpu_context);
@@ -2708,6 +3224,14 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder rp
     = wgpuCommandEncoderBeginRenderPass(enc, &state.rp_desc);
 
+  /* --- Draw skybox first (at infinity, behind all geometry) --- */
+  if (state.skybox.enabled) {
+    wgpuRenderPassEncoderSetPipeline(rp, state.skybox.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.skybox.bind_group, 0, 0);
+    wgpuRenderPassEncoderDraw(rp, 3, 1, 0, 0); /* Fullscreen triangle */
+  }
+
+  /* --- Draw map geometry --- */
   /* Bind pipeline and shared resources */
   wgpuRenderPassEncoderSetPipeline(rp, state.pipeline);
   wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.vertex_buffer.buffer, 0,
@@ -2775,6 +3299,18 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Sampler, state.sampler)
   wgpu_destroy_texture(&state.lightmap_tex);
+
+  /* Skybox resources */
+  if (state.skybox.enabled) {
+    WGPU_RELEASE_RESOURCE(RenderPipeline, state.skybox.pipeline)
+    WGPU_RELEASE_RESOURCE(PipelineLayout, state.skybox.pipeline_layout)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.skybox.bind_group)
+    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.skybox.bind_group_layout)
+    WGPU_RELEASE_RESOURCE(Buffer, state.skybox.uniform_buffer.buffer)
+    WGPU_RELEASE_RESOURCE(Sampler, state.skybox.cubemap_sampler)
+    WGPU_RELEASE_RESOURCE(TextureView, state.skybox.cubemap_view)
+    WGPU_RELEASE_RESOURCE(Texture, state.skybox.cubemap_handle)
+  }
 
   for (uint32_t t = 0; t < state.num_textures; t++) {
     WGPU_RELEASE_RESOURCE(BindGroup, state.textures[t].bind_group)
@@ -2864,6 +3400,52 @@ static const char* q2_fragment_shader_wgsl = CODE(
     let diffuse = textureSample(diffuse_tex, tex_sampler, tex_uv);
     let light = textureSample(lightmap_tex, tex_sampler, lm_uv);
     return vec4f(diffuse.rgb * light.rgb, diffuse.a);
+  }
+);
+
+/* Skybox vertex shader: fullscreen triangle with cubemap direction output.
+ * Generates a large triangle from vertex_index (0,1,2) that covers the screen.
+ * The clip-space position is output both as the rasterization position and as
+ * a direction vector that will be transformed by the inverse VP matrix in the
+ * fragment shader to produce cubemap lookup directions. */
+static const char* q2_skybox_vs_wgsl = CODE(
+  @group(0) @binding(0) var<uniform> view_dir_proj_inv : mat4x4f;
+
+  struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) direction : vec4f,
+  };
+
+  @vertex
+  fn main(@builtin(vertex_index) vi : u32) -> VertexOutput {
+    let pos = array<vec2f, 3>(
+      vec2f(-1.0, -1.0),
+      vec2f(-1.0,  3.0),
+      vec2f( 3.0, -1.0),
+    );
+    var out : VertexOutput;
+    let p = pos[vi];
+    out.position = vec4f(p, 1.0, 1.0);
+    out.direction = vec4f(p, 1.0, 1.0);
+    return out;
+  }
+);
+
+/* Skybox fragment shader: samples a cubemap using the direction reconstructed
+ * from the inverse view-rotation-projection matrix. Applies gamma correction
+ * (2.2) to match the Quake 2 palette-indexed textures. */
+static const char* q2_skybox_fs_wgsl = CODE(
+  @group(0) @binding(0) var<uniform> view_dir_proj_inv : mat4x4f;
+  @group(0) @binding(1) var sky_sampler : sampler;
+  @group(0) @binding(2) var sky_texture : texture_cube<f32>;
+
+  @fragment
+  fn main(@location(0) direction : vec4f) -> @location(0) vec4f {
+    let t = view_dir_proj_inv * direction;
+    let uvw = normalize(t.xyz / t.w);
+    let color = textureSample(sky_texture, sky_sampler, uvw);
+    let gamma = vec3f(1.0 / 2.2);
+    return vec4f(pow(color.rgb, gamma), 1.0);
   }
 );
 // clang-format on
