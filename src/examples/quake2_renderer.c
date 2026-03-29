@@ -72,6 +72,22 @@
 #define Q2_SURF_FLOWING 0x0040
 #define Q2_SURF_NODRAW 0x0080
 
+/* Brush content flags */
+#define Q2_CONTENTS_SOLID 0x00000001
+#define Q2_CONTENTS_WINDOW 0x00000002
+#define Q2_CONTENTS_MONSTER 0x00000080
+#define Q2_CONTENTS_DEADMONSTER 0x00000100
+
+/* Gizmo axis length in Quake 2 world units (1 unit ≈ 1 inch, ~64 = 5 ft) */
+#define Q2_GIZMO_SIZE 64.0f
+
+/* Debug / visualization view modes */
+typedef enum {
+  Q2_VIEW_NORMAL    = 0, /* Textured + lightmapped (default) */
+  Q2_VIEW_COLORED   = 1, /* Non-textured, random color per face */
+  Q2_VIEW_COLLISION = 2, /* Brush collision volumes */
+} q2_view_mode_t;
+
 /* -------------------------------------------------------------------------- *
  * BSP Lump Indices
  * -------------------------------------------------------------------------- */
@@ -974,6 +990,8 @@ static const char* q2_vertex_shader_wgsl;
 static const char* q2_fragment_shader_wgsl;
 static const char* q2_skybox_vs_wgsl;
 static const char* q2_skybox_fs_wgsl;
+static const char* q2_debug_vs_wgsl;
+static const char* q2_debug_fs_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Lightmap Atlas BSP Tree Allocator
@@ -1481,6 +1499,14 @@ fail:
 /* -------------------------------------------------------------------------- *
  * Geometry Types and Helpers
  * -------------------------------------------------------------------------- */
+
+/* Debug / gizmo / overlay vertex: position + RGB color (6 floats = 24 bytes).
+ * Used by the gizmo line list, non-textured colored triangles, and brush
+ * volume wireframes — all sharing the same simple debug shader pipeline. */
+typedef struct {
+  float pos[3];   /* World position (Q2 coordinate space) */
+  float color[3]; /* Linear RGB [0..1] */
+} q2_debug_vertex_t;
 
 /* Render vertex: 7 floats = 28 bytes */
 typedef struct {
@@ -1994,6 +2020,30 @@ static struct {
   /* Render settings */
   bool show_wireframe; /* Overlay wireframe edges on all geometry */
 
+  /* Debug / visualization overlay */
+  struct {
+    q2_view_mode_t view_mode; /* Active geometry view mode */
+    bool show_gizmo;          /* Render origin axes gizmo */
+
+    /* Shared simple pipeline for colored debug geometry */
+    WGPUBindGroupLayout bgl;
+    WGPUBindGroup bg;
+    WGPURenderPipeline line_pipeline; /* PrimitiveTopology_LineList */
+    WGPURenderPipeline tri_pipeline;  /* PrimitiveTopology_TriangleList */
+    WGPUPipelineLayout pipeline_layout;
+
+    /* Gizmo: 3 axes (6 line-list vertices) at world origin */
+    wgpu_buffer_t gizmo_vb;
+
+    /* Non-textured colored geometry (random color per face, TriangleList) */
+    wgpu_buffer_t colored_vb;
+    uint32_t colored_vert_count;
+
+    /* Brush collision volumes: AABB wireframe edges (LineList) */
+    wgpu_buffer_t brush_vb;
+    uint32_t brush_vert_count;
+  } debug;
+
   /* Skybox */
   struct {
     bool enabled;
@@ -2016,6 +2066,10 @@ static struct {
 } state = {
   .current_leaf = -1,
   .prev_leaf    = -2, /* Force initial rebuild */
+  .debug = {
+    .view_mode  = Q2_VIEW_NORMAL,
+    .show_gizmo = false,
+  },
   .color_att = {
     .loadOp     = WGPULoadOp_Clear,
     .storeOp    = WGPUStoreOp_Store,
@@ -2501,6 +2555,393 @@ static void init_gpu_textures(wgpu_context_t* wgpu_context)
 
   printf("[Q2] Textures: %u loaded, %u missing (placeholder)\n", loaded,
          missing);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Debug / Visualization Helpers
+ *
+ * Utility functions for building debug geometry (gizmo axes, random-colored
+ * faces, brush AABB wireframes) and the shared ColoredVertex pipeline.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Hash an integer seed into a bright, distinct RGB color.
+ *
+ * Uses a simple multiplicative hash to spread values across hue space.
+ * Ensures minimum brightness of 0.35 so no color is too dark to see.
+ */
+static void debug_hash_color(uint32_t seed, float* r, float* g, float* b)
+{
+  uint32_t v = seed * 2654435761u ^ (seed >> 16);
+  v          = (v ^ (v >> 17)) * 0x45d9f3b7u;
+  float hue  = (float)(v & 0xFFFFu) / 65536.0f; /* 0..1 */
+  float sat  = 0.7f;
+  float val  = 0.9f;
+  /* HSV to RGB (whole-domain) */
+  float h6   = hue * 6.0f;
+  int sector = (int)h6;
+  float frac = h6 - (float)sector;
+  float p    = val * (1.0f - sat);
+  float q_   = val * (1.0f - sat * frac);
+  float t_   = val * (1.0f - sat * (1.0f - frac));
+  switch (sector % 6) {
+    case 0:
+      *r = val;
+      *g = t_;
+      *b = p;
+      break;
+    case 1:
+      *r = q_;
+      *g = val;
+      *b = p;
+      break;
+    case 2:
+      *r = p;
+      *g = val;
+      *b = t_;
+      break;
+    case 3:
+      *r = p;
+      *g = q_;
+      *b = val;
+      break;
+    case 4:
+      *r = t_;
+      *g = p;
+      *b = val;
+      break;
+    default:
+      *r = val;
+      *g = p;
+      *b = q_;
+      break;
+  }
+}
+
+/**
+ * @brief Append 24 LineList vertices (12 edges) forming a wireframe AABB.
+ *
+ * @param verts  Output array; must have room for at least *count+24 entries.
+ * @param count  In/out: incremented by 24 after the call.
+ * @param r,g,b  Edge color in linear RGB.
+ */
+static void debug_add_aabb_edges(q2_debug_vertex_t* verts, uint32_t* count,
+                                 float xmin, float ymin, float zmin, float xmax,
+                                 float ymax, float zmax, float r, float g,
+                                 float b)
+{
+  /* 8 corners of the box */
+  float cx[8] = {xmin, xmax, xmax, xmin, xmin, xmax, xmax, xmin};
+  float cy[8] = {ymin, ymin, ymax, ymax, ymin, ymin, ymax, ymax};
+  float cz[8] = {zmin, zmin, zmin, zmin, zmax, zmax, zmax, zmax};
+
+  /* 12 edges as index pairs */
+  static const uint8_t edges[12][2] = {
+    {0, 1}, {1, 2}, {2, 3}, {3, 0}, /* bottom face */
+    {4, 5}, {5, 6}, {6, 7}, {7, 4}, /* top face    */
+    {0, 4}, {1, 5}, {2, 6}, {3, 7}, /* vertical    */
+  };
+
+  uint32_t base = *count;
+  for (int e = 0; e < 12; e++) {
+    uint8_t a                        = edges[e][0];
+    uint8_t b_idx                    = edges[e][1];
+    verts[base + e * 2].pos[0]       = cx[a];
+    verts[base + e * 2].pos[1]       = cy[a];
+    verts[base + e * 2].pos[2]       = cz[a];
+    verts[base + e * 2].color[0]     = r;
+    verts[base + e * 2].color[1]     = g;
+    verts[base + e * 2].color[2]     = b;
+    verts[base + e * 2 + 1].pos[0]   = cx[b_idx];
+    verts[base + e * 2 + 1].pos[1]   = cy[b_idx];
+    verts[base + e * 2 + 1].pos[2]   = cz[b_idx];
+    verts[base + e * 2 + 1].color[0] = r;
+    verts[base + e * 2 + 1].color[1] = g;
+    verts[base + e * 2 + 1].color[2] = b;
+  }
+  *count += 24;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Debug Pipeline Initialization
+ *
+ * Creates a shared pipeline for position+color debug geometry.  Two topology
+ * variants share one pipeline layout and one bind group (MVP matrix).
+ * -------------------------------------------------------------------------- */
+
+static void init_debug_pipelines(wgpu_context_t* wgpu_context)
+{
+  /* Bind group layout: one uniform buffer (MVP mat4) */
+  WGPUBindGroupLayoutEntry bgl_entry = {
+    .binding    = 0,
+    .visibility = WGPUShaderStage_Vertex,
+    .buffer = (WGPUBufferBindingLayout){
+      .type           = WGPUBufferBindingType_Uniform,
+      .minBindingSize = sizeof(mat4), /* Only the first 64 bytes of uniforms */
+    },
+  };
+  state.debug.bgl = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("Q2 debug BGL"),
+                            .entryCount = 1,
+                            .entries    = &bgl_entry,
+                          });
+  ASSERT(state.debug.bgl != NULL);
+
+  /* Bind group: share the main uniform buffer MVP (offset 0, size 64) */
+  WGPUBindGroupEntry bg_entry = {
+    .binding = 0,
+    .buffer  = state.uniform_buffer.buffer,
+    .offset  = 0,
+    .size    = sizeof(mat4),
+  };
+  state.debug.bg = wgpuDeviceCreateBindGroup(wgpu_context->device,
+                                             &(WGPUBindGroupDescriptor){
+                                               .label  = STRVIEW("Q2 debug BG"),
+                                               .layout = state.debug.bgl,
+                                               .entryCount = 1,
+                                               .entries    = &bg_entry,
+                                             });
+  ASSERT(state.debug.bg != NULL);
+
+  /* Pipeline layout */
+  state.debug.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("Q2 debug pipeline layout"),
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts     = &state.debug.bgl,
+                          });
+  ASSERT(state.debug.pipeline_layout != NULL);
+
+  /* Shader modules */
+  WGPUShaderModule vs
+    = wgpu_create_shader_module(wgpu_context->device, q2_debug_vs_wgsl);
+  WGPUShaderModule fs
+    = wgpu_create_shader_module(wgpu_context->device, q2_debug_fs_wgsl);
+
+  /* Vertex layout: pos(vec3) + color(vec3) = 24 bytes */
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    q2_debug, sizeof(q2_debug_vertex_t),
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
+                       offsetof(q2_debug_vertex_t, pos)),
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
+                       offsetof(q2_debug_vertex_t, color)))
+
+  WGPUDepthStencilState depth_stencil
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = wgpu_context->depth_stencil_format,
+      .depth_write_enabled = true,
+    });
+  depth_stencil.depthCompare = WGPUCompareFunction_LessEqual;
+
+  /* Fragment target */
+  WGPUColorTargetState color_target = {
+    .format    = wgpu_context->render_format,
+    .blend     = NULL, /* opaque */
+    .writeMask = WGPUColorWriteMask_All,
+  };
+
+  /* Base descriptor shared between line and tri pipelines */
+  WGPURenderPipelineDescriptor base_desc = {
+    .layout = state.debug.pipeline_layout,
+    .vertex = {
+      .module      = vs,
+      .entryPoint  = STRVIEW("main"),
+      .bufferCount = 1,
+      .buffers     = &q2_debug_vertex_buffer_layout,
+    },
+    .fragment = &(WGPUFragmentState){
+      .module      = fs,
+      .entryPoint  = STRVIEW("main"),
+      .targetCount = 1,
+      .targets     = &color_target,
+    },
+    .depthStencil = &depth_stencil,
+    .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+  };
+
+  /* LineList pipeline — gizmo and brush wireframes */
+  WGPURenderPipelineDescriptor line_desc = base_desc;
+  line_desc.label                        = STRVIEW("Q2 debug line pipeline");
+  line_desc.primitive                    = (WGPUPrimitiveState){
+                       .topology = WGPUPrimitiveTopology_LineList,
+                       .cullMode = WGPUCullMode_None,
+  };
+  state.debug.line_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &line_desc);
+  ASSERT(state.debug.line_pipeline != NULL);
+
+  /* TriangleList pipeline — colored (non-textured) faces, no backface cull */
+  WGPURenderPipelineDescriptor tri_desc = base_desc;
+  tri_desc.label                        = STRVIEW("Q2 debug tri pipeline");
+  tri_desc.primitive                    = (WGPUPrimitiveState){
+                       .topology = WGPUPrimitiveTopology_TriangleList,
+                       .cullMode = WGPUCullMode_None, /* No cull — avoids any facing issue */
+  };
+  state.debug.tri_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &tri_desc);
+  ASSERT(state.debug.tri_pipeline != NULL);
+
+  wgpuShaderModuleRelease(vs);
+  wgpuShaderModuleRelease(fs);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Gizmo Vertex Buffer
+ *
+ * Three colored axes at the world origin: X=red, Y=green, Z=blue.
+ * Rendered as a LineList (6 vertices, 3 lines).
+ * -------------------------------------------------------------------------- */
+
+static void init_gizmo(wgpu_context_t* wgpu_context)
+{
+  const float s = Q2_GIZMO_SIZE;
+  /* Q2 coordinate axes (same space as BSP geometry): X=right, Z=up, Y=forward
+   */
+  const q2_debug_vertex_t gizmo_verts[6] = {
+    {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}}, /* X origin */
+    {{s, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},    /* X tip    — red   */
+    {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}}, /* Y origin */
+    {{0.0f, s, 0.0f}, {0.0f, 1.0f, 0.0f}},    /* Y tip    — green */
+    {{0.0f, 0.0f, 0.0f}, {0.1f, 0.4f, 1.0f}}, /* Z origin */
+    {{0.0f, 0.0f, s}, {0.1f, 0.4f, 1.0f}},    /* Z tip    — blue  */
+  };
+  state.debug.gizmo_vb = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Q2 gizmo VB",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(gizmo_verts),
+                    .initial.data = gizmo_verts,
+                  });
+}
+
+/* -------------------------------------------------------------------------- *
+ * Non-Textured Colored Geometry
+ *
+ * Builds a debug vertex buffer (pos+color) where every face's triangles share
+ * a single deterministic random color derived from the face texture-info index.
+ * Only renderable (non-sky, non-nodraw) faces are included.
+ * -------------------------------------------------------------------------- */
+
+static void init_debug_colored(wgpu_context_t* wgpu_context)
+{
+  /* Count total visible vertices across all faces */
+  uint32_t total = 0;
+  for (uint32_t fi = 0; fi < state.bsp.num_faces; fi++) {
+    if (state.face_meshes[fi].batch_idx >= 0) {
+      total += state.face_meshes[fi].vert_count;
+    }
+  }
+  if (total == 0) {
+    return;
+  }
+
+  q2_debug_vertex_t* verts
+    = (q2_debug_vertex_t*)malloc(total * sizeof(q2_debug_vertex_t));
+  if (!verts) {
+    return;
+  }
+
+  uint32_t write = 0;
+  for (uint32_t fi = 0; fi < state.bsp.num_faces; fi++) {
+    const q2_face_mesh_t* fm = &state.face_meshes[fi];
+    if (fm->batch_idx < 0) {
+      continue;
+    }
+
+    /* One deterministic color per face (seed = texinfo index for consistency)
+     */
+    float r, g, b;
+    uint16_t texinfo_idx = state.bsp.faces[fi].texinfo;
+    debug_hash_color((uint32_t)texinfo_idx ^ (fi * 2654435761u >> 8), &r, &g,
+                     &b);
+
+    for (uint32_t vi = 0; vi < fm->vert_count; vi++) {
+      const q2_render_vertex_t* src
+        = &state.master_vertices[fm->start_vert + vi];
+      verts[write].pos[0]   = src->pos[0];
+      verts[write].pos[1]   = src->pos[1];
+      verts[write].pos[2]   = src->pos[2];
+      verts[write].color[0] = r;
+      verts[write].color[1] = g;
+      verts[write].color[2] = b;
+      write++;
+    }
+  }
+
+  state.debug.colored_vb = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Q2 colored VB",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = write * sizeof(q2_debug_vertex_t),
+                    .initial.data = verts,
+                  });
+  state.debug.colored_vert_count = write;
+  free(verts);
+}
+
+/* -------------------------------------------------------------------------- *
+ * Brush Collision Volume Wireframes
+ *
+ * Renders bounding boxes of BSP sub-models (models[1..N]):
+ *   - Green  = has visible faces (door, platform, etc.)
+ *   - Red    = no visible faces (trigger, clip brush)
+ *
+ * 12 edges × 2 vertices = 24 LineList vertices per model box.
+ * -------------------------------------------------------------------------- */
+
+static void init_debug_brush_volumes(wgpu_context_t* wgpu_context)
+{
+  if (state.bsp.num_models <= 1) {
+    return; /* Only world model, no sub-models */
+  }
+
+  /* Maximum verts: 24 per sub-model (models[1..N]) */
+  uint32_t max_verts = (state.bsp.num_models - 1) * 24;
+  q2_debug_vertex_t* verts
+    = (q2_debug_vertex_t*)malloc(max_verts * sizeof(q2_debug_vertex_t));
+  if (!verts) {
+    return;
+  }
+
+  uint32_t count = 0;
+  for (uint32_t m = 1; m < state.bsp.num_models; m++) {
+    const q2_model_t* mdl = &state.bsp.models[m];
+
+    /* Color: green if the sub-model has drawable faces (solid prop/door/etc.)
+     *        red for invisible volumes (triggers, clip brushes) */
+    bool has_faces = false;
+    for (int32_t fi = mdl->first_face; fi < mdl->first_face + mdl->num_faces
+                                       && (uint32_t)fi < state.bsp.num_faces;
+         fi++) {
+      if (state.face_meshes[fi].batch_idx >= 0) {
+        has_faces = true;
+        break;
+      }
+    }
+    float r = has_faces ? 0.1f : 1.0f;
+    float g = has_faces ? 1.0f : 0.15f;
+    float b = 0.1f;
+
+    debug_add_aabb_edges(verts, &count, mdl->mins[0], mdl->mins[1],
+                         mdl->mins[2], mdl->maxs[0], mdl->maxs[1], mdl->maxs[2],
+                         r, g, b);
+  }
+
+  if (count == 0) {
+    free(verts);
+    return;
+  }
+
+  state.debug.brush_vb = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Q2 brush volume VB",
+                    .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                    .size  = count * sizeof(q2_debug_vertex_t),
+                    .initial.data = verts,
+                  });
+  state.debug.brush_vert_count = count;
+  free(verts);
 }
 
 static void init_sampler(wgpu_context_t* wgpu_context)
@@ -3030,6 +3471,21 @@ static void render_gui(wgpu_context_t* wgpu_context)
   else {
     igTextDisabled("Skybox  (not available)");
   }
+  igSeparator();
+
+  /* --- View Mode --- */
+  igTextColored((ImVec4){1.0f, 1.0f, 0.6f, 1.0f}, "View Mode");
+  {
+    int vm = (int)state.debug.view_mode;
+    igRadioButtonIntPtr("Normal (textured)", &vm, Q2_VIEW_NORMAL);
+    igRadioButtonIntPtr("Colored (non-textured)", &vm, Q2_VIEW_COLORED);
+    igRadioButtonIntPtr("Collision volumes", &vm, Q2_VIEW_COLLISION);
+    state.debug.view_mode = (q2_view_mode_t)vm;
+  }
+  igSeparator();
+
+  /* --- Gizmo --- */
+  igCheckbox("Show Gizmo (origin axes)", &state.debug.show_gizmo);
 
   igEnd();
 }
@@ -3139,6 +3595,14 @@ static int init(wgpu_context_t* wgpu_context)
   init_bind_group_layouts(wgpu_context);
   init_bind_groups(wgpu_context);
   init_pipeline(wgpu_context);
+
+  /* Debug / visualization pipeline and geometry
+   * NOTE: init_debug_pipelines must come AFTER init_pipeline because it
+   * re-uses state.uniform_buffer which is created in the init sequence. */
+  init_debug_pipelines(wgpu_context);
+  init_gizmo(wgpu_context);
+  init_debug_colored(wgpu_context);
+  init_debug_brush_volumes(wgpu_context);
 
   /* Skybox */
   init_skybox(wgpu_context);
@@ -3264,21 +3728,48 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* --- Draw map geometry --- */
-  /* Bind pipeline and shared resources */
-  wgpuRenderPassEncoderSetPipeline(rp, state.pipeline);
-  wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.vertex_buffer.buffer, 0,
-                                       WGPU_WHOLE_SIZE);
-  wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bg_shared, 0, 0);
-
-  /* Draw per-texture batches */
-  for (uint32_t t = 0; t < state.num_textures; t++) {
-    if (state.textures[t].vert_count <= 0) {
-      continue;
+  if (state.debug.view_mode == Q2_VIEW_NORMAL) {
+    /* Normal mode: bind textured pipeline and draw per-texture batches */
+    wgpuRenderPassEncoderSetPipeline(rp, state.pipeline);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.vertex_buffer.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bg_shared, 0, 0);
+    for (uint32_t t = 0; t < state.num_textures; t++) {
+      if (state.textures[t].vert_count <= 0) {
+        continue;
+      }
+      wgpuRenderPassEncoderSetBindGroup(rp, 1, state.textures[t].bind_group, 0,
+                                        0);
+      wgpuRenderPassEncoderDraw(rp, (uint32_t)state.textures[t].vert_count, 1,
+                                (uint32_t)state.textures[t].vert_offset, 0);
     }
-    wgpuRenderPassEncoderSetBindGroup(rp, 1, state.textures[t].bind_group, 0,
-                                      0);
-    wgpuRenderPassEncoderDraw(rp, (uint32_t)state.textures[t].vert_count, 1,
-                              (uint32_t)state.textures[t].vert_offset, 0);
+  }
+  else if (state.debug.view_mode == Q2_VIEW_COLORED
+           && state.debug.colored_vert_count > 0) {
+    /* Colored mode: draw every visible face in a random per-face colour */
+    wgpuRenderPassEncoderSetPipeline(rp, state.debug.tri_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.colored_vb.buffer,
+                                         0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDraw(rp, state.debug.colored_vert_count, 1, 0, 0);
+  }
+  else if (state.debug.view_mode == Q2_VIEW_COLLISION
+           && state.debug.brush_vert_count > 0) {
+    /* Collision mode: wireframe AABB overlay of BSP sub-models */
+    wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.brush_vb.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDraw(rp, state.debug.brush_vert_count, 1, 0, 0);
+  }
+
+  /* Gizmo: three coloured axis lines drawn at world origin (always on top) */
+  if (state.debug.show_gizmo) {
+    wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.gizmo_vb.buffer, 0,
+                                         WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDraw(rp, 6, 1, 0, 0);
   }
 
   /* End render pass */
@@ -3343,6 +3834,16 @@ static void shutdown(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(TextureView, state.skybox.cubemap_view)
     WGPU_RELEASE_RESOURCE(Texture, state.skybox.cubemap_handle)
   }
+
+  /* Debug visualisation resources */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.debug.line_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.debug.tri_pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.debug.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.debug.bg)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.debug.bgl)
+  WGPU_RELEASE_RESOURCE(Buffer, state.debug.gizmo_vb.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.debug.colored_vb.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.debug.brush_vb.buffer)
 
   for (uint32_t t = 0; t < state.num_textures; t++) {
     WGPU_RELEASE_RESOURCE(BindGroup, state.textures[t].bind_group)
@@ -3512,6 +4013,38 @@ static const char* q2_skybox_fs_wgsl = CODE(
     let color = textureSample(sky_texture, sky_sampler, uvw);
     let gamma = vec3f(1.0 / 2.2);
     return vec4f(pow(color.rgb, gamma), 1.0);
+  }
+);
+
+/* Debug geometry vertex shader: transforms a coloured vertex with the MVP
+ * matrix and forwards the vertex colour to the fragment stage. */
+static const char* q2_debug_vs_wgsl = CODE(
+  @group(0) @binding(0) var<uniform> mvp : mat4x4f;
+
+  struct VertexInput {
+    @location(0) position : vec3f,
+    @location(1) color    : vec3f,
+  };
+
+  struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0)       color    : vec3f,
+  };
+
+  @vertex
+  fn main(in : VertexInput) -> VertexOutput {
+    var out : VertexOutput;
+    out.position = mvp * vec4f(in.position, 1.0);
+    out.color    = in.color;
+    return out;
+  }
+);
+
+/* Debug geometry fragment shader: outputs the interpolated vertex colour. */
+static const char* q2_debug_fs_wgsl = CODE(
+  @fragment
+  fn main(@location(0) color : vec3f) -> @location(0) vec4f {
+    return vec4f(color, 1.0);
   }
 );
 // clang-format on
