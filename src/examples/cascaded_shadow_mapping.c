@@ -326,7 +326,7 @@ static void create_model_buffers_for(struct wgpu_context_t* wgpu_context,
   if (model->index_count > 0 && model->indices) {
     *ib_out = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Model IB"),
+                .label = STRVIEW("Model - Index buffer"),
                 .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                 .size  = ib_size,
                 .mappedAtCreation = true,
