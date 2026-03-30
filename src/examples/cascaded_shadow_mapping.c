@@ -58,14 +58,14 @@ static const char* debug_shader_wgsl;
 
 #define NUM_TREE_POSITIONS (5)
 
-/* Per-draw stride in the dynamic push-const buffer.                    *
- * Must be ≥ sizeof(push_const_ubo_t) and a multiple of                *
- * minUniformBufferOffsetAlignment (256 on all Dawn targets).           */
+/* Per-draw stride in the dynamic push-const buffer.          *
+ * Must be ≥ sizeof(push_const_ubo_t) and a multiple of       *
+ * minUniformBufferOffsetAlignment (256 on all Dawn targets). */
 #define PUSH_CONST_STRIDE (256u)
 
-/* Total pre-baked draw slots:                                          *
- * 4 cascades × 6 draws (terrain+5 trees) = 24 (depth pass)            *
- * + 6 draws (scene pass) + 1 (debug pass) = 31                        */
+/* Total pre-baked draw slots:                              *
+ * 4 cascades × 6 draws (terrain+5 trees) = 24 (depth pass) *
+ * + 6 draws (scene pass) + 1 (debug pass) = 31             */
 #define PUSH_CONST_NUM_DRAWS (31u)
 
 /* Maximum materials per model (terrain has 1, tree has 2 leaf+bark) */
