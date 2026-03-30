@@ -314,7 +314,7 @@ static void create_model_buffers_for(struct wgpu_context_t* wgpu_context,
 
   *vb_out = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Model VB"),
+              .label = STRVIEW("Model - Vertex buffer"),
               .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
               .size  = vb_size,
               .mappedAtCreation = true,
