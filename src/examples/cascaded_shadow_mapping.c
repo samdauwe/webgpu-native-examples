@@ -477,7 +477,7 @@ static void init_depth_texture(struct wgpu_context_t* wgpu_context)
 
   state.depth.texture = wgpuDeviceCreateTexture(
     device, &(WGPUTextureDescriptor){
-              .label         = STRVIEW("Main Depth"),
+              .label         = STRVIEW("Main Depth - Texture"),
               .usage         = WGPUTextureUsage_RenderAttachment,
               .dimension     = WGPUTextureDimension_2D,
               .size          = {wgpu_context->width, wgpu_context->height, 1},
