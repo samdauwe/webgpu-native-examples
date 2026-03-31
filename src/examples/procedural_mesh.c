@@ -65,8 +65,8 @@ static const char* fragment_shader_wgsl;
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define ALIGNMENT 256u
-#define MESH_COUNT 11u
+#define ALIGNMENT (256u)
+#define MESH_COUNT (11u)
 
 /* -------------------------------------------------------------------------- *
  * Mesh generation using par_shapes
