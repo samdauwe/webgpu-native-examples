@@ -533,6 +533,10 @@ A real-time interactive water simulation using WebGPU. Simulates realistic water
 
 Aquarium is a complete port of the classic WebGL Aquarium to modern WebGPU, showcasing advanced rendering techniques and efficient GPU programming.
 
+#### [Quake 2 Renderer](src/examples/quake2_renderer.c)
+
+A Quake 2 BSP map renderer using native C99 WebGPU. Loads BSP geometry and textures from a Quake 2 PAK archive, renders the world with static lightmaps packed into a single atlas, skybox from PCX environment maps, and animated MD2 models placed at BSP entity locations with frame-by-frame interpolation. Uses PVS (Potentially Visible Set) cluster-based culling combined with distance culling to render only a small sector of the map depending on the player location. Features free-roam camera navigation, wireframe overlay, colored face visualization, collision volume display, and an ImGui debug GUI.
+
 #### [Volume Rendering - 3D Texture](src/examples/volume_rendering_texture_3d.c)
 
 This example shows how to render volumes with WebGPU using a 3D texture. It demonstrates simple direct volume rendering for photometric content through ray marching in a fragment shader, where a full-screen triangle determines the color from ray start and step size values as set in the vertex shader. This implementation employs data from the BrainWeb Simulated Brain Database, with decompression streams, to save disk space and network traffic.
