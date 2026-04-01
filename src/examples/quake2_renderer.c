@@ -992,6 +992,8 @@ static const char* q2_skybox_vs_wgsl;
 static const char* q2_skybox_fs_wgsl;
 static const char* q2_debug_vs_wgsl;
 static const char* q2_debug_fs_wgsl;
+static const char* q2_md2_vs_wgsl;
+static const char* q2_md2_fs_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Lightmap Atlas BSP Tree Allocator
@@ -1551,6 +1553,303 @@ typedef struct {
 
 #define Q2_CLUSTER_INVALID 0xFFFF
 
+/* -------------------------------------------------------------------------- *
+ * MD2 Model Format Structures & Constants
+ *
+ * MD2 is Quake 2's animated mesh format. Each file contains a static mesh
+ * with multiple animation frames stored as compressed byte-triplet vertices.
+ * Frame interpolation produces smooth animation at runtime.
+ *
+ * Ref: http://tfc.duke.free.fr/coding/md2-specs-en.html
+ * -------------------------------------------------------------------------- */
+
+#define Q2_MD2_MAGIC 0x32504449 /* "IDP2" in little-endian */
+#define Q2_MD2_VERSION 8
+#define Q2_MD2_MAX_SKINS 32
+#define Q2_MD2_SKIN_NAME_LEN 64
+#define Q2_MD2_FRAME_NAME_LEN 16
+#define Q2_MD2_MAX_MODELS 256 /* Max entity models in a map */
+#define Q2_MD2_ANIM_FPS 10.0f /* Default MD2 animation speed */
+#define Q2_MD2_CULL_DISTANCE                                                   \
+  8192.0f /* Distance beyond which models are culled */
+
+/* MD2 file header (68 bytes) */
+typedef struct {
+  int32_t magic;             /* "IDP2" = 0x32504449 */
+  int32_t version;           /* Must be 8 */
+  int32_t skin_width;        /* Texture width in pixels */
+  int32_t skin_height;       /* Texture height in pixels */
+  int32_t frame_size;        /* Bytes per frame */
+  int32_t num_skins;         /* Number of skin names */
+  int32_t num_vertices;      /* Number of vertices per frame */
+  int32_t num_tex_coords;    /* Number of texture coordinates */
+  int32_t num_triangles;     /* Number of triangles */
+  int32_t num_gl_cmds;       /* Number of OpenGL commands */
+  int32_t num_frames;        /* Number of animation frames */
+  int32_t offset_skins;      /* Offset to skin names */
+  int32_t offset_tex_coords; /* Offset to texture coordinates */
+  int32_t offset_triangles;  /* Offset to triangle indices */
+  int32_t offset_frames;     /* Offset to frame data */
+  int32_t offset_gl_cmds;    /* Offset to GL commands */
+  int32_t offset_end;        /* Offset to end of file */
+} q2_md2_header_t;
+
+/* MD2 compressed vertex (4 bytes) */
+typedef struct {
+  uint8_t v[3];         /* Compressed position [0-255] */
+  uint8_t normal_index; /* Index into normal lookup table */
+} q2_md2_vertex_t;
+
+/* MD2 texture coordinate (4 bytes, pixel space) */
+typedef struct {
+  int16_t s, t;
+} q2_md2_texcoord_t;
+
+/* MD2 triangle (12 bytes) */
+typedef struct {
+  uint16_t vertex_indices[3];   /* Indices into vertex array */
+  uint16_t texcoord_indices[3]; /* Indices into texcoord array */
+} q2_md2_triangle_t;
+
+/* MD2 frame header (40 bytes + variable vertex data) */
+typedef struct {
+  float scale[3];                   /* Scale for decompression */
+  float translate[3];               /* Translation for decompression */
+  char name[Q2_MD2_FRAME_NAME_LEN]; /* Frame name (animation group) */
+  /* Followed by num_vertices q2_md2_vertex_t */
+} q2_md2_frame_header_t;
+
+/* MD2 model vertex for GPU rendering (32 bytes) */
+typedef struct {
+  float pos[3];      /* Current frame position (12 bytes) */
+  float next_pos[3]; /* Next frame position for interpolation (12 bytes) */
+  float tex_uv[2];   /* Texture coordinates (8 bytes) */
+} q2_md2_render_vertex_t;
+
+/* Parsed MD2 model (CPU-side data) */
+typedef struct {
+  /* Header info */
+  int32_t num_vertices;
+  int32_t num_triangles;
+  int32_t num_frames;
+  int32_t skin_width;
+  int32_t skin_height;
+
+  /* Decompressed frame vertices: [num_frames][num_vertices] */
+  float* frame_verts; /* Flat array: frame * num_vertices * 3 */
+
+  /* Triangle indices */
+  q2_md2_triangle_t* triangles;
+
+  /* Texture coordinates (normalized 0-1) */
+  float* tex_coords; /* [num_tex_coords * 2] */
+  int32_t num_tex_coords;
+
+  /* Skin name from file (for texture lookup) */
+  char skin_name[Q2_MD2_SKIN_NAME_LEN];
+} q2_md2_model_t;
+
+/* Entity instance referencing an MD2 model */
+typedef struct {
+  float origin[3];     /* Q2 world position (X right, Y forward, Z up) */
+  float angle;         /* Yaw rotation in degrees */
+  int32_t model_index; /* Index into md2_models[] array (-1 = invalid) */
+  int32_t cluster;     /* BSP cluster for PVS culling (-1 = unknown) */
+
+  /* Animation state */
+  int32_t current_frame;
+  int32_t next_frame;
+  float interp; /* Interpolation factor [0,1] between frames */
+} q2_md2_entity_t;
+
+/* MD2 model resource (GPU texture + shared model data) */
+typedef struct {
+  q2_md2_model_t model;
+  wgpu_texture_t gpu_tex;
+  bool loaded;
+} q2_md2_resource_t;
+
+/* MD2 pre-calculated normal lookup table (162 unit vectors).
+ * Each MD2 vertex stores a 1-byte index into this table. */
+// clang-format off
+static const float q2_md2_normals[162][3] = {
+  {-0.525731f,  0.000000f,  0.850651f}, {-0.442863f,  0.238856f,  0.864188f},
+  {-0.295242f,  0.000000f,  0.955423f}, {-0.309017f,  0.500000f,  0.809017f},
+  {-0.162460f,  0.262866f,  0.951056f}, { 0.000000f,  0.000000f,  1.000000f},
+  { 0.000000f,  0.850651f,  0.525731f}, {-0.147621f,  0.716567f,  0.681718f},
+  { 0.147621f,  0.716567f,  0.681718f}, { 0.000000f,  0.525731f,  0.850651f},
+  { 0.309017f,  0.500000f,  0.809017f}, { 0.525731f,  0.000000f,  0.850651f},
+  { 0.295242f,  0.000000f,  0.955423f}, { 0.442863f,  0.238856f,  0.864188f},
+  { 0.162460f,  0.262866f,  0.951056f}, {-0.681718f,  0.147621f,  0.716567f},
+  {-0.809017f,  0.309017f,  0.500000f}, {-0.587785f,  0.425325f,  0.688191f},
+  {-0.850651f,  0.525731f,  0.000000f}, {-0.864188f,  0.442863f,  0.238856f},
+  {-0.716567f,  0.681718f,  0.147621f}, {-0.688191f,  0.587785f,  0.425325f},
+  {-0.500000f,  0.809017f,  0.309017f}, {-0.238856f,  0.864188f,  0.442863f},
+  {-0.425325f,  0.688191f,  0.587785f}, {-0.716567f,  0.681718f, -0.147621f},
+  {-0.500000f,  0.809017f, -0.309017f}, {-0.525731f,  0.850651f,  0.000000f},
+  { 0.000000f,  0.850651f, -0.525731f}, {-0.238856f,  0.864188f, -0.442863f},
+  { 0.000000f,  0.955423f, -0.295242f}, {-0.262866f,  0.951056f, -0.162460f},
+  { 0.000000f,  1.000000f,  0.000000f}, { 0.000000f,  0.955423f,  0.295242f},
+  {-0.262866f,  0.951056f,  0.162460f}, { 0.238856f,  0.864188f,  0.442863f},
+  { 0.262866f,  0.951056f,  0.162460f}, { 0.500000f,  0.809017f,  0.309017f},
+  { 0.238856f,  0.864188f, -0.442863f}, { 0.262866f,  0.951056f, -0.162460f},
+  { 0.500000f,  0.809017f, -0.309017f}, { 0.850651f,  0.525731f,  0.000000f},
+  { 0.716567f,  0.681718f,  0.147621f}, { 0.716567f,  0.681718f, -0.147621f},
+  { 0.525731f,  0.850651f,  0.000000f}, { 0.425325f,  0.688191f,  0.587785f},
+  { 0.864188f,  0.442863f,  0.238856f}, { 0.688191f,  0.587785f,  0.425325f},
+  { 0.809017f,  0.309017f,  0.500000f}, { 0.681718f,  0.147621f,  0.716567f},
+  { 0.587785f,  0.425325f,  0.688191f}, { 0.955423f,  0.295242f,  0.000000f},
+  { 1.000000f,  0.000000f,  0.000000f}, { 0.951056f,  0.162460f,  0.262866f},
+  { 0.850651f, -0.525731f,  0.000000f}, { 0.955423f, -0.295242f,  0.000000f},
+  { 0.864188f, -0.442863f,  0.238856f}, { 0.951056f, -0.162460f,  0.262866f},
+  { 0.809017f, -0.309017f,  0.500000f}, { 0.681718f, -0.147621f,  0.716567f},
+  { 0.850651f,  0.000000f,  0.525731f}, { 0.864188f,  0.442863f, -0.238856f},
+  { 0.809017f,  0.309017f, -0.500000f}, { 0.951056f,  0.162460f, -0.262866f},
+  { 0.525731f,  0.000000f, -0.850651f}, { 0.681718f,  0.147621f, -0.716567f},
+  { 0.681718f, -0.147621f, -0.716567f}, { 0.850651f,  0.000000f, -0.525731f},
+  { 0.809017f, -0.309017f, -0.500000f}, { 0.864188f, -0.442863f, -0.238856f},
+  { 0.951056f, -0.162460f, -0.262866f}, { 0.147621f,  0.716567f, -0.681718f},
+  { 0.309017f,  0.500000f, -0.809017f}, { 0.425325f,  0.688191f, -0.587785f},
+  { 0.442863f,  0.238856f, -0.864188f}, { 0.587785f,  0.425325f, -0.688191f},
+  { 0.688191f,  0.587785f, -0.425325f}, {-0.147621f,  0.716567f, -0.681718f},
+  {-0.309017f,  0.500000f, -0.809017f}, { 0.000000f,  0.525731f, -0.850651f},
+  {-0.525731f,  0.000000f, -0.850651f}, {-0.442863f,  0.238856f, -0.864188f},
+  {-0.295242f,  0.000000f, -0.955423f}, {-0.162460f,  0.262866f, -0.951056f},
+  { 0.000000f,  0.000000f, -1.000000f}, { 0.295242f,  0.000000f, -0.955423f},
+  { 0.162460f,  0.262866f, -0.951056f}, {-0.442863f, -0.238856f, -0.864188f},
+  {-0.309017f, -0.500000f, -0.809017f}, {-0.162460f, -0.262866f, -0.951056f},
+  { 0.000000f, -0.850651f, -0.525731f}, {-0.147621f, -0.716567f, -0.681718f},
+  { 0.147621f, -0.716567f, -0.681718f}, { 0.000000f, -0.525731f, -0.850651f},
+  { 0.309017f, -0.500000f, -0.809017f}, { 0.442863f, -0.238856f, -0.864188f},
+  { 0.162460f, -0.262866f, -0.951056f}, { 0.238856f, -0.864188f, -0.442863f},
+  { 0.500000f, -0.809017f, -0.309017f}, { 0.425325f, -0.688191f, -0.587785f},
+  { 0.716567f, -0.681718f, -0.147621f}, { 0.688191f, -0.587785f, -0.425325f},
+  { 0.587785f, -0.425325f, -0.688191f}, { 0.000000f, -0.955423f, -0.295242f},
+  { 0.000000f, -1.000000f,  0.000000f}, { 0.262866f, -0.951056f, -0.162460f},
+  { 0.000000f, -0.850651f,  0.525731f}, { 0.000000f, -0.955423f,  0.295242f},
+  { 0.238856f, -0.864188f,  0.442863f}, { 0.262866f, -0.951056f,  0.162460f},
+  { 0.500000f, -0.809017f,  0.309017f}, { 0.716567f, -0.681718f,  0.147621f},
+  { 0.525731f, -0.850651f,  0.000000f}, {-0.238856f, -0.864188f, -0.442863f},
+  {-0.500000f, -0.809017f, -0.309017f}, {-0.262866f, -0.951056f, -0.162460f},
+  {-0.850651f, -0.525731f,  0.000000f}, {-0.716567f, -0.681718f, -0.147621f},
+  {-0.716567f, -0.681718f,  0.147621f}, {-0.525731f, -0.850651f,  0.000000f},
+  {-0.500000f, -0.809017f,  0.309017f}, {-0.238856f, -0.864188f,  0.442863f},
+  {-0.262866f, -0.951056f,  0.162460f}, {-0.864188f, -0.442863f,  0.238856f},
+  {-0.809017f, -0.309017f,  0.500000f}, {-0.688191f, -0.587785f,  0.425325f},
+  {-0.681718f, -0.147621f,  0.716567f}, {-0.442863f, -0.238856f,  0.864188f},
+  {-0.587785f, -0.425325f,  0.688191f}, {-0.309017f, -0.500000f,  0.809017f},
+  {-0.147621f, -0.716567f,  0.681718f}, {-0.425325f, -0.688191f,  0.587785f},
+  {-0.162460f, -0.262866f,  0.951056f}, { 0.442863f, -0.238856f,  0.864188f},
+  { 0.162460f, -0.262866f,  0.951056f}, { 0.309017f, -0.500000f,  0.809017f},
+  { 0.147621f, -0.716567f,  0.681718f}, { 0.000000f, -0.525731f,  0.850651f},
+  { 0.425325f, -0.688191f,  0.587785f}, { 0.587785f, -0.425325f,  0.688191f},
+  { 0.688191f, -0.587785f,  0.425325f}, {-0.955423f,  0.295242f,  0.000000f},
+  {-0.951056f,  0.162460f,  0.262866f}, {-1.000000f,  0.000000f,  0.000000f},
+  {-0.850651f,  0.000000f,  0.525731f}, {-0.955423f, -0.295242f,  0.000000f},
+  {-0.951056f, -0.162460f,  0.262866f}, {-0.864188f,  0.442863f, -0.238856f},
+  {-0.951056f,  0.162460f, -0.262866f}, {-0.809017f,  0.309017f, -0.500000f},
+  {-0.864188f, -0.442863f, -0.238856f}, {-0.951056f, -0.162460f, -0.262866f},
+  {-0.809017f, -0.309017f, -0.500000f}, {-0.681718f,  0.147621f, -0.716567f},
+  {-0.681718f, -0.147621f, -0.716567f}, {-0.850651f,  0.000000f, -0.525731f},
+  {-0.688191f,  0.587785f, -0.425325f}, {-0.587785f,  0.425325f, -0.688191f},
+  {-0.425325f,  0.688191f, -0.587785f}, {-0.425325f, -0.688191f, -0.587785f},
+  {-0.587785f, -0.425325f, -0.688191f}, {-0.688191f, -0.587785f, -0.425325f},
+};
+// clang-format on
+
+/* Classname-to-model-path mapping for Quake 2 entities.
+ * Maps BSP entity classnames to their corresponding MD2 model paths within
+ * the PAK archive. Only entities with known model paths are rendered. */
+typedef struct {
+  const char* classname;
+  const char* model_path;
+} q2_entity_model_map_t;
+
+// clang-format off
+static const q2_entity_model_map_t q2_entity_model_table[] = {
+  /* Monsters */
+  {"monster_infantry",       "models/monsters/infantry/tris.md2"},
+  {"monster_soldier",        "models/monsters/soldier/tris.md2"},
+  {"monster_soldier_light",  "models/monsters/soldier/tris.md2"},
+  {"monster_soldier_ss",     "models/monsters/soldier/tris.md2"},
+  {"monster_gunner",         "models/monsters/gunner/tris.md2"},
+  {"monster_tank",           "models/monsters/tank/tris.md2"},
+  {"monster_tank_commander", "models/monsters/tank/tris.md2"},
+  {"monster_chick",          "models/monsters/bitch/tris.md2"},
+  {"monster_brain",          "models/monsters/brain/tris.md2"},
+  {"monster_parasite",       "models/monsters/parasite/tris.md2"},
+  {"monster_mutant",         "models/monsters/mutant/tris.md2"},
+  {"monster_medic",          "models/monsters/medic/tris.md2"},
+  {"monster_flipper",        "models/monsters/flipper/tris.md2"},
+  {"monster_flyer",          "models/monsters/flyer/tris.md2"},
+  {"monster_floater",        "models/monsters/float/tris.md2"},
+  {"monster_hover",          "models/monsters/hover/tris.md2"},
+  {"monster_gladiator",      "models/monsters/gladiatr/tris.md2"},
+  {"monster_berserk",        "models/monsters/berserk/tris.md2"},
+  {"monster_supertank",      "models/monsters/boss1/tris.md2"},
+  {"monster_boss2",          "models/monsters/boss2/tris.md2"},
+  {"monster_jorg",           "models/monsters/boss3/jorg/tris.md2"},
+  {"monster_makron",         "models/monsters/boss3/rider/tris.md2"},
+  {"monster_boss3_stand",    "models/monsters/boss3/rider/tris.md2"},
+  {"misc_insane",            "models/monsters/insane/tris.md2"},
+  /* Items / health / armor */
+  {"item_health",            "models/items/healing/medium/tris.md2"},
+  {"item_health_small",      "models/items/healing/stimpack/tris.md2"},
+  {"item_health_large",      "models/items/healing/large/tris.md2"},
+  {"item_health_mega",       "models/items/mega_h/tris.md2"},
+  {"item_armor_body",        "models/items/armor/body/tris.md2"},
+  {"item_armor_combat",      "models/items/armor/combat/tris.md2"},
+  {"item_armor_jacket",      "models/items/armor/jacket/tris.md2"},
+  {"item_armor_shard",       "models/items/armor/shard/tris.md2"},
+  /* Weapons: use g_ (ground/world) models, NOT v_ (viewmodel) */
+  {"weapon_shotgun",         "models/weapons/g_shotg/tris.md2"},
+  {"weapon_supershotgun",    "models/weapons/g_shotg2/tris.md2"},
+  {"weapon_machinegun",      "models/weapons/g_machn/tris.md2"},
+  {"weapon_chaingun",        "models/weapons/g_chain/tris.md2"},
+  {"weapon_grenadelauncher", "models/weapons/g_launch/tris.md2"},
+  {"weapon_rocketlauncher",  "models/weapons/g_rocket/tris.md2"},
+  {"weapon_hyperblaster",    "models/weapons/g_hyperb/tris.md2"},
+  {"weapon_railgun",         "models/weapons/g_rail/tris.md2"},
+  {"weapon_bfg",             "models/weapons/g_bfg/tris.md2"},
+  /* Ammo */
+  {"ammo_shells",            "models/items/ammo/shells/medium/tris.md2"},
+  {"ammo_bullets",           "models/items/ammo/bullets/medium/tris.md2"},
+  {"ammo_cells",             "models/items/ammo/cells/medium/tris.md2"},
+  {"ammo_rockets",           "models/items/ammo/rockets/medium/tris.md2"},
+  {"ammo_grenades",          "models/items/ammo/grenades/medium/tris.md2"},
+  {"ammo_slugs",             "models/items/ammo/slugs/medium/tris.md2"},
+  /* Power-ups */
+  {"item_quad",              "models/items/quaddama/tris.md2"},
+  {"item_invulnerability",   "models/items/invulner/tris.md2"},
+  {"item_power_screen",      "models/items/armor/screen/tris.md2"},
+  {"item_power_shield",      "models/items/armor/shield/tris.md2"},
+  {"item_breather",          "models/items/breather/tris.md2"},
+  {"item_enviro",            "models/items/enviro/tris.md2"},
+  {"item_silencer",          "models/items/silencer/tris.md2"},
+  {"item_adrenaline",        "models/items/adrenal/tris.md2"},
+  {"item_bandolier",         "models/items/band/tris.md2"},
+  {"item_pack",              "models/items/pack/tris.md2"},
+  {"item_ancient_head",      "models/items/c_head/tris.md2"},
+  /* Keys */
+  {"key_data_cd",            "models/items/keys/data_cd/tris.md2"},
+  {"key_power_cube",         "models/items/keys/power/tris.md2"},
+  {"key_pyramid",            "models/items/keys/pyramid/tris.md2"},
+  {"key_data_spinner",       "models/items/keys/spinner/tris.md2"},
+  {"key_pass",               "models/items/keys/pass/tris.md2"},
+  {"key_blue_key",           "models/items/keys/key/tris.md2"},
+  {"key_red_key",            "models/items/keys/red_key/tris.md2"},
+  {"key_commander_head",     "models/monsters/commandr/head/tris.md2"},
+  /* Misc objects with models */
+  {"misc_explobox",          "models/objects/barrels/tris.md2"},
+  {"misc_banner",            "models/objects/banner/tris.md2"},
+  {"misc_satellite_dish",    "models/objects/satellite/tris.md2"},
+  {"misc_deadsoldier",       "models/deadbods/dude/tris.md2"},
+};
+// clang-format on
+
+#define Q2_ENTITY_MODEL_TABLE_SIZE                                             \
+  (sizeof(q2_entity_model_table) / sizeof(q2_entity_model_table[0]))
+
 /**
  * @brief Compute texture-space UV for a vertex getTextureUV).
  */
@@ -1745,6 +2044,496 @@ static bool q2_find_player_start(const char* entities, float out_pos[3],
   }
 
   return false;
+}
+
+/* -------------------------------------------------------------------------- *
+ * MD2 Model Loading
+ *
+ * Parses MD2 binary data from the PAK archive. Decompresses byte-encoded
+ * vertices for all animation frames and normalizes texture coordinates.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Parse an MD2 model from raw binary data.
+ *
+ * @param data       Raw MD2 file data.
+ * @param data_size  Size of the data in bytes.
+ * @param model      Output model structure.
+ * @return true on success.
+ */
+static bool q2_md2_parse(const uint8_t* data, uint32_t data_size,
+                         q2_md2_model_t* model)
+{
+  memset(model, 0, sizeof(*model));
+
+  if (data_size < sizeof(q2_md2_header_t)) {
+    fprintf(stderr, "[MD2] File too small: %u bytes\n", data_size);
+    return false;
+  }
+
+  const q2_md2_header_t* hdr = (const q2_md2_header_t*)data;
+
+  if (hdr->magic != Q2_MD2_MAGIC || hdr->version != Q2_MD2_VERSION) {
+    fprintf(stderr, "[MD2] Invalid header: magic=0x%08X version=%d\n",
+            hdr->magic, hdr->version);
+    return false;
+  }
+
+  if (hdr->num_vertices <= 0 || hdr->num_triangles <= 0
+      || hdr->num_frames <= 0) {
+    fprintf(stderr, "[MD2] Empty model: verts=%d tris=%d frames=%d\n",
+            hdr->num_vertices, hdr->num_triangles, hdr->num_frames);
+    return false;
+  }
+
+  model->num_vertices   = hdr->num_vertices;
+  model->num_triangles  = hdr->num_triangles;
+  model->num_frames     = hdr->num_frames;
+  model->num_tex_coords = hdr->num_tex_coords;
+  model->skin_width     = hdr->skin_width;
+  model->skin_height    = hdr->skin_height;
+
+  /* Extract first skin name if available */
+  if (hdr->num_skins > 0 && hdr->offset_skins > 0
+      && (uint32_t)(hdr->offset_skins + Q2_MD2_SKIN_NAME_LEN) <= data_size) {
+    const char* skin_ptr = (const char*)(data + hdr->offset_skins);
+    strncpy(model->skin_name, skin_ptr, Q2_MD2_SKIN_NAME_LEN - 1);
+    model->skin_name[Q2_MD2_SKIN_NAME_LEN - 1] = '\0';
+  }
+
+  /* Parse triangles */
+  if ((uint32_t)(hdr->offset_triangles
+                 + hdr->num_triangles * (int32_t)sizeof(q2_md2_triangle_t))
+      > data_size) {
+    fprintf(stderr, "[MD2] Triangle data out of bounds\n");
+    return false;
+  }
+  model->triangles = (q2_md2_triangle_t*)malloc((size_t)hdr->num_triangles
+                                                * sizeof(q2_md2_triangle_t));
+  memcpy(model->triangles, data + hdr->offset_triangles,
+         (size_t)hdr->num_triangles * sizeof(q2_md2_triangle_t));
+
+  /* Parse and normalize texture coordinates */
+  if (hdr->num_tex_coords > 0 && hdr->offset_tex_coords > 0) {
+    const q2_md2_texcoord_t* raw_tc
+      = (const q2_md2_texcoord_t*)(data + hdr->offset_tex_coords);
+    model->tex_coords
+      = (float*)malloc((size_t)hdr->num_tex_coords * 2 * sizeof(float));
+    float inv_w = (hdr->skin_width > 0) ? 1.0f / (float)hdr->skin_width : 1.0f;
+    float inv_h
+      = (hdr->skin_height > 0) ? 1.0f / (float)hdr->skin_height : 1.0f;
+    for (int32_t i = 0; i < hdr->num_tex_coords; i++) {
+      model->tex_coords[i * 2 + 0] = (float)raw_tc[i].s * inv_w;
+      model->tex_coords[i * 2 + 1] = (float)raw_tc[i].t * inv_h;
+    }
+  }
+
+  /* Decompress all frame vertices */
+  model->frame_verts = (float*)malloc(
+    (size_t)hdr->num_frames * (size_t)hdr->num_vertices * 3 * sizeof(float));
+
+  for (int32_t f = 0; f < hdr->num_frames; f++) {
+    uint32_t frame_offset
+      = (uint32_t)(hdr->offset_frames + f * hdr->frame_size);
+    if (frame_offset + sizeof(q2_md2_frame_header_t) > data_size) {
+      fprintf(stderr, "[MD2] Frame %d header out of bounds\n", f);
+      free(model->frame_verts);
+      free(model->triangles);
+      free(model->tex_coords);
+      memset(model, 0, sizeof(*model));
+      return false;
+    }
+
+    const q2_md2_frame_header_t* fhdr
+      = (const q2_md2_frame_header_t*)(data + frame_offset);
+    const q2_md2_vertex_t* verts
+      = (const q2_md2_vertex_t*)(data + frame_offset
+                                 + sizeof(q2_md2_frame_header_t));
+
+    float* dst = &model->frame_verts[(size_t)f * (size_t)hdr->num_vertices * 3];
+    for (int32_t v = 0; v < hdr->num_vertices; v++) {
+      dst[v * 3 + 0]
+        = fhdr->scale[0] * (float)verts[v].v[0] + fhdr->translate[0];
+      dst[v * 3 + 1]
+        = fhdr->scale[1] * (float)verts[v].v[1] + fhdr->translate[1];
+      dst[v * 3 + 2]
+        = fhdr->scale[2] * (float)verts[v].v[2] + fhdr->translate[2];
+    }
+  }
+
+  return true;
+}
+
+/**
+ * @brief Free MD2 model CPU-side resources.
+ */
+static void q2_md2_destroy(q2_md2_model_t* model)
+{
+  free(model->frame_verts);
+  free(model->triangles);
+  free(model->tex_coords);
+  memset(model, 0, sizeof(*model));
+}
+
+/**
+ * @brief Load an MD2 model's skin texture from the PAK file.
+ *
+ * Tries the skin path stored in the MD2 file, then falls back to looking
+ * for a .pcx file next to the model.
+ *
+ * @param pak        PAK archive.
+ * @param model_path MD2 model path in PAK (e.g.
+ * "models/monsters/infantry/tris.md2").
+ * @param model      Parsed MD2 model (for skin_name).
+ * @param out_rgba   Output RGBA pixels (caller must free).
+ * @param out_w      Output texture width.
+ * @param out_h      Output texture height.
+ * @return true if a texture was loaded.
+ */
+static bool q2_md2_load_skin(const q2_pak_t* pak, const char* model_path,
+                             const q2_md2_model_t* model, uint8_t** out_rgba,
+                             uint32_t* out_w, uint32_t* out_h)
+{
+  *out_rgba = NULL;
+  *out_w = *out_h = 0;
+
+  /* Try skin name from MD2 header first */
+  if (model->skin_name[0] != '\0') {
+    const q2_pak_entry_t* entry = q2_pak_find(pak, model->skin_name);
+    if (entry) {
+      uint32_t size       = 0;
+      const uint8_t* data = q2_pak_get_data(pak, entry, &size);
+      if (data) {
+        *out_rgba = q2_pcx_decode(data, size, out_w, out_h);
+        if (*out_rgba) {
+          return true;
+        }
+      }
+    }
+  }
+
+  /* Fallback: replace .md2 extension with .pcx in the model path */
+  char skin_path[128];
+  strncpy(skin_path, model_path, sizeof(skin_path) - 1);
+  skin_path[sizeof(skin_path) - 1] = '\0';
+
+  char* dot = strrchr(skin_path, '.');
+  if (dot && (size_t)(dot - skin_path) < sizeof(skin_path) - 5) {
+    strcpy(dot, ".pcx");
+    const q2_pak_entry_t* entry = q2_pak_find(pak, skin_path);
+    if (entry) {
+      uint32_t size       = 0;
+      const uint8_t* data = q2_pak_get_data(pak, entry, &size);
+      if (data) {
+        *out_rgba = q2_pcx_decode(data, size, out_w, out_h);
+        if (*out_rgba) {
+          return true;
+        }
+      }
+    }
+  }
+
+  /* Fallback: try skin_i.pcx pattern (common for monsters) */
+  {
+    /* Get directory from model path */
+    char dir[128];
+    strncpy(dir, model_path, sizeof(dir) - 1);
+    dir[sizeof(dir) - 1] = '\0';
+    char* last_slash     = strrchr(dir, '/');
+    if (last_slash) {
+      *(last_slash + 1) = '\0'; /* Keep trailing slash */
+      char try_path[256];
+      snprintf(try_path, sizeof(try_path), "%sskin.pcx", dir);
+      const q2_pak_entry_t* entry = q2_pak_find(pak, try_path);
+      if (entry) {
+        uint32_t size       = 0;
+        const uint8_t* data = q2_pak_get_data(pak, entry, &size);
+        if (data) {
+          *out_rgba = q2_pcx_decode(data, size, out_w, out_h);
+          if (*out_rgba) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/* -------------------------------------------------------------------------- *
+ * BSP Entity Parsing for MD2 Models
+ *
+ * Scans the BSP entity string for entities that reference MD2 models.
+ * Returns an array of entity instances with position, rotation, and model
+ * index for rendering.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Look up the model path for a classname in the entity model table.
+ * @return Model path string, or NULL if not found.
+ */
+static const char* q2_entity_lookup_model(const char* classname)
+{
+  for (uint32_t i = 0; i < Q2_ENTITY_MODEL_TABLE_SIZE; i++) {
+    if (strcmp(classname, q2_entity_model_table[i].classname) == 0) {
+      return q2_entity_model_table[i].model_path;
+    }
+  }
+  return NULL;
+}
+
+/**
+ * @brief Find the BSP cluster containing a Q2 world position.
+ *
+ * Used during entity loading to pre-assign clusters for PVS culling.
+ */
+static int32_t q2_entity_get_cluster(const q2_bsp_map_t* map,
+                                     const float pos[3])
+{
+  int32_t node_id = 0;
+  while (node_id >= 0) {
+    const q2_node_t* node   = &map->nodes[node_id];
+    const q2_plane_t* plane = &map->planes[node->plane];
+    float d;
+    if (plane->type < 3) {
+      d = pos[plane->type] - plane->dist;
+    }
+    else {
+      d = pos[0] * plane->normal[0] + pos[1] * plane->normal[1]
+          + pos[2] * plane->normal[2] - plane->dist;
+    }
+    node_id = (d >= 0) ? node->front_child : node->back_child;
+  }
+  int32_t leaf_idx = -(node_id + 1);
+  if (leaf_idx >= 0 && (uint32_t)leaf_idx < map->num_leaves) {
+    return (int32_t)map->leaves[leaf_idx].cluster;
+  }
+  return -1;
+}
+
+/**
+ * @brief Parse BSP entity string and extract all renderable MD2 entities.
+ *
+ * For each entity block in the BSP entities lump, checks if the classname
+ * maps to a known MD2 model. If so, extracts origin and angle and adds it
+ * to the entity list.
+ *
+ * @param entities    BSP entity string.
+ * @param map         BSP map (for cluster lookup).
+ * @param out_entities Output array (caller must free).
+ * @param out_count    Number of entities found.
+ * @param model_paths  Output: unique model paths referenced (caller must
+ * manage).
+ * @param model_count  In/out: number of unique model paths.
+ * @return true on success.
+ */
+static bool q2_parse_md2_entities(const char* entities, const q2_bsp_map_t* map,
+                                  q2_md2_entity_t** out_entities,
+                                  uint32_t* out_count, const char** model_paths,
+                                  uint32_t* model_count)
+{
+  *out_entities = NULL;
+  *out_count    = 0;
+
+  if (!entities) {
+    return false;
+  }
+
+  /* First pass: count entities */
+  uint32_t capacity = 128;
+  q2_md2_entity_t* ents
+    = (q2_md2_entity_t*)malloc(capacity * sizeof(q2_md2_entity_t));
+  uint32_t count = 0;
+
+  const char* p = entities;
+  while (*p) {
+    /* Find next entity block */
+    const char* brace_open = strchr(p, '{');
+    if (!brace_open) {
+      break;
+    }
+    const char* brace_close = strchr(brace_open, '}');
+    if (!brace_close) {
+      break;
+    }
+
+    /* Extract classname */
+    char classname[64] = {0};
+    const char* cn_key = strstr(brace_open, "\"classname\"");
+    if (cn_key && cn_key < brace_close) {
+      const char* q1 = strchr(cn_key + 11, '"');
+      if (q1 && q1 < brace_close) {
+        const char* q2 = strchr(q1 + 1, '"');
+        if (q2 && q2 < brace_close) {
+          uint32_t len = (uint32_t)(q2 - q1 - 1);
+          if (len > 0 && len < sizeof(classname)) {
+            memcpy(classname, q1 + 1, len);
+            classname[len] = '\0';
+          }
+        }
+      }
+    }
+
+    if (classname[0] == '\0') {
+      p = brace_close + 1;
+      continue;
+    }
+
+    /* Look up model path */
+    const char* model_path = q2_entity_lookup_model(classname);
+    if (!model_path) {
+      p = brace_close + 1;
+      continue;
+    }
+
+    /* Find or add model path to unique list */
+    int32_t model_idx = -1;
+    for (uint32_t i = 0; i < *model_count; i++) {
+      if (strcmp(model_paths[i], model_path) == 0) {
+        model_idx = (int32_t)i;
+        break;
+      }
+    }
+    if (model_idx < 0 && *model_count < Q2_MD2_MAX_MODELS) {
+      model_idx                 = (int32_t)*model_count;
+      model_paths[*model_count] = model_path;
+      (*model_count)++;
+    }
+    if (model_idx < 0) {
+      p = brace_close + 1;
+      continue;
+    }
+
+    /* Extract origin */
+    float origin[3]     = {0};
+    const char* org_key = strstr(brace_open, "\"origin\"");
+    if (org_key && org_key < brace_close) {
+      const char* q1 = strchr(org_key + 8, '"');
+      if (q1 && q1 < brace_close) {
+        sscanf(q1 + 1, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+      }
+    }
+
+    /* Extract angle */
+    float angle            = 0.0f;
+    const char* angles_key = strstr(brace_open, "\"angles\"");
+    if (angles_key && angles_key < brace_close) {
+      const char* q1 = strchr(angles_key + 8, '"');
+      if (q1 && q1 < brace_close) {
+        float pitch = 0, yaw = 0, roll = 0;
+        if (sscanf(q1 + 1, "%f %f %f", &pitch, &yaw, &roll) >= 2) {
+          angle = yaw;
+        }
+      }
+    }
+    else {
+      const char* angle_key = strstr(brace_open, "\"angle\"");
+      if (angle_key && angle_key < brace_close) {
+        const char* q1 = strchr(angle_key + 7, '"');
+        if (q1 && q1 < brace_close) {
+          sscanf(q1 + 1, "%f", &angle);
+        }
+      }
+    }
+
+    /* Grow array if needed */
+    if (count >= capacity) {
+      capacity *= 2;
+      ents
+        = (q2_md2_entity_t*)realloc(ents, capacity * sizeof(q2_md2_entity_t));
+    }
+
+    /* Store entity */
+    ents[count].origin[0]     = origin[0];
+    ents[count].origin[1]     = origin[1];
+    ents[count].origin[2]     = origin[2];
+    ents[count].angle         = angle;
+    ents[count].model_index   = model_idx;
+    ents[count].cluster       = q2_entity_get_cluster(map, origin);
+    ents[count].current_frame = 0;
+    ents[count].next_frame = 0; /* Safe default; corrected after model load */
+    ents[count].interp     = 0.0f;
+    count++;
+
+    p = brace_close + 1;
+  }
+
+  if (count == 0) {
+    free(ents);
+    return false;
+  }
+
+  *out_entities = ents;
+  *out_count    = count;
+  printf("[MD2] Found %u entities referencing %u unique models\n", count,
+         *model_count);
+  return true;
+}
+
+/* -------------------------------------------------------------------------- *
+ * MD2 GPU Vertex Buffer Building
+ *
+ * Builds triangulated vertex data for a given frame pair (current + next)
+ * with texture coordinates, ready for GPU upload. The vertex shader will
+ * linearly interpolate between current and next frame positions.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Build GPU vertex buffer data for one MD2 model at a specific frame.
+ *
+ * @param model       Parsed MD2 model.
+ * @param frame_cur   Current animation frame index.
+ * @param frame_next  Next animation frame index (for interpolation).
+ * @param out_verts   Output vertex array (caller must free).
+ * @param out_count   Number of vertices generated.
+ */
+static void q2_md2_build_vertices(const q2_md2_model_t* model,
+                                  int32_t frame_cur, int32_t frame_next,
+                                  q2_md2_render_vertex_t** out_verts,
+                                  uint32_t* out_count)
+{
+  uint32_t num_verts = (uint32_t)model->num_triangles * 3;
+  q2_md2_render_vertex_t* verts
+    = (q2_md2_render_vertex_t*)malloc(num_verts * sizeof(*verts));
+
+  const float* cur_frame
+    = &model->frame_verts[(size_t)frame_cur * (size_t)model->num_vertices * 3];
+  const float* next_frame
+    = &model->frame_verts[(size_t)frame_next * (size_t)model->num_vertices * 3];
+
+  for (int32_t t = 0; t < model->num_triangles; t++) {
+    const q2_md2_triangle_t* tri = &model->triangles[t];
+
+    for (int k = 0; k < 3; k++) {
+      q2_md2_render_vertex_t* rv = &verts[t * 3 + k];
+      uint16_t vi                = tri->vertex_indices[k];
+      uint16_t ti                = tri->texcoord_indices[k];
+
+      /* Current frame position */
+      rv->pos[0] = cur_frame[vi * 3 + 0];
+      rv->pos[1] = cur_frame[vi * 3 + 1];
+      rv->pos[2] = cur_frame[vi * 3 + 2];
+
+      /* Next frame position */
+      rv->next_pos[0] = next_frame[vi * 3 + 0];
+      rv->next_pos[1] = next_frame[vi * 3 + 1];
+      rv->next_pos[2] = next_frame[vi * 3 + 2];
+
+      /* Texture coordinates */
+      if (model->tex_coords && ti < model->num_tex_coords) {
+        rv->tex_uv[0] = model->tex_coords[ti * 2 + 0];
+        rv->tex_uv[1] = model->tex_coords[ti * 2 + 1];
+      }
+      else {
+        rv->tex_uv[0] = 0.0f;
+        rv->tex_uv[1] = 0.0f;
+      }
+    }
+  }
+
+  *out_verts = verts;
+  *out_count = num_verts;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1969,6 +2758,17 @@ typedef struct {
   uint32_t _pad[3];        /* 12 bytes padding (total 80 = 5 × 16) */
 } q2_uniforms_t;
 
+/* MD2 model uniform buffer layout (96 bytes):
+ *  Offset  0 : model_mvp (mat4x4 = 64 bytes)
+ *  Offset 64 : interpolation (f32, 0.0 to 1.0 blend between frames)
+ *  Offset 68 : _pad[7]       (28 bytes padding to reach 96 = 6 × 16)
+ */
+typedef struct {
+  mat4 model_mvp;      /* 64 bytes */
+  float interpolation; /* 4 bytes  */
+  uint32_t _pad[7];    /* 28 bytes padding (total 96 = 6 × 16) */
+} q2_md2_uniforms_t;
+
 /* -------------------------------------------------------------------------- *
  * Renderer State
  * -------------------------------------------------------------------------- */
@@ -2063,6 +2863,41 @@ static struct {
     WGPUPipelineLayout pipeline_layout;
   } skybox;
 
+  /* MD2 model rendering */
+  struct {
+    bool enabled;
+    bool show_models; /* Toggle in GUI */
+
+    /* Model resources (shared across instances) */
+    q2_md2_resource_t models[Q2_MD2_MAX_MODELS];
+    uint32_t num_models;
+
+    /* Entity instances */
+    q2_md2_entity_t* entities;
+    uint32_t num_entities;
+
+    /* GPU resources */
+    wgpu_buffer_t vertex_buffer;
+    wgpu_buffer_t uniform_buffer; /* Per-model MVP + interp factor */
+    uint32_t vb_capacity;         /* Current VB capacity in vertices */
+    WGPUBindGroupLayout bg_layout_shared;
+    WGPUBindGroupLayout bg_layout_texture;
+    WGPUBindGroup bg_shared;
+    WGPURenderPipeline pipeline;
+    WGPUPipelineLayout pipeline_layout;
+    WGPUSampler sampler;
+
+    /* Per-model texture bind groups (indexed by model_index) */
+    WGPUBindGroup tex_bind_groups[Q2_MD2_MAX_MODELS];
+
+    /* Visible entity indices (rebuilt on PVS change) */
+    uint32_t* visible_entities;
+    uint32_t num_visible;
+
+    /* Timing */
+    uint64_t anim_start_time;
+  } md2;
+
   /* Render pass */
   WGPURenderPassColorAttachment color_att;
   WGPURenderPassDepthStencilAttachment depth_att;
@@ -2075,6 +2910,10 @@ static struct {
   .debug = {
     .view_mode  = Q2_VIEW_NORMAL,
     .show_gizmo = false,
+  },
+  .md2 = {
+    .enabled     = false,
+    .show_models = true,
   },
   .color_att = {
     .loadOp     = WGPULoadOp_Clear,
@@ -3501,8 +4340,400 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* --- Gizmo --- */
   igCheckbox("Show Gizmo (origin axes)", &state.debug.show_gizmo);
+  igSeparator();
+
+  /* --- MD2 Models --- */
+  if (state.md2.enabled) {
+    igTextColored((ImVec4){0.9f, 0.6f, 1.0f, 1.0f}, "MD2 Models");
+    igCheckbox("Show Models", &state.md2.show_models);
+    igText("Models     : %u", state.md2.num_models);
+    igText("Entities   : %u", state.md2.num_entities);
+    igText("Visible    : %u", state.md2.num_visible);
+  }
 
   igEnd();
+}
+
+/* -------------------------------------------------------------------------- *
+ * MD2 Model System Initialization
+ *
+ * Loads MD2 models referenced by BSP entities, creates GPU textures and
+ * rendering pipeline for animated model display.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Create the MD2 rendering pipeline (bind group layouts, pipeline).
+ */
+static void init_md2_pipeline(wgpu_context_t* wgpu_context)
+{
+  /* Sampler for MD2 textures */
+  state.md2.sampler = wgpuDeviceCreateSampler(
+    wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("MD2 sampler"),
+                            .addressModeU  = WGPUAddressMode_Repeat,
+                            .addressModeV  = WGPUAddressMode_Repeat,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
+                            .maxAnisotropy = 1,
+                          });
+
+  /* Group 0: Shared (uniform buffer + sampler) */
+  WGPUBindGroupLayoutEntry shared_entries[2] = {
+    [0] = (WGPUBindGroupLayoutEntry){
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = (WGPUBufferBindingLayout){
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(q2_md2_uniforms_t),
+      },
+    },
+    [1] = (WGPUBindGroupLayoutEntry){
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Fragment,
+      .sampler = (WGPUSamplerBindingLayout){
+        .type = WGPUSamplerBindingType_Filtering,
+      },
+    },
+  };
+  state.md2.bg_layout_shared = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("MD2 shared BGL"),
+                            .entryCount = (uint32_t)ARRAY_SIZE(shared_entries),
+                            .entries    = shared_entries,
+                          });
+
+  /* Group 1: Per-model texture */
+  WGPUBindGroupLayoutEntry tex_entry = (WGPUBindGroupLayoutEntry){
+    .binding    = 0,
+    .visibility = WGPUShaderStage_Fragment,
+    .texture = (WGPUTextureBindingLayout){
+      .sampleType    = WGPUTextureSampleType_Float,
+      .viewDimension = WGPUTextureViewDimension_2D,
+    },
+  };
+  state.md2.bg_layout_texture = wgpuDeviceCreateBindGroupLayout(
+    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                            .label      = STRVIEW("MD2 texture BGL"),
+                            .entryCount = 1,
+                            .entries    = &tex_entry,
+                          });
+
+  /* Uniform buffer */
+  state.md2.uniform_buffer = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "MD2 uniform buffer",
+                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+                    .size  = sizeof(q2_md2_uniforms_t),
+                  });
+
+  /* Shared bind group */
+  WGPUBindGroupEntry bg_entries[2] = {
+    [0] = (WGPUBindGroupEntry){
+      .binding = 0,
+      .buffer  = state.md2.uniform_buffer.buffer,
+      .offset  = 0,
+      .size    = sizeof(q2_md2_uniforms_t),
+    },
+    [1] = (WGPUBindGroupEntry){
+      .binding = 1,
+      .sampler = state.md2.sampler,
+    },
+  };
+  state.md2.bg_shared = wgpuDeviceCreateBindGroup(
+    wgpu_context->device, &(WGPUBindGroupDescriptor){
+                            .label      = STRVIEW("MD2 shared BG"),
+                            .layout     = state.md2.bg_layout_shared,
+                            .entryCount = 2,
+                            .entries    = bg_entries,
+                          });
+
+  /* Pipeline layout */
+  WGPUBindGroupLayout layouts[2]
+    = {state.md2.bg_layout_shared, state.md2.bg_layout_texture};
+  state.md2.pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("MD2 pipeline layout"),
+                            .bindGroupLayoutCount = 2,
+                            .bindGroupLayouts     = layouts,
+                          });
+
+  /* Shader modules */
+  WGPUShaderModule vs
+    = wgpu_create_shader_module(wgpu_context->device, q2_md2_vs_wgsl);
+  WGPUShaderModule fs
+    = wgpu_create_shader_module(wgpu_context->device, q2_md2_fs_wgsl);
+
+  /* Vertex buffer layout: pos(3) + next_pos(3) + tex_uv(2) */
+  WGPU_VERTEX_BUFFER_LAYOUT(
+    md2_vertex, sizeof(q2_md2_render_vertex_t),
+    WGPU_VERTATTR_DESC(0, WGPUVertexFormat_Float32x3,
+                       offsetof(q2_md2_render_vertex_t, pos)),
+    WGPU_VERTATTR_DESC(1, WGPUVertexFormat_Float32x3,
+                       offsetof(q2_md2_render_vertex_t, next_pos)),
+    WGPU_VERTATTR_DESC(2, WGPUVertexFormat_Float32x2,
+                       offsetof(q2_md2_render_vertex_t, tex_uv)))
+
+  WGPUBlendState blend = wgpu_create_blend_state(true);
+
+  WGPUDepthStencilState depth
+    = wgpu_create_depth_stencil_state(&(create_depth_stencil_state_desc_t){
+      .format              = wgpu_context->depth_stencil_format,
+      .depth_write_enabled = true,
+    });
+  depth.depthCompare = WGPUCompareFunction_Less;
+
+  state.md2.pipeline = wgpuDeviceCreateRenderPipeline(
+    wgpu_context->device,
+    &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("MD2 render pipeline"),
+      .layout = state.md2.pipeline_layout,
+      .vertex = {
+        .module      = vs,
+        .entryPoint  = STRVIEW("main"),
+        .bufferCount = 1,
+        .buffers     = &md2_vertex_vertex_buffer_layout,
+      },
+      .fragment = &(WGPUFragmentState){
+        .module      = fs,
+        .entryPoint  = STRVIEW("main"),
+        .targetCount = 1,
+        .targets = &(WGPUColorTargetState){
+          .format    = wgpu_context->render_format,
+          .blend     = &blend,
+          .writeMask = WGPUColorWriteMask_All,
+        },
+      },
+      .primitive = {
+        .topology  = WGPUPrimitiveTopology_TriangleList,
+        .cullMode  = WGPUCullMode_None,
+        .frontFace = WGPUFrontFace_CCW,
+      },
+      .depthStencil = &depth,
+      .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+    });
+
+  wgpuShaderModuleRelease(vs);
+  wgpuShaderModuleRelease(fs);
+}
+
+/**
+ * @brief Load all MD2 models referenced by BSP entities.
+ *
+ * Parses the entity string, finds unique model paths, loads MD2 data and
+ * skin textures, and creates GPU resources.
+ */
+static void init_md2_models(wgpu_context_t* wgpu_context)
+{
+  if (!state.bsp.entities) {
+    return;
+  }
+
+  const char* model_paths[Q2_MD2_MAX_MODELS];
+  uint32_t model_count = 0;
+
+  /* Parse entities and get unique model paths */
+  if (!q2_parse_md2_entities(state.bsp.entities, &state.bsp,
+                             &state.md2.entities, &state.md2.num_entities,
+                             model_paths, &model_count)) {
+    printf("[MD2] No MD2 entities found in BSP\n");
+    return;
+  }
+
+  /* Load each unique MD2 model from PAK */
+  uint32_t loaded = 0;
+  for (uint32_t i = 0; i < model_count; i++) {
+    const q2_pak_entry_t* entry = q2_pak_find(&state.pak, model_paths[i]);
+    if (!entry) {
+      printf("[MD2] Model not found in PAK: %s\n", model_paths[i]);
+      continue;
+    }
+
+    uint32_t md2_size       = 0;
+    const uint8_t* md2_data = q2_pak_get_data(&state.pak, entry, &md2_size);
+    if (!md2_data) {
+      continue;
+    }
+
+    if (!q2_md2_parse(md2_data, md2_size, &state.md2.models[i].model)) {
+      printf("[MD2] Failed to parse: %s\n", model_paths[i]);
+      continue;
+    }
+
+    /* Load skin texture */
+    uint8_t* rgba  = NULL;
+    uint32_t tex_w = 0, tex_h = 0;
+    if (q2_md2_load_skin(&state.pak, model_paths[i], &state.md2.models[i].model,
+                         &rgba, &tex_w, &tex_h)) {
+      state.md2.models[i].gpu_tex = wgpu_create_texture(
+        wgpu_context, &(wgpu_texture_desc_t){
+                        .extent = (WGPUExtent3D){.width              = tex_w,
+                                                 .height             = tex_h,
+                                                 .depthOrArrayLayers = 1},
+                        .format = WGPUTextureFormat_RGBA8Unorm,
+                        .pixels = {.ptr = rgba, .size = tex_w * tex_h * 4},
+                      });
+      free(rgba);
+    }
+    else {
+      /* Create 2x2 magenta placeholder */
+      printf("[MD2] Skin not found for model: %s (skin_name: '%s')\n",
+             model_paths[i], state.md2.models[i].model.skin_name);
+      uint8_t placeholder[2 * 2 * 4];
+      for (int p = 0; p < 4; p++) {
+        placeholder[p * 4 + 0] = 255;
+        placeholder[p * 4 + 1] = 0;
+        placeholder[p * 4 + 2] = 255;
+        placeholder[p * 4 + 3] = 255;
+      }
+      state.md2.models[i].gpu_tex = wgpu_create_texture(
+        wgpu_context,
+        &(wgpu_texture_desc_t){
+          .extent
+          = (WGPUExtent3D){.width = 2, .height = 2, .depthOrArrayLayers = 1},
+          .format = WGPUTextureFormat_RGBA8Unorm,
+          .pixels = {.ptr = placeholder, .size = sizeof(placeholder)},
+        });
+    }
+
+    /* Create per-model texture bind group */
+    WGPUBindGroupEntry tex_bg_entry = (WGPUBindGroupEntry){
+      .binding     = 0,
+      .textureView = state.md2.models[i].gpu_tex.view,
+    };
+    state.md2.tex_bind_groups[i] = wgpuDeviceCreateBindGroup(
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("MD2 tex BG"),
+                              .layout     = state.md2.bg_layout_texture,
+                              .entryCount = 1,
+                              .entries    = &tex_bg_entry,
+                            });
+
+    state.md2.models[i].loaded = true;
+    loaded++;
+
+    printf("[MD2] Loaded: %s (%d verts, %d tris, %d frames, skin: '%s')\n",
+           model_paths[i], state.md2.models[i].model.num_vertices,
+           state.md2.models[i].model.num_triangles,
+           state.md2.models[i].model.num_frames,
+           state.md2.models[i].model.skin_name);
+  }
+
+  state.md2.num_models      = model_count;
+  state.md2.anim_start_time = stm_now();
+
+  /* Initialize next_frame for entities now that models are loaded */
+  for (uint32_t i = 0; i < state.md2.num_entities; i++) {
+    q2_md2_entity_t* ent = &state.md2.entities[i];
+    if (ent->model_index >= 0 && (uint32_t)ent->model_index < model_count
+        && state.md2.models[ent->model_index].loaded) {
+      int32_t nf      = state.md2.models[ent->model_index].model.num_frames;
+      ent->next_frame = (nf > 1) ? 1 : 0;
+    }
+  }
+
+  /* Allocate visible entities array */
+  state.md2.visible_entities
+    = (uint32_t*)malloc(state.md2.num_entities * sizeof(uint32_t));
+  state.md2.num_visible = 0;
+
+  if (loaded > 0) {
+    state.md2.enabled = true;
+    printf("[MD2] Models ready: %u loaded, %u entities\n", loaded,
+           state.md2.num_entities);
+  }
+}
+
+/**
+ * @brief Update MD2 visible entities based on current PVS cluster.
+ *
+ * Filters entities to only those in visible clusters or within cull distance.
+ */
+static void md2_update_visibility(const float cam_pos_q2[3],
+                                  uint16_t current_cluster)
+{
+  state.md2.num_visible = 0;
+
+  if (!state.md2.enabled || !state.md2.show_models) {
+    return;
+  }
+
+  /* If we have PVS data, use cluster-based culling */
+  bool use_pvs = (state.cluster_faces != NULL && state.num_pvs_clusters > 0
+                  && current_cluster != Q2_CLUSTER_INVALID
+                  && current_cluster < state.num_pvs_clusters);
+
+  /* Decompress PVS for current cluster if available */
+  uint8_t* vis_set = NULL;
+  if (use_pvs && state.bsp.vis_data && state.bsp.vis_offsets) {
+    vis_set                  = (uint8_t*)calloc(state.num_pvs_clusters, 1);
+    vis_set[current_cluster] = 1; /* Always see own cluster */
+
+    /* pvs_offset is relative to the visibility lump start.
+     * lump_base = vis_offsets - sizeof(uint32_t) points to lump start.
+     * This matches the approach used in q2_decompress_pvs(). */
+    const uint8_t* lump_base
+      = (const uint8_t*)state.bsp.vis_offsets - sizeof(uint32_t);
+    uint32_t lump_size
+      = sizeof(uint32_t)
+        + state.num_pvs_clusters * (uint32_t)sizeof(q2_vis_offset_t)
+        + state.bsp.vis_data_size;
+    uint32_t v       = state.bsp.vis_offsets[current_cluster].pvs;
+    uint32_t cluster = 0;
+    while (cluster < state.num_pvs_clusters && v < lump_size) {
+      uint8_t byte = lump_base[v];
+      if (byte == 0) {
+        v++;
+        if (v >= lump_size) {
+          break;
+        }
+        cluster += 8 * (uint32_t)lump_base[v];
+      }
+      else {
+        for (int bit = 0; bit < 8 && cluster < state.num_pvs_clusters;
+             bit++, cluster++) {
+          if (byte & (1 << bit)) {
+            vis_set[cluster] = 1;
+          }
+        }
+      }
+      v++;
+    }
+  }
+
+  for (uint32_t i = 0; i < state.md2.num_entities; i++) {
+    const q2_md2_entity_t* ent = &state.md2.entities[i];
+
+    if (ent->model_index < 0
+        || (uint32_t)ent->model_index >= state.md2.num_models
+        || !state.md2.models[ent->model_index].loaded) {
+      continue;
+    }
+
+    /* PVS cluster check */
+    if (vis_set && ent->cluster >= 0
+        && (uint32_t)ent->cluster < state.num_pvs_clusters) {
+      if (!vis_set[ent->cluster]) {
+        continue; /* Entity not in visible cluster */
+      }
+    }
+
+    /* Distance cull */
+    float dx   = ent->origin[0] - cam_pos_q2[0];
+    float dy   = ent->origin[1] - cam_pos_q2[1];
+    float dz   = ent->origin[2] - cam_pos_q2[2];
+    float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (dist > Q2_MD2_CULL_DISTANCE) {
+      continue;
+    }
+
+    state.md2.visible_entities[state.md2.num_visible++] = i;
+  }
+
+  free(vis_set);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -3622,6 +4853,10 @@ static int init(wgpu_context_t* wgpu_context)
   /* Skybox */
   init_skybox(wgpu_context);
 
+  /* MD2 models */
+  init_md2_pipeline(wgpu_context);
+  init_md2_models(wgpu_context);
+
   /* Camera */
   init_camera(wgpu_context);
 
@@ -3721,6 +4956,55 @@ static int frame(wgpu_context_t* wgpu_context)
                          sizeof(mat4));
   }
 
+  /* --- MD2 animation update --- */
+  if (state.md2.enabled && state.md2.show_models) {
+    /* Advance animation for all entities */
+    for (uint32_t i = 0; i < state.md2.num_entities; i++) {
+      q2_md2_entity_t* ent = &state.md2.entities[i];
+      if (ent->model_index < 0
+          || (uint32_t)ent->model_index >= state.md2.num_models
+          || !state.md2.models[ent->model_index].loaded) {
+        continue;
+      }
+      const q2_md2_model_t* mdl = &state.md2.models[ent->model_index].model;
+      if (mdl->num_frames <= 1) {
+        continue; /* Static model, no animation */
+      }
+
+      ent->interp += dt * Q2_MD2_ANIM_FPS;
+      while (ent->interp >= 1.0f) {
+        ent->interp -= 1.0f;
+        ent->current_frame = ent->next_frame;
+        ent->next_frame    = (ent->current_frame + 1) % mdl->num_frames;
+      }
+    }
+
+    /* Update PVS visibility */
+    if (state.cluster_faces && state.num_pvs_clusters > 0
+        && state.current_leaf >= 0
+        && (uint32_t)state.current_leaf < state.bsp.num_leaves) {
+      float q2_cam[3] = {
+        -state.camera.position[0],
+        state.camera.position[2],
+        -state.camera.position[1],
+      };
+      uint16_t cluster = state.bsp.leaves[state.current_leaf].cluster;
+      md2_update_visibility(q2_cam, cluster);
+    }
+    else {
+      /* No PVS — show all entities */
+      state.md2.num_visible = 0;
+      for (uint32_t i = 0; i < state.md2.num_entities; i++) {
+        const q2_md2_entity_t* ent = &state.md2.entities[i];
+        if (ent->model_index >= 0
+            && (uint32_t)ent->model_index < state.md2.num_models
+            && state.md2.models[ent->model_index].loaded) {
+          state.md2.visible_entities[state.md2.num_visible++] = i;
+        }
+      }
+    }
+  }
+
   /* ImGui frame */
   imgui_overlay_new_frame(wgpu_context, dt);
   render_gui(wgpu_context);
@@ -3778,6 +5062,108 @@ static int frame(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderDraw(rp, state.debug.brush_vert_count, 1, 0, 0);
   }
 
+  /* --- Draw MD2 models --- */
+  if (state.md2.enabled && state.md2.show_models && state.md2.num_visible > 0) {
+    wgpuRenderPassEncoderSetPipeline(rp, state.md2.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.md2.bg_shared, 0, 0);
+
+    for (uint32_t vi = 0; vi < state.md2.num_visible; vi++) {
+      uint32_t ei                = state.md2.visible_entities[vi];
+      const q2_md2_entity_t* ent = &state.md2.entities[ei];
+      const q2_md2_model_t* mdl  = &state.md2.models[ent->model_index].model;
+
+      /* Build vertex data for current frame pair */
+      q2_md2_render_vertex_t* verts = NULL;
+      uint32_t vert_count           = 0;
+      q2_md2_build_vertices(mdl, ent->current_frame, ent->next_frame, &verts,
+                            &vert_count);
+      if (!verts || vert_count == 0) {
+        free(verts);
+        continue;
+      }
+
+      /* Upload vertex buffer (grow if needed) */
+      uint32_t vb_size = vert_count * (uint32_t)sizeof(q2_md2_render_vertex_t);
+      if (vert_count > state.md2.vb_capacity
+          || !state.md2.vertex_buffer.buffer) {
+        if (state.md2.vertex_buffer.buffer) {
+          WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
+        }
+        state.md2.vertex_buffer = wgpu_create_buffer(
+          wgpu_context,
+          &(wgpu_buffer_desc_t){
+            .label = "MD2 VB",
+            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+            .size  = vb_size,
+          });
+        state.md2.vb_capacity = vert_count;
+      }
+      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.vertex_buffer.buffer,
+                           0, verts, vb_size);
+      free(verts);
+
+      /* Build model matrix: Q2 coords → render coords.
+       * Q2: X right, Y forward, Z up
+       * Render: X right, Y up, -Z forward
+       * So: render_x = Q2_x, render_y = Q2_z, render_z = -Q2_y */
+      mat4 model_mat;
+      glm_mat4_identity(model_mat);
+
+      /* Translate to entity position (converted to render space) */
+      vec3 render_pos = {
+        ent->origin[0],  /* Q2_x → render_x */
+        ent->origin[2],  /* Q2_z → render_y */
+        -ent->origin[1], /* -Q2_y → render_z */
+      };
+      glm_translate(model_mat, render_pos);
+
+      /* Apply yaw rotation around render Y axis (Q2 Z up = render Y up).
+       * Q2 angle is yaw in degrees, 0 = +Q2_Y direction. In render space
+       * that is the -Z direction. glm_rotate_y expects radians. */
+      float yaw_rad = glm_rad(ent->angle);
+      glm_rotate_y(model_mat, yaw_rad, model_mat);
+
+      /* Coordinate swap matrix: rotate MD2 model space (Q2 conventions)
+       * into render space. MD2 vertices are in Q2 coords, so apply the
+       * same Q2→render conversion:
+       *   render_x =  Q2_x  (column 0 = [1,0,0])
+       *   render_y =  Q2_z  (column 1 = [0,0,1])
+       *   render_z = -Q2_y  (column 2 = [0,-1,0]) */
+      mat4 coord_swap  = GLM_MAT4_IDENTITY_INIT;
+      coord_swap[0][0] = 1.0f;
+      coord_swap[0][1] = 0.0f;
+      coord_swap[0][2] = 0.0f;
+      coord_swap[1][0] = 0.0f;
+      coord_swap[1][1] = 0.0f;
+      coord_swap[1][2] = -1.0f;
+      coord_swap[2][0] = 0.0f;
+      coord_swap[2][1] = 1.0f;
+      coord_swap[2][2] = 0.0f;
+      glm_mat4_mul(model_mat, coord_swap, model_mat);
+
+      /* Compute final model-view-projection */
+      mat4 vp;
+      glm_mat4_mul(state.camera.matrices.perspective,
+                   state.camera.matrices.view, vp);
+      q2_md2_uniforms_t md2_uniform = {0};
+      glm_mat4_mul(vp, model_mat, md2_uniform.model_mvp);
+      md2_uniform.interpolation = ent->interp;
+
+      /* Upload uniform */
+      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.uniform_buffer.buffer,
+                           0, &md2_uniform, sizeof(q2_md2_uniforms_t));
+
+      /* Bind texture for this model */
+      wgpuRenderPassEncoderSetBindGroup(
+        rp, 1, state.md2.tex_bind_groups[ent->model_index], 0, 0);
+
+      /* Set vertex buffer and draw */
+      wgpuRenderPassEncoderSetVertexBuffer(
+        rp, 0, state.md2.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDraw(rp, vert_count, 1, 0, 0);
+    }
+  }
+
   /* Gizmo: three coloured axis lines drawn at world origin (always on top) */
   if (state.debug.show_gizmo) {
     wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
@@ -3809,17 +5195,23 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
-  camera_on_input_event(&state.camera, input_event);
 
-  /* Use the persistent keys_down array rather than checking event_type.
-   * The main loop only dispatches one event per frame; if a MOUSE_MOVE fires
-   * in the same glfwPollEvents() call as KEY_DOWN, MOUSE_MOVE overwrites the
-   * event type and KEY_DOWN would never be seen.  keys_down[] is always a
-   * reliable snapshot of which keys are currently held. */
-  state.camera.keys.up    = input_event->keys_down[KEY_W];
-  state.camera.keys.down  = input_event->keys_down[KEY_S];
-  state.camera.keys.left  = input_event->keys_down[KEY_A];
-  state.camera.keys.right = input_event->keys_down[KEY_D];
+  /* Skip camera/scene input when ImGui captures the mouse or keyboard */
+  if (!imgui_overlay_want_capture_mouse()) {
+    camera_on_input_event(&state.camera, input_event);
+  }
+
+  if (!imgui_overlay_want_capture_keyboard()) {
+    /* Use the persistent keys_down array rather than checking event_type.
+     * The main loop only dispatches one event per frame; if a MOUSE_MOVE fires
+     * in the same glfwPollEvents() call as KEY_DOWN, MOUSE_MOVE overwrites the
+     * event type and KEY_DOWN would never be seen.  keys_down[] is always a
+     * reliable snapshot of which keys are currently held. */
+    state.camera.keys.up    = input_event->keys_down[KEY_W];
+    state.camera.keys.down  = input_event->keys_down[KEY_S];
+    state.camera.keys.left  = input_event->keys_down[KEY_A];
+    state.camera.keys.right = input_event->keys_down[KEY_D];
+  }
 }
 
 static void shutdown(wgpu_context_t* wgpu_context)
@@ -3859,6 +5251,29 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Buffer, state.debug.gizmo_vb.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.debug.colored_vb.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.debug.brush_vb.buffer)
+
+  /* MD2 model resources */
+  if (state.md2.enabled) {
+    WGPU_RELEASE_RESOURCE(RenderPipeline, state.md2.pipeline)
+    WGPU_RELEASE_RESOURCE(PipelineLayout, state.md2.pipeline_layout)
+    WGPU_RELEASE_RESOURCE(BindGroup, state.md2.bg_shared)
+    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_shared)
+    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_texture)
+    WGPU_RELEASE_RESOURCE(Buffer, state.md2.uniform_buffer.buffer)
+    WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
+    WGPU_RELEASE_RESOURCE(Sampler, state.md2.sampler)
+
+    for (uint32_t i = 0; i < state.md2.num_models; i++) {
+      WGPU_RELEASE_RESOURCE(BindGroup, state.md2.tex_bind_groups[i])
+      wgpu_destroy_texture(&state.md2.models[i].gpu_tex);
+      q2_md2_destroy(&state.md2.models[i].model);
+    }
+
+    free(state.md2.entities);
+    state.md2.entities = NULL;
+    free(state.md2.visible_entities);
+    state.md2.visible_entities = NULL;
+  }
 
   for (uint32_t t = 0; t < state.num_textures; t++) {
     WGPU_RELEASE_RESOURCE(BindGroup, state.textures[t].bind_group)
@@ -4061,6 +5476,57 @@ static const char* q2_debug_fs_wgsl = CODE(
   @fragment
   fn main(@location(0) color : vec3f) -> @location(0) vec4f {
     return vec4f(color, 1.0);
+  }
+);
+
+/* -------------------------------------------------------------------------- *
+ * MD2 Model Shaders
+ *
+ * Vertex shader interpolates between current and next frame positions using
+ * a uniform interpolation factor. Fragment shader applies the model's diffuse
+ * texture with basic directional lighting for visibility.
+ * -------------------------------------------------------------------------- */
+
+/* MD2 vertex shader: lerp between two frame positions and transform by MVP */
+static const char* q2_md2_vs_wgsl = CODE(
+  struct Uniforms {
+    model_mvp     : mat4x4f,
+    interpolation : f32,
+  };
+
+  @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+  struct VertexInput {
+    @location(0) pos      : vec3f,
+    @location(1) next_pos : vec3f,
+    @location(2) tex_uv   : vec2f,
+  };
+
+  struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0)       tex_uv  : vec2f,
+  };
+
+  @vertex
+  fn main(in : VertexInput) -> VertexOutput {
+    let interpolated = mix(in.pos, in.next_pos, uniforms.interpolation);
+    var out : VertexOutput;
+    out.position = uniforms.model_mvp * vec4f(interpolated, 1.0);
+    out.tex_uv   = in.tex_uv;
+    return out;
+  }
+);
+
+/* MD2 fragment shader: sample diffuse texture with simple lighting */
+static const char* q2_md2_fs_wgsl = CODE(
+  @group(0) @binding(1) var md2_sampler : sampler;
+  @group(1) @binding(0) var md2_texture : texture_2d<f32>;
+
+  @fragment
+  fn main(@location(0) tex_uv : vec2f) -> @location(0) vec4f {
+    let color = textureSample(md2_texture, md2_sampler, tex_uv);
+    if (color.a < 0.1) { discard; }
+    return color;
   }
 );
 // clang-format on
