@@ -1829,13 +1829,19 @@ static void q2_decompress_pvs(const q2_bsp_map_t* map, uint32_t cluster,
      * before vis_offsets. Use direct pointer math to reach lump start. */
     const uint8_t* lump_base
       = (const uint8_t*)map->vis_offsets - sizeof(uint32_t);
-    /* Now pvs byte is simply at lump_base[v] */
+    /* Total byte count of the visibility lump (header + offsets + RLE data) */
+    uint32_t lump_size = sizeof(uint32_t)
+                         + num_clusters * (uint32_t)sizeof(q2_vis_offset_t)
+                         + map->vis_data_size;
 
-    while (c < num_clusters) {
+    while (c < num_clusters && v < lump_size) {
       uint8_t byte = lump_base[v];
       if (byte == 0) {
         /* RLE: skip clusters */
         v++;
+        if (v >= lump_size) {
+          break;
+        }
         c += 8 * (uint32_t)lump_base[v];
       }
       else {
@@ -2923,9 +2929,18 @@ static void init_debug_brush_volumes(wgpu_context_t* wgpu_context)
     float g = has_faces ? 1.0f : 0.15f;
     float b = 0.1f;
 
-    debug_add_aabb_edges(verts, &count, mdl->mins[0], mdl->mins[1],
-                         mdl->mins[2], mdl->maxs[0], mdl->maxs[1], mdl->maxs[2],
-                         r, g, b);
+    /* Convert Q2 AABB (X right, Y fwd, Z up) to WebGPU (X right, Y up, -Z fwd).
+     * The Y-negate flips min/max: Q2_y_min → -Q2_y_min (WebGPU Z max),
+     * Q2_y_max → -Q2_y_max (WebGPU Z min). */
+    float wb_xmin = mdl->mins[0];
+    float wb_ymin = mdl->mins[2];  /* Q2 Z min → WebGPU Y min */
+    float wb_zmin = -mdl->maxs[1]; /* -Q2 Y max → WebGPU Z min */
+    float wb_xmax = mdl->maxs[0];
+    float wb_ymax = mdl->maxs[2];  /* Q2 Z max → WebGPU Y max */
+    float wb_zmax = -mdl->mins[1]; /* -Q2 Y min → WebGPU Z max */
+
+    debug_add_aabb_edges(verts, &count, wb_xmin, wb_ymin, wb_zmin, wb_xmax,
+                         wb_ymax, wb_zmax, r, g, b);
   }
 
   if (count == 0) {
@@ -3999,8 +4014,10 @@ static const char* q2_skybox_vs_wgsl = CODE(
 );
 
 /* Skybox fragment shader: samples a cubemap using the direction reconstructed
- * from the inverse view-rotation-projection matrix. Applies gamma correction
- * (2.2) to match the Quake 2 palette-indexed textures. */
+ * from the inverse view-rotation-projection matrix.  No gamma correction is
+ * applied because the PCX palette colours are sRGB values stored in the same
+ * RGBA8Unorm format as the diffuse WAL textures; both are sampled in the same
+ * colour space and modulated together in the final composited frame. */
 static const char* q2_skybox_fs_wgsl = CODE(
   @group(0) @binding(0) var<uniform> view_dir_proj_inv : mat4x4f;
   @group(0) @binding(1) var sky_sampler : sampler;
@@ -4011,8 +4028,7 @@ static const char* q2_skybox_fs_wgsl = CODE(
     let t = view_dir_proj_inv * direction;
     let uvw = normalize(t.xyz / t.w);
     let color = textureSample(sky_texture, sky_sampler, uvw);
-    let gamma = vec3f(1.0 / 2.2);
-    return vec4f(pow(color.rgb, gamma), 1.0);
+    return vec4f(color.rgb, 1.0);
   }
 );
 
