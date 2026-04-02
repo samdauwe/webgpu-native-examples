@@ -281,7 +281,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     if (m->index_count > 0) {
       state.scene_buffers[i].index_buffer = wgpuDeviceCreateBuffer(
         device, &(WGPUBufferDescriptor){
-                  .label = STRVIEW("Scene Index Buffer"),
+                  .label = STRVIEW("Scene - Index Buffer"),
                   .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                   .size  = ib_size,
                   .mappedAtCreation = true,
