@@ -267,7 +267,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     /* Vertex buffer */
     state.scene_buffers[i].vertex_buffer = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Scene Vertex Buffer"),
+                .label = STRVIEW("Scene - Vertex Buffer"),
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                 .size  = vb_size,
                 .mappedAtCreation = true,
