@@ -1568,8 +1568,9 @@ typedef struct {
 #define Q2_MD2_MAX_SKINS 32
 #define Q2_MD2_SKIN_NAME_LEN 64
 #define Q2_MD2_FRAME_NAME_LEN 16
-#define Q2_MD2_MAX_MODELS 256 /* Max entity models in a map */
-#define Q2_MD2_ANIM_FPS 10.0f /* Default MD2 animation speed */
+#define Q2_MD2_MAX_MODELS 256   /* Max unique model slots in a map */
+#define Q2_MD2_MAX_ENTITIES 512 /* Max entity instances in a map */
+#define Q2_MD2_ANIM_FPS 10.0f   /* Default MD2 animation speed */
 #define Q2_MD2_CULL_DISTANCE                                                   \
   8192.0f /* Distance beyond which models are culled */
 
@@ -1655,6 +1656,11 @@ typedef struct {
   float angle;         /* Yaw rotation in degrees */
   int32_t model_index; /* Index into md2_models[] array (-1 = invalid) */
   int32_t cluster;     /* BSP cluster for PVS culling (-1 = unknown) */
+
+  /* Gameplay classification: true = object doesn't actively animate in the
+   * world (barrels, items, weapons on ground). Their MD2 frames are for
+   * event animations (explosion, pickup), NOT idle loops. */
+  bool is_gameplay_static;
 
   /* Animation state */
   int32_t current_frame;
@@ -1759,91 +1765,99 @@ static const float q2_md2_normals[162][3] = {
 
 /* Classname-to-model-path mapping for Quake 2 entities.
  * Maps BSP entity classnames to their corresponding MD2 model paths within
- * the PAK archive. Only entities with known model paths are rendered. */
+ * the PAK archive. Only entities with known model paths are rendered.
+ * skin_override: NULL = use MD2 header skin; non-NULL = specific skin path.
+ * is_gameplay_static: true for objects that don't actively animate in the
+ *   world (barrels sit still until shot, items sit on ground, etc.).
+ *   Their MD2 frames are for event animations (explosion, pickup), not idle. */
 typedef struct {
   const char* classname;
   const char* model_path;
+  const char* skin_override;
+  bool is_gameplay_static;
 } q2_entity_model_map_t;
 
 // clang-format off
 static const q2_entity_model_map_t q2_entity_model_table[] = {
-  /* Monsters */
-  {"monster_infantry",       "models/monsters/infantry/tris.md2"},
-  {"monster_soldier",        "models/monsters/soldier/tris.md2"},
-  {"monster_soldier_light",  "models/monsters/soldier/tris.md2"},
-  {"monster_soldier_ss",     "models/monsters/soldier/tris.md2"},
-  {"monster_gunner",         "models/monsters/gunner/tris.md2"},
-  {"monster_tank",           "models/monsters/tank/tris.md2"},
-  {"monster_tank_commander", "models/monsters/tank/tris.md2"},
-  {"monster_chick",          "models/monsters/bitch/tris.md2"},
-  {"monster_brain",          "models/monsters/brain/tris.md2"},
-  {"monster_parasite",       "models/monsters/parasite/tris.md2"},
-  {"monster_mutant",         "models/monsters/mutant/tris.md2"},
-  {"monster_medic",          "models/monsters/medic/tris.md2"},
-  {"monster_flipper",        "models/monsters/flipper/tris.md2"},
-  {"monster_flyer",          "models/monsters/flyer/tris.md2"},
-  {"monster_floater",        "models/monsters/float/tris.md2"},
-  {"monster_hover",          "models/monsters/hover/tris.md2"},
-  {"monster_gladiator",      "models/monsters/gladiatr/tris.md2"},
-  {"monster_berserk",        "models/monsters/berserk/tris.md2"},
-  {"monster_supertank",      "models/monsters/boss1/tris.md2"},
-  {"monster_boss2",          "models/monsters/boss2/tris.md2"},
-  {"monster_jorg",           "models/monsters/boss3/jorg/tris.md2"},
-  {"monster_makron",         "models/monsters/boss3/rider/tris.md2"},
-  {"monster_boss3_stand",    "models/monsters/boss3/rider/tris.md2"},
-  {"misc_insane",            "models/monsters/insane/tris.md2"},
-  /* Items / health / armor */
-  {"item_health",            "models/items/healing/medium/tris.md2"},
-  {"item_health_small",      "models/items/healing/stimpack/tris.md2"},
-  {"item_health_large",      "models/items/healing/large/tris.md2"},
-  {"item_health_mega",       "models/items/mega_h/tris.md2"},
-  {"item_armor_body",        "models/items/armor/body/tris.md2"},
-  {"item_armor_combat",      "models/items/armor/combat/tris.md2"},
-  {"item_armor_jacket",      "models/items/armor/jacket/tris.md2"},
-  {"item_armor_shard",       "models/items/armor/shard/tris.md2"},
-  /* Weapons: use g_ (ground/world) models, NOT v_ (viewmodel) */
-  {"weapon_shotgun",         "models/weapons/g_shotg/tris.md2"},
-  {"weapon_supershotgun",    "models/weapons/g_shotg2/tris.md2"},
-  {"weapon_machinegun",      "models/weapons/g_machn/tris.md2"},
-  {"weapon_chaingun",        "models/weapons/g_chain/tris.md2"},
-  {"weapon_grenadelauncher", "models/weapons/g_launch/tris.md2"},
-  {"weapon_rocketlauncher",  "models/weapons/g_rocket/tris.md2"},
-  {"weapon_hyperblaster",    "models/weapons/g_hyperb/tris.md2"},
-  {"weapon_railgun",         "models/weapons/g_rail/tris.md2"},
-  {"weapon_bfg",             "models/weapons/g_bfg/tris.md2"},
-  /* Ammo */
-  {"ammo_shells",            "models/items/ammo/shells/medium/tris.md2"},
-  {"ammo_bullets",           "models/items/ammo/bullets/medium/tris.md2"},
-  {"ammo_cells",             "models/items/ammo/cells/medium/tris.md2"},
-  {"ammo_rockets",           "models/items/ammo/rockets/medium/tris.md2"},
-  {"ammo_grenades",          "models/items/ammo/grenades/medium/tris.md2"},
-  {"ammo_slugs",             "models/items/ammo/slugs/medium/tris.md2"},
-  /* Power-ups */
-  {"item_quad",              "models/items/quaddama/tris.md2"},
-  {"item_invulnerability",   "models/items/invulner/tris.md2"},
-  {"item_power_screen",      "models/items/armor/screen/tris.md2"},
-  {"item_power_shield",      "models/items/armor/shield/tris.md2"},
-  {"item_breather",          "models/items/breather/tris.md2"},
-  {"item_enviro",            "models/items/enviro/tris.md2"},
-  {"item_silencer",          "models/items/silencer/tris.md2"},
-  {"item_adrenaline",        "models/items/adrenal/tris.md2"},
-  {"item_bandolier",         "models/items/band/tris.md2"},
-  {"item_pack",              "models/items/pack/tris.md2"},
-  {"item_ancient_head",      "models/items/c_head/tris.md2"},
-  /* Keys */
-  {"key_data_cd",            "models/items/keys/data_cd/tris.md2"},
-  {"key_power_cube",         "models/items/keys/power/tris.md2"},
-  {"key_pyramid",            "models/items/keys/pyramid/tris.md2"},
-  {"key_data_spinner",       "models/items/keys/spinner/tris.md2"},
-  {"key_pass",               "models/items/keys/pass/tris.md2"},
-  {"key_blue_key",           "models/items/keys/key/tris.md2"},
-  {"key_red_key",            "models/items/keys/red_key/tris.md2"},
-  {"key_commander_head",     "models/monsters/commandr/head/tris.md2"},
-  /* Misc objects with models */
-  {"misc_explobox",          "models/objects/barrels/tris.md2"},
-  {"misc_banner",            "models/objects/banner/tris.md2"},
-  {"misc_satellite_dish",    "models/objects/satellite/tris.md2"},
-  {"misc_deadsoldier",       "models/deadbods/dude/tris.md2"},
+  /* Monsters — gameplay-animated (idle/walk/attack animations)
+   * Soldier variants share the same MD2 but use different skins. */
+  {"monster_infantry",       "models/monsters/infantry/tris.md2",  NULL, false},
+  {"monster_soldier",        "models/monsters/soldier/tris.md2",   "models/monsters/soldier/skin.pcx", false},
+  {"monster_soldier_light",  "models/monsters/soldier/tris.md2",   "models/monsters/soldier/skin_lt.pcx", false},
+  {"monster_soldier_ss",     "models/monsters/soldier/tris.md2",   "models/monsters/soldier/skin_ss.pcx", false},
+  {"monster_gunner",         "models/monsters/gunner/tris.md2",    NULL, false},
+  {"monster_tank",           "models/monsters/tank/tris.md2",      "models/monsters/tank/skin.pcx", false},
+  {"monster_tank_commander", "models/monsters/tank/tris.md2",      "models/monsters/tank/../ctank/skin.pcx", false},
+  {"monster_chick",          "models/monsters/bitch/tris.md2",     NULL, false},
+  {"monster_brain",          "models/monsters/brain/tris.md2",     NULL, false},
+  {"monster_parasite",       "models/monsters/parasite/tris.md2",  NULL, false},
+  {"monster_mutant",         "models/monsters/mutant/tris.md2",    NULL, false},
+  {"monster_medic",          "models/monsters/medic/tris.md2",     NULL, false},
+  {"monster_flipper",        "models/monsters/flipper/tris.md2",   NULL, false},
+  {"monster_flyer",          "models/monsters/flyer/tris.md2",     NULL, false},
+  {"monster_floater",        "models/monsters/float/tris.md2",     NULL, false},
+  {"monster_hover",          "models/monsters/hover/tris.md2",     NULL, false},
+  {"monster_gladiator",      "models/monsters/gladiatr/tris.md2",  NULL, false},
+  {"monster_berserk",        "models/monsters/berserk/tris.md2",   NULL, false},
+  {"monster_supertank",      "models/monsters/boss1/tris.md2",     NULL, false},
+  {"monster_boss2",          "models/monsters/boss2/tris.md2",     NULL, false},
+  {"monster_jorg",           "models/monsters/boss3/jorg/tris.md2", NULL, false},
+  {"monster_makron",         "models/monsters/boss3/rider/tris.md2", NULL, false},
+  {"monster_boss3_stand",    "models/monsters/boss3/rider/tris.md2", NULL, false},
+  {"misc_insane",            "models/monsters/insane/tris.md2",    NULL, false},
+  /* Misc objects — gameplay-animated */
+  {"misc_banner",            "models/objects/banner/tris.md2",     NULL, false},
+  /* Items / health / armor — gameplay-static (sit on ground until pickup) */
+  {"item_health",            "models/items/healing/medium/tris.md2",   NULL, true},
+  {"item_health_small",      "models/items/healing/stimpack/tris.md2", NULL, true},
+  {"item_health_large",      "models/items/healing/large/tris.md2",    NULL, true},
+  {"item_health_mega",       "models/items/mega_h/tris.md2",           NULL, true},
+  {"item_armor_body",        "models/items/armor/body/tris.md2",       NULL, true},
+  {"item_armor_combat",      "models/items/armor/combat/tris.md2",     NULL, true},
+  {"item_armor_jacket",      "models/items/armor/jacket/tris.md2",     NULL, true},
+  {"item_armor_shard",       "models/items/armor/shard/tris.md2",      NULL, true},
+  /* Weapons: use g_ (ground/world) models, NOT v_ (viewmodel) — static */
+  {"weapon_shotgun",         "models/weapons/g_shotg/tris.md2",   NULL, true},
+  {"weapon_supershotgun",    "models/weapons/g_shotg2/tris.md2",  NULL, true},
+  {"weapon_machinegun",      "models/weapons/g_machn/tris.md2",   NULL, true},
+  {"weapon_chaingun",        "models/weapons/g_chain/tris.md2",   NULL, true},
+  {"weapon_grenadelauncher", "models/weapons/g_launch/tris.md2",  NULL, true},
+  {"weapon_rocketlauncher",  "models/weapons/g_rocket/tris.md2",  NULL, true},
+  {"weapon_hyperblaster",    "models/weapons/g_hyperb/tris.md2",  NULL, true},
+  {"weapon_railgun",         "models/weapons/g_rail/tris.md2",    NULL, true},
+  {"weapon_bfg",             "models/weapons/g_bfg/tris.md2",     NULL, true},
+  /* Ammo — static */
+  {"ammo_shells",            "models/items/ammo/shells/medium/tris.md2",    NULL, true},
+  {"ammo_bullets",           "models/items/ammo/bullets/medium/tris.md2",   NULL, true},
+  {"ammo_cells",             "models/items/ammo/cells/medium/tris.md2",     NULL, true},
+  {"ammo_rockets",           "models/items/ammo/rockets/medium/tris.md2",   NULL, true},
+  {"ammo_grenades",          "models/items/ammo/grenades/medium/tris.md2",  NULL, true},
+  {"ammo_slugs",             "models/items/ammo/slugs/medium/tris.md2",     NULL, true},
+  /* Power-ups — static */
+  {"item_quad",              "models/items/quaddama/tris.md2",    NULL, true},
+  {"item_invulnerability",   "models/items/invulner/tris.md2",    NULL, true},
+  {"item_power_screen",      "models/items/armor/screen/tris.md2", NULL, true},
+  {"item_power_shield",      "models/items/armor/shield/tris.md2", NULL, true},
+  {"item_breather",          "models/items/breather/tris.md2",    NULL, true},
+  {"item_enviro",            "models/items/enviro/tris.md2",      NULL, true},
+  {"item_silencer",          "models/items/silencer/tris.md2",    NULL, true},
+  {"item_adrenaline",        "models/items/adrenal/tris.md2",     NULL, true},
+  {"item_bandolier",         "models/items/band/tris.md2",        NULL, true},
+  {"item_pack",              "models/items/pack/tris.md2",        NULL, true},
+  {"item_ancient_head",      "models/items/c_head/tris.md2",      NULL, true},
+  /* Keys — static */
+  {"key_data_cd",            "models/items/keys/data_cd/tris.md2",  NULL, true},
+  {"key_power_cube",         "models/items/keys/power/tris.md2",    NULL, true},
+  {"key_pyramid",            "models/items/keys/pyramid/tris.md2",  NULL, true},
+  {"key_data_spinner",       "models/items/keys/spinner/tris.md2",  NULL, true},
+  {"key_pass",               "models/items/keys/pass/tris.md2",     NULL, true},
+  {"key_blue_key",           "models/items/keys/key/tris.md2",      NULL, true},
+  {"key_red_key",            "models/items/keys/red_key/tris.md2",  NULL, true},
+  {"key_commander_head",     "models/monsters/commandr/head/tris.md2", NULL, true},
+  /* Misc objects — gameplay-static (barrels sit still until shot) */
+  {"misc_explobox",          "models/objects/barrels/tris.md2",   NULL, true},
+  {"misc_satellite_dish",    "models/objects/satellite/tris.md2", NULL, true},
+  {"misc_deadsoldier",       "models/deadbods/dude/tris.md2",     NULL, true},
 };
 // clang-format on
 
@@ -2191,13 +2205,33 @@ static void q2_md2_destroy(q2_md2_model_t* model)
  * @return true if a texture was loaded.
  */
 static bool q2_md2_load_skin(const q2_pak_t* pak, const char* model_path,
-                             const q2_md2_model_t* model, uint8_t** out_rgba,
+                             const q2_md2_model_t* model,
+                             const char* skin_override, uint8_t** out_rgba,
                              uint32_t* out_w, uint32_t* out_h)
 {
   *out_rgba = NULL;
   *out_w = *out_h = 0;
 
-  /* Try skin name from MD2 header first */
+  /* If a skin override is specified, try it first (highest priority).
+   * This allows entity types sharing an MD2 file to use different skins
+   * (e.g., monster_soldier vs monster_soldier_light). */
+  if (skin_override && skin_override[0] != '\0') {
+    const q2_pak_entry_t* entry = q2_pak_find(pak, skin_override);
+    if (entry) {
+      uint32_t size       = 0;
+      const uint8_t* data = q2_pak_get_data(pak, entry, &size);
+      if (data) {
+        *out_rgba = q2_pcx_decode(data, size, out_w, out_h);
+        if (*out_rgba) {
+          return true;
+        }
+      }
+    }
+    fprintf(stderr, "[MD2] WARNING: override skin not found: '%s'\n",
+            skin_override);
+  }
+
+  /* Try skin name from MD2 header */
   if (model->skin_name[0] != '\0') {
     const q2_pak_entry_t* entry = q2_pak_find(pak, model->skin_name);
     if (entry) {
@@ -2273,11 +2307,11 @@ static bool q2_md2_load_skin(const q2_pak_t* pak, const char* model_path,
  * @brief Look up the model path for a classname in the entity model table.
  * @return Model path string, or NULL if not found.
  */
-static const char* q2_entity_lookup_model(const char* classname)
+static const q2_entity_model_map_t* q2_entity_lookup(const char* classname)
 {
   for (uint32_t i = 0; i < Q2_ENTITY_MODEL_TABLE_SIZE; i++) {
     if (strcmp(classname, q2_entity_model_table[i].classname) == 0) {
-      return q2_entity_model_table[i].model_path;
+      return &q2_entity_model_table[i];
     }
   }
   return NULL;
@@ -2331,6 +2365,7 @@ static int32_t q2_entity_get_cluster(const q2_bsp_map_t* map,
 static bool q2_parse_md2_entities(const char* entities, const q2_bsp_map_t* map,
                                   q2_md2_entity_t** out_entities,
                                   uint32_t* out_count, const char** model_paths,
+                                  const char** skin_overrides,
                                   uint32_t* model_count)
 {
   *out_entities = NULL;
@@ -2380,24 +2415,40 @@ static bool q2_parse_md2_entities(const char* entities, const q2_bsp_map_t* map,
       continue;
     }
 
-    /* Look up model path */
-    const char* model_path = q2_entity_lookup_model(classname);
-    if (!model_path) {
+    /* Look up model entry (path + skin override + static flag) */
+    const q2_entity_model_map_t* entry = q2_entity_lookup(classname);
+    if (!entry) {
       p = brace_close + 1;
       continue;
     }
 
-    /* Find or add model path to unique list */
+    const char* model_path    = entry->model_path;
+    const char* skin_override = entry->skin_override;
+
+    /* Find or add model slot to unique list.
+     * Deduplication key is (model_path, skin_override) so that entity types
+     * sharing the same MD2 file but needing different skins (e.g. soldier
+     * variants) each get their own model resource slot with correct texture. */
     int32_t model_idx = -1;
     for (uint32_t i = 0; i < *model_count; i++) {
       if (strcmp(model_paths[i], model_path) == 0) {
-        model_idx = (int32_t)i;
-        break;
+        /* Same model path — also check skin override match */
+        const char* existing_skin = skin_overrides[i];
+        if (skin_override == NULL && existing_skin == NULL) {
+          model_idx = (int32_t)i;
+          break;
+        }
+        if (skin_override && existing_skin
+            && strcmp(skin_override, existing_skin) == 0) {
+          model_idx = (int32_t)i;
+          break;
+        }
       }
     }
     if (model_idx < 0 && *model_count < Q2_MD2_MAX_MODELS) {
-      model_idx                 = (int32_t)*model_count;
-      model_paths[*model_count] = model_path;
+      model_idx                    = (int32_t)*model_count;
+      model_paths[*model_count]    = model_path;
+      skin_overrides[*model_count] = skin_override;
       (*model_count)++;
     }
     if (model_idx < 0) {
@@ -2445,13 +2496,14 @@ static bool q2_parse_md2_entities(const char* entities, const q2_bsp_map_t* map,
     }
 
     /* Store entity */
-    ents[count].origin[0]     = origin[0];
-    ents[count].origin[1]     = origin[1];
-    ents[count].origin[2]     = origin[2];
-    ents[count].angle         = angle;
-    ents[count].model_index   = model_idx;
-    ents[count].cluster       = q2_entity_get_cluster(map, origin);
-    ents[count].current_frame = 0;
+    ents[count].origin[0]          = origin[0];
+    ents[count].origin[1]          = origin[1];
+    ents[count].origin[2]          = origin[2];
+    ents[count].angle              = angle;
+    ents[count].model_index        = model_idx;
+    ents[count].cluster            = q2_entity_get_cluster(map, origin);
+    ents[count].is_gameplay_static = entry->is_gameplay_static;
+    ents[count].current_frame      = 0;
     ents[count].next_frame = 0; /* Safe default; corrected after model load */
     ents[count].interp     = 0.0f;
     count++;
@@ -2878,8 +2930,10 @@ static struct {
 
     /* GPU resources */
     wgpu_buffer_t vertex_buffer;
-    wgpu_buffer_t uniform_buffer; /* Per-model MVP + interp factor */
-    uint32_t vb_capacity;         /* Current VB capacity in vertices */
+    wgpu_buffer_t uniform_buffer; /* Dynamic uniform buffer for all draws */
+    uint32_t vb_capacity;         /* Current VB capacity in bytes */
+    uint32_t ub_capacity;         /* Current UB capacity in bytes */
+    uint32_t uniform_alignment;   /* minUniformBufferOffsetAlignment (256) */
     WGPUBindGroupLayout bg_layout_shared;
     WGPUBindGroupLayout bg_layout_texture;
     WGPUBindGroup bg_shared;
@@ -2889,6 +2943,22 @@ static struct {
 
     /* Per-model texture bind groups (indexed by model_index) */
     WGPUBindGroup tex_bind_groups[Q2_MD2_MAX_MODELS];
+
+    /* Pre-computed draw commands (populated before render pass) */
+    struct {
+      uint32_t vb_offset;    /* byte offset into vertex buffer */
+      uint32_t vert_count;   /* number of vertices to draw */
+      uint32_t ub_offset;    /* byte offset into uniform buffer (aligned) */
+      int32_t model_index;   /* for texture bind group selection */
+      uint32_t entity_index; /* index into entities[] for matrix data */
+    } draw_cmds[Q2_MD2_MAX_ENTITIES];
+    uint32_t num_draw_cmds;
+
+    /* CPU staging buffers for batch upload */
+    uint8_t* vb_staging;
+    uint32_t vb_staging_cap;
+    uint8_t* ub_staging;
+    uint32_t ub_staging_cap;
 
     /* Visible entity indices (rebuilt on PVS change) */
     uint32_t* visible_entities;
@@ -4381,14 +4451,15 @@ static void init_md2_pipeline(wgpu_context_t* wgpu_context)
                             .maxAnisotropy = 1,
                           });
 
-  /* Group 0: Shared (uniform buffer + sampler) */
+  /* Group 0: Shared (uniform buffer with dynamic offset + sampler) */
   WGPUBindGroupLayoutEntry shared_entries[2] = {
     [0] = (WGPUBindGroupLayoutEntry){
       .binding    = 0,
       .visibility = WGPUShaderStage_Vertex,
       .buffer = (WGPUBufferBindingLayout){
-        .type           = WGPUBufferBindingType_Uniform,
-        .minBindingSize = sizeof(q2_md2_uniforms_t),
+        .type             = WGPUBufferBindingType_Uniform,
+        .hasDynamicOffset = true,
+        .minBindingSize   = sizeof(q2_md2_uniforms_t),
       },
     },
     [1] = (WGPUBindGroupLayoutEntry){
@@ -4422,13 +4493,26 @@ static void init_md2_pipeline(wgpu_context_t* wgpu_context)
                             .entries    = &tex_entry,
                           });
 
-  /* Uniform buffer */
+  /* Query minimum uniform buffer offset alignment */
+  {
+    WGPULimits limits = {0};
+    wgpuDeviceGetLimits(wgpu_context->device, &limits);
+    uint32_t min_align = limits.minUniformBufferOffsetAlignment;
+    /* Round up sizeof(q2_md2_uniforms_t) to alignment boundary */
+    state.md2.uniform_alignment
+      = ((uint32_t)sizeof(q2_md2_uniforms_t) + min_align - 1) / min_align
+        * min_align;
+  }
+
+  /* Dynamic uniform buffer (sized for all entities, grown as needed) */
+  uint32_t initial_ub_cap  = Q2_MD2_MAX_ENTITIES * state.md2.uniform_alignment;
   state.md2.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "MD2 uniform buffer",
+                    .label = "MD2 dynamic uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-                    .size  = sizeof(q2_md2_uniforms_t),
+                    .size  = initial_ub_cap,
                   });
+  state.md2.ub_capacity = initial_ub_cap;
 
   /* Shared bind group */
   WGPUBindGroupEntry bg_entries[2] = {
@@ -4533,12 +4617,14 @@ static void init_md2_models(wgpu_context_t* wgpu_context)
   }
 
   const char* model_paths[Q2_MD2_MAX_MODELS];
+  const char* skin_overrides[Q2_MD2_MAX_MODELS];
   uint32_t model_count = 0;
+  memset(skin_overrides, 0, sizeof(skin_overrides));
 
-  /* Parse entities and get unique model paths */
+  /* Parse entities and get unique model paths + skin overrides */
   if (!q2_parse_md2_entities(state.bsp.entities, &state.bsp,
                              &state.md2.entities, &state.md2.num_entities,
-                             model_paths, &model_count)) {
+                             model_paths, skin_overrides, &model_count)) {
     printf("[MD2] No MD2 entities found in BSP\n");
     return;
   }
@@ -4563,11 +4649,11 @@ static void init_md2_models(wgpu_context_t* wgpu_context)
       continue;
     }
 
-    /* Load skin texture */
+    /* Load skin texture (skin_override has highest priority) */
     uint8_t* rgba  = NULL;
     uint32_t tex_w = 0, tex_h = 0;
     if (q2_md2_load_skin(&state.pak, model_paths[i], &state.md2.models[i].model,
-                         &rgba, &tex_w, &tex_h)) {
+                         skin_overrides[i], &rgba, &tex_w, &tex_h)) {
       state.md2.models[i].gpu_tex = wgpu_create_texture(
         wgpu_context, &(wgpu_texture_desc_t){
                         .extent = (WGPUExtent3D){.width              = tex_w,
@@ -4614,20 +4700,21 @@ static void init_md2_models(wgpu_context_t* wgpu_context)
 
     state.md2.models[i].loaded = true;
     loaded++;
-
-    printf("[MD2] Loaded: %s (%d verts, %d tris, %d frames, skin: '%s')\n",
-           model_paths[i], state.md2.models[i].model.num_vertices,
-           state.md2.models[i].model.num_triangles,
-           state.md2.models[i].model.num_frames,
-           state.md2.models[i].model.skin_name);
   }
 
   state.md2.num_models      = model_count;
   state.md2.anim_start_time = stm_now();
 
-  /* Initialize next_frame for entities now that models are loaded */
+  /* Initialize next_frame for entities now that models are loaded.
+   * Gameplay-static entities stay on frame 0 (no animation). */
   for (uint32_t i = 0; i < state.md2.num_entities; i++) {
     q2_md2_entity_t* ent = &state.md2.entities[i];
+    if (ent->is_gameplay_static) {
+      ent->current_frame = 0;
+      ent->next_frame    = 0;
+      ent->interp        = 0.0f;
+      continue;
+    }
     if (ent->model_index >= 0 && (uint32_t)ent->model_index < model_count
         && state.md2.models[ent->model_index].loaded) {
       int32_t nf      = state.md2.models[ent->model_index].model.num_frames;
@@ -4958,9 +5045,15 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* --- MD2 animation update --- */
   if (state.md2.enabled && state.md2.show_models) {
-    /* Advance animation for all entities */
+    /* Advance animation only for gameplay-animated entities.
+     * Gameplay-static entities (barrels, items, weapons) stay on frame 0
+     * because their MD2 frames are event animations (explosion, pickup),
+     * not idle loops. */
     for (uint32_t i = 0; i < state.md2.num_entities; i++) {
       q2_md2_entity_t* ent = &state.md2.entities[i];
+      if (ent->is_gameplay_static) {
+        continue; /* Static object — keep frame 0, no animation */
+      }
       if (ent->model_index < 0
           || (uint32_t)ent->model_index >= state.md2.num_models
           || !state.md2.models[ent->model_index].loaded) {
@@ -4968,7 +5061,7 @@ static int frame(wgpu_context_t* wgpu_context)
       }
       const q2_md2_model_t* mdl = &state.md2.models[ent->model_index].model;
       if (mdl->num_frames <= 1) {
-        continue; /* Static model, no animation */
+        continue; /* Single-frame model, no animation */
       }
 
       ent->interp += dt * Q2_MD2_ANIM_FPS;
@@ -5008,6 +5101,169 @@ static int frame(wgpu_context_t* wgpu_context)
   /* ImGui frame */
   imgui_overlay_new_frame(wgpu_context, dt);
   render_gui(wgpu_context);
+
+  /* --- Pre-compute MD2 draw commands (before render pass) --- */
+  state.md2.num_draw_cmds = 0;
+  if (state.md2.enabled && state.md2.show_models && state.md2.num_visible > 0) {
+    uint32_t total_vb_bytes = 0;
+    uint32_t total_ub_bytes = 0;
+    const uint32_t align    = state.md2.uniform_alignment;
+
+    /* Temp array to hold allocated vertex pointers until copy */
+    q2_md2_render_vertex_t* tmp_verts[Q2_MD2_MAX_ENTITIES];
+
+    for (uint32_t vi = 0; vi < state.md2.num_visible; vi++) {
+      uint32_t ei                = state.md2.visible_entities[vi];
+      const q2_md2_entity_t* ent = &state.md2.entities[ei];
+      const q2_md2_model_t* mdl  = &state.md2.models[ent->model_index].model;
+
+      q2_md2_render_vertex_t* verts = NULL;
+      uint32_t vert_count           = 0;
+      q2_md2_build_vertices(mdl, ent->current_frame, ent->next_frame, &verts,
+                            &vert_count);
+      if (!verts || vert_count == 0) {
+        free(verts);
+        continue;
+      }
+
+      if (state.md2.num_draw_cmds >= Q2_MD2_MAX_ENTITIES) {
+        free(verts);
+        break; /* Hit draw command limit */
+      }
+
+      uint32_t ci      = state.md2.num_draw_cmds;
+      uint32_t vb_size = vert_count * (uint32_t)sizeof(q2_md2_render_vertex_t);
+
+      state.md2.draw_cmds[ci].vb_offset    = total_vb_bytes;
+      state.md2.draw_cmds[ci].vert_count   = vert_count;
+      state.md2.draw_cmds[ci].ub_offset    = total_ub_bytes;
+      state.md2.draw_cmds[ci].model_index  = ent->model_index;
+      state.md2.draw_cmds[ci].entity_index = ei;
+      tmp_verts[ci]                        = verts;
+
+      total_vb_bytes += vb_size;
+      total_ub_bytes += align;
+      state.md2.num_draw_cmds++;
+    }
+
+    if (state.md2.num_draw_cmds > 0) {
+      /* Grow GPU vertex buffer if needed */
+      if (total_vb_bytes > state.md2.vb_capacity
+          || !state.md2.vertex_buffer.buffer) {
+        if (state.md2.vertex_buffer.buffer) {
+          WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
+        }
+        state.md2.vertex_buffer = wgpu_create_buffer(
+          wgpu_context,
+          &(wgpu_buffer_desc_t){
+            .label = "MD2 VB",
+            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+            .size  = total_vb_bytes,
+          });
+        state.md2.vb_capacity = total_vb_bytes;
+      }
+
+      /* Grow staging buffers if needed */
+      if (total_vb_bytes > state.md2.vb_staging_cap) {
+        state.md2.vb_staging = realloc(state.md2.vb_staging, total_vb_bytes);
+        state.md2.vb_staging_cap = total_vb_bytes;
+      }
+      if (total_ub_bytes > state.md2.ub_staging_cap) {
+        state.md2.ub_staging = realloc(state.md2.ub_staging, total_ub_bytes);
+        state.md2.ub_staging_cap = total_ub_bytes;
+      }
+
+      /* Grow GPU uniform buffer if needed (and recreate bind group) */
+      if (total_ub_bytes > state.md2.ub_capacity) {
+        WGPU_RELEASE_RESOURCE(Buffer, state.md2.uniform_buffer.buffer)
+        state.md2.uniform_buffer = wgpu_create_buffer(
+          wgpu_context,
+          &(wgpu_buffer_desc_t){
+            .label = "MD2 dynamic uniform buffer",
+            .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
+            .size  = total_ub_bytes,
+          });
+        state.md2.ub_capacity = total_ub_bytes;
+
+        /* Recreate bind group with new buffer */
+        WGPU_RELEASE_RESOURCE(BindGroup, state.md2.bg_shared)
+        WGPUBindGroupEntry bg_entries[2] = {
+          [0] = (WGPUBindGroupEntry){
+            .binding = 0,
+            .buffer  = state.md2.uniform_buffer.buffer,
+            .offset  = 0,
+            .size    = sizeof(q2_md2_uniforms_t),
+          },
+          [1] = (WGPUBindGroupEntry){
+            .binding = 1,
+            .sampler = state.md2.sampler,
+          },
+        };
+        state.md2.bg_shared = wgpuDeviceCreateBindGroup(
+          wgpu_context->device, &(WGPUBindGroupDescriptor){
+                                  .label      = STRVIEW("MD2 shared BG"),
+                                  .layout     = state.md2.bg_layout_shared,
+                                  .entryCount = 2,
+                                  .entries    = bg_entries,
+                                });
+      }
+      memset(state.md2.ub_staging, 0, total_ub_bytes);
+
+      /* View-projection matrix (shared across all entities) */
+      mat4 vp;
+      glm_mat4_mul(state.camera.matrices.perspective,
+                   state.camera.matrices.view, vp);
+
+      /* Build staging data for each draw command */
+      for (uint32_t i = 0; i < state.md2.num_draw_cmds; i++) {
+        /* Copy vertex data into VB staging */
+        uint32_t vb_size = state.md2.draw_cmds[i].vert_count
+                           * (uint32_t)sizeof(q2_md2_render_vertex_t);
+        memcpy(state.md2.vb_staging + state.md2.draw_cmds[i].vb_offset,
+               tmp_verts[i], vb_size);
+        free(tmp_verts[i]);
+
+        const q2_md2_entity_t* ent
+          = &state.md2.entities[state.md2.draw_cmds[i].entity_index];
+
+        /* Build model matrix: Q2 coords -> render coords */
+        mat4 model_mat;
+        glm_mat4_identity(model_mat);
+        vec3 render_pos = {
+          ent->origin[0],
+          ent->origin[2],
+          -ent->origin[1],
+        };
+        glm_translate(model_mat, render_pos);
+        float yaw_rad = glm_rad(ent->angle);
+        glm_rotate_y(model_mat, yaw_rad, model_mat);
+        mat4 coord_swap  = GLM_MAT4_IDENTITY_INIT;
+        coord_swap[0][0] = 1.0f;
+        coord_swap[0][1] = 0.0f;
+        coord_swap[0][2] = 0.0f;
+        coord_swap[1][0] = 0.0f;
+        coord_swap[1][1] = 0.0f;
+        coord_swap[1][2] = -1.0f;
+        coord_swap[2][0] = 0.0f;
+        coord_swap[2][1] = 1.0f;
+        coord_swap[2][2] = 0.0f;
+        glm_mat4_mul(model_mat, coord_swap, model_mat);
+
+        q2_md2_uniforms_t md2_uniform = {0};
+        glm_mat4_mul(vp, model_mat, md2_uniform.model_mvp);
+        md2_uniform.interpolation = ent->interp;
+
+        memcpy(state.md2.ub_staging + state.md2.draw_cmds[i].ub_offset,
+               &md2_uniform, sizeof(md2_uniform));
+      }
+
+      /* Single GPU writes for all entities */
+      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.vertex_buffer.buffer,
+                           0, state.md2.vb_staging, total_vb_bytes);
+      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.uniform_buffer.buffer,
+                           0, state.md2.ub_staging, total_ub_bytes);
+    }
+  }
 
   /* Update render pass attachments */
   state.color_att.view = wgpu_context->swapchain_view;
@@ -5063,104 +5319,28 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* --- Draw MD2 models --- */
-  if (state.md2.enabled && state.md2.show_models && state.md2.num_visible > 0) {
+  if (state.md2.enabled && state.md2.show_models
+      && state.md2.num_draw_cmds > 0) {
     wgpuRenderPassEncoderSetPipeline(rp, state.md2.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.md2.bg_shared, 0, 0);
 
-    for (uint32_t vi = 0; vi < state.md2.num_visible; vi++) {
-      uint32_t ei                = state.md2.visible_entities[vi];
-      const q2_md2_entity_t* ent = &state.md2.entities[ei];
-      const q2_md2_model_t* mdl  = &state.md2.models[ent->model_index].model;
+    for (uint32_t i = 0; i < state.md2.num_draw_cmds; i++) {
+      /* Bind shared group (uniform + sampler) with dynamic UB offset */
+      uint32_t ub_offset = state.md2.draw_cmds[i].ub_offset;
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.md2.bg_shared, 1,
+                                        &ub_offset);
 
-      /* Build vertex data for current frame pair */
-      q2_md2_render_vertex_t* verts = NULL;
-      uint32_t vert_count           = 0;
-      q2_md2_build_vertices(mdl, ent->current_frame, ent->next_frame, &verts,
-                            &vert_count);
-      if (!verts || vert_count == 0) {
-        free(verts);
-        continue;
-      }
-
-      /* Upload vertex buffer (grow if needed) */
-      uint32_t vb_size = vert_count * (uint32_t)sizeof(q2_md2_render_vertex_t);
-      if (vert_count > state.md2.vb_capacity
-          || !state.md2.vertex_buffer.buffer) {
-        if (state.md2.vertex_buffer.buffer) {
-          WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
-        }
-        state.md2.vertex_buffer = wgpu_create_buffer(
-          wgpu_context,
-          &(wgpu_buffer_desc_t){
-            .label = "MD2 VB",
-            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-            .size  = vb_size,
-          });
-        state.md2.vb_capacity = vert_count;
-      }
-      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.vertex_buffer.buffer,
-                           0, verts, vb_size);
-      free(verts);
-
-      /* Build model matrix: Q2 coords → render coords.
-       * Q2: X right, Y forward, Z up
-       * Render: X right, Y up, -Z forward
-       * So: render_x = Q2_x, render_y = Q2_z, render_z = -Q2_y */
-      mat4 model_mat;
-      glm_mat4_identity(model_mat);
-
-      /* Translate to entity position (converted to render space) */
-      vec3 render_pos = {
-        ent->origin[0],  /* Q2_x → render_x */
-        ent->origin[2],  /* Q2_z → render_y */
-        -ent->origin[1], /* -Q2_y → render_z */
-      };
-      glm_translate(model_mat, render_pos);
-
-      /* Apply yaw rotation around render Y axis (Q2 Z up = render Y up).
-       * Q2 angle is yaw in degrees, 0 = +Q2_Y direction. In render space
-       * that is the -Z direction. glm_rotate_y expects radians. */
-      float yaw_rad = glm_rad(ent->angle);
-      glm_rotate_y(model_mat, yaw_rad, model_mat);
-
-      /* Coordinate swap matrix: rotate MD2 model space (Q2 conventions)
-       * into render space. MD2 vertices are in Q2 coords, so apply the
-       * same Q2→render conversion:
-       *   render_x =  Q2_x  (column 0 = [1,0,0])
-       *   render_y =  Q2_z  (column 1 = [0,0,1])
-       *   render_z = -Q2_y  (column 2 = [0,-1,0]) */
-      mat4 coord_swap  = GLM_MAT4_IDENTITY_INIT;
-      coord_swap[0][0] = 1.0f;
-      coord_swap[0][1] = 0.0f;
-      coord_swap[0][2] = 0.0f;
-      coord_swap[1][0] = 0.0f;
-      coord_swap[1][1] = 0.0f;
-      coord_swap[1][2] = -1.0f;
-      coord_swap[2][0] = 0.0f;
-      coord_swap[2][1] = 1.0f;
-      coord_swap[2][2] = 0.0f;
-      glm_mat4_mul(model_mat, coord_swap, model_mat);
-
-      /* Compute final model-view-projection */
-      mat4 vp;
-      glm_mat4_mul(state.camera.matrices.perspective,
-                   state.camera.matrices.view, vp);
-      q2_md2_uniforms_t md2_uniform = {0};
-      glm_mat4_mul(vp, model_mat, md2_uniform.model_mvp);
-      md2_uniform.interpolation = ent->interp;
-
-      /* Upload uniform */
-      wgpuQueueWriteBuffer(wgpu_context->queue, state.md2.uniform_buffer.buffer,
-                           0, &md2_uniform, sizeof(q2_md2_uniforms_t));
-
-      /* Bind texture for this model */
+      /* Bind per-model texture */
       wgpuRenderPassEncoderSetBindGroup(
-        rp, 1, state.md2.tex_bind_groups[ent->model_index], 0, 0);
+        rp, 1, state.md2.tex_bind_groups[state.md2.draw_cmds[i].model_index], 0,
+        0);
 
-      /* Set vertex buffer and draw */
+      /* Set vertex buffer with offset for this entity's data */
+      uint64_t vb_off = state.md2.draw_cmds[i].vb_offset;
+      uint64_t vb_sz  = state.md2.draw_cmds[i].vert_count
+                       * (uint64_t)sizeof(q2_md2_render_vertex_t);
       wgpuRenderPassEncoderSetVertexBuffer(
-        rp, 0, state.md2.vertex_buffer.buffer, 0, WGPU_WHOLE_SIZE);
-      wgpuRenderPassEncoderDraw(rp, vert_count, 1, 0, 0);
+        rp, 0, state.md2.vertex_buffer.buffer, vb_off, vb_sz);
+      wgpuRenderPassEncoderDraw(rp, state.md2.draw_cmds[i].vert_count, 1, 0, 0);
     }
   }
 
@@ -5273,6 +5453,10 @@ static void shutdown(wgpu_context_t* wgpu_context)
     state.md2.entities = NULL;
     free(state.md2.visible_entities);
     state.md2.visible_entities = NULL;
+    free(state.md2.vb_staging);
+    state.md2.vb_staging = NULL;
+    free(state.md2.ub_staging);
+    state.md2.ub_staging = NULL;
   }
 
   for (uint32_t t = 0; t < state.num_textures; t++) {
