@@ -3093,6 +3093,7 @@ static struct {
   struct {
     bool enabled;
     bool show_models; /* Toggle in GUI */
+    bool anim_paused; /* Pause MD2 animations */
 
     /* Model resources (shared across instances) */
     q2_md2_resource_t models[Q2_MD2_MAX_MODELS];
@@ -3158,8 +3159,9 @@ static struct {
     .show_gizmo = false,
   },
   .md2 = {
-    .enabled     = false,
-    .show_models = true,
+    .enabled      = false,
+    .show_models  = true,
+    .anim_paused  = false,
   },
   .color_att = {
     .loadOp     = WGPULoadOp_Clear,
@@ -4597,6 +4599,16 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Quake 2 Renderer", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
+  /* --- No PAK loaded: show drag & drop hint --- */
+  if (state.num_maps == 0 && state.current_map_index < 0) {
+    igTextColored((ImVec4){1.0f, 0.6f, 0.2f, 1.0f}, "No PAK file loaded");
+    igSeparator();
+    igTextWrapped("Drag & drop a Quake 2 .pak file onto this window to begin.");
+    igSeparator();
+    igEnd();
+    return;
+  }
+
   /* --- Map Selection --- */
   if (state.num_maps > 1) {
     igTextColored((ImVec4){0.4f, 1.0f, 0.4f, 1.0f}, "Map Selection");
@@ -4708,6 +4720,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   if (state.md2.enabled) {
     igTextColored((ImVec4){0.9f, 0.6f, 1.0f, 1.0f}, "MD2 Models");
     igCheckbox("Show Models", &state.md2.show_models);
+    igCheckbox("Pause Animations", &state.md2.anim_paused);
     igText("Models     : %u", state.md2.num_models);
     igText("Entities   : %u", state.md2.num_entities);
     igText("Visible    : %u", state.md2.num_visible);
@@ -5390,11 +5403,10 @@ static int init(wgpu_context_t* wgpu_context)
 
   stm_setup();
 
-  /* Load PAK archive into memory (serves as cache for all map switches) and
-   * discover all available BSP maps with metadata. */
-  if (!load_pak_and_discover_maps(NULL)) {
-    return EXIT_FAILURE;
-  }
+  /* Try to load PAK archive. If the default path doesn't exist (e.g. on a
+   * different machine), continue without a PAK — the user can drag & drop
+   * a .pak file onto the window at any time. */
+  bool pak_loaded = load_pak_and_discover_maps(NULL);
 
   /* --- Create shared GPU resources (persist across map switches) --- */
 
@@ -5422,10 +5434,15 @@ static int init(wgpu_context_t* wgpu_context)
   /* ImGui overlay */
   imgui_overlay_init(wgpu_context);
 
-  /* --- Load the default map --- */
-  int32_t default_map = find_default_map_index();
-  if (!switch_map(wgpu_context, default_map)) {
-    return EXIT_FAILURE;
+  /* --- Load the default map (only if PAK was successfully loaded) --- */
+  if (pak_loaded) {
+    int32_t default_map = find_default_map_index();
+    if (!switch_map(wgpu_context, default_map)) {
+      fprintf(stderr, "[Q2] Default map failed to load, continuing empty\n");
+    }
+  }
+  else {
+    printf("[Q2] No PAK file loaded. Drag & drop a .pak file to begin.\n");
   }
 
   state.initialized = true;
@@ -5443,8 +5460,8 @@ static int frame(wgpu_context_t* wgpu_context)
   if (state.pak_reload.pending) {
     state.pak_reload.pending = false;
     if (!reload_pak(wgpu_context, state.pak_reload.path)) {
-      fprintf(stderr, "[Q2] PAK reload failed, renderer may be in bad state\n");
-      return EXIT_FAILURE;
+      fprintf(stderr,
+              "[Q2] PAK reload failed, waiting for another drag & drop\n");
     }
   }
 
@@ -5482,7 +5499,8 @@ static int frame(wgpu_context_t* wgpu_context)
   camera_update(&state.camera, dt);
 
   /* --- BSP traversal: find current leaf and update VBO via PVS --- */
-  if (state.cluster_faces && state.num_pvs_clusters > 0) {
+  if (state.current_map_index >= 0 && state.cluster_faces
+      && state.num_pvs_clusters > 0) {
     /* Convert stored camera position back to Q2 coordinate space for BSP leaf
      * traversal. camera_set_position() stores camera->position as the negative
      * world position needed for the view-matrix translation:
@@ -5514,12 +5532,14 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Compute and upload uniforms (MVP matrix + render flags) */
-  q2_uniforms_t uniforms = {0};
-  glm_mat4_mul(state.camera.matrices.perspective, state.camera.matrices.view,
-               uniforms.mvp);
-  uniforms.wireframe_mode = state.show_wireframe ? 1u : 0u;
-  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
-                       &uniforms, sizeof(q2_uniforms_t));
+  if (state.current_map_index >= 0) {
+    q2_uniforms_t uniforms = {0};
+    glm_mat4_mul(state.camera.matrices.perspective, state.camera.matrices.view,
+                 uniforms.mvp);
+    uniforms.wireframe_mode = state.show_wireframe ? 1u : 0u;
+    wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
+                         &uniforms, sizeof(q2_uniforms_t));
+  }
 
   /* Skybox: compute inverse of rotation-only view-projection matrix.
    * Strip translation from the view matrix so the skybox follows camera
@@ -5542,30 +5562,32 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* --- MD2 animation update --- */
   if (state.md2.enabled && state.md2.show_models) {
-    /* Advance animation only for gameplay-animated entities.
+    /* Advance animation only for gameplay-animated entities (unless paused).
      * Gameplay-static entities (barrels, items, weapons) stay on frame 0
      * because their MD2 frames are event animations (explosion, pickup),
      * not idle loops. */
-    for (uint32_t i = 0; i < state.md2.num_entities; i++) {
-      q2_md2_entity_t* ent = &state.md2.entities[i];
-      if (ent->is_gameplay_static) {
-        continue; /* Static object — keep frame 0, no animation */
-      }
-      if (ent->model_index < 0
-          || (uint32_t)ent->model_index >= state.md2.num_models
-          || !state.md2.models[ent->model_index].loaded) {
-        continue;
-      }
-      const q2_md2_model_t* mdl = &state.md2.models[ent->model_index].model;
-      if (mdl->num_frames <= 1) {
-        continue; /* Single-frame model, no animation */
-      }
+    if (!state.md2.anim_paused) {
+      for (uint32_t i = 0; i < state.md2.num_entities; i++) {
+        q2_md2_entity_t* ent = &state.md2.entities[i];
+        if (ent->is_gameplay_static) {
+          continue; /* Static object — keep frame 0, no animation */
+        }
+        if (ent->model_index < 0
+            || (uint32_t)ent->model_index >= state.md2.num_models
+            || !state.md2.models[ent->model_index].loaded) {
+          continue;
+        }
+        const q2_md2_model_t* mdl = &state.md2.models[ent->model_index].model;
+        if (mdl->num_frames <= 1) {
+          continue; /* Single-frame model, no animation */
+        }
 
-      ent->interp += dt * Q2_MD2_ANIM_FPS;
-      while (ent->interp >= 1.0f) {
-        ent->interp -= 1.0f;
-        ent->current_frame = ent->next_frame;
-        ent->next_frame    = (ent->current_frame + 1) % mdl->num_frames;
+        ent->interp += dt * Q2_MD2_ANIM_FPS;
+        while (ent->interp >= 1.0f) {
+          ent->interp -= 1.0f;
+          ent->current_frame = ent->next_frame;
+          ent->next_frame    = (ent->current_frame + 1) % mdl->num_frames;
+        }
       }
     }
 
@@ -5772,83 +5794,86 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder rp
     = wgpuCommandEncoderBeginRenderPass(enc, &state.rp_desc);
 
-  /* --- Draw skybox first (at infinity, behind all geometry) --- */
-  if (state.skybox.enabled) {
-    wgpuRenderPassEncoderSetPipeline(rp, state.skybox.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.skybox.bind_group, 0, 0);
-    wgpuRenderPassEncoderDraw(rp, 3, 1, 0, 0); /* Fullscreen triangle */
-  }
+  /* --- Draw map geometry (only when a map is loaded) --- */
+  if (state.current_map_index >= 0) {
+    /* --- Draw skybox first (at infinity, behind all geometry) --- */
+    if (state.skybox.enabled) {
+      wgpuRenderPassEncoderSetPipeline(rp, state.skybox.pipeline);
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.skybox.bind_group, 0, 0);
+      wgpuRenderPassEncoderDraw(rp, 3, 1, 0, 0); /* Fullscreen triangle */
+    }
 
-  /* --- Draw map geometry --- */
-  if (state.debug.view_mode == Q2_VIEW_NORMAL) {
-    /* Normal mode: bind textured pipeline and draw per-texture batches */
-    wgpuRenderPassEncoderSetPipeline(rp, state.pipeline);
-    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.vertex_buffer.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bg_shared, 0, 0);
-    for (uint32_t t = 0; t < state.num_textures; t++) {
-      if (state.textures[t].vert_count <= 0) {
-        continue;
+    if (state.debug.view_mode == Q2_VIEW_NORMAL) {
+      /* Normal mode: bind textured pipeline and draw per-texture batches */
+      wgpuRenderPassEncoderSetPipeline(rp, state.pipeline);
+      wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.vertex_buffer.buffer, 0,
+                                           WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.bg_shared, 0, 0);
+      for (uint32_t t = 0; t < state.num_textures; t++) {
+        if (state.textures[t].vert_count <= 0) {
+          continue;
+        }
+        wgpuRenderPassEncoderSetBindGroup(rp, 1, state.textures[t].bind_group,
+                                          0, 0);
+        wgpuRenderPassEncoderDraw(rp, (uint32_t)state.textures[t].vert_count, 1,
+                                  (uint32_t)state.textures[t].vert_offset, 0);
       }
-      wgpuRenderPassEncoderSetBindGroup(rp, 1, state.textures[t].bind_group, 0,
-                                        0);
-      wgpuRenderPassEncoderDraw(rp, (uint32_t)state.textures[t].vert_count, 1,
-                                (uint32_t)state.textures[t].vert_offset, 0);
     }
-  }
-  else if (state.debug.view_mode == Q2_VIEW_COLORED
-           && state.debug.colored_vert_count > 0) {
-    /* Colored mode: draw every visible face in a random per-face colour */
-    wgpuRenderPassEncoderSetPipeline(rp, state.debug.tri_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.colored_vb.buffer,
-                                         0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(rp, state.debug.colored_vert_count, 1, 0, 0);
-  }
-  else if (state.debug.view_mode == Q2_VIEW_COLLISION
-           && state.debug.brush_vert_count > 0) {
-    /* Collision mode: wireframe AABB overlay of BSP sub-models */
-    wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.brush_vb.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(rp, state.debug.brush_vert_count, 1, 0, 0);
-  }
-
-  /* --- Draw MD2 models --- */
-  if (state.md2.enabled && state.md2.show_models
-      && state.md2.num_draw_cmds > 0) {
-    wgpuRenderPassEncoderSetPipeline(rp, state.md2.pipeline);
-
-    for (uint32_t i = 0; i < state.md2.num_draw_cmds; i++) {
-      /* Bind shared group (uniform + sampler) with dynamic UB offset */
-      uint32_t ub_offset = state.md2.draw_cmds[i].ub_offset;
-      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.md2.bg_shared, 1,
-                                        &ub_offset);
-
-      /* Bind per-model texture */
-      wgpuRenderPassEncoderSetBindGroup(
-        rp, 1, state.md2.tex_bind_groups[state.md2.draw_cmds[i].model_index], 0,
-        0);
-
-      /* Set vertex buffer with offset for this entity's data */
-      uint64_t vb_off = state.md2.draw_cmds[i].vb_offset;
-      uint64_t vb_sz  = state.md2.draw_cmds[i].vert_count
-                       * (uint64_t)sizeof(q2_md2_render_vertex_t);
-      wgpuRenderPassEncoderSetVertexBuffer(
-        rp, 0, state.md2.vertex_buffer.buffer, vb_off, vb_sz);
-      wgpuRenderPassEncoderDraw(rp, state.md2.draw_cmds[i].vert_count, 1, 0, 0);
+    else if (state.debug.view_mode == Q2_VIEW_COLORED
+             && state.debug.colored_vert_count > 0) {
+      /* Colored mode: draw every visible face in a random per-face colour */
+      wgpuRenderPassEncoderSetPipeline(rp, state.debug.tri_pipeline);
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+      wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.colored_vb.buffer,
+                                           0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDraw(rp, state.debug.colored_vert_count, 1, 0, 0);
     }
-  }
+    else if (state.debug.view_mode == Q2_VIEW_COLLISION
+             && state.debug.brush_vert_count > 0) {
+      /* Collision mode: wireframe AABB overlay of BSP sub-models */
+      wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+      wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.brush_vb.buffer,
+                                           0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDraw(rp, state.debug.brush_vert_count, 1, 0, 0);
+    }
 
-  /* Gizmo: three coloured axis lines drawn at world origin (always on top) */
-  if (state.debug.show_gizmo) {
-    wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.gizmo_vb.buffer, 0,
-                                         WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDraw(rp, 6, 1, 0, 0);
-  }
+    /* --- Draw MD2 models --- */
+    if (state.md2.enabled && state.md2.show_models
+        && state.md2.num_draw_cmds > 0) {
+      wgpuRenderPassEncoderSetPipeline(rp, state.md2.pipeline);
+
+      for (uint32_t i = 0; i < state.md2.num_draw_cmds; i++) {
+        /* Bind shared group (uniform + sampler) with dynamic UB offset */
+        uint32_t ub_offset = state.md2.draw_cmds[i].ub_offset;
+        wgpuRenderPassEncoderSetBindGroup(rp, 0, state.md2.bg_shared, 1,
+                                          &ub_offset);
+
+        /* Bind per-model texture */
+        wgpuRenderPassEncoderSetBindGroup(
+          rp, 1, state.md2.tex_bind_groups[state.md2.draw_cmds[i].model_index],
+          0, 0);
+
+        /* Set vertex buffer with offset for this entity's data */
+        uint64_t vb_off = state.md2.draw_cmds[i].vb_offset;
+        uint64_t vb_sz  = state.md2.draw_cmds[i].vert_count
+                         * (uint64_t)sizeof(q2_md2_render_vertex_t);
+        wgpuRenderPassEncoderSetVertexBuffer(
+          rp, 0, state.md2.vertex_buffer.buffer, vb_off, vb_sz);
+        wgpuRenderPassEncoderDraw(rp, state.md2.draw_cmds[i].vert_count, 1, 0,
+                                  0);
+      }
+    }
+
+    /* Gizmo: three coloured axis lines drawn at world origin (always on top) */
+    if (state.debug.show_gizmo) {
+      wgpuRenderPassEncoderSetPipeline(rp, state.debug.line_pipeline);
+      wgpuRenderPassEncoderSetBindGroup(rp, 0, state.debug.bg, 0, 0);
+      wgpuRenderPassEncoderSetVertexBuffer(rp, 0, state.debug.gizmo_vb.buffer,
+                                           0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDraw(rp, 6, 1, 0, 0);
+    }
+  } /* end if (state.current_map_index >= 0) */
 
   /* End render pass */
   wgpuRenderPassEncoderEnd(rp);
