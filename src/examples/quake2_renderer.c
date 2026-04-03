@@ -2998,6 +2998,12 @@ static struct {
   int32_t current_map_index;   /* Currently loaded map index (-1 = none) */
   int32_t requested_map_index; /* GUI-requested map switch (-1 = none) */
 
+  /* Pending PAK file reload (from drag & drop) */
+  struct {
+    bool pending;
+    char path[MAX_DROP_PATH_LEN];
+  } pak_reload;
+
   /* Camera */
   camera_t camera;
 
@@ -3548,12 +3554,13 @@ static void rebuild_visible_geometry(wgpu_context_t* wgpu_context,
  *
  * @return true on success.
  */
-static bool load_pak_and_discover_maps(void)
+static bool load_pak_and_discover_maps(const char* override_path)
 {
   const char* pak_path
-    = getenv("Q2_PAK_PATH") ?
-        getenv("Q2_PAK_PATH") :
-        "/home/sdauwe/GitHub/quake2generic/build/baseq2/pak0.pak";
+    = override_path ? override_path :
+      getenv("Q2_PAK_PATH") ?
+                      getenv("Q2_PAK_PATH") :
+                      "/home/sdauwe/GitHub/quake2generic/build/baseq2/pak0.pak";
 
   if (!q2_pak_load(pak_path, &state.pak)) {
     fprintf(stderr, "[ERROR] Could not load PAK: %s\n", pak_path);
@@ -3595,6 +3602,73 @@ static int32_t find_default_map_index(void)
     }
   }
   return 0; /* Fallback: first discovered map */
+}
+
+/**
+ * @brief Check if a file path has a .pak extension (case-insensitive).
+ */
+static bool path_is_pak(const char* path)
+{
+  if (!path) {
+    return false;
+  }
+  size_t len = strlen(path);
+  if (len < 4) {
+    return false;
+  }
+  const char* ext = path + len - 4;
+  return (ext[0] == '.' && (ext[1] == 'p' || ext[1] == 'P')
+          && (ext[2] == 'a' || ext[2] == 'A')
+          && (ext[3] == 'k' || ext[3] == 'K'));
+}
+
+/* Forward declarations for reload_pak */
+static void cleanup_map_resources(wgpu_context_t* wgpu_context);
+static bool switch_map(wgpu_context_t* wgpu_context, int32_t map_index);
+
+/**
+ * @brief Reload the entire PAK archive from a new file path.
+ *
+ * Performs a full teardown of the current map and PAK data, then loads the new
+ * PAK, discovers maps, and switches to the default map.  Shared GPU resources
+ * (pipelines, layouts, sampler, uniform buffer) are preserved since they are
+ * PAK-independent.
+ *
+ * @param wgpu_context  WebGPU context.
+ * @param pak_path      Absolute path to the new .pak file.
+ * @return true on success; on failure the renderer is left with no loaded map.
+ */
+static bool reload_pak(wgpu_context_t* wgpu_context, const char* pak_path)
+{
+  printf("\n[Q2] === Reloading PAK: %s ===\n", pak_path);
+
+  /* 1. Tear down current map resources (textures, geometry, MD2, skybox) */
+  if (state.current_map_index >= 0) {
+    cleanup_map_resources(wgpu_context);
+    state.current_map_index   = -1;
+    state.requested_map_index = -1;
+  }
+
+  /* 2. Destroy old PAK archive and reset map list */
+  q2_pak_destroy(&state.pak);
+  memset(state.maps, 0, sizeof(state.maps));
+  state.num_maps = 0;
+
+  /* 3. Load new PAK and discover maps */
+  if (!load_pak_and_discover_maps(pak_path)) {
+    fprintf(stderr, "[Q2] PAK reload failed: %s\n", pak_path);
+    return false;
+  }
+
+  /* 4. Switch to the default map in the new PAK */
+  int32_t default_map = find_default_map_index();
+  if (!switch_map(wgpu_context, default_map)) {
+    fprintf(stderr, "[Q2] Failed to load default map from new PAK\n");
+    return false;
+  }
+
+  printf("[Q2] PAK reload complete: %u maps available\n", state.num_maps);
+  return true;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -5318,7 +5392,7 @@ static int init(wgpu_context_t* wgpu_context)
 
   /* Load PAK archive into memory (serves as cache for all map switches) and
    * discover all available BSP maps with metadata. */
-  if (!load_pak_and_discover_maps()) {
+  if (!load_pak_and_discover_maps(NULL)) {
     return EXIT_FAILURE;
   }
 
@@ -5363,6 +5437,15 @@ static int frame(wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+  /* --- Handle pending PAK file reload (from drag & drop) --- */
+  if (state.pak_reload.pending) {
+    state.pak_reload.pending = false;
+    if (!reload_pak(wgpu_context, state.pak_reload.path)) {
+      fprintf(stderr, "[Q2] PAK reload failed, renderer may be in bad state\n");
+      return EXIT_FAILURE;
+    }
   }
 
   /* --- Handle pending map switch request from GUI --- */
@@ -5805,6 +5888,23 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
     state.camera.keys.down  = input_event->keys_down[KEY_S];
     state.camera.keys.left  = input_event->keys_down[KEY_A];
     state.camera.keys.right = input_event->keys_down[KEY_D];
+  }
+
+  /* Handle drag & drop of .pak files */
+  if (input_event->type == INPUT_EVENT_TYPE_FILE_DROP) {
+    for (int i = 0; i < input_event->drop_count; i++) {
+      const char* path = input_event->drop_paths[i];
+      if (path_is_pak(path)) {
+        printf("[Q2] PAK file dropped: %s\n", path);
+        state.pak_reload.pending = true;
+        strncpy(state.pak_reload.path, path, sizeof(state.pak_reload.path) - 1);
+        state.pak_reload.path[sizeof(state.pak_reload.path) - 1] = '\0';
+        break; /* Only accept the first .pak file */
+      }
+      else {
+        printf("[Q2] Unsupported file type dropped: %s\n", path);
+      }
+    }
   }
 }
 
