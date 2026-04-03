@@ -78,6 +78,9 @@
 #define Q2_CONTENTS_MONSTER 0x00000080
 #define Q2_CONTENTS_DEADMONSTER 0x00000100
 
+/* Maximum number of BSP maps discoverable from a PAK file */
+#define Q2_MAX_MAPS 32
+
 /* Gizmo axis length in Quake 2 world units (1 unit ≈ 1 inch, ~64 = 5 ft) */
 #define Q2_GIZMO_SIZE 64.0f
 
@@ -330,6 +333,13 @@ typedef struct {
   uint32_t num_entries;    /* Number of files in PAK */
 } q2_pak_t;
 
+/* Map info entry discovered from PAK directory */
+typedef struct {
+  char pak_path[Q2_PAK_FILENAME_LEN]; /* e.g. "maps/base1.bsp" */
+  char display_name[64];              /* e.g. "Outer Base" from entity string */
+  char description[128];              /* Level type + short description */
+} q2_map_info_t;
+
 /* -------------------------------------------------------------------------- *
  * Quake 2 Color Palette (256 RGB entries)
  *
@@ -580,6 +590,158 @@ static void q2_pak_destroy(q2_pak_t* pak)
     free(pak->file_data);
   }
   memset(pak, 0, sizeof(*pak));
+}
+
+/**
+ * @brief Extract the "message" field from a BSP worldspawn entity string.
+ *
+ * The worldspawn entity (classname "worldspawn") typically contains a
+ * "message" key with the human-readable map name/title.
+ *
+ * @param entity_str  Null-terminated entity string from the BSP file.
+ * @param out_message Output buffer for the extracted message.
+ * @param max_len     Size of the output buffer.
+ * @return true if a message was found.
+ */
+static bool q2_extract_map_message(const char* entity_str, char* out_message,
+                                   uint32_t max_len)
+{
+  out_message[0] = '\0';
+  if (!entity_str) {
+    return false;
+  }
+
+  /* Find the worldspawn entity block (should be the first entity) */
+  const char* ws = strstr(entity_str, "\"worldspawn\"");
+  if (!ws) {
+    return false;
+  }
+
+  /* Walk back to find the opening brace */
+  const char* block_start = ws;
+  while (block_start > entity_str && *block_start != '{') {
+    block_start--;
+  }
+
+  /* Find the closing brace */
+  const char* block_end = strchr(ws, '}');
+  if (!block_end) {
+    return false;
+  }
+
+  /* Look for "message" key within the worldspawn block */
+  const char* msg_key = strstr(block_start, "\"message\"");
+  if (!msg_key || msg_key >= block_end) {
+    return false;
+  }
+
+  /* Skip past the key and find the value string */
+  const char* val_start = strchr(msg_key + 9, '"');
+  if (!val_start || val_start >= block_end) {
+    return false;
+  }
+  val_start++; /* Skip opening quote */
+
+  const char* val_end = strchr(val_start, '"');
+  if (!val_end || val_end >= block_end) {
+    return false;
+  }
+
+  uint32_t len = (uint32_t)(val_end - val_start);
+  if (len >= max_len) {
+    len = max_len - 1;
+  }
+  memcpy(out_message, val_start, len);
+  out_message[len] = '\0';
+  return len > 0;
+}
+
+/**
+ * @brief Discover all BSP maps in the PAK archive and extract metadata.
+ *
+ * Scans the PAK directory for maps BSP entries. For each map found,
+ * partially parses the BSP entity lump to extract the map title ("message"
+ * from the worldspawn entity).
+ *
+ * @param pak       Loaded PAK archive.
+ * @param maps      Output array of map info entries.
+ * @param num_maps  Output: number of maps found.
+ * @param max_maps  Maximum entries in the maps array.
+ */
+static void q2_discover_maps(const q2_pak_t* pak, q2_map_info_t* maps,
+                             uint32_t* num_maps, uint32_t max_maps)
+{
+  *num_maps = 0;
+
+  for (uint32_t i = 0; i < pak->num_entries && *num_maps < max_maps; i++) {
+    const char* name = pak->entries[i].filename;
+    uint32_t len     = (uint32_t)strnlen(name, Q2_PAK_FILENAME_LEN);
+
+    /* Match maps BSP entries (maps/xxx.bsp) */
+    if (len <= 9 || strncmp(name, "maps/", 5) != 0
+        || strncmp(name + len - 4, ".bsp", 4) != 0) {
+      continue;
+    }
+
+    q2_map_info_t* info = &maps[*num_maps];
+    strncpy(info->pak_path, name, Q2_PAK_FILENAME_LEN - 1);
+    info->pak_path[Q2_PAK_FILENAME_LEN - 1] = '\0';
+
+    /* Extract just the map name (without path and extension) for display */
+    const char* base  = name + 5;    /* skip "maps/" */
+    uint32_t base_len = len - 5 - 4; /* without .bsp */
+    char map_name[48] = {0};
+    if (base_len >= sizeof(map_name)) {
+      base_len = sizeof(map_name) - 1;
+    }
+    memcpy(map_name, base, base_len);
+
+    /* Try to extract the "message" (display name) from BSP entity string */
+    info->display_name[0] = '\0';
+    info->description[0]  = '\0';
+
+    uint32_t bsp_size       = 0;
+    const uint8_t* bsp_data = q2_pak_get_data(pak, &pak->entries[i], &bsp_size);
+    if (bsp_data && bsp_size >= sizeof(q2_bsp_header_t)) {
+      const q2_bsp_header_t* hdr = (const q2_bsp_header_t*)bsp_data;
+      if (hdr->magic == Q2_BSP_MAGIC && hdr->version == Q2_BSP_VERSION) {
+        /* Read entity lump to extract message */
+        const q2_lump_t* ent_lump = &hdr->lumps[Q2_LUMP_ENTITIES];
+        if (ent_lump->offset + ent_lump->length <= bsp_size
+            && ent_lump->length > 0) {
+          /* Temporarily null-terminate the entity string */
+          char* ent_str = (char*)malloc(ent_lump->length + 1);
+          if (ent_str) {
+            memcpy(ent_str, bsp_data + ent_lump->offset, ent_lump->length);
+            ent_str[ent_lump->length] = '\0';
+
+            q2_extract_map_message(ent_str, info->display_name,
+                                   sizeof(info->display_name));
+            free(ent_str);
+          }
+        }
+
+        /* Build description with face/vertex counts */
+        uint32_t num_faces = hdr->lumps[Q2_LUMP_FACES].length / 20;
+        uint32_t num_verts = hdr->lumps[Q2_LUMP_VERTICES].length / 12;
+        snprintf(info->description, sizeof(info->description),
+                 "%s — %u faces, %u vertices",
+                 info->display_name[0] ? info->display_name : map_name,
+                 num_faces, num_verts);
+      }
+    }
+
+    /* Fallback: use filename as display name */
+    if (info->display_name[0] == '\0') {
+      snprintf(info->display_name, sizeof(info->display_name), "%s", map_name);
+    }
+
+    printf("[PAK] Map %u: %-20s \"%s\"\n", *num_maps, info->pak_path,
+           info->display_name);
+    (*num_maps)++;
+  }
+
+  printf("[PAK] Discovered %u BSP maps\n", *num_maps);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2830,6 +2992,12 @@ static struct {
   q2_pak_t pak;
   q2_bsp_map_t bsp;
 
+  /* Map list discovered from PAK */
+  q2_map_info_t maps[Q2_MAX_MAPS];
+  uint32_t num_maps;
+  int32_t current_map_index;   /* Currently loaded map index (-1 = none) */
+  int32_t requested_map_index; /* GUI-requested map switch (-1 = none) */
+
   /* Camera */
   camera_t camera;
 
@@ -2975,6 +3143,8 @@ static struct {
 
   WGPUBool initialized;
 } state = {
+  .current_map_index   = -1,
+  .requested_map_index = -1,
   .current_leaf = -1,
   .prev_leaf    = -2, /* Force initial rebuild */
   .debug = {
@@ -3370,7 +3540,15 @@ static void rebuild_visible_geometry(wgpu_context_t* wgpu_context,
  * Map Data Loading
  * -------------------------------------------------------------------------- */
 
-static bool load_map_data(void)
+/**
+ * @brief Load the PAK archive and discover available maps.
+ *
+ * Loads the entire PAK file into memory (serves as the cache for all map
+ * switches) and scans the directory for BSP files with metadata.
+ *
+ * @return true on success.
+ */
+static bool load_pak_and_discover_maps(void)
 {
   const char* pak_path
     = getenv("Q2_PAK_PATH") ?
@@ -3382,45 +3560,41 @@ static bool load_map_data(void)
     return false;
   }
 
-  /* Find a BSP map */
-  static const char* known_maps[] = {
-    "maps/demo1.bsp",
-    "maps/demo2.bsp",
-    "maps/base1.bsp",
-  };
+  /* Discover all BSP maps in the PAK */
+  q2_discover_maps(&state.pak, state.maps, &state.num_maps, Q2_MAX_MAPS);
 
-  const q2_pak_entry_t* bsp_entry = NULL;
-  for (uint32_t i = 0;
-       i < sizeof(known_maps) / sizeof(known_maps[0]) && !bsp_entry; i++) {
-    bsp_entry = q2_pak_find(&state.pak, known_maps[i]);
+  if (state.num_maps == 0) {
+    fprintf(stderr, "[ERROR] No BSP maps found in PAK\n");
+    return false;
   }
-  if (!bsp_entry) {
-    for (uint32_t i = 0; i < state.pak.num_entries; i++) {
-      const char* name = state.pak.entries[i].filename;
-      uint32_t len     = (uint32_t)strnlen(name, Q2_PAK_FILENAME_LEN);
-      if (len > 4 && strncmp(name + len - 4, ".bsp", 4) == 0) {
-        bsp_entry = &state.pak.entries[i];
-        break;
+
+  return true;
+}
+
+/**
+ * @brief Find the default map index to load initially.
+ *
+ * Prefers base1.bsp (first single-player level), then falls back to the
+ * first map in the list.
+ *
+ * @return Index into state.maps[].
+ */
+static int32_t find_default_map_index(void)
+{
+  /* Preference order: base1 → demo1 → first available */
+  static const char* preferred[] = {
+    "maps/base1.bsp",
+    "maps/demo1.bsp",
+  };
+  for (uint32_t p = 0; p < sizeof(preferred) / sizeof(preferred[0]); p++) {
+    for (uint32_t i = 0; i < state.num_maps; i++) {
+      if (strncmp(state.maps[i].pak_path, preferred[p], Q2_PAK_FILENAME_LEN)
+          == 0) {
+        return (int32_t)i;
       }
     }
   }
-
-  if (!bsp_entry) {
-    fprintf(stderr, "[ERROR] No BSP files found in PAK\n");
-    return false;
-  }
-
-  uint32_t bsp_size       = 0;
-  const uint8_t* bsp_data = q2_pak_get_data(&state.pak, bsp_entry, &bsp_size);
-  if (!bsp_data || !q2_bsp_parse(bsp_data, bsp_size, &state.bsp)) {
-    fprintf(stderr, "[ERROR] BSP parsing failed\n");
-    return false;
-  }
-
-  printf("[Q2] Loaded BSP: %s (%u faces, %u texinfos, %u vertices)\n",
-         bsp_entry->filename, state.bsp.num_faces, state.bsp.num_texinfos,
-         state.bsp.num_vertices);
-  return true;
+  return 0; /* Fallback: first discovered map */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -4349,6 +4523,50 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Quake 2 Renderer", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
+  /* --- Map Selection --- */
+  if (state.num_maps > 1) {
+    igTextColored((ImVec4){0.4f, 1.0f, 0.4f, 1.0f}, "Map Selection");
+
+    /* Build preview string for current map */
+    const char* preview = (state.current_map_index >= 0) ?
+                            state.maps[state.current_map_index].display_name :
+                            "(none)";
+
+    if (igBeginCombo("##map_combo", preview, ImGuiComboFlags_None)) {
+      for (uint32_t i = 0; i < state.num_maps; i++) {
+        bool is_selected = ((int32_t)i == state.current_map_index);
+
+        /* Format: "Display Name (filename.bsp)" */
+        char label[128];
+        /* Extract just filename from pak_path (e.g. "base1.bsp" from
+         * "maps/base1.bsp") */
+        const char* slash = strrchr(state.maps[i].pak_path, '/');
+        const char* fname = slash ? (slash + 1) : state.maps[i].pak_path;
+        snprintf(label, sizeof(label), "%s (%s)", state.maps[i].display_name,
+                 fname);
+
+        if (igSelectable(label, is_selected, ImGuiSelectableFlags_None,
+                         (ImVec2){0, 0})) {
+          if ((int32_t)i != state.current_map_index) {
+            state.requested_map_index = (int32_t)i;
+          }
+        }
+
+        /* Tooltip with description */
+        if (igIsItemHovered(ImGuiHoveredFlags_None)
+            && state.maps[i].description[0] != '\0') {
+          igSetTooltip("%s", state.maps[i].description);
+        }
+
+        if (is_selected) {
+          igSetItemDefaultFocus();
+        }
+      }
+      igEndCombo();
+    }
+    igSeparator();
+  }
+
   /* --- Performance --- */
   igTextColored((ImVec4){1.0f, 0.85f, 0.0f, 1.0f}, "Performance");
   igText("Resolution : %d x %d", wgpu_context->width, wgpu_context->height);
@@ -4824,48 +5042,202 @@ static void md2_update_visibility(const float cam_pos_q2[3],
 }
 
 /* -------------------------------------------------------------------------- *
- * WebGPU Callbacks
+ * Map Switching
+ *
+ * Cleanly releases all map-specific GPU and CPU resources, then loads and
+ * initialises a new BSP map from the cached PAK data.
  * -------------------------------------------------------------------------- */
 
-static int init(wgpu_context_t* wgpu_context)
+/* Forward declarations for init helpers used by switch_map */
+static void init_gpu_textures(wgpu_context_t* wgpu_context);
+static void init_bind_groups(wgpu_context_t* wgpu_context);
+static void init_debug_colored(wgpu_context_t* wgpu_context);
+static void init_debug_brush_volumes(wgpu_context_t* wgpu_context);
+static void init_skybox(wgpu_context_t* wgpu_context);
+static void init_md2_models(wgpu_context_t* wgpu_context);
+static void init_camera(wgpu_context_t* wgpu_context);
+
+/**
+ * @brief Release all map-specific resources (GPU + CPU).
+ *
+ * Keeps the PAK archive in memory, GPU pipelines/layouts, sampler, and other
+ * resources that are shared across maps. Only releases resources that change
+ * when switching BSP maps.
+ */
+static void cleanup_map_resources(wgpu_context_t* wgpu_context)
 {
-  if (!wgpu_context) {
-    return EXIT_FAILURE;
+  UNUSED_VAR(wgpu_context);
+
+  /* Wait for GPU to finish any pending work */
+  if (wgpu_context && wgpu_context->device) {
+    wgpuDeviceTick(wgpu_context->device);
   }
 
-  stm_setup();
+  /* --- Release map-specific bind groups (not layouts) --- */
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bg_shared)
+  state.bg_shared = NULL;
 
-  /* Load PAK and BSP */
-  if (!load_map_data()) {
-    return EXIT_FAILURE;
+  /* --- Release per-texture GPU resources --- */
+  for (uint32_t t = 0; t < state.num_textures; t++) {
+    WGPU_RELEASE_RESOURCE(BindGroup, state.textures[t].bind_group)
+    state.textures[t].bind_group = NULL;
+    wgpu_destroy_texture(&state.textures[t].gpu_tex);
+  }
+  state.num_textures = 0;
+
+  /* --- Release lightmap atlas --- */
+  wgpu_destroy_texture(&state.lightmap_tex);
+
+  /* --- Release vertex buffer (will be recreated for new map) --- */
+  WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer.buffer)
+  state.vertex_buffer.buffer = NULL;
+  state.vertex_buffer.size   = 0;
+
+  /* --- Release skybox resources --- */
+  if (state.skybox.enabled || state.skybox.cubemap_handle) {
+    WGPU_RELEASE_RESOURCE(RenderPipeline, state.skybox.pipeline)
+    state.skybox.pipeline = NULL;
+    WGPU_RELEASE_RESOURCE(PipelineLayout, state.skybox.pipeline_layout)
+    state.skybox.pipeline_layout = NULL;
+    WGPU_RELEASE_RESOURCE(BindGroup, state.skybox.bind_group)
+    state.skybox.bind_group = NULL;
+    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.skybox.bind_group_layout)
+    state.skybox.bind_group_layout = NULL;
+    WGPU_RELEASE_RESOURCE(Buffer, state.skybox.uniform_buffer.buffer)
+    state.skybox.uniform_buffer.buffer = NULL;
+    WGPU_RELEASE_RESOURCE(Sampler, state.skybox.cubemap_sampler)
+    state.skybox.cubemap_sampler = NULL;
+    WGPU_RELEASE_RESOURCE(TextureView, state.skybox.cubemap_view)
+    state.skybox.cubemap_view = NULL;
+    WGPU_RELEASE_RESOURCE(Texture, state.skybox.cubemap_handle)
+    state.skybox.cubemap_handle = NULL;
+    state.skybox.enabled        = false;
   }
 
-  /* Build lightmap atlas (heap-allocated, ~1.4 MB) */
+  /* --- Release debug geometry buffers (map-dependent data) --- */
+  WGPU_RELEASE_RESOURCE(Buffer, state.debug.colored_vb.buffer)
+  state.debug.colored_vb.buffer  = NULL;
+  state.debug.colored_vert_count = 0;
+  WGPU_RELEASE_RESOURCE(Buffer, state.debug.brush_vb.buffer)
+  state.debug.brush_vb.buffer  = NULL;
+  state.debug.brush_vert_count = 0;
+
+  /* --- Release MD2 model resources (per-map data only) --- */
+  if (state.md2.enabled) {
+    for (uint32_t i = 0; i < state.md2.num_models; i++) {
+      WGPU_RELEASE_RESOURCE(BindGroup, state.md2.tex_bind_groups[i])
+      state.md2.tex_bind_groups[i] = NULL;
+      wgpu_destroy_texture(&state.md2.models[i].gpu_tex);
+      q2_md2_destroy(&state.md2.models[i].model);
+      state.md2.models[i].loaded = false;
+    }
+    state.md2.num_models = 0;
+
+    free(state.md2.entities);
+    state.md2.entities     = NULL;
+    state.md2.num_entities = 0;
+    free(state.md2.visible_entities);
+    state.md2.visible_entities = NULL;
+    state.md2.num_visible      = 0;
+    state.md2.num_draw_cmds    = 0;
+    state.md2.enabled          = false;
+    /* Note: bg_shared, uniform_buffer, vertex_buffer, vb_staging, ub_staging
+     * are kept alive — they are shared infrastructure resized as needed. */
+  }
+
+  /* --- Free PVS data --- */
+  q2_cluster_faces_destroy(state.cluster_faces, state.num_pvs_clusters);
+  state.cluster_faces    = NULL;
+  state.num_pvs_clusters = 0;
+
+  /* --- Free per-face mesh data --- */
+  free(state.face_meshes);
+  state.face_meshes = NULL;
+
+  /* --- Free master vertex array --- */
+  free(state.master_vertices);
+  state.master_vertices   = NULL;
+  state.master_vert_count = 0;
+  state.total_vertices    = 0;
+
+  /* --- Free BSP data --- */
+  q2_bsp_destroy(&state.bsp);
+
+  /* Reset BSP leaf tracking to force PVS rebuild */
+  state.current_leaf = -1;
+  state.prev_leaf    = -2;
+}
+
+/**
+ * @brief Load and initialise a BSP map by index into state.maps[].
+ *
+ * Cleans up the current map (if any) and loads the new one from the cached
+ * PAK data. Recreates all map-specific GPU resources.
+ *
+ * @param wgpu_context  WebGPU context.
+ * @param map_index     Index into state.maps[].
+ * @return true on success.
+ */
+static bool switch_map(wgpu_context_t* wgpu_context, int32_t map_index)
+{
+  if (map_index < 0 || (uint32_t)map_index >= state.num_maps) {
+    fprintf(stderr, "[Q2] Invalid map index: %d\n", map_index);
+    return false;
+  }
+
+  printf("\n[Q2] === Switching to map: %s (\"%s\") ===\n",
+         state.maps[map_index].pak_path, state.maps[map_index].display_name);
+
+  /* Clean up current map resources */
+  if (state.current_map_index >= 0) {
+    cleanup_map_resources(wgpu_context);
+  }
+
+  /* Parse BSP from cached PAK data */
+  const q2_pak_entry_t* bsp_entry
+    = q2_pak_find(&state.pak, state.maps[map_index].pak_path);
+  if (!bsp_entry) {
+    fprintf(stderr, "[ERROR] BSP not found in PAK: %s\n",
+            state.maps[map_index].pak_path);
+    return false;
+  }
+
+  uint32_t bsp_size       = 0;
+  const uint8_t* bsp_data = q2_pak_get_data(&state.pak, bsp_entry, &bsp_size);
+  if (!bsp_data || !q2_bsp_parse(bsp_data, bsp_size, &state.bsp)) {
+    fprintf(stderr, "[ERROR] BSP parsing failed: %s\n",
+            state.maps[map_index].pak_path);
+    return false;
+  }
+
+  printf("[Q2] Loaded BSP: %s (%u faces, %u texinfos, %u vertices)\n",
+         bsp_entry->filename, state.bsp.num_faces, state.bsp.num_texinfos,
+         state.bsp.num_vertices);
+
+  /* Build lightmap atlas */
   lm_atlas_t* atlas = (lm_atlas_t*)calloc(1, sizeof(lm_atlas_t));
   if (!atlas) {
-    return EXIT_FAILURE;
+    return false;
   }
   lm_atlas_init(atlas);
 
-  /* Build triangulated geometry with UVs (stored as master vertex array) */
+  /* Build triangulated geometry */
   q2_render_vertex_t* verts
     = build_map_geometry(&state.bsp, &state.pak, atlas, &state.total_vertices);
   if (!verts || state.total_vertices == 0) {
     free(atlas);
-    return EXIT_FAILURE;
+    return false;
   }
 
   printf("[Q2] Geometry: %u master vertices (%.1f KB)\n",
          state.master_vert_count,
          state.master_vert_count * sizeof(q2_render_vertex_t) / 1024.0);
 
-  /* Pre-compute PVS face lists for all clusters */
+  /* Pre-compute PVS face lists */
   state.cluster_faces = q2_precompute_all_pvs(&state.bsp, state.face_meshes,
                                               &state.num_pvs_clusters);
 
-  /* Initial VBO upload: use all vertices (will be replaced by PVS on first
-   * leaf detection). Allocate with generous capacity for the maximum possible
-   * visible set to avoid re-creating the buffer on every leaf change. */
+  /* Create vertex buffer */
   state.vertex_buffer = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
@@ -4874,10 +5246,8 @@ static int init(wgpu_context_t* wgpu_context)
       .size         = state.master_vert_count * sizeof(q2_render_vertex_t),
       .initial.data = verts,
     });
-  /* Note: do NOT free verts - it's stored as state.master_vertices */
 
-  /* Initial rebuild: sort all renderable faces into batch order so the draw
-   * calls have correct vert_offset/vert_count from the first frame. */
+  /* Initial rebuild: sort all renderable faces into batch order */
   {
     uint32_t* all_faces
       = (uint32_t*)malloc(state.bsp.num_faces * sizeof(uint32_t));
@@ -4893,7 +5263,7 @@ static int init(wgpu_context_t* wgpu_context)
     free(all_faces);
   }
 
-  /* Upload lightmap atlas texture to GPU */
+  /* Upload lightmap atlas */
   state.lightmap_tex = wgpu_create_texture(
     wgpu_context,
     &(wgpu_texture_desc_t){
@@ -4908,12 +5278,51 @@ static int init(wgpu_context_t* wgpu_context)
         .size = Q2_LIGHTMAP_ATLAS_SIZE * Q2_LIGHTMAP_ATLAS_SIZE * 4,
       },
     });
-  printf("[Q2] Lightmap atlas: %dx%d (%u nodes used)\n", Q2_LIGHTMAP_ATLAS_SIZE,
-         Q2_LIGHTMAP_ATLAS_SIZE, atlas->count);
   free(atlas);
 
-  /* Decode and upload WAL textures */
+  /* Load WAL textures */
   init_gpu_textures(wgpu_context);
+
+  /* Recreate bind groups (lightmap texture changed) */
+  init_bind_groups(wgpu_context);
+
+  /* Recreate debug geometry for new map */
+  init_debug_colored(wgpu_context);
+  init_debug_brush_volumes(wgpu_context);
+
+  /* Load skybox for new map */
+  init_skybox(wgpu_context);
+
+  /* Load MD2 models for new map */
+  init_md2_models(wgpu_context);
+
+  /* Set camera to spawn position */
+  init_camera(wgpu_context);
+
+  state.current_map_index = map_index;
+  printf("[Q2] Map switch complete: %s\n", state.maps[map_index].display_name);
+  return true;
+}
+
+/* -------------------------------------------------------------------------- *
+ * WebGPU Callbacks
+ * -------------------------------------------------------------------------- */
+
+static int init(wgpu_context_t* wgpu_context)
+{
+  if (!wgpu_context) {
+    return EXIT_FAILURE;
+  }
+
+  stm_setup();
+
+  /* Load PAK archive into memory (serves as cache for all map switches) and
+   * discover all available BSP maps with metadata. */
+  if (!load_pak_and_discover_maps()) {
+    return EXIT_FAILURE;
+  }
+
+  /* --- Create shared GPU resources (persist across map switches) --- */
 
   /* Uniform buffer (MVP matrix + render flags) */
   state.uniform_buffer = wgpu_create_buffer(
@@ -4923,32 +5332,27 @@ static int init(wgpu_context_t* wgpu_context)
                     .size  = sizeof(q2_uniforms_t),
                   });
 
-  /* GPU pipeline setup */
+  /* Sampler, bind group layouts, render pipelines */
   init_sampler(wgpu_context);
   init_bind_group_layouts(wgpu_context);
-  init_bind_groups(wgpu_context);
   init_pipeline(wgpu_context);
 
-  /* Debug / visualization pipeline and geometry
-   * NOTE: init_debug_pipelines must come AFTER init_pipeline because it
-   * re-uses state.uniform_buffer which is created in the init sequence. */
+  /* Debug / visualization pipelines (shared across maps)
+   * NOTE: must come AFTER init_pipeline and uniform_buffer creation */
   init_debug_pipelines(wgpu_context);
   init_gizmo(wgpu_context);
-  init_debug_colored(wgpu_context);
-  init_debug_brush_volumes(wgpu_context);
 
-  /* Skybox */
-  init_skybox(wgpu_context);
-
-  /* MD2 models */
+  /* MD2 pipeline (shared across maps) */
   init_md2_pipeline(wgpu_context);
-  init_md2_models(wgpu_context);
-
-  /* Camera */
-  init_camera(wgpu_context);
 
   /* ImGui overlay */
   imgui_overlay_init(wgpu_context);
+
+  /* --- Load the default map --- */
+  int32_t default_map = find_default_map_index();
+  if (!switch_map(wgpu_context, default_map)) {
+    return EXIT_FAILURE;
+  }
 
   state.initialized = true;
   printf("[Q2] Renderer initialized successfully\n");
@@ -4959,6 +5363,16 @@ static int frame(wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+  /* --- Handle pending map switch request from GUI --- */
+  if (state.requested_map_index >= 0
+      && state.requested_map_index != state.current_map_index) {
+    int32_t req               = state.requested_map_index;
+    state.requested_map_index = -1; /* Consume the request */
+    if (!switch_map(wgpu_context, req)) {
+      fprintf(stderr, "[Q2] Map switch failed, keeping current map\n");
+    }
   }
 
   /* Delta time */
@@ -5396,87 +5810,43 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
 
 static void shutdown(wgpu_context_t* wgpu_context)
 {
-  UNUSED_VAR(wgpu_context);
-
   imgui_overlay_shutdown();
 
+  /* Release all map-specific resources (textures, geometry, MD2 per-map, etc.)
+   */
+  cleanup_map_resources(wgpu_context);
+
+  /* Release shared GPU resources that persist across map switches */
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layout)
-  WGPU_RELEASE_RESOURCE(BindGroup, state.bg_shared)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layout_shared)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layout_texture)
-  WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.uniform_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Sampler, state.sampler)
-  wgpu_destroy_texture(&state.lightmap_tex);
 
-  /* Skybox resources */
-  if (state.skybox.enabled) {
-    WGPU_RELEASE_RESOURCE(RenderPipeline, state.skybox.pipeline)
-    WGPU_RELEASE_RESOURCE(PipelineLayout, state.skybox.pipeline_layout)
-    WGPU_RELEASE_RESOURCE(BindGroup, state.skybox.bind_group)
-    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.skybox.bind_group_layout)
-    WGPU_RELEASE_RESOURCE(Buffer, state.skybox.uniform_buffer.buffer)
-    WGPU_RELEASE_RESOURCE(Sampler, state.skybox.cubemap_sampler)
-    WGPU_RELEASE_RESOURCE(TextureView, state.skybox.cubemap_view)
-    WGPU_RELEASE_RESOURCE(Texture, state.skybox.cubemap_handle)
-  }
-
-  /* Debug visualisation resources */
+  /* Debug shared pipelines and gizmo (not per-map) */
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.debug.line_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.debug.tri_pipeline)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.debug.pipeline_layout)
   WGPU_RELEASE_RESOURCE(BindGroup, state.debug.bg)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.debug.bgl)
   WGPU_RELEASE_RESOURCE(Buffer, state.debug.gizmo_vb.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, state.debug.colored_vb.buffer)
-  WGPU_RELEASE_RESOURCE(Buffer, state.debug.brush_vb.buffer)
 
-  /* MD2 model resources */
-  if (state.md2.enabled) {
-    WGPU_RELEASE_RESOURCE(RenderPipeline, state.md2.pipeline)
-    WGPU_RELEASE_RESOURCE(PipelineLayout, state.md2.pipeline_layout)
-    WGPU_RELEASE_RESOURCE(BindGroup, state.md2.bg_shared)
-    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_shared)
-    WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_texture)
-    WGPU_RELEASE_RESOURCE(Buffer, state.md2.uniform_buffer.buffer)
-    WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
-    WGPU_RELEASE_RESOURCE(Sampler, state.md2.sampler)
+  /* MD2 shared pipeline infrastructure */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.md2.pipeline)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.md2.pipeline_layout)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.md2.bg_shared)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_shared)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.md2.bg_layout_texture)
+  WGPU_RELEASE_RESOURCE(Buffer, state.md2.uniform_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.md2.vertex_buffer.buffer)
+  WGPU_RELEASE_RESOURCE(Sampler, state.md2.sampler)
+  free(state.md2.vb_staging);
+  state.md2.vb_staging = NULL;
+  free(state.md2.ub_staging);
+  state.md2.ub_staging = NULL;
 
-    for (uint32_t i = 0; i < state.md2.num_models; i++) {
-      WGPU_RELEASE_RESOURCE(BindGroup, state.md2.tex_bind_groups[i])
-      wgpu_destroy_texture(&state.md2.models[i].gpu_tex);
-      q2_md2_destroy(&state.md2.models[i].model);
-    }
-
-    free(state.md2.entities);
-    state.md2.entities = NULL;
-    free(state.md2.visible_entities);
-    state.md2.visible_entities = NULL;
-    free(state.md2.vb_staging);
-    state.md2.vb_staging = NULL;
-    free(state.md2.ub_staging);
-    state.md2.ub_staging = NULL;
-  }
-
-  for (uint32_t t = 0; t < state.num_textures; t++) {
-    WGPU_RELEASE_RESOURCE(BindGroup, state.textures[t].bind_group)
-    wgpu_destroy_texture(&state.textures[t].gpu_tex);
-  }
-
-  /* Free PVS data */
-  q2_cluster_faces_destroy(state.cluster_faces, state.num_pvs_clusters);
-  state.cluster_faces = NULL;
-
-  /* Free per-face mesh data */
-  free(state.face_meshes);
-  state.face_meshes = NULL;
-
-  /* Free master vertex array */
-  free(state.master_vertices);
-  state.master_vertices = NULL;
-
-  q2_bsp_destroy(&state.bsp);
+  /* Release PAK archive (the in-memory cache) */
   q2_pak_destroy(&state.pak);
 }
 
