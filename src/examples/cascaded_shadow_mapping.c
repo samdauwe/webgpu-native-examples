@@ -509,7 +509,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
 
   state.uniform_buffers.vertex = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Vertex UBO"),
+              .label = STRVIEW("Vertex - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(uniform_data_vertex_t),
             });
