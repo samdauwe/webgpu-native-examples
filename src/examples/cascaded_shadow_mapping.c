@@ -405,7 +405,7 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
   state.shadow_map.depth_texture = wgpuDeviceCreateTexture(
     device,
     &(WGPUTextureDescriptor){
-      .label = STRVIEW("Cascade Shadow Map"),
+      .label = STRVIEW("Cascade Shadow Map - Depth Texture"),
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension = WGPUTextureDimension_2D,
