@@ -837,12 +837,12 @@ create_model_material_textures(struct wgpu_context_t* wgpu_context,
 
         mat_array[i].view = wgpuTextureCreateView(
           mat_array[i].texture, &(WGPUTextureViewDescriptor){
-                                  .label         = STRVIEW("Material Tex View"),
-                                  .format        = WGPUTextureFormat_RGBA8Unorm,
-                                  .dimension     = WGPUTextureViewDimension_2D,
-                                  .baseMipLevel  = 0,
-                                  .mipLevelCount = 1,
-                                  .baseArrayLayer  = 0,
+                                  .label  = STRVIEW("Material - Texture View"),
+                                  .format = WGPUTextureFormat_RGBA8Unorm,
+                                  .dimension      = WGPUTextureViewDimension_2D,
+                                  .baseMipLevel   = 0,
+                                  .mipLevelCount  = 1,
+                                  .baseArrayLayer = 0,
                                   .arrayLayerCount = 1,
                                 });
 
