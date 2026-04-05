@@ -856,7 +856,7 @@ create_model_material_textures(struct wgpu_context_t* wgpu_context,
     };
     mat_array[i].bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Material BG"),
+                .label      = STRVIEW("Material - Bind Group"),
                 .layout     = state.bind_group_layouts.material,
                 .entryCount = ARRAY_SIZE(bg_entries),
                 .entries    = bg_entries,
