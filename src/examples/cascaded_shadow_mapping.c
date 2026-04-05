@@ -812,7 +812,7 @@ create_model_material_textures(struct wgpu_context_t* wgpu_context,
         mat_array[i].texture = wgpuDeviceCreateTexture(
           device,
           &(WGPUTextureDescriptor){
-            .label = STRVIEW("Material Texture"),
+            .label = STRVIEW("Material - Texture"),
             .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
             .dimension     = WGPUTextureDimension_2D,
             .size          = {tex->width, tex->height, 1},
