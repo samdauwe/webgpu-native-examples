@@ -240,7 +240,7 @@ static void init_offscreen_framebuffers(struct wgpu_context_t* wgpu_context)
   for (int i = 0; i < 2; i++) {
     /* Color texture */
     WGPUTextureDescriptor color_desc = {
-      .label = STRVIEW("Offscreen Color"),
+      .label = STRVIEW("Offscreen Color - Texture"),
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension     = WGPUTextureDimension_2D,
