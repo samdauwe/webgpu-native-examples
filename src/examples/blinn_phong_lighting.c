@@ -429,7 +429,7 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
 
   state.textures.depth_view = wgpuTextureCreateView(
     state.textures.depth, &(WGPUTextureViewDescriptor){
-                            .label           = STRVIEW("Depth texture view"),
+                            .label           = STRVIEW("Depth - Texture view"),
                             .dimension       = WGPUTextureViewDimension_2D,
                             .format          = WGPUTextureFormat_Depth24Plus,
                             .mipLevelCount   = 1,
