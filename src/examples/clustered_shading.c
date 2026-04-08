@@ -1890,7 +1890,7 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
     = wgpu_create_shader_module(device, cluster_bounds_compute_shader_wgsl);
   state.cluster_bounds_pipeline = wgpuDeviceCreateComputePipeline(device,
     &(WGPUComputePipelineDescriptor){
-      .label   = STRVIEW("cluster-bounds"),
+      .label   = STRVIEW("Cluster Bounds - Compute Pipeline"),
       .layout  = bounds_pl,
       .compute = {
         .module     = bounds_sm,
