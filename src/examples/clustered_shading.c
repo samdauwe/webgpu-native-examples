@@ -1901,11 +1901,12 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
   wgpuPipelineLayoutRelease(bounds_pl);
 
   /* Cluster buffer (stores AABB bounds for each cluster) */
-  state.buffers.cluster
-    = wgpuDeviceCreateBuffer(device, &(WGPUBufferDescriptor){
-                                       .usage = WGPUBufferUsage_Storage,
-                                       .size  = TOTAL_TILES * 32,
-                                     });
+  state.buffers.cluster = wgpuDeviceCreateBuffer(
+    device, &(WGPUBufferDescriptor){
+              .label = STRVIEW("Cluster - Storage Buffer"),
+              .usage = WGPUBufferUsage_Storage,
+              .size  = TOTAL_TILES * 32,
+            });
 
   /* Cluster storage bind group */
   WGPUBindGroupEntry cluster_storage_entry = {
