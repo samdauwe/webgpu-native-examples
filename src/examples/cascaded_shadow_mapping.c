@@ -416,18 +416,18 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
     });
 
   /* Full array view for sampling in the fragment shader */
-  state.shadow_map.full_view
-    = wgpuTextureCreateView(state.shadow_map.depth_texture,
-                            &(WGPUTextureViewDescriptor){
-                              .label         = STRVIEW("Shadow Map Full View"),
-                              .format        = WGPUTextureFormat_Depth32Float,
-                              .dimension     = WGPUTextureViewDimension_2DArray,
-                              .baseMipLevel  = 0,
-                              .mipLevelCount = 1,
-                              .baseArrayLayer  = 0,
-                              .arrayLayerCount = SHADOW_MAP_CASCADE_COUNT,
-                              .aspect          = WGPUTextureAspect_DepthOnly,
-                            });
+  state.shadow_map.full_view = wgpuTextureCreateView(
+    state.shadow_map.depth_texture,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Shadow Map Full  - Texture View"),
+      .format          = WGPUTextureFormat_Depth32Float,
+      .dimension       = WGPUTextureViewDimension_2DArray,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = SHADOW_MAP_CASCADE_COUNT,
+      .aspect          = WGPUTextureAspect_DepthOnly,
+    });
 
   /* Per-cascade views for rendering (single layer each) */
   for (uint32_t i = 0; i < SHADOW_MAP_CASCADE_COUNT; i++) {
