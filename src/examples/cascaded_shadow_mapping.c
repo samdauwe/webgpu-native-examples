@@ -434,11 +434,11 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
     state.shadow_map.cascade_views[i]
       = wgpuTextureCreateView(state.shadow_map.depth_texture,
                               &(WGPUTextureViewDescriptor){
-                                .label         = STRVIEW("Cascade View"),
-                                .format        = WGPUTextureFormat_Depth32Float,
-                                .dimension     = WGPUTextureViewDimension_2D,
-                                .baseMipLevel  = 0,
-                                .mipLevelCount = 1,
+                                .label     = STRVIEW("Cascade - Texture View"),
+                                .format    = WGPUTextureFormat_Depth32Float,
+                                .dimension = WGPUTextureViewDimension_2D,
+                                .baseMipLevel    = 0,
+                                .mipLevelCount   = 1,
                                 .baseArrayLayer  = i,
                                 .arrayLayerCount = 1,
                                 .aspect          = WGPUTextureAspect_DepthOnly,
