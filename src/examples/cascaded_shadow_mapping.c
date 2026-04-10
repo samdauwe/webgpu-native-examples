@@ -871,7 +871,7 @@ static void create_material_textures(struct wgpu_context_t* wgpu_context)
   /* Shared linear sampler */
   state.texture_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Texture Sampler"),
+              .label         = STRVIEW("Texture - Sampler"),
               .addressModeU  = WGPUAddressMode_Repeat,
               .addressModeV  = WGPUAddressMode_Repeat,
               .addressModeW  = WGPUAddressMode_Repeat,
