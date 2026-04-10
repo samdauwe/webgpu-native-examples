@@ -884,18 +884,18 @@ static void create_material_textures(struct wgpu_context_t* wgpu_context)
             });
 
   /* 1×1 white default texture */
-  uint8_t white[4] = {255, 255, 255, 255};
-  state.default_texture
-    = wgpuDeviceCreateTexture(device, &(WGPUTextureDescriptor){
-                                        .label = STRVIEW("Default White"),
-                                        .usage = WGPUTextureUsage_TextureBinding
-                                                 | WGPUTextureUsage_CopyDst,
-                                        .dimension = WGPUTextureDimension_2D,
-                                        .size      = {1, 1, 1},
-                                        .format = WGPUTextureFormat_RGBA8Unorm,
-                                        .mipLevelCount = 1,
-                                        .sampleCount   = 1,
-                                      });
+  uint8_t white[4]      = {255, 255, 255, 255};
+  state.default_texture = wgpuDeviceCreateTexture(
+    device,
+    &(WGPUTextureDescriptor){
+      .label     = STRVIEW("Default White - Textture"),
+      .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+      .dimension = WGPUTextureDimension_2D,
+      .size      = {1, 1, 1},
+      .format    = WGPUTextureFormat_RGBA8Unorm,
+      .mipLevelCount = 1,
+      .sampleCount   = 1,
+    });
   wgpuQueueWriteTexture(wgpu_context->queue,
                         &(WGPUTexelCopyTextureInfo){
                           .texture = state.default_texture,
