@@ -909,8 +909,8 @@ static void create_material_textures(struct wgpu_context_t* wgpu_context)
                         &(WGPUExtent3D){1, 1, 1});
   state.default_texture_view = wgpuTextureCreateView(
     state.default_texture, &(WGPUTextureViewDescriptor){
-                             .label           = STRVIEW("Default White View"),
-                             .format          = WGPUTextureFormat_RGBA8Unorm,
+                             .label  = STRVIEW("Default White - Textture View"),
+                             .format = WGPUTextureFormat_RGBA8Unorm,
                              .dimension       = WGPUTextureViewDimension_2D,
                              .baseMipLevel    = 0,
                              .mipLevelCount   = 1,
