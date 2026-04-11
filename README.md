@@ -447,6 +447,10 @@ Demonstrates parallax mapping techniques on a textured plane using a height map.
 
 This example shows how to use a post-processing effect to blend between two scenes. This example has been ported from [this JavaScript implementation](https://github.com/gnikoloff/webgpu-dojo/tree/master/src/examples/postprocessing-01) to native code.
 
+#### [Spherical Environment Mapping](src/examples/spherical_env_mapping.c)
+
+Demonstrates spherical environment mapping (matcap shading) on a glTF Chinese Dragon model. Six different material capture textures are stored in a 2D texture array, loaded from a vertically‑stacked PNG atlas. The eye‑space reflection vector is projected onto a sphere to index into the matcap texture, and a GUI slider allows switching between materials at runtime. Ported from the Vulkan [Spherical environment mapping](src/examples/Vulkan/examples/sphericalenvmapping/) example.
+
 ### Misc
 
 #### [WebGPU Gears](src/examples/gears.c)
