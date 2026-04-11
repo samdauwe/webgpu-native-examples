@@ -83,7 +83,7 @@ set(COMMON_SOURCES
 # ==============================================================================
 function(add_example_executable EXAMPLE_NAME)
     # Parse optional arguments
-    cmake_parse_arguments(ARG "USE_CIMGUI" "" "" ${ARGN})
+    cmake_parse_arguments(ARG "USE_CIMGUI;USE_TEXT_OVERLAY" "" "" ${ARGN})
     set(EXAMPLE_SOURCE "src/examples/${EXAMPLE_NAME}.c")
 
     # Prepare source list
@@ -100,6 +100,14 @@ function(add_example_executable EXAMPLE_NAME)
         list(APPEND EXAMPLE_SOURCES
             src/webgpu/imgui_overlay.h
             src/webgpu/imgui_overlay.c
+        )
+    endif()
+
+    # Add text_overlay sources if using text overlay
+    if(ARG_USE_TEXT_OVERLAY)
+        list(APPEND EXAMPLE_SOURCES
+            src/webgpu/text_overlay.h
+            src/webgpu/text_overlay.c
         )
     endif()
 
@@ -255,6 +263,7 @@ add_example_executable(skinned_mesh USE_CIMGUI)
 add_example_executable(square)
 add_example_executable(stencil_mask)
 add_example_executable(terrain_mesh)
+add_example_executable(text_overlay USE_TEXT_OVERLAY)
 add_example_executable(text_rendering_msdf)
 add_example_executable(texture_3d USE_CIMGUI)
 add_example_executable(textured_cube)

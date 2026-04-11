@@ -425,6 +425,10 @@ The font texture is generated using [Don McCurdy's MSDF font generation tool](ht
 
 Generates and renders a complex user interface with multiple windows, controls and user interaction on top of a 3D scene. The UI is generated using [Dear ImGUI](https://github.com/ocornut/imgui) and updated each frame.
 
+#### [Text Overlay](src/examples/text_overlay.c)
+
+Renders a 2D text overlay on top of a 3D scene using bitmap glyph data from a [stb font file](https://nothings.org/stb/font/). The font bitmap is uploaded as an R8 texture and used for displaying text (title, frame timing, device info, model-view matrix, projected labels) in a separate render pass that loads the existing framebuffer content. A torus knot glTF model with Phong shading serves as the background scene. Ported from the Vulkan [Text rendering](src/examples/Vulkan/examples/textoverlay/) example.
+
 ### Effects
 
 #### [CPU Based Particle System](src/examples/particle_system.c)
