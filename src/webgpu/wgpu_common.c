@@ -453,9 +453,24 @@ static void request_device(wgpu_context_t* wgpu_context)
     }
   }
 
+  /* Query adapter limits so we can request the maximum buffer sizes */
+  WGPULimits adapter_limits = WGPU_LIMITS_INIT;
+  WGPUStatus limits_status
+    = wgpuAdapterGetLimits(wgpu_context->adapter, &adapter_limits);
+
+  WGPULimits required_limits            = WGPU_LIMITS_INIT;
+  WGPULimits const* required_limits_ptr = NULL;
+  if (limits_status == WGPUStatus_Success) {
+    required_limits.maxBufferSize = adapter_limits.maxBufferSize;
+    required_limits.maxStorageBufferBindingSize
+      = adapter_limits.maxStorageBufferBindingSize;
+    required_limits_ptr = &required_limits;
+  }
+
   WGPUDeviceDescriptor dev_desc = {
     .requiredFeatureCount = actual_count,
     .requiredFeatures     = all_features,
+    .requiredLimits       = required_limits_ptr,
     .deviceLostCallbackInfo
     = {
       .mode     = WGPUCallbackMode_AllowProcessEvents,
