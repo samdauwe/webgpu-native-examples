@@ -288,6 +288,10 @@ This example implements cascaded shadow mapping (CSM) for directional light sour
 
 This example demonstrates omnidirectional shadow mapping from a point light source using a dynamic cube map. The scene is rendered six times from the light's perspective into each face of a 1024x1024 R32Float cube map, storing the linear distance from the light to each fragment. In the main scene pass, the cube map is sampled using the world-space light-to-fragment direction vector to determine shadowing. The point light orbits in a small circle, producing animated shadows on all surrounding geometry. Includes a debug mode to visualize all six cube map faces. Ported from the Vulkan [Omnidirectional shadow mapping](src/examples/Vulkan/examples/shadowmappingomni/) example.
 
+#### [Pipeline Constants](src/examples/pipeline_constants.c)
+
+Demonstrates using WebGPU pipeline override constants (WGSL `override`) to create multiple render pipelines from a single "uber" shader. A glTF scene is rendered three times side-by-side in separate viewports, each using a different lighting model selected at pipeline creation time via `WGPUConstantEntry`: Phong shading (left), toon shading with configurable desaturation (center), and textured lighting using a metalplate colormap (right). This is the WebGPU equivalent of Vulkan specialization constants (`VkSpecializationInfo`). Ported from the Vulkan [Specialization constants](src/examples/Vulkan/examples/specializationconstants/) example.
+
 #### [Primitive Picking](src/examples/primitive_picking.c)
 
 This example demonstrates primitive picking by computing a primitive ID from vertex_index (since primitive_id builtin requires experimental extensions). Each primitive's unique ID is rendered to a texture, which is then read at the current cursor/touch location to determine which primitive has been selected. That primitive is highlighted in yellow when rendering the next frame.
