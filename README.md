@@ -308,6 +308,10 @@ Demonstrates a fullscreen radial blur post-processing effect. The scene is rende
 
 Demonstrates the WebGPU equivalent of Vulkan input attachments: reading attachment contents from a previous render pass at the same pixel position. A glTF model is rendered with toon shading to offscreen color and depth textures in the first pass. A fullscreen triangle in the second pass reads those textures and applies either brightness/contrast adjustment (color attachment) or depth range visualization (depth attachment). Includes ImGui controls for selecting the attachment and adjusting post-processing parameters.
 
+#### [Order Independent Transparency (OIT)](src/examples/oit.c)
+
+Implements order-independent transparency using per-pixel linked lists built with atomic storage buffer operations. In the geometry pass, each fragment allocates a node in a global linked-list buffer via `atomicAdd` and chains it to the pixel's head index via `atomicExchange`, storing its color and depth — no color attachment is needed, only storage writes. A compute pass clears the head-index buffer to 0xFFFFFFFF before each frame. The compositing pass renders a fullscreen triangle whose fragment shader walks each pixel's linked list, insertion-sorts fragments by depth (back-to-front), and blends them to produce the final color. The scene renders 125 semi-transparent red spheres in a 5×5×5 grid plus 2 semi-transparent blue cubes, supporting up to 20 fragments per pixel. Includes ImGui overlay with resolution and node-count diagnostics. Ported from the Vulkan [Order Independent Transparency](src/examples/Vulkan/examples/oit/) example.
+
 ### Performance
 
 #### [Instancing](src/examples/instanced_cube.c)
