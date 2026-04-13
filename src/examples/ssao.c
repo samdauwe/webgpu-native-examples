@@ -275,7 +275,7 @@ static void create_model_buffers(wgpu_context_t* wgpu_context)
   /* Vertex buffer */
   state.vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("SSAO Vertex Buffer"),
+              .label = STRVIEW("SSAO - Vertex Buffer"),
               .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
               .size  = vb_size,
               .mappedAtCreation = true,
