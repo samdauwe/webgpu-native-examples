@@ -367,6 +367,10 @@ This example extends deferred shading with shadow mapping from three animated sp
 
 Adds multi sampling to a deferred renderer using manual resolve in the fragment shader. The G-Buffer pass renders to multisampled color attachments (position, normal, albedo) that are automatically resolved. The composition pass supports two modes: MSAA mode reads multisampled textures directly with per-sample shading, while the non-MSAA mode uses the resolved textures. Debug visualization modes allow inspecting individual G-Buffer channels and specular highlights.
 
+#### [Screen Space Ambient Occlusion](src/examples/ssao.c)
+
+Implements a four-pass deferred Screen Space Ambient Occlusion (SSAO) pipeline. The first pass renders the Sponza scene into a G-Buffer with position (RGBA32Float), normal, and albedo attachments. The second pass generates the SSAO term by sampling 64 hemisphere kernel samples per fragment using a randomized tangent-space rotation from an 8×8 noise texture. The third pass applies a 5×5 box blur to smooth the raw occlusion. The final composition pass combines Lambertian lighting with the blurred ambient occlusion factor. GUI controls allow toggling SSAO on/off, enabling the blur pass, and viewing the raw SSAO output. Ported from the Vulkan [SSAO example](https://github.com/SaschaWillems/VulkanSamples/tree/master/examples/ssao).
+
 ### Compute Shader
 
 #### [Animometer](src/examples/animometer.c)
