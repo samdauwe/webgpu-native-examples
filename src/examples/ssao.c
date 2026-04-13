@@ -290,7 +290,7 @@ static void create_model_buffers(wgpu_context_t* wgpu_context)
     size_t ib_size     = m->index_count * sizeof(uint32_t);
     state.index_buffer = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("SSAO Index Buffer"),
+                .label = STRVIEW("SSAO - Index Buffer"),
                 .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                 .size  = ib_size,
                 .mappedAtCreation = true,
