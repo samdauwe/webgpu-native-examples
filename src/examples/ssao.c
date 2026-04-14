@@ -24,7 +24,10 @@
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
-#define CGLM_FORCE_DEPTH_ZERO_TO_ONE
+/* Note: camera.c uses cglm's default [-1,1] NDC depth projection (OpenGL).
+ * The linearDepth shader function is written to match that convention.
+ * CGLM_FORCE_DEPTH_ZERO_TO_ONE is NOT needed here because no cglm projection
+ * calls are made in this file. */
 #include <cglm/cglm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,9 +49,9 @@
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define SSAO_KERNEL_SIZE 64
-#define SSAO_RADIUS 0.3f
-#define SSAO_NOISE_DIM 8
+#define SSAO_KERNEL_SIZE (64)
+#define SSAO_RADIUS (0.3f)
+#define SSAO_NOISE_DIM (8)
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shader sources (forward declarations – definitions at bottom of file)
@@ -1832,10 +1835,12 @@ static const char* gbuffer_shader_wgsl = CODE(
   }
 
   fn linearDepth(depth : f32, near : f32, far : f32) -> f32 {
-    // Both Vulkan and WebGPU have [0,1] depth range
-    // Convert to [-1,1] then linear depth (matches Vulkan reference)
-    let z = depth * 2.0 - 1.0;
-    return (2.0 * near * far) / (far + near - z * (far - near));
+    // camera.c produces an OpenGL-style [-1,1] NDC projection (cglm default,
+    // no CGLM_FORCE_DEPTH_ZERO_TO_ONE).  WebGPU clips NDC z to [0,1], so
+    // @builtin(position).z is already the clipped NDC value.  The correct
+    // inversion for a [-1,1] projection with [0,1] depth buffer is:
+    //   d = 2*n*f / ((f+n) - depth*(f-n))
+    return (2.0 * near * far) / (far + near - depth * (far - near));
   }
 
   @fragment
