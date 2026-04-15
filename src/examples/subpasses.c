@@ -559,8 +559,6 @@ static float rnd_float(float min_val, float max_val)
 
 static void init_lights(void)
 {
-  rng_state = 42u; /* Fixed seed for reproducibility */
-
   for (uint32_t i = 0; i < NUM_LIGHTS; i++) {
     state.lights[i].position[0] = rnd_float(-1.0f, 1.0f) * 8.0f;
     state.lights[i].position[1] = 0.25f + fabsf(rnd_float(-1.0f, 1.0f)) * 4.0f;
@@ -1185,7 +1183,8 @@ static int init(struct wgpu_context_t* wgpu_context)
   load_models();
   create_model_buffers(wgpu_context);
 
-  /* Initialize lights */
+  /* Initialize lights with a fixed seed for reproducibility */
+  rng_state = 42u;
   init_lights();
 
   /* G-Buffer textures */
