@@ -375,6 +375,10 @@ Adds multi sampling to a deferred renderer using manual resolve in the fragment 
 
 Implements a four-pass deferred Screen Space Ambient Occlusion (SSAO) pipeline. The first pass renders the Sponza scene into a G-Buffer with position (RGBA32Float), normal, and albedo attachments. The second pass generates the SSAO term by sampling 64 hemisphere kernel samples per fragment using a randomized tangent-space rotation from an 8×8 noise texture. The third pass applies a 5×5 box blur to smooth the raw occlusion. The final composition pass combines Lambertian lighting with the blurred ambient occlusion factor. GUI controls allow toggling SSAO on/off, enabling the blur pass, and viewing the raw SSAO output. Ported from the Vulkan [SSAO example](https://github.com/SaschaWillems/VulkanSamples/tree/master/examples/ssao).
 
+#### [Subpasses](src/examples/subpasses.c)
+
+Demonstrates a deferred rendering pipeline combined with a forward transparency pass, ported from the Vulkan [subpasses example](https://github.com/SaschaWillems/Vulkan/tree/master/examples/subpasses). Because WebGPU has no subpass concept, the three Vulkan subpasses are mapped to three separate render passes. The first pass fills a G-Buffer with world-space position (RGBA16Float, linearized depth in alpha), normals (RGBA16Float), and vertex albedo (RGBA8Unorm). The second pass evaluates 64 randomized point lights per pixel in a fullscreen deferred composition step, reading the G-Buffer via `textureLoad()` — the WebGPU equivalent of `subpassLoad()`. The third pass renders alpha-blended glass geometry in a forward pass, discarding fragments occluded by opaque geometry using the linearized depth stored in the G-Buffer position alpha channel. A GUI panel lists the three passes and provides a button to randomize the point lights.
+
 ### Compute Shader
 
 #### [Animometer](src/examples/animometer.c)
