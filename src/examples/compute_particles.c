@@ -261,7 +261,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 
   state.compute.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Compute uniform buffer",
+                    .label = "Compute - Uniform buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
                     .size  = sizeof(state.compute.ubo),
                   });
