@@ -242,7 +242,7 @@ static void init_storage_buffer(wgpu_context_t* wgpu_context)
 
   state.compute.storage_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Particle storage buffer",
+                    .label = "Particle - Storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
                     .size         = PARTICLE_COUNT * sizeof(particle_t),
