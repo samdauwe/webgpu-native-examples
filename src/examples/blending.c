@@ -629,7 +629,7 @@ static void init_textures(wgpu_context_t* wgpu_context)
   /* Create sampler */
   state.textures.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Texture sampler"),
+                            .label         = STRVIEW("Texture - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
