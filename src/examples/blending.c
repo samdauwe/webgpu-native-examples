@@ -659,7 +659,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 
   state.uniform_buffers.dst = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Destination uniform buffer",
+                    .label = "Destination - Uniform buffer",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(uniforms_t),
                   });
