@@ -1021,6 +1021,7 @@ static void recreate_material_bind_group(WGPUDevice device, uint32_t mat_idx)
 
   g_mat->bind_group = wgpuDeviceCreateBindGroup(
     device, &(WGPUBindGroupDescriptor){
+              .label      = STRVIEW("Material - Bind group"),
               .layout     = state.bind_group_layouts.material,
               .entryCount = 7,
               .entries    = entries,
