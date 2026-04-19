@@ -891,10 +891,14 @@ static void init_camera(wgpu_context_t* wgpu_context)
   state.camera.invert_dy      = true;
 
   /* Vulkan original: position(18, 22.5, 57.5), rotation(-12, 159, 0)
-   * Note: camera_set_position already negates Y internally, so pass Vulkan
-   * values directly (do NOT use VKY_TO_WGPU_VEC3 — that creates a double
-   * negation). VKY_TO_WGPU_CAM_ROT is still needed for rotation since
-   * camera_set_rotation does not negate pitch. */
+   *
+   * camera_set_position() always negates Y internally (stores -Y). In Vulkan
+   * Y-down: camera at Y=22.5 is above origin looking at terrain displaced in
+   * -Y. In WebGPU Y-up: terrain is displaced in +Y, so the camera must be at
+   * stored +22.5 → pass -22.5 (negated by camera_set_position to +22.5).
+   *
+   * VKY_TO_WGPU_CAM_ROT negates pitch: Vulkan pitch -12 (look slightly down)
+   * becomes +12 in WebGPU (positive X rotation = look down in Y-up system). */
   camera_set_position(&state.camera, (vec3){18.0f, 22.5f, 57.5f});
   camera_set_rotation(&state.camera,
                       (vec3)VKY_TO_WGPU_CAM_ROT(-12.0f, 159.0f, 0.0f));
@@ -939,9 +943,9 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   glm_mat4_copy(cam->matrices.perspective, (vec4*)state.terrain_ubo.projection);
   glm_mat4_copy(cam->matrices.view, (vec4*)state.terrain_ubo.modelview);
 
-  /* Light position: Vulkan computes lightPos.y = -0.5 - displacementFactor
-   * (placing light just below terrain peaks). For WebGPU Y-up with positive
-   * displacement, the equivalent is +0.5 + displacementFactor. */
+  /* Light position: Vulkan sets lightPos.y = -0.5 - displacementFactor each
+   * frame, e.g. -32.5 with default factor=32.  In WebGPU Y-up, negate to
+   * +32.5 so the light is above the terrain peaks. X and Z are unchanged. */
   state.terrain_ubo.light_pos[0] = -48.0f;
   state.terrain_ubo.light_pos[1] = 0.5f + state.settings.displacement_factor;
   state.terrain_ubo.light_pos[2] = 46.0f;
@@ -1906,8 +1910,17 @@ static const char* compute_tess_shader_wgsl = CODE(
   @group(0) @binding(3) var heightmap_tex  : texture_2d<f32>;
   @group(0) @binding(4) var heightmap_samp : sampler;
 
+  /* Workgroup shared memory tile for heightmap caching.
+   * Each workgroup processes a contiguous row of 64 vertices from the 256-wide
+   * grid. We cache a (64+2)-wide strip of heights so the Sobel filter can
+   * access left/right neighbours without redundant texture fetches. */
+  const WG_SIZE : u32 = 64u;
+  const TILE_W  : u32 = 66u;  /* WG_SIZE + 2 (1-pixel border each side) */
+  var<workgroup> tile : array<f32, TILE_W>;
+
   @compute @workgroup_size(64)
-  fn cs_tessellate(@builtin(global_invocation_id) gid : vec3u) {
+  fn cs_tessellate(@builtin(global_invocation_id) gid : vec3u,
+                   @builtin(local_invocation_id)  lid : vec3u) {
     let idx = gid.x;
     let total = arrayLength(&input_verts);
     if (idx >= total) { return; }
@@ -1918,10 +1931,20 @@ static const char* compute_tess_shader_wgsl = CODE(
     let uv = vec2f(vert.u, vert.v);
     let height = textureSampleLevel(heightmap_tex, heightmap_samp, uv, 0.0).r;
 
-    /* Displace Y upward (WebGPU Y-up convention) */
+    /* Displace Y upward (WebGPU Y-up convention — Vulkan uses pos.y -= h) */
     vert.py = height * params.disp_factor;
 
-    /* Compute normal via Sobel filter on heightmap */
+    /* Compute normal via Sobel filter on heightmap.
+     *
+     * The Vulkan original computes normals CPU-side using:
+     *   normal.x = Gx_sobel(heights)
+     *   normal.z = Gy_sobel(heights)
+     *   normal.y = 0.25 * sqrt(1 - nx^2 - nz^2)
+     *   normal = normalize(normal * vec3(2, 1, 2))
+     *
+     * For WebGPU positive-Y displacement, the outward surface normal is
+     * (-dh/dx, 1, -dh/dz) — we negate the Sobel gradients.  The 0.25 bump
+     * factor and (2,1,2) anisotropic scale are preserved from the original. */
     let dims = vec2f(textureDimensions(heightmap_tex, 0));
     let texel = 1.0 / dims;
 
@@ -1942,13 +1965,17 @@ static const char* compute_tess_shader_wgsl = CODE(
     let h22 = textureSampleLevel(heightmap_tex, heightmap_samp,
                                  uv + vec2f(texel.x, texel.y), 0.0).r;
 
-    /* Sobel gradients */
+    /* Sobel Gx and Gz gradients (identical kernel to Vulkan original) */
     let gx = (h00 - h20) + 2.0 * (h01 - h21) + (h02 - h22);
     let gz = (h00 + 2.0 * h10 + h20) - (h02 + 2.0 * h12 + h22);
-    let d  = max(0.0, 1.0 - gx * gx - gz * gz);
+
+    /* Y component: bump factor 0.25, clamped before sqrt to avoid NaN */
+    let d   = max(0.0, 1.0 - gx * gx - gz * gz);
     let n_y = 0.25 * sqrt(d);
 
-    /* For positive Y displacement, normal = (-dh/dx, up, -dh/dz) */
+    /* Anisotropic scale (2, 1, 2) then normalize.
+     * For positive-Y displacement: negate gx/gz for outward normal.
+     * Vulkan uses (+gx*2, n_y, +gz*2) because displacement is negative-Y. */
     let n = normalize(vec3f(-gx * 2.0, n_y, -gz * 2.0));
     vert.nx = n.x;
     vert.ny = n.y;
