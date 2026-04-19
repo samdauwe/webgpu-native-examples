@@ -890,9 +890,12 @@ static void init_camera(wgpu_context_t* wgpu_context)
   state.camera.invert_dx      = true;
   state.camera.invert_dy      = true;
 
-  /* Vulkan original: position(18, 22.5, 57.5), rotation(-12, 159, 0) */
-  camera_set_position(&state.camera,
-                      (vec3)VKY_TO_WGPU_VEC3(18.0f, -22.5f, 57.5f));
+  /* Vulkan original: position(18, 22.5, 57.5), rotation(-12, 159, 0)
+   * Note: camera_set_position already negates Y internally, so pass Vulkan
+   * values directly (do NOT use VKY_TO_WGPU_VEC3 — that creates a double
+   * negation). VKY_TO_WGPU_CAM_ROT is still needed for rotation since
+   * camera_set_rotation does not negate pitch. */
+  camera_set_position(&state.camera, (vec3){18.0f, 22.5f, 57.5f});
   camera_set_rotation(&state.camera,
                       (vec3)VKY_TO_WGPU_CAM_ROT(-12.0f, 159.0f, 0.0f));
   camera_set_perspective(
@@ -936,9 +939,11 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   glm_mat4_copy(cam->matrices.perspective, (vec4*)state.terrain_ubo.projection);
   glm_mat4_copy(cam->matrices.view, (vec4*)state.terrain_ubo.modelview);
 
-  /* Light position (Vulkan Y-down → WebGPU Y-up: negate Y) */
+  /* Light position: Vulkan computes lightPos.y = -0.5 - displacementFactor
+   * (placing light just below terrain peaks). For WebGPU Y-up with positive
+   * displacement, the equivalent is +0.5 + displacementFactor. */
   state.terrain_ubo.light_pos[0] = -48.0f;
-  state.terrain_ubo.light_pos[1] = 40.0f;
+  state.terrain_ubo.light_pos[1] = 0.5f + state.settings.displacement_factor;
   state.terrain_ubo.light_pos[2] = 46.0f;
   state.terrain_ubo.light_pos[3] = 0.0f;
 
@@ -1417,8 +1422,8 @@ static void render_gui(wgpu_context_t* wgpu_context)
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Tessellation", &state.settings.tessellation);
 
-    imgui_overlay_input_float("Factor", &state.settings.displacement_factor,
-                              0.5f, "%.2f");
+    imgui_overlay_input_float(
+      "Displacement", &state.settings.displacement_factor, 0.5f, "%.2f");
     if (state.settings.displacement_factor < 0.0f) {
       state.settings.displacement_factor = 0.0f;
     }
@@ -1457,6 +1462,16 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
   if (!imgui_overlay_want_capture_mouse()) {
     camera_on_input_event(&state.camera, input_event);
   }
+
+  /* WASD / arrow key movement (flight-simulator style, like Vulkan version) */
+  state.camera.keys.up
+    = input_event->keys_down[KEY_W] || input_event->keys_down[KEY_UP];
+  state.camera.keys.down
+    = input_event->keys_down[KEY_S] || input_event->keys_down[KEY_DOWN];
+  state.camera.keys.left
+    = input_event->keys_down[KEY_A] || input_event->keys_down[KEY_LEFT];
+  state.camera.keys.right
+    = input_event->keys_down[KEY_D] || input_event->keys_down[KEY_RIGHT];
 }
 
 /* -------------------------------------------------------------------------- *
