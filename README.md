@@ -496,6 +496,10 @@ WebGPU implementation of the [Gerstner Waves algorithm](https://en.wikipedia.org
 
 This example shows how to render an infinite landscape for the camera to meander around in. The terrain consists of a tiled planar mesh that is displaced with a heightmap. More technical details can be found on [this page](https://metalbyexample.com/webgpu-part-two/) and [this one](https://blogs.igalia.com/itoral/2016/10/13/opengl-terrain-renderer-rendering-the-terrain-mesh/).
 
+#### [Terrain Tessellation](src/examples/terrain_tessellation.c)
+
+Renders a terrain with height-map based vertex displacement, multi-layered texturing and distance fog. Since WebGPU has no tessellation shaders, a GPU compute shader samples the heightmap and computes Sobel-filter normals per vertex each frame, mimicking the Vulkan TCS/TES pipeline. A tessellation toggle switches between a fine 256×256 grid and a coarse 64×64 grid while keeping full displacement. Includes a skysphere, a wireframe toggle and an interactive GUI. Ported from the Vulkan [Dynamic terrain tessellation](src/examples/Vulkan/examples/terraintessellation/) example.
+
 #### [Pseudorandom number generation (PRNG)](src/examples/prng.c)
 
 A WebGPU example demonstrating pseudorandom number generation on the GPU. A [32-bit PCG hash](https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/) is used which is fast enough to be useful for real-time, while also being high-quality enough for almost any graphics use-case.
