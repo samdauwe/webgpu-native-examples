@@ -65,6 +65,7 @@
 static const char* terrain_shader_wgsl;
 static const char* skysphere_shader_wgsl;
 static const char* compute_tess_shader_wgsl;
+static const char* cull_lod_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -76,6 +77,8 @@ static const char* compute_tess_shader_wgsl;
 #define TERRAIN_ARRAY_TEX_SIZE 512
 #define HEIGHTMAP_TEX_SIZE 1024
 #define FETCH_BUFFER_SIZE (5 * 1024 * 1024)
+#define CULL_PATCHES_PER_DIM (PATCH_SIZE - 1) /* 63 */
+#define MAX_CULLED_INDICES (CULL_PATCHES_PER_DIM * CULL_PATCHES_PER_DIM * 96)
 
 /* -------------------------------------------------------------------------- *
  * Types
@@ -107,6 +110,19 @@ typedef struct {
   uint32_t pad[3];   /* padding to 16 bytes */
 } compute_ubo_t;     /* 16 bytes */
 
+/* Frustum culling + LOD compute uniform buffer */
+typedef struct {
+  float projection[16];     /* mat4x4f  offset 0   */
+  float modelview[16];      /* mat4x4f  offset 64  */
+  float disp_factor;        /* f32      offset 128 */
+  float tess_factor;        /* f32      offset 132 */
+  float tess_edge_size;     /* f32      offset 136 */
+  float pad0;               /* f32      offset 140 */
+  float frustum_planes[24]; /* 6×vec4f  offset 144 */
+  float viewport_dim[2];    /* vec2f    offset 240 */
+  float pad1[2];            /* padding  to 256     */
+} cull_ubo_t;               /* 256 bytes */
+
 /* -------------------------------------------------------------------------- *
  * State
  * -------------------------------------------------------------------------- */
@@ -128,6 +144,8 @@ static struct {
     uint32_t coarse_index_count;
     uint32_t coarse_wire_index_count;
     uint32_t vertex_count;
+    WGPUBuffer culled_index_buffer;  /* dynamic indices from cull pass  */
+    WGPUBuffer fill_indirect_buffer; /* indirect draw args              */
   } terrain;
 
   /* Skysphere model */
@@ -160,12 +178,14 @@ static struct {
   terrain_ubo_t terrain_ubo;
   sky_ubo_t sky_ubo;
   compute_ubo_t compute_ubo;
+  cull_ubo_t cull_ubo;
 
   /* Uniform GPU buffers */
   struct {
     wgpu_buffer_t terrain;
     wgpu_buffer_t sky;
     wgpu_buffer_t compute;
+    wgpu_buffer_t cull;
   } uniform_bufs;
 
   /* Bind group layouts */
@@ -173,6 +193,7 @@ static struct {
     WGPUBindGroupLayout terrain;
     WGPUBindGroupLayout skysphere;
     WGPUBindGroupLayout compute;
+    WGPUBindGroupLayout cull;
   } bg_layouts;
 
   /* Pipeline layouts */
@@ -180,6 +201,7 @@ static struct {
     WGPUPipelineLayout terrain;
     WGPUPipelineLayout skysphere;
     WGPUPipelineLayout compute;
+    WGPUPipelineLayout cull;
   } pipe_layouts;
 
   /* Bind groups */
@@ -187,6 +209,7 @@ static struct {
     WGPUBindGroup terrain;
     WGPUBindGroup skysphere;
     WGPUBindGroup compute;
+    WGPUBindGroup cull;
   } bind_groups;
 
   /* Render pipelines */
@@ -198,6 +221,7 @@ static struct {
 
   /* Compute pipeline */
   WGPUComputePipeline compute_pipeline;
+  WGPUComputePipeline cull_pipeline;
 
   /* Render pass */
   WGPURenderPassColorAttachment color_att;
@@ -208,7 +232,10 @@ static struct {
   struct {
     bool tessellation;
     bool wireframe;
+    bool frustum_culling;
     float displacement_factor;
+    float tess_factor;
+    float tess_edge_size;
   } settings;
 
   /* Timing */
@@ -221,7 +248,10 @@ static struct {
     {
       .tessellation        = true,
       .wireframe           = false,
+      .frustum_culling     = true,
       .displacement_factor = 32.0f,
+      .tess_factor         = 0.75f,
+      .tess_edge_size      = 20.0f,
     },
   /* Render pass descriptors */
   .color_att =
@@ -252,10 +282,10 @@ static struct {
  * Heightmap loading (synchronous)
  * -------------------------------------------------------------------------- */
 
-static uint8_t* load_heightmap(int* out_w, int* out_h)
+static uint16_t* load_heightmap(int* out_w, int* out_h)
 {
-  int channels    = 0;
-  uint8_t* pixels = image_pixels_from_file(
+  int channels     = 0;
+  uint16_t* pixels = image_pixels_16_from_file(
     "assets/textures/terrain_heightmap_r16.png", out_w, out_h, &channels, 1);
   if (!pixels) {
     printf("ERROR: Failed to load terrain heightmap!\n");
@@ -268,7 +298,7 @@ static uint8_t* load_heightmap(int* out_w, int* out_h)
  * -------------------------------------------------------------------------- */
 
 static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
-                                  const uint8_t* heightdata, int hm_dim)
+                                  const uint16_t* heightdata, int hm_dim)
 {
   UNUSED_VAR(heightdata);
   UNUSED_VAR(hm_dim);
@@ -505,7 +535,7 @@ static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
  * -------------------------------------------------------------------------- */
 
 static void create_heightmap_texture(wgpu_context_t* wgpu_context,
-                                     const uint8_t* pixels, int w, int h)
+                                     const uint16_t* pixels, int w, int h)
 {
   WGPUDevice device = wgpu_context->device;
 
@@ -516,7 +546,7 @@ static void create_heightmap_texture(wgpu_context_t* wgpu_context,
                                                  | WGPUTextureUsage_CopyDst,
                                         .dimension = WGPUTextureDimension_2D,
                                         .size   = {(uint32_t)w, (uint32_t)h, 1},
-                                        .format = WGPUTextureFormat_R8Unorm,
+                                        .format = WGPUTextureFormat_R16Unorm,
                                         .mipLevelCount = 1,
                                         .sampleCount   = 1,
                                       });
@@ -524,14 +554,14 @@ static void create_heightmap_texture(wgpu_context_t* wgpu_context,
   wgpuQueueWriteTexture(
     wgpu_context->queue,
     &(WGPUTexelCopyTextureInfo){.texture = state.tex.heightmap}, pixels,
-    (size_t)(w * h),
-    &(WGPUTexelCopyBufferLayout){.bytesPerRow  = (uint32_t)w,
+    (size_t)(w * h * 2),
+    &(WGPUTexelCopyBufferLayout){.bytesPerRow  = (uint32_t)(w * 2),
                                  .rowsPerImage = (uint32_t)h},
     &(WGPUExtent3D){(uint32_t)w, (uint32_t)h, 1});
 
   state.tex.heightmap_view = wgpuTextureCreateView(
     state.tex.heightmap, &(WGPUTextureViewDescriptor){
-                           .format          = WGPUTextureFormat_R8Unorm,
+                           .format          = WGPUTextureFormat_R16Unorm,
                            .dimension       = WGPUTextureViewDimension_2D,
                            .mipLevelCount   = 1,
                            .arrayLayerCount = 1,
@@ -933,6 +963,62 @@ static void create_uniform_buffers(wgpu_context_t* wgpu_context)
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(compute_ubo_t),
                   });
+
+  state.uniform_bufs.cull = wgpu_create_buffer(
+    wgpu_context, &(wgpu_buffer_desc_t){
+                    .label = "Cull UBO",
+                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                    .size  = sizeof(cull_ubo_t),
+                  });
+}
+
+/* -------------------------------------------------------------------------- *
+ * Frustum plane extraction (Griggs-Hartmann method)
+ * -------------------------------------------------------------------------- */
+
+static void extract_frustum_planes(const float proj[16], const float view[16],
+                                   float planes[24])
+{
+  /* Compute clip = projection * modelview (column-major for cglm) */
+  mat4 clip;
+  glm_mat4_mul((vec4*)proj, (vec4*)view, clip);
+
+  /* Left   */ planes[0]  = clip[0][3] + clip[0][0];
+  planes[1]               = clip[1][3] + clip[1][0];
+  planes[2]               = clip[2][3] + clip[2][0];
+  planes[3]               = clip[3][3] + clip[3][0];
+  /* Right  */ planes[4]  = clip[0][3] - clip[0][0];
+  planes[5]               = clip[1][3] - clip[1][0];
+  planes[6]               = clip[2][3] - clip[2][0];
+  planes[7]               = clip[3][3] - clip[3][0];
+  /* Top    */ planes[8]  = clip[0][3] - clip[0][1];
+  planes[9]               = clip[1][3] - clip[1][1];
+  planes[10]              = clip[2][3] - clip[2][1];
+  planes[11]              = clip[3][3] - clip[3][1];
+  /* Bottom */ planes[12] = clip[0][3] + clip[0][1];
+  planes[13]              = clip[1][3] + clip[1][1];
+  planes[14]              = clip[2][3] + clip[2][1];
+  planes[15]              = clip[3][3] + clip[3][1];
+  /* Near   */ planes[16] = clip[0][3] + clip[0][2];
+  planes[17]              = clip[1][3] + clip[1][2];
+  planes[18]              = clip[2][3] + clip[2][2];
+  planes[19]              = clip[3][3] + clip[3][2];
+  /* Far    */ planes[20] = clip[0][3] - clip[0][2];
+  planes[21]              = clip[1][3] - clip[1][2];
+  planes[22]              = clip[2][3] - clip[2][2];
+  planes[23]              = clip[3][3] - clip[3][2];
+
+  /* Normalize each plane */
+  for (int i = 0; i < 6; i++) {
+    float* p  = &planes[i * 4];
+    float len = sqrtf(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+    if (len > 0.0f) {
+      p[0] /= len;
+      p[1] /= len;
+      p[2] /= len;
+      p[3] /= len;
+    }
+  }
 }
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
@@ -962,6 +1048,19 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   state.compute_ubo.disp_factor = state.settings.displacement_factor;
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_bufs.compute.buffer,
                        0, &state.compute_ubo, sizeof(compute_ubo_t));
+
+  /* Cull UBO */
+  glm_mat4_copy(cam->matrices.perspective, (vec4*)state.cull_ubo.projection);
+  glm_mat4_copy(cam->matrices.view, (vec4*)state.cull_ubo.modelview);
+  state.cull_ubo.disp_factor    = state.settings.displacement_factor;
+  state.cull_ubo.tess_factor    = state.settings.tess_factor;
+  state.cull_ubo.tess_edge_size = state.settings.tess_edge_size;
+  extract_frustum_planes(state.cull_ubo.projection, state.cull_ubo.modelview,
+                         state.cull_ubo.frustum_planes);
+  state.cull_ubo.viewport_dim[0] = (float)wgpu_context->width;
+  state.cull_ubo.viewport_dim[1] = (float)wgpu_context->height;
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_bufs.cull.buffer, 0,
+                       &state.cull_ubo, sizeof(cull_ubo_t));
 
   /* Skysphere UBO: projection * rotation-only view */
   mat4 sky_view;
@@ -1093,6 +1192,47 @@ static void create_bind_group_layouts(wgpu_context_t* wgpu_context)
                                                 .entryCount = 5,
                                                 .entries    = compute_entries,
                                               });
+
+  /* Cull/LOD compute: UBO + heightmap tex+sampler + indirect args + output
+     indices */
+  WGPUBindGroupLayoutEntry cull_entries[5] = {
+    [0] = {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer     = {.type = WGPUBufferBindingType_Uniform,
+                     .minBindingSize = sizeof(cull_ubo_t)},
+    },
+    [1] = {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Compute,
+      .texture    = {.sampleType    = WGPUTextureSampleType_Float,
+                     .viewDimension = WGPUTextureViewDimension_2D},
+    },
+    [2] = {
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Compute,
+      .sampler    = {.type = WGPUSamplerBindingType_Filtering},
+    },
+    [3] = {
+      .binding    = 3,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer     = {.type = WGPUBufferBindingType_Storage,
+                     .minBindingSize = 20},
+    },
+    [4] = {
+      .binding    = 4,
+      .visibility = WGPUShaderStage_Compute,
+      .buffer     = {.type = WGPUBufferBindingType_Storage,
+                     .minBindingSize
+                     = (uint64_t)MAX_CULLED_INDICES * sizeof(uint32_t)},
+    },
+  };
+  state.bg_layouts.cull
+    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
+                                                .label = STRVIEW("Cull BGL"),
+                                                .entryCount = 5,
+                                                .entries    = cull_entries,
+                                              });
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1122,6 +1262,13 @@ static void create_pipeline_layouts(wgpu_context_t* wgpu_context)
               .label                = STRVIEW("Compute PL"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bg_layouts.compute,
+            });
+
+  state.pipe_layouts.cull = wgpuDeviceCreatePipelineLayout(
+    device, &(WGPUPipelineLayoutDescriptor){
+              .label                = STRVIEW("Cull PL"),
+              .bindGroupLayoutCount = 1,
+              .bindGroupLayouts     = &state.bg_layouts.cull,
             });
 }
 
@@ -1193,6 +1340,53 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
                                             .layout = state.bg_layouts.compute,
                                             .entryCount = 5,
                                             .entries    = compute_bg_entries,
+                                          });
+  }
+
+  /* Cull/LOD compute — also create GPU buffers for culled indices + indirect
+     draw args */
+  if (!state.bind_groups.cull) {
+    /* Culled index buffer (Storage + Index) */
+    if (!state.terrain.culled_index_buffer) {
+      state.terrain.culled_index_buffer = wgpuDeviceCreateBuffer(
+        device, &(WGPUBufferDescriptor){
+                  .label = STRVIEW("Culled Index Buffer"),
+                  .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Index,
+                  .size  = (uint64_t)MAX_CULLED_INDICES * sizeof(uint32_t),
+                });
+    }
+
+    /* Indirect draw args buffer (Storage + Indirect + CopyDst) */
+    if (!state.terrain.fill_indirect_buffer) {
+      state.terrain.fill_indirect_buffer = wgpuDeviceCreateBuffer(
+        device, &(WGPUBufferDescriptor){
+                  .label = STRVIEW("Fill Indirect Buffer"),
+                  .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Indirect
+                           | WGPUBufferUsage_CopyDst,
+                  .size = 20,
+                });
+    }
+
+    size_t ci_buf_size = (uint64_t)MAX_CULLED_INDICES * sizeof(uint32_t);
+    WGPUBindGroupEntry cull_bg_entries[5] = {
+      [0] = {.binding = 0,
+             .buffer  = state.uniform_bufs.cull.buffer,
+             .size    = sizeof(cull_ubo_t)},
+      [1] = {.binding = 1, .textureView = state.tex.heightmap_view},
+      [2] = {.binding = 2, .sampler = state.tex.heightmap_sampler},
+      [3] = {.binding = 3,
+             .buffer  = state.terrain.fill_indirect_buffer,
+             .size    = 20},
+      [4] = {.binding = 4,
+             .buffer  = state.terrain.culled_index_buffer,
+             .size    = ci_buf_size},
+    };
+    state.bind_groups.cull
+      = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
+                                            .label      = STRVIEW("Cull BG"),
+                                            .layout     = state.bg_layouts.cull,
+                                            .entryCount = 5,
+                                            .entries    = cull_bg_entries,
                                           });
   }
 }
@@ -1375,6 +1569,23 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
     });
 
   wgpuShaderModuleRelease(compute_sm);
+
+  /* --- Cull/LOD compute pipeline ---------------------------------------- */
+  WGPUShaderModule cull_sm
+    = wgpu_create_shader_module(device, cull_lod_shader_wgsl);
+
+  state.cull_pipeline = wgpuDeviceCreateComputePipeline(
+    device,
+    &(WGPUComputePipelineDescriptor){
+      .label   = STRVIEW("Cull LOD Compute Pipeline"),
+      .layout  = state.pipe_layouts.cull,
+      .compute = {
+        .module     = cull_sm,
+        .entryPoint = STRVIEW("cs_frustum_cull"),
+      },
+    });
+
+  wgpuShaderModuleRelease(cull_sm);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1430,6 +1641,20 @@ static void render_gui(wgpu_context_t* wgpu_context)
       "Displacement", &state.settings.displacement_factor, 0.5f, "%.2f");
     if (state.settings.displacement_factor < 0.0f) {
       state.settings.displacement_factor = 0.0f;
+    }
+
+    igCheckbox("Frustum Culling", &state.settings.frustum_culling);
+
+    imgui_overlay_input_float("Tess Factor", &state.settings.tess_factor, 0.05f,
+                              "%.2f");
+    if (state.settings.tess_factor < 0.0f) {
+      state.settings.tess_factor = 0.0f;
+    }
+
+    imgui_overlay_input_float("Edge Size", &state.settings.tess_edge_size, 1.0f,
+                              "%.1f");
+    if (state.settings.tess_edge_size < 1.0f) {
+      state.settings.tess_edge_size = 1.0f;
     }
 
     igCheckbox("Wireframe", &state.settings.wireframe);
@@ -1503,7 +1728,7 @@ static int init(wgpu_context_t* wgpu_context)
 
   /* Load heightmap synchronously (needed for mesh generation) */
   int hm_w = 0, hm_h = 0;
-  uint8_t* hm_pixels = load_heightmap(&hm_w, &hm_h);
+  uint16_t* hm_pixels = load_heightmap(&hm_w, &hm_h);
   if (!hm_pixels) {
     return EXIT_FAILURE;
   }
@@ -1580,22 +1805,48 @@ static int frame(wgpu_context_t* wgpu_context)
   imgui_overlay_new_frame(wgpu_context, dt);
   render_gui(wgpu_context);
 
-  /* --- Compute pass: displace terrain vertices on GPU ------------------- */
+  /* --- Compute passes ---------------------------------------------------- */
   {
     WGPUCommandEncoder comp_enc
       = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-    WGPUComputePassEncoder comp_pass
-      = wgpuCommandEncoderBeginComputePass(comp_enc, NULL);
-    wgpuComputePassEncoderSetPipeline(comp_pass, state.compute_pipeline);
-    wgpuComputePassEncoderSetBindGroup(comp_pass, 0, state.bind_groups.compute,
-                                       0, NULL);
-    /* 256*256 = 65536 vertices, workgroup_size(64) → 1024 workgroups */
-    const uint32_t workgroups = (state.terrain.vertex_count + 63) / 64;
-    wgpuComputePassEncoderDispatchWorkgroups(comp_pass, workgroups, 1, 1);
-    wgpuComputePassEncoderEnd(comp_pass);
+
+    /* (a) Frustum cull + LOD pass: generates culled index buffer + indirect
+       draw args.  Only when frustum culling is enabled and not wireframe. */
+    if (state.settings.frustum_culling && !state.settings.wireframe) {
+      /* Zero indirect draw args: {indexCount=0, instanceCount=1, rest=0} */
+      const uint32_t indirect_init[5] = {0, 1, 0, 0, 0};
+      wgpuQueueWriteBuffer(wgpu_context->queue,
+                           state.terrain.fill_indirect_buffer, 0, indirect_init,
+                           sizeof(indirect_init));
+
+      WGPUComputePassEncoder cull_pass
+        = wgpuCommandEncoderBeginComputePass(comp_enc, NULL);
+      wgpuComputePassEncoderSetPipeline(cull_pass, state.cull_pipeline);
+      wgpuComputePassEncoderSetBindGroup(cull_pass, 0, state.bind_groups.cull,
+                                         0, NULL);
+      /* 63×63 = 3969 patches, workgroup_size(64) → 63 workgroups */
+      const uint32_t patch_count = CULL_PATCHES_PER_DIM * CULL_PATCHES_PER_DIM;
+      const uint32_t cull_wg     = (patch_count + 63) / 64;
+      wgpuComputePassEncoderDispatchWorkgroups(cull_pass, cull_wg, 1, 1);
+      wgpuComputePassEncoderEnd(cull_pass);
+      wgpuComputePassEncoderRelease(cull_pass);
+    }
+
+    /* (b) Displacement + normals compute pass (always runs) */
+    {
+      WGPUComputePassEncoder disp_pass
+        = wgpuCommandEncoderBeginComputePass(comp_enc, NULL);
+      wgpuComputePassEncoderSetPipeline(disp_pass, state.compute_pipeline);
+      wgpuComputePassEncoderSetBindGroup(disp_pass, 0,
+                                         state.bind_groups.compute, 0, NULL);
+      const uint32_t workgroups = (state.terrain.vertex_count + 63) / 64;
+      wgpuComputePassEncoderDispatchWorkgroups(disp_pass, workgroups, 1, 1);
+      wgpuComputePassEncoderEnd(disp_pass);
+      wgpuComputePassEncoderRelease(disp_pass);
+    }
+
     WGPUCommandBuffer comp_cmd = wgpuCommandEncoderFinish(comp_enc, NULL);
     wgpuQueueSubmit(wgpu_context->queue, 1, &comp_cmd);
-    wgpuComputePassEncoderRelease(comp_pass);
     wgpuCommandBufferRelease(comp_cmd);
     wgpuCommandEncoderRelease(comp_enc);
   }
@@ -1632,9 +1883,16 @@ static int frame(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetVertexBuffer(pass, 0, state.terrain.vertex_buffer, 0,
                                        WGPU_WHOLE_SIZE);
 
-  /* Select index buffer: tessellation ON = fine (256×256), OFF = coarse (64×64)
-   */
-  if (state.settings.wireframe) {
+  if (state.settings.frustum_culling && !state.settings.wireframe) {
+    /* Use indirect draw with culled index buffer */
+    wgpuRenderPassEncoderSetIndexBuffer(pass, state.terrain.culled_index_buffer,
+                                        WGPUIndexFormat_Uint32, 0,
+                                        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexedIndirect(
+      pass, state.terrain.fill_indirect_buffer, 0);
+  }
+  else if (state.settings.wireframe) {
+    /* Wireframe: use static wire index buffers (no frustum culling) */
     WGPUBuffer wib = state.settings.tessellation ?
                        state.terrain.wire_index_buffer :
                        state.terrain.coarse_wire_index_buffer;
@@ -1646,6 +1904,7 @@ static int frame(wgpu_context_t* wgpu_context)
     wgpuRenderPassEncoderDrawIndexed(pass, wic, 1, 0, 0, 0);
   }
   else {
+    /* No frustum culling: use static index buffers */
     WGPUBuffer ib = state.settings.tessellation ?
                       state.terrain.index_buffer :
                       state.terrain.coarse_index_buffer;
@@ -1686,6 +1945,8 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(Buffer, state.terrain.wire_index_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.terrain.coarse_index_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.terrain.coarse_wire_index_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.terrain.culled_index_buffer)
+  WGPU_RELEASE_RESOURCE(Buffer, state.terrain.fill_indirect_buffer)
 
   /* Sky model buffers */
   WGPU_RELEASE_RESOURCE(Buffer, state.sky.vertex_buffer)
@@ -1709,25 +1970,30 @@ static void shutdown(wgpu_context_t* wgpu_context)
   wgpu_destroy_buffer(&state.uniform_bufs.terrain);
   wgpu_destroy_buffer(&state.uniform_bufs.sky);
   wgpu_destroy_buffer(&state.uniform_bufs.compute);
+  wgpu_destroy_buffer(&state.uniform_bufs.cull);
 
   /* Bind groups */
   WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.terrain)
   WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.skysphere)
   WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.compute)
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bind_groups.cull)
 
   /* Layouts */
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layouts.terrain)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layouts.skysphere)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layouts.compute)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout, state.bg_layouts.cull)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipe_layouts.terrain)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipe_layouts.skysphere)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipe_layouts.compute)
+  WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipe_layouts.cull)
 
   /* Pipelines */
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipelines.terrain)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipelines.wireframe)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipelines.skysphere)
   WGPU_RELEASE_RESOURCE(ComputePipeline, state.compute_pipeline)
+  WGPU_RELEASE_RESOURCE(ComputePipeline, state.cull_pipeline)
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1736,12 +2002,17 @@ static void shutdown(wgpu_context_t* wgpu_context)
 
 int main(void)
 {
+  static const WGPUFeatureName required_features[1]
+    = {WGPUFeatureName_Unorm16TextureFormats};
+
   wgpu_start(&(wgpu_desc_t){
-    .title          = "Terrain Tessellation",
-    .init_cb        = init,
-    .frame_cb       = frame,
-    .shutdown_cb    = shutdown,
-    .input_event_cb = input_event_cb,
+    .title                  = "Terrain Tessellation",
+    .init_cb                = init,
+    .frame_cb               = frame,
+    .shutdown_cb            = shutdown,
+    .input_event_cb         = input_event_cb,
+    .required_features      = required_features,
+    .required_feature_count = 1,
   });
 
   return EXIT_SUCCESS;
@@ -1982,6 +2253,171 @@ static const char* compute_tess_shader_wgsl = CODE(
     vert.nz = n.z;
 
     output_verts[idx] = vert;
+  }
+);
+
+/* --- Frustum cull + LOD compute shader --------------------------------- */
+static const char* cull_lod_shader_wgsl = CODE(
+  struct CullParams {
+    projection   : mat4x4f,
+    modelview    : mat4x4f,
+    disp_factor  : f32,
+    tess_factor  : f32,
+    tess_edge_size : f32,
+    _pad0        : f32,
+    frustum_planes : array<vec4f, 6>,
+    viewport_dim : vec2f,
+    _pad1        : vec2f,
+  }
+
+  /* Indirect draw args: {indexCount, instanceCount, firstIndex, baseVertex,
+     firstInstance}.  Only indexCount is modified atomically. */
+  struct DrawArgs {
+    index_count    : atomic<u32>,
+    instance_count : u32,
+    first_index    : u32,
+    base_vertex    : u32,
+    first_instance : u32,
+  }
+
+  @group(0) @binding(0) var<uniform>             params      : CullParams;
+  @group(0) @binding(1) var                       hm_tex      : texture_2d<f32>;
+  @group(0) @binding(2) var                       hm_samp     : sampler;
+  @group(0) @binding(3) var<storage, read_write>  draw_args   : DrawArgs;
+  @group(0) @binding(4) var<storage, read_write>  out_indices  : array<u32>;
+
+  const GRID     : u32 = 256u;
+  const CSTEP    : u32 = 4u;
+  const PATCHES  : u32 = 63u;   /* GRID/CSTEP - 1 = 63 coarse patches/dim */
+
+  /* World-space position of a coarse grid vertex.  Must match the CPU-side
+     generate_terrain_mesh() layout: x = fx*wx + wx/2 - grid*wx/2, z same. */
+  fn world_pos(cx : u32, cy : u32) -> vec4f {
+    let fx = f32(cx * CSTEP);
+    let fy = f32(cy * CSTEP);
+    let uv = vec2f(fx / f32(GRID - 1u), fy / f32(GRID - 1u));
+    let h  = textureSampleLevel(hm_tex, hm_samp, uv, 0.0).r
+             * params.disp_factor;
+    let wx = 2.0;
+    let wz = 2.0;
+    let x  = fx * wx + wx / 2.0 - f32(GRID) * wx / 2.0;
+    let z  = fy * wz + wz / 2.0 - f32(GRID) * wz / 2.0;
+    return vec4f(x, h, z, 1.0);
+  }
+
+  /* Sphere–frustum test (matches Vulkan radius = 8.0) */
+  fn frustum_check(pos : vec4f, radius : f32) -> bool {
+    for (var i = 0u; i < 6u; i++) {
+      if (dot(pos, params.frustum_planes[i]) + radius < 0.0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /* Screen-space tessellation factor (port of Vulkan TCS function).
+     Projects edge midpoint ± radius to clip → viewport pixels and returns
+     pixel-distance / tessellatedEdgeSize * tessellationFactor, clamped to
+     [1, 64]. */
+  fn screen_space_tess_factor(p0 : vec4f, p1 : vec4f) -> f32 {
+    let mid    = 0.5 * (p0 + p1);
+    let radius = distance(p0, p1) / 2.0;
+    let v0     = params.modelview * mid;
+    let clip0  = params.projection * (v0 - vec4f(radius, 0.0, 0.0, 0.0));
+    let clip1  = params.projection * (v0 + vec4f(radius, 0.0, 0.0, 0.0));
+    let ndc0   = clip0.xy / clip0.w;
+    let ndc1   = clip1.xy / clip1.w;
+    let s0     = ndc0 * params.viewport_dim;
+    let s1     = ndc1 * params.viewport_dim;
+    return clamp(distance(s0, s1) / params.tess_edge_size * params.tess_factor,
+                 1.0, 64.0);
+  }
+
+  /* Emit one quad (two triangles, CCW) starting at `base` in out_indices. */
+  fn emit_quad(px : u32, py : u32, step : u32, base : u32) {
+    let v0 = px + py * GRID;
+    let v1 = px + (py + step) * GRID;
+    let v2 = (px + step) + (py + step) * GRID;
+    let v3 = (px + step) + py * GRID;
+    out_indices[base + 0u] = v0;
+    out_indices[base + 1u] = v1;
+    out_indices[base + 2u] = v2;
+    out_indices[base + 3u] = v0;
+    out_indices[base + 4u] = v2;
+    out_indices[base + 5u] = v3;
+  }
+
+  @compute @workgroup_size(64)
+  fn cs_frustum_cull(@builtin(global_invocation_id) gid : vec3u) {
+    let patch_id = gid.x;
+    if (patch_id >= PATCHES * PATCHES) { return; }
+
+    let cx = patch_id % PATCHES;
+    let cy = patch_id / PATCHES;
+
+    /* Four corner positions of this coarse patch */
+    let p00 = world_pos(cx,      cy);
+    let p10 = world_pos(cx + 1u, cy);
+    let p01 = world_pos(cx,      cy + 1u);
+    let p11 = world_pos(cx + 1u, cy + 1u);
+
+    /* Sphere center = average, radius = half of max diagonal + margin */
+    let center = 0.25 * (p00 + p10 + p01 + p11);
+    let radius = max(distance(p00.xyz, p11.xyz),
+                     distance(p10.xyz, p01.xyz)) * 0.5 + 2.0;
+
+    if (!frustum_check(center, radius)) { return; }
+
+    /* Screen-space LOD — max tess factor across the four edges */
+    let ef = max(
+      max(screen_space_tess_factor(p00, p10),
+          screen_space_tess_factor(p01, p11)),
+      max(screen_space_tess_factor(p00, p01),
+          screen_space_tess_factor(p10, p11))
+    );
+
+    let px = cx * CSTEP;
+    let py = cy * CSTEP;
+
+    /* Select LOD by tess factor:
+         ef >= 4  → LOD 0 (4×4 fine quads, 96 indices)
+         ef >= 2  → LOD 1 (2×2 quads,      24 indices)
+         else     → LOD 2 (1×1 quad,         6 indices) */
+    var num_indices : u32;
+    if (ef >= 4.0) {
+      num_indices = 96u;
+    } else if (ef >= 2.0) {
+      num_indices = 24u;
+    } else {
+      num_indices = 6u;
+    }
+
+    /* Atomically reserve space in the output index buffer */
+    let start = atomicAdd(&draw_args.index_count, num_indices);
+
+    /* Emit indices for the selected LOD */
+    if (num_indices == 96u) {
+      /* LOD 0: 4×4 fine quads */
+      var off = start;
+      for (var dx = 0u; dx < 4u; dx++) {
+        for (var dy = 0u; dy < 4u; dy++) {
+          emit_quad(px + dx, py + dy, 1u, off);
+          off += 6u;
+        }
+      }
+    } else if (num_indices == 24u) {
+      /* LOD 1: 2×2 quads (step 2) */
+      var off = start;
+      for (var dx = 0u; dx < 2u; dx++) {
+        for (var dy = 0u; dy < 2u; dy++) {
+          emit_quad(px + dx * 2u, py + dy * 2u, 2u, off);
+          off += 6u;
+        }
+      }
+    } else {
+      /* LOD 2: 1 coarse quad (step 4) */
+      emit_quad(px, py, CSTEP, start);
+    }
   }
 );
 // clang-format on
