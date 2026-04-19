@@ -131,6 +131,13 @@ float* image_pixels_hdr_from_memory(const uint8_t* buffer, int length,
 float* image_pixels_hdr_from_file(const char* filename, int* width, int* height,
                                   int* channels, int desired_channels);
 
+/**
+ * @brief Load a 16-bit image from a file path, returning the pixel pointer.
+ */
+uint16_t* image_pixels_16_from_file(const char* filename, int* width,
+                                    int* height, int* channels,
+                                    int desired_channels);
+
 /* -------------------------------------------------------------------------- *
  * Query functions
  * -------------------------------------------------------------------------- */
