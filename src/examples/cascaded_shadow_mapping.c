@@ -532,7 +532,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
    * each PUSH_CONST_STRIDE bytes apart (256-byte minOffsetAlignment).  */
   state.uniform_buffers.push_const = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Push Const UBO"),
+              .label = STRVIEW("Push Const - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = PUSH_CONST_NUM_DRAWS * PUSH_CONST_STRIDE,
             });
