@@ -523,7 +523,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
 
   state.uniform_buffers.cascade_vp = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Cascade VP UBO"),
+              .label = STRVIEW("Cascade VP - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(mat4) * SHADOW_MAP_CASCADE_COUNT,
             });
