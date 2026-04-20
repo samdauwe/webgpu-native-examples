@@ -516,7 +516,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
 
   state.uniform_buffers.fragment = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Fragment UBO"),
+              .label = STRVIEW("Fragment - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(uniform_data_fragment_t),
             });
