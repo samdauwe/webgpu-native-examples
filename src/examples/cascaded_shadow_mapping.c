@@ -1015,7 +1015,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.bind_group_layouts.push_const = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("PushConst BGL"),
+                .label      = STRVIEW("PushConst - Bind group layout"),
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
               });
