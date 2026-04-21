@@ -976,7 +976,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.bind_group_layouts.scene = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Scene BGL"),
+                .label      = STRVIEW("Scene - Bind group layout"),
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
               });
