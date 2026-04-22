@@ -1064,7 +1064,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.pipeline_layouts.scene = wgpuDeviceCreatePipelineLayout(
       device, &(WGPUPipelineLayoutDescriptor){
-                .label                = STRVIEW("Scene PipelineLayout"),
+                .label                = STRVIEW("Scene - Pipeline layout"),
                 .bindGroupLayoutCount = ARRAY_SIZE(layouts),
                 .bindGroupLayouts     = layouts,
               });
