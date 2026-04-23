@@ -1583,7 +1583,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Begin command encoder */
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(
     wgpu_context->device, &(WGPUCommandEncoderDescriptor){
-                            .label = STRVIEW("Frame Cmd Enc"),
+                            .label = STRVIEW("Frame - Cmd Encode"),
                           });
 
   /* ===== Pass 1: Shadow map generation (one pass per cascade) ===== */
