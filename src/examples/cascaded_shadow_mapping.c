@@ -1372,7 +1372,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.pipelines.debug = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Debug Pipeline"),
+        .label  = STRVIEW("Debug - Render pipeline"),
         .layout = state.pipeline_layouts.debug,
         .vertex = (WGPUVertexState){
           .module      = shader,
