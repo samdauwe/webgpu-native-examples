@@ -1659,7 +1659,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Submit */
   WGPUCommandBuffer cmd_buf
     = wgpuCommandEncoderFinish(cmd_enc, &(WGPUCommandBufferDescriptor){
-                                          .label = STRVIEW("Frame CmdBuf"),
+                                          .label = STRVIEW("Frame - CmdBuf"),
                                         });
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_enc);
   wgpuQueueSubmit(wgpu_context->queue, 1, &cmd_buf);
