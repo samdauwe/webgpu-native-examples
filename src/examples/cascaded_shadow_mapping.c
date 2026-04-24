@@ -1144,7 +1144,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.bind_groups.depth = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Depth BG"),
+                .label      = STRVIEW("Depth - Bind group"),
                 .layout     = state.bind_group_layouts.depth,
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
