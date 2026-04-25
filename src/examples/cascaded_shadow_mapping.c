@@ -1209,7 +1209,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.pipelines.depth_pass = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Depth Pass Pipeline"),
+        .label  = STRVIEW("Depth Pass - Render Pipeline"),
         .layout = state.pipeline_layouts.depth,
         .vertex = (WGPUVertexState){
           .module      = shader,
