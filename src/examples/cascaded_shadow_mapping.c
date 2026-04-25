@@ -1161,7 +1161,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.bind_groups.push_const = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("PushConst BG"),
+                .label      = STRVIEW("PushConst - Bind group"),
                 .layout     = state.bind_group_layouts.push_const,
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
