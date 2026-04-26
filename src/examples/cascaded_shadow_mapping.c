@@ -1321,7 +1321,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.pipelines.scene_shadow_pcf = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Scene Shadow PCF Pipeline"),
+        .label  = STRVIEW("Scene Shadow PCF - Render pipeline"),
         .layout = state.pipeline_layouts.scene,
         .vertex = (WGPUVertexState){
           .module      = shader,
