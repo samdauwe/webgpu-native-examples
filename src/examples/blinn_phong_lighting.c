@@ -55,11 +55,11 @@ static const char* sphere_fragment_shader_wgsl;
  * Vertex data constants
  * -------------------------------------------------------------------------- */
 
-#define TORUS_KNOT_VERTEX_COUNT 7893u
-#define TORUS_KNOT_FACES_COUNT 3000u
+#define TORUS_KNOT_VERTEX_COUNT (7893u)
+#define TORUS_KNOT_FACES_COUNT (3000u)
 #define TORUS_KNOT_INDEX_COUNT (TORUS_KNOT_FACES_COUNT * 3u)
-#define TORUS_KNOT_UV_COUNT 5262u
-#define TORUS_KNOT_NORMAL_COUNT 7893u
+#define TORUS_KNOT_UV_COUNT (5262u)
+#define TORUS_KNOT_NORMAL_COUNT (7893u)
 
 /* -------------------------------------------------------------------------- *
  * Blinn-Phong Lighting example
