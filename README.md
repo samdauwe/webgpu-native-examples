@@ -326,6 +326,9 @@ Implements order-independent transparency using per-pixel linked lists built wit
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
 
+#### [Texture Arrays and Instanced Rendering](src/examples/texture_array.c)
+
+Demonstrates loading a 2D texture array and rendering multiple cube instances in a single draw call, where each instance samples a different layer of the array texture. The texture array is loaded from a vertically-stacked PNG atlas (7 layers × 256×256 RGBA, converted from the original KTX source). Per-instance model matrices and texture layer indices are packed into a single uniform buffer read by the vertex shader via `@builtin(instance_index)`. Ported from the Vulkan [Texture arrays](src/examples/Vulkan/examples/texturearray/) example.
 
 #### [Timestamp query](src/examples/timestamp_query.c)
 
