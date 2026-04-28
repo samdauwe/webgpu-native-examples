@@ -179,6 +179,10 @@ Dynamic uniform buffers are used for rendering multiple objects with multiple ma
 
 This example shows how to render and sample from a cubemap texture.
 
+#### [Cube Map Textures](src/examples/texture_cubemap.c)
+
+Loads a cubemap texture from 6 individual face images and demonstrates two rendering modes: a skybox that fills the background with the environment map, and a reflective 3D object (sphere, teapot, torusknot, or venus) that samples the cubemap using the reflected view direction. Includes an ImGui panel to toggle the skybox, select the displayed object, and adjust the LOD bias for the reflection. Ported from Sascha Willems' Vulkan "texturecubemap" example.
+
 #### [Textured Cube](src/examples/textured_cube.c)
 
 This example shows how to bind and sample textures.
