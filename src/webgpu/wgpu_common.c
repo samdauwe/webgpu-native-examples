@@ -1570,11 +1570,15 @@ static const char* mipmap_generator_shader_wgsl_part4 = CODE(
 
   @group(0) @binding(1) var ourTextureCubeArray: texture_cube_array<f32>;
   @fragment fn fscubearray(fsInput: VSOutput) -> @location(0) vec4f {
+    // baseArrayLayer is the flat array layer (0..N*6-1).
+    // faceMat expects a face index 0..5; the cube array index is layer/6.
+    let face = fsInput.baseArrayLayer % 6u;
+    let cube = fsInput.baseArrayLayer / 6u;
     return textureSample(
       ourTextureCubeArray,
       ourSampler,
-      faceMat[fsInput.baseArrayLayer] * vec3f(fract(fsInput.texcoord), 1),
-      fsInput.baseArrayLayer);
+      faceMat[face] * vec3f(fract(fsInput.texcoord), 1),
+      cube);
   }
 );
 
