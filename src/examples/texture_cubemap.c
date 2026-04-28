@@ -542,8 +542,7 @@ static void cross_fetch_callback(const sfetch_response_t* response)
 static void fetch_cubemap_cross(void)
 {
   sfetch_send(&(sfetch_request_t){
-    .path     = "assets/textures/cubemaps/"
-                "cubemap_yokohama_rgba_horizontal_cross.png",
+    .path     = "assets/textures/cubemaps/cubemap_yokohama_rgba.png",
     .callback = cross_fetch_callback,
     .buffer   = SFETCH_RANGE(state.cross_file_buf),
   });
