@@ -183,6 +183,10 @@ This example shows how to render and sample from a cubemap texture.
 
 Loads a cubemap texture from 6 individual face images and demonstrates two rendering modes: a skybox that fills the background with the environment map, and a reflective 3D object (sphere, teapot, torusknot, or venus) that samples the cubemap using the reflected view direction. Includes an ImGui panel to toggle the skybox, select the displayed object, and adjust the LOD bias for the reflection. Ported from Sascha Willems' Vulkan "texturecubemap" example.
 
+#### [Cube Map Array Textures](src/examples/texture_cubemap_array.c)
+
+Loads a cubemap array (3 distinct environment maps) from three horizontal-cross PNG images and demonstrates skybox and reflective rendering using `texture_cube_array`. A GUI slider selects which cubemap from the array is shown as skybox and used for reflections on the 3D object. Face extraction from each cross image is performed entirely on the GPU via a fragment-shader render pass. Ported from Sascha Willems' Vulkan "texturecubemaparray" example.
+
 #### [Textured Cube](src/examples/textured_cube.c)
 
 This example shows how to bind and sample textures.
