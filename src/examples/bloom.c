@@ -1792,7 +1792,13 @@ static const char* bloom_skybox_shader_wgsl = CODE(
 
     var out : VertexOutput;
     let pos = positions[vertexIndex];
-    out.uvw = pos;
+    // Negate Y to match Vulkan's FlipY convention on the skybox cube model.
+    // The space cubemap PNG faces are stored in Vulkan's convention (-Y face =
+    // sky when looking up). Vulkan compensates via FlipY on the cube geometry
+    // (negating Y in the sample direction). WebGPU uses Y-up NDC without any
+    // projection Y-flip, so we must explicitly negate Y here to sample the
+    // correct cubemap face when looking up.
+    out.uvw = vec3f(pos.x, -pos.y, pos.z);
     out.position = ubo.projection * ubo.view * ubo.model * vec4f(pos, 1.0);
     return out;
   }
