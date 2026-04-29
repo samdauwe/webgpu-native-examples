@@ -1160,7 +1160,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.skybox_pipeline = wgpuDeviceCreateRenderPipeline(device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Skybox Pipeline"),
+        .label  = STRVIEW("Skybox - Render pipeline"),
         .layout = state.skybox_pipeline_layout,
         .vertex = {
           .module      = sm,
