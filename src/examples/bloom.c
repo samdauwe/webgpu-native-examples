@@ -1290,8 +1290,10 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Camera setup */
   camera_init(&state.camera);
-  state.camera.type = CameraType_LookAt;
-  camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -10.25f});
+  state.camera.type      = CameraType_LookAt;
+  state.camera.invert_dx = true;
+  state.camera.invert_dy = true;
+  camera_set_position(&state.camera, (vec3){0.0f, -1.5f, -10.25f});
   camera_set_rotation(&state.camera, (vec3){-7.5f, -343.0f, 0.0f});
   camera_set_perspective(
     &state.camera, 45.0f,
