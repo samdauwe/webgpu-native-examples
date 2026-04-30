@@ -1359,17 +1359,17 @@ static void render_gui(wgpu_context_t* wgpu_context)
     if (igCollapsingHeader("Smoke Parameters", 0)) {
       igSliderInt("3D resolution", &settings.raymarch_steps, 5, 20, "%d");
       igSliderFloat("Light Elevation", &settings.light_height, 0.5f, 1.0f,
-                    "%.3f", 0);
+                    "%.3f", 1.0f);
       igSliderFloat("Light Intensity", &settings.light_intensity, 0.0f, 1.0f,
-                    "%.3f", 0);
+                    "%.3f", 1.0f);
       igSliderFloat("Light Falloff", &settings.light_falloff, 0.5f, 10.0f,
-                    "%.3f", 0);
+                    "%.3f", 1.0f);
       bool enable_shadows = settings.enable_shadows != 0.0f;
       if (igCheckbox("Enable Shadows", &enable_shadows)) {
         settings.enable_shadows = enable_shadows ? 1.0f : 0.0f;
       }
       igSliderFloat("Shadow Intensity", &settings.shadow_intensity, 0.0f, 50.0f,
-                    "%.3f", 0);
+                    "%.3f", 1.0f);
     }
   }
 

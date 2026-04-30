@@ -557,7 +557,7 @@ static int frame(wgpu_context_t* wgpu_context)
     igCheckbox("Demo window", &state.show_demo_window);
     igCheckbox("Another window", &state.show_another_window);
 
-    igSliderFloat("Float", &state.demo_float, 0.0f, 1.0f, "%.3f", 0);
+    igSliderFloat("Float", &state.demo_float, 0.0f, 1.0f, "%.3f", 1.0f);
     igColorEdit3("clear color", state.clear_color, 0);
 
     ImVec2 button_size = {0, 0};

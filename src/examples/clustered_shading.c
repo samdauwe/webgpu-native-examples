@@ -2791,7 +2791,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Max light range slider */
   if (igSliderFloat("Max Light Range", &state.settings.max_light_range, 0.1f,
-                    5.0f, "%.1f", 0)) {
+                    5.0f, "%.1f", 1.0f)) {
     update_light_range(state.settings.max_light_range);
   }
 

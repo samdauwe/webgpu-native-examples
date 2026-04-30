@@ -2826,7 +2826,7 @@ static void render_gui(wgpu_context_t* ctx)
         if (igCollapsingHeaderBoolPtr("Animation", NULL,
                                       ImGuiTreeNodeFlags_DefaultOpen)) {
           igCheckbox("Play", &state.animation.play);
-          igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 0);
+          igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 1.0f);
 
           /* Animation selector */
           if (state.model.animation_count > 1) {
@@ -2870,10 +2870,10 @@ static void render_gui(wgpu_context_t* ctx)
       /* --- PBR Settings --- */
       if (igCollapsingHeaderBoolPtr("PBR Settings", NULL,
                                     ImGuiTreeNodeFlags_DefaultOpen)) {
-        igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 0);
-        igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 0);
+        igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 1.0f);
+        igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 1.0f);
         igSliderFloat("IBL Scale", &state.pbr.scale_ibl_ambient, 0.0f, 2.0f,
-                      "%.2f", 0);
+                      "%.2f", 1.0f);
         igCheckbox("Direct Light", &state.pbr.enable_direct_light);
 
         /* Tone mapping selector */

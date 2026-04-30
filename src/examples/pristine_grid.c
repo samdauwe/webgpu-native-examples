@@ -589,9 +589,9 @@ static void render_gui(wgpu_context_t* wgpu_context)
     changed |= igColorEdit4("baseColor", state.grid_options.base_color,
                             ImGuiColorEditFlags_None);
     changed |= igSliderFloat("lineWidthX", &state.grid_options.line_width_x,
-                             0.0f, 1.0f, "%.3f", 0);
+                             0.0f, 1.0f, "%.3f", 1.0f);
     changed |= igSliderFloat("lineWidthY", &state.grid_options.line_width_y,
-                             0.0f, 1.0f, "%.3f", 0);
+                             0.0f, 1.0f, "%.3f", 1.0f);
     if (changed) {
       update_grid_uniforms(wgpu_context);
     }

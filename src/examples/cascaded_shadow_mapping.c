@@ -1449,7 +1449,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   if (igCollapsingHeaderBoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igSliderFloat("Split lambda", &state.settings.cascade_split_lambda,
-                      0.1f, 1.0f, "%.2f", 0)) {
+                      0.1f, 1.0f, "%.2f", 1.0f)) {
       update_cascades();
     }
     igCheckbox("Color cascades", &state.settings.color_cascades);
