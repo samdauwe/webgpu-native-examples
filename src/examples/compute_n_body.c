@@ -731,6 +731,8 @@ static void init_camera(wgpu_context_t* wgpu_context)
   camera_init(&state.camera);
   state.camera.type           = CameraType_LookAt;
   state.camera.movement_speed = 2.5f;
+  state.camera.invert_dx      = true;
+  state.camera.invert_dy      = true;
 
   float aspect = (float)wgpu_context->width / (float)wgpu_context->height;
   camera_set_perspective(&state.camera, 60.0f, aspect, 0.1f, 512.0f);
