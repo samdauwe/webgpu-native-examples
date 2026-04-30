@@ -459,7 +459,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igSeparator();
 
   int num_triangles = (int)state.settings.num_triangles;
-  if (igSliderInt("numTriangles", &num_triangles, 0, 200000, "%d")) {
+  if (igSliderInt("numTriangles", &num_triangles, 0, 200000, "%d", 0)) {
     /* Note: In the TypeScript version, changing this triggers reconfiguration.
      * Here we just update the value - full reconfiguration would require
      * recreating bind groups and uniform buffers */

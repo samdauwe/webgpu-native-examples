@@ -2674,7 +2674,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, input_event);
 
   /* Check if ImGui wants to capture the input */
-  ImGuiIO* io               = igGetIO();
+  ImGuiIO* io               = igGetIO_Nil();
   bool imgui_wants_mouse    = io->WantCaptureMouse;
   bool imgui_wants_keyboard = io->WantCaptureKeyboard;
 
@@ -2784,14 +2784,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   state.light_mgr.render_sprites = state.settings.render_light_sprites;
 
   /* Light count slider */
-  if (igSliderInt("Light Count", &state.settings.light_count, 5, 1024, "%d")) {
+  if (igSliderInt("Light Count", &state.settings.light_count, 5, 1024, "%d", 0)) {
     state.light_mgr.light_count = (uint32_t)MIN(
       state.settings.light_count, (int32_t)state.light_mgr.max_light_count);
   }
 
   /* Max light range slider */
   if (igSliderFloat("Max Light Range", &state.settings.max_light_range, 0.1f,
-                    5.0f, "%.1f", 1.0f)) {
+                    5.0f, "%.1f", 0)) {
     update_light_range(state.settings.max_light_range);
   }
 

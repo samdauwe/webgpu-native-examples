@@ -1954,7 +1954,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
 
-  ImGuiIO* io            = igGetIO();
+  ImGuiIO* io            = igGetIO_Nil();
   bool imgui_wants_mouse = io->WantCaptureMouse;
 
   if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN && !imgui_wants_mouse) {

@@ -980,14 +980,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Radial Blur Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Radial blur", &state.settings.blur);
     igCheckbox("Display render target only", &state.settings.display_texture);
   }
 
   if (state.settings.blur) {
-    if (igCollapsingHeaderBoolPtr("Blur parameters", NULL,
+    if (igCollapsingHeader_BoolPtr("Blur parameters", NULL,
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
       imgui_overlay_slider_float("Scale", &state.settings.radial_blur_scale,
                                  0.1f, 1.0f, "%.2f");

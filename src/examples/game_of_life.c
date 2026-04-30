@@ -514,13 +514,13 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Timestep slider: gui.add(GameOptions, 'timestep', 1, 60, 1) */
   int timestep = (int)state.game_options.timestep;
-  if (igSliderInt("timestep", &timestep, 1, 60, "%d")) {
+  if (igSliderInt("timestep", &timestep, 1, 60, "%d", 0)) {
     state.game_options.timestep = (uint32_t)timestep;
   }
 
   /* Width slider: gui.add(GameOptions, 'width', 16, 1024, 16) */
   int width = (int)state.game_options.width;
-  if (igSliderInt("width", &width, 16, 1024, "%d")) {
+  if (igSliderInt("width", &width, 16, 1024, "%d", 0)) {
     /* Snap to multiples of 16 */
     state.game_options.width = (uint32_t)((width / 16) * 16);
     if (state.game_options.width < 16) {
@@ -531,7 +531,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Height slider: gui.add(GameOptions, 'height', 16, 1024, 16) */
   int height = (int)state.game_options.height;
-  if (igSliderInt("height", &height, 16, 1024, "%d")) {
+  if (igSliderInt("height", &height, 16, 1024, "%d", 0)) {
     /* Snap to multiples of 16 */
     state.game_options.height = (uint32_t)((height / 16) * 16);
     if (state.game_options.height < 16) {
@@ -542,7 +542,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Workgroup size combo: gui.add(GameOptions, 'workgroupSize', [4, 8, 16]) */
   const char* workgroup_items[] = {"4", "8", "16"};
-  if (igCombo("workgroupSize", &state.game_options.workgroup_size_index,
+  if (igCombo_Str_arr("workgroupSize", &state.game_options.workgroup_size_index,
               workgroup_items, 3, -1)) {
     state.needs_reset = true;
   }

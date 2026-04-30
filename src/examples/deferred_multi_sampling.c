@@ -1216,7 +1216,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Multi-sampled Deferred Shading", NULL,
           ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     static const char* display_items[]
       = {"Final composition", "Position", "Normals", "Albedo", "Specular"};

@@ -715,9 +715,9 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igSeparator();
 
   igCheckbox("Paused", &state.settings.paused);
-  igSliderFloat("Gravity", &state.settings.gravity, 0.0001f, 0.01f, "%.4f", 1.0f);
-  igSliderFloat("Power", &state.settings.power, 0.1f, 2.0f, "%.2f", 1.0f);
-  igSliderFloat("Soften", &state.settings.soften, 0.001f, 0.5f, "%.3f", 1.0f);
+  igSliderFloat("Gravity", &state.settings.gravity, 0.0001f, 0.01f, "%.4f", 0);
+  igSliderFloat("Power", &state.settings.power, 0.1f, 2.0f, "%.2f", 0);
+  igSliderFloat("Soften", &state.settings.soften, 0.001f, 0.5f, "%.3f", 0);
 
   igEnd();
 }
@@ -921,7 +921,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
 
-  ImGuiIO* io = igGetIO();
+  ImGuiIO* io = igGetIO_Nil();
   if (io->WantCaptureMouse) {
     return;
   }

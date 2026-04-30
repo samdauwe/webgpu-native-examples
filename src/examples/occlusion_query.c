@@ -515,7 +515,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
       /* Draw colored square button (non-interactive) */
       ImVec4 col = {color[0], color[1], color[2], color[3]};
-      igPushIDInt((int)i);
+      igPushID_Int((int)i);
       igColorButton(cube_labels[i], col,
                     ImGuiColorEditFlags_NoTooltip
                       | ImGuiColorEditFlags_NoPicker,

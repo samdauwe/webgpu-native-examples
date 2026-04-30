@@ -875,7 +875,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
     if (igBeginCombo("Video", current_video, ImGuiComboFlags_None)) {
       for (int i = 0; i < VIDEO_COUNT; ++i) {
         bool is_selected = (i == state.current_video_index);
-        if (igSelectable(state.videos[i].name, is_selected,
+        if (igSelectable_Bool(state.videos[i].name, is_selected,
                          ImGuiSelectableFlags_None, (ImVec2){0, 0})) {
           switch_video(wgpu_context, i);
         }

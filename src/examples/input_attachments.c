@@ -705,7 +705,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("Input attachment");
     imgui_overlay_combo_box("##attachment", &state.ubo_params.attachment_index,

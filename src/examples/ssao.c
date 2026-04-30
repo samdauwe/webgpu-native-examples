@@ -1426,7 +1426,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Enable SSAO", &state.settings.enable_ssao);
     igCheckbox("SSAO blur", &state.settings.ssao_blur);

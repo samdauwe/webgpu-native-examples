@@ -603,7 +603,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Texture Arrays", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_text("GPU: %s", wgpu_context->platform_info.device[0] ?
                                     wgpu_context->platform_info.device :
                                     "Unknown");

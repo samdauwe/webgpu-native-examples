@@ -4631,7 +4631,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
         snprintf(label, sizeof(label), "%s (%s)", state.maps[i].display_name,
                  fname);
 
-        if (igSelectable(label, is_selected, ImGuiSelectableFlags_None,
+        if (igSelectable_Bool(label, is_selected, ImGuiSelectableFlags_None,
                          (ImVec2){0, 0})) {
           if ((int32_t)i != state.current_map_index) {
             state.requested_map_index = (int32_t)i;
@@ -4705,9 +4705,9 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igTextColored((ImVec4){1.0f, 1.0f, 0.6f, 1.0f}, "View Mode");
   {
     int vm = (int)state.debug.view_mode;
-    igRadioButtonIntPtr("Normal (textured)", &vm, Q2_VIEW_NORMAL);
-    igRadioButtonIntPtr("Colored (non-textured)", &vm, Q2_VIEW_COLORED);
-    igRadioButtonIntPtr("Collision volumes", &vm, Q2_VIEW_COLLISION);
+    igRadioButton_IntPtr("Normal (textured)", &vm, Q2_VIEW_NORMAL);
+    igRadioButton_IntPtr("Colored (non-textured)", &vm, Q2_VIEW_COLORED);
+    igRadioButton_IntPtr("Collision volumes", &vm, Q2_VIEW_COLLISION);
     state.debug.view_mode = (q2_view_mode_t)vm;
   }
   igSeparator();

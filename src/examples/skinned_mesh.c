@@ -2085,13 +2085,13 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Skybox settings */
-  if (igCollapsingHeaderBoolPtr("Environment", NULL,
+  if (igCollapsingHeader_BoolPtr("Environment", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Enable Skybox", &state.settings.skybox_enabled);
   }
 
   /* Animation settings */
-  if (igCollapsingHeaderBoolPtr("Animation", NULL,
+  if (igCollapsingHeader_BoolPtr("Animation", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Angle", &state.settings.angle, 0.05f, 0.5f,
                                "%.2f");

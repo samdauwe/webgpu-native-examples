@@ -492,7 +492,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Texture", NULL,
+  if (igCollapsingHeader_BoolPtr("Texture", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("LOD Bias", &state.settings.lod_bias, 0.0f,
                                10.0f, "%.1f");

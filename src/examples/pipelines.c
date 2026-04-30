@@ -444,7 +444,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Pipelines", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("Left: Phong shading");
     igText("Center: Toon shading");
     igText("Right: Wireframe");

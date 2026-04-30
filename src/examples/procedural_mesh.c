@@ -940,14 +940,14 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Procedural Mesh", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_text("Left Mouse + drag to orbit");
     imgui_overlay_text("Meshes: %u", MESH_COUNT);
     imgui_overlay_text("Total vertices: %u", state.total_num_vertices);
     imgui_overlay_text("Total indices: %u", state.total_num_indices);
   }
 
-  if (igCollapsingHeaderBoolPtr("Camera", NULL,
+  if (igCollapsingHeader_BoolPtr("Camera", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_checkbox("Auto Rotate", &state.camera.auto_rotate);
     imgui_overlay_slider_float("Orbit Speed", &state.camera.orbit_speed, 0.0f,

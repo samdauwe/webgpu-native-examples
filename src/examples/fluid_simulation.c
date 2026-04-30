@@ -1339,14 +1339,14 @@ static void render_gui(wgpu_context_t* wgpu_context)
                      (ImVec2){0.0f, 0.0f});
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_TreeNodeFlags("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
     igSliderInt("Pressure Iterations", &settings.pressure_iterations, 0, 50,
-                "%d");
+                "%d", 0);
 
     static const char* symmetry_types[5]
       = {"None", "Horizontal", "Vertical", "Both", "Center"};
     int32_t symmetry_value_int = (int32_t)settings.input_symmetry;
-    if (igCombo("Mouse Symmetry", &symmetry_value_int, symmetry_types, 5, 5)) {
+    if (igCombo_Str_arr("Mouse Symmetry", &symmetry_value_int, symmetry_types, 5, 5)) {
       settings.input_symmetry = (float)symmetry_value_int;
       uniform_update(&uniforms.symmetry, wgpu_context, &settings.input_symmetry,
                      1);
@@ -1356,20 +1356,20 @@ static void render_gui(wgpu_context_t* wgpu_context)
       simulation_reset();
     }
 
-    if (igCollapsingHeader("Smoke Parameters", 0)) {
-      igSliderInt("3D resolution", &settings.raymarch_steps, 5, 20, "%d");
+    if (igCollapsingHeader_TreeNodeFlags("Smoke Parameters", 0)) {
+      igSliderInt("3D resolution", &settings.raymarch_steps, 5, 20, "%d", 0);
       igSliderFloat("Light Elevation", &settings.light_height, 0.5f, 1.0f,
-                    "%.3f", 1.0f);
+                    "%.3f", 0);
       igSliderFloat("Light Intensity", &settings.light_intensity, 0.0f, 1.0f,
-                    "%.3f", 1.0f);
+                    "%.3f", 0);
       igSliderFloat("Light Falloff", &settings.light_falloff, 0.5f, 10.0f,
-                    "%.3f", 1.0f);
+                    "%.3f", 0);
       bool enable_shadows = settings.enable_shadows != 0.0f;
       if (igCheckbox("Enable Shadows", &enable_shadows)) {
         settings.enable_shadows = enable_shadows ? 1.0f : 0.0f;
       }
       igSliderFloat("Shadow Intensity", &settings.shadow_intensity, 0.0f, 50.0f,
-                    "%.3f", 1.0f);
+                    "%.3f", 0);
     }
   }
 

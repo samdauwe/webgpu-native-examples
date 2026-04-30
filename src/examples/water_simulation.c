@@ -1123,7 +1123,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Water Simulation Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   /* Rendering settings */
-  if (igCollapsingHeaderBoolPtr("Rendering", NULL,
+  if (igCollapsingHeader_BoolPtr("Rendering", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Show Sphere", &state.settings.show_sphere)) {
       /* Update shadow buffer when sphere visibility changes */
@@ -1133,7 +1133,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Physics settings */
-  if (igCollapsingHeaderBoolPtr("Physics", NULL,
+  if (igCollapsingHeader_BoolPtr("Physics", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Enable Gravity", &state.settings.gravity_enabled)) {
       state.sphere_physics.physics_enabled = state.settings.gravity_enabled;
@@ -1142,7 +1142,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Controls help */
-  if (igCollapsingHeaderBoolPtr("Controls", NULL, ImGuiTreeNodeFlags_None)) {
+  if (igCollapsingHeader_BoolPtr("Controls", NULL, ImGuiTreeNodeFlags_None)) {
     igText("Mouse drag on water: Add ripples");
     igText("Mouse drag elsewhere: Orbit camera");
     igText("G key: Toggle gravity");
@@ -1150,7 +1150,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Camera info */
-  if (igCollapsingHeaderBoolPtr("Camera Info", NULL, ImGuiTreeNodeFlags_None)) {
+  if (igCollapsingHeader_BoolPtr("Camera Info", NULL, ImGuiTreeNodeFlags_None)) {
     igText("Pitch: %.1f", state.camera.angle_x);
     igText("Yaw: %.1f", state.camera.angle_y);
   }
@@ -1165,7 +1165,7 @@ static void example_on_input_event(wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, event);
 
   /* Check if ImGui wants to capture input */
-  ImGuiIO* io            = igGetIO();
+  ImGuiIO* io            = igGetIO_Nil();
   bool imgui_wants_input = io->WantCaptureMouse || io->WantCaptureKeyboard;
 
   /* Handle resize events always */

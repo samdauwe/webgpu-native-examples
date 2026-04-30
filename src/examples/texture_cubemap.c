@@ -896,7 +896,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igCheckbox("Display skybox", &state.settings.display_skybox);
 
-  if (igCollapsingHeaderBoolPtr("Object", NULL,
+  if (igCollapsingHeader_BoolPtr("Object", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_combo_box("##object_select", &state.settings.object_index,
                             state.object_names, NUM_OBJECTS);

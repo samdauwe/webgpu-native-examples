@@ -562,7 +562,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Material", NULL,
+  if (igCollapsingHeader_BoolPtr("Material", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_int("Material cap", &state.ubo.tex_index, 0,
                              MATCAP_LAYER_COUNT - 1);

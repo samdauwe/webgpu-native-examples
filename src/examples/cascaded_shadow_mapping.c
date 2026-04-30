@@ -1446,17 +1446,17 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igSliderFloat("Split lambda", &state.settings.cascade_split_lambda,
-                      0.1f, 1.0f, "%.2f", 1.0f)) {
+                      0.1f, 1.0f, "%.2f", 0)) {
       update_cascades();
     }
     igCheckbox("Color cascades", &state.settings.color_cascades);
     igCheckbox("Display depth map", &state.settings.display_depth_map);
     if (state.settings.display_depth_map) {
       igSliderInt("Cascade", &state.settings.depth_map_cascade_index, 0,
-                  SHADOW_MAP_CASCADE_COUNT - 1, "%d");
+                  SHADOW_MAP_CASCADE_COUNT - 1, "%d", 0);
     }
     igCheckbox("PCF filtering", &state.settings.filter_pcf);
   }

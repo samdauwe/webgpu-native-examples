@@ -5976,7 +5976,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Aquarium Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   /* Camera settings */
-  if (igCollapsingHeaderBoolPtr("Camera", NULL,
+  if (igCollapsingHeader_BoolPtr("Camera", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     /* Change View button */
     if (igButton("Change View", (ImVec2){0, 0})) {
@@ -5999,14 +5999,14 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Animation settings */
-  if (igCollapsingHeaderBoolPtr("Animation", NULL,
+  if (igCollapsingHeader_BoolPtr("Animation", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Speed", &state.globals.speed, 0.0f, 5.0f,
                                "%.1f");
   }
 
   /* Fog settings */
-  if (igCollapsingHeaderBoolPtr("Fog", NULL, 0)) {
+  if (igCollapsingHeader_BoolPtr("Fog", NULL, 0)) {
     imgui_overlay_slider_float("Fog Power", &state.globals.fog_power, 0.0f,
                                50.0f, "%.1f");
     imgui_overlay_slider_float("Fog Mult", &state.globals.fog_mult, 0.0f, 5.0f,
@@ -6016,7 +6016,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Toggle options */
-  if (igCollapsingHeaderBoolPtr("Options", NULL, 0)) {
+  if (igCollapsingHeader_BoolPtr("Options", NULL, 0)) {
     igCheckbox("Tank", &state.options.tank);
     igCheckbox("Bubbles", &state.options.bubbles);
     igCheckbox("Light Rays", &state.options.light_rays);
@@ -6027,17 +6027,17 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Debug options */
-  if (igCollapsingHeaderBoolPtr("Debug", NULL, 0)) {
+  if (igCollapsingHeader_BoolPtr("Debug", NULL, 0)) {
     const char* inner_debug_modes[]
       = {"Normal", "Normals", "Refract Dir", "Skybox Sample", "Refract Mask"};
-    igCombo("Inner Debug", &state.inner_debug_mode, inner_debug_modes, 5, -1);
+    igCombo_Str_arr("Inner Debug", &state.inner_debug_mode, inner_debug_modes, 5, -1);
     igText("0=Normal, 1=Normals, 2=Refraction Dir");
     igText("3=Skybox Only, 4=Reflection Mask");
 
     igSeparator();
     const char* outer_debug_modes[] = {
       "Normal", "Alpha", "ViewDot", "ReflectAmount", "Normals", "RedAlpha0.3"};
-    igCombo("Outer Debug", &state.outer_debug_mode, outer_debug_modes, 6, -1);
+    igCombo_Str_arr("Outer Debug", &state.outer_debug_mode, outer_debug_modes, 6, -1);
     igText("0=Normal, 1=Alpha (black=transparent)");
     igText("2=ViewDot, 3=ReflectAmount, 4=Normals");
     igText("5=RedAlpha0.3 (test transparency)");
@@ -6047,7 +6047,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igSeparator();
   igText("Fish Count: %d", state.fish_count);
   igText("Active Bubbles: %d", state.num_active_bubbles);
-  igText("FPS: %.1f", igGetIO()->Framerate);
+  igText("FPS: %.1f", igGetIO_Nil()->Framerate);
 
   igEnd();
 }

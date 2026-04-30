@@ -930,7 +930,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igCheckbox("Display skybox", &state.settings.display_skybox);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_int("Cube map", &state.settings.cube_map_index, 0,
                              NUM_ARRAY_LAYERS - 1);

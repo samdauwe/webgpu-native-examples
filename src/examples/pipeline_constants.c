@@ -530,13 +530,13 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Pipeline Constants", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Device", NULL,
+  if (igCollapsingHeader_BoolPtr("Device", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("GPU: %s", wgpu_context->platform_info.device);
     igText("Backend: %s", wgpu_context->platform_info.backend);
   }
 
-  if (igCollapsingHeaderBoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("Three viewports, one shader");
     igSeparator();
     igText("Left:   Phong shading");

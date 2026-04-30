@@ -470,7 +470,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Coordinate System", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   /* Scene section */
-  if (igCollapsingHeaderBoolPtr("Scene", NULL,
+  if (igCollapsingHeader_BoolPtr("Scene", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     int quad_type = state.settings.quad_type;
     if (imgui_overlay_combo_box("Quad Type", &quad_type, state.quad_type_str,
@@ -480,7 +480,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Pipeline section */
-  if (igCollapsingHeaderBoolPtr("Pipeline", NULL,
+  if (igCollapsingHeader_BoolPtr("Pipeline", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     int winding_order = state.settings.winding_order;
     if (imgui_overlay_combo_box("Winding Order", &winding_order,

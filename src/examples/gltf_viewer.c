@@ -2823,10 +2823,10 @@ static void render_gui(wgpu_context_t* ctx)
 
       /* --- Animation controls (shown only when model has animations) --- */
       if (state.model_has_skins && state.model.animation_count > 0) {
-        if (igCollapsingHeaderBoolPtr("Animation", NULL,
+        if (igCollapsingHeader_BoolPtr("Animation", NULL,
                                       ImGuiTreeNodeFlags_DefaultOpen)) {
           igCheckbox("Play", &state.animation.play);
-          igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 1.0f);
+          igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 0);
 
           /* Animation selector */
           if (state.model.animation_count > 1) {
@@ -2841,7 +2841,7 @@ static void render_gui(wgpu_context_t* ctx)
                 snprintf(label, sizeof(label), "Animation %u", ai);
               }
               bool selected = ((int32_t)ai == state.animation.active_index);
-              if (igSelectable(label, selected, 0, (ImVec2){0, 0})) {
+              if (igSelectable_Bool(label, selected, 0, (ImVec2){0, 0})) {
                 state.animation.active_index = (int32_t)ai;
                 state.animation.time         = 0.0f;
               }
@@ -2868,41 +2868,41 @@ static void render_gui(wgpu_context_t* ctx)
       }
 
       /* --- PBR Settings --- */
-      if (igCollapsingHeaderBoolPtr("PBR Settings", NULL,
+      if (igCollapsingHeader_BoolPtr("PBR Settings", NULL,
                                     ImGuiTreeNodeFlags_DefaultOpen)) {
-        igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 1.0f);
-        igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 1.0f);
+        igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 0);
+        igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 0);
         igSliderFloat("IBL Scale", &state.pbr.scale_ibl_ambient, 0.0f, 2.0f,
-                      "%.2f", 1.0f);
+                      "%.2f", 0);
         igCheckbox("Direct Light", &state.pbr.enable_direct_light);
 
         /* Tone mapping selector */
         const char* tone_map_items[]
           = {"PBR Neutral", "Uncharted2", "Reinhard", "ACES"};
-        igCombo("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 4,
+        igCombo_Str_arr("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 4,
                 0);
       }
 
       /* --- Debug Visualization --- */
-      if (igCollapsingHeaderBoolPtr("Debug Views", NULL, 0)) {
+      if (igCollapsingHeader_BoolPtr("Debug Views", NULL, 0)) {
         const char* input_items[]
           = {"None",     "Base Color", "Normals",  "Occlusion",
              "Emissive", "Metallic",   "Roughness"};
         int debug_input = (int)state.pbr.debug_view_inputs;
-        if (igCombo("Inputs", &debug_input, input_items, 7, 0)) {
+        if (igCombo_Str_arr("Inputs", &debug_input, input_items, 7, 0)) {
           state.pbr.debug_view_inputs = (float)debug_input;
         }
         const char* equation_items[]
           = {"None",         "Diffuse",          "F (Fresnel)",
              "G (Geometry)", "D (Distribution)", "Specular"};
         int debug_eq = (int)state.pbr.debug_view_equation;
-        if (igCombo("Equation", &debug_eq, equation_items, 6, 0)) {
+        if (igCombo_Str_arr("Equation", &debug_eq, equation_items, 6, 0)) {
           state.pbr.debug_view_equation = (float)debug_eq;
         }
       }
 
       /* --- Camera --- */
-      if (igCollapsingHeaderBoolPtr("Camera", NULL, 0)) {
+      if (igCollapsingHeader_BoolPtr("Camera", NULL, 0)) {
         igText("  Pos: %.1f, %.1f, %.1f", state.camera.position[0],
                state.camera.position[1], state.camera.position[2]);
         if (igButton("Reset Camera", (ImVec2){0, 0})) {

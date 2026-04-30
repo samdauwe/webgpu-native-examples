@@ -589,9 +589,9 @@ static void render_gui(wgpu_context_t* wgpu_context)
     changed |= igColorEdit4("baseColor", state.grid_options.base_color,
                             ImGuiColorEditFlags_None);
     changed |= igSliderFloat("lineWidthX", &state.grid_options.line_width_x,
-                             0.0f, 1.0f, "%.3f", 1.0f);
+                             0.0f, 1.0f, "%.3f", 0);
     changed |= igSliderFloat("lineWidthY", &state.grid_options.line_width_y,
-                             0.0f, 1.0f, "%.3f", 1.0f);
+                             0.0f, 1.0f, "%.3f", 0);
     if (changed) {
       update_grid_uniforms(wgpu_context);
     }
@@ -662,7 +662,7 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, input_event);
 
   /* Check if ImGui wants to capture input */
-  ImGuiIO* io            = igGetIO();
+  ImGuiIO* io            = igGetIO_Nil();
   bool imgui_wants_input = io->WantCaptureMouse || io->WantCaptureKeyboard;
 
   /* Handle resize events always */

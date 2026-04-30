@@ -999,7 +999,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igSeparator();
 
   /* Color blend settings */
-  if (igCollapsingHeaderBoolPtr("Color", NULL,
+  if (igCollapsingHeader_BoolPtr("Color", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     {
       int op = (int)state.settings.color.operation;
@@ -1028,7 +1028,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Alpha blend settings */
-  if (igCollapsingHeaderBoolPtr("Alpha", NULL,
+  if (igCollapsingHeader_BoolPtr("Alpha", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     {
       int op = (int)state.settings.alpha.operation;
@@ -1057,7 +1057,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Constant settings */
-  if (igCollapsingHeaderBoolPtr("Constant", NULL,
+  if (igCollapsingHeader_BoolPtr("Constant", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     float color[4]
       = {state.settings.constant_color[0], state.settings.constant_color[1],
@@ -1071,7 +1071,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Clear color settings */
-  if (igCollapsingHeaderBoolPtr("Clear Color", NULL,
+  if (igCollapsingHeader_BoolPtr("Clear Color", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("premultiply", &state.settings.clear_premultiply);
     igDragFloat("alpha##clear", &state.settings.clear_alpha, 0.01f, 0.0f, 1.0f,

@@ -629,7 +629,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Sampler Parameters", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   /* Presets */
-  if (igCollapsingHeaderBoolPtr("Presets", NULL,
+  if (igCollapsingHeader_BoolPtr("Presets", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igButton("reset to initial", (ImVec2){0, 0})) {
       reset_to_initial();
@@ -648,7 +648,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Plane settings */
-  if (igCollapsingHeaderBoolPtr("Plane settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Plane settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("size = 2**", &state.settings.flange_log_size,
                                0.0f, 10.0f, "%.1f");
@@ -658,7 +658,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* GPUSamplerDescriptor */
-  if (igCollapsingHeaderBoolPtr("GPUSamplerDescriptor", NULL,
+  if (igCollapsingHeader_BoolPtr("GPUSamplerDescriptor", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_combo_box("addressModeU", &state.settings.address_mode_u,
                             state.address_modes_str, ADDRESS_MODE_COUNT);
@@ -686,7 +686,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
     }
 
     /* maxAnisotropy */
-    if (igCollapsingHeaderBoolPtr("maxAnisotropy (set only if all \"linear\")",
+    if (igCollapsingHeader_BoolPtr("maxAnisotropy (set only if all \"linear\")",
                                   NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
       imgui_overlay_slider_int("maxAnisotropy", &state.settings.max_anisotropy,
                                1, 16);

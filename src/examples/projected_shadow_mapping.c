@@ -880,7 +880,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_combo_box("Scenes", &state.settings.scene_index, scene_names,
                             NUM_SCENES);

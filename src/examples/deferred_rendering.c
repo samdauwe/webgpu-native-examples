@@ -1333,14 +1333,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   /* Mode combo: gui.add(settings, 'mode', ['rendering', 'gBuffers view']) */
   const char* mode_items[] = {"rendering", "gBuffers view"};
   int mode                 = (int)state.settings.current_render_mode;
-  if (igCombo("mode", &mode, mode_items, 2, -1)) {
+  if (igCombo_Str_arr("mode", &mode, mode_items, 2, -1)) {
     state.settings.current_render_mode = (render_mode_enum)mode;
   }
 
   /* Number of lights slider: gui.add(settings, 'numLights', 1, kMaxNumLights)
    */
   if (igSliderInt("numLights", &state.settings.num_lights, 1,
-                  (int)state.max_num_lights, "%d")) {
+                  (int)state.max_num_lights, "%d", 0)) {
     update_num_lights(wgpu_context);
   }
 

@@ -91,13 +91,15 @@ static struct {
  */
 static void create_font_texture(wgpu_context_t* wgpu_context)
 {
-  ImGuiIO* io = igGetIO();
+  ImGuiIO* io = igGetIO_Nil();
 
   /* Build texture atlas */
-  unsigned char* font_pixels;
-  int font_width, font_height, bytes_per_pixel;
-  ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &font_pixels, &font_width,
-                                 &font_height, &bytes_per_pixel);
+  igImFontAtlasBuildMain(io->Fonts);
+  ImTextureData* tex_data    = io->Fonts->TexData;
+  unsigned char* font_pixels = tex_data->Pixels;
+  int font_width             = tex_data->Width;
+  int font_height            = tex_data->Height;
+  int bytes_per_pixel        = tex_data->BytesPerPixel;
   uint32_t pixels_size_bytes = font_width * font_height * bytes_per_pixel;
 
   /* Create texture */
@@ -170,7 +172,7 @@ static void create_font_texture(wgpu_context_t* wgpu_context)
   ASSERT(state.font_sampler);
 
   /* Store texture ID in ImGui */
-  io->Fonts->TexID = (ImTextureID)(intptr_t)state.font_texture_view;
+  io->Fonts->TexData->TexID = (ImTextureID)(intptr_t)state.font_texture_view;
 }
 
 /**
@@ -419,7 +421,7 @@ static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
   ImDrawIdx* idx_dst  = idx_staging;
 
   for (int n = 0; n < draw_data->CmdListsCount; n++) {
-    const ImDrawList* cmd_list = draw_data->CmdLists[n];
+    const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
     memcpy(vtx_dst, cmd_list->VtxBuffer.Data,
            cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
     memcpy(idx_dst, cmd_list->IdxBuffer.Data,
@@ -459,35 +461,15 @@ static int init(wgpu_context_t* wgpu_context)
   igSetCurrentContext(state.imgui_context);
 
   /* Setup ImGui IO */
-  ImGuiIO* io                   = igGetIO();
+  ImGuiIO* io                   = igGetIO_Nil();
   io->BackendRendererName       = "imgui_impl_webgpu";
   io->DisplaySize.x             = (float)wgpu_context->width;
   io->DisplaySize.y             = (float)wgpu_context->height;
   io->DisplayFramebufferScale.x = 1.0f;
   io->DisplayFramebufferScale.y = 1.0f;
 
-  /* Setup keyboard mapping for ImGui */
-  io->KeyMap[ImGuiKey_Tab]        = KEY_TAB;
-  io->KeyMap[ImGuiKey_LeftArrow]  = KEY_LEFT;
-  io->KeyMap[ImGuiKey_RightArrow] = KEY_RIGHT;
-  io->KeyMap[ImGuiKey_UpArrow]    = KEY_UP;
-  io->KeyMap[ImGuiKey_DownArrow]  = KEY_DOWN;
-  io->KeyMap[ImGuiKey_PageUp]     = KEY_PAGE_UP;
-  io->KeyMap[ImGuiKey_PageDown]   = KEY_PAGE_DOWN;
-  io->KeyMap[ImGuiKey_Home]       = KEY_HOME;
-  io->KeyMap[ImGuiKey_End]        = KEY_END;
-  io->KeyMap[ImGuiKey_Insert]     = KEY_INSERT;
-  io->KeyMap[ImGuiKey_Delete]     = KEY_DELETE;
-  io->KeyMap[ImGuiKey_Backspace]  = KEY_BACKSPACE;
-  io->KeyMap[ImGuiKey_Space]      = KEY_SPACE;
-  io->KeyMap[ImGuiKey_Enter]      = KEY_ENTER;
-  io->KeyMap[ImGuiKey_Escape]     = KEY_ESCAPE;
-  io->KeyMap[ImGuiKey_A]          = KEY_A;
-  io->KeyMap[ImGuiKey_C]          = KEY_C;
-  io->KeyMap[ImGuiKey_V]          = KEY_V;
-  io->KeyMap[ImGuiKey_X]          = KEY_X;
-  io->KeyMap[ImGuiKey_Y]          = KEY_Y;
-  io->KeyMap[ImGuiKey_Z]          = KEY_Z;
+  /* Setup keyboard mapping for ImGui - using event-based API in 1.92.7 */
+  /* KeyMap is removed; key events are sent via ImGuiIO_AddKeyEvent() */
 
   /* Add default font */
   ImFontAtlas_AddFontDefault(io->Fonts, NULL);
@@ -537,7 +519,7 @@ static int frame(wgpu_context_t* wgpu_context)
   state.last_frame_time = current_time;
 
   /* Update ImGui IO */
-  ImGuiIO* io       = igGetIO();
+  ImGuiIO* io       = igGetIO_Nil();
   io->DisplaySize.x = (float)wgpu_context->width;
   io->DisplaySize.y = (float)wgpu_context->height;
   io->DeltaTime     = delta_time > 0.0f ? delta_time : (1.0f / 60.0f);
@@ -557,7 +539,7 @@ static int frame(wgpu_context_t* wgpu_context)
     igCheckbox("Demo window", &state.show_demo_window);
     igCheckbox("Another window", &state.show_another_window);
 
-    igSliderFloat("Float", &state.demo_float, 0.0f, 1.0f, "%.3f", 1.0f);
+    igSliderFloat("Float", &state.demo_float, 0.0f, 1.0f, "%.3f", 0);
     igColorEdit3("clear color", state.clear_color, 0);
 
     ImVec2 button_size = {0, 0};
@@ -568,7 +550,7 @@ static int frame(wgpu_context_t* wgpu_context)
     igText("counter = %d", state.demo_counter);
 
     igText("Application average %.3f ms/frame (%.1f FPS)",
-           1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
+           1000.0f / igGetIO_Nil()->Framerate, igGetIO_Nil()->Framerate);
     igEnd();
   }
 
@@ -636,7 +618,7 @@ static int frame(wgpu_context_t* wgpu_context)
     int global_idx_offset = 0;
     ImVec2 clip_off       = draw_data->DisplayPos;
     for (int n = 0; n < draw_data->CmdListsCount; n++) {
-      const ImDrawList* cmd_list = draw_data->CmdLists[n];
+    const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
       for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
         const ImDrawCmd* pcmd = &cmd_list->CmdBuffer.Data[cmd_i];
         if (pcmd->UserCallback) {
@@ -691,34 +673,84 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
 {
   UNUSED_VAR(wgpu_context);
 
-  ImGuiIO* io = igGetIO();
+  ImGuiIO* io = igGetIO_Nil();
 
   switch (event->type) {
-    case INPUT_EVENT_TYPE_KEY_DOWN:
-      if (event->key_code < KEY_NUM) {
-        io->KeysDown[event->key_code] = true;
+    case INPUT_EVENT_TYPE_KEY_DOWN: {
+      ImGuiKey imgui_key = ImGuiKey_None;
+      switch (event->key_code) {
+        case KEY_TAB: imgui_key = ImGuiKey_Tab; break;
+        case KEY_LEFT: imgui_key = ImGuiKey_LeftArrow; break;
+        case KEY_RIGHT: imgui_key = ImGuiKey_RightArrow; break;
+        case KEY_UP: imgui_key = ImGuiKey_UpArrow; break;
+        case KEY_DOWN: imgui_key = ImGuiKey_DownArrow; break;
+        case KEY_PAGE_UP: imgui_key = ImGuiKey_PageUp; break;
+        case KEY_PAGE_DOWN: imgui_key = ImGuiKey_PageDown; break;
+        case KEY_HOME: imgui_key = ImGuiKey_Home; break;
+        case KEY_END: imgui_key = ImGuiKey_End; break;
+        case KEY_INSERT: imgui_key = ImGuiKey_Insert; break;
+        case KEY_DELETE: imgui_key = ImGuiKey_Delete; break;
+        case KEY_BACKSPACE: imgui_key = ImGuiKey_Backspace; break;
+        case KEY_SPACE: imgui_key = ImGuiKey_Space; break;
+        case KEY_ENTER: imgui_key = ImGuiKey_Enter; break;
+        case KEY_ESCAPE: imgui_key = ImGuiKey_Escape; break;
+        case KEY_LEFT_CONTROL: imgui_key = ImGuiKey_LeftCtrl; break;
+        case KEY_LEFT_SHIFT: imgui_key = ImGuiKey_LeftShift; break;
+        case KEY_LEFT_ALT: imgui_key = ImGuiKey_LeftAlt; break;
+        case KEY_LEFT_SUPER: imgui_key = ImGuiKey_LeftSuper; break;
+        case KEY_RIGHT_CONTROL: imgui_key = ImGuiKey_RightCtrl; break;
+        case KEY_RIGHT_SHIFT: imgui_key = ImGuiKey_RightShift; break;
+        case KEY_RIGHT_ALT: imgui_key = ImGuiKey_RightAlt; break;
+        case KEY_RIGHT_SUPER: imgui_key = ImGuiKey_RightSuper; break;
+        default: break;
       }
-      /* Update modifier keys */
-      io->KeyCtrl  = (event->key_code == KEY_LEFT_CONTROL
-                     || event->key_code == KEY_RIGHT_CONTROL);
-      io->KeyShift = (event->key_code == KEY_LEFT_SHIFT
-                      || event->key_code == KEY_RIGHT_SHIFT);
-      io->KeyAlt
-        = (event->key_code == KEY_LEFT_ALT || event->key_code == KEY_RIGHT_ALT);
-      io->KeySuper = (event->key_code == KEY_LEFT_SUPER
-                      || event->key_code == KEY_RIGHT_SUPER);
+      if (event->key_code >= KEY_A && event->key_code <= KEY_Z)
+        imgui_key = (ImGuiKey)(ImGuiKey_A + (event->key_code - KEY_A));
+      else if (event->key_code >= KEY_0 && event->key_code <= KEY_9)
+        imgui_key = (ImGuiKey)(ImGuiKey_0 + (event->key_code - KEY_0));
+      if (imgui_key != ImGuiKey_None) {
+        ImGuiIO_AddKeyEvent(io, imgui_key, true);
+      }
       break;
+    }
 
-    case INPUT_EVENT_TYPE_KEY_UP:
-      if (event->key_code < KEY_NUM) {
-        io->KeysDown[event->key_code] = false;
+    case INPUT_EVENT_TYPE_KEY_UP: {
+      ImGuiKey imgui_key = ImGuiKey_None;
+      switch (event->key_code) {
+        case KEY_TAB: imgui_key = ImGuiKey_Tab; break;
+        case KEY_LEFT: imgui_key = ImGuiKey_LeftArrow; break;
+        case KEY_RIGHT: imgui_key = ImGuiKey_RightArrow; break;
+        case KEY_UP: imgui_key = ImGuiKey_UpArrow; break;
+        case KEY_DOWN: imgui_key = ImGuiKey_DownArrow; break;
+        case KEY_PAGE_UP: imgui_key = ImGuiKey_PageUp; break;
+        case KEY_PAGE_DOWN: imgui_key = ImGuiKey_PageDown; break;
+        case KEY_HOME: imgui_key = ImGuiKey_Home; break;
+        case KEY_END: imgui_key = ImGuiKey_End; break;
+        case KEY_INSERT: imgui_key = ImGuiKey_Insert; break;
+        case KEY_DELETE: imgui_key = ImGuiKey_Delete; break;
+        case KEY_BACKSPACE: imgui_key = ImGuiKey_Backspace; break;
+        case KEY_SPACE: imgui_key = ImGuiKey_Space; break;
+        case KEY_ENTER: imgui_key = ImGuiKey_Enter; break;
+        case KEY_ESCAPE: imgui_key = ImGuiKey_Escape; break;
+        case KEY_LEFT_CONTROL: imgui_key = ImGuiKey_LeftCtrl; break;
+        case KEY_LEFT_SHIFT: imgui_key = ImGuiKey_LeftShift; break;
+        case KEY_LEFT_ALT: imgui_key = ImGuiKey_LeftAlt; break;
+        case KEY_LEFT_SUPER: imgui_key = ImGuiKey_LeftSuper; break;
+        case KEY_RIGHT_CONTROL: imgui_key = ImGuiKey_RightCtrl; break;
+        case KEY_RIGHT_SHIFT: imgui_key = ImGuiKey_RightShift; break;
+        case KEY_RIGHT_ALT: imgui_key = ImGuiKey_RightAlt; break;
+        case KEY_RIGHT_SUPER: imgui_key = ImGuiKey_RightSuper; break;
+        default: break;
       }
-      /* Update modifier keys */
-      io->KeyCtrl  = false;
-      io->KeyShift = false;
-      io->KeyAlt   = false;
-      io->KeySuper = false;
+      if (event->key_code >= KEY_A && event->key_code <= KEY_Z)
+        imgui_key = (ImGuiKey)(ImGuiKey_A + (event->key_code - KEY_A));
+      else if (event->key_code >= KEY_0 && event->key_code <= KEY_9)
+        imgui_key = (ImGuiKey)(ImGuiKey_0 + (event->key_code - KEY_0));
+      if (imgui_key != ImGuiKey_None) {
+        ImGuiIO_AddKeyEvent(io, imgui_key, false);
+      }
       break;
+    }
 
     case INPUT_EVENT_TYPE_CHAR:
       if (event->char_code > 0 && event->char_code < 0x10000) {

@@ -792,7 +792,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   static int32_t current_mode = 0;
 
   igBegin("Settings", NULL, 0);
-  if (igCombo("mode", &current_mode, modes, 2, -1)) {
+  if (igCombo_Str_arr("mode", &current_mode, modes, 2, -1)) {
     state.settings.show_primitive_indexes = (current_mode == 1);
   }
   igCheckbox("Rotate", &state.settings.rotate);

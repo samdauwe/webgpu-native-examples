@@ -1244,7 +1244,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Camera type combo: gui.add(params, 'type', ['arcball', 'WASD']) */
   int camera_type = (int)state.example_parms.camera_type;
-  if (igCombo("type", &camera_type, state.camera_type_names, 2, -1)) {
+  if (igCombo_Str_arr("type", &camera_type, state.camera_type_names, 2, -1)) {
     /* Copy camera matrix from old to new - matches TypeScript behavior */
     camera_type_t old_camera_type = state.example_parms.camera_type;
     camera_type_t new_camera_type = (camera_type_t)camera_type;
@@ -1362,7 +1362,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, input_event);
 
   /* Check if ImGui wants to capture the input */
-  ImGuiIO* io               = igGetIO();
+  ImGuiIO* io               = igGetIO_Nil();
   bool imgui_wants_mouse    = io->WantCaptureMouse;
   bool imgui_wants_keyboard = io->WantCaptureKeyboard;
 

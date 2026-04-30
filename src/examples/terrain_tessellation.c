@@ -1633,7 +1633,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Terrain Tessellation", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Tessellation", &state.settings.tessellation);
 
@@ -1660,7 +1660,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
     igCheckbox("Wireframe", &state.settings.wireframe);
   }
 
-  if (igCollapsingHeaderBoolPtr("Pipeline statistics", NULL,
+  if (igCollapsingHeader_BoolPtr("Pipeline statistics", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     uint32_t tri_ib = state.settings.tessellation ?
                         state.terrain.index_count :

@@ -490,12 +490,12 @@ static void render_gui(wgpu_context_t* wgpu_context)
   imgui_overlay_new_frame(wgpu_context, dt_sec);
 
   igBegin("Settings", NULL, 0);
-  if (igSliderInt("filterSize", &state.settings.filter_size, 1, 33, "%d")) {
+  if (igSliderInt("filterSize", &state.settings.filter_size, 1, 33, "%d", 0)) {
     /* Enforce odd values by rounding down to nearest odd number */
     state.settings.filter_size = (state.settings.filter_size / 2) * 2 + 1;
     update_settings(wgpu_context);
   }
-  igSliderInt("iterations", &state.settings.iterations, 1, 10, "%d");
+  igSliderInt("iterations", &state.settings.iterations, 1, 10, "%d", 0);
   igEnd();
 }
 

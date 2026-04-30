@@ -811,7 +811,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Screenshot", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Functions", NULL,
+  if (igCollapsingHeader_BoolPtr("Functions", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (imgui_overlay_button("Take Screenshot")) {
       if (!state.screenshot_saving) {

@@ -1243,7 +1243,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Bloom Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Bloom", &state.settings.bloom);
     imgui_overlay_slider_float("Blur Scale", &state.settings.blur_scale, 0.1f,

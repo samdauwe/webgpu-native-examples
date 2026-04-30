@@ -1104,14 +1104,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Subpasses", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Subpasses", NULL,
+  if (igCollapsingHeader_BoolPtr("Subpasses", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("0: Deferred G-Buffer creation");
     igText("1: Deferred composition");
     igText("2: Forward transparency");
   }
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igButton("Randomize lights", (ImVec2){0, 0})) {
       rng_state = (uint32_t)stm_now();

@@ -68,15 +68,83 @@ static struct {
 /**
  * @brief Create font texture from ImGui font atlas
  */
+/* Map GLFW-compatible keycode_t values to Dear ImGui 1.87+ ImGuiKey enum */
+static ImGuiKey keycode_to_imgui_key(int key_code)
+{
+  switch (key_code) {
+    case KEY_TAB:
+      return ImGuiKey_Tab;
+    case KEY_LEFT:
+      return ImGuiKey_LeftArrow;
+    case KEY_RIGHT:
+      return ImGuiKey_RightArrow;
+    case KEY_UP:
+      return ImGuiKey_UpArrow;
+    case KEY_DOWN:
+      return ImGuiKey_DownArrow;
+    case KEY_PAGE_UP:
+      return ImGuiKey_PageUp;
+    case KEY_PAGE_DOWN:
+      return ImGuiKey_PageDown;
+    case KEY_HOME:
+      return ImGuiKey_Home;
+    case KEY_END:
+      return ImGuiKey_End;
+    case KEY_INSERT:
+      return ImGuiKey_Insert;
+    case KEY_DELETE:
+      return ImGuiKey_Delete;
+    case KEY_BACKSPACE:
+      return ImGuiKey_Backspace;
+    case KEY_SPACE:
+      return ImGuiKey_Space;
+    case KEY_ENTER:
+      return ImGuiKey_Enter;
+    case KEY_ESCAPE:
+      return ImGuiKey_Escape;
+    case KEY_LEFT_CONTROL:
+      return ImGuiKey_LeftCtrl;
+    case KEY_LEFT_SHIFT:
+      return ImGuiKey_LeftShift;
+    case KEY_LEFT_ALT:
+      return ImGuiKey_LeftAlt;
+    case KEY_LEFT_SUPER:
+      return ImGuiKey_LeftSuper;
+    case KEY_RIGHT_CONTROL:
+      return ImGuiKey_RightCtrl;
+    case KEY_RIGHT_SHIFT:
+      return ImGuiKey_RightShift;
+    case KEY_RIGHT_ALT:
+      return ImGuiKey_RightAlt;
+    case KEY_RIGHT_SUPER:
+      return ImGuiKey_RightSuper;
+    case KEY_MENU:
+      return ImGuiKey_Menu;
+    default:
+      break;
+  }
+  /* Printable ASCII: A-Z (65-90) */
+  if (key_code >= KEY_A && key_code <= KEY_Z) {
+    return (ImGuiKey)(ImGuiKey_A + (key_code - KEY_A));
+  }
+  /* Digits: 0-9 (48-57) */
+  if (key_code >= KEY_0 && key_code <= KEY_9) {
+    return (ImGuiKey)(ImGuiKey_0 + (key_code - KEY_0));
+  }
+  return ImGuiKey_None;
+}
+
 static void create_font_texture(wgpu_context_t* wgpu_context)
 {
-  ImGuiIO* io = igGetIO();
+  ImGuiIO* io = igGetIO_Nil();
 
   /* Build texture atlas */
-  unsigned char* font_pixels;
-  int font_width, font_height, bytes_per_pixel;
-  ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &font_pixels, &font_width,
-                                 &font_height, &bytes_per_pixel);
+  igImFontAtlasBuildMain(io->Fonts);
+  ImTextureData* tex_data    = io->Fonts->TexData;
+  unsigned char* font_pixels = tex_data->Pixels;
+  int font_width             = tex_data->Width;
+  int font_height            = tex_data->Height;
+  int bytes_per_pixel        = tex_data->BytesPerPixel;
   uint32_t pixels_size_bytes
     = (uint32_t)(font_width * font_height * bytes_per_pixel);
 
@@ -150,7 +218,8 @@ static void create_font_texture(wgpu_context_t* wgpu_context)
   ASSERT(overlay_state.font_sampler);
 
   /* Store texture ID in ImGui */
-  io->Fonts->TexID = (ImTextureID)(intptr_t)overlay_state.font_texture_view;
+  io->Fonts->TexData->TexID
+    = (ImTextureID)(intptr_t)overlay_state.font_texture_view;
 }
 
 /**
@@ -394,7 +463,7 @@ static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
   ImDrawIdx* idx_dst  = idx_staging;
 
   for (int n = 0; n < draw_data->CmdListsCount; n++) {
-    const ImDrawList* cmd_list = draw_data->CmdLists[n];
+    const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
     memcpy(vtx_dst, cmd_list->VtxBuffer.Data,
            (size_t)cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
     memcpy(idx_dst, cmd_list->IdxBuffer.Data,
@@ -438,35 +507,12 @@ int imgui_overlay_init(wgpu_context_t* wgpu_context)
   igSetCurrentContext(overlay_state.imgui_context);
 
   /* Setup ImGui IO */
-  ImGuiIO* io                   = igGetIO();
+  ImGuiIO* io                   = igGetIO_Nil();
   io->BackendRendererName       = "imgui_impl_webgpu";
   io->DisplaySize.x             = (float)wgpu_context->width;
   io->DisplaySize.y             = (float)wgpu_context->height;
   io->DisplayFramebufferScale.x = 1.0f;
   io->DisplayFramebufferScale.y = 1.0f;
-
-  /* Setup keyboard mapping */
-  io->KeyMap[ImGuiKey_Tab]        = KEY_TAB;
-  io->KeyMap[ImGuiKey_LeftArrow]  = KEY_LEFT;
-  io->KeyMap[ImGuiKey_RightArrow] = KEY_RIGHT;
-  io->KeyMap[ImGuiKey_UpArrow]    = KEY_UP;
-  io->KeyMap[ImGuiKey_DownArrow]  = KEY_DOWN;
-  io->KeyMap[ImGuiKey_PageUp]     = KEY_PAGE_UP;
-  io->KeyMap[ImGuiKey_PageDown]   = KEY_PAGE_DOWN;
-  io->KeyMap[ImGuiKey_Home]       = KEY_HOME;
-  io->KeyMap[ImGuiKey_End]        = KEY_END;
-  io->KeyMap[ImGuiKey_Insert]     = KEY_INSERT;
-  io->KeyMap[ImGuiKey_Delete]     = KEY_DELETE;
-  io->KeyMap[ImGuiKey_Backspace]  = KEY_BACKSPACE;
-  io->KeyMap[ImGuiKey_Space]      = KEY_SPACE;
-  io->KeyMap[ImGuiKey_Enter]      = KEY_ENTER;
-  io->KeyMap[ImGuiKey_Escape]     = KEY_ESCAPE;
-  io->KeyMap[ImGuiKey_A]          = KEY_A;
-  io->KeyMap[ImGuiKey_C]          = KEY_C;
-  io->KeyMap[ImGuiKey_V]          = KEY_V;
-  io->KeyMap[ImGuiKey_X]          = KEY_X;
-  io->KeyMap[ImGuiKey_Y]          = KEY_Y;
-  io->KeyMap[ImGuiKey_Z]          = KEY_Z;
 
   /* Add default font */
   ImFontAtlas_AddFontDefault(io->Fonts, NULL);
@@ -502,7 +548,7 @@ void imgui_overlay_new_frame(wgpu_context_t* wgpu_context, float delta_time)
     return;
   }
 
-  ImGuiIO* io       = igGetIO();
+  ImGuiIO* io       = igGetIO_Nil();
   io->DisplaySize.x = (float)wgpu_context->width;
   io->DisplaySize.y = (float)wgpu_context->height;
   io->DeltaTime     = delta_time > 0.0f ? delta_time : (1.0f / 60.0f);
@@ -567,7 +613,7 @@ void imgui_overlay_render(wgpu_context_t* wgpu_context)
   int global_idx_offset = 0;
   ImVec2 clip_off       = draw_data->DisplayPos;
   for (int n = 0; n < draw_data->CmdListsCount; n++) {
-    const ImDrawList* cmd_list = draw_data->CmdLists[n];
+    const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
     for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
       const ImDrawCmd* pcmd = &cmd_list->CmdBuffer.Data[cmd_i];
       if (pcmd->UserCallback) {
@@ -619,32 +665,23 @@ void imgui_overlay_handle_input(wgpu_context_t* wgpu_context,
     return;
   }
 
-  ImGuiIO* io = igGetIO();
+  ImGuiIO* io = igGetIO_Nil();
 
   switch (event->type) {
-    case INPUT_EVENT_TYPE_KEY_DOWN:
-      if (event->key_code < KEY_NUM) {
-        io->KeysDown[event->key_code] = true;
+    case INPUT_EVENT_TYPE_KEY_DOWN: {
+      ImGuiKey imgui_key = keycode_to_imgui_key(event->key_code);
+      if (imgui_key != ImGuiKey_None) {
+        ImGuiIO_AddKeyEvent(io, imgui_key, true);
       }
-      io->KeyCtrl  = (event->key_code == KEY_LEFT_CONTROL
-                     || event->key_code == KEY_RIGHT_CONTROL);
-      io->KeyShift = (event->key_code == KEY_LEFT_SHIFT
-                      || event->key_code == KEY_RIGHT_SHIFT);
-      io->KeyAlt
-        = (event->key_code == KEY_LEFT_ALT || event->key_code == KEY_RIGHT_ALT);
-      io->KeySuper = (event->key_code == KEY_LEFT_SUPER
-                      || event->key_code == KEY_RIGHT_SUPER);
       break;
-
-    case INPUT_EVENT_TYPE_KEY_UP:
-      if (event->key_code < KEY_NUM) {
-        io->KeysDown[event->key_code] = false;
+    }
+    case INPUT_EVENT_TYPE_KEY_UP: {
+      ImGuiKey imgui_key = keycode_to_imgui_key(event->key_code);
+      if (imgui_key != ImGuiKey_None) {
+        ImGuiIO_AddKeyEvent(io, imgui_key, false);
       }
-      io->KeyCtrl  = false;
-      io->KeyShift = false;
-      io->KeyAlt   = false;
-      io->KeySuper = false;
       break;
+    }
 
     case INPUT_EVENT_TYPE_CHAR:
       if (event->char_code > 0 && event->char_code < 0x10000) {
@@ -732,7 +769,7 @@ bool imgui_overlay_want_capture_mouse(void)
   if (!overlay_state.initialized) {
     return false;
   }
-  return igGetIO()->WantCaptureMouse;
+  return igGetIO_Nil()->WantCaptureMouse;
 }
 
 bool imgui_overlay_want_capture_keyboard(void)
@@ -740,7 +777,7 @@ bool imgui_overlay_want_capture_keyboard(void)
   if (!overlay_state.initialized) {
     return false;
   }
-  return igGetIO()->WantCaptureKeyboard;
+  return igGetIO_Nil()->WantCaptureKeyboard;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -749,7 +786,8 @@ bool imgui_overlay_want_capture_keyboard(void)
 
 bool imgui_overlay_header(const char* caption)
 {
-  return igCollapsingHeader(caption, ImGuiTreeNodeFlags_DefaultOpen);
+  return igCollapsingHeader_TreeNodeFlags(caption,
+                                          ImGuiTreeNodeFlags_DefaultOpen);
 }
 
 bool imgui_overlay_checkbox(const char* caption, bool* value)
@@ -760,14 +798,13 @@ bool imgui_overlay_checkbox(const char* caption, bool* value)
 bool imgui_overlay_slider_float(const char* caption, float* value, float min,
                                 float max, const char* format)
 {
-  return igSliderFloat(caption, value, min, max, format ? format : "%.3f",
-                       1.0f);
+  return igSliderFloat(caption, value, min, max, format ? format : "%.3f", 0);
 }
 
 bool imgui_overlay_slider_int(const char* caption, int32_t* value, int32_t min,
                               int32_t max)
 {
-  return igSliderInt(caption, value, min, max, "%d");
+  return igSliderInt(caption, value, min, max, "%d", 0);
 }
 
 bool imgui_overlay_input_float(const char* caption, float* value, float step,
@@ -783,7 +820,8 @@ bool imgui_overlay_combo_box(const char* caption, int32_t* item_index,
   if (item_count == 0) {
     return false;
   }
-  return igCombo(caption, item_index, items, (int)item_count, (int)item_count);
+  return igCombo_Str_arr(caption, item_index, items, (int)item_count,
+                         (int)item_count);
 }
 
 bool imgui_overlay_button(const char* caption)

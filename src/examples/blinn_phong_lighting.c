@@ -951,7 +951,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_checkbox("Paused", &state.settings.paused);
 
-  if (igCollapsingHeaderBoolPtr("Lighting", NULL,
+  if (igCollapsingHeader_BoolPtr("Lighting", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Shininess", &state.settings.shininess, 1.0f,
                                256.0f, "%.0f");
@@ -959,7 +959,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
                                50.0f, "%.1f");
   }
 
-  if (igCollapsingHeaderBoolPtr("Ambient", NULL,
+  if (igCollapsingHeader_BoolPtr("Ambient", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("R", &state.settings.ambient_r, 0.0f, 1.0f,
                                "%.2f");

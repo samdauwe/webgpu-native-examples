@@ -1384,7 +1384,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Deferred Shadows", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Settings", NULL,
+  if (igCollapsingHeader_BoolPtr("Settings", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     static const char* display_modes[] = {
       "Final composition", "Shadows", "Position",

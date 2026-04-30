@@ -606,7 +606,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeaderBoolPtr("Texture", NULL,
+  if (igCollapsingHeader_BoolPtr("Texture", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igButton("Generate new texture", (ImVec2){0, 0})) {
       generate_noise_texture(wgpu_context);

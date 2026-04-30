@@ -7016,7 +7016,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, input_event);
 
   /* Check if ImGui wants to capture the input */
-  ImGuiIO* io            = igGetIO();
+  ImGuiIO* io            = igGetIO_Nil();
   bool imgui_wants_mouse = io->WantCaptureMouse;
 
   if (input_event->type == INPUT_EVENT_TYPE_RESIZED) {
@@ -7094,7 +7094,7 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
 
   /* Point lights count slider */
   if (igSliderInt("Point Lights", &state.gui_settings.point_lights_count, 1,
-                  MAX_POINT_LIGHTS_COUNT, "%d")) {
+                  MAX_POINT_LIGHTS_COUNT, "%d", 0)) {
     point_lights_set_lights_count(
       &state.deferred_pass.point_lights,
       (uint32_t)state.gui_settings.point_lights_count);
@@ -7102,7 +7102,7 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
 
   /* Bloom threshold slider */
   igSliderFloat("Bloom Threshold", &state.gui_settings.bloom_threshold, 0.0f,
-                1.0f, "%.2f", 1.0f);
+                1.0f, "%.2f", 0);
   state.screen_effect_settings.screen_effect_threshold
     = state.gui_settings.bloom_threshold;
 
@@ -7113,7 +7113,7 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
 
   /* Iso level slider */
   if (igSliderFloat("Iso Level", &state.gui_settings.iso_level, 5.0f, 50.0f,
-                    "%.1f", 1.0f)) {
+                    "%.1f", 0)) {
     state.volume_settings.iso_level = state.gui_settings.iso_level;
   }
 

@@ -817,7 +817,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   }
 
   /* Light controls */
-  if (igCollapsingHeaderBoolPtr("Light", NULL,
+  if (igCollapsingHeader_BoolPtr("Light", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     /* Reset Light button */
     if (igButton("Reset Light", (ImVec2){0, 0})) {
@@ -835,7 +835,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   }
 
   /* Depth controls */
-  if (igCollapsingHeaderBoolPtr("Depth", NULL,
+  if (igCollapsingHeader_BoolPtr("Depth", NULL,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("depthScale", &state.settings.depth_scale, 0.0f,
                                0.1f, "%.2f");
