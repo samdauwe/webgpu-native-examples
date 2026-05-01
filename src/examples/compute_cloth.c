@@ -876,7 +876,7 @@ static void create_render_pipelines(struct wgpu_context_t* wgpu_context)
 
   state.sphere_pipeline = wgpuDeviceCreateRenderPipeline(
     device, &(WGPURenderPipelineDescriptor){
-              .label  = STRVIEW("Sphere Pipeline"),
+              .label  = STRVIEW("Sphere - Render Pipeline"),
               .layout = state.graphics_pipeline_layout,
               .vertex = {
                 .module      = sphere_sm,
