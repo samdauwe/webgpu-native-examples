@@ -912,7 +912,7 @@ static void create_compute_pipeline(struct wgpu_context_t* wgpu_context)
 
   state.compute_pipeline = wgpuDeviceCreateComputePipeline(
     device, &(WGPUComputePipelineDescriptor){
-              .label   = STRVIEW("Cloth Compute Pipeline"),
+              .label   = STRVIEW("Cloth - Compute Pipeline"),
               .layout  = state.compute_pipeline_layout,
               .compute = {
                 .module     = compute_sm,
