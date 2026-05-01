@@ -1012,7 +1012,9 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* Camera setup — Vulkan rotation (-30, -45, 0) adapted for WebGPU Y-up.
    * See doc/vulkan_to_webgpu_porting_guide.md for details. */
   camera_init(&state.camera);
-  state.camera.type = CameraType_LookAt;
+  state.camera.type      = CameraType_LookAt;
+  state.camera.invert_dx = true;
+  state.camera.invert_dy = true;
   camera_set_position(&state.camera, (vec3){0.0f, 0.0f, -5.0f});
   camera_set_rotation(&state.camera,
                       (vec3)VKY_TO_WGPU_CAM_ROT(-30.0f, -45.0f, 0.0f));
