@@ -37,7 +37,7 @@ static const char* fullscreen_quad_shader_wgsl;
  * Compute Shader Ray Tracing example
  * -------------------------------------------------------------------------- */
 
-#define TEX_DIM 2048u
+#define TEX_DIM (2048u)
 
 /* SSBO sphere declaration */
 typedef struct sphere_t {
