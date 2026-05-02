@@ -101,6 +101,12 @@ static struct {
   /* Animation */
   float timer;
   bool paused;
+  /* Mouse interaction */
+  struct {
+    bool right_down;
+    bool middle_down;
+  } mouse;
+  bool camera_dirty;
   /* GUI timing */
   uint64_t last_frame_time;
   float frame_timer;
@@ -555,6 +561,11 @@ static int frame(struct wgpu_context_t* wgpu_context)
       state.timer -= 1.0f;
     }
     update_uniform_buffer(wgpu_context);
+    state.camera_dirty = false;
+  }
+  else if (state.camera_dirty) {
+    update_uniform_buffer(wgpu_context);
+    state.camera_dirty = false;
   }
 
   /* ImGui frame */
@@ -637,6 +648,42 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
   imgui_overlay_handle_input(wgpu_context, input_event);
+
+  if (imgui_overlay_want_capture_mouse()) {
+    state.mouse.right_down  = false;
+    state.mouse.middle_down = false;
+    return;
+  }
+
+  switch (input_event->type) {
+    case INPUT_EVENT_TYPE_MOUSE_DOWN:
+      if (input_event->mouse_button == BUTTON_RIGHT) {
+        state.mouse.right_down = true;
+      }
+      else if (input_event->mouse_button == BUTTON_MIDDLE) {
+        state.mouse.middle_down = true;
+      }
+      break;
+    case INPUT_EVENT_TYPE_MOUSE_UP:
+      state.mouse.right_down  = false;
+      state.mouse.middle_down = false;
+      break;
+    case INPUT_EVENT_TYPE_MOUSE_MOVE:
+      if (state.mouse.right_down) {
+        /* Zoom: right-click drag moves camera along the view axis */
+        state.compute.ubo.camera.pos[2] -= input_event->mouse_dy * 0.005f;
+        state.camera_dirty = true;
+      }
+      else if (state.mouse.middle_down) {
+        /* Pan: middle-click drag moves camera in the XY plane */
+        state.compute.ubo.camera.pos[0] += input_event->mouse_dx * 0.005f;
+        state.compute.ubo.camera.pos[1] += input_event->mouse_dy * 0.005f;
+        state.camera_dirty = true;
+      }
+      break;
+    default:
+      break;
+  }
 }
 
 int main(void)
