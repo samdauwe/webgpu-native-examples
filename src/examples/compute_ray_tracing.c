@@ -132,7 +132,7 @@ static void init_storage_texture(wgpu_context_t* wgpu_context)
   state.storage_texture.handle = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
-      .label         = STRVIEW("Ray trace target texture"),
+      .label         = STRVIEW("Ray trace target - Texture"),
       .usage         = WGPUTextureUsage_TextureBinding
                        | WGPUTextureUsage_StorageBinding,
       .dimension     = WGPUTextureDimension_2D,
