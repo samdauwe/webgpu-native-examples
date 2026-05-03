@@ -130,9 +130,6 @@ static struct {
     wgpu_texture_t normalmap;
 
     /* Async load file buffers */
-    uint8_t file_buf[TEXTURE_COUNT][TEXTURE_FILE_BUFFER_SIZE];
-
-    /* Load state tracking */
     bool loaded[TEXTURE_COUNT];
     bool all_loaded;
   } textures;
@@ -370,14 +367,17 @@ static tex_fetch_user_data_t tex_user_data[TEXTURE_COUNT];
 
 static void texture_fetch_cb(const sfetch_response_t* response)
 {
+  tex_fetch_user_data_t* ud = (tex_fetch_user_data_t*)response->user_data;
+
   if (!response->fetched) {
     fprintf(stderr, "Failed to fetch texture (error %d)\n",
             response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
-  tex_fetch_user_data_t* ud = (tex_fetch_user_data_t*)response->user_data;
   if (!ud) {
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -400,6 +400,7 @@ static void texture_fetch_cb(const sfetch_response_t* response)
     ud->texture->desc.is_dirty       = true;
     state.textures.loaded[ud->index] = true;
   }
+  free((void*)response->buffer.ptr);
 }
 
 static void load_textures(wgpu_context_t* wgpu_context)
@@ -428,10 +429,11 @@ static void load_textures(wgpu_context_t* wgpu_context)
   };
 
   for (int i = 0; i < TEXTURE_COUNT; ++i) {
+    uint8_t* fetch_buf = (uint8_t*)malloc(TEXTURE_FILE_BUFFER_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path     = paths[i],
       .callback = texture_fetch_cb,
-      .buffer   = SFETCH_RANGE(state.textures.file_buf[i]),
+      .buffer   = {.ptr = fetch_buf, .size = TEXTURE_FILE_BUFFER_SIZE},
       .user_data = {
         .ptr  = &tex_user_data[i],
         .size = sizeof(tex_fetch_user_data_t),

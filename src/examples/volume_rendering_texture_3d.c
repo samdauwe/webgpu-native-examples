@@ -72,7 +72,7 @@ static struct {
       WGPUTexture texture;
       WGPUTextureView view;
       WGPUSampler sampler;
-      uint8_t data[VOLUME_TEXTURE_SIZE];
+      uint8_t* data;
       bool is_dirty;
     } volume;
     struct {
@@ -222,6 +222,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    /* Free buffer on error */
+    free(state.textures.volume.data);
+    state.textures.volume.data = NULL;
     return;
   }
 
@@ -255,7 +258,7 @@ static void update_volume_texture_date(wgpu_context_t* wgpu_context)
                           },
                           .aspect = WGPUTextureAspect_All,
                         },
-                        state.textures.volume.data, ARRAY_SIZE(state.textures.volume.data),
+                        state.textures.volume.data, VOLUME_TEXTURE_SIZE,
                         &(WGPUTexelCopyBufferLayout){
                           .offset       = 0,
                           .bytesPerRow  = bytes_per_row,
@@ -266,6 +269,10 @@ static void update_volume_texture_date(wgpu_context_t* wgpu_context)
                           .height             = height,
                           .depthOrArrayLayers = depth,
                         });
+
+  /* Free the volume data buffer after GPU upload */
+  free(state.textures.volume.data);
+  state.textures.volume.data = NULL;
 }
 
 static void init_volume_texture(wgpu_context_t* wgpu_context)
@@ -276,11 +283,12 @@ static void init_volume_texture(wgpu_context_t* wgpu_context)
   const uint32_t mip_levels = 1;
 
   /* Read volume data from file */
+  state.textures.volume.data = (uint8_t*)malloc(VOLUME_TEXTURE_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/volume/"
                 "t1_icbm_normal_1mm_pn0_rf0_180x216x180_uint8_1x1.bin",
     .callback = fetch_callback,
-    .buffer   = SFETCH_RANGE(state.textures.volume.data),
+    .buffer = {.ptr = state.textures.volume.data, .size = VOLUME_TEXTURE_SIZE},
   });
 
   /* Create the volume texture */
@@ -529,6 +537,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   sfetch_shutdown();
   imgui_overlay_shutdown();
+
+  /* Free volume data if not yet released */
+  free(state.textures.volume.data);
+  state.textures.volume.data = NULL;
 
   WGPU_RELEASE_RESOURCE(Texture, state.textures.volume.texture)
   WGPU_RELEASE_RESOURCE(TextureView, state.textures.volume.view)

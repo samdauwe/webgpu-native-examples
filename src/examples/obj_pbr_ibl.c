@@ -418,8 +418,10 @@ static struct {
   obj_hdr_image_t hdr;
 
   /* File loading */
-  uint8_t obj_file_buffer[1024 * 1024];     /* 1MB for OBJ file */
-  uint8_t hdr_file_buffer[4 * 1024 * 1024]; /* 4MB for HDR file */
+#define OBJ_PBR_IBL_OBJ_BUFFER_SIZE (1024 * 1024)
+  uint8_t* obj_file_buffer; /* 1MB for OBJ file */
+#define OBJ_PBR_IBL_HDR_BUFFER_SIZE (4 * 1024 * 1024)
+  uint8_t* hdr_file_buffer; /* 4MB for HDR file */
   bool obj_loaded;
   bool hdr_loaded;
   bool pipelines_created;
@@ -1086,6 +1088,9 @@ static void obj_fetch_callback(const sfetch_response_t* response)
   else if (response->failed) {
     printf("Failed to load OBJ file: error %d\n", response->error_code);
   }
+  /* Free the OBJ fetch buffer - no longer needed */
+  free(state.obj_file_buffer);
+  state.obj_file_buffer = NULL;
 }
 
 /**
@@ -1105,6 +1110,9 @@ static void hdr_fetch_callback(const sfetch_response_t* response)
   else if (response->failed) {
     printf("Failed to load HDR file: error %d\n", response->error_code);
   }
+  /* Free the HDR fetch buffer - no longer needed */
+  free(state.hdr_file_buffer);
+  state.hdr_file_buffer = NULL;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1117,17 +1125,21 @@ static void hdr_fetch_callback(const sfetch_response_t* response)
 static void init_file_loading(void)
 {
   /* Start loading OBJ file */
+  state.obj_file_buffer = (uint8_t*)malloc(OBJ_PBR_IBL_OBJ_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/models/sphere.obj",
     .callback = obj_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.obj_file_buffer),
+    .buffer
+    = {.ptr = state.obj_file_buffer, .size = OBJ_PBR_IBL_OBJ_BUFFER_SIZE},
   });
 
   /* Start loading HDR file */
+  state.hdr_file_buffer = (uint8_t*)malloc(OBJ_PBR_IBL_HDR_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/environments/venice_sunset_1k.hdr",
     .callback = hdr_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.hdr_file_buffer),
+    .buffer
+    = {.ptr = state.hdr_file_buffer, .size = OBJ_PBR_IBL_HDR_BUFFER_SIZE},
   });
 }
 
@@ -2725,6 +2737,12 @@ static void shutdown(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffers if not yet released */
+  free(state.obj_file_buffer);
+  state.obj_file_buffer = NULL;
+  free(state.hdr_file_buffer);
+  state.hdr_file_buffer = NULL;
 
   obj_data_cleanup(&state.obj);
 

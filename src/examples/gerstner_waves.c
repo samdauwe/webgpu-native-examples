@@ -783,6 +783,8 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   sfetch_shutdown();
 
+  plane_mesh_destroy(&state.plane_mesh);
+
   wgpu_destroy_texture(&state.sea_color_texture);
   WGPU_RELEASE_RESOURCE(Buffer, state.vertices.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.indices.buffer)

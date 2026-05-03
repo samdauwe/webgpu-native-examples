@@ -71,7 +71,8 @@ static struct {
   } view_matrices;
   wgpu_texture_t depth_texture;
   wgpu_texture_t texture;
-  uint8_t file_buffer[512 * 512 * 4];
+#define COMPUTE_PARTICLES_FILE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* file_buffer;
   WGPUBindGroup uniform_bind_group;
   WGPUBindGroup compute_bind_group;
   WGPURenderPipeline render_pipeline;
@@ -340,6 +341,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -370,16 +374,19 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
 {
   state.texture           = wgpu_create_texture(wgpu_context, NULL);
   wgpu_texture_t* texture = &state.texture;
+  state.file_buffer = (uint8_t*)malloc(COMPUTE_PARTICLES_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/webgpu.png",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = COMPUTE_PARTICLES_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -852,6 +859,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   WGPU_RELEASE_RESOURCE(Buffer, state.particles_buffer.buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.quad_vertices.buffer)

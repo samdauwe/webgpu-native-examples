@@ -49,7 +49,8 @@ static struct {
     vec4 padding; // Padding to reach the minimum binding size of 64 bytes
   } shader_inputs_ubo;
   wgpu_texture_t texture;
-  uint8_t file_buffer[1024 * 1024 * 5];
+#define EQUIRECTANGULAR_FILE_BUFFER_SIZE (1024 * 1024 * 5)
+  uint8_t* file_buffer;
   WGPUBindGroupLayout bind_group_layout;
   WGPUBindGroup bind_group;
   WGPUPipelineLayout pipeline_layout;
@@ -79,6 +80,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -105,6 +109,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
@@ -115,10 +121,11 @@ static void init_texture(wgpu_context_t* wgpu_context)
   /* Start loading the image file */
   const char* particle_texture_path = "assets/textures/Circus_Backstage_8k.jpg";
   wgpu_texture_t* texture           = &state.texture;
+  state.file_buffer = (uint8_t*)malloc(EQUIRECTANGULAR_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = particle_texture_path,
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = EQUIRECTANGULAR_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -376,6 +383,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   wgpu_destroy_texture(&state.texture);
   wgpu_destroy_buffer(&state.uniform_buffer_vs);

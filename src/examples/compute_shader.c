@@ -105,7 +105,8 @@ static struct {
   WGPURenderPassDescriptor render_pass_descriptor;
 
   /* File loading */
-  uint8_t file_buffer[2048 * 2048 * 4];
+#define COMPUTE_SHADER_FILE_BUFFER_SIZE (2048 * 2048 * 4)
+  uint8_t* file_buffer;
 
   /* ImGui */
   uint64_t last_frame_time;
@@ -148,6 +149,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Texture fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -174,6 +178,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 /* -- Texture loading ------------------------------------------------------ */
@@ -189,10 +195,11 @@ static void init_texture(wgpu_context_t* wgpu_context)
     });
 
   wgpu_texture_t* texture = &state.color_map;
+  state.file_buffer       = (uint8_t*)malloc(COMPUTE_SHADER_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/Di-3d.png",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = COMPUTE_SHADER_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -740,6 +747,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   /* Textures */
   wgpu_destroy_texture(&state.color_map);

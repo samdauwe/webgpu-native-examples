@@ -124,7 +124,7 @@ static struct {
     const char* file;
     wgpu_texture_t* texture;
   } texture_mappings[TEXTURE_COUNT];
-  uint8_t file_buffer[512 * 512 * 4];
+#define NORMAL_MAP_FILE_BUFFER_SIZE (512 * 512 * 4)
   /* Uniforms data */
   struct {
     mat4 projection;
@@ -413,6 +413,7 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -439,6 +440,7 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free((void*)response->buffer.ptr);
 }
 
 static void init_surface_bg_textures(wgpu_context_t* wgpu_context)
@@ -455,10 +457,11 @@ static void init_surface_bg_textures(wgpu_context_t* wgpu_context)
                  | WGPUTextureUsage_RenderAttachment,
       });
     /* Start loading the image file */
+    uint8_t* fetch_buf = (uint8_t*)malloc(NORMAL_MAP_FILE_BUFFER_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path      = state.texture_mappings[i].file,
       .callback  = fetch_callback,
-      .buffer    = SFETCH_RANGE(state.file_buffer),
+      .buffer    = {.ptr = fetch_buf, .size = NORMAL_MAP_FILE_BUFFER_SIZE},
       .user_data = {
         .ptr  = &texture,
         .size = sizeof(wgpu_texture_t*),
@@ -818,7 +821,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Light controls */
   if (igCollapsingHeader_BoolPtr("Light", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     /* Reset Light button */
     if (igButton("Reset Light", (ImVec2){0, 0})) {
       reset_light();
@@ -836,7 +839,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   /* Depth controls */
   if (igCollapsingHeader_BoolPtr("Depth", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("depthScale", &state.settings.depth_scale, 0.0f,
                                0.1f, "%.2f");
     imgui_overlay_slider_int("depthLayers", &state.settings.depth_layers, 1,

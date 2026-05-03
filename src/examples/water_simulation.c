@@ -202,12 +202,14 @@ static struct {
   } interaction;
 
   /* File loading */
+#define WATER_SIM_FILE_BUFFER_SIZE (512 * 512 * 4)
+#define WATER_SIM_SKYBOX_FACE_SIZE (512 * 512 * 4)
   struct {
-    uint8_t file_buffer[512 * 512 * 4];
+    uint8_t* file_buffer;
     size_t loaded_data_size;
     WGPUBool tiles_loaded;
     /* Skybox face buffers (6 faces) */
-    uint8_t skybox_buffers[6][512 * 512 * 4];
+    uint8_t* skybox_buffers[6];
     size_t skybox_sizes[6];
     int skybox_loaded_count;
     WGPUBool skybox_ready;
@@ -516,9 +518,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 static void tiles_texture_loaded(const sfetch_response_t* response)
 {
   if (response->fetched) {
-    if (response->data.size <= sizeof(state.file_loading.file_buffer)) {
-      memcpy(state.file_loading.file_buffer, response->data.ptr,
-             response->data.size);
+    if (response->data.size <= WATER_SIM_FILE_BUFFER_SIZE) {
       state.file_loading.loaded_data_size = response->data.size;
       state.file_loading.tiles_loaded     = true;
     }
@@ -535,10 +535,7 @@ static void skybox_face_loaded(const sfetch_response_t* response)
       face_idx = *(const int*)response->user_data;
     }
     if (face_idx >= 0 && face_idx < 6) {
-      if (response->data.size
-          <= sizeof(state.file_loading.skybox_buffers[face_idx])) {
-        memcpy(state.file_loading.skybox_buffers[face_idx], response->data.ptr,
-               response->data.size);
+      if (response->data.size <= WATER_SIM_SKYBOX_FACE_SIZE) {
         state.file_loading.skybox_sizes[face_idx] = response->data.size;
         state.file_loading.skybox_loaded_count++;
         if (state.file_loading.skybox_loaded_count == 6) {
@@ -581,10 +578,12 @@ static int example_init(wgpu_context_t* wgpu_context)
   glm_vec3_zero(state.sphere_physics.velocity);
 
   /* Start loading tiles texture */
+  state.file_loading.file_buffer = (uint8_t*)malloc(WATER_SIM_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/tiles.jpg",
     .callback = tiles_texture_loaded,
-    .buffer   = SFETCH_RANGE(state.file_loading.file_buffer),
+    .buffer   = {.ptr  = state.file_loading.file_buffer,
+                 .size = WATER_SIM_FILE_BUFFER_SIZE},
   });
 
   /* Start loading skybox faces */
@@ -598,11 +597,13 @@ static int example_init(wgpu_context_t* wgpu_context)
   };
   static int face_indices[6] = {0, 1, 2, 3, 4, 5};
   for (int i = 0; i < 6; i++) {
+    state.file_loading.skybox_buffers[i]
+      = (uint8_t*)malloc(WATER_SIM_SKYBOX_FACE_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path      = skybox_faces[i],
       .callback  = skybox_face_loaded,
       .buffer    = {.ptr  = state.file_loading.skybox_buffers[i],
-                    .size = sizeof(state.file_loading.skybox_buffers[i])},
+                    .size = WATER_SIM_SKYBOX_FACE_SIZE},
       .user_data = SFETCH_RANGE(face_indices[i]),
     });
   }
@@ -622,6 +623,14 @@ static void example_cleanup(wgpu_context_t* wgpu_context)
 
   /* Shutdown sokol */
   sfetch_shutdown();
+
+  /* Free any file buffers not yet released */
+  free(state.file_loading.file_buffer);
+  state.file_loading.file_buffer = NULL;
+  for (int i = 0; i < 6; i++) {
+    free(state.file_loading.skybox_buffers[i]);
+    state.file_loading.skybox_buffers[i] = NULL;
+  }
 
   /* Cleanup scene objects */
   if (state.resources_ready) {
@@ -713,6 +722,9 @@ static int example_frame(wgpu_context_t* wgpu_context)
                                 .maxAnisotropy = 1,
                               });
     }
+    /* Free the tiles file buffer now that the texture is created */
+    free(state.file_loading.file_buffer);
+    state.file_loading.file_buffer = NULL;
   }
 
   /* Create skybox cubemap texture when all faces are loaded */
@@ -810,6 +822,11 @@ static int example_frame(wgpu_context_t* wgpu_context)
       if (face_pixels[i]) {
         image_free(face_pixels[i]);
       }
+    }
+    /* Free the skybox file buffers now that the cubemap is created */
+    for (int i = 0; i < 6; i++) {
+      free(state.file_loading.skybox_buffers[i]);
+      state.file_loading.skybox_buffers[i] = NULL;
     }
   }
 
@@ -1124,7 +1141,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Rendering settings */
   if (igCollapsingHeader_BoolPtr("Rendering", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Show Sphere", &state.settings.show_sphere)) {
       /* Update shadow buffer when sphere visibility changes */
       update_shadow_uniforms(wgpu_context);
@@ -1134,7 +1151,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Physics settings */
   if (igCollapsingHeader_BoolPtr("Physics", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igCheckbox("Enable Gravity", &state.settings.gravity_enabled)) {
       state.sphere_physics.physics_enabled = state.settings.gravity_enabled;
     }
@@ -1150,7 +1167,8 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   /* Camera info */
-  if (igCollapsingHeader_BoolPtr("Camera Info", NULL, ImGuiTreeNodeFlags_None)) {
+  if (igCollapsingHeader_BoolPtr("Camera Info", NULL,
+                                 ImGuiTreeNodeFlags_None)) {
     igText("Pitch: %.1f", state.camera.angle_x);
     igText("Yaw: %.1f", state.camera.angle_y);
   }

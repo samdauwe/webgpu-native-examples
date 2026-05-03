@@ -396,7 +396,7 @@ static struct {
     uint32_t total;
     uint32_t completed;
   } async_pipelines;
-  uint8_t glb_fetch_buffer[GLB_FETCH_BUFFER_SIZE];
+  uint8_t* glb_fetch_buffer;
 
   /* Render bundle descriptor */
   WGPURenderBundleEncoderDescriptor render_bundle_desc;
@@ -1292,15 +1292,16 @@ static void glb_fetch_callback(const sfetch_response_t* response)
 {
   if (response->finished && !response->fetched) {
     fprintf(stderr, "GLB fetch failed: error %d\n", response->error_code);
+    /* Free on error - buffer is no longer needed */
+    free(state.glb_fetch_buffer);
+    state.glb_fetch_buffer = NULL;
     return;
   }
   if (!response->fetched)
     return;
 
   /* Point directly to the fetch buffer — no copy needed.
-   * The fetch buffer is a static array in the state struct, so it stays
-   * alive for the lifetime of the application.  We only issue one fetch
-   * request, so the buffer won't be overwritten. */
+   * The buffer stays alive until all images are decoded (GLB_LOAD_DONE). */
   state.glb_load.data      = (uint8_t*)response->data.ptr;
   state.glb_load.data_size = response->data.size;
   state.glb_load.state     = GLB_LOAD_READY;
@@ -2784,7 +2785,8 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   state.light_mgr.render_sprites = state.settings.render_light_sprites;
 
   /* Light count slider */
-  if (igSliderInt("Light Count", &state.settings.light_count, 5, 1024, "%d", 0)) {
+  if (igSliderInt("Light Count", &state.settings.light_count, 5, 1024, "%d",
+                  0)) {
     state.light_mgr.light_count = (uint32_t)MIN(
       state.settings.light_count, (int32_t)state.light_mgr.max_light_count);
   }
@@ -2865,7 +2867,8 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Start asynchronous GLB file loading — light sprites render immediately
    * while the model loads in the background */
-  state.glb_load.state = GLB_LOAD_PENDING;
+  state.glb_load.state   = GLB_LOAD_PENDING;
+  state.glb_fetch_buffer = (uint8_t*)malloc(GLB_FETCH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = GLB_MODEL_PATH,
     .callback = glb_fetch_callback,
@@ -2916,7 +2919,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
       }
       state.glb_load.data      = NULL;
       state.glb_load.data_size = 0;
-      state.glb_load.state     = GLB_LOAD_DONE;
+      /* Free the fetch buffer now that cgltf is done with it */
+      free(state.glb_fetch_buffer);
+      state.glb_fetch_buffer = NULL;
+      state.glb_load.state   = GLB_LOAD_DONE;
     }
   }
 
@@ -3032,6 +3038,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
     state.glb_load.cgltf = NULL;
   }
   state.glb_load.data = NULL;
+
+  /* Free fetch buffer if not yet released */
+  free(state.glb_fetch_buffer);
+  state.glb_fetch_buffer = NULL;
 
   /* Release render bundles and cached pipelines */
   invalidate_render_bundles();

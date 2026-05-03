@@ -55,6 +55,7 @@ static const char* quad_fragment_shader_wgsl;
 #define WORLD_SIZE_Y 20u
 #define WORLD_SIZE_Z 20u
 #define PP_EPSILON 0.00001f
+#define POST_PROCESSING_FILE_BUFFER_SIZE (2048 * 2048 * 4)
 
 /* -------------------------------------------------------------------------- *
  * Base transform class to handle vectors and matrices
@@ -684,9 +685,6 @@ static struct {
   float last_tween_change_time;
   uint64_t last_frame_time;
 
-  /* Async texture loading buffer */
-  uint8_t file_buffer[2048 * 2048 * 4];
-
   WGPUBool initialized;
 } state = {
   .options = {
@@ -977,6 +975,7 @@ static void prepare_post_fx_textures(wgpu_context_t* ctx)
 static void cutoff_mask_fetch_cb(const sfetch_response_t* response)
 {
   if (!response->fetched) {
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -985,6 +984,7 @@ static void cutoff_mask_fetch_cb(const sfetch_response_t* response)
   uint8_t* pixels
     = image_pixels_from_memory(response->data.ptr, (int)response->data.size, &w,
                                &h, &ch, desired_channels);
+  free((void*)response->buffer.ptr);
   if (pixels) {
     wgpu_texture_t* tex = *(wgpu_texture_t**)response->user_data;
     tex->desc           = (wgpu_texture_desc_t){
@@ -1002,10 +1002,11 @@ static void prepare_cutoff_mask_texture(wgpu_context_t* ctx)
   state.textures.cutoff_mask = wgpu_create_color_bars_texture(ctx, NULL);
 
   wgpu_texture_t* tex_ptr = &state.textures.cutoff_mask;
+  uint8_t* fetch_buf      = (uint8_t*)malloc(POST_PROCESSING_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/transition2.png",
     .callback  = cutoff_mask_fetch_cb,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = fetch_buf, .size = POST_PROCESSING_FILE_BUFFER_SIZE},
     .user_data = {.ptr = &tex_ptr, .size = sizeof(wgpu_texture_t*)},
   });
 }

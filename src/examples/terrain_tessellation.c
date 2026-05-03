@@ -171,9 +171,6 @@ static struct {
     bool skysphere_ready;
   } tex;
 
-  /* Fetch buffers for async texture loading */
-  uint8_t fetch_buffer[FETCH_BUFFER_SIZE];
-
   /* Uniform data (CPU side) */
   terrain_ubo_t terrain_ubo;
   sky_ubo_t sky_ubo;
@@ -801,9 +798,11 @@ static void terrain_array_fetch_cb(const sfetch_response_t* response)
   if (response->failed) {
     printf("ERROR: terrain texture array fetch failed (%d)\n",
            response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
   if (!response->fetched) {
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -811,6 +810,10 @@ static void terrain_array_fetch_cb(const sfetch_response_t* response)
   uint8_t* pixels
     = image_pixels_from_memory((const uint8_t*)response->data.ptr,
                                (int)response->data.size, &w, &h, &channels, 4);
+
+  /* Free the fetch buffer now that we have decoded the image */
+  free((void*)response->buffer.ptr);
+
   if (!pixels) {
     printf("ERROR: failed to decode terrain texture array\n");
     return;
@@ -834,9 +837,11 @@ static void skysphere_fetch_cb(const sfetch_response_t* response)
   if (response->failed) {
     printf("ERROR: skysphere texture fetch failed (%d)\n",
            response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
   if (!response->fetched) {
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -844,6 +849,10 @@ static void skysphere_fetch_cb(const sfetch_response_t* response)
   uint8_t* pixels
     = image_pixels_from_memory((const uint8_t*)response->data.ptr,
                                (int)response->data.size, &w, &h, &channels, 4);
+
+  /* Free the fetch buffer now that we have decoded the image */
+  free((void*)response->buffer.ptr);
+
   if (!pixels) {
     printf("ERROR: failed to decode skysphere texture\n");
     return;
@@ -1634,7 +1643,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Terrain Tessellation", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Tessellation", &state.settings.tessellation);
 
     imgui_overlay_input_float(
@@ -1661,7 +1670,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   if (igCollapsingHeader_BoolPtr("Pipeline statistics", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     uint32_t tri_ib = state.settings.tessellation ?
                         state.terrain.index_count :
                         state.terrain.coarse_index_count;
@@ -1747,15 +1756,17 @@ static int init(wgpu_context_t* wgpu_context)
   create_placeholder_textures(wgpu_context);
 
   /* Start async texture fetching */
+  uint8_t* terrain_buf = (uint8_t*)malloc(FETCH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/terrain_texturearray_rgba.png",
     .callback = terrain_array_fetch_cb,
-    .buffer   = {.ptr = state.fetch_buffer, .size = FETCH_BUFFER_SIZE},
+    .buffer   = {.ptr = terrain_buf, .size = FETCH_BUFFER_SIZE},
   });
+  uint8_t* skysphere_buf = (uint8_t*)malloc(FETCH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/skysphere_rgba.png",
     .callback = skysphere_fetch_cb,
-    .buffer   = {.ptr = state.fetch_buffer, .size = FETCH_BUFFER_SIZE},
+    .buffer   = {.ptr = skysphere_buf, .size = FETCH_BUFFER_SIZE},
   });
 
   /* Uniform buffers */

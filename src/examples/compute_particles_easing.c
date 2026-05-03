@@ -39,7 +39,8 @@ static const char* particle_fragment_shader_wgsl;
 /* State struct */
 static struct {
   wgpu_buffer_t vertices;
-  float initial_particle_data[PARTICLE_NUM * PROPERTY_NUM];
+#define INITIAL_PARTICLE_DATA_SIZE (PARTICLE_NUM * PROPERTY_NUM * sizeof(float))
+  float* initial_particle_data;
   struct {
     WGPUBindGroupLayout uniforms_bind_group_layout;
     WGPUBindGroup uniforms_bind_group;
@@ -55,7 +56,8 @@ static struct {
     WGPUComputePipeline pipeline;
   } compute;
   wgpu_texture_t particle_texture;
-  uint8_t file_buffer[64 * 64 * 4];
+#define COMPUTE_PARTICLES_EASING_FILE_BUFFER_SIZE (64 * 64 * 4)
+  uint8_t* file_buffer;
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
@@ -120,6 +122,9 @@ static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void init_particle_buffer(wgpu_context_t* wgpu_context)
 {
+  /* Allocate particle data buffer */
+  state.initial_particle_data = (float*)malloc(INITIAL_PARTICLE_DATA_SIZE);
+
   /* Particle data */
   const float current_time = stm_sec(stm_now());
   for (uint32_t i = 0; i < (uint32_t)PARTICLE_NUM; ++i) {
@@ -187,15 +192,22 @@ static void init_particle_buffer(wgpu_context_t* wgpu_context)
                     .label = "Compute particle - Vertex buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_Storage,
-                    .size         = sizeof(state.initial_particle_data),
+                    .size         = INITIAL_PARTICLE_DATA_SIZE,
                     .initial.data = state.initial_particle_data,
                   });
+
+  /* Free CPU-side particle data after GPU upload */
+  free(state.initial_particle_data);
+  state.initial_particle_data = NULL;
 }
 
 static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -222,6 +234,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_particle_texture(wgpu_context_t* wgpu_context)
@@ -231,11 +245,13 @@ static void init_particle_texture(wgpu_context_t* wgpu_context)
 
   /* Start loading the image file */
   const char* particle_texture_path = "assets/textures/particle.png";
-  wgpu_texture_t* texture           = &state.particle_texture;
+  state.file_buffer
+    = (uint8_t*)malloc(COMPUTE_PARTICLES_EASING_FILE_BUFFER_SIZE);
+  wgpu_texture_t* texture = &state.particle_texture;
   sfetch_send(&(sfetch_request_t){
     .path      = particle_texture_path,
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = COMPUTE_PARTICLES_EASING_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -263,7 +279,7 @@ static void init_compute_pipeline_layout(wgpu_context_t* wgpu_context)
         .visibility = WGPUShaderStage_Compute,
         .buffer = (WGPUBufferBindingLayout) {
         .type           = WGPUBufferBindingType_Storage,
-        .minBindingSize = sizeof(state.initial_particle_data),
+        .minBindingSize = INITIAL_PARTICLE_DATA_SIZE,
       },
       .sampler = {0},
     }
@@ -678,6 +694,13 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free particle data if not yet released */
+  free(state.initial_particle_data);
+  state.initial_particle_data = NULL;
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   /* Textures */
   wgpu_destroy_texture(&state.particle_texture);

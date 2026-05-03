@@ -51,7 +51,8 @@ static const uint32_t average_layers_per_fragment = 4;
 /* State struct */
 static struct {
   utah_teapot_mesh_t teapot_mesh;
-  uint8_t file_buffer[256 * 1024]; /* 256KB buffer for JSON file */
+#define A_BUFFER_FILE_BUFFER_SIZE (256 * 1024)
+  uint8_t* file_buffer; /* 256KB buffer for JSON file */
   WGPULimits device_limits;
   struct {
     wgpu_buffer_t vertex;
@@ -136,6 +137,9 @@ static void teapot_json_fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     fprintf(stderr, "File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -148,6 +152,8 @@ static void teapot_json_fetch_callback(const sfetch_response_t* response)
   else {
     fprintf(stderr, "Failed to load Utah teapot mesh\n");
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_device_limits(wgpu_context_t* wgpu_context)
@@ -976,10 +982,11 @@ static int init(struct wgpu_context_t* wgpu_context)
   init_device_limits(wgpu_context);
 
   /* Start async loading of teapot JSON */
+  state.file_buffer = (uint8_t*)malloc(A_BUFFER_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/meshes/teapot.json",
     .callback = teapot_json_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+    .buffer   = {.ptr = state.file_buffer, .size = A_BUFFER_FILE_BUFFER_SIZE},
   });
 
   /* Initialize depth texture */
@@ -1227,6 +1234,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
   imgui_overlay_shutdown();
 
   wgpu_destroy_buffer(&state.buffers.vertex);

@@ -82,7 +82,7 @@ static struct {
     const char* file;
     wgpu_texture_t* texture;
   } texture_mappings[TEXTURE_COUNT];
-  uint8_t file_buffer[512 * 512 * 4];
+#define COORDINATE_SYSTEM_FILE_BUFFER_SIZE (512 * 512 * 4)
   /* Quad buffers */
   struct {
     wgpu_buffer_t vertices_y_up;
@@ -159,6 +159,7 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -185,6 +186,7 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free((void*)response->buffer.ptr);
 }
 
 static void init_textures(wgpu_context_t* wgpu_context)
@@ -201,10 +203,11 @@ static void init_textures(wgpu_context_t* wgpu_context)
                  | WGPUTextureUsage_RenderAttachment,
       });
     /* Start loading the image file */
+    uint8_t* fetch_buf = (uint8_t*)malloc(COORDINATE_SYSTEM_FILE_BUFFER_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path      = state.texture_mappings[i].file,
       .callback  = fetch_callback,
-      .buffer    = SFETCH_RANGE(state.file_buffer),
+      .buffer    = {.ptr = fetch_buf, .size = COORDINATE_SYSTEM_FILE_BUFFER_SIZE},
       .user_data = {
         .ptr  = &texture,
         .size = sizeof(wgpu_texture_t*),
@@ -471,7 +474,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Scene section */
   if (igCollapsingHeader_BoolPtr("Scene", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     int quad_type = state.settings.quad_type;
     if (imgui_overlay_combo_box("Quad Type", &quad_type, state.quad_type_str,
                                 2)) {
@@ -481,7 +484,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Pipeline section */
   if (igCollapsingHeader_BoolPtr("Pipeline", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     int winding_order = state.settings.winding_order;
     if (imgui_overlay_combo_box("Winding Order", &winding_order,
                                 state.winding_order_str, 2)) {

@@ -80,7 +80,6 @@ static struct {
     const char* file;
     wgpu_texture_t* texture;
   } texture_mappings[TEXTURE_COUNT];
-  uint8_t file_buffers[TEXTURE_COUNT][FILE_BUFFER_SIZE];
 
   /* Uniform buffers */
   WGPUBuffer uniform_buffer_vs;
@@ -252,6 +251,7 @@ static void fetch_callback(const sfetch_response_t* response)
   if (!response->fetched) {
     printf("File fetch failed: %s (error: %d)\n",
            response->path ? response->path : "?", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -260,6 +260,10 @@ static void fetch_callback(const sfetch_response_t* response)
   uint8_t* pixels            = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_width, &img_height,
     &num_channels, desired_channels);
+
+  /* Free the fetch buffer now that we have decoded the image */
+  free((void*)response->buffer.ptr);
+
   if (pixels) {
     wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
     texture->desc            = (wgpu_texture_desc_t){
@@ -290,11 +294,12 @@ static void init_textures(struct wgpu_context_t* wgpu_context)
         .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                  | WGPUTextureUsage_RenderAttachment,
       });
+    uint8_t* fetch_buf = (uint8_t*)malloc(FILE_BUFFER_SIZE);
     /* Start async file load */
     sfetch_send(&(sfetch_request_t){
       .path     = state.texture_mappings[i].file,
       .callback = fetch_callback,
-      .buffer   = { .ptr = state.file_buffers[i], .size = FILE_BUFFER_SIZE },
+      .buffer   = { .ptr = fetch_buf, .size = FILE_BUFFER_SIZE },
       .user_data = {
         .ptr  = &texture,
         .size = sizeof(wgpu_texture_t*),

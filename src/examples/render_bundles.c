@@ -72,10 +72,7 @@ static struct {
     wgpu_texture_t moon;
   } textures;
   /* File buffers for async loading */
-  struct {
-    uint8_t planet[1024 * 1024 * 4];
-    uint8_t moon[1024 * 1024 * 4];
-  } file_buffers;
+#define RENDER_BUNDLES_FILE_BUFFER_SIZE (1024 * 1024 * 4)
   uint32_t textures_loaded;
   /* View matrices */
   struct {
@@ -167,6 +164,7 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Texture fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -176,6 +174,7 @@ static void fetch_callback(const sfetch_response_t* response)
   uint8_t* pixels            = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_width, &img_height,
     &num_channels, desired_channels);
+  free((void*)response->buffer.ptr);
 
   if (pixels) {
     wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
@@ -207,20 +206,22 @@ static void init_textures(wgpu_context_t* wgpu_context)
   wgpu_texture_t* planet_tex = &state.textures.planet;
   wgpu_texture_t* moon_tex   = &state.textures.moon;
 
+  uint8_t* planet_buf = (uint8_t*)malloc(RENDER_BUNDLES_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/saturn.jpg",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffers.planet),
+    .buffer    = {.ptr = planet_buf, .size = RENDER_BUNDLES_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &planet_tex,
       .size = sizeof(wgpu_texture_t*),
     },
   });
 
+  uint8_t* moon_buf = (uint8_t*)malloc(RENDER_BUNDLES_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/moon.jpg",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffers.moon),
+    .buffer    = {.ptr = moon_buf, .size = RENDER_BUNDLES_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &moon_tex,
       .size = sizeof(wgpu_texture_t*),

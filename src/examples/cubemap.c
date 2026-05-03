@@ -64,7 +64,7 @@ static struct {
     WGPUSampler sampler;
     WGPUBool is_dirty;
   } cubemap_texture;
-  uint8_t cubemap_pixels[NUM_FACES][FACE_NUM_BYTES];
+  uint8_t* cubemap_pixels[NUM_FACES];
   int load_count;
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
@@ -197,8 +197,6 @@ static void fetch_callback(const sfetch_response_t* response)
     return;
   }
 
-  /* The file data has been fetched, since we provided a big-enough buffer we
-   * can be sure that all data has been loaded here */
   int img_width, img_height, num_channels;
   const int desired_channels = 4;
   uint8_t* decoded_pixels    = image_pixels_from_memory(
@@ -227,10 +225,11 @@ static void fetch_cubemap_texture(void)
     "assets/textures/cubemaps/bridge2_nz.jpg", /* -Z Front  */
   };
   for (int i = 0; i < NUM_FACES; i++) {
+    state.cubemap_pixels[i] = (uint8_t*)malloc(FACE_NUM_BYTES);
     sfetch_send(&(sfetch_request_t){
       .path     = cubemap_paths[i],
       .callback = fetch_callback,
-      .buffer   = SFETCH_RANGE(state.cubemap_pixels[i]),
+      .buffer   = {.ptr = state.cubemap_pixels[i], .size = FACE_NUM_BYTES},
     });
   }
   state.cubemap_texture.is_dirty = 1;
@@ -310,6 +309,12 @@ static void update_texture_pixels(wgpu_context_t* wgpu_context)
   }
 
   state.cubemap_texture.is_dirty = 0;
+
+  /* Free the face pixel buffers - data has been uploaded to GPU */
+  for (uint32_t face = 0; face < NUM_FACES; ++face) {
+    free(state.cubemap_pixels[face]);
+    state.cubemap_pixels[face] = NULL;
+  }
 }
 
 static void init_view_matrices(wgpu_context_t* wgpu_context)
@@ -532,6 +537,12 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free any face pixel buffers not yet released */
+  for (int i = 0; i < NUM_FACES; i++) {
+    free(state.cubemap_pixels[i]);
+    state.cubemap_pixels[i] = NULL;
+  }
 
   WGPU_RELEASE_RESOURCE(Texture, state.cubemap_texture.handle);
   WGPU_RELEASE_RESOURCE(TextureView, state.cubemap_texture.view);

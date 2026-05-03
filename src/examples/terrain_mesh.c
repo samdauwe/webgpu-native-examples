@@ -100,7 +100,7 @@ static struct {
     wgpu_texture_t heightmap;
   } textures;
   WGPUSampler linear_sampler;
-  uint8_t file_buffers[2][512 * 512 * 4];
+#define TERRAIN_MESH_FILE_BUFFER_SIZE (512 * 512 * 4)
   /* Render pipeline + layout */
   WGPURenderPipeline render_pipeline;
   WGPUPipelineLayout pipeline_layout;
@@ -294,6 +294,7 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -304,6 +305,10 @@ static void fetch_callback(const sfetch_response_t* response)
   uint8_t* pixels            = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_width, &img_height,
     &num_channels, desired_channels);
+
+  /* Free the fetch buffer now that we have decoded the image */
+  free((void*)response->buffer.ptr);
+
   if (pixels) {
     wgpu_texture_t* texture = *(wgpu_texture_t**)response->user_data;
     texture->desc = (wgpu_texture_desc_t){
@@ -355,11 +360,12 @@ static void init_textures(wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < ARRAY_SIZE(tex_paths); ++i) {
     wgpu_texture_t* texture
       = (i == 0) ? &state.textures.color : &state.textures.heightmap;
+    uint8_t* fetch_buf = (uint8_t*)malloc(TERRAIN_MESH_FILE_BUFFER_SIZE);
     /* Start loading the image file */
     sfetch_send(&(sfetch_request_t){
       .path      = tex_paths[i],
       .callback  = fetch_callback,
-      .buffer    = SFETCH_RANGE(state.file_buffers[i]),
+      .buffer    = {.ptr = fetch_buf, .size = TERRAIN_MESH_FILE_BUFFER_SIZE},
       .user_data = SFETCH_RANGE(texture),
     });
   }

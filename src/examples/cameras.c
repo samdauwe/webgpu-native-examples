@@ -835,7 +835,8 @@ static struct {
     wgpu_texture_t depth;
     WGPUSampler sampler;
   } textures;
-  uint8_t file_buffer[512 * 512 * 4];
+#define CAMERAS_FILE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* file_buffer;
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
@@ -921,6 +922,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -947,6 +951,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
@@ -994,10 +1000,11 @@ static void init_texture(wgpu_context_t* wgpu_context)
   if (!state.textures.cube.handle) {
     state.textures.cube = wgpu_create_color_bars_texture(wgpu_context, NULL);
     wgpu_texture_t* texture = &state.textures.cube;
+    state.file_buffer       = (uint8_t*)malloc(CAMERAS_FILE_BUFFER_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path      = "assets/textures/Di-3d.png",
       .callback  = fetch_callback,
-      .buffer    = SFETCH_RANGE(state.file_buffer),
+      .buffer    = {.ptr = state.file_buffer, .size = CAMERAS_FILE_BUFFER_SIZE},
       .user_data = {
         .ptr  = &texture,
         .size = sizeof(wgpu_texture_t*),
@@ -1463,6 +1470,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   WGPU_RELEASE_RESOURCE(BindGroup, state.cube.uniform_buffer_bind_group)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)

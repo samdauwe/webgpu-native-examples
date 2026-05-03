@@ -109,7 +109,7 @@ static struct {
     WGPUSampler sampler;
     bool is_dirty;
   } cubemap_texture;
-  uint8_t cubemap_pixels[NUM_CUBEMAP_FACES][CUBEMAP_FACE_NUM_BYTES];
+  uint8_t* cubemap_pixels[NUM_CUBEMAP_FACES];
   int cubemap_load_count;
 
   /* Offscreen framebuffers (2 for ping-pong blur) */
@@ -403,11 +403,13 @@ static void fetch_cubemap_faces(void)
   state.cubemap_load_count       = 0;
 
   for (int i = 0; i < NUM_CUBEMAP_FACES; i++) {
+    state.cubemap_pixels[i] = (uint8_t*)malloc(CUBEMAP_FACE_NUM_BYTES);
     sfetch_send(&(sfetch_request_t){
       .path     = face_paths[i],
       .callback = cubemap_fetch_callback,
-      .buffer   = SFETCH_RANGE(state.cubemap_pixels[i]),
-      .channel  = 0,
+      .buffer
+      = {.ptr = state.cubemap_pixels[i], .size = CUBEMAP_FACE_NUM_BYTES},
+      .channel = 0,
     });
   }
 }
@@ -464,6 +466,12 @@ static void upload_cubemap_pixels(struct wgpu_context_t* wgpu_context)
   wgpuCommandEncoderRelease(enc);
 
   state.cubemap_texture.is_dirty = false;
+
+  /* Free face pixel buffers - data uploaded to GPU */
+  for (int face = 0; face < NUM_CUBEMAP_FACES; face++) {
+    free(state.cubemap_pixels[face]);
+    state.cubemap_pixels[face] = NULL;
+  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1244,7 +1252,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Bloom Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Bloom", &state.settings.bloom);
     imgui_overlay_slider_float("Blur Scale", &state.settings.blur_scale, 0.1f,
                                4.0f, "%.1f");
@@ -1480,6 +1488,12 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
   sfetch_shutdown();
+
+  /* Free any cubemap pixel buffers not yet released */
+  for (int i = 0; i < NUM_CUBEMAP_FACES; i++) {
+    free(state.cubemap_pixels[i]);
+    state.cubemap_pixels[i] = NULL;
+  }
 
   /* Destroy models */
   gltf_model_destroy(&state.ufo_model);

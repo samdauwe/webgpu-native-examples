@@ -117,8 +117,12 @@ function(add_example_executable EXAMPLE_NAME)
         C_STANDARD 99
         C_STANDARD_REQUIRED ON
         C_EXTENSIONS OFF
-        INTERPROCEDURAL_OPTIMIZATION ON
     )
+    if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|MinSizeRel")
+        set_target_properties(${EXAMPLE_NAME} PROPERTIES
+            INTERPROCEDURAL_OPTIMIZATION ON
+        )
+    endif()
     # ==============================================================================
     # Target compilation options
     # ==============================================================================
@@ -173,13 +177,6 @@ function(add_example_executable EXAMPLE_NAME)
             target_link_libraries(${EXAMPLE_NAME} PRIVATE cimgui)
         endif()
     endif()
-    # ==============================================================================
-    # Target properties
-    # ==============================================================================
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES C_STANDARD 99)
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES C_STANDARD_REQUIRED ON)
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES C_EXTENSIONS OFF)
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
     # ==============================================================================
     # IDE support
     # ==============================================================================

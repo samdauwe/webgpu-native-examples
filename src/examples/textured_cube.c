@@ -52,7 +52,8 @@ static struct {
     mat4 view;
   } view_matrices;
   wgpu_texture_t texture;
-  uint8_t file_buffer[512 * 512 * 4];
+#define TEXTURED_CUBE_FILE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* file_buffer;
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
@@ -163,6 +164,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -189,16 +193,19 @@ static void fetch_callback(const sfetch_response_t* response)
       };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
 {
   state.texture           = wgpu_create_color_bars_texture(wgpu_context, NULL);
   wgpu_texture_t* texture = &state.texture;
+  state.file_buffer       = (uint8_t*)malloc(TEXTURED_CUBE_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/Di-3d.png",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = TEXTURED_CUBE_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -434,6 +441,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)

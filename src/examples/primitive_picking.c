@@ -57,7 +57,8 @@ static const char* compute_pick_primitive_wgsl;
 /* State struct */
 static struct {
   utah_teapot_mesh_t teapot_mesh;
-  uint8_t file_buffer[256 * 1024]; /* 256KB buffer for JSON file */
+#define PRIMITIVE_PICKING_FILE_BUFFER_SIZE (256 * 1024)
+  uint8_t* file_buffer; /* 256KB buffer for JSON file */
   struct {
     wgpu_buffer_t vertex;
     wgpu_buffer_t index;
@@ -170,6 +171,9 @@ static void teapot_json_fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     fprintf(stderr, "File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -182,6 +186,8 @@ static void teapot_json_fetch_callback(const sfetch_response_t* response)
   else {
     fprintf(stderr, "Failed to load Utah teapot mesh\n");
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_textures(wgpu_context_t* wgpu_context)
@@ -872,10 +878,12 @@ static int setup(struct wgpu_context_t* wgpu_context)
   });
 
   /* Start loading the teapot mesh */
+  state.file_buffer = (uint8_t*)malloc(PRIMITIVE_PICKING_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/meshes/teapot.json",
     .callback = teapot_json_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+    .buffer
+    = {.ptr = state.file_buffer, .size = PRIMITIVE_PICKING_FILE_BUFFER_SIZE},
   });
 
   /* Initialize imgui overlay */
@@ -912,6 +920,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   /* Shutdown sokol_fetch */
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   /* Shutdown imgui overlay */
   imgui_overlay_shutdown();

@@ -65,11 +65,11 @@ static const char* face_extract_shader_wgsl;
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define NUM_CUBEMAP_FACES  (6)
-#define NUM_ARRAY_LAYERS   (3)
-#define NUM_TOTAL_LAYERS   (NUM_CUBEMAP_FACES * NUM_ARRAY_LAYERS) /* 18 */
+#define NUM_CUBEMAP_FACES (6)
+#define NUM_ARRAY_LAYERS (3)
+#define NUM_TOTAL_LAYERS (NUM_CUBEMAP_FACES * NUM_ARRAY_LAYERS) /* 18 */
 /* Horizontal cross source images: each 1024×768, face size = 1024/4 = 256 */
-#define CUBEMAP_FACE_SIZE  (256)
+#define CUBEMAP_FACE_SIZE (256)
 /* Buffer large enough for each compressed PNG cross file (~650 KB) */
 #define CROSS_FILE_BUF_SIZE (2u * 1024u * 1024u)
 
@@ -80,13 +80,13 @@ static const char* face_extract_shader_wgsl;
  * -------------------------------------------------------------------------- */
 
 typedef struct {
-  mat4    projection;         /* 64 bytes, offset   0 */
-  mat4    model_view;         /* 64 bytes, offset  64 */
-  mat4    inverse_model_view; /* 64 bytes, offset 128 */
-  float   lod_bias;           /*  4 bytes, offset 192 */
-  int32_t cube_map_index;     /*  4 bytes, offset 196 */
-  float   _pad[2];            /*  8 bytes, offset 200 */
-} uniform_data_t;             /* 208 bytes total */
+  mat4 projection;         /* 64 bytes, offset   0 */
+  mat4 model_view;         /* 64 bytes, offset  64 */
+  mat4 inverse_model_view; /* 64 bytes, offset 128 */
+  float lod_bias;          /*  4 bytes, offset 192 */
+  int32_t cube_map_index;  /*  4 bytes, offset 196 */
+  float _pad[2];           /*  8 bytes, offset 200 */
+} uniform_data_t;          /* 208 bytes total */
 
 /* -------------------------------------------------------------------------- *
  * Global state
@@ -121,7 +121,7 @@ static struct {
   } cubemap;
 
   /* Per-layer raw PNG file buffers for sokol_fetch */
-  uint8_t cross_file_buf[NUM_ARRAY_LAYERS][CROSS_FILE_BUF_SIZE];
+  uint8_t* cross_file_buf[NUM_ARRAY_LAYERS];
   /* Decoded cross image pixels per layer (freed after GPU upload) */
   uint8_t* cross_pixels[NUM_ARRAY_LAYERS];
   int cross_width[NUM_ARRAY_LAYERS];
@@ -253,7 +253,8 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
  */
 static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
 {
-  /* Use the dimensions from layer 0; all three cross images are the same size */
+  /* Use the dimensions from layer 0; all three cross images are the same size
+   */
   const uint32_t cross_w   = (uint32_t)state.cross_width[0];
   const uint32_t face_size = cross_w / 4u; /* = cross_h / 3 */
 
@@ -371,12 +372,11 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
     WGPUTexture src_tex = wgpuDeviceCreateTexture(
       wgpu_context->device,
       &(WGPUTextureDescriptor){
-        .label         = STRVIEW("Cross source texture"),
-        .usage         = WGPUTextureUsage_TextureBinding
-                         | WGPUTextureUsage_CopyDst,
-        .dimension     = WGPUTextureDimension_2D,
-        .size          = {lw, lh, 1},
-        .format        = WGPUTextureFormat_RGBA8Unorm,
+        .label     = STRVIEW("Cross source texture"),
+        .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+        .dimension = WGPUTextureDimension_2D,
+        .size      = {lw, lh, 1},
+        .format    = WGPUTextureFormat_RGBA8Unorm,
         .mipLevelCount = 1,
         .sampleCount   = 1,
       });
@@ -492,11 +492,11 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
    * ---------------------------------------------------------------------- */
   state.cubemap.view = wgpuTextureCreateView(
     state.cubemap.handle, &(WGPUTextureViewDescriptor){
-                            .label           = STRVIEW("Cubemap array view"),
-                            .format          = WGPUTextureFormat_RGBA8Unorm,
-                            .dimension       = WGPUTextureViewDimension_CubeArray,
-                            .baseMipLevel    = 0,
-                            .mipLevelCount   = mip_count,
+                            .label         = STRVIEW("Cubemap array view"),
+                            .format        = WGPUTextureFormat_RGBA8Unorm,
+                            .dimension     = WGPUTextureViewDimension_CubeArray,
+                            .baseMipLevel  = 0,
+                            .mipLevelCount = mip_count,
                             .baseArrayLayer  = 0,
                             .arrayLayerCount = NUM_TOTAL_LAYERS,
                             .aspect          = WGPUTextureAspect_All,
@@ -539,8 +539,10 @@ static void cross_fetch_callback(const sfetch_response_t* response)
   const uint32_t layer = *(const uint32_t*)response->user_data;
 
   if (!response->fetched || !response->data.ptr || !response->data.size) {
-    printf("[texture_cubemap_array] Failed to fetch cross image %u, error: %d\n",
-           layer, response->error_code);
+    printf(
+      "[texture_cubemap_array] Failed to fetch cross image %u, error: %d\n",
+      layer, response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -548,6 +550,7 @@ static void cross_fetch_callback(const sfetch_response_t* response)
   state.cross_pixels[layer]
     = image_pixels_from_memory(response->data.ptr, (int)response->data.size,
                                &width, &height, &channels, 4);
+  free((void*)response->buffer.ptr);
   if (!state.cross_pixels[layer]) {
     printf("[texture_cubemap_array] Failed to decode cross PNG for layer %u\n",
            layer);
@@ -558,8 +561,9 @@ static void cross_fetch_callback(const sfetch_response_t* response)
   state.cross_height[layer] = height;
   state.cross_loaded_count++;
 
-  printf("[texture_cubemap_array] Layer %u cross image decoded: %dx%d (%d ch)\n",
-         layer, width, height, channels);
+  printf(
+    "[texture_cubemap_array] Layer %u cross image decoded: %dx%d (%d ch)\n",
+    layer, width, height, channels);
 }
 
 static void fetch_cubemap_crosses(void)
@@ -573,10 +577,11 @@ static void fetch_cubemap_crosses(void)
   static const uint32_t layer_indices[NUM_ARRAY_LAYERS] = {0, 1, 2};
 
   for (uint32_t i = 0; i < NUM_ARRAY_LAYERS; ++i) {
+    state.cross_file_buf[i] = (uint8_t*)malloc(CROSS_FILE_BUF_SIZE);
     sfetch_send(&(sfetch_request_t){
-      .path      = cross_paths[i],
-      .callback  = cross_fetch_callback,
-      .buffer    = SFETCH_RANGE(state.cross_file_buf[i]),
+      .path     = cross_paths[i],
+      .callback = cross_fetch_callback,
+      .buffer   = {.ptr = state.cross_file_buf[i], .size = CROSS_FILE_BUF_SIZE},
       .user_data = SFETCH_RANGE(layer_indices[i]),
     });
   }
@@ -770,18 +775,18 @@ static void create_bind_group(wgpu_context_t* wgpu_context)
 static void init_pipelines(wgpu_context_t* wgpu_context)
 {
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
-    wgpu_context->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .label                = STRVIEW("Cubemap array pipeline layout"),
-      .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = &state.bind_group_layout,
-    });
+    wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
+                            .label = STRVIEW("Cubemap array pipeline layout"),
+                            .bindGroupLayoutCount = 1,
+                            .bindGroupLayouts     = &state.bind_group_layout,
+                          });
   ASSERT(state.pipeline_layout);
 
   WGPUShaderModule shader = wgpu_create_shader_module(
     wgpu_context->device, texture_cubemap_array_shader_wgsl);
 
-  /* Vertex attributes: position (skybox + reflect) and normal (reflect only). */
+  /* Vertex attributes: position (skybox + reflect) and normal (reflect only).
+   */
   WGPUVertexAttribute attrs[2] = {
     [0] = {
       .shaderLocation = 0,
@@ -931,7 +936,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igCheckbox("Display skybox", &state.settings.display_skybox);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_int("Cube map", &state.settings.cube_map_index, 0,
                              NUM_ARRAY_LAYERS - 1);
     imgui_overlay_combo_box("##object_select", &state.settings.object_index,
@@ -1025,8 +1030,7 @@ static int frame(wgpu_context_t* wgpu_context)
   sfetch_dowork();
 
   /* When all 3 cross PNGs are decoded, extract faces and build the cubemap */
-  if (!state.cubemap.is_ready
-      && state.cross_loaded_count == NUM_ARRAY_LAYERS) {
+  if (!state.cubemap.is_ready && state.cross_loaded_count == NUM_ARRAY_LAYERS) {
     extract_cubemap_faces_from_crosses(wgpu_context);
     state.cubemap.is_ready = true;
     state.bind_group_dirty = true;
@@ -1114,7 +1118,8 @@ static void shutdown(wgpu_context_t* wgpu_context)
   }
   WGPU_RELEASE_RESOURCE(Sampler, state.cubemap.sampler)
 
-  /* Free any pending CPU pixel buffers (should already be NULL after loading) */
+  /* Free any pending CPU pixel buffers (should already be NULL after loading)
+   */
   for (int i = 0; i < NUM_ARRAY_LAYERS; ++i) {
     if (state.cross_pixels[i]) {
       image_free(state.cross_pixels[i]);

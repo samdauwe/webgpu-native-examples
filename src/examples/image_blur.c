@@ -50,7 +50,8 @@ static struct {
   WGPUSampler texture_sampler;
   wgpu_texture_t blur_textures[2];
   wgpu_buffer_t uniform_buffers[2];
-  uint8_t file_buffer[512 * 512 * 4];
+#define IMAGE_BLUR_FILE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* file_buffer;
   uint32_t uniform_buffer_data[2];
   wgpu_buffer_t blur_params_buffer;
   WGPUBindGroup compute_constants_bind_group;
@@ -98,6 +99,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("File fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -125,6 +129,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
@@ -137,10 +143,11 @@ static void init_texture(wgpu_context_t* wgpu_context)
                | WGPUTextureUsage_RenderAttachment,
     });
   wgpu_texture_t* texture = &state.texture;
+  state.file_buffer       = (uint8_t*)malloc(IMAGE_BLUR_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/Di-3d.png",
     .callback  = fetch_callback,
-    .buffer    = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = IMAGE_BLUR_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -621,6 +628,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   WGPU_RELEASE_RESOURCE(TextureView, state.blur_textures[0].view)
   WGPU_RELEASE_RESOURCE(TextureView, state.blur_textures[1].view)

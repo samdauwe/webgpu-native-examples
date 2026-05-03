@@ -474,7 +474,8 @@ static struct {
 
   /* Texture */
   wgpu_texture_t texture;
-  uint8_t file_buffer[2048 * 2048 * 4];
+#define METABALLS_FILE_BUFFER_SIZE (2048 * 2048 * 4)
+  uint8_t* file_buffer;
   WGPUSampler sampler;
 
   /* Bind groups & layouts */
@@ -1308,6 +1309,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     fprintf(stderr, "Texture fetch failed: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
   int img_width, img_height, num_channels;
@@ -1327,14 +1331,17 @@ static void fetch_callback(const sfetch_response_t* response)
       .is_dirty  = true,
     };
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void load_texture(const char* path)
 {
+  state.file_buffer = (uint8_t*)malloc(METABALLS_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = path,
     .callback = fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+    .buffer   = {.ptr = state.file_buffer, .size = METABALLS_FILE_BUFFER_SIZE},
   });
 }
 
@@ -2172,6 +2179,11 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
   sfetch_shutdown();
   imgui_overlay_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
+
   wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.normal_buffer)

@@ -94,7 +94,6 @@ static struct {
   struct {
     wgpu_texture_t textures[NUM_TEXTURES];
     WGPUSampler sampler;
-    uint8_t file_buffers[NUM_TEXTURES][TEXTURE_FILE_BUFFER_SIZE];
     int load_count;
     bool all_loaded;
   } textures;
@@ -482,8 +481,11 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
 
 static void texture_fetch_callback(const sfetch_response_t* response)
 {
+  int tex_index = *(int*)response->user_data;
+
   if (!response->fetched) {
     printf("Texture fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
     return;
   }
 
@@ -491,8 +493,9 @@ static void texture_fetch_callback(const sfetch_response_t* response)
   uint8_t* pixels = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &img_w, &img_h, &num_ch, 4);
 
+  free((void*)response->buffer.ptr);
+
   if (pixels) {
-    int tex_index       = *(int*)response->user_data;
     wgpu_texture_t* tex = &state.textures.textures[tex_index];
 
     tex->desc = (wgpu_texture_desc_t){
@@ -527,10 +530,11 @@ static void fetch_textures(void)
   state.textures.all_loaded = false;
 
   for (uint32_t i = 0; i < NUM_TEXTURES; i++) {
+    uint8_t* fetch_buf = (uint8_t*)malloc(TEXTURE_FILE_BUFFER_SIZE);
     sfetch_send(&(sfetch_request_t){
       .path      = texture_paths[i],
       .callback  = texture_fetch_callback,
-      .buffer    = SFETCH_RANGE(state.textures.file_buffers[i]),
+      .buffer    = {.ptr = fetch_buf, .size = TEXTURE_FILE_BUFFER_SIZE},
       .user_data = {
         .ptr  = &tex_indices[i],
         .size = sizeof(int),
@@ -1217,7 +1221,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
           ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     static const char* display_items[]
       = {"Final composition", "Position", "Normals", "Albedo", "Specular"};
     imgui_overlay_combo_box("Display", &state.settings.debug_display_target,
@@ -1387,6 +1391,7 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
   sfetch_shutdown();
+
   imgui_overlay_shutdown();
 
   /* Release G-Buffer textures */

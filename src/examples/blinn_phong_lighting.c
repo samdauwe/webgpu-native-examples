@@ -103,8 +103,10 @@ static struct {
   torus_knot_mesh_t torus_knot_mesh;
   sphere_mesh_t sphere_mesh;
   /* Async loading buffers */
-  uint8_t mesh_file_buffer[768 * 1024];
-  uint8_t texture_file_buffer[512 * 512 * 4];
+#define BLINN_PHONG_MESH_BUFFER_SIZE (768 * 1024)
+  uint8_t* mesh_file_buffer;
+#define BLINN_PHONG_TEXTURE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* texture_file_buffer;
   /* GPU Buffers */
   struct {
     struct {
@@ -360,15 +362,23 @@ static void mesh_fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Error: mesh fetch failed (error: %d)\n", response->error_code);
+    free(state.mesh_file_buffer);
+    state.mesh_file_buffer = NULL;
+
     return;
   }
   parse_torus_knot_mesh(response->data.ptr, response->data.size);
+  free(state.mesh_file_buffer);
+  state.mesh_file_buffer = NULL;
 }
 
 static void texture_fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Error: texture fetch failed (error: %d)\n", response->error_code);
+    free(state.texture_file_buffer);
+    state.texture_file_buffer = NULL;
+
     return;
   }
 
@@ -393,6 +403,8 @@ static void texture_fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.texture_file_buffer);
+  state.texture_file_buffer = NULL;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -560,10 +572,12 @@ static void init_texture(wgpu_context_t* wgpu_context)
   state.textures.face = wgpu_create_color_bars_texture(wgpu_context, NULL);
 
   /* Start async fetch of the actual texture */
+  state.texture_file_buffer = (uint8_t*)malloc(BLINN_PHONG_TEXTURE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/uv.jpg",
     .callback = texture_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.texture_file_buffer),
+    .buffer   = {.ptr  = state.texture_file_buffer,
+                 .size = BLINN_PHONG_TEXTURE_BUFFER_SIZE},
   });
 }
 
@@ -952,7 +966,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   imgui_overlay_checkbox("Paused", &state.settings.paused);
 
   if (igCollapsingHeader_BoolPtr("Lighting", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Shininess", &state.settings.shininess, 1.0f,
                                256.0f, "%.0f");
     imgui_overlay_slider_float("Light Flux", &state.settings.light_flux, 1.0f,
@@ -960,7 +974,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   }
 
   if (igCollapsingHeader_BoolPtr("Ambient", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("R", &state.settings.ambient_r, 0.0f, 1.0f,
                                "%.2f");
     imgui_overlay_slider_float("G", &state.settings.ambient_g, 0.0f, 1.0f,
@@ -1023,10 +1037,12 @@ static int init(struct wgpu_context_t* wgpu_context)
   glm_mat4_identity(state.torus_knot_matrices.model);
 
   /* Start async mesh loading */
+  state.mesh_file_buffer = (uint8_t*)malloc(BLINN_PHONG_MESH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/meshes/model.json",
     .callback = mesh_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.mesh_file_buffer),
+    .buffer
+    = {.ptr = state.mesh_file_buffer, .size = BLINN_PHONG_MESH_BUFFER_SIZE},
   });
 
   /* Initialize uniform data */
@@ -1180,6 +1196,12 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
   sfetch_shutdown();
+
+  /* Free file buffers if not yet released */
+  free(state.mesh_file_buffer);
+  state.mesh_file_buffer = NULL;
+  free(state.texture_file_buffer);
+  state.texture_file_buffer = NULL;
 
   destroy_sphere_mesh(&state.sphere_mesh);
 

@@ -218,7 +218,7 @@ static struct {
     WGPUBindGroup bind_group;
     WGPUBindGroupLayout bind_group_layout;
     WGPURenderPipeline pipeline;
-    uint8_t face_pixels[SKYBOX_FACES][SKYBOX_FACE_BYTES];
+    uint8_t* face_pixels[SKYBOX_FACES];
     int load_count;
     bool is_dirty;
     bool initialized;
@@ -257,6 +257,7 @@ static struct {
   vec3 orig_scales[MAX_JOINTS];
 
   /* File loading */
+  uint8_t* glb_file_buffer;
   bool glb_loaded;
   bool initialized;
 
@@ -857,6 +858,8 @@ static void glb_fetch_callback(const sfetch_response_t* response)
   if (!response->fetched) {
     fprintf(stderr, "Failed to load GLB file, error: %d\n",
             response->error_code);
+    free(state.glb_file_buffer);
+    state.glb_file_buffer = NULL;
     return;
   }
 
@@ -866,6 +869,10 @@ static void glb_fetch_callback(const sfetch_response_t* response)
     = (uint8_t*)malloc(state.whale_scene.glb_buffer_size);
   memcpy(state.whale_scene.glb_buffer, response->data.ptr,
          state.whale_scene.glb_buffer_size);
+
+  /* Free the fetch buffer - data has been copied */
+  free(state.glb_file_buffer);
+  state.glb_file_buffer = NULL;
 
   state.glb_loaded = true;
 }
@@ -1367,12 +1374,13 @@ static void init_skybox_texture(wgpu_context_t* wgpu_context)
   /* Reset load count */
   state.skybox.load_count = 0;
 
-  /* Start fetching all cubemap faces */
+  /* Allocate face pixel buffers and start fetching all cubemap faces */
   for (int i = 0; i < SKYBOX_FACES; i++) {
+    state.skybox.face_pixels[i] = (uint8_t*)malloc(SKYBOX_FACE_BYTES);
     sfetch_send(&(sfetch_request_t){
       .path     = ocean_cubemap_paths[i],
       .callback = skybox_fetch_callback,
-      .buffer   = SFETCH_RANGE(state.skybox.face_pixels[i]),
+      .buffer = {.ptr = state.skybox.face_pixels[i], .size = SKYBOX_FACE_BYTES},
     });
   }
 
@@ -1493,6 +1501,12 @@ static void update_skybox_texture(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
   state.skybox.is_dirty = false;
+
+  /* Free face pixel buffers - data has been uploaded to GPU */
+  for (uint32_t face = 0; face < SKYBOX_FACES; ++face) {
+    free(state.skybox.face_pixels[face]);
+    state.skybox.face_pixels[face] = NULL;
+  }
 
   /* Now create the bind group with the loaded texture */
 
@@ -1997,11 +2011,12 @@ static int init(wgpu_context_t* wgpu_context)
   init_skybox_texture(wgpu_context);
 
   /* Load GLB file asynchronously */
-  static uint8_t glb_file_buffer[8 * 1024 * 1024]; /* 8MB buffer */
+#define GLB_FILE_BUFFER_SIZE (8 * 1024 * 1024) /* 8MB buffer */
+  state.glb_file_buffer = (uint8_t*)malloc(GLB_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/models/whale.glb",
     .callback = glb_fetch_callback,
-    .buffer   = SFETCH_RANGE(glb_file_buffer),
+    .buffer   = {.ptr = state.glb_file_buffer, .size = GLB_FILE_BUFFER_SIZE},
   });
 
   state.initialized = true;
@@ -2086,13 +2101,13 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Skybox settings */
   if (igCollapsingHeader_BoolPtr("Environment", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Enable Skybox", &state.settings.skybox_enabled);
   }
 
   /* Animation settings */
   if (igCollapsingHeader_BoolPtr("Animation", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Angle", &state.settings.angle, 0.05f, 0.5f,
                                "%.2f");
     imgui_overlay_slider_float("Speed", &state.settings.speed, 10.0f, 100.0f,
@@ -2475,6 +2490,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.skin_bind_group_layout)
 
   /* Free skybox resources */
+  for (uint32_t i = 0; i < SKYBOX_FACES; ++i) {
+    free(state.skybox.face_pixels[i]);
+    state.skybox.face_pixels[i] = NULL;
+  }
   WGPU_RELEASE_RESOURCE(Buffer, state.skybox.vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.skybox.uniform_buffer)
   WGPU_RELEASE_RESOURCE(BindGroup, state.skybox.bind_group)

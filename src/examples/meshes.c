@@ -1067,12 +1067,35 @@ void plane_mesh_init(plane_mesh_t* plane_mesh,
   plane_mesh->rows    = options ? options->rows : 1;
   plane_mesh->columns = options ? options->columns : 1;
 
-  ASSERT((plane_mesh->rows + 1) * (plane_mesh->columns + 1)
-         < MAX_PLANE_VERTEX_COUNT)
+  // Allocate vertex and index arrays based on actual size needed
+  const uint64_t max_vertex_count
+    = (uint64_t)(plane_mesh->rows + 1) * (plane_mesh->columns + 1);
+  const uint64_t max_index_count
+    = (uint64_t)plane_mesh->rows * plane_mesh->columns * 6;
+
+  plane_mesh->vertices
+    = (plane_vertex_t*)malloc(max_vertex_count * sizeof(plane_vertex_t));
+  plane_mesh->indices = (uint32_t*)malloc(max_index_count * sizeof(uint32_t));
+
+  if (!plane_mesh->vertices || !plane_mesh->indices) {
+    free(plane_mesh->vertices);
+    free(plane_mesh->indices);
+    plane_mesh->vertices = NULL;
+    plane_mesh->indices  = NULL;
+    return;
+  }
 
   // Generate vertices and indices
   plane_mesh_generate_vertices(plane_mesh);
   plane_mesh_generate_indices(plane_mesh);
+}
+
+void plane_mesh_destroy(plane_mesh_t* plane_mesh)
+{
+  free(plane_mesh->vertices);
+  free(plane_mesh->indices);
+  plane_mesh->vertices = NULL;
+  plane_mesh->indices  = NULL;
 }
 
 /* -------------------------------------------------------------------------- *

@@ -84,7 +84,8 @@ static struct {
 
   /* Texture */
   wgpu_texture_t texture;
-  uint8_t file_buffer[512 * 512 * 4];
+#define TEXTURED_QUAD_FILE_BUFFER_SIZE (512 * 512 * 4)
+  uint8_t* file_buffer;
 
   /* Bind group */
   struct {
@@ -215,6 +216,9 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Texture fetch failed, error: %d\n", response->error_code);
+    free(state.file_buffer);
+    state.file_buffer = NULL;
+
     return;
   }
 
@@ -243,6 +247,8 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
@@ -269,10 +275,11 @@ static void init_texture(wgpu_context_t* wgpu_context)
 
   /* Kick off async load */
   wgpu_texture_t* texture = &state.texture;
+  state.file_buffer       = (uint8_t*)malloc(TEXTURED_QUAD_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/metalplate01_rgba.png",
     .callback = fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+    .buffer    = {.ptr = state.file_buffer, .size = TEXTURED_QUAD_FILE_BUFFER_SIZE},
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -493,7 +500,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Texture", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("LOD Bias", &state.settings.lod_bias, 0.0f,
                                10.0f, "%.1f");
   }
@@ -633,6 +640,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
   sfetch_shutdown();
+
+  /* Free file buffer if not yet released */
+  free(state.file_buffer);
+  state.file_buffer = NULL;
 
   wgpu_destroy_texture(&state.texture);
   wgpu_destroy_buffer(&state.vertex_buffer);
