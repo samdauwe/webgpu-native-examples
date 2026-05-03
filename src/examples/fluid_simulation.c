@@ -61,7 +61,7 @@ static const char* render_program_shader_wgsl_fragment_main;
  * Enums & Settings
  * -------------------------------------------------------------------------- */
 
-#define MAX_DIMENSIONS 3u
+#define MAX_DIMENSIONS (3u)
 
 typedef enum {
   RENDER_MODE_CLASSIC,
