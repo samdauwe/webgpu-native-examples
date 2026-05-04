@@ -293,7 +293,7 @@ static void init_offscreen_framebuffers(struct wgpu_context_t* wgpu_context)
 
   /* Shared sampler for offscreen textures */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Offscreen Sampler"),
+    .label         = STRVIEW("Offscreen - Sampler"),
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
