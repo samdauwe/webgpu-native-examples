@@ -267,7 +267,7 @@ static void init_offscreen_framebuffers(struct wgpu_context_t* wgpu_context)
 
     /* Depth texture */
     WGPUTextureDescriptor depth_desc = {
-      .label         = STRVIEW("Offscreen Depth"),
+      .label         = STRVIEW("Offscreen Depth - Texture"),
       .usage         = WGPUTextureUsage_RenderAttachment,
       .dimension     = WGPUTextureDimension_2D,
       .size          = {OFFSCREEN_WIDTH, OFFSCREEN_HEIGHT, 1},
