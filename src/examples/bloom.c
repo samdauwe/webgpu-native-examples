@@ -355,7 +355,7 @@ static void init_cubemap_texture(struct wgpu_context_t* wgpu_context)
 
   /* Sampler */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Cubemap Sampler"),
+    .label         = STRVIEW("Cubemap - Sampler"),
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
