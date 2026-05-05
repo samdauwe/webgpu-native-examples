@@ -582,7 +582,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
   /* Scene UBO: projection + view + model (3 × mat4 = 192 bytes) */
   state.scene_ubo = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Scene UBO"),
+              .label = STRVIEW("Scene - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = 3 * sizeof(mat4),
             });
