@@ -341,7 +341,7 @@ static void init_cubemap_texture(struct wgpu_context_t* wgpu_context)
 
   /* Create cube view */
   WGPUTextureViewDescriptor view_desc = {
-    .label           = STRVIEW("Cubemap View"),
+    .label           = STRVIEW("Cubemap - Texture View"),
     .format          = WGPUTextureFormat_RGBA8Unorm,
     .dimension       = WGPUTextureViewDimension_Cube,
     .baseMipLevel    = 0,
