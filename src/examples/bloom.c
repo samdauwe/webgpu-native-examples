@@ -599,7 +599,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
   /* Pad to 16 bytes for alignment */
   state.blur_params_ubo = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Blur Params UBO"),
+              .label = STRVIEW("Blur Params - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = 16,
             });
