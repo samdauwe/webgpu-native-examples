@@ -312,6 +312,10 @@ This example demonstrates primitive picking by computing a primitive ID from ver
 
 Demonstrates how to capture the current framebuffer and save it to disk as a PPM image. The scene renders a Chinese Dragon glTF model with Phong shading (per-vertex color plus ambient/diffuse/specular lighting computed in view space). Each frame the scene is rendered to an offscreen RGBA8Unorm texture with `CopySrc` usage, which is then blitted to the swapchain via a fullscreen triangle. Pressing the "Take Screenshot" GUI button triggers a `CopyTextureToBuffer` into a CPU-mappable staging buffer; the buffer is mapped asynchronously via `wgpuBufferMapAsync` and the pixel data is written out as `screenshot.ppm` without blocking the render loop.
 
+#### [Offscreen Rendering](src/examples/offscreen.c)
+
+Demonstrates offscreen rendering and real-time mirror reflections. A Chinese Dragon glTF model is rendered into a fixed 512×512 RGBA8Unorm offscreen framebuffer with a Y-flipped model matrix (scale Y by −1) to produce a reflection image. In the main pass, the mirror plane samples the offscreen texture via projective texturing with a 7×7 box blur for a soft-edge effect; the lit dragon is then rendered above the plane. A debug mode (toggled via ImGui checkbox) replaces the scene with a fullscreen triangle displaying the raw offscreen texture. Ported from the Vulkan [Offscreen rendering](src/examples/Vulkan/examples/offscreen/) example.
+
 #### [Bloom (Fullscreen Blur)](src/examples/bloom.c)
 
 This example implements a bloom post-processing effect using a separable two-pass Gaussian blur. A glTF model's emissive (glow) parts are first rendered to an offscreen texture, then blurred vertically and horizontally via fullscreen passes with additive blending. The final scene composites the blurred glow on top of the Phong-lit model and a cubemap skybox. Includes ImGui controls for toggling bloom and adjusting blur intensity.
