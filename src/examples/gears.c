@@ -606,6 +606,7 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 {
   /* Bind group layout */
   WGPUBindGroupLayoutDescriptor bgl_desc = {
+    .label      = STRVIEW("Vertex shader uniform buffer - Bind group layout"),
     .entryCount = 1,
     .entries = &(WGPUBindGroupLayoutEntry) {
       /* Binding 0: Vertex shader uniform buffer */
