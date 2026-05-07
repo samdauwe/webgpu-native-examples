@@ -626,6 +626,7 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
 
   /* Create the pipeline layout */
   WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+    .label                = STRVIEW("Render - Pipeline layout"),
     .bindGroupLayoutCount = 1,
     .bindGroupLayouts     = &state.bind_group_layout,
   };
