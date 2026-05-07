@@ -591,8 +591,10 @@ static void init_vertices(wgpu_context_t* wgpu_context)
 static void init_camera(wgpu_context_t* wgpu_context)
 {
   camera_init(&state.camera);
-  state.camera.type   = CameraType_LookAt;
-  state.camera.flip_y = true;
+  state.camera.type      = CameraType_LookAt;
+  state.camera.flip_y    = true;
+  state.camera.invert_dx = true;
+  state.camera.invert_dy = true;
   camera_set_position(&state.camera, (vec3){0.0f, 2.5f, -16.0f});
   camera_set_rotation(&state.camera, (vec3){23.75f, 41.25f, 21.0f});
   camera_set_perspective(
