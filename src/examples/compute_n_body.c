@@ -288,7 +288,7 @@ static void init_storage_buffer(wgpu_context_t* wgpu_context)
 
   state.compute.storage_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "N-body particle storage buffer",
+                    .label = "N-body particle - Storage buffer",
                     .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_CopyDst,
                     .size    = sizeof(particles),
