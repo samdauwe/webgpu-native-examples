@@ -305,7 +305,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Graphics UBO */
   state.graphics.uniform_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Graphics uniform buffer",
+                    .label = "Graphics - Uniform buffer",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(graphics_ubo_t),
                   });
