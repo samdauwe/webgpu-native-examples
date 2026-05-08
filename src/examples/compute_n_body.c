@@ -62,10 +62,10 @@ static const char* particle_integrate_shader_wgsl;
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define PARTICLES_PER_ATTRACTOR 4096u
-#define NUM_ATTRACTORS 6u
+#define PARTICLES_PER_ATTRACTOR (4096u)
+#define NUM_ATTRACTORS (6u)
 #define NUM_PARTICLES (NUM_ATTRACTORS * PARTICLES_PER_ATTRACTOR)
-#define WORKGROUP_SIZE 256u
+#define WORKGROUP_SIZE (256u)
 
 /* File buffer for async texture loading (largest texture: 64x64 RGBA PNG) */
 #define TEXTURE_FILE_BUFFER_SIZE (64 * 1024)
