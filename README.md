@@ -338,6 +338,10 @@ Implements order-independent transparency using per-pixel linked lists built wit
 
 Uses the instancing feature for rendering (many) instances of the same mesh from a single vertex buffer with variable parameters.
 
+#### [Instanced Mesh Rendering](src/examples/instancing.c)
+
+Renders 8192 asteroid rocks orbiting a lava planet using GPU instancing. Each rock instance uses a separate per-instance vertex buffer containing world position, rotation seed, uniform scale, and a texture array layer index. Three render pipelines handle: a procedural star field backdrop (fullscreen triangle, no vertex buffers), the lava planet (single 2D texture), and the instanced rocks (5-layer 2D texture array). Per-instance local spin and global orbital speed are driven by the uniform buffer and can be paused via ImGui. Ported from the Vulkan [Instancing](src/examples/Vulkan/examples/instancing/) example.
+
 #### [Texture Arrays and Instanced Rendering](src/examples/texture_array.c)
 
 Demonstrates loading a 2D texture array and rendering multiple cube instances in a single draw call, where each instance samples a different layer of the array texture. The texture array is loaded from a vertically-stacked PNG atlas (7 layers × 256×256 RGBA, converted from the original KTX source). Per-instance model matrices and texture layer indices are packed into a single uniform buffer read by the vertex shader via `@builtin(instance_index)`. Ported from the Vulkan [Texture arrays](src/examples/Vulkan/examples/texturearray/) example.
