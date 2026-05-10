@@ -366,7 +366,7 @@ static void create_cloth_index_buffer(struct wgpu_context_t* wgpu_context)
   const size_t ib_size     = state.cloth_index_count * sizeof(uint32_t);
   state.cloth_index_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Cloth Index Buffer"),
+              .label = STRVIEW("Cloth - Index Buffer"),
               .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
               .size  = ib_size,
               .mappedAtCreation = true,
