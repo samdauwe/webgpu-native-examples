@@ -527,7 +527,7 @@ static void create_cloth_sampler(struct wgpu_context_t* wgpu_context)
 {
   state.cloth_texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Cloth Sampler"),
+                            .label         = STRVIEW("Cloth - Sampler"),
                             .addressModeU  = WGPUAddressMode_Repeat,
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
