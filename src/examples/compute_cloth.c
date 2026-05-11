@@ -497,7 +497,7 @@ static void create_cloth_texture(struct wgpu_context_t* wgpu_context)
 
   state.cloth_texture.view = wgpuTextureCreateView(
     state.cloth_texture.texture, &(WGPUTextureViewDescriptor){
-                                   .label     = STRVIEW("Cloth Texture View"),
+                                   .label     = STRVIEW("Cloth - Texture View"),
                                    .format    = WGPUTextureFormat_RGBA8Unorm,
                                    .dimension = WGPUTextureViewDimension_2D,
                                    .mipLevelCount   = 1,
