@@ -514,7 +514,7 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
   state.graphics.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
-      .label                = STRVIEW("Graphics pipeline layout"),
+      .label                = STRVIEW("Graphics - Pipeline layout"),
       .bindGroupLayoutCount = 1,
       .bindGroupLayouts     = &state.graphics.bind_group_layout,
     });
