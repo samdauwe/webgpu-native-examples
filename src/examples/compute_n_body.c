@@ -500,7 +500,7 @@ static void rebuild_graphics_bind_group(wgpu_context_t* wgpu_context)
 
   state.graphics.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Graphics bind group"),
+                            .label      = STRVIEW("Graphics - Bind group"),
                             .layout     = state.graphics.bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
