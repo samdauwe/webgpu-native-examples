@@ -635,7 +635,7 @@ static void create_bind_group_layouts(struct wgpu_context_t* wgpu_context)
   };
   state.graphics_bgl = wgpuDeviceCreateBindGroupLayout(
     device, &(WGPUBindGroupLayoutDescriptor){
-              .label      = STRVIEW("Graphics BGL"),
+              .label      = STRVIEW("Graphics - Bind group layout"),
               .entryCount = 3,
               .entries    = gfx_entries,
             });
