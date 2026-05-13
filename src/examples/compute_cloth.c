@@ -675,7 +675,7 @@ static void create_fallback_texture(struct wgpu_context_t* wgpu_context)
 
   state.cloth_texture.texture
     = wgpuDeviceCreateTexture(device, &(WGPUTextureDescriptor){
-                                        .label = STRVIEW("Fallback Texture"),
+                                        .label = STRVIEW("Fallback - Texture"),
                                         .usage = WGPUTextureUsage_TextureBinding
                                                  | WGPUTextureUsage_CopyDst,
                                         .dimension = WGPUTextureDimension_2D,
