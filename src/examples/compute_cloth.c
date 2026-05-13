@@ -658,12 +658,12 @@ static void create_bind_group_layouts(struct wgpu_context_t* wgpu_context)
       .buffer     = {.type = WGPUBufferBindingType_Uniform},
     },
   };
-  state.compute_bgl
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .label = STRVIEW("Compute BGL"),
-                                                .entryCount = 3,
-                                                .entries    = comp_entries,
-                                              });
+  state.compute_bgl = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Compute - Bind group layout"),
+              .entryCount = 3,
+              .entries    = comp_entries,
+            });
 }
 
 /* Create a 1x1 white fallback texture for rendering before the real texture
