@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>WAjic Viewer</title>
+<style type="text/css">
+html, body { background-color: #b0b9c8; font-family: sans-serif; font-size:15pt; margin:0; padding:1px 0 0; height:100%; box-sizing:border-box; }
+h2 { font-size: 160%; text-align: center; margin: 20px 20px; padding-bottom: 20px; border-bottom: 1px dotted black; }
+#start, #reset { filter: brightness(95%) sepia(40%) hue-rotate(180deg) }
+</style>
+</head>
+<body>
+
+<h2>WAjic Viewer</h2>
+<canvas id="wa_canvas" style="display:block;margin:0 auto 10px;background:#000" oncontextmenu="event.preventDefault()" width="0" height="0"></canvas>
+<div id="wa_log"></div>
+<input id="file" type="file" accept=".wasm" hidden>
+<button id="start" style="display:block;margin: 0 auto;width:200px;height:60px"></button>
+<button id="reset" style="width:100px;height:60px;position:absolute;top:0;left:200px">Restart</button>
+<script type="text/javascript">
+var WA =
+{
+	canvas: document.getElementById('wa_canvas'),
+	print: function(text)
+	{
+		document.getElementById('wa_log').innerHTML += text.replace(/\n/g, '<br>');
+	},
+	error: function(code, msg)
+	{
+		document.getElementById('wa_log').innerHTML += '<div style="text-align:center;background-color:#FFF;color:#000;padding:1.5em;width:540px;margin:2em auto">' + {
+				BOOT: 'Error during startup. Your browser might not support WebAssembly. Please update it to the latest version.',
+				CRASH: 'The program crashed.',
+				MEM: 'The program ran out of memory.',
+			}[code] + '<br><br>(' + msg + ')</div>';
+	},
+	started: function()
+	{
+		WA.print('Finished main\n');
+	},
+};
+
+(function()
+{
+	var $ = (i)=>document.getElementById(i), body = document.body, file = $('file'), start = $('start'), reset = $('reset');
+	function doShow(isDrag)
+	{
+		clearTimeout(start.timeoutHandle);
+		start.innerHTML = (isDrag ? 'Drop WASM file to load it' : 'Load WASM File<br><small>or</small><br>Drag file over here');
+		if (WA.scripttag) start.style = 'position:absolute;top:0;left:0;width:200px;height:60px';
+		reset.style.display = (WA.scripttag ? '' : 'none');
+	}
+	function doHide()
+	{
+		if (!WA.scripttag) return doShow();
+		start.innerHTML = '&#9700;';
+		start.style = 'position:absolute;top:0px;left:0px;width:15px;height:15px;background-color:#444;border:0;color:#FD6;padding:0;line-height:0;opacity:.4';
+		reset.style.display = 'none';
+		start.blur();
+		reset.blur();
+		file.value = '';
+	}
+	function doLoad(file)
+	{
+		if (file instanceof File)
+		{
+			var reader = new FileReader();
+			reader.onloadend = function(evt) { doLoad(evt.target.result); };
+			reader.readAsArrayBuffer(file);
+			return;
+		}
+
+		if (!WA.scripttag) 
+		{
+			function trackEventListeners(elem)
+			{
+				var list = new Array(), orgAdd = elem.addEventListener, orgRemove = elem.removeEventListener;
+				elem.addEventListener = function (type, listener, opts)
+				{
+					listener.trkType = type;
+					listener.trkOpts = opts;
+					list.push(listener);
+					orgAdd.call(elem, type, listener, opts);
+				};
+				elem.removeEventListener = function (type, listener, opts)
+				{
+					list.splice(list.indexOf(listener), 1);
+					orgRemove.call(elem, type, listener, opts);
+				};
+				elem.clearEventListeners = function()
+				{
+					list.forEach(function(l) { orgRemove(l.trkType, l, l.trkOpts) });
+					list.length = 0;
+				};
+			}
+			trackEventListeners(window);
+			trackEventListeners(document);
+			WA.canvasHTML = WA.canvas.outerHTML;
+		}
+		else
+		{
+			if (WA.abort) { try { WA.abort(); } catch (e) {} }
+			document.clearEventListeners();
+			window.clearEventListeners();
+			document.body.removeChild(WA.scripttag);
+			WA.canvas.outerHTML = WA.canvasHTML;
+			WA.canvas = document.getElementById('wa_canvas');
+		}
+		document.getElementById('wa_log').innerHTML = 'Loading...<br>';
+		if (file) WA.module = new Uint8Array(file);
+		WA.scripttag = document.createElement('script');
+		WA.scripttag.type = 'text/javascript';
+		WA.scripttag.src = 'wajic.js';
+		doHide();
+		document.body.appendChild(WA.scripttag);
+	}
+
+	body.ondragenter = body.ondragover = function(e) { e.preventDefault(); doShow(true); };
+	body.ondrop = function(e)
+	{
+		e.preventDefault(); 
+		var dt = e.dataTransfer;
+		var file = (dt.items ? (dt.items[0] && dt.items[0].kind == 'file' && dt.items[0].getAsFile()) : (dt.files && dt.files[0]));
+		doLoad(file);
+	};
+	body.ondragleave = function() { start.timeoutHandle = setTimeout(()=>doHide(), 100) };
+	start.onmouseenter = reset.onmouseenter = function() { doShow(); };
+	start.onmouseleave = reset.onmouseleave = function() { doHide(); };
+	start.onclick = function() { file.click(); };
+	file.onchange = function() { if (file.files[0]) doLoad(file.files[0]); };
+	reset.onclick = function() { doLoad(); };
+	doShow();
+})();
+</script>
+</body>
+</html>

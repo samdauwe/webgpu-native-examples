@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>WAjicUp WebAssembly JavaScript Interface Creator Utility Program</title>
+<style type="text/css">
+html, body { background-color: #b0b9c8; font-family: sans-serif; font-size:15pt; margin:0; padding:1px 0 0; height:100%; box-sizing:border-box; }
+h2 { font-size: 160%; text-align: center; margin: 20px 20px; padding-bottom: 20px; border-bottom: 1px dotted black; }
+#up { width: 780px; margin: 0 auto; background: #c0cce2; padding: 8px; margin-bottom: 20px; border: 2px solid black; font-size: 80%; }
+#up a { color: #666; }
+#up h3 { font-size: 125%; text-align: center; background: #1c2853; color: #FFF; margin: 15px 0 5px }
+#up div { clear: both; margin: 3px 0; }
+#up label.left { float: left; width: 180px; margin-right: 10px; text-align: right; }
+#up label.right { padding-left: 10px; }
+#up button { display:block; margin: 5px auto; padding: 3px 10px; font-size: 120%; width:400px; filter: brightness(95%) sepia(40%) hue-rotate(180deg) }
+#up sub { display: block; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+
+<h2>WAjicUp WebAssembly JavaScript Interface Creator Utility Program</h2>
+
+<div id="up">
+
+<h3 style="margin-top:0">Input File</h3>
+<input id="file" type="file" accept=".wasm" hidden>
+<button id="load" style="width:400px;height:80px">Load WASM File<br><small>or</small><br>Drag file over here</button>
+<sub>This generator runs locally in pure JavaScript, it does not upload to any server.</sub>
+
+<div id="load_info" style="text-align:center;padding-top:10px">&nbsp;</div>
+
+<h3>Output Files</h3>
+
+<div>
+<label for="out_wasm" class="left">WASM:</label>
+<input id="out_wasm" type="checkbox" checked>
+<label for="out_wasm" class="right">Create a small version with JavaScript functions minified or removed</label>
+</div>
+
+<div>
+<label for="out_js" class="left">JavaScript:</label>
+<input id="out_js" type="checkbox" checked>
+<label for="out_js" class="right">Create a specialized script for the given WASM file</label>
+</div>
+
+<div>
+<label for="out_html" class="left">HTML:</label>
+<input id="out_html" type="checkbox" checked>
+<label for="out_html" class="right">Create a frontend page for the given WASM file</label>
+</div>
+
+<div id="out_info" style="text-align:center;padding-top:15px">Move functions from WASM to JS and generate HTML</div>
+
+<h3>Options</h3>
+
+<div>
+<label for="opt_no_minify" class="left">No Minify:</label>
+<input id="opt_no_minify" type="checkbox">
+<label for="opt_no_minify" class="right">Don't minify JavaScript code</label>
+</div>
+
+<div>
+<label for="opt_no_log" class="left">No Log:</label>
+<input id="opt_no_log" type="checkbox">
+<label for="opt_no_log" class="right">Remove all output logging</label>
+</div>
+
+<div>
+<label for="opt_streaming" class="left">Streaming:</label>
+<input id="opt_streaming" type="checkbox">
+<label for="opt_streaming" class="right">Enable WASM streaming (needs web server support, new browser)</label>
+</div>
+
+<div>
+<label for="opt_rle" class="left">RLE:</label>
+<input id="opt_rle" type="checkbox">
+<label for="opt_rle" class="right">Use RLE compression when embedding the WASM file</label>
+</div>
+
+<div>
+<label for="opt_loadbar" class="left">Loadbar:</label>
+<input id="opt_loadbar" type="checkbox">
+<label for="opt_loadbar" class="right">Add a loading progress bar to the generated HTML</label>
+</div>
+
+<div>
+<label for="opt_loadbar" class="left">Node:</label>
+<input id="opt_node" type="checkbox">
+<label for="opt_node" class="right">Output JavaScript that runs in node (CLI)</label>
+</div>
+
+<div>
+<label for="opt_verbose" class="left">Verbose:</label>
+<input id="opt_verbose" type="checkbox">
+<label for="opt_verbose" class="right">Be verbose about processed functions</label>
+</div>
+
+<h3>Generate</h3>
+<button id="generate" disabled>Generate</button>
+<sub>This generator runs locally in pure JavaScript, it does not upload to any server.</sub>
+
+<h3>Output</h3>
+<button id="dl_wasm" style="display:none"></button>
+<button id="dl_js" style="display:none"></button>
+<button id="dl_html" style="display:none"></button>
+<div id="dl_info" style="text-align:center;padding:10px">Output files will appear here once generated</div>
+
+<h3>Log</h3>
+
+<div id="log" style="white-space:pre-wrap;font-family:monospace;padding:3px"></div>
+
+</div>
+
+<script defer src="wajicup.js"></script>
+<script>"use strict";window.addEventListener('DOMContentLoaded',()=>
+{
+	var $ = (i)=>document.getElementById(i);
+	var body = document.body, file = $('file'), load = $('load'), generate = $('generate'), logdiv = $('log');
+	var out_wasm = $('out_wasm'), out_js = $('out_js'), out_html = $('out_html');
+	var opt_no_minify = $('opt_no_minify'), opt_no_log = $('opt_no_log'), opt_streaming = $('opt_streaming'), opt_rle = $('opt_rle'), opt_loadbar = $('opt_loadbar'), opt_node = $('opt_node');
+	var inName, inBytes;
+	function update(isDrag)
+	{
+		clearTimeout(load.timeoutHandle);
+		load.innerHTML = (isDrag ? 'Drop WASM file to load it' : 'Load WASM File<br><small>or</small><br>Drag file over here');
+		var is_wasm = (!inBytes || IsWasmFile(inBytes)), mode;
+		if (is_wasm)
+		{
+			mode = (out_wasm.checked ? 'W' : '') + (out_js.checked ? 'J' : '') + (out_html.checked ? 'H' : '');
+			$('out_info').innerHTML = {
+				W:   'Minify functions inside WASM',
+				WJ:  'Move functions from WASM to JS',
+				WJH: 'Move functions from WASM to JS and generate HTML',
+				WH:  'Minify in WASM and create HTML with embedded loader',
+				J:   'Embed and merge WASM into JS',
+				JH:  'Embed WASM into JS and generate HTML',
+				H:   'Embed WASM into single file HTML',
+				'':  '<font color=red>Need to select at least one output file</font>',
+			}[mode];
+		}
+		else
+		{
+			mode = (out_js.checked ? 'J' : '');
+			$('out_info').innerHTML = {
+				J:   'Minify JavaScript file',
+				'':  '<font color=red>Need to select at least one output file</font>',
+			}[mode];
+		}
+		out_wasm.disabled      = (!is_wasm);
+		out_html.disabled      = (!is_wasm);
+		opt_no_minify.disabled = (!is_wasm || (!out_js.checked && !out_html.checked));
+		opt_streaming.disabled = (!is_wasm || !out_wasm.checked || (!out_js.checked && !out_html.checked));
+		opt_rle.disabled       = (!is_wasm || out_wasm.checked);
+		opt_loadbar.disabled   = (!is_wasm || !out_html.checked || (!out_js.checked && !out_wasm.checked));
+		opt_node.disabled      = (!is_wasm || out_html.checked || !out_js.checked);
+		generate.disabled = (!mode || !inBytes);
+		$('load_info').innerHTML = (inName ? 'File Name: ' + inName : '') + (inBytes ? ' - Size: ' + inBytes.length + ' bytes' : '&nbsp;');
+	}
+	function doLoad(file)
+	{
+		if (!(file instanceof File)) return;
+		inName = file.name;
+		var reader = new FileReader();
+		reader.onloadend = function(evt)
+		{
+			inBytes = new Uint8Array(evt.target.result);
+			update();
+		};
+		reader.readAsArrayBuffer(file);
+	}
+	function makeDownload(btn, file, buf, mime)
+	{
+		if (btn.urlObj) URL.revokeObjectURL(btn.urlObj);
+		if (!buf) { btn.style.display = 'none'; return; }
+		btn.urlObj = URL.createObjectURL(new File([buf], '', {type: mime}));
+		btn.innerHTML = 'Download ' + file + ' (' + buf.length + ' bytes)';
+		btn.style.display = 'block';
+		btn.onclick = function()
+		{
+			var link = document.createElement('a');
+			link.href = btn.urlObj;
+			link.download = file;
+			link.click();
+		};
+	}
+	function doGenerate()
+	{
+		logdiv.innerHTML = '';
+		verbose = $('opt_verbose').checked;
+		VERBOSE = (msg => { if (verbose) logdiv.innerHTML += msg + "\n"; });
+		WARN    = (msg => logdiv.innerHTML += '<div style="background:#DB8">[WARNING] ' + msg + '<div>');
+		var ERR = (msg => logdiv.innerHTML += '<div style="background:#D88">[ERROR]\n' + msg + '<div>');
+
+		var p = {}, baseName = inName.replace(/\.[^\.]*$/, '');
+		p.wasmPath  = (!out_wasm.disabled && out_wasm.checked ? baseName + '.wasm' : null);
+		p.jsPath    = (!out_js.disabled   && out_js.checked   ? baseName + '.js'   : null);
+		p.htmlPath  = (!out_html.disabled && out_html.checked ? baseName + '.html' : null);
+		p.minify    = (opt_no_minify.disabled  || !opt_no_minify.checked);
+		p.log       = (!opt_no_log.disabled    || !opt_no_log.checked   );
+		p.streaming = (!opt_streaming.disabled &&  opt_streaming.checked);
+		p.rle       = (!opt_rle.disabled       &&  opt_rle.checked      );
+		p.loadbar   = (!opt_loadbar.disabled   &&  opt_loadbar.checked  );
+		p.node      = (!opt_node.disabled      &&  opt_node.checked     );
+		try
+		{
+			var [wasmOut, jsOut, htmlOut] = ProcessFile(inBytes, p);
+			var outCount = ((wasmOut?1:0)+(jsOut?1:0)+(htmlOut?1:0));
+			$('dl_info').innerHTML =  + outCount + ' file' + (outCount != 1 ? 's' : '') + ' (' + ((wasmOut?wasmOut.length:0)+(jsOut?jsOut.length:0)+(htmlOut?htmlOut.length:0))+ ' bytes)';
+			logdiv.innerHTML += 'Finished' + "\n"
+		}
+		catch (e)
+		{
+			ERR(e);
+			$('dl_info').innerHTML = 'There was an error, see below';
+		}
+		makeDownload($('dl_wasm'), p.wasmPath, wasmOut, 'application/wasm');
+		makeDownload($('dl_js'),   p.jsPath,   jsOut,   'text/javascript');
+		makeDownload($('dl_html'), p.htmlPath, htmlOut, 'text/html');
+	}
+	body.ondragenter = body.ondragover = function(e) { e.preventDefault(); update(true); };
+	body.ondrop = function(e)
+	{
+		update();
+		e.preventDefault(); 
+		var dt = e.dataTransfer;
+		if (!dt) return;
+		var file = (dt.items ? (dt.items[0] && dt.items[0].kind == 'file' && dt.items[0].getAsFile()) : (dt.files && dt.files[0]));
+		if (file) doLoad(file);
+	};
+	body.ondragleave = function() { load.timeoutHandle = setTimeout(()=>update(), 100) };
+	load.onclick = function() { file.click(); };
+	generate.onclick = function() { doGenerate(); }
+	file.onchange = function() { if (file.files[0]) doLoad(file.files[0]); };
+	out_wasm.onchange = function() { update(); };
+	out_js.onchange = function() { update(); };
+	out_html.onchange = function() { update(); };
+	update();
+});
+</script>
+</body>
+</html>
