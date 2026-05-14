@@ -687,10 +687,10 @@ static void create_fallback_texture(struct wgpu_context_t* wgpu_context)
 
   state.cloth_texture.view = wgpuTextureCreateView(
     state.cloth_texture.texture, &(WGPUTextureViewDescriptor){
-                                   .label     = STRVIEW("Fallback TV"),
-                                   .format    = WGPUTextureFormat_RGBA8Unorm,
-                                   .dimension = WGPUTextureViewDimension_2D,
-                                   .mipLevelCount   = 1,
+                                   .label  = STRVIEW("Fallback - Texture View"),
+                                   .format = WGPUTextureFormat_RGBA8Unorm,
+                                   .dimension     = WGPUTextureViewDimension_2D,
+                                   .mipLevelCount = 1,
                                    .arrayLayerCount = 1,
                                  });
 
