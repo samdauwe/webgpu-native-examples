@@ -718,13 +718,13 @@ static void create_bind_groups(struct wgpu_context_t* wgpu_context)
     [1] = {.binding = 1, .textureView = state.cloth_texture.view},
     [2] = {.binding = 2, .sampler = state.cloth_texture.sampler},
   };
-  state.graphics_bind_group
-    = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
-                                          .label      = STRVIEW("Graphics BG"),
-                                          .layout     = state.graphics_bgl,
-                                          .entryCount = 3,
-                                          .entries    = gfx_entries,
-                                        });
+  state.graphics_bind_group = wgpuDeviceCreateBindGroup(
+    device, &(WGPUBindGroupDescriptor){
+              .label      = STRVIEW("Graphics - Bind Group"),
+              .layout     = state.graphics_bgl,
+              .entryCount = 3,
+              .entries    = gfx_entries,
+            });
 
   /* Compute bind groups — ping-pong:
    * BG[0]: read from storage[0], write to storage[1]
