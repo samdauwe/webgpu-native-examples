@@ -30,16 +30,16 @@
 #endif
 
 // Macro to generate a JavaScript function that can be called from C
-#define WAJIC(ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "\x11" #args "\x11" #__VA_ARGS__))) ret name args;
+#define WAJIC(ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "" #args "" #__VA_ARGS__))) ret name args;
 
 // Macro to generate a JavaScript function that can be called from C with additional shared init code
-#define WAJIC_WITH_INIT(INIT, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "\x11" #args "\x11" #__VA_ARGS__ "\x11\x11" #INIT ))) ret name args;
+#define WAJIC_WITH_INIT(INIT, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "" #args "" #__VA_ARGS__ "" #INIT ))) ret name args;
 
 // Macro to generate a JavaScript function sharing same init code that can be called from C
-#define WAJIC_LIB(lib, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "\x11" #args "\x11" #__VA_ARGS__ "\x11" #lib))) ret name args;
+#define WAJIC_LIB(lib, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "" #args "" #__VA_ARGS__ "" #lib))) ret name args;
 
 // Macro to generate a JavaScript function that can be called from C also specifying shared init code
-#define WAJIC_LIB_WITH_INIT(lib, INIT, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "\x11" #args "\x11" #__VA_ARGS__ "\x11" #lib "\x11" #INIT))) ret name args;
+#define WAJIC_LIB_WITH_INIT(lib, INIT, ret, name, args, ...) WA_EXTERN __attribute__((import_module("J"), import_name(#name "" #args "" #__VA_ARGS__ "" #lib "" #INIT))) ret name args;
 
 // Macro to make a C function available from JavaScript
 #define WA_EXPORT(name) __attribute__((used, visibility("default"), export_name(#name)))

@@ -26,9 +26,10 @@ var print = WA.print || (WA.print = msg => console.log(msg.replace(/\n$/, '')));
 var error = WA.error || (WA.error = (code, msg) => print('[ERROR] ' + code + ': ' + msg + '\n'));
 
 // Some global state variables and max heap definition
-var WM, ASM, MEM, MU8, MU16, MU32, MI32, MF32, FPTS = [0,0,0];
+var WM, ASM, MEM, MU8, MU16, MU32, MI32, MF32, MF64, FPTS = [0,0,0], TEMP = 0;
 var WASM_HEAP, WASM_HEAP_MAX = (WA.maxmem||256*1024*1024); //default max 256MB
 var WASM_STACK_SIZE = 64*1024; //wasm stack defaults to 64kb
+var WASM_HEAP_BASE = 0; //detected from wasm binary globals before instantiation
 
 // A generic abort function that if called stops the execution of the program and shows an error
 var STOP, abort = WA.abort = function(code, msg)
@@ -36,6 +37,62 @@ var STOP, abort = WA.abort = function(code, msg)
 	STOP = true;
 	error(code, msg);
 	throw 'abort';
+};
+
+// Scan wasm binary sections for memory configuration and heap base
+// Reads Section 5 (Memory) for exported memory page count, and Section 6 (Globals) for heap base (stack pointer)
+var WasmScanBinary = function(wasmBuf)
+{
+	var wasm = new Uint8Array(wasmBuf), i = 8, iMax = wasm.length;
+	var memoryPages = 0, heapBase = 0;
+	var Get = function() { for (var b, r = 0, x = 0; r |= ((b = wasm[i++]) & 127) << x, b >> 7; x += 7); return r; };
+	while (i < iMax)
+	{
+		var type = Get(), len = Get(), iSectionEnd = i + len;
+		if (len <= 0 || iSectionEnd > iMax) break;
+		if (type == 5) // Section 5: Memory (defines exported memory)
+		{
+			var count = Get();
+			if (count > 0) { Get(); memoryPages = Get(); } // flags, initial pages
+		}
+		else if (type == 6) // Section 6: Globals (contains stack pointer = heap base)
+		{
+			var findMax = (memoryPages || 1) << 16, findMin = findMax - 65535;
+			for (var count = Get(), j = 0; j < count && i < iSectionEnd; j++)
+			{
+				var valType = Get(), mutable = Get();
+				// Parse i32.const initializer expression: opcode(0x41) value end(0x0B)
+				var opcode = wasm[i++];
+				if (opcode == 0x41) // i32.const
+				{
+					var val = Get();
+					wasm[i++]; // end opcode (0x0B)
+					// The stack pointer is a mutable i32 global with initial value near end of memory
+					if (val >= findMin && val <= findMax && val > heapBase) heapBase = val;
+				}
+				else
+				{
+					// Skip other initializer expressions (find the 0x0B end byte)
+					while (i < iSectionEnd && wasm[i - 1] != 0x0B) i++;
+				}
+			}
+		}
+		i = iSectionEnd;
+	}
+	return { memoryPages: memoryPages, heapBase: heapBase || (memoryPages << 16) };
+};
+
+// sbrk implementation: grows wasm memory heap by increment, returns old heap pointer
+var fn_sbrk = function(increment)
+{
+	// Emscripten 5.x passes i64 as BigInt when --legalize-js-interface is not applied
+	if (typeof increment === 'bigint') increment = Number(increment);
+	var heapOld = WASM_HEAP, heapNew = heapOld + increment, heapGrow = heapNew - MEM.buffer.byteLength;
+	//console.log('[SBRK] Increment: ' + increment + ' - HEAP: ' + heapOld + ' -> ' + heapNew + (heapGrow > 0 ? ' - GROW BY ' + heapGrow + ' (' + ((heapGrow+65535)>>16) + ' pages)' : ''));
+	if (heapNew > WASM_HEAP_MAX) abort('MEM', 'Out of memory');
+	if (heapGrow > 0) { MEM.grow((heapGrow + 65535) >> 16); MSetViews(); }
+	WASM_HEAP = heapNew;
+	return heapOld;
 };
 
 // Puts a string from JavaScript onto the wasm memory heap (encoded as UTF8)
@@ -75,6 +132,7 @@ var MSetViews = function()
 	MU32 = new Uint32Array(buf);
 	MI32 = new Int32Array(buf);
 	MF32 = new Float32Array(buf);
+	if (typeof MF64 !== 'undefined') MF64 = new Float64Array(buf);
 };
 
 // file open (can only be used to open embedded files)
@@ -84,6 +142,12 @@ var fn_sys_open = function(path, flags, varargs)
 	var section = WebAssembly.Module.customSections(WA.wm, '|'+MStrGet(path))[0];
 	if (!section) return -1;
 	return FPTS.push(new Uint8Array(section), 0) - 2;
+};
+
+// openat variant used by newer emscripten (dirfd is ignored, only works with embedded files)
+var fn_sys_openat = function(dirfd, path, flags, varargs)
+{
+	return fn_sys_open(path, flags, varargs);
 };
 
 // The fd_write function can only be used to write strings to stdout in this wasm context
@@ -161,7 +225,13 @@ if (!load)
 }
 
 // Fetch the .wasm file (or use a byte buffer in WA.module directly) and compile the wasm module
-((typeof load)[0]=='s' ? fetch(load).then(r => r.arrayBuffer()) : new Promise(r => r(load))).then(wasmBuf => WebAssembly.compile(wasmBuf).then(module =>
+((typeof load)[0]=='s' ? fetch(load).then(r => r.arrayBuffer()) : new Promise(r => r(load))).then(wasmBuf =>
+{
+	// Pre-scan the wasm binary for memory layout before compilation
+	var wasmInfo = WasmScanBinary(wasmBuf);
+	WASM_HEAP_BASE = wasmInfo.heapBase;
+
+	return WebAssembly.compile(wasmBuf).then(module =>
 {
 	var emptyFunction = () => 0;
 	var crashFunction = (msg) => abort('CRASH', msg);
@@ -169,57 +239,77 @@ if (!load)
 	// Set up the import objects that contains the functions passed to the wasm module
 	var J = {}, env =
 	{
-		// sbrk gets called to increase the size of the memory heap by an increment
-		sbrk: function(increment)
-		{
-			var heapOld = WASM_HEAP, heapNew = heapOld + increment, heapGrow = heapNew - MEM.buffer.byteLength;
-			//console.log('[SBRK] Increment: ' + increment + ' - HEAP: ' + heapOld + ' -> ' + heapNew + (heapGrow > 0 ? ' - GROW BY ' + heapGrow + ' (' + (heapGrow>>16) + ' pages)' : ''));
-			if (heapNew > WASM_HEAP_MAX) abort('MEM', 'Out of memory');
-			if (heapGrow > 0) { MEM.grow((heapGrow+65535)>>16); MSetViews(); }
-			WASM_HEAP = heapNew;
-			return heapOld;
-		},
+// Memory heap management: sbrk (legacy i32) and _sbrk64 (modern i64, BigInt in JS when not legalized)
+			sbrk: fn_sbrk,
+			_sbrk64: function(increment) { return fn_sbrk(Number(increment)); },
+
+		// Emscripten heap introspection (used by system libraries for memory management)
+		emscripten_get_heap_size: function() { return MEM.buffer.byteLength; },
+		emscripten_get_heap_max: function() { return WASM_HEAP_MAX; },
+
+		// POSIX system configuration values
+		sysconf: function(name) { if (name == 30) return 65536; return -1; }, // 30 = _SC_PAGESIZE
+
+		// i64 legalization helpers (used by --legalize-js-interface for i64 return values)
+		getTempRet0: function() { return TEMP; },
+		setTempRet0: function(i) { TEMP = i; },
 
 		// Functions querying the system time
 		time: function(ptr) { var ret = (Date.now()/1000)|0; if (ptr) MU32[ptr>>2] = ret; return ret; },
 		gettimeofday: function(ptr) { var now = Date.now(); MU32[ptr>>2]=(now/1000)|0; MU32[(ptr+4)>>2]=((now % 1000)*1000)|0; },
-		clock_gettime: function(clock, tp) { clock = (clock ? window.performance.now() : Date.now()), tp >>= 2; if (tp) MU32[tp] = (clock/1000)|0, MU32[tp+1] = ((clock%1000)*1000000+.1)|0; },
+		clock_gettime: function(clock, tp) { clock = (clock ? performance.now() : Date.now()), tp >>= 2; if (tp) MU32[tp] = (clock/1000)|0, MU32[tp+1] = ((clock%1000)*1000000+.1)|0; },
 		clock_getres: function(clock, tp) { clock = (clock ? .1 : 1), tp >>= 2; if (tp) MU32[tp] = (clock/1000)|0, MU32[tp+1] = ((clock%1000)*1000000)|0; },
 
 		// Program exit
 		exit: function(status) { abort('EXIT', 'Exit called: ' + status); },
 
 		// Failed assert will abort the program
-		__assert_fail: (condition, filename, line, func) => crashFunction('assert ' + MStrGet(condition) + ' at: ' + (filename ? MStrGet(filename) : '?'), line, (func ? MStrGet(func) : '?')),
+		__assert_fail: (condition, filename, line, func) => crashFunction('assert ' + MStrGet(condition) + ' at: ' + (filename ? MStrGet(filename) : '?')),
+
+		// POSIX syscall stubs (no-ops in wasm context)
+		__syscall_fcntl64: emptyFunction,
+		__syscall_ioctl: emptyFunction,
+		__syscall_openat: fn_sys_openat,
 	};
 	var imports = { env:env, J:J };
 
 	// Go through all the imports to fill out the list of functions
-	var evals = {}, N = {};
+	var evals = {}, N = {}, hasMemoryImport = false;
 	WebAssembly.Module.imports(module).forEach(i =>
 	{
 		var mod = i.module, fld = i.name, knd = i.kind[0], obj = (imports[mod] || (imports[mod] = {}));
 		if (knd == 'm')
 		{
 			// This WASM module wants to import memory from JavaScript
-			// The only way to find out how much it wants initially is to parse the module binary stream
-			// This code goes through the wasm file sections according the binary encoding description
-			//     https://webassembly.org/docs/binary-encoding/
-			for (let wasm = new Uint8Array(wasmBuf), i = 8, iMax = wasm.length, iSectionEnd, type, len, j, Get; i < iMax; i = iSectionEnd)
+			// Parse the wasm binary import section to find the initial memory page count
+			hasMemoryImport = true;
+			var wasm = new Uint8Array(wasmBuf), wi = 8, wiMax = wasm.length;
+			var WGet = function(s) { wi += s|0; for (var b, r = 0, x = 0; r |= ((b = wasm[wi++]) & 127) << x, b >> 7; x += 7); return r; };
+			while (wi < wiMax)
 			{
-				// Get() gets a LEB128 variable-length number optionally skipping some bytes before
-				Get = s=>{i+=s|0;for(var b,r,x=0;r|=((b=wasm[i++])&127)<<x,b>>7;x+=7);return r};
-				type = Get(), len = Get(), iSectionEnd = i + len;
-				if (type < 0 || type > 11 || len <= 0 || iSectionEnd > iMax) break;
-				//Section 2 'Imports' contains the memory import which describes the initial memory size
-				if (type == 2)
-					for (len = Get(), j = 0; j != len && i < iSectionEnd; j++,(1==type&&Get(1)&&Get()),(2>type&&Get()),(3==type&&Get(1)))
-						if ((type = Get(Get(Get()))) == 2)
+				var stype = WGet(), slen = WGet(), sEnd = wi + slen;
+				if (slen <= 0 || sEnd > wiMax) break;
+				// Section 2 'Imports' contains the memory import which describes the initial memory size
+				if (stype == 2)
+				{
+					for (var scount = WGet(), sj = 0; sj < scount && wi < sEnd; sj++)
+					{
+						var modLen = WGet(), modEnd = wi + modLen; wi = modEnd;
+						var fldLen = WGet(), fldEnd = wi + fldLen; wi = fldEnd;
+						var ikind = WGet();
+						if (ikind == 2) // kind 2 = memory
 						{
-							// Set the initial heap size and allocate the wasm memory (can be grown with sbrk)
-							MEM = obj[fld] = new WebAssembly.Memory({initial: Get(1)});
-							i = iSectionEnd = iMax;
+							var memFlags = WGet(), memInitial = WGet();
+							MEM = obj[fld] = new WebAssembly.Memory({initial: memInitial});
+							WASM_HEAP = WASM_HEAP_BASE;
+							wi = sEnd = wiMax; // done
 						}
+						else if (ikind == 0) WGet(); // function: skip type index
+						else if (ikind == 1) { WGet(); WGet(); WGet(); } // table: skip type, flags, initial
+						else if (ikind == 3) { WGet(); WGet(); } // global: skip type, mutability
+					}
+				}
+				wi = sEnd;
 			}
 		}
 		if (knd == 'f')
@@ -244,8 +334,7 @@ if (!load)
 			}
 			if (obj == env && !env[fld])
 			{
-				// First try to find a matching math function, then if the field name matches an aborting call pass a crash function
-				// Otherwise pass empty function for things that do nothing in this wasm context (setjmp, __cxa_atexit, __lock, __unlock)
+				// Try to find a matching math function, then crash handlers, then file operations, then empty stub
 				obj[fld] = (Math[fld.replace(/^f?([^l].*?)f?$/, '$1').replace(/^rint$/,'round')]
 					|| (fld.match(/uncaught_excep|pure_virt|^abort$|^longjmp$/) && (() => crashFunction(fld)))
 					|| (fld.includes('open') && fn_sys_open)
@@ -278,7 +367,8 @@ if (!load)
 
 	// Instantiate the wasm module by passing the prepared import functions for the wasm module
 	return WebAssembly.instantiate(module, imports);
-}))
+});
+})
 .then(function (instance)
 {
 	// Store the list of the functions exported by the wasm module in WA.asm
@@ -288,49 +378,67 @@ if (!load)
 
 	if (memory)
 	{
-		// Get the wasm memory object from the module (can be grown with sbrk)
+		// Get the wasm memory object from the module (exported memory, not imported)
 		MEM = memory;
 	}
 
 	if (MEM)
 	{
-		// Setup the array memory views and get the initial memory size
+		// Setup the array memory views
 		MSetViews();
-		WASM_HEAP = MU8.length;
+
+		// If heap was not already initialized (imported memory case), derive from binary scan
+		if (!WASM_HEAP)
+		{
+			// Use the heap base detected from wasm globals (stack pointer initial value)
+			WASM_HEAP = WASM_HEAP_BASE || MU8.length;
+		}
 	}
 
 	// If function '__wasm_call_ctors' (global C++ constructors) exists, call it
 	if (wasm_call_ctors) wasm_call_ctors();
 
-	// If function 'main' exists, call it
-	if (main && malloc)
+	// Run main and post-main callbacks
+	var runMain = function()
 	{
-		// Store program arguments and the argv list in memory
-		var args = WA.args||['W'], argc = args.length, argv = malloc((argc+1)<<2), i;
-		for (i = 0; i != argc; i++) MU32[(argv>>2)+i] = MStrPut(args[i]);
-		MU32[(argv>>2)+argc] = 0; // list terminating null pointer
+		if (main && malloc)
+		{
+			// Store program arguments and the argv list in memory
+			var args = WA.args||['W'], argc = args.length, argv = malloc((argc+1)<<2), i;
+			for (i = 0; i != argc; i++) MU32[(argv>>2)+i] = MStrPut(args[i]);
+			MU32[(argv>>2)+argc] = 0; // list terminating null pointer
 
-		main(argc, argv);
-	}
-	else if (main)
-	{
-		// Call the main function with zero arguments
-		main(0, 0);
-	}
-	if (mainvoid)
-	{
-		// Call the main function without arguments
-		mainvoid();
-	}
+			main(argc, argv);
+		}
+		else if (main)
+		{
+			// Call the main function with zero arguments
+			main(0, 0);
+		}
+		if (mainvoid)
+		{
+			// Call the main function without arguments
+			mainvoid();
+		}
 
-	// If function 'WajicMain' exists, call it
-	if (WajicMain) WajicMain();
+		// If function 'WajicMain' exists, call it
+		if (WajicMain) WajicMain();
 
-	// If the outer HTML file supplied a 'started' callback, call it
-	if (started) started();
+		// If the outer HTML file supplied a 'started' callback, call it
+		if (started) started();
+	};
+
+	// Allow async pre-main initialization (e.g., WebGPU device acquisition)
+	// If WA.preMain is set (by a library init block), await it before calling main
+	return WA.preMain ? Promise.resolve(WA.preMain()).then(runMain) : runMain();
 })
 .catch(err =>
 {
 	// On an exception, if the err is 'abort' the error was already processed in the abort function above
-	if (err !== 'abort') WA.error('BOOT', 'WASM instiantate error: ' + err + (err.stack ? "\n" + err.stack : ''));
+	if (err !== 'abort')
+	{
+		// Set STOP to halt any requestAnimationFrame loops started during partial main() execution
+		STOP = true;
+		WA.error('BOOT', 'WASM instantiate error: ' + err + (err.stack ? "\n" + err.stack : ''));
+	}
 })})();

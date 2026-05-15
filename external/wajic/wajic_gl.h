@@ -60,10 +60,16 @@ WAJIC_LIB_WITH_INIT(GL,
 	var GLuniforms = [];
 	var GLshaders = [];
 	var GLvaos = [];
+	var GLqueries = [];
+	var GLsamplers = [];
+	var GLtransformFeedbacks = [];
+	var GLsyncs = [];
 	var GLprogramInfos = {};
 	var GLstringCache = {};
 	var GLpackAlignment = 4;
 	var GLunpackAlignment = 4;
+	var GLlastError = 0;
+	var GLversion = 1;
 	var GLFixedLengthArrays = [];
 	var GLminiTempFloatBuffers = [];
 	var GLminiTempIntBuffers = [];
@@ -251,20 +257,26 @@ WAJIC_LIB_WITH_INIT(GL,
 				objectTable[id] = buffer;
 			}
 			else GLrecordError(0x502); //GL_INVALID_OPERATION
-			MI32[(buffers>>2)+(i++)] = id;
+			MI32[(buffers>>2)+i] = id;
 		}
 	}
 ),
 int, glSetupCanvasContext, (int antialias WA_ARG(1), int depth WA_ARG(0), int stencil WA_ARG(0), int alpha WA_ARG(0)),
 {
 	var canvas = WA.canvas;
-	var attr = { majorVersion: 1, minorVersion: 0, antialias: !!antialias, depth: !!depth, stencil: !!stencil, alpha: !!alpha };
-	var msg = "", webgl = escape('webgl'), errorEvent = webgl+'contextcreationerror';
+	var attr = { antialias: !!antialias, depth: !!depth, stencil: !!stencil, alpha: !!alpha };
+	var msg = "", errorEvent = 'webglcontextcreationerror';
 	var onError = function(event) { msg = event.statusMessage || msg; };
 	try
 	{
 		canvas.addEventListener(errorEvent, onError, false);
-		try { GLctx = canvas.getContext(webgl, attr) || canvas.getContext('experimental-'+webgl, attr); }
+		try
+		{
+			// Try WebGL2 first, fall back to WebGL1
+			GLctx = canvas.getContext('webgl2', attr);
+			if (GLctx) GLversion = 2;
+			else GLctx = canvas.getContext('webgl', attr) || canvas.getContext('experimental-webgl', attr);
+		}
 		finally { canvas.removeEventListener(errorEvent, onError, false); }
 		if (!GLctx) throw 'Context failed';
 	}
@@ -275,7 +287,7 @@ int, glSetupCanvasContext, (int antialias WA_ARG(1), int depth WA_ARG(0), int st
 		if (!(ext = exts[i]).match(/debug|lose|parallel|async|moz_|webkit_/i))
 			GLctx.getExtension(ext);
 
-	return true;
+	return GLversion;
 })
 
 WAJIC_LIB(GL, void, glActiveTexture, (GLenum texture),
@@ -534,11 +546,6 @@ WAJIC_LIB(GL, void, glGenFramebuffers, (GLsizei n, GLuint *framebuffers),
 WAJIC_LIB(GL, void, glGenTextures, (GLsizei n, GLuint *textures),
 {
 	GLgenObjects(n, textures, 'createTexture', GLtextures);
-})
-
-WAJIC_LIB(GL, void, glGenRenderbuffers, (GLsizei n, GLuint *renderbuffers),
-{
-	GLgenObjects(n, renderbuffers, 'createRenderbuffer', GLrenderbuffers);
 })
 
 WAJIC_LIB(GL, void, glGenRenderbuffers, (GLsizei n, GLuint *renderbuffers),
@@ -858,7 +865,7 @@ WAJIC_LIB(GL, void, glUniform2f, (GLint location, GLfloat v0, GLfloat v1),
 
 WAJIC_LIB(GL, void, glUniform2i, (GLint location, GLint v0, GLint v1),
 {
-	GLctx.glUniform2i(GLuniforms[location], v0, v1);
+	GLctx.uniform2i(GLuniforms[location], v0, v1);
 })
 
 WAJIC_LIB(GL, void, glUniform3f, (GLint location, GLfloat v0, GLfloat v1, GLfloat v2),
@@ -868,7 +875,7 @@ WAJIC_LIB(GL, void, glUniform3f, (GLint location, GLfloat v0, GLfloat v1, GLfloa
 
 WAJIC_LIB(GL, void, glUniform3i, (GLint location, GLint v0, GLint v1, GLint v2),
 {
-	GLctx.glUniform3i(GLuniforms[location], v0, v1, v2);
+	GLctx.uniform3i(GLuniforms[location], v0, v1, v2);
 })
 
 WAJIC_LIB(GL, void, glUniform4f, (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3),
@@ -878,7 +885,7 @@ WAJIC_LIB(GL, void, glUniform4f, (GLint location, GLfloat v0, GLfloat v1, GLfloa
 
 WAJIC_LIB(GL, void, glUniform4i, (GLint location, GLint v0, GLint v1, GLint v2, GLint v3),
 {
-	GLctx.glUniform4i(GLuniforms[location], v0, v1, v2, v3);
+	GLctx.uniform4i(GLuniforms[location], v0, v1, v2, v3);
 })
 
 WAJIC_LIB(GL, void, glUniform1fv, (GLint location, GLsizei count, const GLfloat *value),
@@ -914,7 +921,7 @@ WAJIC_LIB(GL, void, glUniform1iv, (GLint location, GLsizei count, const GLint *v
 	{
 		view = heap.subarray(value, value + count);
 	}
-	GLctx.uniform1fv(GLuniforms[location], view);
+	GLctx.uniform1iv(GLuniforms[location], view);
 })
 
 WAJIC_LIB(GL, void, glUniform2fv, (GLint location, GLsizei count, const GLfloat *value),
@@ -1052,7 +1059,7 @@ WAJIC_LIB(GL, void, glUniform4iv, (GLint location, GLsizei count, const GLint *v
 	{
 		view = heap.subarray(value, value + count);
 	}
-	GLctx.uniform4fv(GLuniforms[location], view);
+	GLctx.uniform4iv(GLuniforms[location], view);
 })
 
 WAJIC_LIB(GL, void, glUniformMatrix2fv, (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value),
@@ -1566,4 +1573,260 @@ WAJIC_LIB(GL, void, glVertexAttribDivisor, (GLuint index, GLuint divisor),
 WAJIC_LIB(GL, void, glVertexAttribDivisorARB, (GLuint index, GLuint divisor),
 {
 	GLctx.vertexAttribDivisor(index, divisor);
+})
+
+// ─── WebGL2 / OpenGL ES 3.0 functions ──────────────────────────────────────
+
+WAJIC_LIB(GL, void, glVertexAttribIPointer, (GLuint index, GLint size, GLenum type, GLsizei stride, const void *pointer),
+{
+	GLctx.vertexAttribIPointer(index, size, type, stride, pointer);
+})
+
+WAJIC_LIB(GL, void, glReadBuffer, (GLenum src),
+{
+	GLctx.readBuffer(src);
+})
+
+WAJIC_LIB(GL, void, glBlitFramebuffer, (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter),
+{
+	GLctx.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+})
+
+WAJIC_LIB(GL, void, glRenderbufferStorageMultisample, (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height),
+{
+	GLctx.renderbufferStorageMultisample(target, samples, internalformat, width, height);
+})
+
+WAJIC_LIB(GL, void, glFramebufferTextureLayer, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer),
+{
+	GLctx.framebufferTextureLayer(target, attachment, GLtextures[texture], level, layer);
+})
+
+WAJIC_LIB(GL, void, glBindBufferBase, (GLenum target, GLuint index, GLuint buffer),
+{
+	GLctx.bindBufferBase(target, index, buffer ? GLbuffers[buffer] : null);
+})
+
+WAJIC_LIB(GL, void, glBindBufferRange, (GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size),
+{
+	GLctx.bindBufferRange(target, index, buffer ? GLbuffers[buffer] : null, offset, size);
+})
+
+WAJIC_LIB(GL, GLuint, glGetUniformBlockIndex, (GLuint program, const GLchar *uniformBlockName),
+{
+	return GLctx.getUniformBlockIndex(GLprograms[program], MStrGet(uniformBlockName));
+})
+
+WAJIC_LIB(GL, void, glUniformBlockBinding, (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding),
+{
+	GLctx.uniformBlockBinding(GLprograms[program], uniformBlockIndex, uniformBlockBinding);
+})
+
+WAJIC_LIB(GL, void, glTexImage3D, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels),
+{
+	if (pixels)
+	{
+		var pixelData = GLgetTexPixelData(type, format, width, height * depth, pixels, internalformat);
+		GLctx.texImage3D(target, level, internalformat, width, height, depth, border, format, type, pixelData);
+	}
+	else GLctx.texImage3D(target, level, internalformat, width, height, depth, border, format, type, null);
+})
+
+WAJIC_LIB(GL, void, glTexSubImage3D, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels),
+{
+	if (pixels)
+	{
+		var pixelData = GLgetTexPixelData(type, format, width, height * depth, pixels, 0);
+		GLctx.texSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixelData);
+	}
+	else GLctx.texSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, null);
+})
+
+WAJIC_LIB(GL, void, glTexStorage2D, (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height),
+{
+	GLctx.texStorage2D(target, levels, internalformat, width, height);
+})
+
+WAJIC_LIB(GL, void, glTexStorage3D, (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth),
+{
+	GLctx.texStorage3D(target, levels, internalformat, width, height, depth);
+})
+
+WAJIC_LIB(GL, void, glGenQueries, (GLsizei n, GLuint *ids),
+{
+	GLgenObjects(n, ids, 'createQuery', GLqueries);
+})
+
+WAJIC_LIB(GL, void, glDeleteQueries, (GLsizei n, const GLuint *ids),
+{
+	for (var i = 0; i < n; i++)
+	{
+		var id = MI32[(ids>>2)+i];
+		var query = GLqueries[id];
+		if (!query) continue;
+		GLctx.deleteQuery(query);
+		query.name = 0;
+		GLqueries[id] = null;
+	}
+})
+
+WAJIC_LIB(GL, void, glBeginQuery, (GLenum target, GLuint id),
+{
+	GLctx.beginQuery(target, GLqueries[id]);
+})
+
+WAJIC_LIB(GL, void, glEndQuery, (GLenum target),
+{
+	GLctx.endQuery(target);
+})
+
+WAJIC_LIB(GL, void, glGetQueryObjectuiv, (GLuint id, GLenum pname, GLuint *params),
+{
+	var result = GLctx.getQueryParameter(GLqueries[id], pname);
+	if (result !== null) MU32[params>>2] = result;
+})
+
+WAJIC_LIB(GL, void, glGenSamplers, (GLsizei count, GLuint *samplers),
+{
+	GLgenObjects(count, samplers, 'createSampler', GLsamplers);
+})
+
+WAJIC_LIB(GL, void, glDeleteSamplers, (GLsizei count, const GLuint *samplers),
+{
+	for (var i = 0; i < count; i++)
+	{
+		var id = MI32[(samplers>>2)+i];
+		var sampler = GLsamplers[id];
+		if (!sampler) continue;
+		GLctx.deleteSampler(sampler);
+		sampler.name = 0;
+		GLsamplers[id] = null;
+	}
+})
+
+WAJIC_LIB(GL, void, glBindSampler, (GLuint unit, GLuint sampler),
+{
+	GLctx.bindSampler(unit, sampler ? GLsamplers[sampler] : null);
+})
+
+WAJIC_LIB(GL, void, glSamplerParameteri, (GLuint sampler, GLenum pname, GLint param),
+{
+	GLctx.samplerParameteri(GLsamplers[sampler], pname, param);
+})
+
+WAJIC_LIB(GL, void, glSamplerParameterf, (GLuint sampler, GLenum pname, GLfloat param),
+{
+	GLctx.samplerParameterf(GLsamplers[sampler], pname, param);
+})
+
+WAJIC_LIB(GL, GLint, glGetFragDataLocation, (GLuint program, const GLchar *name),
+{
+	return GLctx.getFragDataLocation(GLprograms[program], MStrGet(name));
+})
+
+WAJIC_LIB(GL, void, glGenTransformFeedbacks, (GLsizei n, GLuint *ids),
+{
+	GLgenObjects(n, ids, 'createTransformFeedback', GLtransformFeedbacks);
+})
+
+WAJIC_LIB(GL, void, glDeleteTransformFeedbacks, (GLsizei n, const GLuint *ids),
+{
+	for (var i = 0; i < n; i++)
+	{
+		var id = MI32[(ids>>2)+i];
+		var tf = GLtransformFeedbacks[id];
+		if (!tf) continue;
+		GLctx.deleteTransformFeedback(tf);
+		tf.name = 0;
+		GLtransformFeedbacks[id] = null;
+	}
+})
+
+WAJIC_LIB(GL, void, glBindTransformFeedback, (GLenum target, GLuint id),
+{
+	GLctx.bindTransformFeedback(target, id ? GLtransformFeedbacks[id] : null);
+})
+
+WAJIC_LIB(GL, void, glBeginTransformFeedback, (GLenum primitiveMode),
+{
+	GLctx.beginTransformFeedback(primitiveMode);
+})
+
+WAJIC_LIB(GL, void, glEndTransformFeedback, (),
+{
+	GLctx.endTransformFeedback();
+})
+
+WAJIC_LIB(GL, void, glTransformFeedbackVaryings, (GLuint program, GLsizei count, const GLchar *const*varyings, GLenum bufferMode),
+{
+	var arr = [];
+	for (var i = 0; i < count; i++)
+		arr.push(MStrGet(MU32[(varyings>>2)+i]));
+	GLctx.transformFeedbackVaryings(GLprograms[program], arr, bufferMode);
+})
+
+WAJIC_LIB(GL, void, glClearBufferfv, (GLenum buffer, GLint drawbuffer, const GLfloat *value),
+{
+	GLctx.clearBufferfv(buffer, drawbuffer, MF32, value>>2);
+})
+
+WAJIC_LIB(GL, void, glClearBufferiv, (GLenum buffer, GLint drawbuffer, const GLint *value),
+{
+	GLctx.clearBufferiv(buffer, drawbuffer, MI32, value>>2);
+})
+
+WAJIC_LIB(GL, void, glClearBufferuiv, (GLenum buffer, GLint drawbuffer, const GLuint *value),
+{
+	GLctx.clearBufferuiv(buffer, drawbuffer, MU32, value>>2);
+})
+
+WAJIC_LIB(GL, void, glClearBufferfi, (GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil),
+{
+	GLctx.clearBufferfi(buffer, drawbuffer, depth, stencil);
+})
+
+WAJIC_LIB(GL, void, glCopyBufferSubData, (GLenum readTarget, GLenum writeTarget, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size),
+{
+	GLctx.copyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size);
+})
+
+WAJIC_LIB(GL, GLsync, glFenceSync, (GLenum condition, GLbitfield flags),
+{
+	var sync = GLctx.fenceSync(condition, flags);
+	if (sync)
+	{
+		var id = GLgetNewId(GLsyncs);
+		sync.name = id;
+		GLsyncs[id] = sync;
+		return id;
+	}
+	return 0;
+})
+
+WAJIC_LIB(GL, void, glDeleteSync, (GLsync sync),
+{
+	if (!sync) return;
+	var syncObj = GLsyncs[sync];
+	if (!syncObj) return;
+	GLctx.deleteSync(syncObj);
+	syncObj.name = 0;
+	GLsyncs[sync] = null;
+})
+
+WAJIC_LIB(GL, GLenum, glClientWaitSync, (GLsync sync, GLbitfield flags, WAu64 timeout),
+{
+	return GLctx.clientWaitSync(GLsyncs[sync], flags, timeout);
+})
+
+WAJIC_LIB(GL, void, glGetBufferSubData, (GLenum target, GLintptr offset, GLsizeiptr size, void *data),
+{
+	GLctx.getBufferSubData(target, offset, MU8.subarray(data, data+size));
+})
+
+WAJIC_LIB(GL, void, glInvalidateFramebuffer, (GLenum target, GLsizei numAttachments, const GLenum *attachments),
+{
+	var arr = [];
+	for (var i = 0; i < numAttachments; i++)
+		arr.push(MI32[(attachments>>2)+i]);
+	GLctx.invalidateFramebuffer(target, arr);
 })
