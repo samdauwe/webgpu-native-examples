@@ -36,9 +36,11 @@ CMakeLists.txt.user.*
 
 # Build dir
 build
+build-wajic
 debug_build
 release_build
 /bin
+/dist
 /install
 /external/dawn/dawn
 /external/dawn/depot_tools
