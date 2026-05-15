@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAjic Samples</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#e0e0e0;background:#0d1117}
+h1{font-size:1.4rem;margin:0 0 1rem}
+label{font-weight:600}
+select{font-size:1rem;padding:.3rem .5rem;border-radius:4px;border:1px solid #444;background:#161b22;color:#e0e0e0}
+button{font-size:.9rem;padding:.35rem .8rem;border:none;border-radius:4px;background:#238636;color:#fff;cursor:pointer}
+button:hover{background:#2ea043}
+#controls{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem;flex-wrap:wrap}
+#status{font-size:.85rem;color:#8b949e}
+#log{white-space:pre-wrap;font-family:"Cascadia Code",monospace;font-size:.85rem;background:#161b22;color:#c9d1d9;padding:1rem;min-height:6rem;border-radius:6px;border:1px solid #30363d;overflow:auto;max-height:50vh}
+canvas{display:block;margin:0 auto 1rem;border:1px solid #30363d;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>WAjic Samples</h1>
+<div id="controls">
+  <label for="sample">Sample:</label>
+  <select id="sample"></select>
+  <button id="run">Run</button>
+  <span id="status">Select a sample&hellip;</span>
+</div>
+<canvas id="wa_canvas" height="0"></canvas>
+<div id="log"></div>
+
+<script>
+"use strict";
+
+// Known sample names — auto-probed on page load.
+// New .wasm files added to dist/ are discovered automatically.
+var KNOWN = [
+  "Audio","Basic","Coroutine","Cpp","EmbedFile",
+  "Input","LibC","LoadUrl","SharedInit","WebGL","WebGPU"
+];
+
+var selEl  = document.getElementById("sample");
+var logEl  = document.getElementById("log");
+var statusEl = document.getElementById("status");
+var canvasEl = document.getElementById("wa_canvas");
+var runBtn = document.getElementById("run");
+var currentScript = null; // track injected loader script
+
+// Probe which .wasm files exist (HEAD request) and populate the dropdown
+(async function discover() {
+  // Also try to discover unknown wasm files by checking common patterns
+  var found = [];
+  for (var i = 0; i < KNOWN.length; i++) {
+    try {
+      var r = await fetch(KNOWN[i] + ".wasm", { method: "HEAD" });
+      if (r.ok) found.push(KNOWN[i]);
+    } catch(e) {}
+  }
+  if (found.length === 0) {
+    statusEl.textContent = "No .wasm files found in dist/";
+    return;
+  }
+  found.forEach(function(name) {
+    var o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    selEl.appendChild(o);
+  });
+
+  // Restore last selection from URL hash
+  var hash = location.hash.slice(1);
+  if (hash && found.indexOf(hash) >= 0) selEl.value = hash;
+
+  statusEl.textContent = found.length + " sample(s) available";
+})();
+
+runBtn.addEventListener("click", function() {
+  var name = selEl.value;
+  if (!name) return;
+  location.hash = name;
+  loadSample(name);
+});
+
+// Also run on Enter in the select
+selEl.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") runBtn.click();
+});
+
+// Samples that require WebGPU — checked before WASM load
+var WEBGPU_SAMPLES = { "WebGPU": true };
+
+function checkWebGPU() {
+  if (typeof navigator.gpu !== 'undefined') return null; // OK
+  var isSecure = location.protocol === 'https:'
+    || location.hostname === 'localhost'
+    || location.hostname === '127.0.0.1';
+  if (!isSecure) {
+    return 'WebGPU requires HTTPS. Open this page via https:// or use http://localhost.';
+  }
+  return 'navigator.gpu is not available. Your browser may not support WebGPU, '
+    + 'or WebGPU may be disabled.\n\n'
+    + 'Firefox: set dom.webgpu.enabled=true in about:config.\n'
+    + 'Chrome: requires Chrome 113+ and a Vulkan-capable GPU.';
+}
+
+function loadSample(name) {
+  // Reset state
+  logEl.textContent = "";
+  canvasEl.height = 0;
+  canvasEl.width = 0;
+  statusEl.textContent = "Loading " + name + ".wasm\u2026";
+
+  // Pre-flight WebGPU check for samples that need it
+  if (WEBGPU_SAMPLES[name]) {
+    var gpuErr = checkWebGPU();
+    if (gpuErr) {
+      logEl.textContent = "[ERROR] WebGPU pre-check failed:\n" + gpuErr + "\n";
+      statusEl.textContent = "Error: WebGPU not available";
+      return;
+    }
+  }
+
+  // Remove previous wajic.js script (forces re-init)
+  if (currentScript) {
+    currentScript.remove();
+    currentScript = null;
+  }
+
+  // Set up WA global before loading the script
+  window.WA = {
+    module: name + ".wasm",
+    canvas: canvasEl,
+    webgpuDebug: true, // Enable WebGPU debug logging to browser console
+    print: function(text) {
+      logEl.textContent += text;
+      logEl.scrollTop = logEl.scrollHeight;
+    },
+    error: function(code, msg) {
+      WA.print("[ERROR] " + code + ": " + msg + "\n");
+      statusEl.textContent = "Error: " + code;
+    },
+    started: function() {
+      statusEl.textContent = "Running: " + name;
+    }
+  };
+
+  // Inject wajic.js — it reads WA.module and bootstraps everything
+  var s = document.createElement("script");
+  s.src = "wajic.js?" + Date.now(); // cache-bust for re-runs
+  s.onerror = function() { statusEl.textContent = "Failed to load wajic.js"; };
+  currentScript = s;
+  document.body.appendChild(s);
+}
+</script>
+</body>
+</html>

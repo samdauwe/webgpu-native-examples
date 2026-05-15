@@ -44,6 +44,7 @@ release_build
 /external/dawn/depot_tools
 /external/dawn/include
 /external/dawn/lib
+/external/emscripten
 
 # Executables
 *.exe
