@@ -3,8 +3,13 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -233,8 +238,10 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
               .size = MAX(state.settings.num_triangles, 1) * state.aligned_uniform_bytes
               + sizeof(float),
     });
-  float uniform_buffer_data[state.settings.num_triangles
-                            * state.aligned_uniform_floats];
+  const uint64_t uniform_buffer_data_count
+    = state.settings.num_triangles * state.aligned_uniform_floats;
+  float* uniform_buffer_data
+    = (float*)malloc(uniform_buffer_data_count * sizeof(float));
   state.bind_groups
     = malloc(state.settings.num_triangles * sizeof(WGPUBindGroup));
   for (uint64_t i = 0; i < state.settings.num_triangles; ++i) {
@@ -304,15 +311,16 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                           }));
 
   const uint64_t max_mapping_length = (14 * 1024 * 1024) / sizeof(float);
-  for (uint64_t offset = 0; offset < ARRAY_SIZE(uniform_buffer_data);
+  for (uint64_t offset = 0; offset < uniform_buffer_data_count;
        offset += max_mapping_length) {
     const uint64_t upload_count
-      = MIN(ARRAY_SIZE(uniform_buffer_data) - offset, max_mapping_length);
+      = MIN(uniform_buffer_data_count - offset, max_mapping_length);
 
     wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer,
                          offset * sizeof(float), &uniform_buffer_data[offset],
                          upload_count * sizeof(float));
   }
+  free(uniform_buffer_data);
 }
 
 #define RECORD_RENDER_PASS(Type, rpass_enc)                                    \

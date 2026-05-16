@@ -4,11 +4,19 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include <cJSON.h>
 
@@ -490,7 +498,7 @@ static void init_opaque_pass(wgpu_context_t* wgpu_context)
     /* Color attachment */
     state.opaque_pass.color_attachment
       = (WGPURenderPassColorAttachment){
-        .view       = NULL, /* view is acquired and set in render loop. */
+        .view       = (WGPUTextureView)0, /* view is acquired and set in render loop. */
         .depthSlice = ~0,
         .loadOp     = WGPULoadOp_Clear,
         .storeOp    = WGPUStoreOp_Store,
@@ -728,7 +736,7 @@ static void init_translucent_pass(wgpu_context_t* wgpu_context)
   {
     /* Color attachment */
     state.translucent_pass.color_attachment = (WGPURenderPassColorAttachment){
-      .view       = NULL, /* View is acquired and set in render loop. */
+      .view = (WGPUTextureView)0, /* view is acquired and set in render loop. */
       .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,
@@ -909,7 +917,7 @@ static void init_composite_pass(wgpu_context_t* wgpu_context)
   {
     /* Color attachment */
     state.composite_pass.color_attachment = (WGPURenderPassColorAttachment){
-      .view       = NULL, /* View is acquired and set in render loop. */
+      .view = (WGPUTextureView)0, /* view is acquired and set in render loop. */
       .depthSlice = ~0,
       .loadOp     = WGPULoadOp_Load,
       .storeOp    = WGPUStoreOp_Store,
@@ -1031,7 +1039,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
     init_depth_texture(wgpu_context);
 
     /* Recreate buffers that depend on canvas size */
-    if (state.mesh_loaded && state.buffers.vertex.buffer != NULL) {
+    if (state.mesh_loaded && state.buffers.vertex.buffer != 0) {
       /* Update depth stencil attachment to use the new depth texture view */
       state.opaque_pass.depth_stencil_attachment.view
         = state.depth_texture.view;
@@ -1082,7 +1090,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   sfetch_dowork();
 
   /* Initialize pipelines once mesh is loaded */
-  if (state.mesh_loaded && state.buffers.vertex.buffer == NULL) {
+  if (state.mesh_loaded && state.buffers.vertex.buffer == 0) {
     init_mesh_buffers(wgpu_context);
     init_size_dependent_buffers(wgpu_context);
     init_opaque_pass(wgpu_context);
@@ -1103,7 +1111,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   render_gui(wgpu_context);
 
   /* Only render if mesh and pipelines are ready */
-  if (!state.mesh_loaded || state.buffers.vertex.buffer == NULL) {
+  if (!state.mesh_loaded || state.buffers.vertex.buffer == 0) {
     /* Still render imgui even if mesh not loaded */
     imgui_overlay_render(wgpu_context);
     return EXIT_SUCCESS;
