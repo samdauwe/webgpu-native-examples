@@ -874,6 +874,52 @@ typedef struct WGPURenderBundleEncoderDescriptor {
     WGPUBool stencilReadOnly;
 } WGPURenderBundleEncoderDescriptor;
 
+// --- Device limits ---
+
+// WGPULimits wasm32 layout (4-byte nextInChain, then u32 fields, u64 fields at 8-byte aligned offsets):
+// +0:nextInChain(4) +4..+56: fourteen u32 fields (+4,+8,+12,+16,+20,+24,+28,+32,+36,+40,+44,+48,+52,+56)
+// +60:pad(4) +64:maxUniformBufferBindingSize(u64) +72:maxStorageBufferBindingSize(u64)
+// +80:minUniformBufferOffsetAlignment(u32) +84:minStorageBufferOffsetAlignment(u32) +88:maxVertexBuffers(u32)
+// +92:pad(4) +96:maxBufferSize(u64) +104:maxVertexAttributes(u32) +108:maxVertexBufferArrayStride(u32)
+// +112..+144: remaining u32 fields
+typedef struct WGPULimits {
+    WGPUChainedStruct const * nextInChain;
+    uint32_t maxTextureDimension1D;
+    uint32_t maxTextureDimension2D;
+    uint32_t maxTextureDimension3D;
+    uint32_t maxTextureArrayLayers;
+    uint32_t maxBindGroups;
+    uint32_t maxBindGroupsPlusVertexBuffers;
+    uint32_t maxBindingsPerBindGroup;
+    uint32_t maxDynamicUniformBuffersPerPipelineLayout;
+    uint32_t maxDynamicStorageBuffersPerPipelineLayout;
+    uint32_t maxSampledTexturesPerShaderStage;
+    uint32_t maxSamplersPerShaderStage;
+    uint32_t maxStorageBuffersPerShaderStage;
+    uint32_t maxStorageTexturesPerShaderStage;
+    uint32_t maxUniformBuffersPerShaderStage;
+    uint32_t _pad0; /* alignment padding before uint64 */
+    uint64_t maxUniformBufferBindingSize;
+    uint64_t maxStorageBufferBindingSize;
+    uint32_t minUniformBufferOffsetAlignment;
+    uint32_t minStorageBufferOffsetAlignment;
+    uint32_t maxVertexBuffers;
+    uint32_t _pad1; /* alignment padding before uint64 */
+    uint64_t maxBufferSize;
+    uint32_t maxVertexAttributes;
+    uint32_t maxVertexBufferArrayStride;
+    uint32_t maxInterStageShaderVariables;
+    uint32_t maxColorAttachments;
+    uint32_t maxColorAttachmentBytesPerSample;
+    uint32_t maxComputeWorkgroupStorageSize;
+    uint32_t maxComputeInvocationsPerWorkgroup;
+    uint32_t maxComputeWorkgroupSizeX;
+    uint32_t maxComputeWorkgroupSizeY;
+    uint32_t maxComputeWorkgroupSizeZ;
+    uint32_t maxComputeWorkgroupsPerDimension;
+    uint32_t maxImmediateSize;
+} WGPULimits;
+
 // ============================================================================
 // JavaScript implementation — WAJIC_LIB_WITH_INIT block
 // ============================================================================
@@ -1029,6 +1075,57 @@ WAJIC_LIB(WEBGPU, WGPUQueue, wgpuDeviceGetQueue, (WGPUDevice device),
 {
     var dev = Wget(WD, device, 'device', 'wgpuDeviceGetQueue');
     return Wnew(WQ, dev.queue);
+})
+
+WAJIC_LIB(WEBGPU, void, wgpuDeviceGetLimits, (WGPUDevice device, void* limits),
+{
+    // WGPULimits wasm32 layout (4-byte nextInChain at +0, then u32 fields, then u64 at 8-byte aligned offset):
+    // +0:nextInChain(4) +4..+59: fourteen u32 fields, +60:pad(4)
+    // +64:maxUniformBufferBindingSize(u64) +72:maxStorageBufferBindingSize(u64)
+    // +80:minUniformBufferOffsetAlignment(u32) +84:minStorageBufferOffsetAlignment(u32)
+    var dev = Wget(WD, device, 'device', 'wgpuDeviceGetLimits');
+    var lim = dev.limits;
+    if (!lim) return;
+    MU32[(limits+4)>>2]  = lim.maxTextureDimension1D >>> 0;
+    MU32[(limits+8)>>2]  = lim.maxTextureDimension2D >>> 0;
+    MU32[(limits+12)>>2] = lim.maxTextureDimension3D >>> 0;
+    MU32[(limits+16)>>2] = lim.maxTextureArrayLayers >>> 0;
+    MU32[(limits+20)>>2] = lim.maxBindGroups >>> 0;
+    MU32[(limits+24)>>2] = (lim.maxBindGroupsPlusVertexBuffers || (lim.maxBindGroups + lim.maxVertexBuffers)) >>> 0;
+    MU32[(limits+28)>>2] = lim.maxBindingsPerBindGroup >>> 0;
+    MU32[(limits+32)>>2] = lim.maxDynamicUniformBuffersPerPipelineLayout >>> 0;
+    MU32[(limits+36)>>2] = lim.maxDynamicStorageBuffersPerPipelineLayout >>> 0;
+    MU32[(limits+40)>>2] = lim.maxSampledTexturesPerShaderStage >>> 0;
+    MU32[(limits+44)>>2] = lim.maxSamplersPerShaderStage >>> 0;
+    MU32[(limits+48)>>2] = lim.maxStorageBuffersPerShaderStage >>> 0;
+    MU32[(limits+52)>>2] = lim.maxStorageTexturesPerShaderStage >>> 0;
+    MU32[(limits+56)>>2] = lim.maxUniformBuffersPerShaderStage >>> 0;
+    // maxUniformBufferBindingSize at +64 (uint64_t, little-endian low/high u32)
+    var ubs = lim.maxUniformBufferBindingSize;
+    MU32[(limits+64)>>2] = ubs >>> 0;
+    MU32[(limits+68)>>2] = Math.floor(ubs / 0x100000000) >>> 0;
+    // maxStorageBufferBindingSize at +72
+    var sbs = lim.maxStorageBufferBindingSize;
+    MU32[(limits+72)>>2] = sbs >>> 0;
+    MU32[(limits+76)>>2] = Math.floor(sbs / 0x100000000) >>> 0;
+    MU32[(limits+80)>>2] = lim.minUniformBufferOffsetAlignment >>> 0;
+    MU32[(limits+84)>>2] = lim.minStorageBufferOffsetAlignment >>> 0;
+    MU32[(limits+88)>>2] = lim.maxVertexBuffers >>> 0;
+    // maxBufferSize at +96 (uint64_t)
+    var mbs = lim.maxBufferSize;
+    MU32[(limits+96)>>2]  = mbs >>> 0;
+    MU32[(limits+100)>>2] = Math.floor(mbs / 0x100000000) >>> 0;
+    MU32[(limits+104)>>2] = lim.maxVertexAttributes >>> 0;
+    MU32[(limits+108)>>2] = lim.maxVertexBufferArrayStride >>> 0;
+    MU32[(limits+112)>>2] = lim.maxInterStageShaderVariables >>> 0;
+    MU32[(limits+116)>>2] = lim.maxColorAttachments >>> 0;
+    MU32[(limits+120)>>2] = lim.maxColorAttachmentBytesPerSample >>> 0;
+    MU32[(limits+124)>>2] = lim.maxComputeWorkgroupStorageSize >>> 0;
+    MU32[(limits+128)>>2] = lim.maxComputeInvocationsPerWorkgroup >>> 0;
+    MU32[(limits+132)>>2] = lim.maxComputeWorkgroupSizeX >>> 0;
+    MU32[(limits+136)>>2] = lim.maxComputeWorkgroupSizeY >>> 0;
+    MU32[(limits+140)>>2] = lim.maxComputeWorkgroupSizeZ >>> 0;
+    MU32[(limits+144)>>2] = lim.maxComputeWorkgroupsPerDimension >>> 0;
 })
 
 // ---- Surface ---------------------------------------------------------------
@@ -1510,17 +1607,20 @@ WAJIC_LIB(WEBGPU, WGPURenderPassEncoder, wgpuCommandEncoderBeginRenderPass,
         // +0:view(4) +4:depthLoadOp(4) +8:depthStoreOp(4) +12:depthClearValue(f32,4)
         // +16:depthReadOnly(4) +20:stencilLoadOp(4) +24:stencilStoreOp(4) +28:stencilClearValue(4)
         // +32:stencilReadOnly(4)
+        var sLdOp = MU32[(dsaPtr+20)>>2];
         desc.depthStencilAttachment = {
             view: WTV[MU32[dsaPtr>>2]],
             depthLoadOp: ELdOp[MU32[(dsaPtr+4)>>2]],
             depthStoreOp: EStOp[MU32[(dsaPtr+8)>>2]],
             depthClearValue: MF32[(dsaPtr+12)>>2],
             depthReadOnly: !!MU32[(dsaPtr+16)>>2],
-            stencilLoadOp: ELdOp[MU32[(dsaPtr+20)>>2]],
-            stencilStoreOp: EStOp[MU32[(dsaPtr+24)>>2]],
             stencilClearValue: MU32[(dsaPtr+28)>>2],
-            stencilReadOnly: !!MU32[(dsaPtr+32)>>2]
+            stencilReadOnly: sLdOp ? !!MU32[(dsaPtr+32)>>2] : true
         };
+        if (sLdOp) {
+            desc.depthStencilAttachment.stencilLoadOp = ELdOp[sLdOp];
+            desc.depthStencilAttachment.stencilStoreOp = EStOp[MU32[(dsaPtr+24)>>2]];
+        }
     }
     var rpe = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderBeginRenderPass').beginRenderPass(desc);
     // Auto-apply viewport/scissor when rendering to a padded surface canvas
@@ -1538,6 +1638,18 @@ WAJIC_LIB(WEBGPU, WGPUCommandBuffer, wgpuCommandEncoderFinish,
     (WGPUCommandEncoder encoder, const void* descriptor),
 {
     return Wnew(WCB, Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderFinish').finish());
+})
+
+WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderCopyBufferToBuffer,
+    (WGPUCommandEncoder encoder,
+     WGPUBuffer source, unsigned int sourceOffset,
+     WGPUBuffer destination, unsigned int destinationOffset,
+     unsigned int size),
+{
+    var enc = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderCopyBufferToBuffer');
+    var src = Wget(WB, source, 'srcBuf', 'wgpuCommandEncoderCopyBufferToBuffer');
+    var dst = Wget(WB, destination, 'dstBuf', 'wgpuCommandEncoderCopyBufferToBuffer');
+    enc.copyBufferToBuffer(src, sourceOffset, dst, destinationOffset, size);
 })
 
 WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderCopyBufferToTexture,
