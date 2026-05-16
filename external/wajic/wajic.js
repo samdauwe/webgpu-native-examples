@@ -415,9 +415,10 @@ if (!load)
 			// Call the main function with zero arguments
 			main(0, 0);
 		}
-		if (mainvoid)
+		else if (mainvoid)
 		{
 			// Call the main function without arguments
+			// (only reached when no 'main' wrapper was exported)
 			mainvoid();
 		}
 
