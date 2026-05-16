@@ -67,6 +67,9 @@ typedef struct sfetch_range_t {
   size_t size;
 } sfetch_range_t;
 
+/* Convenience macro, mirrors sokol_fetch.h */
+#define SFETCH_RANGE(x) (sfetch_range_t){ (const void*)&(x), sizeof(x) }
+
 typedef struct sfetch_response_t {
   sfetch_handle_t handle;
   bool dispatched;
