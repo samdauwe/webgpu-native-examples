@@ -2692,7 +2692,11 @@ static void texture_cache_destroy(texture_cache_t* this)
   for (int i = 0; i < this->num_textures; ++i) {
     WGPU_RELEASE_RESOURCE(Texture, this->cache[i].texture)
     WGPU_RELEASE_RESOURCE(TextureView, this->cache[i].view)
-    WGPU_RELEASE_RESOURCE(Sampler, this->cache[i].sampler)
+    /* Do NOT release cache[i].sampler here: it is a borrowed reference to one
+     * of the shared samplers below (this->sampler / cube_sampler / etc.) and
+     * does not hold its own reference count.  Releasing it once per texture
+     * would cause one double-free per extra texture. */
+    this->cache[i].sampler = NULL;
   }
   this->num_textures = 0;
 
@@ -6516,10 +6520,94 @@ static void cleanup(wgpu_context_t* wgpu_context)
   /* Release bubble emitter */
   bubble_emitter_destroy(&state.bubble_emitter);
 
+  /* Release fish render groups */
+  for (uint32_t g = 0; g < state.fish_render_group_count; ++g) {
+    fish_render_group_t* group = &state.fish_render_groups[g];
+    WGPU_RELEASE_RESOURCE(Buffer, group->instance_buffer);
+    WGPU_RELEASE_RESOURCE(Buffer, group->species_uniform_buffer);
+    WGPU_RELEASE_RESOURCE(BindGroup, group->instance_bind_group);
+    WGPU_RELEASE_RESOURCE(BindGroup, group->material_bind_group);
+    if (group->instance_data) {
+      free(group->instance_data);
+      group->instance_data = NULL;
+    }
+  }
+
+  /* Release diffuse render items */
+  for (uint32_t i = 0; i < state.diffuse_item_count; ++i) {
+    diffuse_render_item_t* item = &state.diffuse_items[i];
+    WGPU_RELEASE_RESOURCE(BindGroup, item->model_bind_group);
+    WGPU_RELEASE_RESOURCE(BindGroup, item->material_bind_group);
+    WGPU_RELEASE_RESOURCE(Buffer, item->model_uniform_buffer);
+    WGPU_RELEASE_RESOURCE(Buffer, item->material_uniform_buffer);
+  }
+
+  /* Release seaweed render items */
+  for (uint32_t i = 0; i < state.seaweed_item_count; ++i) {
+    seaweed_render_item_t* item = &state.seaweed_items[i];
+    WGPU_RELEASE_RESOURCE(BindGroup, item->model_bind_group);
+    WGPU_RELEASE_RESOURCE(BindGroup, item->material_bind_group);
+    WGPU_RELEASE_RESOURCE(Buffer, item->model_uniform_buffer);
+    WGPU_RELEASE_RESOURCE(Buffer, item->material_uniform_buffer);
+  }
+
+  /* Release inner tank render items */
+  for (uint32_t i = 0; i < state.inner_item_count; ++i) {
+    tank_render_item_t* item = &state.inner_items[i];
+    WGPU_RELEASE_RESOURCE(BindGroup, item->material_bind_group);
+    WGPU_RELEASE_RESOURCE(Buffer, item->uniform_buffer);
+  }
+
+  /* Release outer tank render items */
+  for (uint32_t i = 0; i < state.outer_item_count; ++i) {
+    tank_render_item_t* item = &state.outer_items[i];
+    WGPU_RELEASE_RESOURCE(BindGroup, item->material_bind_group);
+    WGPU_RELEASE_RESOURCE(Buffer, item->uniform_buffer);
+  }
+
+  /* Release bubble system */
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.bubble_pipeline_result.pipeline);
+  WGPU_RELEASE_RESOURCE(PipelineLayout,
+                        state.bubble_pipeline_result.pipeline_layout);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.bubble_pipeline_result.bind_group_layout_0);
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.bubble_pipeline_result.bind_group_layout_1);
+  cached_bubble_pipeline            = NULL;
+  cached_bubble_pipeline_layout     = NULL;
+  cached_bubble_bind_group_layout_0 = NULL;
+  cached_bubble_bind_group_layout_1 = NULL;
+  WGPU_RELEASE_RESOURCE(Buffer, state.bubble_corner_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, state.bubble_particle_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, state.bubble_frame_uniform_buffer);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bubble_frame_bind_group);
+  WGPU_RELEASE_RESOURCE(BindGroup, state.bubble_material_bind_group);
+  if (state.bubble_particle_data) {
+    free(state.bubble_particle_data);
+    state.bubble_particle_data = NULL;
+  }
+
+  /* Release light ray system */
+  WGPU_RELEASE_RESOURCE(RenderPipeline,
+                        state.light_ray_pipeline_result.pipeline);
+  WGPU_RELEASE_RESOURCE(PipelineLayout,
+                        state.light_ray_pipeline_result.pipeline_layout);
+  WGPU_RELEASE_RESOURCE(
+    BindGroupLayout,
+    state.light_ray_pipeline_result.material_bind_group_layout);
+  cached_light_ray_pipeline                   = NULL;
+  cached_light_ray_pipeline_layout            = NULL;
+  cached_light_ray_material_bind_group_layout = NULL;
+  WGPU_RELEASE_RESOURCE(Buffer, state.light_ray_quad_buffer);
+  for (int i = 0; i < state.light_ray_controller.count; ++i) {
+    WGPU_RELEASE_RESOURCE(BindGroup, state.light_ray_material_bind_groups[i]);
+  }
+
   /* Release laser system resources */
   WGPU_RELEASE_RESOURCE(Buffer, state.laser_vertex_buffer);
   WGPU_RELEASE_RESOURCE(Buffer, state.laser_color_mult_buffer);
   WGPU_RELEASE_RESOURCE(Buffer, state.laser_model_uniform_buffer);
+  WGPU_RELEASE_RESOURCE(Buffer, state.laser_index_buffer);
   WGPU_RELEASE_RESOURCE(BindGroup, state.laser_material_bind_group);
   WGPU_RELEASE_RESOURCE(BindGroup, state.laser_model_bind_group);
 
