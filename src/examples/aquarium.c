@@ -17,13 +17,26 @@
 #pragma GCC diagnostic pop
 #endif
 
-/* sokol_fetch for async file loading */
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_MAX_REQUESTS 128
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so static WGPU handle initializers and return statements compile without
+ * "incompatible pointer to integer" errors. Also pull in math.h explicitly. */
+#include <math.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
-/* sokol_time for timing */
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 /* cJSON for JSON parsing */
 #include <cJSON.h>
@@ -2284,6 +2297,53 @@ typedef struct {
   bool initialized;
 } texture_cache_t;
 
+/* -------------------------------------------------------------------------- *
+ * WAjic async texture loading — 2D and cube textures
+ * -------------------------------------------------------------------------- */
+#ifdef __WAJIC__
+
+#define WAJIC_MAX_TEX_QUEUE 128
+#define WAJIC_MAX_CUBE_QUEUE 8
+#define WAJIC_NUM_CUBE_FACES 6
+
+typedef struct {
+  texture_record_t* record; /* pre-allocated record in texture_cache */
+  WGPUTextureFormat format;
+} wajic_tex_req_t;
+
+typedef struct {
+  texture_record_t* record; /* pre-allocated record in texture_cache */
+  WGPUTextureFormat format;
+  char face_urls[WAJIC_NUM_CUBE_FACES][512];
+  int faces_done;
+  int face_width;
+  int face_height;
+  uint8_t* face_pixels[WAJIC_NUM_CUBE_FACES];
+} wajic_cube_req_t;
+
+static struct {
+  wajic_tex_req_t tex[WAJIC_MAX_TEX_QUEUE];
+  int tex_count;
+  int tex_done;
+  wajic_cube_req_t cube[WAJIC_MAX_CUBE_QUEUE];
+  int cube_count;
+  int cube_done;
+  bool flushed;
+} wajic_tex_state;
+
+/* Returns total number of async texture operations still in flight */
+static int wajic_textures_pending(void)
+{
+  return (wajic_tex_state.tex_count - wajic_tex_state.tex_done)
+         + (wajic_tex_state.cube_count - wajic_tex_state.cube_done);
+}
+
+/* Forward declarations for WAjic texture fetch callbacks */
+static void wajic_texture_fetch_callback(const sfetch_response_t* response);
+static void wajic_cube_face_fetch_callback(const sfetch_response_t* response);
+
+#endif /* __WAJIC__ */
+
 static void texture_cache_init(texture_cache_t* this, WGPUDevice device,
                                WGPUQueue queue)
 {
@@ -2337,6 +2397,21 @@ static texture_record_t* texture_cache_load_texture(texture_cache_t* this,
     return NULL;
   }
 
+#ifdef __WAJIC__
+  /* Under WAjic, queue the texture for async sfetch loading */
+  if (wajic_tex_state.tex_count >= WAJIC_MAX_TEX_QUEUE) {
+    fprintf(stderr, "WAjic texture queue full\n");
+    return NULL;
+  }
+  texture_record_t* record = &this->cache[this->num_textures++];
+  memset(record, 0, sizeof(*record));
+  strncpy(record->url, url, sizeof(record->url) - 1);
+  record->sampler                     = this->sampler;
+  int req_idx                         = wajic_tex_state.tex_count++;
+  wajic_tex_state.tex[req_idx].record = record;
+  wajic_tex_state.tex[req_idx].format = format;
+  return record;
+#else
   /* Load texture data */
   int32_t img_width = 0, img_height = 0, img_channels = 0, depth = 4,
           mip_levels = 1;
@@ -2407,6 +2482,7 @@ static texture_record_t* texture_cache_load_texture(texture_cache_t* this,
   }
 
   return record;
+#endif /* __WAJIC__ */
 }
 
 static texture_record_t*
@@ -2437,6 +2513,26 @@ texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
     return NULL;
   }
 
+#ifdef __WAJIC__
+  /* Under WAjic, queue the cube texture for async sfetch loading */
+  if (wajic_tex_state.cube_count >= WAJIC_MAX_CUBE_QUEUE) {
+    fprintf(stderr, "WAjic cube texture queue full\n");
+    return NULL;
+  }
+  texture_record_t* record = &this->cache[this->num_textures++];
+  memset(record, 0, sizeof(*record));
+  strncpy(record->url, key, sizeof(record->url) - 1);
+  record->sampler                           = this->cube_sampler;
+  int cube_idx                              = wajic_tex_state.cube_count++;
+  wajic_tex_state.cube[cube_idx].record     = record;
+  wajic_tex_state.cube[cube_idx].format     = format;
+  wajic_tex_state.cube[cube_idx].faces_done = 0;
+  for (int fi = 0; fi < WAJIC_NUM_CUBE_FACES; ++fi) {
+    strncpy(wajic_tex_state.cube[cube_idx].face_urls[fi], urls[fi],
+            sizeof(wajic_tex_state.cube[cube_idx].face_urls[fi]) - 1);
+  }
+  return record;
+#else
   typedef struct {
     int32_t width;
     int32_t height;
@@ -2588,6 +2684,7 @@ texture_cache_load_cube_texture(texture_cache_t* this, const char* urls[6],
   strncpy(record->url, key, sizeof(record->url) - 1);
   record->url[sizeof(record->url) - 1] = '\0';
   return record;
+#endif /* __WAJIC__ */
 }
 
 static void texture_cache_destroy(texture_cache_t* this)
@@ -3482,18 +3579,25 @@ static void scene_fetch_callback(const sfetch_response_t* response)
   }
 
   if (scene_index < 0 || scene_index >= (int)SCENE_DEFINITION_COUNT) {
+#ifdef __WAJIC__
+    free((void*)response->data.ptr);
+#endif
     state.loading_state.scenes_pending--;
     return;
   }
 
-  /* Parse JSON */
+  /* Parse JSON — under WAjic the buffer is null-terminated by the JS fetcher */
+#ifdef __WAJIC__
+  cJSON* root = cJSON_Parse((const char*)response->data.ptr);
+  free((void*)response->data.ptr);
+#else
   char* json_str = (char*)response->data.ptr;
   /* Ensure null termination */
   if (response->data.size < ASSET_FILE_BUFFER_SIZE) {
     ((char*)response->data.ptr)[response->data.size] = '\0';
   }
-
   cJSON* root = cJSON_Parse(json_str);
+#endif
   if (!root) {
     fprintf(stderr, "Failed to parse JSON for scene %s\n", scene->name);
     scene->loading = false;
@@ -3537,13 +3641,17 @@ static void placement_fetch_callback(const sfetch_response_t* response)
     return;
   }
 
-  /* Parse JSON */
+  /* Parse JSON — under WAjic the buffer is null-terminated by the JS fetcher */
+#ifdef __WAJIC__
+  cJSON* root = cJSON_Parse((const char*)response->data.ptr);
+  free((void*)response->data.ptr);
+#else
   char* json_str = (char*)response->data.ptr;
   if (response->data.size < ASSET_FILE_BUFFER_SIZE) {
     ((char*)response->data.ptr)[response->data.size] = '\0';
   }
-
   cJSON* root = cJSON_Parse(json_str);
+#endif
   if (!root) {
     fprintf(stderr, "Failed to parse PropPlacement.js JSON\n");
     return;
@@ -3589,7 +3697,9 @@ static void load_prop_placements(void)
   sfetch_send(&(sfetch_request_t){
     .path     = AQUARIUM_ASSETS_PATH "PropPlacement.js",
     .callback = placement_fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+#ifndef __WAJIC__
+    .buffer = SFETCH_RANGE(state.file_buffer),
+#endif
   });
 }
 
@@ -3607,8 +3717,22 @@ static void load_scene_assets(void)
     loaded_scenes[i].loaded      = false;
   }
 
-  /* Note: We load scenes one at a time to reuse the file buffer */
-  /* Start with the first scene */
+#ifdef __WAJIC__
+  /* Under WAjic, fire all scene fetches concurrently (dynamic per-request
+   * buffers) */
+  for (uint32_t i = 0; i < SCENE_DEFINITION_COUNT; ++i) {
+    loaded_scenes[i].loading = true;
+    char path[512];
+    snprintf(path, sizeof(path), "%s%s.js", AQUARIUM_ASSETS_PATH,
+             scene_definitions[i].name);
+    sfetch_send(&(sfetch_request_t){
+      .path      = path,
+      .callback  = scene_fetch_callback,
+      .user_data = {.ptr = &scene_indices[i], .size = sizeof(int)},
+    });
+  }
+#else
+  /* Native: load scenes one at a time to reuse the shared file buffer */
   loaded_scenes[0].loading = true;
   char path[512];
   snprintf(path, sizeof(path), "%s%s.js", AQUARIUM_ASSETS_PATH,
@@ -3619,11 +3743,17 @@ static void load_scene_assets(void)
     .buffer    = SFETCH_RANGE(state.file_buffer),
     .user_data = {.ptr = &scene_indices[0], .size = sizeof(int)},
   });
+#endif
 }
 
 /* Continue loading next scene (called from frame loop) */
 static void continue_loading_scenes(void)
 {
+#ifdef __WAJIC__
+  /* All scenes were started concurrently in load_scene_assets() — nothing to do
+   */
+  (void)0;
+#else
   if (state.loading_state.scenes_pending <= 0)
     return;
 
@@ -3643,6 +3773,7 @@ static void continue_loading_scenes(void)
       break;
     }
   }
+#endif
 }
 
 /* -------------------------------------------------------------------------- *
@@ -5630,6 +5761,33 @@ static int init(wgpu_context_t* wgpu_context)
   load_prop_placements();
   load_scene_assets();
 
+#ifdef __WAJIC__
+  /* Pre-queue textures that init_render_data() will need.
+   * These are fetched concurrently with the scene/model textures after
+   * JSON loading completes, so they are ready when init_render_data runs. */
+  {
+    const char* skybox_urls[6] = {
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_x.jpg",
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_x.jpg",
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_y.jpg",
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_y.jpg",
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_z.jpg",
+      AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_z.jpg",
+    };
+    texture_cache_load_cube_texture(&state.texture_cache, skybox_urls,
+                                    WGPUTextureFormat_RGBA8Unorm);
+    texture_cache_load_texture(&state.texture_cache,
+                               AQUARIUM_ASSETS_PATH "bubble.png",
+                               WGPUTextureFormat_RGBA8Unorm);
+    texture_cache_load_texture(&state.texture_cache,
+                               AQUARIUM_ASSETS_PATH "beam.png",
+                               WGPUTextureFormat_RGBA8Unorm);
+    texture_cache_load_texture(&state.texture_cache,
+                               AQUARIUM_ASSETS_PATH "LightRay.png",
+                               WGPUTextureFormat_RGBA8Unorm);
+  }
+#endif
+
   /* Initialize imgui overlay */
   imgui_overlay_init(wgpu_context);
 
@@ -5645,6 +5803,254 @@ static int init(wgpu_context_t* wgpu_context)
 /* Forward declaration for render_gui */
 static void render_gui(wgpu_context_t* wgpu_context);
 
+/* -------------------------------------------------------------------------- *
+ * WAjic async texture fetch callbacks and flush
+ * -------------------------------------------------------------------------- */
+#ifdef __WAJIC__
+
+/* Called by sfetch when a 2D texture file is fetched.
+ * user_data contains the index into wajic_tex_state.tex[]. */
+static void wajic_texture_fetch_callback(const sfetch_response_t* response)
+{
+  const int* idx       = (const int*)response->user_data;
+  wajic_tex_req_t* req = &wajic_tex_state.tex[*idx];
+
+  if (!response->fetched) {
+    fprintf(stderr, "WAjic texture fetch failed: %s\n", response->path);
+    wajic_tex_state.tex_done++;
+    return;
+  }
+
+  int w = 0, h = 0, c = 0;
+  uint8_t* pixels = image_pixels_from_memory(
+    response->data.ptr, (int)response->data.size, &w, &h, &c, 4);
+
+  /* Free the JS-allocated fetch buffer */
+  free((void*)response->data.ptr);
+
+  if (!pixels || w == 0 || h == 0) {
+    fprintf(stderr, "WAjic texture decode failed: %s\n", response->path);
+    wajic_tex_state.tex_done++;
+    return;
+  }
+
+  /* Create GPU texture */
+  WGPUTextureDescriptor tex_desc = {
+    .size
+    = {.width = (uint32_t)w, .height = (uint32_t)h, .depthOrArrayLayers = 1},
+    .format = req->format,
+    .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+             | WGPUTextureUsage_RenderAttachment,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+  };
+  WGPUTexture texture = wgpuDeviceCreateTexture(state.device, &tex_desc);
+
+  wgpuQueueWriteTexture(
+    state.queue,
+    &(WGPUTexelCopyTextureInfo){.texture = texture,
+                                .aspect  = WGPUTextureAspect_All},
+    pixels, (size_t)(w * h * 4),
+    &(WGPUTexelCopyBufferLayout){.bytesPerRow  = (uint32_t)(w * 4),
+                                 .rowsPerImage = (uint32_t)h},
+    &(WGPUExtent3D){
+      .width = (uint32_t)w, .height = (uint32_t)h, .depthOrArrayLayers = 1});
+
+  image_free(pixels);
+
+  WGPUTextureView view = wgpuTextureCreateView(
+    texture,
+    &(WGPUTextureViewDescriptor){.format          = tex_desc.format,
+                                 .dimension       = WGPUTextureViewDimension_2D,
+                                 .baseMipLevel    = 0,
+                                 .mipLevelCount   = 1,
+                                 .baseArrayLayer  = 0,
+                                 .arrayLayerCount = 1,
+                                 .aspect          = WGPUTextureAspect_All});
+
+  req->record->texture    = texture;
+  req->record->view       = view;
+  req->record->width      = (uint32_t)w;
+  req->record->height     = (uint32_t)h;
+  req->record->mip_levels = 1;
+
+  wajic_tex_state.tex_done++;
+}
+
+/* Called by sfetch when one face of a cube texture is fetched.
+ * user_data contains int[2] = { cube_idx, face_idx }. */
+static void wajic_cube_face_fetch_callback(const sfetch_response_t* response)
+{
+  const int* ud         = (const int*)response->user_data;
+  int ci                = ud[0];
+  int face              = ud[1];
+  wajic_cube_req_t* req = &wajic_tex_state.cube[ci];
+
+  if (!response->fetched) {
+    fprintf(stderr, "WAjic cube face %d fetch failed: %s\n", face,
+            response->path);
+    req->face_pixels[face] = NULL;
+  }
+  else {
+    int w = 0, h = 0, c = 0;
+    req->face_pixels[face] = image_pixels_from_memory(
+      response->data.ptr, (int)response->data.size, &w, &h, &c, 4);
+    free((void*)response->data.ptr);
+    if (face == 0) {
+      req->face_width  = w;
+      req->face_height = h;
+    }
+  }
+
+  req->faces_done++;
+  if (req->faces_done < WAJIC_NUM_CUBE_FACES) {
+    return; /* Wait for remaining faces */
+  }
+
+  /* All 6 faces received — create the GPU cube texture */
+  const int w     = req->face_width;
+  const int h     = req->face_height;
+  const int depth = 4;
+
+  WGPUTextureDescriptor tex_desc = {
+    .size
+    = {.width = (uint32_t)w, .height = (uint32_t)h, .depthOrArrayLayers = 6},
+    .format = req->format,
+    .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+             | WGPUTextureUsage_RenderAttachment,
+    .mipLevelCount = 1,
+    .sampleCount   = 1,
+    .dimension     = WGPUTextureDimension_2D,
+  };
+  WGPUTexture texture = wgpuDeviceCreateTexture(state.device, &tex_desc);
+
+  for (int f = 0; f < WAJIC_NUM_CUBE_FACES; ++f) {
+    if (!req->face_pixels[f])
+      continue;
+    uint32_t face_bytes = (uint32_t)(w * h * depth);
+    wgpuQueueWriteTexture(
+      state.queue,
+      &(WGPUTexelCopyTextureInfo){.texture  = texture,
+                                  .mipLevel = 0,
+                                  .origin   = (WGPUOrigin3D){.z = (uint32_t)f},
+                                  .aspect   = WGPUTextureAspect_All},
+      req->face_pixels[f], face_bytes,
+      &(WGPUTexelCopyBufferLayout){.offset       = 0,
+                                   .bytesPerRow  = (uint32_t)(w * depth),
+                                   .rowsPerImage = (uint32_t)h},
+      &(WGPUExtent3D){
+        .width = (uint32_t)w, .height = (uint32_t)h, .depthOrArrayLayers = 1});
+    image_free(req->face_pixels[f]);
+    req->face_pixels[f] = NULL;
+  }
+
+  WGPUTextureView view = wgpuTextureCreateView(
+    texture,
+    &(WGPUTextureViewDescriptor){.format        = tex_desc.format,
+                                 .dimension     = WGPUTextureViewDimension_Cube,
+                                 .baseMipLevel  = 0,
+                                 .mipLevelCount = 1,
+                                 .baseArrayLayer  = 0,
+                                 .arrayLayerCount = WAJIC_NUM_CUBE_FACES,
+                                 .aspect          = WGPUTextureAspect_All});
+
+  req->record->texture    = texture;
+  req->record->view       = view;
+  req->record->width      = (uint32_t)w;
+  req->record->height     = (uint32_t)h;
+  req->record->mip_levels = 1;
+
+  wajic_tex_state.cube_done++;
+}
+
+/* Pre-queue ALL textures needed by all loaded scenes, plus fixed assets.
+ * Must be called before wajic_flush_texture_queue(). */
+static void wajic_queue_all_textures(void)
+{
+  char path[512];
+
+  /* Queue per-model textures (diffuse / normal / reflection) */
+  for (uint32_t si = 0; si < SCENE_DEFINITION_COUNT; ++si) {
+    loaded_scene_t* scene = &loaded_scenes[si];
+    if (!scene->loaded) {
+      continue;
+    }
+    for (uint32_t mi = 0; mi < scene->model_count; ++mi) {
+      aquarium_model_t* model = &scene->models[mi];
+      if (model->diffuse_texture[0]) {
+        snprintf(path, sizeof(path), "%s%s", AQUARIUM_ASSETS_PATH,
+                 model->diffuse_texture);
+        texture_cache_load_texture(&state.texture_cache, path,
+                                   WGPUTextureFormat_RGBA8Unorm);
+      }
+      if (model->normal_map_texture[0]) {
+        snprintf(path, sizeof(path), "%s%s", AQUARIUM_ASSETS_PATH,
+                 model->normal_map_texture);
+        texture_cache_load_texture(&state.texture_cache, path,
+                                   WGPUTextureFormat_RGBA8Unorm);
+      }
+      if (model->reflection_map_texture[0]) {
+        snprintf(path, sizeof(path), "%s%s", AQUARIUM_ASSETS_PATH,
+                 model->reflection_map_texture);
+        texture_cache_load_texture(&state.texture_cache, path,
+                                   WGPUTextureFormat_RGBA8Unorm);
+      }
+    }
+  }
+
+  /* Queue fixed-asset textures */
+  texture_cache_load_texture(&state.texture_cache,
+                             AQUARIUM_ASSETS_PATH "bubble.png",
+                             WGPUTextureFormat_RGBA8Unorm);
+  texture_cache_load_texture(&state.texture_cache,
+                             AQUARIUM_ASSETS_PATH "LightRay.png",
+                             WGPUTextureFormat_RGBA8Unorm);
+
+  /* Queue skybox cubemap faces */
+  const char* skybox_urls[WAJIC_NUM_CUBE_FACES] = {
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_x.jpg",
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_x.jpg",
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_y.jpg",
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_y.jpg",
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_positive_z.jpg",
+    AQUARIUM_ASSETS_PATH "GlobeOuter_EM_negative_z.jpg",
+  };
+  texture_cache_load_cube_texture(&state.texture_cache, skybox_urls,
+                                  WGPUTextureFormat_RGBA8Unorm);
+}
+
+/* Send sfetch requests for all queued textures.
+ * Must be called exactly once, after all JSON scene data is loaded. */
+static void wajic_flush_texture_queue(void)
+{
+  if (wajic_tex_state.flushed) {
+    return;
+  }
+  wajic_tex_state.flushed = true;
+
+  for (int i = 0; i < wajic_tex_state.tex_count; ++i) {
+    sfetch_send(&(sfetch_request_t){
+      .path      = wajic_tex_state.tex[i].record->url,
+      .callback  = wajic_texture_fetch_callback,
+      .user_data = {.ptr = &i, .size = sizeof(int)},
+    });
+  }
+
+  for (int ci = 0; ci < wajic_tex_state.cube_count; ++ci) {
+    for (int face = 0; face < WAJIC_NUM_CUBE_FACES; ++face) {
+      int ud[2] = {ci, face};
+      sfetch_send(&(sfetch_request_t){
+        .path      = wajic_tex_state.cube[ci].face_urls[face],
+        .callback  = wajic_cube_face_fetch_callback,
+        .user_data = {.ptr = ud, .size = sizeof(ud)},
+      });
+    }
+  }
+}
+
+#endif /* __WAJIC__ */
+
 static int frame(wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
@@ -5659,11 +6065,27 @@ static int frame(wgpu_context_t* wgpu_context)
     continue_loading_scenes();
   }
 
+#ifdef __WAJIC__
+  /* Once all JSON is loaded, queue and flush all textures */
+  if (!wajic_tex_state.flushed && state.loading_state.scenes_pending <= 0
+      && state.loading_state.placement_loaded) {
+    wajic_queue_all_textures();
+    wajic_flush_texture_queue();
+  }
+
+  /* Initialize render data once all JSON and textures are loaded */
+  if (!state.render_data_initialized && state.loading_state.placement_loaded
+      && state.loading_state.scenes_pending <= 0 && wajic_tex_state.flushed
+      && wajic_textures_pending() == 0) {
+    init_render_data();
+  }
+#else
   /* Initialize render data once all assets are loaded */
   if (!state.render_data_initialized && state.loading_state.placement_loaded
       && state.loading_state.scenes_pending <= 0) {
     init_render_data();
   }
+#endif
 
   /* Handle window resize */
   setup_depth_texture_if_needed();
@@ -5977,7 +6399,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Camera settings */
   if (igCollapsingHeader_BoolPtr("Camera", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     /* Change View button */
     if (igButton("Change View", (ImVec2){0, 0})) {
       state.view_index = (state.view_index + 1) % VIEW_PRESET_COUNT;
@@ -6000,7 +6422,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Animation settings */
   if (igCollapsingHeader_BoolPtr("Animation", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("Speed", &state.globals.speed, 0.0f, 5.0f,
                                "%.1f");
   }
@@ -6030,14 +6452,16 @@ static void render_gui(wgpu_context_t* wgpu_context)
   if (igCollapsingHeader_BoolPtr("Debug", NULL, 0)) {
     const char* inner_debug_modes[]
       = {"Normal", "Normals", "Refract Dir", "Skybox Sample", "Refract Mask"};
-    igCombo_Str_arr("Inner Debug", &state.inner_debug_mode, inner_debug_modes, 5, -1);
+    igCombo_Str_arr("Inner Debug", &state.inner_debug_mode, inner_debug_modes,
+                    5, -1);
     igText("0=Normal, 1=Normals, 2=Refraction Dir");
     igText("3=Skybox Only, 4=Reflection Mask");
 
     igSeparator();
     const char* outer_debug_modes[] = {
       "Normal", "Alpha", "ViewDot", "ReflectAmount", "Normals", "RedAlpha0.3"};
-    igCombo_Str_arr("Outer Debug", &state.outer_debug_mode, outer_debug_modes, 6, -1);
+    igCombo_Str_arr("Outer Debug", &state.outer_debug_mode, outer_debug_modes,
+                    6, -1);
     igText("0=Normal, 1=Alpha (black=transparent)");
     igText("2=ViewDot, 3=ReflectAmount, 4=Normals");
     igText("5=RedAlpha0.3 (test transparency)");
