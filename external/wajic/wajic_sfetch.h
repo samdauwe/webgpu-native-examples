@@ -264,8 +264,8 @@ WAJIC(void, _wsfetch_js_send_dynamic,
                 ASM.WAFNSFetchDoneDynamic(slot_index, 0, 0, 1);
                 return;
             }
-            /* Allocate WASM memory for the response data */
-            var ptr = ASM.malloc(sz);
+            /* Allocate WASM memory for the response data (+1 for null terminator) */
+            var ptr = ASM.malloc(sz + 1);
             if (!ptr) {
                 console.error('[sfetch] malloc(' + sz + ') failed for ' + urlStr);
                 ASM.WAFNSFetchDoneDynamic(slot_index, 0, 0, 7);
@@ -274,6 +274,7 @@ WAJIC(void, _wsfetch_js_send_dynamic,
             /* Refresh MU8 — malloc may have grown WASM memory */
             if (MU8.buffer !== MEM.buffer) MU8 = new Uint8Array(MEM.buffer);
             MU8.set(u8, ptr);
+            MU8[ptr + sz] = 0; /* null-terminate so cJSON_Parse works correctly */
             ASM.WAFNSFetchDoneDynamic(slot_index, ptr, sz, 0);
         })['catch'](function(err) {
             attempt++;
