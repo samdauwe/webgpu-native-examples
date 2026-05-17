@@ -5,8 +5,13 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -1000,7 +1005,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Color blend settings */
   if (igCollapsingHeader_BoolPtr("Color", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     {
       int op = (int)state.settings.color.operation;
       if (imgui_overlay_combo_box("operation##color", &op,
@@ -1029,7 +1034,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Alpha blend settings */
   if (igCollapsingHeader_BoolPtr("Alpha", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     {
       int op = (int)state.settings.alpha.operation;
       if (imgui_overlay_combo_box("operation##alpha", &op,
@@ -1058,7 +1063,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Constant settings */
   if (igCollapsingHeader_BoolPtr("Constant", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     float color[4]
       = {state.settings.constant_color[0], state.settings.constant_color[1],
          state.settings.constant_color[2], state.settings.constant_alpha};
@@ -1072,7 +1077,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Clear color settings */
   if (igCollapsingHeader_BoolPtr("Clear Color", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("premultiply", &state.settings.clear_premultiply);
     igDragFloat("alpha##clear", &state.settings.clear_alpha, 0.01f, 0.0f, 1.0f,
                 "%.2f", 0);
