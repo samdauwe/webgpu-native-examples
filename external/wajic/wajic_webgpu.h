@@ -986,7 +986,7 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
     function Wsv(p) {
         if (!p) return undefined;
         var d = MU32[p>>2], l = MU32[(p+4)>>2];
-        return d ? MStrGet(d, (l>>>0) === 0xFFFFFFFF ? 0 : l) : undefined;
+        return d ? MStrGet(d, (l>>>0) === 0xFFFFFFFF ? undefined : l) : undefined;
     }
 
     // Enum-to-string lookup tables
