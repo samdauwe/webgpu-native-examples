@@ -270,6 +270,13 @@ if (!load)
 		__syscall_fcntl64: emptyFunction,
 		__syscall_ioctl: emptyFunction,
 		__syscall_openat: fn_sys_openat,
+
+		// Math functions not resolved by the regex below:
+		//   logf/log2f/log10f: the regex [^l] blocks names starting with 'l'
+		//   fabsl/floorl/ceill: long-double variants end in 'l', not 'f'
+		logf: Math.log, log2f: Math.log2, log10f: Math.log10,
+		fabsl: Math.abs, floorl: Math.floor, ceill: Math.ceil, truncl: Math.trunc,
+		sqrtl: Math.sqrt, powl: Math.pow, fmodl: function(x,y) { return x%y; },
 	};
 	var imports = { env:env, J:J };
 
