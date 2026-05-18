@@ -4,11 +4,29 @@
 
 #include <cglm/cglm.h>
 
+/* Async file loading */
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+#endif
 
+/* Timing */
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+
+/* Suppress NULL redefinition warning from wajic headers */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -1373,61 +1391,24 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   bool imgui_wants_mouse    = io->WantCaptureMouse;
   bool imgui_wants_keyboard = io->WantCaptureKeyboard;
 
-  if (input_event->type == INPUT_EVENT_TYPE_KEY_DOWN && !imgui_wants_keyboard) {
-    switch (input_event->key_code) {
-      case KEY_W:
-        state.input_handler.digital.forward = 1;
-        break;
-      case KEY_S:
-        state.input_handler.digital.backward = 1;
-        break;
-      case KEY_A:
-        state.input_handler.digital.left = 1;
-        break;
-      case KEY_D:
-        state.input_handler.digital.right = 1;
-        break;
-      case KEY_SPACE:
-        state.input_handler.digital.up = 1;
-        break;
-      case KEY_C:
-      case KEY_LEFT_CONTROL:
-      case KEY_LEFT_SHIFT:
-        state.input_handler.digital.down = 1;
-        break;
-      default:
-        break;
-    }
+  /* Update digital key state from the always-current keys_down[] snapshot.
+   * Reading from keys_down[] rather than reacting to KEY_DOWN/KEY_UP events
+   * avoids losing key presses on native builds where glfwPollEvents() can
+   * fire multiple callbacks in one call and only the last event is dispatched
+   * (e.g. a key press followed by a mouse-move would drop the KEY_DOWN). */
+  if (!imgui_wants_keyboard) {
+    state.input_handler.digital.forward  = input_event->keys_down[KEY_W];
+    state.input_handler.digital.backward = input_event->keys_down[KEY_S];
+    state.input_handler.digital.left     = input_event->keys_down[KEY_A];
+    state.input_handler.digital.right    = input_event->keys_down[KEY_D];
+    state.input_handler.digital.up       = input_event->keys_down[KEY_SPACE];
+    state.input_handler.digital.down
+      = input_event->keys_down[KEY_C]
+        || input_event->keys_down[KEY_LEFT_CONTROL]
+        || input_event->keys_down[KEY_LEFT_SHIFT];
   }
-  else if (input_event->type == INPUT_EVENT_TYPE_KEY_UP
-           && !imgui_wants_keyboard) {
-    switch (input_event->key_code) {
-      case KEY_W:
-        state.input_handler.digital.forward = 0;
-        break;
-      case KEY_S:
-        state.input_handler.digital.backward = 0;
-        break;
-      case KEY_A:
-        state.input_handler.digital.left = 0;
-        break;
-      case KEY_D:
-        state.input_handler.digital.right = 0;
-        break;
-      case KEY_SPACE:
-        state.input_handler.digital.up = 0;
-        break;
-      case KEY_C:
-      case KEY_LEFT_CONTROL:
-      case KEY_LEFT_SHIFT:
-        state.input_handler.digital.down = 0;
-        break;
-      default:
-        break;
-    }
-  }
-  else if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN
-           && !imgui_wants_mouse) {
+
+  if (input_event->type == INPUT_EVENT_TYPE_MOUSE_DOWN && !imgui_wants_mouse) {
     if (input_event->mouse_button == BUTTON_LEFT) {
       state.input_handler.analog.touching = true;
     }
