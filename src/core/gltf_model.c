@@ -1904,13 +1904,14 @@ bool gltf_model_load_from_memory(gltf_model_t* model, const void* data,
     return false;
   }
 
-  /* For GLB, binary buffer is embedded; for glTF, try to load external buffers
-   */
-  if (base_path) {
-    result = cgltf_load_buffers(&options, gltf_data, base_path);
-    if (result != cgltf_result_success) {
-      gltf_log_warn("Failed to load external buffers (error: %d)", (int)result);
-    }
+  /* Load buffers: always call cgltf_load_buffers so that embedded data URIs
+   * (base64 blobs) are decoded even when no base_path is available.  If
+   * base_path is NULL cgltf silently skips external file references, which
+   * is the correct behaviour for fully self-contained glTF assets. */
+  result = cgltf_load_buffers(&options, gltf_data,
+                              base_path ? base_path : "");
+  if (result != cgltf_result_success) {
+    gltf_log_warn("Failed to load buffers (error: %d)", (int)result);
   }
 
   /* Validate */
