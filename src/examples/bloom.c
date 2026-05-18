@@ -30,14 +30,25 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -93,6 +104,8 @@ static struct {
   gltf_model_t ufo_model;
   gltf_model_t ufo_glow_model;
   bool models_loaded;
+  int models_load_count;       /* WAjic: number of async-loaded model files */
+  bool models_buffers_created; /* WAjic: GPU buffers created from loaded data */
 
   /* GPU vertex/index buffers for UFO body */
   WGPUBuffer ufo_vertex_buffer;
@@ -417,9 +430,34 @@ static void fetch_cubemap_faces(void)
 
 static void upload_cubemap_pixels(struct wgpu_context_t* wgpu_context)
 {
-  WGPUDevice device = wgpu_context->device;
-  WGPUQueue queue   = wgpu_context->queue;
+#ifdef __WAJIC__
+  WGPUQueue queue = wgpu_context->queue;
+  /* WAjic: wgpuQueueWriteTexture avoids staging buffers with mappedAtCreation
+   * which is not supported in WAjic WebGPU. */
+  for (int face = 0; face < NUM_CUBEMAP_FACES; face++) {
+    wgpuQueueWriteTexture(
+      queue,
+      &(WGPUTexelCopyTextureInfo){
+        .texture  = state.cubemap_texture.handle,
+        .mipLevel = 0,
+        .origin   = {0, 0, (uint32_t)face},
+        .aspect   = WGPUTextureAspect_All,
+      },
+      state.cubemap_pixels[face], CUBEMAP_FACE_NUM_BYTES,
+      &(WGPUTexelCopyBufferLayout){
+        .offset       = 0,
+        .bytesPerRow  = CUBEMAP_FACE_SIZE * 4,
+        .rowsPerImage = CUBEMAP_FACE_SIZE,
+      },
+      &(WGPUExtent3D){CUBEMAP_FACE_SIZE, CUBEMAP_FACE_SIZE, 1});
 
+    free(state.cubemap_pixels[face]);
+    state.cubemap_pixels[face] = NULL;
+  }
+  state.cubemap_texture.is_dirty = false;
+#else
+  WGPUDevice device      = wgpu_context->device;
+  WGPUQueue queue        = wgpu_context->queue;
   WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
   for (int face = 0; face < NUM_CUBEMAP_FACES; face++) {
@@ -473,15 +511,64 @@ static void upload_cubemap_pixels(struct wgpu_context_t* wgpu_context)
     free(state.cubemap_pixels[face]);
     state.cubemap_pixels[face] = NULL;
   }
+#endif /* __WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * The fetch uses dynamic allocation (buffer.ptr = NULL): JS allocates the
+ * exact amount of WASM memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Bloom: model fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  int model_index = *(const int*)response->user_data;
+  gltf_model_t* model
+    = (model_index == 0) ? &state.ufo_model : &state.ufo_glow_model;
+
+  bool ok = gltf_model_load_from_memory(model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.models_load_count++;
+    if (state.models_load_count == 2) {
+      state.models_loaded = true;
+    }
+  }
+  else {
+    printf("Bloom: failed to parse gltf model index %d\n", model_index);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
-  /* Load UFO body (Phong-lit) */
+#ifdef __WAJIC__
+  /* In WAjic, use dynamic sfetch (NULL buffer) to load the gltf files.
+   * Callbacks fire asynchronously; models_loaded is set when both complete. */
+  static const int idx_ufo  = 0;
+  static const int idx_glow = 1;
+
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/retroufo.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_ufo, .size = sizeof(idx_ufo)},
+    .channel   = 0,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/retroufo_glow.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_glow, .size = sizeof(idx_glow)},
+    .channel   = 0,
+  });
+#else
+  /* Native: synchronous file loading. */
   bool ok = gltf_model_load_from_file(&state.ufo_model,
                                       "assets/models/retroufo.gltf", 1.0f);
   if (!ok) {
@@ -498,6 +585,7 @@ static void load_models(void)
   }
 
   state.models_loaded = true;
+#endif /* !__WAJIC__ */
 }
 
 /* Loading descriptor: pre-transform vertices by node world matrices and
@@ -541,7 +629,9 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     memcpy(xformed, m->vertices, vb_size);
     gltf_model_bake_node_transforms(m, xformed, &ufo_load_desc);
 
-    /* Upload transformed vertices to GPU */
+    /* Upload transformed vertices to GPU.
+     * wgpuBufferGetMappedRange/wgpuBufferUnmap are implemented in
+     * wajic_webgpu.h so this path is shared between native and WAjic. */
     *items[mi].vb = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
                 .label = STRVIEW(items[mi].vb_label),
@@ -554,7 +644,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     wgpuBufferUnmap(*items[mi].vb);
     free(xformed);
 
-    /* Upload index buffer (unchanged) */
+    /* Upload index buffer */
     if (m->index_count > 0) {
       size_t ib_size = m->index_count * sizeof(uint32_t);
       *items[mi].ib  = wgpuDeviceCreateBuffer(
@@ -1289,12 +1379,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
-  /* sokol_fetch: 6 cubemap faces + 2 model files */
+  /* sokol_fetch: 6 cubemap faces + 2 model files (WAjic: additional async) */
   sfetch_setup(&(sfetch_desc_t){
     .max_requests = 8,
     .num_channels = 1,
     .num_lanes    = 8,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera setup */
@@ -1308,9 +1400,13 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 45.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 
-  /* Load models synchronously (they're small) */
+  /* Load models:
+   * - Native: synchronous file I/O followed immediately by GPU buffer creation
+   * - WAjic:  async sfetch; GPU buffers created in frame() once data arrives */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Create offscreen framebuffers */
   init_offscreen_framebuffers(wgpu_context);
@@ -1355,6 +1451,14 @@ static int frame(struct wgpu_context_t* wgpu_context)
       && state.cubemap_load_count == NUM_CUBEMAP_FACES) {
     upload_cubemap_pixels(wgpu_context);
   }
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers once both async fetches complete */
+  if (state.models_loaded && !state.models_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.models_buffers_created = true;
+  }
+#endif
 
   /* Timing */
   uint64_t current_time = stm_now();
