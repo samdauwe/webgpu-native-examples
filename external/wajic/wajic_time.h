@@ -2,10 +2,12 @@
  * WAjic-compatible sokol_time shim.
  *
  * Provides the subset of the sokol_time API used by the webgpu-native-examples:
- *   stm_setup()           — initialise the timer
- *   stm_now()             — return current time in nanoseconds (uint64_t)
- *   stm_sec(uint64_t)     — convert nanoseconds to seconds (double)
- *   stm_diff(new, old)    — difference in nanoseconds
+ *   stm_setup()                — initialise the timer
+ *   stm_now()                  — return current time in nanoseconds (uint64_t)
+ *   stm_sec(uint64_t)          — convert nanoseconds to seconds (double)
+ *   stm_ms(uint64_t)           — convert nanoseconds to milliseconds (double)
+ *   stm_diff(new, old)         — difference in nanoseconds
+ *   stm_laptime(uint64_t* last) — elapsed since last call, updates *last
  *
  * Timing source: performance.now() (sub-millisecond, monotonic).
  *
@@ -28,6 +30,19 @@ uint64_t stm_now(void);
 uint64_t stm_diff(uint64_t new_ticks, uint64_t old_ticks);
 double   stm_sec(uint64_t ticks);
 double   stm_ms(uint64_t ticks);
+
+/* stm_laptime: returns nanoseconds elapsed since *last_time and updates it.
+ * Matches the sokol_time stm_laptime() signature exactly. */
+static inline uint64_t stm_laptime(uint64_t* last_time)
+{
+  uint64_t dt  = 0;
+  uint64_t now = stm_now();
+  if (*last_time != 0) {
+    dt = stm_diff(now, *last_time);
+  }
+  *last_time = now;
+  return dt;
+}
 
 #ifdef __cplusplus
 }
