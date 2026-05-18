@@ -8,8 +8,26 @@
 #include <cglm/cglm.h>
 #include <cglm/clipspace/ortho_rh_zo.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#endif
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 
 /* cimgui */
 #ifdef __GNUC__
@@ -133,6 +151,11 @@ static struct {
   gltf_model_t tree;
   bool terrain_loaded;
   bool tree_loaded;
+
+  /* WAjic: async model loading counters */
+  int models_load_count;       /* number of successfully loaded models */
+  bool models_loaded;          /* true when all models are ready */
+  bool models_buffers_created; /* true once GPU buffers are uploaded */
 
   struct {
     WGPUBuffer vertex_buffer;
@@ -290,8 +313,72 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates exact WASM memory
+ * needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Cascaded shadow mapping: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+
+  int model_index     = *(const int*)response->user_data;
+  gltf_model_t* model = (model_index == 0) ? &state.terrain : &state.tree;
+
+  gltf_model_desc_t desc = {
+    .loading_flags = GltfLoadingFlag_PreTransformVertices
+                     | GltfLoadingFlag_PreMultiplyVertexColors,
+  };
+
+  bool ok = gltf_model_load_from_memory(model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same post-processing as gltf_model_load_from_file_ext */
+    if (model->vertex_count > 0) {
+      gltf_model_bake_node_transforms(model, model->vertices, &desc);
+    }
+    if (model_index == 0)
+      state.terrain_loaded = true;
+    else
+      state.tree_loaded = true;
+
+    state.models_load_count++;
+    if (state.models_load_count == 2) {
+      state.models_loaded = true;
+    }
+  }
+  else {
+    printf("Cascaded shadow mapping: failed to parse gltf model index %d\n",
+           model_index);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  /* In WAjic, use dynamic sfetch (NULL buffer) to load the gltf files.
+   * Callbacks fire asynchronously; models_loaded is set when both complete. */
+  static const int idx_terrain = 0;
+  static const int idx_tree    = 1;
+
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/terrain_gridlines.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_terrain, .size = sizeof(idx_terrain)},
+    .channel   = 0,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/oaktree.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_tree, .size = sizeof(idx_tree)},
+    .channel   = 0,
+  });
+#else
+  /* Native: synchronous file loading. */
   gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -302,6 +389,9 @@ static void load_models(void)
 
   state.tree_loaded = gltf_model_load_from_file_ext(
     &state.tree, "assets/models/oaktree.gltf", 1.0f, &desc);
+
+  state.models_loaded = (state.terrain_loaded && state.tree_loaded);
+#endif /* !__WAJIC__ */
 }
 
 static void create_model_buffers_for(struct wgpu_context_t* wgpu_context,
@@ -1447,7 +1537,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igSliderFloat("Split lambda", &state.settings.cascade_split_lambda,
                       0.1f, 1.0f, "%.2f", 0)) {
       update_cascades();
@@ -1494,6 +1584,16 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+  /* sokol_fetch: 2 model files (WAjic: async, native: synchronous) */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 4,
+    .num_channels = 1,
+    .num_lanes    = 4,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
+  });
+
   /* Camera setup: FirstPerson type */
   camera_init(&state.camera);
   state.camera.type           = CameraType_FirstPerson;
@@ -1519,9 +1619,13 @@ static int init(struct wgpu_context_t* wgpu_context)
   glm_vec4_copy((vec4){1.25f, -0.1f, -1.25f, 0.0f}, state.tree_positions[3]);
   glm_vec4_copy((vec4){-1.25f, 0.25f, -1.25f, 0.0f}, state.tree_positions[4]);
 
-  /* Load assets */
+  /* Load assets:
+   * - Native: synchronous file I/O followed immediately by GPU buffer creation
+   * - WAjic:  async sfetch; GPU buffers created in frame() once data arrives */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif /* !__WAJIC__ */
 
   /* Textures */
   init_shadow_map(wgpu_context);
@@ -1552,6 +1656,36 @@ static int frame(struct wgpu_context_t* wgpu_context)
 {
   if (!state.initialized)
     return EXIT_FAILURE;
+
+  /* Pump async file loading */
+  sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers and per-material textures once both async fetches
+   * have completed (WAjic only — native does this synchronously in init).
+   * The shared sampler and default texture were created in init; only add the
+   * model-specific bind groups here. */
+  if (state.models_loaded && !state.models_buffers_created) {
+    create_model_buffers(wgpu_context);
+    if (state.terrain_loaded) {
+      create_model_material_textures(wgpu_context, &state.terrain,
+                                     state.terrain_mats);
+    }
+    if (state.tree_loaded) {
+      create_model_material_textures(wgpu_context, &state.tree,
+                                     state.tree_mats);
+    }
+    state.models_buffers_created = true;
+  }
+
+  /* Skip all rendering until GPU buffers are fully uploaded.
+   * This covers the window where terrain_loaded/tree_loaded are true (model
+   * data in RAM) but vertex_buffer/index_buffer are still NULL, which would
+   * otherwise trigger a WebGPU "invalid buffer handle 0" abort. */
+  if (!state.models_buffers_created) {
+    return EXIT_SUCCESS;
+  }
+#endif /* __WAJIC__ */
 
   /* Timing */
   uint64_t current_time = stm_now();
@@ -1673,6 +1807,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
 
   imgui_overlay_shutdown();
 
