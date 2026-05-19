@@ -270,6 +270,12 @@ if (!load)
 		__syscall_fcntl64: emptyFunction,
 		__syscall_ioctl: emptyFunction,
 		__syscall_openat: fn_sys_openat,
+		// Process/file stubs pulled in by cgltf CGLTF_IMPLEMENTATION file I/O paths
+		fork: function() { return -1; },
+		waitpid: function() { return -1; },
+		getpid: function() { return 1; },
+		execvp: function() { return -1; },
+		__lseek: function() { return -1; },
 
 		// Math functions not resolved by the regex below:
 		//   logf/log2f/log10f: the regex [^l] blocks names starting with 'l'
