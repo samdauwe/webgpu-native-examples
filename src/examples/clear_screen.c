@@ -1,7 +1,14 @@
 #include "webgpu/wgpu_common.h"
 
+#include <math.h>
+
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Clear Screen
