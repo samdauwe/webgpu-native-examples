@@ -1,13 +1,19 @@
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -17,6 +23,12 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#ifdef __WAJIC__
+/* In WAjic, WGPU object handles are uint32_t, not pointers. */
+#undef NULL
+#define NULL 0
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -350,6 +362,7 @@ static void on_buffer_mapped(WGPUMapAsyncStatus status, WGPUStringView message,
     wgpuBufferRelease(result_buffer);
   }
 }
+
 /* Create the compute & graphics pipelines */
 static void init_pipelines(wgpu_context_t* wgpu_context)
 {
@@ -695,7 +708,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
                        (WGPUBufferMapCallbackInfo){
                          .mode      = WGPUCallbackMode_AllowProcessEvents,
                          .callback  = on_buffer_mapped,
-                         .userdata1 = result_buffer,
+                         .userdata1 = (void*)result_buffer,
                        });
   }
 
