@@ -7,12 +7,19 @@
 
 #include <cgltf.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 /* Async file loading */
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+#endif
 
 #include "core/image_loader.h"
 
@@ -27,6 +34,14 @@
 #endif
 
 #include <string.h>
+
+#ifdef __WAJIC__
+/* In WAjic, WGPU object handles are uint32_t (not pointers). Redefine NULL
+ * to 0 so that handle = NULL compiles without "pointer to integer" errors.
+ * This must come after all system headers (which define NULL as (void*)0). */
+#undef NULL
+#define NULL 0
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Clustered Forward Shading
@@ -1304,7 +1319,12 @@ static void glb_fetch_callback(const sfetch_response_t* response)
    * The buffer stays alive until all images are decoded (GLB_LOAD_DONE). */
   state.glb_load.data      = (uint8_t*)response->data.ptr;
   state.glb_load.data_size = response->data.size;
-  state.glb_load.state     = GLB_LOAD_READY;
+#ifdef __WAJIC__
+  /* In WAjic, JS malloc'd the buffer dynamically — track it so the existing
+   * free(state.glb_fetch_buffer) calls later in the pipeline work correctly. */
+  state.glb_fetch_buffer = (uint8_t*)response->data.ptr;
+#endif
+  state.glb_load.state = GLB_LOAD_READY;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2111,8 +2131,12 @@ static void cache_clear_pipelines(void)
  * is parsed.  Dawn compiles in background threads and delivers the result via
  * callback when we call wgpuInstanceProcessEvents() each frame.  Meanwhile
  * the light sprites keep rendering.
+ * In WAjic/browser, pipeline compilation is inherently synchronous from the
+ * C perspective; we use wgpuDeviceCreateRenderPipeline() directly and mark
+ * all pipelines completed in the same call. No async callback needed.
  * -------------------------------------------------------------------------- */
 
+#ifndef __WAJIC__
 static void async_pipeline_callback(WGPUCreatePipelineAsyncStatus status,
                                     WGPURenderPipeline pipeline,
                                     WGPUStringView message,
@@ -2130,6 +2154,7 @@ static void async_pipeline_callback(WGPUCreatePipelineAsyncStatus status,
             (int)message.length, message.data);
   }
 }
+#endif /* !__WAJIC__ */
 
 /* Fire async pipeline creation for every unique vertex-layout / material
  * combination in the loaded primitives.  Uses the default output type. */
@@ -2278,6 +2303,7 @@ static void start_async_pipeline_warmup(wgpu_context_t* wgpu_context)
       },
     };
 
+#ifndef __WAJIC__
     wgpuDeviceCreateRenderPipelineAsync(
       device, &desc,
       (WGPUCreateRenderPipelineAsyncCallbackInfo){
@@ -2285,6 +2311,17 @@ static void start_async_pipeline_warmup(wgpu_context_t* wgpu_context)
         .callback  = async_pipeline_callback,
         .userdata1 = (void*)(uintptr_t)k,
       });
+#else /* __WAJIC__ */
+    /* In WAjic, create synchronously and store directly — no async API. */
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device, &desc);
+    if (pipeline) {
+      cache_store_pipeline(&state.async_pipelines.keys[k], pipeline);
+      state.async_pipelines.completed++;
+    }
+    else {
+      fprintf(stderr, "Pipeline %u creation failed\n", k);
+    }
+#endif
   }
 
   /* Shader modules can be released — Dawn retains internal references */
@@ -2867,13 +2904,22 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Start asynchronous GLB file loading — light sprites render immediately
    * while the model loads in the background */
-  state.glb_load.state   = GLB_LOAD_PENDING;
+  state.glb_load.state = GLB_LOAD_PENDING;
+#ifdef __WAJIC__
+  /* WAjic: pass a NULL buffer so JS allocates exactly the file's size in WASM
+   * memory via malloc().  The pointer is captured in glb_fetch_callback(). */
+  sfetch_send(&(sfetch_request_t){
+    .path     = GLB_MODEL_PATH,
+    .callback = glb_fetch_callback,
+  });
+#else
   state.glb_fetch_buffer = (uint8_t*)malloc(GLB_FETCH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = GLB_MODEL_PATH,
     .callback = glb_fetch_callback,
     .buffer   = {.ptr = state.glb_fetch_buffer, .size = GLB_FETCH_BUFFER_SIZE},
   });
+#endif
 
   state.initialized = true;
   return EXIT_SUCCESS;
@@ -2888,9 +2934,11 @@ static int frame(struct wgpu_context_t* wgpu_context)
   sfetch_dowork();
 
   /* Process pending async pipeline callbacks */
+#ifndef __WAJIC__
   if (state.glb_load.state == GLB_LOAD_PIPELINES) {
     wgpuInstanceProcessEvents(wgpu_context->instance);
   }
+#endif
 
   /* ---- GLB loading state machine ---- */
   if (state.glb_load.state == GLB_LOAD_READY) {
