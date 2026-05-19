@@ -450,6 +450,36 @@ typedef enum WGPUStencilOperation {
     WGPUStencilOperation_Force32       = 0x7FFFFFFF
 } WGPUStencilOperation;
 
+typedef enum WGPUQueryType {
+    WGPUQueryType_Occlusion = 0x00000001,
+    WGPUQueryType_Timestamp = 0x00000002,
+    WGPUQueryType_Force32   = 0x7FFFFFFF
+} WGPUQueryType;
+
+typedef enum WGPUMapAsyncStatus {
+    WGPUMapAsyncStatus_Success         = 0x00000001,
+    WGPUMapAsyncStatus_CallbackCancelled = 0x00000002,
+    WGPUMapAsyncStatus_Error           = 0x00000003,
+    WGPUMapAsyncStatus_Aborted         = 0x00000004,
+    WGPUMapAsyncStatus_Force32         = 0x7FFFFFFF
+} WGPUMapAsyncStatus;
+
+typedef enum WGPUCallbackMode {
+    WGPUCallbackMode_WaitAnyOnly        = 0x00000001,
+    WGPUCallbackMode_AllowProcessEvents = 0x00000002,
+    WGPUCallbackMode_AllowSpontaneous   = 0x00000003,
+    WGPUCallbackMode_Force32            = 0x7FFFFFFF
+} WGPUCallbackMode;
+
+typedef WGPUFlags WGPUMapMode;
+#define WGPUMapMode_None  0x00000000u
+#define WGPUMapMode_Read  0x00000001u
+#define WGPUMapMode_Write 0x00000002u
+
+#define WGPUFeatureName_TimestampQuery 0x00000009u
+
+typedef struct WGPUFuture { uint64_t id; } WGPUFuture;
+
 // ============================================================================
 // Struct definitions (wasm32 ABI: ptr=4, size_t=4, uint64_t=8 aligned 8)
 // ============================================================================
@@ -783,7 +813,40 @@ typedef struct WGPURenderPassDescriptor {
     WGPURenderPassColorAttachment const * colorAttachments;
     WGPURenderPassDepthStencilAttachment const * depthStencilAttachment;
     WGPUQuerySet occlusionQuerySet;
+    struct WGPUPassTimestampWrites const * timestampWrites;
 } WGPURenderPassDescriptor;
+
+// --- Timestamp / query ---
+
+typedef struct WGPUPassTimestampWrites {
+    WGPUQuerySet querySet;
+    uint32_t beginningOfPassWriteIndex;
+    uint32_t endOfPassWriteIndex;
+} WGPUPassTimestampWrites;
+
+typedef struct WGPUQuerySetDescriptor {
+    WGPUChainedStruct const * nextInChain;
+    WGPUStringView label;
+    WGPUQueryType type;
+    uint32_t count;
+} WGPUQuerySetDescriptor;
+
+typedef struct WGPUComputePassDescriptor {
+    WGPUChainedStruct const * nextInChain;
+    WGPUStringView label;
+    WGPUPassTimestampWrites const * timestampWrites;
+} WGPUComputePassDescriptor;
+
+typedef void (*WGPUBufferMapCallback)(WGPUMapAsyncStatus status,
+    WGPUStringView message, void* userdata1, void* userdata2);
+
+typedef struct WGPUBufferMapCallbackInfo {
+    WGPUChainedStruct const * nextInChain;
+    WGPUCallbackMode mode;
+    WGPUBufferMapCallback callback;
+    void* userdata1;
+    void* userdata2;
+} WGPUBufferMapCallbackInfo;
 
 // --- Command encoder ---
 
@@ -921,6 +984,68 @@ typedef struct WGPULimits {
 } WGPULimits;
 
 // ============================================================================
+// Buffer map callback dispatch (C-side storage, JS calls WGPUBufMapDone)
+// This block must be compiled in EXACTLY ONE translation unit.
+// In your project, define WAJIC_WEBGPU_IMPL in exactly one .c file before
+// including wajic_webgpu.h (or wgpu_common.h).  wgpu_common.c does this.
+// ============================================================================
+#ifdef WAJIC_WEBGPU_IMPL
+
+#define WGPU_MAX_MAP_CALLBACKS 64
+
+typedef struct {
+    uint32_t buffer_handle;
+    WGPUBufferMapCallback callback;
+    void* userdata1;
+    void* userdata2;
+} _WGPUMapCbEntry;
+
+static _WGPUMapCbEntry _wgpu_map_cbs[WGPU_MAX_MAP_CALLBACKS];
+
+/* Called from JS (wgpuBufferMapAsync WAJIC body) to register callback before
+ * mapAsync starts. Using a C helper avoids needing direct WASM memory layout
+ * knowledge on the JS side. */
+WA_EXPORT(_wgpu_map_cb_register)
+void _wgpu_map_cb_register(uint32_t buffer_handle,
+                            uint32_t cb_fptr,
+                            uint32_t ud1_raw,
+                            uint32_t ud2_raw)
+{
+    for (int i = 0; i < WGPU_MAX_MAP_CALLBACKS; i++) {
+        if (_wgpu_map_cbs[i].buffer_handle == 0) {
+            _wgpu_map_cbs[i].buffer_handle = buffer_handle;
+            /* Reinterpret raw pointer-sized ints as the typed values */
+            _wgpu_map_cbs[i].callback  = (WGPUBufferMapCallback)(uintptr_t)cb_fptr;
+            _wgpu_map_cbs[i].userdata1 = (void*)(uintptr_t)ud1_raw;
+            _wgpu_map_cbs[i].userdata2 = (void*)(uintptr_t)ud2_raw;
+            return;
+        }
+    }
+}
+
+/* Called from JS after buffer.mapAsync() resolves or rejects */
+WA_EXPORT(WGPUBufMapDone)
+void WGPUBufMapDone(uint32_t buffer_handle, uint32_t status_u32)
+{
+    for (int i = 0; i < WGPU_MAX_MAP_CALLBACKS; i++) {
+        if (_wgpu_map_cbs[i].buffer_handle == buffer_handle) {
+            WGPUBufferMapCallback cb = _wgpu_map_cbs[i].callback;
+            void* ud1 = _wgpu_map_cbs[i].userdata1;
+            void* ud2 = _wgpu_map_cbs[i].userdata2;
+            _wgpu_map_cbs[i].buffer_handle = 0;
+            _wgpu_map_cbs[i].callback = NULL;
+            if (cb) {
+                WGPUStringView empty_msg = {NULL, 0};
+                cb((WGPUMapAsyncStatus)status_u32, empty_msg, ud1, ud2);
+            }
+            return;
+        }
+    }
+}
+
+#endif /* WAJIC_WEBGPU_IMPL */
+
+// ============================================================================
 // JavaScript implementation — WAJIC_LIB_WITH_INIT block
 // ============================================================================
 
@@ -1003,6 +1128,7 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
     var EBBType = ',uniform,storage,read-only-storage'.split(',');
     var ESStep = ',,vertex,instance'.split(',');
     var EAlpha = 'auto,opaque,premultiplied,unpremultiplied,inherit'.split(',');
+    var EFeat = { 0x9: 'timestamp-query' }; // WGPUFeatureName -> WebGPU feature string
 
     // Read WGPUBlendComponent from ptr (3 x uint32: operation, srcFactor, dstFactor)
     function RdBlend(p) {
@@ -1029,7 +1155,11 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
         Wlog('Requesting device...');
         var device;
         try {
-            device = await adapter.requestDevice();
+            var adapterHasTS = adapter.features.has('timestamp-query');
+            WA.webgpuHasTimestampQuery = adapterHasTS;
+            device = await adapter.requestDevice({
+                requiredFeatures: adapterHasTS ? ['timestamp-query'] : []
+            });
         } catch(err) {
             abort('WEBGPU', 'requestDevice failed: ' + err.message);
             return;
@@ -1126,6 +1256,39 @@ WAJIC_LIB(WEBGPU, void, wgpuDeviceGetLimits, (WGPUDevice device, void* limits),
     MU32[(limits+136)>>2] = lim.maxComputeWorkgroupSizeY >>> 0;
     MU32[(limits+140)>>2] = lim.maxComputeWorkgroupSizeZ >>> 0;
     MU32[(limits+144)>>2] = lim.maxComputeWorkgroupsPerDimension >>> 0;
+})
+
+WAJIC_LIB(WEBGPU, bool, wgpuAdapterHasFeature,
+    (WGPUAdapter adapter, uint32_t feature),
+{
+    var featName = EFeat[feature];
+    if (!featName) return 0;
+    return WA.webgpuAdapter && WA.webgpuAdapter.features.has(featName) ? 1 : 0;
+})
+
+WAJIC_LIB(WEBGPU, bool, wgpuDeviceHasFeature,
+    (WGPUDevice device, uint32_t feature),
+{
+    var featName = EFeat[feature];
+    if (!featName) return 0;
+    var dev = device ? WD[device] : (WA.webgpuDevice || null);
+    return dev && dev.features.has(featName) ? 1 : 0;
+})
+
+WAJIC_LIB(WEBGPU, WGPUQuerySet, wgpuDeviceCreateQuerySet,
+    (WGPUDevice device, const WGPUQuerySetDescriptor* descriptor),
+{
+    var dev = Wget(WD, device, 'device', 'wgpuDeviceCreateQuerySet');
+    // WGPUQuerySetDescriptor wasm32: +0:nextInChain(4) +4:label.data(4) +8:label.len(4)
+    //   +12:type(4) +16:count(4)  => sizeof=20
+    var type_val = MU32[(descriptor+12)>>2];
+    var cnt      = MU32[(descriptor+16)>>2];
+    var type_str = type_val === 2 ? 'timestamp' : 'occlusion';
+    try {
+        return Wnew(WQS, dev.createQuerySet({ type: type_str, count: cnt }));
+    } catch(err) {
+        abort('WEBGPU', 'wgpuDeviceCreateQuerySet failed: ' + err.message);
+    }
 })
 
 // ---- Surface ---------------------------------------------------------------
@@ -1572,7 +1735,7 @@ WAJIC_LIB(WEBGPU, WGPURenderPassEncoder, wgpuCommandEncoderBeginRenderPass,
 {
     // WGPURenderPassDescriptor:
     // +0:nextInChain(4) +4:label(8) +12:colorAttachmentCount(4) +16:colorAttachments(4)
-    // +20:depthStencilAttachment(4) +24:occlusionQuerySet(4)
+    // +20:depthStencilAttachment(4) +24:occlusionQuerySet(4) +28:timestampWrites(ptr,4)
     var caCount = MU32[(descriptor+12)>>2];
     var caPtr = MU32[(descriptor+16)>>2];
     var colorAttachments = [];
@@ -1620,6 +1783,19 @@ WAJIC_LIB(WEBGPU, WGPURenderPassEncoder, wgpuCommandEncoderBeginRenderPass,
         if (sLdOp) {
             desc.depthStencilAttachment.stencilLoadOp = ELdOp[sLdOp];
             desc.depthStencilAttachment.stencilStoreOp = EStOp[MU32[(dsaPtr+24)>>2]];
+        }
+    }
+    // timestampWrites ptr at +28 in WGPURenderPassDescriptor
+    var tswPtr = MU32[(descriptor+28)>>2];
+    if (tswPtr) {
+        // WGPUPassTimestampWrites: +0:querySet(4) +4:beginningOfPassWriteIndex(4) +8:endOfPassWriteIndex(4)
+        var qs_h = MU32[tswPtr>>2];
+        if (qs_h && WQS[qs_h]) {
+            desc.timestampWrites = {
+                querySet: WQS[qs_h],
+                beginningOfPassWriteIndex: MU32[(tswPtr+4)>>2],
+                endOfPassWriteIndex: MU32[(tswPtr+8)>>2]
+            };
         }
     }
     var rpe = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderBeginRenderPass').beginRenderPass(desc);
@@ -1682,6 +1858,22 @@ WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderCopyTextureToTexture,
     enc.copyTextureToTexture(src, dst, sz);
 })
 
+WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderResolveQuerySet,
+    (WGPUCommandEncoder encoder, WGPUQuerySet querySet,
+     uint32_t firstQuery, uint32_t queryCount,
+     WGPUBuffer destination, uint64_t destinationOffset),
+{
+    // Note: in wasm32 a uint64_t arg is passed as two consecutive uint32 stack
+    // slots (lo word first). WAjic JS sees it as a plain number argument whose
+    // value is the low 32 bits; the high 32 bits follow as an extra implicit
+    // argument.  For timestamp resolve offsets that always fit in 32 bits we
+    // can safely use destinationOffset directly.
+    var enc = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderResolveQuerySet');
+    var qs  = Wget(WQS, querySet, 'querySet', 'wgpuCommandEncoderResolveQuerySet');
+    var dst = Wget(WB,  destination, 'buffer', 'wgpuCommandEncoderResolveQuerySet');
+    enc.resolveQuerySet(qs, firstQuery, queryCount, dst, destinationOffset >>> 0);
+})
+
 // ---- Compute pipeline ------------------------------------------------------
 
 WAJIC_LIB(WEBGPU, WGPUComputePipeline, wgpuDeviceCreateComputePipeline,
@@ -1707,9 +1899,29 @@ WAJIC_LIB(WEBGPU, WGPUComputePipeline, wgpuDeviceCreateComputePipeline,
 // ---- Compute pass encoder --------------------------------------------------
 
 WAJIC_LIB(WEBGPU, WGPUComputePassEncoder, wgpuCommandEncoderBeginComputePass,
-    (WGPUCommandEncoder encoder, const void* descriptor),
+    (WGPUCommandEncoder encoder, const WGPUComputePassDescriptor* descriptor),
 {
-    return Wnew(WCPE, Wget(WCE, encoder, 'encoder', 'beginComputePass').beginComputePass());
+    var enc = Wget(WCE, encoder, 'encoder', 'beginComputePass');
+    var desc = {};
+    if (descriptor) {
+        // WGPUComputePassDescriptor wasm32:
+        // +0:nextInChain(4) +4:label.data(4) +8:label.len(4) +12:timestampWrites(ptr,4)
+        var tsw_ptr = MU32[(descriptor+12)>>2];
+        if (tsw_ptr) {
+            // WGPUPassTimestampWrites: +0:querySet(4) +4:beginningOfPassWriteIndex(4) +8:endOfPassWriteIndex(4)
+            var qs_h = MU32[tsw_ptr>>2];
+            var beg  = MU32[(tsw_ptr+4)>>2];
+            var end  = MU32[(tsw_ptr+8)>>2];
+            if (qs_h && WQS[qs_h]) {
+                desc.timestampWrites = {
+                    querySet: WQS[qs_h],
+                    beginningOfPassWriteIndex: beg,
+                    endOfPassWriteIndex: end
+                };
+            }
+        }
+    }
+    return Wnew(WCPE, enc.beginComputePass(desc));
 })
 
 WAJIC_LIB(WEBGPU, void, wgpuComputePassEncoderSetPipeline,
@@ -2039,6 +2251,45 @@ WAJIC_LIB(WEBGPU, void*, wgpuBufferGetMappedRange,
     return ptr;
 })
 
+WAJIC_LIB(WEBGPU, const void*, wgpuBufferGetConstMappedRange,
+    (WGPUBuffer buffer, unsigned int offset, unsigned int size),
+{
+    // For read-back buffers (mapped via wgpuBufferMapAsync):
+    // Copy mapped GPU data into WASM heap and return pointer.
+    var buf = WB[buffer];
+    if (!buf) return 0;
+    var mapped;
+    try { mapped = buf.getMappedRange(offset, size); } catch(e) { return 0; }
+    if (!mapped) return 0;
+    var ptr = ASM.malloc(size);
+    if (!ptr) abort('WEBGPU', 'wgpuBufferGetConstMappedRange: malloc failed');
+    if (MU8.buffer !== MEM.buffer) MU8 = new Uint8Array(MEM.buffer);
+    MU8.set(new Uint8Array(mapped), ptr);
+    WMBUF[buffer] = { ptr: ptr, size: size, offset: offset, readOnly: true };
+    return ptr;
+})
+
+WAJIC_LIB(WEBGPU, WGPUFuture, wgpuBufferMapAsync,
+    (WGPUBuffer buffer, WGPUMapMode mode, size_t offset, size_t size,
+     WGPUBufferMapCallbackInfo callbackInfo),
+{
+    // WGPUBufferMapCallbackInfo wasm32:
+    // +0:nextInChain(4) +4:mode(4) +8:callback(ptr,4) +12:userdata1(4) +16:userdata2(4)
+    var cb_ptr = MU32[(callbackInfo+8)>>2];
+    var ud1    = MU32[(callbackInfo+12)>>2];
+    var ud2    = MU32[(callbackInfo+16)>>2];
+    // Register callback in C-side table via exported helper.
+    ASM._wgpu_map_cb_register(buffer, cb_ptr, ud1, ud2);
+    var buf = WB[buffer];
+    if (!buf) { ASM.WGPUBufMapDone(buffer, 3 /*Error*/); return 0; }
+    buf.mapAsync(mode, offset, size).then(function() {
+        ASM.WGPUBufMapDone(buffer, 1 /*Success*/);
+    })['catch'](function() {
+        ASM.WGPUBufMapDone(buffer, 3 /*Error*/);
+    });
+    return 0; // WGPUFuture (unused in WAjic)
+})
+
 WAJIC_LIB(WEBGPU, void, wgpuBufferUnmap,
     (WGPUBuffer buffer),
 {
@@ -2046,9 +2297,11 @@ WAJIC_LIB(WEBGPU, void, wgpuBufferUnmap,
     if (!info) return;
     var buf = WB[buffer];
     if (buf) {
-        // Copy WASM heap data into the GPU buffer's mapped range, then unmap.
-        var mapped = buf.getMappedRange(info.offset, info.size);
-        new Uint8Array(mapped).set(MU8.subarray(info.ptr, info.ptr + info.size));
+        if (!info.readOnly) {
+            // mappedAtCreation path: write WASM data back into GPU buffer then unmap.
+            var mapped = buf.getMappedRange(info.offset, info.size);
+            new Uint8Array(mapped).set(MU8.subarray(info.ptr, info.ptr + info.size));
+        }
         buf.unmap();
     }
     ASM.free(info.ptr);
