@@ -1887,7 +1887,10 @@ WAJIC_LIB(WEBGPU, WGPURenderBundleEncoder, wgpuDeviceCreateRenderBundleEncoder,
     };
     if (dsFormat) desc.depthStencilFormat = EFmt[dsFormat];
     desc.depthReadOnly = !!MU32[(descriptor+28)>>2];
-    desc.stencilReadOnly = !!MU32[(descriptor+32)>>2];
+    // Default stencilReadOnly to true when not explicitly set (struct value 0).
+    // This matches wgpuCommandEncoderBeginRenderPass which defaults to true when
+    // no stencil load op is provided, avoiding a browser validation mismatch.
+    desc.stencilReadOnly = MU32[(descriptor+32)>>2] ? !!MU32[(descriptor+32)>>2] : true;
     return Wnew(WRBE, Wget(WD, device, 'device', 'createRenderBundleEncoder').createRenderBundleEncoder(desc));
 })
 
