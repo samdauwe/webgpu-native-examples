@@ -22,12 +22,25 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -189,6 +202,8 @@ static struct {
   WGPURenderPassDescriptor render_pass_descriptor;
 
   WGPUBool initialized;
+  bool sphere_raw_loaded; /* WAjic: gltf data received, GPU buffers not yet
+                             created */
 } state = {
   /* Vulkan original: {-2, 4, -2, 1} — Y negated for WebGPU Y-up */
   .graphics_ubo_data.light_pos = VKY_TO_WGPU_VEC4(-2.0f, 4.0f, -2.0f, 1.0f),
@@ -382,20 +397,16 @@ static void create_cloth_index_buffer(struct wgpu_context_t* wgpu_context)
  * Sphere model loading
  * -------------------------------------------------------------------------- */
 
-static void load_sphere_model(struct wgpu_context_t* wgpu_context)
+/* Create GPU vertex/index buffers from already-loaded sphere model data.
+ * Called from the native path in load_sphere_model() and, for WAjic, deferred
+ * to frame() once the async sfetch has delivered the gltf data.
+ * Note: sphere.gltf has an identity node transform, so no bake is needed. */
+static void create_sphere_gpu_buffers(struct wgpu_context_t* wgpu_context)
 {
   WGPUDevice device = wgpu_context->device;
+  gltf_model_t* m   = &state.sphere_model;
 
-  bool ok = gltf_model_load_from_file_ext(
-    &state.sphere_model, "assets/models/sphere.gltf", 1.0f, &sphere_load_desc);
-  if (!ok) {
-    printf("[compute_cloth] Failed to load sphere.gltf\n");
-    return;
-  }
-
-  gltf_model_t* m = &state.sphere_model;
-
-  /* Create vertex buffer */
+  /* Vertex buffer */
   size_t vb_size             = m->vertex_count * sizeof(gltf_vertex_t);
   state.sphere_vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
@@ -409,7 +420,7 @@ static void load_sphere_model(struct wgpu_context_t* wgpu_context)
   memcpy(vdata, m->vertices, vb_size);
   wgpuBufferUnmap(state.sphere_vertex_buffer);
 
-  /* Create index buffer */
+  /* Index buffer */
   if (m->index_count > 0) {
     size_t ib_size            = m->index_count * sizeof(uint32_t);
     state.sphere_index_buffer = wgpuDeviceCreateBuffer(
@@ -426,6 +437,51 @@ static void load_sphere_model(struct wgpu_context_t* wgpu_context)
   }
 
   state.models_loaded = true;
+}
+
+#ifdef __WAJIC__
+/* Async callback: gltf data has arrived from the browser fetch.
+ * Parse the model, then signal frame() to create the GPU buffers. */
+static void sphere_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("[compute_cloth] Sphere model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.sphere_model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.sphere_raw_loaded = true;
+  }
+  else {
+    printf("[compute_cloth] Failed to parse sphere.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
+static void load_sphere_model(struct wgpu_context_t* wgpu_context)
+{
+#ifdef __WAJIC__
+  /* WAjic: the browser cannot read files synchronously — kick off an
+   * asynchronous fetch.  GPU buffers are created in frame() once the
+   * model data is available (sphere_raw_loaded). */
+  (void)wgpu_context;
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/sphere.gltf",
+    .callback = sphere_fetch_callback,
+    .channel  = 0,
+  });
+#else
+  /* Native: synchronous file loading — parse and upload in one step. */
+  bool ok = gltf_model_load_from_file_ext(
+    &state.sphere_model, "assets/models/sphere.gltf", 1.0f, &sphere_load_desc);
+  if (!ok) {
+    printf("[compute_cloth] Failed to load sphere.gltf\n");
+    return;
+  }
+  create_sphere_gpu_buffers(wgpu_context);
+#endif
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1003,10 +1059,12 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 4,
+    .max_requests = 8,
     .num_channels = 1,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera setup — Vulkan rotation (-30, -45, 0) adapted for WebGPU Y-up.
@@ -1053,6 +1111,13 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Deferred sphere GPU buffer creation: model data arrived via async fetch. */
+  if (state.sphere_raw_loaded && !state.models_loaded) {
+    create_sphere_gpu_buffers(wgpu_context);
+  }
+#endif
 
   /* Handle texture hot-loading */
   if (state.cloth_texture.is_dirty) {
