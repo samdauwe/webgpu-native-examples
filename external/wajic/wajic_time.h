@@ -44,6 +44,12 @@ static inline uint64_t stm_laptime(uint64_t* last_time)
   return dt;
 }
 
+/* stm_since: nanoseconds elapsed since start_ticks (convenience wrapper). */
+static inline uint64_t stm_since(uint64_t start_ticks)
+{
+  return stm_diff(stm_now(), start_ticks);
+}
+
 #ifdef __cplusplus
 }
 #endif
