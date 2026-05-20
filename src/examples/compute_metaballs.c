@@ -8,8 +8,13 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -19,6 +24,12 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#ifdef __WAJIC__
+/* In WAjic, WGPU object handles are uint32_t, not pointers. */
+#undef NULL
+#define NULL 0
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -2646,7 +2657,10 @@ static void point_lights_create(point_lights_t* this,
 
   /* Lights uniform buffer */
   {
-    input_point_light_t lights_data[MAX_POINT_LIGHTS_COUNT] = {0};
+    input_point_light_t* lights_data = (input_point_light_t*)calloc(
+      MAX_POINT_LIGHTS_COUNT, sizeof(input_point_light_t));
+    if (!lights_data)
+      return;
     float x, y, z, vel_x, vel_y, vel_z, r, g, b, radius, intensity;
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS_COUNT; ++i) {
       input_point_light_t* light_data = &lights_data[i];
@@ -2685,13 +2699,15 @@ static void point_lights_create(point_lights_t* this,
       /* Intensity */
       light_data->intensity = intensity;
     }
-    this->lights_buffer
-      = wgpu_create_buffer(wgpu_context, &(wgpu_buffer_desc_t){
-                                           .label = "Lights - Uniform buffer",
-                                           .usage = WGPUBufferUsage_Storage,
-                                           .size  = sizeof(lights_data),
-                                           .initial.data = lights_data,
-                                         });
+    this->lights_buffer = wgpu_create_buffer(
+      wgpu_context,
+      &(wgpu_buffer_desc_t){
+        .label        = "Lights - Uniform buffer",
+        .usage        = WGPUBufferUsage_Storage,
+        .size         = MAX_POINT_LIGHTS_COUNT * sizeof(input_point_light_t),
+        .initial.data = lights_data,
+      });
+    free(lights_data);
   }
 
   /* Lights config uniform buffer */
@@ -6533,7 +6549,7 @@ static void deferred_pass_create(deferred_pass_t* this,
       .bind_groups.item_count        = (uint32_t)ARRAY_SIZE(bind_groups),
       .presentation_format = settings_get_quality_level().bloom_toggle ?
                                WGPUTextureFormat_RGBA16Float :
-                               WGPUTextureFormat_BGRA8Unorm,
+                               wgpu_context->render_format,
       .label               = "Deferred - Pass effect",
     };
     effect_create(&this->effect, renderer, &screen_effect);
@@ -7012,6 +7028,11 @@ static void result_pass_recreate_bind_group(result_pass_t* this,
 static void input_event_cb(struct wgpu_context_t* wgpu_context,
                            const input_event_t* input_event)
 {
+  /* Ignore all input before initialization is complete */
+  if (!state.prepared) {
+    return;
+  }
+
   /* Forward to imgui */
   imgui_overlay_handle_input(wgpu_context, input_event);
 
