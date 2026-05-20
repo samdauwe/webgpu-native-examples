@@ -708,6 +708,10 @@ typedef struct WGPUComputePipelineDescriptor {
     WGPUProgrammableStageDescriptor compute;
 } WGPUComputePipelineDescriptor;
 
+/* Dawn/WebGPU 1.0 renamed WGPUProgrammableStageDescriptor to WGPUComputeState
+ * for the compute field.  The layouts are identical, so a typedef suffices. */
+typedef WGPUProgrammableStageDescriptor WGPUComputeState;
+
 // --- Bind group layout ---
 
 typedef struct WGPUBufferBindingLayout {
@@ -1682,6 +1686,13 @@ WAJIC_LIB(WEBGPU, WGPUBindGroupLayout, wgpuRenderPipelineGetBindGroupLayout,
 {
     var rp = Wget(WRP, pipeline, 'pipeline', 'wgpuRenderPipelineGetBindGroupLayout');
     return Wnew(WBGL, rp.getBindGroupLayout(groupIndex));
+})
+
+WAJIC_LIB(WEBGPU, WGPUBindGroupLayout, wgpuComputePipelineGetBindGroupLayout,
+    (WGPUComputePipeline pipeline, unsigned int groupIndex),
+{
+    var cp = Wget(WCP, pipeline, 'pipeline', 'wgpuComputePipelineGetBindGroupLayout');
+    return Wnew(WBGL, cp.getBindGroupLayout(groupIndex));
 })
 
 // ---- Bind group ------------------------------------------------------------
