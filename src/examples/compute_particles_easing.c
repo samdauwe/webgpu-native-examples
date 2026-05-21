@@ -1,10 +1,26 @@
 #include "webgpu/wgpu_common.h"
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_MAX_REQUESTS 4
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so static WGPU handle initializers compile without type errors. */
+#include <math.h>
+#include <stdio.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
