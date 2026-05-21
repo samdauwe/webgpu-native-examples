@@ -2,8 +2,22 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_MAX_REQUESTS 4
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so static WGPU handle initializers compile without type errors. */
+#include <math.h>
+#include <stdio.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+#endif
 
 #include "core/image_loader.h"
 
@@ -764,10 +778,12 @@ static int init(struct wgpu_context_t* wgpu_context)
     init_uniform_bind_group(wgpu_context);
     init_quad_vertex_buffer(wgpu_context);
     init_texture(wgpu_context);
-    generate_probability_map(wgpu_context, &state.texture);
+    /* generate_probability_map and init_compute_bind_group are deferred to
+     * frame() once the texture has finished loading asynchronously; calling
+     * them here with a placeholder texture produces zero-size GPU buffers
+     * which Chrome's WebGPU rejects. */
     init_simulation_uniform_buffer(wgpu_context);
     init_compute_pipeline(wgpu_context);
-    init_compute_bind_group(wgpu_context);
     init_view_matrices(wgpu_context);
     state.initialized = true;
     return EXIT_SUCCESS;
@@ -810,8 +826,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Create command encoder */
   WGPUCommandEncoder cmd_enc = wgpuDeviceCreateCommandEncoder(device, NULL);
 
-  /* Compute pass */
-  {
+  /* Compute pass - skipped until the texture has loaded and the bind group
+   * has been created (deferred from init to the first is_dirty frame). */
+  if (state.compute_bind_group) {
     WGPUComputePassEncoder cpass_enc
       = wgpuCommandEncoderBeginComputePass(cmd_enc, NULL);
     wgpuComputePassEncoderSetPipeline(cpass_enc, state.compute_pipeline);
