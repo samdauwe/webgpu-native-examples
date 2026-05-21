@@ -30,6 +30,21 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_MAX_REQUESTS 8
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so static WGPU handle initializers and return statements compile without
+ * "incompatible pointer to integer" errors. Also pull in math.h explicitly. */
+#include <math.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
@@ -38,6 +53,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -283,7 +299,13 @@ static void init_particles(particle_t* particles)
 
 static void init_storage_buffer(wgpu_context_t* wgpu_context)
 {
-  particle_t particles[NUM_PARTICLES];
+  /* Heap-allocate: 24576 particles × 32 bytes = 768 KB — too large for WASM
+   * stack (and native debug stack). */
+  const size_t buffer_size = NUM_PARTICLES * sizeof(particle_t);
+  particle_t* particles    = (particle_t*)malloc(buffer_size);
+  if (!particles) {
+    return;
+  }
   init_particles(particles);
 
   state.compute.storage_buffer = wgpu_create_buffer(
@@ -291,9 +313,10 @@ static void init_storage_buffer(wgpu_context_t* wgpu_context)
                     .label = "N-body particle - Storage buffer",
                     .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_Vertex
                              | WGPUBufferUsage_CopyDst,
-                    .size    = sizeof(particles),
-                    .initial = {.data = particles, .size = sizeof(particles)},
+                    .size    = buffer_size,
+                    .initial = {.data = particles, .size = buffer_size},
                   });
+  free(particles);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -756,7 +779,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 4,
     .num_channels = 2,
     .num_lanes    = 2,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   init_camera(wgpu_context);
@@ -922,7 +947,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
   imgui_overlay_handle_input(wgpu_context, input_event);
 
   ImGuiIO* io = igGetIO_Nil();
-  if (io->WantCaptureMouse) {
+  if (io && io->WantCaptureMouse) {
     return;
   }
 
