@@ -22,11 +22,24 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_MAX_REQUESTS 4
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <math.h>
+#include <stdio.h>
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -227,7 +240,10 @@ static void init_textures(wgpu_context_t* wgpu_context)
 static void init_storage_buffer(wgpu_context_t* wgpu_context)
 {
   /* Match Vulkan: pos = random [-1,1], vel = 0, gradientPos.x = pos.x/2 */
-  static particle_t particle_buffer[PARTICLE_COUNT];
+  /* Heap-allocate and free after GPU upload to avoid 8 MB BSS pressure in WASM
+   */
+  particle_t* particle_buffer = malloc(PARTICLE_COUNT * sizeof(particle_t));
+  ASSERT(particle_buffer);
   for (uint32_t i = 0; i < PARTICLE_COUNT; ++i) {
     particle_buffer[i] = (particle_t){
       .pos = {
@@ -248,6 +264,7 @@ static void init_storage_buffer(wgpu_context_t* wgpu_context)
                     .size         = PARTICLE_COUNT * sizeof(particle_t),
                     .initial.data = particle_buffer,
                   });
+  free(particle_buffer);
 }
 
 /* -------------------------------------------------------------------------- *
@@ -593,7 +610,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 4,
     .num_channels = 2,
     .num_lanes    = 2,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   init_storage_buffer(wgpu_context);
