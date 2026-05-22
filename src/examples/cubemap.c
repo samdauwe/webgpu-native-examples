@@ -2,14 +2,28 @@
 
 #include <cglm/cglm.h>
 
+#include <assert.h>
+#include <math.h>
+
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
@@ -165,7 +179,9 @@ static void init_cubemap_texture(wgpu_context_t* wgpu_context)
       .baseArrayLayer  = 0,
       .arrayLayerCount = NUM_FACES,
       .aspect          = WGPUTextureAspect_All,
-      .usage           = WGPUTextureUsage_TextureBinding,
+#ifndef __WAJIC__
+      .usage = WGPUTextureUsage_TextureBinding,
+#endif
     };
     state.cubemap_texture.view
       = wgpuTextureCreateView(state.cubemap_texture.handle, &view_desc);
@@ -237,6 +253,29 @@ static void fetch_cubemap_texture(void)
 
 static void update_texture_pixels(wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  /* WAjic: wgpuQueueWriteTexture avoids staging buffers with mappedAtCreation
+   * which is not supported in WAjic WebGPU. */
+  for (uint32_t face = 0; face < NUM_FACES; ++face) {
+    wgpuQueueWriteTexture(wgpu_context->queue,
+                          &(WGPUTexelCopyTextureInfo){
+                            .texture  = state.cubemap_texture.handle,
+                            .mipLevel = 0,
+                            .origin   = {0, 0, face},
+                            .aspect   = WGPUTextureAspect_All,
+                          },
+                          state.cubemap_pixels[face], FACE_NUM_BYTES,
+                          &(WGPUTexelCopyBufferLayout){
+                            .offset       = 0,
+                            .bytesPerRow  = FACE_WIDTH * 4,
+                            .rowsPerImage = FACE_HEIGHT,
+                          },
+                          &(WGPUExtent3D){FACE_WIDTH, FACE_HEIGHT, 1});
+
+    free(state.cubemap_pixels[face]);
+    state.cubemap_pixels[face] = NULL;
+  }
+#else
   WGPUCommandEncoder cmd_encoder
     = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
 
@@ -308,13 +347,14 @@ static void update_texture_pixels(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face]);
   }
 
-  state.cubemap_texture.is_dirty = 0;
-
   /* Free the face pixel buffers - data has been uploaded to GPU */
   for (uint32_t face = 0; face < NUM_FACES; ++face) {
     free(state.cubemap_pixels[face]);
     state.cubemap_pixels[face] = NULL;
   }
+#endif
+
+  state.cubemap_texture.is_dirty = 0;
 }
 
 static void init_view_matrices(wgpu_context_t* wgpu_context)
@@ -473,7 +513,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = NUM_FACES,
       .num_channels = 1,
       .num_lanes    = NUM_FACES,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     init_pipeline_layout(wgpu_context);
     init_cubemap_texture(wgpu_context);
