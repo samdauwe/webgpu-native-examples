@@ -1894,6 +1894,7 @@ WAJIC_LIB(WEBGPU, WGPUComputePipeline, wgpuDeviceCreateComputePipeline,
     // +0:nextInChain(4) +4:label(8) +12:layout(4)
     // +16:compute(WGPUProgrammableStageDescriptor)
     //   +16:nextInChain(4) +20:module(4) +24:entryPoint(8) +32:constantCount(4) +36:constants(4)
+    // WGPUConstantEntry: +0:nextInChain(4) +4:key.data(4) +8:key.len(4) +12:pad(4) +16:value(f64,8) sizeof=24
     var dev = Wget(WD, device, 'device', 'wgpuDeviceCreateComputePipeline');
     var layout = MU32[(descriptor+12)>>2];
     var module = MU32[(descriptor+20)>>2];
@@ -1903,6 +1904,17 @@ WAJIC_LIB(WEBGPU, WGPUComputePipeline, wgpuDeviceCreateComputePipeline,
     };
     var ep = Wsv(descriptor+24);
     if (ep) desc.compute.entryPoint = ep;
+    var cc = MU32[(descriptor+32)>>2];
+    var cp = MU32[(descriptor+36)>>2];
+    if (cc && cp) {
+        var consts = {};
+        for (var i = 0; i < cc; i++) {
+            var kp = cp + i * 24;
+            var k = Wsv(kp + 4);
+            if (k !== undefined) consts[k] = GF64()[(kp+16)>>3];
+        }
+        desc.compute.constants = consts;
+    }
     try { return Wnew(WCP, dev.createComputePipeline(desc)); }
     catch(err) { abort('WEBGPU', 'wgpuDeviceCreateComputePipeline failed: ' + err.message); }
 })
