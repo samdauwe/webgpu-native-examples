@@ -4,6 +4,14 @@
 
 #include <stdio.h>
 
+#ifdef __WAJIC__
+#include <math.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Cube Reflection
  *
