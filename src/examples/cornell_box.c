@@ -3,8 +3,21 @@
 
 #include <cglm/cglm.h>
 
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
