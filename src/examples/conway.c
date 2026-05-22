@@ -1,6 +1,14 @@
 #include "webgpu/wgpu_common.h"
 
+#include <math.h>
 #include <stdio.h>
+
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - A Conway Game Of Life
