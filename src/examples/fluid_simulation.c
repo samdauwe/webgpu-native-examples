@@ -1,8 +1,13 @@
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -14,11 +19,21 @@
 #pragma GCC diagnostic pop
 #endif
 
+#include <assert.h>
 #include <cglm/cglm.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle comparisons compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Fluid Simulation
@@ -1007,11 +1022,17 @@ static void init_sizes(wgpu_context_t* wgpu_context)
   uint64_t max_buffer_size = 0;
   uint64_t max_canvas_size = 0;
   WGPULimits device_limits = {0};
+#ifdef __WAJIC__
+  wgpuDeviceGetLimits(wgpu_context->device, &device_limits);
+  max_buffer_size = device_limits.maxStorageBufferBindingSize;
+  max_canvas_size = device_limits.maxTextureDimension2D;
+#else
   if (wgpuAdapterGetLimits(wgpu_context->adapter, &device_limits)
       == WGPUStatus_Success) {
     max_buffer_size = device_limits.maxStorageBufferBindingSize;
     max_canvas_size = device_limits.maxTextureDimension2D;
   }
+#endif
 
   const WGPUExtent3D grid_size = get_preferred_dimensions(
     settings.grid_size, wgpu_context, max_buffer_size, max_canvas_size);
