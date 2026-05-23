@@ -1592,6 +1592,18 @@ WAJIC_LIB(WEBGPU, WGPURenderPipeline, wgpuDeviceCreateRenderPipeline,
         if (sm >= 2) bl.stepMode = ESStep[sm];
         vbufs.push(bl);
     }
+    // WGPUConstantEntry: +0:nextInChain(4) +4:key(WGPUStringView,8) +12:pad(4) +16:value(f64,8) sizeof=24
+    var vcc = MU32[(vp+16)>>2];
+    var vcp = MU32[(vp+20)>>2];
+    var vconsts = undefined;
+    if (vcc && vcp) {
+        vconsts = {};
+        for (var i = 0; i < vcc; i++) {
+            var kp = vcp + i * 24;
+            var k = Wsv(kp + 4);
+            if (k !== undefined) vconsts[k] = GF64()[(kp+16)>>3];
+        }
+    }
 
     // WGPUPrimitiveState starts at d+48, sizeof=24
     // +0:nextInChain(4) +4:topology(4) +8:stripIndexFormat(4) +12:frontFace(4) +16:cullMode(4) +20:unclippedDepth(4)
@@ -1664,6 +1676,18 @@ WAJIC_LIB(WEBGPU, WGPURenderPipeline, wgpuDeviceCreateRenderPipeline,
         }
         frag = { module: fmod, targets: targets };
         if (fep) frag.entryPoint = fep;
+        // WGPUConstantEntry: +0:nextInChain(4) +4:key(WGPUStringView,8) +12:pad(4) +16:value(f64,8) sizeof=24
+        var fcc = MU32[(fp+16)>>2];
+        var fcp = MU32[(fp+20)>>2];
+        if (fcc && fcp) {
+            var fconsts = {};
+            for (var i = 0; i < fcc; i++) {
+                var kp = fcp + i * 24;
+                var k = Wsv(kp + 4);
+                if (k !== undefined) fconsts[k] = GF64()[(kp+16)>>3];
+            }
+            frag.constants = fconsts;
+        }
     }
 
     var desc = {
@@ -1672,6 +1696,7 @@ WAJIC_LIB(WEBGPU, WGPURenderPipeline, wgpuDeviceCreateRenderPipeline,
         multisample: ms
     };
     if (vep) desc.vertex.entryPoint = vep;
+    if (vconsts) desc.vertex.constants = vconsts;
     if (ds) desc.depthStencil = ds;
     if (frag) desc.fragment = frag;
     var layout = MU32[(d+12)>>2];
