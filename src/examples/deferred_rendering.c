@@ -6,8 +6,19 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -162,6 +173,11 @@ static struct {
 
   /* Initialization flag */
   WGPUBool initialized;
+#ifdef __WAJIC__
+  /* WAjic async mesh loading */
+  bool mesh_loaded;
+  bool mesh_buffers_created;
+#endif
 } state = {
   .max_num_lights   = (uint32_t)MAX_NUM_LIGHTS,
   .light_data_stride = 8,
@@ -177,6 +193,10 @@ static struct {
     .num_lights          = 128,
   },
   .initialized = false,
+#ifdef __WAJIC__
+  .mesh_loaded = false,
+  .mesh_buffers_created = false,
+#endif
 };
 
 /* Initialize vertex and index buffers for the Stanford dragon mesh */
@@ -1347,12 +1367,40 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igEnd();
 }
 
+#ifdef __WAJIC__
+/* Callback fired when the dragon PLY file has been fetched.  Parses the mesh
+ * in-memory using fmemopen + ply_open_from_file (no filesystem access needed
+ * in the browser) and sets state.mesh_loaded on success. */
+static void dragon_fetch_callback(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    if (stanford_dragon_mesh_init_from_memory(
+          &state.stanford_dragon_mesh, response->data.ptr, response->data.size)
+        == EXIT_SUCCESS) {
+      state.mesh_loaded = true;
+    }
+  }
+}
+#endif /* __WAJIC__ */
+
 static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
     stm_setup();
+#ifdef __WAJIC__
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+    });
+    sfetch_send(&(sfetch_request_t){
+      .path     = "assets/meshes/dragon_vrip_res4.ply",
+      .callback = dragon_fetch_callback,
+    });
+#else
     stanford_dragon_mesh_init(&state.stanford_dragon_mesh);
     init_vertex_and_index_buffers(wgpu_context, &state.stanford_dragon_mesh);
+#endif
     init_gbuffer_texture_render_targets(wgpu_context);
     init_bind_group_layouts(wgpu_context);
     init_render_pipeline_layouts(wgpu_context);
@@ -1429,6 +1477,16 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+#ifdef __WAJIC__
+  sfetch_dowork();
+
+  /* Create GPU buffers once the mesh PLY has been parsed */
+  if (state.mesh_loaded && !state.mesh_buffers_created) {
+    init_vertex_and_index_buffers(wgpu_context, &state.stanford_dragon_mesh);
+    state.mesh_buffers_created = true;
+  }
+#endif
+
   /* Calculate delta time for ImGui */
   uint64_t current_time = stm_now();
   if (state.last_imgui_frame_time == 0) {
@@ -1444,12 +1502,12 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Render GUI controls */
   render_gui(wgpu_context);
 
-  /* Update time */
+  /* Update time (use sokol_time so no glfwGetTime() needed in browser) */
   if (state.time.start_time == 0) {
-    state.time.start_time = (uint64_t)(glfwGetTime() * 1000.0);
+    state.time.start_time = (uint64_t)stm_ms(stm_now());
   }
   state.time.elapsed_ms
-    = (float)((uint64_t)(glfwGetTime() * 1000.0) - state.time.start_time);
+    = (float)((uint64_t)stm_ms(stm_now()) - state.time.start_time);
 
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context, state.time.elapsed_ms);
@@ -1465,13 +1523,19 @@ static int frame(struct wgpu_context_t* wgpu_context)
                                      state.write_gbuffers_pipeline);
     wgpuRenderPassEncoderSetBindGroup(gbuffer_pass, 0,
                                       state.scene_uniform_bind_group, 0, 0);
-    wgpuRenderPassEncoderSetVertexBuffer(gbuffer_pass, 0, state.vertex_buffer,
-                                         0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetIndexBuffer(gbuffer_pass, state.index_buffer,
-                                        WGPUIndexFormat_Uint16, 0,
-                                        WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(gbuffer_pass, state.index_count, 1, 0, 0,
-                                     0);
+#ifdef __WAJIC__
+    if (state.mesh_loaded) {
+#endif
+      wgpuRenderPassEncoderSetVertexBuffer(gbuffer_pass, 0, state.vertex_buffer,
+                                           0, WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderSetIndexBuffer(gbuffer_pass, state.index_buffer,
+                                          WGPUIndexFormat_Uint16, 0,
+                                          WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderDrawIndexed(gbuffer_pass, state.index_count, 1, 0, 0,
+                                       0);
+#ifdef __WAJIC__
+    } /* if (state.mesh_loaded) */
+#endif
     wgpuRenderPassEncoderEnd(gbuffer_pass);
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, gbuffer_pass)
   }
