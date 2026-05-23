@@ -22,17 +22,40 @@
 #include "core/image_loader.h"
 #include "webgpu/imgui_overlay.h"
 
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include <cimgui.h>
-#include <math.h>
-#include <string.h>
-
-#define SOKOL_TIME_IMPL
-#include <sokol_time.h>
-#define SOKOL_FETCH_IMPL
-#include <sokol_fetch.h>
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#endif
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+#endif
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+
+/* cimgui */
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
+#include <cimgui.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include <math.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -90,6 +113,8 @@ static struct {
   gltf_model_t model;
   gltf_model_t background;
   bool models_loaded;
+  int models_load_count;       /* WAjic: number of successfully loaded models */
+  bool models_buffers_created; /* WAjic: GPU buffers created from loaded data */
 
   /* GPU buffers for models */
   WGPUBuffer model_vertex_buffer;
@@ -523,8 +548,67 @@ static void init_render_passes(void)
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates the exact amount
+ * of WASM memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Deferred shadows: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+
+  int model_index     = *(const int*)response->user_data;
+  gltf_model_t* model = (model_index == 0) ? &state.model : &state.background;
+
+  const gltf_model_desc_t desc = {
+    .loading_flags = GltfLoadingFlag_PreTransformVertices
+                     | GltfLoadingFlag_PreMultiplyVertexColors,
+  };
+
+  bool ok = gltf_model_load_from_memory(model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same post-processing as gltf_model_load_from_file_ext */
+    if (model->vertex_count > 0) {
+      gltf_model_bake_node_transforms(model, model->vertices, &desc);
+    }
+    state.models_load_count++;
+    if (state.models_load_count == 2) {
+      state.models_loaded = true;
+    }
+  }
+  else {
+    printf("Deferred shadows: failed to parse gltf model index %d\n",
+           model_index);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  /* In WAjic, use dynamic sfetch (NULL buffer) to load the gltf files.
+   * Callbacks fire asynchronously; models_loaded is set when both complete. */
+  static const int idx_model = 0;
+  static const int idx_bg    = 1;
+
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/armor/armor.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_model, .size = sizeof(idx_model)},
+    .channel   = 0,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/deferred_box.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_bg, .size = sizeof(idx_bg)},
+    .channel   = 0,
+  });
+#else
+  /* Native: synchronous file loading. */
   const gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -545,6 +629,7 @@ static void load_models(void)
   }
 
   state.models_loaded = true;
+#endif /* !__WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -703,8 +788,12 @@ static void update_textures(struct wgpu_context_t* wgpu_context)
     }
   }
 
-  if (any_updated && state.textures.load_count >= (int)NUM_TEXTURES) {
-    state.textures.all_loaded = true;
+  if (any_updated) {
+    if (state.textures.load_count >= (int)NUM_TEXTURES) {
+      state.textures.all_loaded = true;
+    }
+    /* Rebuild bind groups whenever any texture view changes to prevent
+     * use-after-free of destroyed placeholder texture views. */
     init_bind_groups(wgpu_context);
   }
 }
@@ -1434,10 +1523,12 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = NUM_TEXTURES,
+    .max_requests = 8,
     .num_channels = 1,
     .num_lanes    = NUM_TEXTURES,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera (first-person) */
@@ -1453,9 +1544,14 @@ static int init(struct wgpu_context_t* wgpu_context)
                            / (float)wgpu_context->height,
                          state.z_near, state.z_far);
 
-  /* Load models */
+  /* Load models:
+   * - Native: synchronous file I/O followed immediately by GPU buffer creation
+   * - WAjic:  async sfetch; GPU buffers created in frame() once data arrives
+   */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Create G-Buffer textures and shadow map */
   init_gbuffer_textures(wgpu_context);
@@ -1504,6 +1600,15 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Pump async file loading */
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers once both async fetches complete */
+  if (state.models_loaded && !state.models_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.models_buffers_created = true;
+  }
+#endif
+
   update_textures(wgpu_context);
 
   /* Advance animation timer */
