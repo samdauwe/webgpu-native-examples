@@ -3,7 +3,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __WAJIC__
+#include <wajic_webgpu.h>
+#else
 #include <webgpu/webgpu.h>
+#endif
 
 /* -------------------------------------------------------------------------- *
  * Box mesh
@@ -473,6 +477,15 @@ typedef struct stanford_dragon_mesh_t {
  * @see http://w3.impa.br/~diego/software/rply/
  */
 int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh);
+
+#ifdef __WAJIC__
+/**
+ * @brief Loads the 'stanford-dragon' PLY mesh from an in-memory buffer.
+ *        Used in WAjic (browser) builds where direct file I/O is unavailable.
+ */
+int stanford_dragon_mesh_init_from_memory(
+  stanford_dragon_mesh_t* stanford_dragon_mesh, const void* data, size_t size);
+#endif
 
 typedef enum projected_plane_enum {
   ProjectedPlane_XY = 0,

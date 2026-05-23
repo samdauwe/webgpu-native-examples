@@ -208,6 +208,7 @@ void indexed_cube_mesh_init(indexed_cube_mesh_t* cube_mesh)
  * Generic mesh functions
  * -------------------------------------------------------------------------- */
 
+#ifndef __WAJIC__
 void mesh_create_renderable(WGPUDevice device, const mesh_t* mesh,
                             bool store_vertices, bool store_indices,
                             mesh_renderable_t* renderable)
@@ -294,6 +295,7 @@ void mesh_renderable_destroy(mesh_renderable_t* renderable)
 
   renderable->index_count = 0;
 }
+#endif /* !__WAJIC__ */
 
 void mesh_get_position_at_index(const mesh_t* mesh, uint64_t index,
                                 float out_pos[3])
@@ -1395,6 +1397,61 @@ int stanford_dragon_mesh_init(stanford_dragon_mesh_t* stanford_dragon_mesh)
 
   return EXIT_SUCCESS;
 }
+
+#ifdef __WAJIC__
+/* WAjic variant: parse a PLY mesh from an in-memory buffer using fmemopen +
+ * ply_open_from_file so that no filesystem access is needed in the browser. */
+#include <rplyfile.h>
+#include <stdio.h>
+int stanford_dragon_mesh_init_from_memory(
+  stanford_dragon_mesh_t* stanford_dragon_mesh, const void* data, size_t size)
+{
+  ASSERT(stanford_dragon_mesh)
+  ASSERT(data && size > 0)
+
+  FILE* fp = fmemopen((void*)data, size, "r");
+  if (!fp) {
+    return EXIT_FAILURE;
+  }
+
+  p_ply ply = ply_open_from_file(fp, NULL, 0, stanford_dragon_mesh);
+  if (!ply) {
+    fclose(fp);
+    return EXIT_FAILURE;
+  }
+  if (!ply_read_header(ply)) {
+    ply_close(ply);
+    fclose(fp);
+    return EXIT_FAILURE;
+  }
+
+  stanford_dragon_mesh->positions.count
+    = ply_set_read_cb(ply, "vertex", "x", vertex_cb, stanford_dragon_mesh, 0);
+  ply_set_read_cb(ply, "vertex", "y", vertex_cb, stanford_dragon_mesh, 1);
+  ply_set_read_cb(ply, "vertex", "z", vertex_cb, stanford_dragon_mesh, 2);
+  stanford_dragon_mesh->triangles.count = ply_set_read_cb(
+    ply, "face", "vertex_indices", face_cb, stanford_dragon_mesh, 0);
+  stanford_dragon_mesh->normals.count = stanford_dragon_mesh->positions.count;
+  memset(stanford_dragon_mesh->normals.data, 0,
+         sizeof(stanford_dragon_mesh->normals.data));
+  stanford_dragon_mesh->uvs.count = stanford_dragon_mesh->positions.count;
+  memset(stanford_dragon_mesh->uvs.data, 0,
+         sizeof(stanford_dragon_mesh->uvs.data));
+  if (!ply_read(ply)) {
+    ply_close(ply);
+    fclose(fp);
+    return EXIT_FAILURE;
+  }
+  ply_close(ply);
+  fclose(fp);
+
+  stanford_dragon_mesh_compute_normals(stanford_dragon_mesh);
+  stanford_dragon_mesh_compute_projected_plane_uvs(stanford_dragon_mesh,
+                                                   ProjectedPlane_XY);
+
+  return EXIT_SUCCESS;
+}
+#endif /* __WAJIC__ */
 
 void stanford_dragon_mesh_compute_normals(
   stanford_dragon_mesh_t* stanford_dragon_mesh)
