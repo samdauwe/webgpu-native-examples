@@ -3,7 +3,9 @@
 
 #include "webgpu/wgpu_common.h"
 #include <stdbool.h>
+#ifndef __WAJIC__
 #include <webgpu/webgpu.h>
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU environment map (IBL) helper functions

@@ -35,12 +35,22 @@
 #include <cglm/cglm.h>
 
 /* Timer */
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 /* Async file loading */
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+#endif
 
 /* glTF model */
 #include "core/gltf_model.h"
@@ -54,7 +64,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __WAJIC__
 #include <sys/stat.h>
+#endif
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -858,12 +870,12 @@ static void create_depth_texture(wgpu_context_t* ctx, uint32_t w, uint32_t h)
   /* Release old */
   if (state.gpu.depth_texture_view) {
     wgpuTextureViewRelease(state.gpu.depth_texture_view);
-    state.gpu.depth_texture_view = NULL;
+    state.gpu.depth_texture_view = 0;
   }
   if (state.gpu.depth_texture) {
     wgpuTextureDestroy(state.gpu.depth_texture);
     wgpuTextureRelease(state.gpu.depth_texture);
-    state.gpu.depth_texture = NULL;
+    state.gpu.depth_texture = 0;
   }
 
   WGPUTextureDescriptor td = {
@@ -1231,7 +1243,7 @@ static WGPUTexture create_model_texture(wgpu_context_t* ctx,
                                         WGPUTextureFormat format)
 {
   if (!tex || !tex->data || tex->width == 0 || tex->height == 0) {
-    return NULL;
+    return 0;
   }
 
   uint32_t w         = tex->width;
@@ -1520,28 +1532,42 @@ static void create_model_buffers(wgpu_context_t* ctx)
   {
     size_t size             = m->vertex_count * sizeof(gltf_vertex_t);
     WGPUBufferDescriptor bd = {
-      .usage            = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-      .size             = size,
+      .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+      .size  = size,
+#ifndef __WAJIC__
       .mappedAtCreation = true,
+#endif
     };
     state.gpu.vertex_buffer = wgpuDeviceCreateBuffer(device, &bd);
+#ifdef __WAJIC__
+    wgpuQueueWriteBuffer(ctx->queue, state.gpu.vertex_buffer, 0, m->vertices,
+                         size);
+#else
     memcpy(wgpuBufferGetMappedRange(state.gpu.vertex_buffer, 0, size),
            m->vertices, size);
     wgpuBufferUnmap(state.gpu.vertex_buffer);
+#endif
   }
 
   /* Index buffer */
   {
     size_t size             = m->index_count * sizeof(uint32_t);
     WGPUBufferDescriptor bd = {
-      .usage            = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
-      .size             = size,
+      .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+      .size  = size,
+#ifndef __WAJIC__
       .mappedAtCreation = true,
+#endif
     };
     state.gpu.index_buffer = wgpuDeviceCreateBuffer(device, &bd);
+#ifdef __WAJIC__
+    wgpuQueueWriteBuffer(ctx->queue, state.gpu.index_buffer, 0, m->indices,
+                         size);
+#else
     memcpy(wgpuBufferGetMappedRange(state.gpu.index_buffer, 0, size),
            m->indices, size);
     wgpuBufferUnmap(state.gpu.index_buffer);
+#endif
   }
 }
 
@@ -1857,6 +1883,7 @@ static void sort_transparent_meshes(void)
  * File type / path helpers
  * -------------------------------------------------------------------------- */
 
+#ifndef __WAJIC__
 /**
  * Query the size of a file on disk using stat().
  * Returns the file size in bytes, or 0 on error.
@@ -1870,6 +1897,7 @@ static size_t get_file_size(const char* path)
   }
   return (size_t)st.st_size;
 }
+#endif /* !__WAJIC__ */
 
 /**
  * Detect whether a path is a .gltf file (returns true) or .glb (returns false).
@@ -2045,7 +2073,7 @@ static void rebuild_material_bind_group(wgpu_context_t* ctx, uint32_t mat_idx)
   /* Release old bind group */
   if (dst->bind_group) {
     wgpuBindGroupRelease(dst->bind_group);
-    dst->bind_group = NULL;
+    dst->bind_group = 0;
   }
 
   /* Get texture views — use texture store if available, else default */
@@ -2114,6 +2142,13 @@ static void glb_fetch_callback(const sfetch_response_t* response)
   if (response->fetched) {
     printf("[gltf_viewer] GLB file loaded: %zu bytes\n", response->data.size);
 
+#ifdef __WAJIC__
+    /* Dynamic allocation: JS allocated this buffer via malloc.
+     * Take ownership so it can be freed in cleanup_model_resources(). */
+    state.glb_file_buffer      = (uint8_t*)response->data.ptr;
+    state.glb_file_buffer_size = response->data.size;
+#endif
+
     if (gltf_model_load_from_memory(&state.model, response->data.ptr,
                                     response->data.size, "", 1.0f)) {
       state.model_loaded = true;
@@ -2146,6 +2181,12 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
     printf("[gltf_viewer] glTF JSON loaded: %zu bytes\n", response->data.size);
     state.gltf.json_loaded = true;
 
+#ifdef __WAJIC__
+    /* Dynamic allocation: take ownership of JS-allocated buffer */
+    state.gltf.json_buffer      = (uint8_t*)response->data.ptr;
+    state.gltf.json_buffer_size = response->data.size;
+#endif
+
     /* Discover external resources (buffers + images) from the glTF JSON */
     gltf_external_resources_t resources = {0};
     if (!gltf_model_discover_external_resources(
@@ -2165,6 +2206,7 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
       snprintf(bin_path, sizeof(bin_path), "%s%s", base_dir,
                resources.buffer_uri);
 
+#ifndef __WAJIC__
       size_t bin_size = get_file_size(bin_path);
       if (bin_size == 0) {
         printf("[gltf_viewer] ERROR: Cannot stat external buffer '%s'\n",
@@ -2180,12 +2222,13 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
           bin_size, resources.buffer_uri);
         return;
       }
-      state.gltf.bin_buffer_size  = bin_size;
+      state.gltf.bin_buffer_size = bin_size;
+#endif
+
       state.gltf.has_external_bin = true;
       strncpy(state.gltf.bin_uri, resources.buffer_uri,
               sizeof(state.gltf.bin_uri) - 1);
-      printf("[gltf_viewer] External buffer: %s (%zu bytes)\n", bin_path,
-             bin_size);
+      printf("[gltf_viewer] External buffer: %s\n", bin_path);
     }
 
     /* Process external image files */
@@ -2201,7 +2244,6 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
         break;
       }
 
-      /* Build full path and stat the file */
       uint32_t idx = state.gltf.num_images;
       char img_path[GLTF_MODEL_MAX_URI_LENGTH * 2];
       snprintf(img_path, sizeof(img_path), "%s%s", base_dir,
@@ -2211,6 +2253,7 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
       state.gltf.images[idx].path[sizeof(state.gltf.images[idx].path) - 1]
         = '\0';
 
+#ifndef __WAJIC__
       size_t img_size = get_file_size(state.gltf.images[idx].path);
       if (img_size == 0) {
         printf("[gltf_viewer] WARNING: Cannot stat image '%s', skipping\n",
@@ -2224,12 +2267,14 @@ static void gltf_json_fetch_callback(const sfetch_response_t* response)
                img_size, resources.images[ri].uri);
         continue;
       }
-      state.gltf.images[idx].buffer_size   = img_size;
+      state.gltf.images[idx].buffer_size = img_size;
+#endif
+
       state.gltf.images[idx].loaded        = false;
       state.gltf.images[idx].texture_index = resources.images[ri].texture_index;
 
-      printf("[gltf_viewer] External image [%u]: %s (%zu bytes)\n", idx,
-             resources.images[ri].uri, img_size);
+      printf("[gltf_viewer] External image [%u]: %s\n", idx,
+             resources.images[ri].uri);
       state.gltf.num_images++;
     }
 
@@ -2252,6 +2297,13 @@ static void gltf_bin_fetch_callback(const sfetch_response_t* response)
   if (response->fetched) {
     printf("[gltf_viewer] Binary buffer loaded: %zu bytes\n",
            response->data.size);
+
+#ifdef __WAJIC__
+    /* Dynamic allocation: take ownership of JS-allocated buffer */
+    state.gltf.bin_buffer      = (uint8_t*)response->data.ptr;
+    state.gltf.bin_buffer_size = response->data.size;
+#endif
+
     state.gltf.bin_loaded = true;
 
     /* Now we can load geometry */
@@ -2269,6 +2321,13 @@ static void gltf_bin_fetch_callback(const sfetch_response_t* response)
 static void gltf_image_fetch_callback(const sfetch_response_t* response)
 {
   if (response->fetched) {
+#ifdef __WAJIC__
+    /* Dynamic allocation: identify image by user_data index */
+    uint32_t img_idx = *(const uint32_t*)response->user_data;
+    /* Take ownership of JS-allocated buffer */
+    state.gltf.images[img_idx].buffer      = (uint8_t*)response->data.ptr;
+    state.gltf.images[img_idx].buffer_size = response->data.size;
+#else
     /* Find which image this response belongs to by matching buffer pointer */
     int found = -1;
     for (uint32_t i = 0; i < state.gltf.num_images; i++) {
@@ -2287,7 +2346,9 @@ static void gltf_image_fetch_callback(const sfetch_response_t* response)
       return;
     }
 
-    uint32_t img_idx                  = (uint32_t)found;
+    uint32_t img_idx = (uint32_t)found;
+#endif
+
     state.gltf.images[img_idx].loaded = true;
     state.gltf.num_images_loaded++;
 
@@ -2318,6 +2379,12 @@ static void hdr_fetch_callback(const sfetch_response_t* response)
 {
   if (response->fetched) {
     printf("[gltf_viewer] HDR file loaded: %zu bytes\n", response->data.size);
+
+#ifdef __WAJIC__
+    /* Dynamic allocation: take ownership of JS-allocated buffer */
+    state.hdr_file_buffer      = (uint8_t*)response->data.ptr;
+    state.hdr_file_buffer_size = response->data.size;
+#endif
 
     if (wgpu_environment_load_from_memory(&state.environment,
                                           response->data.ptr,
@@ -2353,6 +2420,13 @@ static void gltf_start_external_loads(void)
     char bin_path[GLTF_MODEL_MAX_URI_LENGTH * 2];
     snprintf(bin_path, sizeof(bin_path), "%s%s", base_dir, state.gltf.bin_uri);
 
+#ifdef __WAJIC__
+    sfetch_send(&(sfetch_request_t){
+      .path     = bin_path,
+      .callback = gltf_bin_fetch_callback,
+      .channel  = 2,
+    });
+#else
     sfetch_send(&(sfetch_request_t){
       .path     = bin_path,
       .callback = gltf_bin_fetch_callback,
@@ -2360,6 +2434,7 @@ static void gltf_start_external_loads(void)
       = {.ptr = state.gltf.bin_buffer, .size = state.gltf.bin_buffer_size},
       .channel = 2, /* Dedicated channel for buffer data */
     });
+#endif
   }
   else {
     /* No external buffer (embedded data URI) — geometry can proceed now */
@@ -2369,6 +2444,15 @@ static void gltf_start_external_loads(void)
 
   /* Fetch all external images in parallel (channel 3, multiple lanes) */
   for (uint32_t i = 0; i < state.gltf.num_images; i++) {
+#ifdef __WAJIC__
+    uint32_t img_idx = i;
+    sfetch_send(&(sfetch_request_t){
+      .path      = state.gltf.images[i].path,
+      .callback  = gltf_image_fetch_callback,
+      .user_data = {.ptr = &img_idx, .size = sizeof(img_idx)},
+      .channel   = 3,
+    });
+#else
     sfetch_send(&(sfetch_request_t){
       .path     = state.gltf.images[i].path,
       .callback = gltf_image_fetch_callback,
@@ -2376,6 +2460,7 @@ static void gltf_start_external_loads(void)
                    .size = state.gltf.images[i].buffer_size},
       .channel  = 3, /* Dedicated channel for images, with multiple lanes */
     });
+#endif
   }
 }
 
@@ -2434,12 +2519,12 @@ static void cleanup_model_resources(void)
     if (state.texture_store[i].created) {
       if (state.texture_store[i].view) {
         wgpuTextureViewRelease(state.texture_store[i].view);
-        state.texture_store[i].view = NULL;
+        state.texture_store[i].view = 0;
       }
       if (state.texture_store[i].texture) {
         wgpuTextureDestroy(state.texture_store[i].texture);
         wgpuTextureRelease(state.texture_store[i].texture);
-        state.texture_store[i].texture = NULL;
+        state.texture_store[i].texture = 0;
       }
       state.texture_store[i].created = false;
     }
@@ -2563,6 +2648,23 @@ static void reload_model(wgpu_context_t* ctx, const char* path)
   state.is_gltf = path_is_gltf(state.model_path);
   printf("[gltf_viewer] File type: %s\n", state.is_gltf ? "glTF" : "GLB");
 
+#ifdef __WAJIC__
+  /* Dynamic allocation: JS allocates the buffer after fetching */
+  if (state.is_gltf) {
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = gltf_json_fetch_callback,
+      .channel  = 0,
+    });
+  }
+  else {
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = glb_fetch_callback,
+      .channel  = 0,
+    });
+  }
+#else
   /* Determine file size */
   size_t file_size = get_file_size(state.model_path);
   if (file_size == 0) {
@@ -2607,6 +2709,7 @@ static void reload_model(wgpu_context_t* ctx, const char* path)
       .channel = 0,
     });
   }
+#endif
 }
 
 /**
@@ -2623,6 +2726,14 @@ static void reload_hdr(wgpu_context_t* ctx, const char* path)
   strncpy(state.hdr_path, path, sizeof(state.hdr_path) - 1);
   state.hdr_path[sizeof(state.hdr_path) - 1] = '\0';
 
+#ifdef __WAJIC__
+  /* Dynamic allocation: JS allocates the buffer after fetching */
+  sfetch_send(&(sfetch_request_t){
+    .path     = state.hdr_path,
+    .callback = hdr_fetch_callback,
+    .channel  = 1,
+  });
+#else
   /* Determine file size */
   size_t file_size = get_file_size(state.hdr_path);
   if (file_size == 0) {
@@ -2648,6 +2759,7 @@ static void reload_hdr(wgpu_context_t* ctx, const char* path)
     = {.ptr = state.hdr_file_buffer, .size = state.hdr_file_buffer_size},
     .channel = 1,
   });
+#endif
 }
 
 /* -------------------------------------------------------------------------- *
@@ -2824,7 +2936,7 @@ static void render_gui(wgpu_context_t* ctx)
       /* --- Animation controls (shown only when model has animations) --- */
       if (state.model_has_skins && state.model.animation_count > 0) {
         if (igCollapsingHeader_BoolPtr("Animation", NULL,
-                                      ImGuiTreeNodeFlags_DefaultOpen)) {
+                                       ImGuiTreeNodeFlags_DefaultOpen)) {
           igCheckbox("Play", &state.animation.play);
           igSliderFloat("Speed", &state.animation.speed, 0.0f, 5.0f, "%.1f", 0);
 
@@ -2869,7 +2981,7 @@ static void render_gui(wgpu_context_t* ctx)
 
       /* --- PBR Settings --- */
       if (igCollapsingHeader_BoolPtr("PBR Settings", NULL,
-                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+                                     ImGuiTreeNodeFlags_DefaultOpen)) {
         igSliderFloat("Exposure", &state.pbr.exposure, 0.1f, 10.0f, "%.1f", 0);
         igSliderFloat("Gamma", &state.pbr.gamma, 1.0f, 4.0f, "%.1f", 0);
         igSliderFloat("IBL Scale", &state.pbr.scale_ibl_ambient, 0.0f, 2.0f,
@@ -2879,8 +2991,8 @@ static void render_gui(wgpu_context_t* ctx)
         /* Tone mapping selector */
         const char* tone_map_items[]
           = {"PBR Neutral", "Uncharted2", "Reinhard", "ACES"};
-        igCombo_Str_arr("Tone Mapping", &state.pbr.tone_mapping_type, tone_map_items, 4,
-                0);
+        igCombo_Str_arr("Tone Mapping", &state.pbr.tone_mapping_type,
+                        tone_map_items, 4, 0);
       }
 
       /* --- Debug Visualization --- */
@@ -3254,6 +3366,11 @@ static int init(wgpu_context_t* ctx)
     .num_lanes    = SFETCH_NUM_LANES,
   });
 
+#ifdef __WAJIC__
+  /* Dynamic allocation: JS allocates buffers after fetching.
+   * No need for get_file_size() or pre-allocation. */
+  printf("[gltf_viewer] Using dynamic buffer allocation for async I/O\n");
+#else
   /* Allocate HDR buffer (always needed) */
   state.hdr_file_buffer_size = get_file_size(state.hdr_path);
   if (state.hdr_file_buffer_size == 0) {
@@ -3312,6 +3429,7 @@ static int init(wgpu_context_t* ctx)
     printf("[gltf_viewer] Allocated buffers: GLB=%zu bytes, HDR=%zu bytes\n",
            model_file_size, state.hdr_file_buffer_size);
   }
+#endif /* !__WAJIC__ */
 
   /* Camera */
   camera_init(&state.camera, ctx->width, ctx->height);
@@ -3342,6 +3460,29 @@ static int init(wgpu_context_t* ctx)
   imgui_overlay_init(ctx);
 
   /* Start async file loading */
+#ifdef __WAJIC__
+  if (state.is_gltf) {
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = gltf_json_fetch_callback,
+      .channel  = 0,
+    });
+  }
+  else {
+    sfetch_send(&(sfetch_request_t){
+      .path     = state.model_path,
+      .callback = glb_fetch_callback,
+      .channel  = 0,
+    });
+  }
+
+  sfetch_send(&(sfetch_request_t){
+    .path     = state.hdr_path,
+    .callback = hdr_fetch_callback,
+    .channel  = 1,
+  });
+#else
+  /* Start async file loading */
   if (state.is_gltf) {
     /* Phase 1: Fetch the .gltf JSON file */
     sfetch_send(&(sfetch_request_t){
@@ -3371,6 +3512,7 @@ static int init(wgpu_context_t* ctx)
     = {.ptr = state.hdr_file_buffer, .size = state.hdr_file_buffer_size},
     .channel = 1,
   });
+#endif
 
   state.initialized = true;
   return EXIT_SUCCESS;
