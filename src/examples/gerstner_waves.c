@@ -3,16 +3,28 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
+
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Gerstner Waves
@@ -677,7 +689,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 1,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     init_plane_mesh();
     init_orbit_camera_matrices();
