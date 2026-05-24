@@ -37,6 +37,9 @@ add_subdirectory(external/dawn EXCLUDE_FROM_ALL)
 # cimgui: C wrapper for Dear ImGui
 set(IMGUI_STATIC ON CACHE BOOL "Build cimgui as static library")
 add_subdirectory(external/cimgui EXCLUDE_FROM_ALL)
+if(NOT MSVC AND TARGET cimgui)
+  target_compile_options(cimgui PRIVATE -w)
+endif()
 
 # rply
 set(RPLY_SOURCES
@@ -48,6 +51,7 @@ if(NOT MSVC)
   set_source_files_properties(
     ${RPLY_SOURCES}
     ${CJSON_SOURCES}
+    external/mikktspace/mikktspace.c
     PROPERTIES
     COMPILE_FLAGS "-w"
   )
@@ -143,9 +147,9 @@ function(add_example_executable EXAMPLE_NAME)
     target_include_directories(${EXAMPLE_NAME}
         PRIVATE ${PROJECT_SOURCE_DIR}/src
     )
-    # Add cimgui includes if requested
+    # Add cimgui includes if requested (SYSTEM suppresses warnings from 3rd-party headers)
     if(ARG_USE_CIMGUI)
-        target_include_directories(${EXAMPLE_NAME}
+        target_include_directories(${EXAMPLE_NAME} SYSTEM
             PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui
             PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui/imgui
         )
