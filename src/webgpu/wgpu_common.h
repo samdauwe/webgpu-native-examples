@@ -7,8 +7,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __WAJIC__
+#include <wajic.h>
+#include <wajic_webgpu.h>
+/* Types referenced in wgpu_common.h but not defined by wajic_webgpu.h */
+typedef uint32_t WGPUFeatureName;
+#else
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,6 +96,7 @@ struct wgpu_context_t {
 
 void wgpu_start(const wgpu_desc_t* desc);
 
+#ifndef __WAJIC__
 /* -------------------------------------------------------------------------- *
  * GLFW WebGPU Extension
  * Ref: https://github.com/eliemichel/glfw3webgpu/
@@ -99,6 +107,7 @@ void wgpu_start(const wgpu_desc_t* desc);
  */
 WGPUSurface glfw_create_surface_for_window(WGPUInstance instance,
                                            GLFWwindow* window);
+#endif /* !__WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU buffer helper functions
@@ -460,7 +469,7 @@ float random_float(void);
 #define WGPU_RELEASE_RESOURCE(Type, Name)                                      \
   if (Name) {                                                                  \
     wgpu##Type##Release(Name);                                                 \
-    Name = NULL;                                                               \
+    Name = 0;                                                                  \
   }
 
 #define WGPU_VERTATTR_DESC(l, f, o)                                            \

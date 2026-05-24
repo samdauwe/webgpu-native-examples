@@ -525,7 +525,7 @@ int imgui_overlay_init(wgpu_context_t* wgpu_context)
 
   /* Initialize render pass descriptor */
   overlay_state.color_attachment = (WGPURenderPassColorAttachment){
-    .view       = NULL,
+    .view       = 0,
     .loadOp     = WGPULoadOp_Load,
     .storeOp    = WGPUStoreOp_Store,
     .clearValue = (WGPUColor){0.0f, 0.0f, 0.0f, 0.0f},
@@ -689,38 +689,36 @@ void imgui_overlay_handle_input(wgpu_context_t* wgpu_context,
       }
       break;
 
-    case INPUT_EVENT_TYPE_MOUSE_DOWN:
-      if (event->mouse_button == BUTTON_LEFT) {
-        io->MouseDown[0] = true;
-      }
-      else if (event->mouse_button == BUTTON_RIGHT) {
-        io->MouseDown[1] = true;
-      }
-      else if (event->mouse_button == BUTTON_MIDDLE) {
-        io->MouseDown[2] = true;
+    case INPUT_EVENT_TYPE_MOUSE_DOWN: {
+      int btn = (event->mouse_button == BUTTON_LEFT)   ? 0 :
+                (event->mouse_button == BUTTON_RIGHT)  ? 1 :
+                (event->mouse_button == BUTTON_MIDDLE) ? 2 :
+                                                         -1;
+      if (btn >= 0) {
+        ImGuiIO_AddMousePosEvent(io, event->mouse_x, event->mouse_y);
+        ImGuiIO_AddMouseButtonEvent(io, btn, true);
       }
       break;
+    }
 
-    case INPUT_EVENT_TYPE_MOUSE_UP:
-      if (event->mouse_button == BUTTON_LEFT) {
-        io->MouseDown[0] = false;
-      }
-      else if (event->mouse_button == BUTTON_RIGHT) {
-        io->MouseDown[1] = false;
-      }
-      else if (event->mouse_button == BUTTON_MIDDLE) {
-        io->MouseDown[2] = false;
+    case INPUT_EVENT_TYPE_MOUSE_UP: {
+      int btn = (event->mouse_button == BUTTON_LEFT)   ? 0 :
+                (event->mouse_button == BUTTON_RIGHT)  ? 1 :
+                (event->mouse_button == BUTTON_MIDDLE) ? 2 :
+                                                         -1;
+      if (btn >= 0) {
+        ImGuiIO_AddMousePosEvent(io, event->mouse_x, event->mouse_y);
+        ImGuiIO_AddMouseButtonEvent(io, btn, false);
       }
       break;
+    }
 
     case INPUT_EVENT_TYPE_MOUSE_MOVE:
-      io->MousePos.x = event->mouse_x;
-      io->MousePos.y = event->mouse_y;
+      ImGuiIO_AddMousePosEvent(io, event->mouse_x, event->mouse_y);
       break;
 
     case INPUT_EVENT_TYPE_MOUSE_SCROLL:
-      io->MouseWheelH += event->scroll_x;
-      io->MouseWheel += event->scroll_y;
+      ImGuiIO_AddMouseWheelEvent(io, event->scroll_x, event->scroll_y);
       break;
 
     case INPUT_EVENT_TYPE_RESIZED:

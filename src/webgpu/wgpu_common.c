@@ -1,3 +1,7 @@
+#ifdef __WAJIC__
+/* Compile the once-only WAjic WebGPU callback dispatch table in this TU */
+#define WAJIC_WEBGPU_IMPL
+#endif
 #include "wgpu_common.h"
 
 #include <assert.h>
@@ -10,6 +14,443 @@
  * -------------------------------------------------------------------------- */
 
 static wgpu_context_t wgpu_context;
+
+/* ========================================================================== *
+ * Platform-specific code
+ * ========================================================================== */
+
+#ifdef __WAJIC__
+/* -------------------------------------------------------------------------- *
+ * WAjic (browser WebAssembly) platform
+ * -------------------------------------------------------------------------- */
+
+static struct {
+  input_event_type_t event_type;
+  button_t button_type;
+  float cursor_pos[2];
+  float cursor_pos_delta[2];
+  float mouse_offset[2];
+  WGPUBool mouse_btn_pressed;
+  keycode_t key_code;
+  uint32_t char_code;
+  uint8_t keys_down[KEY_NUM];
+} input_state = {0};
+
+/* -------------------------------------------------------------------------- *
+ * JS interop: canvas setup and animation loop
+ * -------------------------------------------------------------------------- */
+
+/* Fill the browser window with the canvas, start the rAF loop, and register
+ * a 'resize' listener that forwards window dimension changes to WAFNResize. */
+WAJIC(void, JSSetupCanvas, (), {
+  var canvas    = WA.canvas;
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  var wafnFrame  = ASM.WAFNFrame;
+  var wafnResize = ASM.WAFNResize;
+  var drawFunc   = function()
+  {
+    if (STOP)
+      return;
+    window.requestAnimationFrame(drawFunc);
+    wafnFrame();
+  };
+  window.requestAnimationFrame(drawFunc);
+
+  window.addEventListener(
+    'resize', function() {
+      var w         = window.innerWidth;
+      var h         = window.innerHeight;
+      canvas.width  = w;
+      canvas.height = h;
+      wafnResize(w, h);
+    });
+})
+
+/* -------------------------------------------------------------------------- *
+ * JS interop: input event listeners
+ * -------------------------------------------------------------------------- */
+
+/* Query the actual browser canvas pixel dimensions. */
+WAJIC(void, JSGetCanvasSize, (unsigned int* width, unsigned int* height), {
+  MU32[width >> 2]  = WA.canvas.width;
+  MU32[height >> 2] = WA.canvas.height;
+})
+
+WAJIC(void, JSSetupInput, (), {
+  var canvas      = WA.canvas;
+  var fnMouseDown = ASM.WAFNMouseDown;
+  var fnMouseUp   = ASM.WAFNMouseUp;
+  var fnMouseMove = ASM.WAFNMouseMove;
+  var fnWheel     = ASM.WAFNWheel;
+  var fnKeyDown   = ASM.WAFNKeyDown;
+  var fnKeyUp     = ASM.WAFNKeyUp;
+
+  canvas.addEventListener(
+    'mousedown', function(e) {
+      fnMouseDown(e.button, e.offsetX, e.offsetY);
+      e.preventDefault();
+    });
+  canvas.addEventListener(
+    'mouseup', function(e) {
+      fnMouseUp(e.button, e.offsetX, e.offsetY);
+      e.preventDefault();
+    });
+  canvas.addEventListener(
+    'mousemove', function(e) {
+      fnMouseMove(e.offsetX, e.offsetY, e.movementX, e.movementY, e.buttons);
+    });
+  canvas.addEventListener('wheel',
+                          function(e) {
+                            fnWheel(e.deltaX, e.deltaY);
+                            e.preventDefault();
+                          },
+                          {passive : false});
+  window.addEventListener('keydown', function(e) { fnKeyDown(e.keyCode); });
+  window.addEventListener('keyup', function(e) { fnKeyUp(e.keyCode); });
+})
+
+/* -------------------------------------------------------------------------- *
+ * Exported input callbacks (called from JS)
+ * -------------------------------------------------------------------------- */
+
+static void dispatch_input(void)
+{
+  if (!wgpu_context.input_event_cb)
+    return;
+  if (input_state.event_type == INPUT_EVENT_TYPE_INVALID)
+    return;
+
+  input_event_t ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.type              = input_state.event_type;
+  ev.key_code          = input_state.key_code;
+  ev.char_code         = input_state.char_code;
+  ev.mouse_button      = input_state.button_type;
+  ev.mouse_btn_pressed = input_state.mouse_btn_pressed;
+  ev.mouse_x           = input_state.cursor_pos[0];
+  ev.mouse_y           = input_state.cursor_pos[1];
+  ev.mouse_dx          = input_state.cursor_pos_delta[0];
+  ev.mouse_dy          = input_state.cursor_pos_delta[1];
+  ev.scroll_x          = input_state.mouse_offset[0];
+  ev.scroll_y          = input_state.mouse_offset[1];
+  ev.window_width      = wgpu_context.width;
+  ev.window_height     = wgpu_context.height;
+  memcpy(ev.keys_down, input_state.keys_down, sizeof(input_state.keys_down));
+
+  wgpu_context.input_event_cb(&wgpu_context, &ev);
+  input_state.event_type = INPUT_EVENT_TYPE_INVALID;
+}
+
+static button_t remap_mouse_button(int btn)
+{
+  switch (btn) {
+    case 0:
+      return BUTTON_LEFT;
+    case 1:
+      return BUTTON_MIDDLE;
+    case 2:
+      return BUTTON_RIGHT;
+    default:
+      return BUTTON_UNDEFINED;
+  }
+}
+
+/* Map JS keyCode to the internal keycode_t enum. */
+static keycode_t remap_js_key_code(int js_key)
+{
+  if (js_key >= 32 && js_key <= 90)
+    return (keycode_t)js_key;
+
+  switch (js_key) {
+    case 27:
+      return KEY_ESCAPE;
+    case 13:
+      return KEY_ENTER;
+    case 9:
+      return KEY_TAB;
+    case 8:
+      return KEY_BACKSPACE;
+    case 46:
+      return KEY_DELETE;
+    case 37:
+      return KEY_LEFT;
+    case 39:
+      return KEY_RIGHT;
+    case 40:
+      return KEY_DOWN;
+    case 38:
+      return KEY_UP;
+    case 16:
+      return KEY_LEFT_SHIFT;
+    case 17:
+      return KEY_LEFT_CONTROL;
+    case 18:
+      return KEY_LEFT_ALT;
+    case 112:
+      return KEY_F1;
+    case 113:
+      return KEY_F2;
+    case 114:
+      return KEY_F3;
+    case 115:
+      return KEY_F4;
+    case 116:
+      return KEY_F5;
+    case 117:
+      return KEY_F6;
+    case 118:
+      return KEY_F7;
+    case 119:
+      return KEY_F8;
+    case 120:
+      return KEY_F9;
+    case 121:
+      return KEY_F10;
+    case 122:
+      return KEY_F11;
+    case 123:
+      return KEY_F12;
+    default:
+      return KEY_UNKNOWN;
+  }
+}
+
+WA_EXPORT(WAFNMouseDown) void WAFNMouseDown(int button, float x, float y)
+{
+  input_state.event_type        = INPUT_EVENT_TYPE_MOUSE_DOWN;
+  input_state.button_type       = remap_mouse_button(button);
+  input_state.mouse_btn_pressed = 1;
+  input_state.cursor_pos[0]     = x;
+  input_state.cursor_pos[1]     = y;
+  dispatch_input();
+}
+
+WA_EXPORT(WAFNMouseUp) void WAFNMouseUp(int button, float x, float y)
+{
+  input_state.event_type        = INPUT_EVENT_TYPE_MOUSE_UP;
+  input_state.button_type       = remap_mouse_button(button);
+  input_state.mouse_btn_pressed = 0;
+  input_state.cursor_pos[0]     = x;
+  input_state.cursor_pos[1]     = y;
+  dispatch_input();
+}
+
+WA_EXPORT(WAFNMouseMove)
+void WAFNMouseMove(float x, float y, float dx, float dy, int buttons)
+{
+  input_state.event_type          = INPUT_EVENT_TYPE_MOUSE_MOVE;
+  input_state.cursor_pos_delta[0] = input_state.cursor_pos[0] - x;
+  input_state.cursor_pos_delta[1] = input_state.cursor_pos[1] - y;
+  input_state.cursor_pos[0]       = x;
+  input_state.cursor_pos[1]       = y;
+  input_state.mouse_btn_pressed   = (buttons != 0) ? 1 : 0;
+  dispatch_input();
+}
+
+WA_EXPORT(WAFNWheel) void WAFNWheel(float dx, float dy)
+{
+  input_state.event_type      = INPUT_EVENT_TYPE_MOUSE_SCROLL;
+  input_state.mouse_offset[0] = dx;
+  input_state.mouse_offset[1] = -dy; /* browser delta is inverted */
+  dispatch_input();
+}
+
+WA_EXPORT(WAFNKeyDown) void WAFNKeyDown(int js_key)
+{
+  input_state.event_type = INPUT_EVENT_TYPE_KEY_DOWN;
+  input_state.key_code   = remap_js_key_code(js_key);
+  if (input_state.key_code < KEY_NUM)
+    input_state.keys_down[input_state.key_code] = 1;
+  dispatch_input();
+}
+
+WA_EXPORT(WAFNKeyUp) void WAFNKeyUp(int js_key)
+{
+  input_state.event_type = INPUT_EVENT_TYPE_KEY_UP;
+  input_state.key_code   = remap_js_key_code(js_key);
+  if (input_state.key_code < KEY_NUM)
+    input_state.keys_down[input_state.key_code] = 0;
+  dispatch_input();
+}
+
+/* -------------------------------------------------------------------------- *
+ * Swapchain (depth/stencil texture)
+ * -------------------------------------------------------------------------- */
+
+static void wgpu_swapchain_init(wgpu_context_t* ctx)
+{
+  if (!ctx->desc.no_depth_buffer) {
+    ctx->depth_stencil_format = WGPUTextureFormat_Depth24PlusStencil8;
+
+    unsigned int actual_w = (unsigned int)ctx->width;
+    unsigned int actual_h = (unsigned int)ctx->height;
+    JSGetCanvasSize(&actual_w, &actual_h);
+
+    WGPUTextureDescriptor ds_desc;
+    memset(&ds_desc, 0, sizeof(ds_desc));
+    ds_desc.usage                   = WGPUTextureUsage_RenderAttachment;
+    ds_desc.dimension               = WGPUTextureDimension_2D;
+    ds_desc.size.width              = actual_w;
+    ds_desc.size.height             = actual_h;
+    ds_desc.size.depthOrArrayLayers = 1;
+    ds_desc.format                  = ctx->depth_stencil_format;
+    ds_desc.mipLevelCount           = 1;
+    ds_desc.sampleCount = (uint32_t)VALUE_OR(ctx->desc.sample_count, 1);
+
+    ctx->depth_stencil_tex  = wgpuDeviceCreateTexture(ctx->device, &ds_desc);
+    ctx->depth_stencil_view = wgpuTextureCreateView(ctx->depth_stencil_tex, 0);
+  }
+}
+
+static void wgpu_swapchain_discard(wgpu_context_t* ctx)
+{
+  if (ctx->depth_stencil_view) {
+    wgpuTextureViewRelease(ctx->depth_stencil_view);
+    ctx->depth_stencil_view = 0;
+  }
+  if (ctx->depth_stencil_tex) {
+    wgpuTextureRelease(ctx->depth_stencil_tex);
+    ctx->depth_stencil_tex = 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Resize callback (called from the JS 'resize' event listener)
+ * -------------------------------------------------------------------------- */
+
+WA_EXPORT(WAFNResize) void WAFNResize(int new_w, int new_h)
+{
+  if (!wgpu_context.surface)
+    return;
+
+  wgpu_context.width  = new_w;
+  wgpu_context.height = new_h;
+
+  {
+    WGPUSurfaceConfiguration config;
+    memset(&config, 0, sizeof(config));
+    config.device      = wgpu_context.device;
+    config.format      = wgpu_context.render_format;
+    config.usage       = WGPUTextureUsage_RenderAttachment;
+    config.alphaMode   = WGPUCompositeAlphaMode_Opaque;
+    config.width       = (uint32_t)new_w;
+    config.height      = (uint32_t)new_h;
+    config.presentMode = WGPUPresentMode_Fifo;
+    wgpuSurfaceConfigure(wgpu_context.surface, &config);
+  }
+
+  wgpu_swapchain_discard(&wgpu_context);
+  wgpu_swapchain_init(&wgpu_context);
+
+  if (wgpu_context.input_event_cb) {
+    input_event_t ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type          = INPUT_EVENT_TYPE_RESIZED;
+    ev.window_width  = new_w;
+    ev.window_height = new_h;
+    wgpu_context.input_event_cb(&wgpu_context, &ev);
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * Frame callback (called by requestAnimationFrame via JS)
+ * -------------------------------------------------------------------------- */
+
+WA_EXPORT(WAFNFrame) void WAFNFrame(void)
+{
+  WGPUSurfaceTexture surf_tex;
+  wgpuSurfaceGetCurrentTexture(wgpu_context.surface, &surf_tex);
+
+  if (surf_tex.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal
+      && surf_tex.status
+           != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+    return;
+  }
+
+  wgpu_context.swapchain_view = wgpuTextureCreateView(surf_tex.texture, 0);
+
+  if (wgpu_context.swapchain_view) {
+    wgpu_context.desc.frame_cb(&wgpu_context);
+    wgpuTextureViewRelease(wgpu_context.swapchain_view);
+    wgpu_context.swapchain_view = 0;
+  }
+
+  wgpuTextureRelease(surf_tex.texture);
+}
+
+/* -------------------------------------------------------------------------- *
+ * wgpu_start — main entry point (WAjic version)
+ * -------------------------------------------------------------------------- */
+
+void wgpu_start(const wgpu_desc_t* desc)
+{
+  assert(desc);
+  assert(desc->init_cb && desc->frame_cb && desc->shutdown_cb);
+
+  memset(&wgpu_context, 0, sizeof(wgpu_context));
+  wgpu_context.desc              = *desc;
+  wgpu_context.desc.sample_count = VALUE_OR(wgpu_context.desc.sample_count, 1);
+  wgpu_context.input_event_cb    = desc->input_event_cb;
+
+  /* Device is already acquired by wajic_webgpu.h's WA.preMain hook */
+  wgpu_context.instance = wgpuCreateInstance(0);
+  wgpu_context.device   = wgpuWajicGetDevice();
+  wgpu_context.queue    = wgpuDeviceGetQueue(wgpu_context.device);
+
+  /* Query preferred surface format */
+  wgpu_context.render_format = wgpuSurfaceGetPreferredFormat(0, 0);
+
+  JSSetupCanvas();
+  {
+    unsigned int cw = 0, ch = 0;
+    JSGetCanvasSize(&cw, &ch);
+    wgpu_context.width  = (int)cw;
+    wgpu_context.height = (int)ch;
+  }
+
+  /* Create surface from canvas */
+  {
+    WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvas_src;
+    memset(&canvas_src, 0, sizeof(canvas_src));
+    canvas_src.chain.sType
+      = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+    canvas_src.selector.data   = "canvas";
+    canvas_src.selector.length = 6;
+
+    WGPUSurfaceDescriptor surf_desc;
+    memset(&surf_desc, 0, sizeof(surf_desc));
+    surf_desc.nextInChain = (WGPUChainedStruct*)&canvas_src;
+
+    wgpu_context.surface
+      = wgpuInstanceCreateSurface(wgpu_context.instance, &surf_desc);
+  }
+
+  /* Configure surface */
+  {
+    WGPUSurfaceConfiguration config;
+    memset(&config, 0, sizeof(config));
+    config.device      = wgpu_context.device;
+    config.format      = wgpu_context.render_format;
+    config.usage       = WGPUTextureUsage_RenderAttachment;
+    config.alphaMode   = WGPUCompositeAlphaMode_Opaque;
+    config.width       = (uint32_t)wgpu_context.width;
+    config.height      = (uint32_t)wgpu_context.height;
+    config.presentMode = WGPUPresentMode_Fifo;
+    wgpuSurfaceConfigure(wgpu_context.surface, &config);
+  }
+
+  wgpu_swapchain_init(&wgpu_context);
+  JSSetupInput();
+  wgpu_context.desc.init_cb(&wgpu_context);
+}
+
+#else /* !__WAJIC__ */
+/* -------------------------------------------------------------------------- *
+ * Native (GLFW/Dawn) platform
+ * -------------------------------------------------------------------------- */
+
 static struct {
   input_event_type_t event_type;
   button_t button_type;
@@ -985,6 +1426,12 @@ WGPUSurface glfw_create_surface_for_window(WGPUInstance instance,
   }
 }
 
+#endif /* __WAJIC__ */
+
+/* ========================================================================== *
+ * Shared helpers (both platforms)
+ * ========================================================================== */
+
 /* -------------------------------------------------------------------------- *
  * WebGPU buffer helper functions
  * -------------------------------------------------------------------------- */
@@ -1026,6 +1473,14 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     = (desc->initial.size == 0) ? desc->size : desc->initial.size;
 
   if (desc->initial.data && initial_size > 0 && initial_size <= desc->size) {
+#ifdef __WAJIC__
+    /* WAjic lacks wgpuBufferGetMappedRange — use QueueWriteBuffer instead */
+    buffer_desc.usage |= WGPUBufferUsage_CopyDst;
+    wgpu_buffer.buffer
+      = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
+    wgpuQueueWriteBuffer(wgpu_context->queue, wgpu_buffer.buffer, 0,
+                         desc->initial.data, initial_size);
+#else
     buffer_desc.mappedAtCreation = 1;
     WGPUBuffer buffer
       = wgpuDeviceCreateBuffer(wgpu_context->device, &buffer_desc);
@@ -1035,6 +1490,7 @@ wgpu_buffer_t wgpu_create_buffer(struct wgpu_context_t* wgpu_context,
     memcpy(mapping, desc->initial.data, initial_size);
     wgpuBufferUnmap(buffer);
     wgpu_buffer.buffer = buffer;
+#endif
   }
   else {
     wgpu_buffer.buffer
@@ -1214,7 +1670,9 @@ wgpu_texture_t wgpu_create_texture(struct wgpu_context_t* wgpu_context,
       .baseArrayLayer  = 0,
       .arrayLayerCount = array_layer_count,
       .aspect          = WGPUTextureAspect_All,
-      .usage           = usage,
+#ifndef __WAJIC__
+      .usage = usage,
+#endif
     };
     texture.view = wgpuTextureCreateView(texture.handle, &view_desc);
   }
@@ -1759,7 +2217,7 @@ static WGPURenderPipeline mipmap_get_pipeline(wgpu_mipmap_generator_t* gen,
   if (gen->cache_count >= MIPMAP_MAX_CACHED_PIPELINES) {
     fprintf(stderr, "wgpu_mipmap: pipeline cache full (max %d)\n",
             MIPMAP_MAX_CACHED_PIPELINES);
-    return NULL;
+    return 0;
   }
 
   WGPUShaderModule module    = mipmap_get_shader_module(gen, view_dim);
@@ -1779,7 +2237,7 @@ static WGPURenderPipeline mipmap_get_pipeline(wgpu_mipmap_generator_t* gen,
 
   WGPURenderPipelineDescriptor pipeline_desc = {
     .label = STRVIEW("mipmap generator pipeline"),
-    .layout = NULL, /* auto layout */
+    .layout = 0, /* auto layout */
     .vertex = {
       .module     = module,
       .entryPoint = STRVIEW("vs"),
@@ -2358,8 +2816,14 @@ WGPUShaderModule wgpu_create_shader_module(WGPUDevice device,
   WGPUShaderSourceWGSL shader_code_desc
     = {.chain = {.sType = WGPUSType_ShaderSourceWGSL},
        .code  = {
-          .data   = wgsl_source_code,
-          .length = WGPU_STRLEN,
+          .data = wgsl_source_code,
+#ifdef __WAJIC__
+         /* WAjic's Wsv() treats WGPU_STRLEN (0xFFFFFFFF) as zero-length;
+          * pass the real length so the JS layer receives the full WGSL. */
+         .length = wgsl_source_code ? strlen(wgsl_source_code) : 0,
+#else
+         .length = WGPU_STRLEN,
+#endif
        }};
   WGPUShaderModuleDescriptor shader_desc
     = {.nextInChain = &shader_code_desc.chain};
