@@ -76,8 +76,8 @@ void stm_setup(void)
 uint64_t stm_now(void)
 {
   double elapsed_ms = _wajic_time_now_ms() - _wajic_time_start_ms;
-  /* Convert milliseconds → nanoseconds (sokol_time's native unit). */
-  return (uint64_t)(elapsed_ms * 1000000.0);
+  uint64_t ns = (uint64_t)(elapsed_ms * 1000000.0);
+  return ns ? ns : 1;
 }
 
 uint64_t stm_diff(uint64_t new_ticks, uint64_t old_ticks)
