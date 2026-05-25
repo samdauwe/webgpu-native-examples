@@ -253,7 +253,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   /* Set target frame buffer */
   if (state.sample_count == 1) {
     state.color_attachment.view          = wgpu_context->swapchain_view;
-    state.color_attachment.resolveTarget = NULL;
+    state.color_attachment.resolveTarget = (WGPUTextureView)0;
   }
   else {
     state.color_attachment.view          = state.multisampled_framebuffer;
