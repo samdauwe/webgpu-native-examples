@@ -928,6 +928,13 @@ typedef struct WGPUTexelCopyBufferInfo {
     WGPUBuffer buffer;
 } WGPUTexelCopyBufferInfo;
 
+// --- Render bundle ---
+
+typedef struct WGPURenderBundleDescriptor {
+    WGPUChainedStruct const * nextInChain;
+    WGPUStringView label;
+} WGPURenderBundleDescriptor;
+
 // --- Render bundle encoder ---
 
 typedef struct WGPURenderBundleEncoderDescriptor {
