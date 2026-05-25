@@ -4,14 +4,28 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * comparisons like `ASSERT(handle != NULL)` compile without warnings. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -762,7 +776,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = TEXTURE_COUNT,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     init_box_mesh_renderable(wgpu_context);
     init_uniforms_buffers(wgpu_context);
