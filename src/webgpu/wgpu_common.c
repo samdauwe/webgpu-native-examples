@@ -107,8 +107,75 @@ WAJIC(void, JSSetupInput, (), {
                             e.preventDefault();
                           },
                           {passive : false});
-  window.addEventListener('keydown', function(e) { fnKeyDown(e.keyCode); });
-  window.addEventListener('keyup', function(e) { fnKeyUp(e.keyCode); });
+  // clang-format off
+  /* Map KeyboardEvent.code (physical position, layout-independent) to the
+   * internal keycode_t enum values.  Using event.code means WASD controls
+   * work correctly on AZERTY, QWERTY, QWERTZ, DVORAK, etc. because the
+   * mapping is based on the physical key position, not the printed label.
+   * Reference: https://hacks.mozilla.org/2017/03/internationalize-your-keyboard-controls/ */
+  var KC = {
+    'Space':32,'Quote':39,'Comma':44,'Minus':45,'Period':46,'Slash':47,
+    'Digit0':48,'Digit1':49,'Digit2':50,'Digit3':51,'Digit4':52,
+    'Digit5':53,'Digit6':54,'Digit7':55,'Digit8':56,'Digit9':57,
+    'Semicolon':59,'Equal':61,
+    'KeyA':65,'KeyB':66,'KeyC':67,'KeyD':68,'KeyE':69,'KeyF':70,
+    'KeyG':71,'KeyH':72,'KeyI':73,'KeyJ':74,'KeyK':75,'KeyL':76,
+    'KeyM':77,'KeyN':78,'KeyO':79,'KeyP':80,'KeyQ':81,'KeyR':82,
+    'KeyS':83,'KeyT':84,'KeyU':85,'KeyV':86,'KeyW':87,'KeyX':88,
+    'KeyY':89,'KeyZ':90,
+    'BracketLeft':91,'Backslash':92,'BracketRight':93,'Backquote':96,
+    'Escape':256,'Enter':257,'Tab':258,'Backspace':259,
+    'Insert':260,'Delete':261,
+    'ArrowRight':262,'ArrowLeft':263,'ArrowDown':264,'ArrowUp':265,
+    'PageUp':266,'PageDown':267,'Home':268,'End':269,
+    'CapsLock':280,'ScrollLock':281,'NumLock':282,
+    'PrintScreen':283,'Pause':284,
+    'F1':290,'F2':291,'F3':292,'F4':293,'F5':294,'F6':295,
+    'F7':296,'F8':297,'F9':298,'F10':299,'F11':300,'F12':301,
+    'F13':302,'F14':303,'F15':304,'F16':305,'F17':306,'F18':307,
+    'F19':308,'F20':309,'F21':310,'F22':311,'F23':312,'F24':313,
+    'F25':314,
+    'Numpad0':320,'Numpad1':321,'Numpad2':322,'Numpad3':323,
+    'Numpad4':324,'Numpad5':325,'Numpad6':326,'Numpad7':327,
+    'Numpad8':328,'Numpad9':329,'NumpadDecimal':330,'NumpadDivide':331,
+    'NumpadMultiply':332,'NumpadSubtract':333,'NumpadAdd':334,
+    'NumpadEnter':335,'NumpadEqual':336,
+    'ShiftLeft':340,'ControlLeft':341,'AltLeft':342,'MetaLeft':343,
+    'ShiftRight':344,'ControlRight':345,'AltRight':346,'MetaRight':347,
+    'ContextMenu':348
+  };
+  /* Legacy keyCode fallback for browsers without event.code (old IE/Edge/Safari). */
+  function legacyKeyCode(kc) {
+    if (kc >= 32 && kc <= 90) return kc;
+    switch (kc) {
+      case 27:return 256;case 13:return 257;case 9:return 258;
+      case 8:return 259;case 46:return 261;case 37:return 263;
+      case 39:return 262;case 40:return 264;case 38:return 265;
+      case 33:return 266;case 34:return 267;case 36:return 268;
+      case 35:return 269;case 16:return 340;case 17:return 341;
+      case 18:return 342;case 91:return 343;case 92:return 347;
+      case 112:return 290;case 113:return 291;case 114:return 292;
+      case 115:return 293;case 116:return 294;case 117:return 295;
+      case 118:return 296;case 119:return 297;case 120:return 298;
+      case 121:return 299;case 122:return 300;case 123:return 301;
+      default:return 0;
+    }
+  }
+  function mapKey(e) {
+    /* 1. Prefer event.code: physical position, fully layout-independent. */
+    if (e.code) { var k=KC[e.code]; if (k!==undefined) return k; }
+    /* 2. Try event.key for single-character keys (layout-aware fallback). */
+    if (e.key && e.key.length===1) {
+      var ku=e.key.toUpperCase();
+      var k=KC['Key'+ku]; if (k!==undefined) return k;
+      var k2=KC['Digit'+ku]; if (k2!==undefined) return k2;
+    }
+    /* 3. Last resort: legacy keyCode (QWERTY-only). */
+    return legacyKeyCode(e.keyCode||0);
+  }
+  window.addEventListener('keydown', function(e) { fnKeyDown(mapKey(e)); });
+  window.addEventListener('keyup',   function(e) { fnKeyUp(mapKey(e)); });
+  // clang-format on
 })
 
 /* -------------------------------------------------------------------------- *
@@ -157,65 +224,9 @@ static button_t remap_mouse_button(int btn)
   }
 }
 
-/* Map JS keyCode to the internal keycode_t enum. */
-static keycode_t remap_js_key_code(int js_key)
-{
-  if (js_key >= 32 && js_key <= 90)
-    return (keycode_t)js_key;
-
-  switch (js_key) {
-    case 27:
-      return KEY_ESCAPE;
-    case 13:
-      return KEY_ENTER;
-    case 9:
-      return KEY_TAB;
-    case 8:
-      return KEY_BACKSPACE;
-    case 46:
-      return KEY_DELETE;
-    case 37:
-      return KEY_LEFT;
-    case 39:
-      return KEY_RIGHT;
-    case 40:
-      return KEY_DOWN;
-    case 38:
-      return KEY_UP;
-    case 16:
-      return KEY_LEFT_SHIFT;
-    case 17:
-      return KEY_LEFT_CONTROL;
-    case 18:
-      return KEY_LEFT_ALT;
-    case 112:
-      return KEY_F1;
-    case 113:
-      return KEY_F2;
-    case 114:
-      return KEY_F3;
-    case 115:
-      return KEY_F4;
-    case 116:
-      return KEY_F5;
-    case 117:
-      return KEY_F6;
-    case 118:
-      return KEY_F7;
-    case 119:
-      return KEY_F8;
-    case 120:
-      return KEY_F9;
-    case 121:
-      return KEY_F10;
-    case 122:
-      return KEY_F11;
-    case 123:
-      return KEY_F12;
-    default:
-      return KEY_UNKNOWN;
-  }
-}
+/* The JS mapKey() function in JSSetupInput already resolves event.code /
+ * event.key / event.keyCode into a keycode_t value before calling
+ * WAFNKeyDown / WAFNKeyUp, so no C-side remapping is needed. */
 
 WA_EXPORT(WAFNMouseDown) void WAFNMouseDown(int button, float x, float y)
 {
@@ -257,19 +268,19 @@ WA_EXPORT(WAFNWheel) void WAFNWheel(float dx, float dy)
   dispatch_input();
 }
 
-WA_EXPORT(WAFNKeyDown) void WAFNKeyDown(int js_key)
+WA_EXPORT(WAFNKeyDown) void WAFNKeyDown(int key_code)
 {
   input_state.event_type = INPUT_EVENT_TYPE_KEY_DOWN;
-  input_state.key_code   = remap_js_key_code(js_key);
+  input_state.key_code   = (keycode_t)key_code;
   if (input_state.key_code < KEY_NUM)
     input_state.keys_down[input_state.key_code] = 1;
   dispatch_input();
 }
 
-WA_EXPORT(WAFNKeyUp) void WAFNKeyUp(int js_key)
+WA_EXPORT(WAFNKeyUp) void WAFNKeyUp(int key_code)
 {
   input_state.event_type = INPUT_EVENT_TYPE_KEY_UP;
-  input_state.key_code   = remap_js_key_code(js_key);
+  input_state.key_code   = (keycode_t)key_code;
   if (input_state.key_code < KEY_NUM)
     input_state.keys_down[input_state.key_code] = 0;
   dispatch_input();
