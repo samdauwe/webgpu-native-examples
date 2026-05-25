@@ -23,11 +23,17 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -44,6 +50,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WGSL Shaders (forward declarations - defined at bottom of file)
@@ -63,6 +78,7 @@ static struct {
   /* Model */
   gltf_model_t scene_model;
   bool model_loaded;
+  bool model_buffers_created; /* WAjic: true after GPU buffers uploaded */
 
   /* GPU vertex/index buffers */
   WGPUBuffer vertex_buffer;
@@ -271,11 +287,43 @@ static void init_offscreen_attachments(struct wgpu_context_t* wgpu_context)
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates the exact amount
+ * of WASM memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Input Attachments: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+
+  bool ok = gltf_model_load_from_memory(
+    &state.scene_model, response->data.ptr, response->data.size,
+    "assets/models/treasure_smooth.gltf", 1.0f);
+  if (ok) {
+    state.model_loaded = true;
+  }
+  else {
+    printf("Input Attachments: failed to parse gltf model\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/treasure_smooth.gltf",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
   gltf_model_load_from_file(&state.scene_model,
                             "assets/models/treasure_smooth.gltf", 1.0f);
   state.model_loaded = true;
+#endif
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -706,7 +754,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("Input attachment");
     imgui_overlay_combo_box("##attachment", &state.ubo_params.attachment_index,
                             attachment_names, 2);
@@ -766,6 +814,15 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  /* WAjic: use sfetch for async model loading */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+  });
+#endif
+
   /* Camera: first-person */
   camera_init(&state.camera);
   state.camera.type           = CameraType_FirstPerson;
@@ -776,9 +833,11 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 60.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 
-  /* Load model synchronously (it's small) */
+  /* Load model (native: sync; WAjic: async via sfetch) */
   load_model();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Create offscreen attachments */
   init_offscreen_attachments(wgpu_context);
@@ -805,7 +864,22 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.model_loaded) {
+  if (!state.initialized) {
+    return EXIT_FAILURE;
+  }
+
+#ifdef __WAJIC__
+  /* Pump async file loading */
+  sfetch_dowork();
+
+  /* Upload model GPU buffers once the async fetch completes */
+  if (state.model_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif
+
+  if (!state.model_loaded) {
     return EXIT_FAILURE;
   }
 
@@ -896,6 +970,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+#ifdef __WAJIC__
+  sfetch_shutdown();
+#endif
 
   imgui_overlay_shutdown();
 
