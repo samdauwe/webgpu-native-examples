@@ -4,6 +4,12 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
@@ -12,6 +18,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif /* __WAJIC__ */
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -25,6 +32,9 @@
 
 #include "core/image_loader.h"
 
+#ifdef __WAJIC__
+#define CGLTF_IMPLEMENTATION
+#endif
 #include <cgltf.h>
 
 /* Forward declare - not included directly due to header conflicts */
@@ -541,6 +551,10 @@ static struct {
   uint64_t last_frame_time;
   float elapsed_time;
 
+#ifdef __WAJIC__
+  wgpu_context_t* wgpu_ctx; /* stored for use in async GLB fetch callback */
+#endif
+
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -1012,25 +1026,9 @@ static void init_env_default_texture(wgpu_context_t* wgpu_context)
 /* -------------------------------------------------------------------------- *
  * Environment model loading (from GLB using cgltf)
  * -------------------------------------------------------------------------- */
-static void load_environment_model(wgpu_context_t* wgpu_context)
+static void env_process_cgltf_data(wgpu_context_t* wgpu_context,
+                                   cgltf_data* data)
 {
-  const char* glb_path = "assets/models/Dungeon/dungeon.glb";
-
-  cgltf_options options = {0};
-  cgltf_data* data      = NULL;
-  cgltf_result result   = cgltf_parse_file(&options, glb_path, &data);
-  if (result != cgltf_result_success) {
-    fprintf(stderr, "Failed to parse GLB: %s (error %d)\n", glb_path, result);
-    return;
-  }
-
-  result = cgltf_load_buffers(&options, data, glb_path);
-  if (result != cgltf_result_success) {
-    fprintf(stderr, "Failed to load GLB buffers: %s\n", glb_path);
-    cgltf_free(data);
-    return;
-  }
-
   env_model_t* env = &state.env;
   memset(env, 0, sizeof(*env));
 
@@ -1302,6 +1300,64 @@ static void load_environment_model(wgpu_context_t* wgpu_context)
   cgltf_free(data);
 }
 
+#ifdef __WAJIC__
+/* Forward declaration needed because env_glb_fetch_cb calls this after async
+ * load completes, but it is defined later in the file. */
+static void init_environment_pipeline(wgpu_context_t* wgpu_context);
+
+static void env_glb_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    fprintf(stderr, "[metaballs] GLB fetch failed: %d\n", resp->error_code);
+    return;
+  }
+  cgltf_options options = {0};
+  cgltf_data* data      = NULL;
+  cgltf_result result
+    = cgltf_parse(&options, resp->data.ptr, resp->data.size, &data);
+  if (result != cgltf_result_success) {
+    fprintf(stderr, "[metaballs] Failed to parse GLB from memory\n");
+    return;
+  }
+  /* All buffers are embedded in the GLB binary chunk — load_buffers is a no-op
+   * for embedded data, but call it for correctness. */
+  cgltf_load_buffers(&options, data, "");
+  env_process_cgltf_data(state.wgpu_ctx, data);
+  /* In WAjic the GLB arrives asynchronously, so init_environment_pipeline
+   * must be called here after the model data is ready. */
+  init_environment_pipeline(state.wgpu_ctx);
+}
+#endif /* __WAJIC__ */
+
+static void load_environment_model(wgpu_context_t* wgpu_context)
+{
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/Dungeon/dungeon.glb",
+    .callback = env_glb_fetch_cb,
+  });
+#else
+  const char* glb_path = "assets/models/Dungeon/dungeon.glb";
+
+  cgltf_options options = {0};
+  cgltf_data* data      = NULL;
+  cgltf_result result   = cgltf_parse_file(&options, glb_path, &data);
+  if (result != cgltf_result_success) {
+    fprintf(stderr, "Failed to parse GLB: %s (error %d)\n", glb_path, result);
+    return;
+  }
+
+  result = cgltf_load_buffers(&options, data, glb_path);
+  if (result != cgltf_result_success) {
+    fprintf(stderr, "Failed to load GLB buffers: %s\n", glb_path);
+    cgltf_free(data);
+    return;
+  }
+
+  env_process_cgltf_data(wgpu_context, data);
+#endif /* __WAJIC__ */
+}
+
 /* -------------------------------------------------------------------------- *
  * Metaball texture loading
  * -------------------------------------------------------------------------- */
@@ -1309,9 +1365,10 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     fprintf(stderr, "Texture fetch failed: %d\n", response->error_code);
+#ifndef __WAJIC__
     free(state.file_buffer);
     state.file_buffer = NULL;
-
+#endif
     return;
   }
   int img_width, img_height, num_channels;
@@ -1331,17 +1388,23 @@ static void fetch_callback(const sfetch_response_t* response)
       .is_dirty  = true,
     };
   }
+#ifndef __WAJIC__
   free(state.file_buffer);
   state.file_buffer = NULL;
+#endif
 }
 
 static void load_texture(const char* path)
 {
+#ifndef __WAJIC__
   state.file_buffer = (uint8_t*)malloc(METABALLS_FILE_BUFFER_SIZE);
+#endif
   sfetch_send(&(sfetch_request_t){
     .path     = path,
     .callback = fetch_callback,
-    .buffer   = {.ptr = state.file_buffer, .size = METABALLS_FILE_BUFFER_SIZE},
+#ifndef __WAJIC__
+    .buffer = {.ptr = state.file_buffer, .size = METABALLS_FILE_BUFFER_SIZE},
+#endif
   });
 }
 
@@ -2015,7 +2078,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 4,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
 
     init_volume(resolution_steps[state.settings.resolution]);
@@ -2030,6 +2095,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 
     /* Environment model */
     init_env_default_texture(wgpu_context);
+#ifdef __WAJIC__
+    state.wgpu_ctx = wgpu_context;
+#endif
     load_environment_model(wgpu_context);
     init_environment_pipeline(wgpu_context);
 
@@ -2181,8 +2249,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   imgui_overlay_shutdown();
 
   /* Free file buffer if not yet released */
+#ifndef __WAJIC__
   free(state.file_buffer);
   state.file_buffer = NULL;
+#endif
 
   wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(Buffer, state.vertex_buffer)
