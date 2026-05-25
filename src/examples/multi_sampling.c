@@ -16,11 +16,21 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -50,6 +60,15 @@ static const char* mesh_shader_wgsl;
 
 #define SAMPLE_COUNT (4u)
 #define MAX_MATERIALS (8u)
+
+static const char* voyager_model_path = "assets/models/voyager.gltf";
+
+/* Forward declaration for async callback */
+#ifdef __WAJIC__
+static struct wgpu_context_t* multi_sampling_wgpu_ctx;
+static void create_model_buffers(struct wgpu_context_t* wgpu_context);
+static void create_material_bind_groups(struct wgpu_context_t* wgpu_context);
+#endif
 
 /* -------------------------------------------------------------------------- *
  * State
@@ -146,10 +165,37 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static void model_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    printf("[multi_sampling] Model fetch failed, error: %d\n",
+           resp->error_code);
+    return;
+  }
+  bool loaded = gltf_model_load_from_memory(
+    &state.model, resp->data.ptr, resp->data.size, voyager_model_path, 1.0f);
+  if (!loaded) {
+    printf("[multi_sampling] Failed to parse model\n");
+    return;
+  }
+  state.model_loaded = true;
+  create_model_buffers(multi_sampling_wgpu_ctx);
+  create_material_bind_groups(multi_sampling_wgpu_ctx);
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
-  gltf_model_load_from_file(&state.model, "assets/models/voyager.gltf", 1.0f);
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = voyager_model_path,
+    .callback = model_fetch_cb,
+  });
+#else
+  gltf_model_load_from_file(&state.model, voyager_model_path, 1.0f);
   state.model_loaded = true;
+#endif
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -613,7 +659,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_checkbox("Sample rate shading",
                            &state.settings.sample_rate_shading);
   }
@@ -653,6 +699,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  multi_sampling_wgpu_ctx = wgpu_context;
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+  });
+#endif
+
   /* Camera: lookat type */
   camera_init(&state.camera);
   state.camera.type      = CameraType_LookAt;
@@ -664,13 +718,7 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 60.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 
-  /* Load model synchronously */
-  load_model();
-
-  /* Create GPU buffers from model data */
-  create_model_buffers(wgpu_context);
-
-  /* Create default texture and sampler */
+  /* Create default texture and sampler (needed before material bind groups) */
   create_default_texture(wgpu_context);
   create_texture_sampler(wgpu_context);
 
@@ -683,11 +731,22 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* Create UBO bind group */
   init_ubo_bind_group(wgpu_context);
 
-  /* Create per-material texture bind groups */
-  create_material_bind_groups(wgpu_context);
-
   /* Create render pipeline */
   init_pipeline(wgpu_context);
+
+  /* Load model — async on WAjic, sync on native.
+   * create_model_buffers and create_material_bind_groups are called:
+   *   - Synchronously here (native) right after load_model()
+   *   - In model_fetch_cb (WAjic) once the file has been fetched. */
+  load_model();
+
+#ifndef __WAJIC__
+  /* Create GPU buffers from model data */
+  create_model_buffers(wgpu_context);
+
+  /* Create per-material texture bind groups */
+  create_material_bind_groups(wgpu_context);
+#endif
 
   /* ImGui */
   imgui_overlay_init(wgpu_context);
@@ -698,8 +757,12 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  sfetch_dowork();
+#endif
+
   if (!state.initialized || !state.model_loaded) {
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
   }
 
   /* Timing */
@@ -731,7 +794,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
   else {
     state.color_attachment.view          = wgpu_context->swapchain_view;
-    state.color_attachment.resolveTarget = NULL;
+    state.color_attachment.resolveTarget = (WGPUTextureView)0;
   }
   state.depth_stencil_attachment.view = wgpu_context->depth_stencil_view;
 
@@ -766,6 +829,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+#ifdef __WAJIC__
+  sfetch_shutdown();
+#endif
 
   imgui_overlay_shutdown();
 
