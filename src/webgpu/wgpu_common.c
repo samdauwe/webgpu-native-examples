@@ -302,10 +302,38 @@ static void wgpu_swapchain_init(wgpu_context_t* ctx)
     ctx->depth_stencil_tex  = wgpuDeviceCreateTexture(ctx->device, &ds_desc);
     ctx->depth_stencil_view = wgpuTextureCreateView(ctx->depth_stencil_tex, 0);
   }
+
+  if (ctx->desc.sample_count > 1) {
+    unsigned int actual_w = (unsigned int)ctx->width;
+    unsigned int actual_h = (unsigned int)ctx->height;
+    JSGetCanvasSize(&actual_w, &actual_h);
+
+    WGPUTextureDescriptor msaa_desc;
+    memset(&msaa_desc, 0, sizeof(msaa_desc));
+    msaa_desc.usage                   = WGPUTextureUsage_RenderAttachment;
+    msaa_desc.dimension               = WGPUTextureDimension_2D;
+    msaa_desc.size.width              = actual_w;
+    msaa_desc.size.height             = actual_h;
+    msaa_desc.size.depthOrArrayLayers = 1;
+    msaa_desc.format                  = ctx->render_format;
+    msaa_desc.mipLevelCount           = 1;
+    msaa_desc.sampleCount             = (uint32_t)ctx->desc.sample_count;
+
+    ctx->msaa_tex  = wgpuDeviceCreateTexture(ctx->device, &msaa_desc);
+    ctx->msaa_view = wgpuTextureCreateView(ctx->msaa_tex, 0);
+  }
 }
 
 static void wgpu_swapchain_discard(wgpu_context_t* ctx)
 {
+  if (ctx->msaa_view) {
+    wgpuTextureViewRelease(ctx->msaa_view);
+    ctx->msaa_view = 0;
+  }
+  if (ctx->msaa_tex) {
+    wgpuTextureRelease(ctx->msaa_tex);
+    ctx->msaa_tex = 0;
+  }
   if (ctx->depth_stencil_view) {
     wgpuTextureViewRelease(ctx->depth_stencil_view);
     ctx->depth_stencil_view = 0;
