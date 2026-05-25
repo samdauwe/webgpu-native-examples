@@ -11,6 +11,12 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
@@ -19,6 +25,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -28,6 +35,15 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * assignments like `state.bg_rocks = NULL` compile without warnings. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -120,6 +136,9 @@ static struct {
     gltf_model_t planet;
     bool rock_loaded;
     bool planet_loaded;
+#ifdef __WAJIC__
+    bool model_buffers_created;
+#endif
   } models;
 
   /* GPU geometry buffers (one vertex + one index buffer per model) */
@@ -215,8 +234,65 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static void rock_model_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    printf("[instancing] Rock model fetch failed, error: %d\n",
+           resp->error_code);
+    return;
+  }
+  state.models.rock_loaded = gltf_model_load_from_memory(
+    &state.models.rock, resp->data.ptr, resp->data.size, rock_model_path, 1.0f);
+  if (state.models.rock_loaded) {
+    gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.models.rock,
+                                    state.models.rock.vertices, &desc);
+  }
+  else {
+    printf("[instancing] Failed to parse rock model\n");
+  }
+}
+
+static void planet_model_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    printf("[instancing] Planet model fetch failed, error: %d\n",
+           resp->error_code);
+    return;
+  }
+  state.models.planet_loaded
+    = gltf_model_load_from_memory(&state.models.planet, resp->data.ptr,
+                                  resp->data.size, planet_model_path, 1.0f);
+  if (state.models.planet_loaded) {
+    gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.models.planet,
+                                    state.models.planet.vertices, &desc);
+  }
+  else {
+    printf("[instancing] Failed to parse planet model\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = rock_model_path,
+    .callback = rock_model_fetch_cb,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path     = planet_model_path,
+    .callback = planet_model_fetch_cb,
+  });
+#else
   gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -233,6 +309,7 @@ static void load_models(void)
   if (!state.models.planet_loaded) {
     printf("[instancing] Failed to load planet model: %s\n", planet_model_path);
   }
+#endif
 }
 
 static void create_model_buffers(wgpu_context_t* wgpu_context)
@@ -482,8 +559,10 @@ static void init_textures(wgpu_context_t* wgpu_context)
     sfetch_send(&(sfetch_request_t){
       .path     = rocks_tex_path,
       .callback = fetch_rocks_texture_cb,
+#ifndef __WAJIC__
       .buffer
       = {.ptr = state.rocks_file_buffer, .size = ROCKS_FILE_BUFFER_SIZE},
+#endif
     });
   }
 
@@ -502,8 +581,10 @@ static void init_textures(wgpu_context_t* wgpu_context)
     sfetch_send(&(sfetch_request_t){
       .path     = planet_tex_path,
       .callback = fetch_planet_texture_cb,
+#ifndef __WAJIC__
       .buffer
       = {.ptr = state.planet_file_buffer, .size = PLANET_FILE_BUFFER_SIZE},
+#endif
     });
   }
 }
@@ -1174,12 +1255,15 @@ static int init(wgpu_context_t* wgpu_context)
   stm_setup();
 
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 2,
+    .max_requests = 4, /* 2 models (WAjic) + 2 textures */
     .num_channels = 2,
     .num_lanes    = 1,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
+#ifndef __WAJIC__
   /* Allocate file fetch buffers dynamically */
   state.rocks_file_buffer  = (uint8_t*)malloc(ROCKS_FILE_BUFFER_SIZE);
   state.planet_file_buffer = (uint8_t*)malloc(PLANET_FILE_BUFFER_SIZE);
@@ -1187,6 +1271,7 @@ static int init(wgpu_context_t* wgpu_context)
     printf("[instancing] Failed to allocate file buffers\n");
     return EXIT_FAILURE;
   }
+#endif
 
   /* ---- Camera ---------------------------------------------------------- */
   camera_init(&state.camera);
@@ -1212,7 +1297,9 @@ static int init(wgpu_context_t* wgpu_context)
 
   /* ---- Load models synchronously --------------------------------------- */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* ---- Instance data --------------------------------------------------- */
   prepare_instance_data(wgpu_context);
@@ -1235,12 +1322,24 @@ static int init(wgpu_context_t* wgpu_context)
 
 static int frame(wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.models.rock_loaded
-      || !state.models.planet_loaded) {
+  if (!state.initialized) {
     return EXIT_SUCCESS;
   }
 
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Deferred GPU buffer creation after async model loads complete */
+  if (state.models.rock_loaded && state.models.planet_loaded
+      && !state.models.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.models.model_buffers_created = true;
+  }
+#endif
+
+  if (!state.models.rock_loaded || !state.models.planet_loaded) {
+    return EXIT_SUCCESS;
+  }
 
   /* Update textures when async loads complete */
   update_textures(wgpu_context);
@@ -1349,10 +1448,12 @@ static void shutdown(wgpu_context_t* wgpu_context)
   gltf_model_destroy(&state.models.planet);
 
   /* File buffers */
+#ifndef __WAJIC__
   free(state.rocks_file_buffer);
   state.rocks_file_buffer = NULL;
   free(state.planet_file_buffer);
   state.planet_file_buffer = NULL;
+#endif
 }
 
 /* -------------------------------------------------------------------------- *
