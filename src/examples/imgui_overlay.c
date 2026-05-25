@@ -2,8 +2,13 @@
 
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -13,6 +18,15 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -618,7 +632,7 @@ static int frame(wgpu_context_t* wgpu_context)
     int global_idx_offset = 0;
     ImVec2 clip_off       = draw_data->DisplayPos;
     for (int n = 0; n < draw_data->CmdListsCount; n++) {
-    const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
+      const ImDrawList* cmd_list = draw_data->CmdLists.Data[n];
       for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
         const ImDrawCmd* pcmd = &cmd_list->CmdBuffer.Data[cmd_i];
         if (pcmd->UserCallback) {
@@ -679,30 +693,77 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
     case INPUT_EVENT_TYPE_KEY_DOWN: {
       ImGuiKey imgui_key = ImGuiKey_None;
       switch (event->key_code) {
-        case KEY_TAB: imgui_key = ImGuiKey_Tab; break;
-        case KEY_LEFT: imgui_key = ImGuiKey_LeftArrow; break;
-        case KEY_RIGHT: imgui_key = ImGuiKey_RightArrow; break;
-        case KEY_UP: imgui_key = ImGuiKey_UpArrow; break;
-        case KEY_DOWN: imgui_key = ImGuiKey_DownArrow; break;
-        case KEY_PAGE_UP: imgui_key = ImGuiKey_PageUp; break;
-        case KEY_PAGE_DOWN: imgui_key = ImGuiKey_PageDown; break;
-        case KEY_HOME: imgui_key = ImGuiKey_Home; break;
-        case KEY_END: imgui_key = ImGuiKey_End; break;
-        case KEY_INSERT: imgui_key = ImGuiKey_Insert; break;
-        case KEY_DELETE: imgui_key = ImGuiKey_Delete; break;
-        case KEY_BACKSPACE: imgui_key = ImGuiKey_Backspace; break;
-        case KEY_SPACE: imgui_key = ImGuiKey_Space; break;
-        case KEY_ENTER: imgui_key = ImGuiKey_Enter; break;
-        case KEY_ESCAPE: imgui_key = ImGuiKey_Escape; break;
-        case KEY_LEFT_CONTROL: imgui_key = ImGuiKey_LeftCtrl; break;
-        case KEY_LEFT_SHIFT: imgui_key = ImGuiKey_LeftShift; break;
-        case KEY_LEFT_ALT: imgui_key = ImGuiKey_LeftAlt; break;
-        case KEY_LEFT_SUPER: imgui_key = ImGuiKey_LeftSuper; break;
-        case KEY_RIGHT_CONTROL: imgui_key = ImGuiKey_RightCtrl; break;
-        case KEY_RIGHT_SHIFT: imgui_key = ImGuiKey_RightShift; break;
-        case KEY_RIGHT_ALT: imgui_key = ImGuiKey_RightAlt; break;
-        case KEY_RIGHT_SUPER: imgui_key = ImGuiKey_RightSuper; break;
-        default: break;
+        case KEY_TAB:
+          imgui_key = ImGuiKey_Tab;
+          break;
+        case KEY_LEFT:
+          imgui_key = ImGuiKey_LeftArrow;
+          break;
+        case KEY_RIGHT:
+          imgui_key = ImGuiKey_RightArrow;
+          break;
+        case KEY_UP:
+          imgui_key = ImGuiKey_UpArrow;
+          break;
+        case KEY_DOWN:
+          imgui_key = ImGuiKey_DownArrow;
+          break;
+        case KEY_PAGE_UP:
+          imgui_key = ImGuiKey_PageUp;
+          break;
+        case KEY_PAGE_DOWN:
+          imgui_key = ImGuiKey_PageDown;
+          break;
+        case KEY_HOME:
+          imgui_key = ImGuiKey_Home;
+          break;
+        case KEY_END:
+          imgui_key = ImGuiKey_End;
+          break;
+        case KEY_INSERT:
+          imgui_key = ImGuiKey_Insert;
+          break;
+        case KEY_DELETE:
+          imgui_key = ImGuiKey_Delete;
+          break;
+        case KEY_BACKSPACE:
+          imgui_key = ImGuiKey_Backspace;
+          break;
+        case KEY_SPACE:
+          imgui_key = ImGuiKey_Space;
+          break;
+        case KEY_ENTER:
+          imgui_key = ImGuiKey_Enter;
+          break;
+        case KEY_ESCAPE:
+          imgui_key = ImGuiKey_Escape;
+          break;
+        case KEY_LEFT_CONTROL:
+          imgui_key = ImGuiKey_LeftCtrl;
+          break;
+        case KEY_LEFT_SHIFT:
+          imgui_key = ImGuiKey_LeftShift;
+          break;
+        case KEY_LEFT_ALT:
+          imgui_key = ImGuiKey_LeftAlt;
+          break;
+        case KEY_LEFT_SUPER:
+          imgui_key = ImGuiKey_LeftSuper;
+          break;
+        case KEY_RIGHT_CONTROL:
+          imgui_key = ImGuiKey_RightCtrl;
+          break;
+        case KEY_RIGHT_SHIFT:
+          imgui_key = ImGuiKey_RightShift;
+          break;
+        case KEY_RIGHT_ALT:
+          imgui_key = ImGuiKey_RightAlt;
+          break;
+        case KEY_RIGHT_SUPER:
+          imgui_key = ImGuiKey_RightSuper;
+          break;
+        default:
+          break;
       }
       if (event->key_code >= KEY_A && event->key_code <= KEY_Z)
         imgui_key = (ImGuiKey)(ImGuiKey_A + (event->key_code - KEY_A));
@@ -717,30 +778,77 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
     case INPUT_EVENT_TYPE_KEY_UP: {
       ImGuiKey imgui_key = ImGuiKey_None;
       switch (event->key_code) {
-        case KEY_TAB: imgui_key = ImGuiKey_Tab; break;
-        case KEY_LEFT: imgui_key = ImGuiKey_LeftArrow; break;
-        case KEY_RIGHT: imgui_key = ImGuiKey_RightArrow; break;
-        case KEY_UP: imgui_key = ImGuiKey_UpArrow; break;
-        case KEY_DOWN: imgui_key = ImGuiKey_DownArrow; break;
-        case KEY_PAGE_UP: imgui_key = ImGuiKey_PageUp; break;
-        case KEY_PAGE_DOWN: imgui_key = ImGuiKey_PageDown; break;
-        case KEY_HOME: imgui_key = ImGuiKey_Home; break;
-        case KEY_END: imgui_key = ImGuiKey_End; break;
-        case KEY_INSERT: imgui_key = ImGuiKey_Insert; break;
-        case KEY_DELETE: imgui_key = ImGuiKey_Delete; break;
-        case KEY_BACKSPACE: imgui_key = ImGuiKey_Backspace; break;
-        case KEY_SPACE: imgui_key = ImGuiKey_Space; break;
-        case KEY_ENTER: imgui_key = ImGuiKey_Enter; break;
-        case KEY_ESCAPE: imgui_key = ImGuiKey_Escape; break;
-        case KEY_LEFT_CONTROL: imgui_key = ImGuiKey_LeftCtrl; break;
-        case KEY_LEFT_SHIFT: imgui_key = ImGuiKey_LeftShift; break;
-        case KEY_LEFT_ALT: imgui_key = ImGuiKey_LeftAlt; break;
-        case KEY_LEFT_SUPER: imgui_key = ImGuiKey_LeftSuper; break;
-        case KEY_RIGHT_CONTROL: imgui_key = ImGuiKey_RightCtrl; break;
-        case KEY_RIGHT_SHIFT: imgui_key = ImGuiKey_RightShift; break;
-        case KEY_RIGHT_ALT: imgui_key = ImGuiKey_RightAlt; break;
-        case KEY_RIGHT_SUPER: imgui_key = ImGuiKey_RightSuper; break;
-        default: break;
+        case KEY_TAB:
+          imgui_key = ImGuiKey_Tab;
+          break;
+        case KEY_LEFT:
+          imgui_key = ImGuiKey_LeftArrow;
+          break;
+        case KEY_RIGHT:
+          imgui_key = ImGuiKey_RightArrow;
+          break;
+        case KEY_UP:
+          imgui_key = ImGuiKey_UpArrow;
+          break;
+        case KEY_DOWN:
+          imgui_key = ImGuiKey_DownArrow;
+          break;
+        case KEY_PAGE_UP:
+          imgui_key = ImGuiKey_PageUp;
+          break;
+        case KEY_PAGE_DOWN:
+          imgui_key = ImGuiKey_PageDown;
+          break;
+        case KEY_HOME:
+          imgui_key = ImGuiKey_Home;
+          break;
+        case KEY_END:
+          imgui_key = ImGuiKey_End;
+          break;
+        case KEY_INSERT:
+          imgui_key = ImGuiKey_Insert;
+          break;
+        case KEY_DELETE:
+          imgui_key = ImGuiKey_Delete;
+          break;
+        case KEY_BACKSPACE:
+          imgui_key = ImGuiKey_Backspace;
+          break;
+        case KEY_SPACE:
+          imgui_key = ImGuiKey_Space;
+          break;
+        case KEY_ENTER:
+          imgui_key = ImGuiKey_Enter;
+          break;
+        case KEY_ESCAPE:
+          imgui_key = ImGuiKey_Escape;
+          break;
+        case KEY_LEFT_CONTROL:
+          imgui_key = ImGuiKey_LeftCtrl;
+          break;
+        case KEY_LEFT_SHIFT:
+          imgui_key = ImGuiKey_LeftShift;
+          break;
+        case KEY_LEFT_ALT:
+          imgui_key = ImGuiKey_LeftAlt;
+          break;
+        case KEY_LEFT_SUPER:
+          imgui_key = ImGuiKey_LeftSuper;
+          break;
+        case KEY_RIGHT_CONTROL:
+          imgui_key = ImGuiKey_RightCtrl;
+          break;
+        case KEY_RIGHT_SHIFT:
+          imgui_key = ImGuiKey_RightShift;
+          break;
+        case KEY_RIGHT_ALT:
+          imgui_key = ImGuiKey_RightAlt;
+          break;
+        case KEY_RIGHT_SUPER:
+          imgui_key = ImGuiKey_RightSuper;
+          break;
+        default:
+          break;
       }
       if (event->key_code >= KEY_A && event->key_code <= KEY_Z)
         imgui_key = (ImGuiKey)(ImGuiKey_A + (event->key_code - KEY_A));
