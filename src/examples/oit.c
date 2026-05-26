@@ -23,12 +23,24 @@
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
+#include <stdlib.h>
+#include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
+
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -38,6 +50,15 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * assignments like `state.geometry_sbo = NULL` compile without warnings. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -251,6 +272,10 @@ static struct {
   /* Camera */
   camera_t camera;
 
+  /* Async model loading */
+  int models_load_count;
+  bool model_buffers_created;
+
   /* Geometry pass resources */
   struct {
     WGPUBuffer geometry_sbo;   /* { count: u32, maxNodeCount: u32 } */
@@ -333,29 +358,10 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
-static void load_models(struct wgpu_context_t* wgpu_context)
+static void create_model_gpu_buffers(struct wgpu_context_t* wgpu_context)
 {
   WGPUDevice device = wgpu_context->device;
 
-  const gltf_model_desc_t desc = {
-    .loading_flags = GltfLoadingFlag_PreTransformVertices
-                     | GltfLoadingFlag_PreMultiplyVertexColors,
-    /* No FlipY for WebGPU */
-  };
-
-  bool sphere_ok = gltf_model_load_from_file_ext(
-    &state.models.sphere, "assets/models/sphere.gltf", 1.0f, &desc);
-  bool cube_ok = gltf_model_load_from_file_ext(
-    &state.models.cube, "assets/models/cube.gltf", 1.0f, &desc);
-
-  if (!sphere_ok || !cube_ok) {
-    printf("ERROR: Failed to load sphere/cube models\n");
-    return;
-  }
-
-  state.models_loaded = true;
-
-  /* Create GPU vertex/index buffers for each model */
   struct {
     gltf_model_t* model;
     WGPUBuffer* vb;
@@ -398,6 +404,80 @@ static void load_models(struct wgpu_context_t* wgpu_context)
       wgpuBufferUnmap(*items[i].ib);
     }
   }
+}
+
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only). */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("[oit] model fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  int idx         = *(const int*)response->user_data;
+  gltf_model_t* m = (idx == 0) ? &state.models.sphere : &state.models.cube;
+
+  bool ok = gltf_model_load_from_memory(m, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same post-processing as gltf_model_load_from_file_ext */
+    static const gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    if (m->vertex_count > 0) {
+      gltf_model_bake_node_transforms(m, m->vertices, &desc);
+    }
+    state.models_load_count++;
+    if (state.models_load_count == 2) {
+      state.models_loaded = true;
+    }
+  }
+  else {
+    printf("[oit] failed to parse gltf model index %d\n", idx);
+  }
+}
+#endif /* __WAJIC__ */
+
+static void load_models(struct wgpu_context_t* wgpu_context)
+{
+#ifdef __WAJIC__
+  (void)wgpu_context;
+  static const int idx_sphere = 0;
+  static const int idx_cube   = 1;
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/sphere.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_sphere, .size = sizeof(idx_sphere)},
+    .channel   = 0,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/cube.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_cube, .size = sizeof(idx_cube)},
+    .channel   = 0,
+  });
+#else
+  const gltf_model_desc_t desc = {
+    .loading_flags = GltfLoadingFlag_PreTransformVertices
+                     | GltfLoadingFlag_PreMultiplyVertexColors,
+    /* No FlipY for WebGPU */
+  };
+
+  bool sphere_ok = gltf_model_load_from_file_ext(
+    &state.models.sphere, "assets/models/sphere.gltf", 1.0f, &desc);
+  bool cube_ok = gltf_model_load_from_file_ext(
+    &state.models.cube, "assets/models/cube.gltf", 1.0f, &desc);
+
+  if (!sphere_ok || !cube_ok) {
+    printf("ERROR: Failed to load sphere/cube models\n");
+    return;
+  }
+
+  state.models_loaded = true;
+  create_model_gpu_buffers(wgpu_context);
+#endif /* !__WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1167,11 +1247,22 @@ static int init(struct wgpu_context_t* wgpu_context)
   stm_setup();
 
   init_camera(wgpu_context);
+
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 2,
+    .num_channels = 1,
+    .num_lanes    = 2,
+  });
+#endif
+
   load_models(wgpu_context);
 
+#ifndef __WAJIC__
   if (!state.models_loaded) {
     return EXIT_FAILURE;
   }
+#endif
 
   init_uniform_buffers(wgpu_context);
   init_geometry_pass_resources(wgpu_context);
@@ -1192,6 +1283,14 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+#ifdef __WAJIC__
+  sfetch_dowork();
+  if (state.models_loaded && !state.model_buffers_created) {
+    create_model_gpu_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif
 
   /* Update camera */
   uint64_t current_time = stm_now();
