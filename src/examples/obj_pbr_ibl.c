@@ -2,11 +2,26 @@
 
 #include <cglm/cglm.h>
 
-#define SOKOL_TIME_IMPL
-#include <sokol_time.h>
-
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * comparisons compile without warnings/errors. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 #include "core/image_loader.h"
 
@@ -680,7 +695,7 @@ static void build_pbr_fragment_shader(void)
                   let albedo   = select(vec3f(0.957, 0.792, 0.407), vec3f(1, 0, 0),
                                       instanceIndex < 6);
                   let metallic = select(1.0, 0.0, instanceIndex < 6);
-                  let roughness = f32(instanceIndex) % 6 / 6;
+                  let roughness = f32(instanceIndex) %% 6 / 6;
 
                   let n = normalize(normal);
                   let v = normalize(uni.cameraPosition - worldPosition);
