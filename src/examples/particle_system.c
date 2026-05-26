@@ -21,6 +21,18 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
@@ -29,6 +41,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -121,6 +134,9 @@ static struct {
   WGPUBuffer env_ib;
   uint32_t env_index_count;
   bool env_model_loaded;
+#ifdef __WAJIC__
+  bool env_model_buffers_created; /* WAjic: GPU vertex/index buffers created */
+#endif
 
   /* Textures */
   struct {
@@ -156,6 +172,8 @@ static struct {
 
   /* Depth texture */
   wgpu_texture_t depth;
+  int depth_width;
+  int depth_height;
 
   /* Render pass descriptor */
   WGPURenderPassColorAttachment color_attachment;
@@ -446,18 +464,8 @@ static void load_textures(wgpu_context_t* wgpu_context)
  * GLTF Environment Model
  * -------------------------------------------------------------------------- */
 
-static void load_env_model(wgpu_context_t* wgpu_context)
+static void create_env_model_buffers(wgpu_context_t* wgpu_context)
 {
-  /* Load fireplace model (without FlipY — WebGPU is Y-up) */
-  bool ok = gltf_model_load_from_file(&state.env_model,
-                                      "assets/models/fireplace.gltf", 1.0f);
-  if (!ok) {
-    fprintf(stderr, "Failed to load fireplace.gltf\n");
-    return;
-  }
-
-  /* Bake node transforms: PreTransformVertices | PreMultiplyVertexColors
-   * (same as Vulkan but without FlipY) */
   static const gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -501,8 +509,51 @@ static void load_env_model(wgpu_context_t* wgpu_context)
     wgpuBufferUnmap(state.env_ib);
     state.env_index_count = state.env_model.index_count;
   }
+}
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates exact WASM
+ * memory needed and passes a valid pointer here. */
+static void env_model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("particle_system: env model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.env_model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.env_model_loaded = true;
+  }
+  else {
+    printf("particle_system: failed to parse fireplace.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
+static void load_env_model(wgpu_context_t* wgpu_context)
+{
+#ifdef __WAJIC__
+  (void)wgpu_context;
+  /* WAjic: async fetch — model_loaded is set when the callback fires */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/fireplace.gltf",
+    .callback = env_model_fetch_callback,
+    .channel  = 0,
+  });
+#else
+  /* Load fireplace model (without FlipY — WebGPU is Y-up) */
+  bool ok = gltf_model_load_from_file(&state.env_model,
+                                      "assets/models/fireplace.gltf", 1.0f);
+  if (!ok) {
+    fprintf(stderr, "Failed to load fireplace.gltf\n");
+    return;
+  }
+  create_env_model_buffers(wgpu_context);
   state.env_model_loaded = true;
+#endif /* __WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -538,6 +589,9 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
                           .arrayLayerCount = 1,
                         });
   ASSERT(state.depth.view != NULL);
+
+  state.depth_width  = wgpu_context->width;
+  state.depth_height = wgpu_context->height;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1010,7 +1064,9 @@ static int init(wgpu_context_t* wgpu_context)
     .max_requests = TEXTURE_COUNT + 2,
     .num_channels = 2,
     .num_lanes    = 2,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Seed RNG with time for variety each run */
@@ -1022,7 +1078,7 @@ static int init(wgpu_context_t* wgpu_context)
   /* Initialize camera */
   init_camera(wgpu_context);
 
-  /* Load GLTF environment (synchronous) */
+  /* Load GLTF environment (native: synchronous; WAjic: async sfetch) */
   load_env_model(wgpu_context);
 
   /* Initialize particle system */
@@ -1144,6 +1200,25 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* Process async texture loads */
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Lazy GPU buffer creation once the async env model fetch completes */
+  if (state.env_model_loaded && !state.env_model_buffers_created) {
+    create_env_model_buffers(wgpu_context);
+    state.env_model_buffers_created = true;
+  }
+#endif
+
+  /* Recreate depth texture if the swapchain was resized without firing
+   * input_event_cb (e.g. when another event overwrote the RESIZED event
+   * during the same glfwPollEvents call). */
+  if (wgpu_context->width != state.depth_width
+      || wgpu_context->height != state.depth_height) {
+    init_depth_texture(wgpu_context);
+    camera_set_perspective(
+      &state.camera, 60.0f,
+      (float)wgpu_context->width / (float)wgpu_context->height, 1.0f, 256.0f);
+  }
 
   /* Upload newly loaded textures to GPU */
   bool rebind                             = false;
