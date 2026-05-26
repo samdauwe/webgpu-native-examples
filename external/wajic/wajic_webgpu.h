@@ -1175,8 +1175,18 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
         try {
             var adapterHasTS = adapter.features.has('timestamp-query');
             WA.webgpuHasTimestampQuery = adapterHasTS;
+            // Request the adapter's own supported limits so that large buffers
+            // (e.g. OIT linked-list, shadow maps) are not capped at the
+            // conservative WebGPU defaults (maxBufferSize = 256 MB).
+            var adapterLimits = adapter.limits || {};
+            var reqLimits = {};
+            if (adapterLimits.maxBufferSize)
+                reqLimits.maxBufferSize = adapterLimits.maxBufferSize;
+            if (adapterLimits.maxStorageBufferBindingSize)
+                reqLimits.maxStorageBufferBindingSize = adapterLimits.maxStorageBufferBindingSize;
             device = await adapter.requestDevice({
-                requiredFeatures: adapterHasTS ? ['timestamp-query'] : []
+                requiredFeatures: adapterHasTS ? ['timestamp-query'] : [],
+                requiredLimits: reqLimits
             });
         } catch(err) {
             abort('WEBGPU', 'requestDevice failed: ' + err.message);
@@ -1867,6 +1877,14 @@ WAJIC_LIB(WEBGPU, WGPUCommandBuffer, wgpuCommandEncoderFinish,
     (WGPUCommandEncoder encoder, const void* descriptor),
 {
     return Wnew(WCB, Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderFinish').finish());
+})
+
+WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderClearBuffer,
+    (WGPUCommandEncoder encoder, WGPUBuffer buffer, unsigned int offset, unsigned int size),
+{
+    var enc = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderClearBuffer');
+    var buf = Wget(WB, buffer, 'buffer', 'wgpuCommandEncoderClearBuffer');
+    enc.clearBuffer(buf, offset, size);
 })
 
 WAJIC_LIB(WEBGPU, void, wgpuCommandEncoderCopyBufferToBuffer,
