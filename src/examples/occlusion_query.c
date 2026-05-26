@@ -3,8 +3,22 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * comparisons like `ASSERT(handle != NULL)` compile without warnings/errors. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
