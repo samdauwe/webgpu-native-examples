@@ -22,11 +22,21 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -36,6 +46,15 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+/* In WAjic, WGPU handles are uint32_t; redefine NULL to 0 so that handle
+ * comparisons like ASSERT(handle != NULL) compile without warnings. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 #include "core/camera.h"
@@ -162,6 +181,10 @@ static struct {
   int last_width;
   int last_height;
 
+  /* Async model loading (WAjic only) */
+  int models_load_count;
+  bool model_buffers_created;
+
   WGPUBool initialized;
 } state = {
   /* clang-format off */
@@ -217,8 +240,53 @@ static const gltf_model_desc_t model_load_desc = {
                    | GltfLoadingFlag_PreMultiplyVertexColors,
 };
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only). */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("[offscreen] model fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  int idx         = *(const int*)response->user_data;
+  gltf_model_t* m = (idx == 0) ? &state.dragon_model : &state.plane_model;
+  bool ok         = gltf_model_load_from_memory(m, response->data.ptr,
+                                                response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same post-processing as gltf_model_load_from_file_ext */
+    if (m->vertex_count > 0) {
+      gltf_model_bake_node_transforms(m, m->vertices, &model_load_desc);
+    }
+    state.models_load_count++;
+    if (state.models_load_count == 2) {
+      state.models_loaded = true;
+    }
+  }
+  else {
+    printf("[offscreen] failed to parse gltf model index %d\n", idx);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  static const int idx_dragon = 0;
+  static const int idx_plane  = 1;
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/chinesedragon.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_dragon, .size = sizeof(idx_dragon)},
+    .channel   = 0,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/plane.gltf",
+    .callback  = model_fetch_callback,
+    .user_data = {.ptr = &idx_plane, .size = sizeof(idx_plane)},
+    .channel   = 0,
+  });
+#else
   bool ok = gltf_model_load_from_file_ext(&state.dragon_model,
                                           "assets/models/chinesedragon.gltf",
                                           1.0f, &model_load_desc);
@@ -235,6 +303,7 @@ static void load_models(void)
   }
 
   state.models_loaded = true;
+#endif /* !__WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -981,6 +1050,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 2,
+    .num_channels = 1,
+    .num_lanes    = 2,
+  });
+#endif
+
   /* Camera — Vulkan: position (0, 1, -6), rotation (-2.5, 0, 0).
    * Porting guide: negate camera Y (camera.c negates internally), negate X. */
   camera_init(&state.camera);
@@ -1000,7 +1077,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Load gltf models */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Offscreen framebuffer (fixed 512x512) */
   init_offscreen_framebuffer(wgpu_context);
@@ -1030,7 +1109,17 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+#ifndef __WAJIC__
   wgpuDeviceTick(wgpu_context->device);
+#endif
+
+#ifdef __WAJIC__
+  sfetch_dowork();
+  if (state.models_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif
 
   /* Resize detection */
   if (wgpu_context->width != state.last_width
