@@ -3,6 +3,18 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
@@ -11,6 +23,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -65,6 +78,9 @@ static struct {
   /* Model */
   gltf_model_t model;
   bool model_loaded;
+#ifdef __WAJIC__
+  bool model_buffers_created; /* WAjic: GPU vertex/index buffers created */
+#endif
 
   /* GPU vertex/index buffers */
   WGPUBuffer vertex_buffer;
@@ -185,10 +201,42 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates the exact WASM
+ * memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("parallax_mapping: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+
+  bool ok = gltf_model_load_from_memory(&state.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.model_loaded = true;
+  }
+  else {
+    printf("parallax_mapping: failed to parse plane.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
+#ifdef __WAJIC__
+  /* WAjic: asynchronous fetch; model_loaded is set when the callback fires */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/plane.gltf",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
   gltf_model_load_from_file(&state.model, "assets/models/plane.gltf", 1.0f);
   state.model_loaded = true;
+#endif /* __WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -692,7 +740,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 4,
     .num_channels = 1,
     .num_lanes    = 2,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera: first-person type */
@@ -704,11 +754,14 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 60.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 
-  /* Load model synchronously */
+  /* Load model (native: synchronous; WAjic: async sfetch) */
   load_model();
 
-  /* Create GPU buffers from model data */
+#ifndef __WAJIC__
+  /* Create GPU buffers from model data (native only; WAjic defers to frame())
+   */
   create_model_buffers(wgpu_context);
+#endif
 
   /* Create uniform buffers */
   init_uniform_buffers(wgpu_context);
@@ -734,12 +787,27 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.model_loaded) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
 
   /* Process async file loading */
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Lazy GPU buffer creation once the async model fetch completes */
+  if (state.model_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+  if (!state.model_loaded || !state.model_buffers_created) {
+    return EXIT_SUCCESS; /* Spin while assets are loading */
+  }
+#else
+  if (!state.model_loaded) {
+    return EXIT_FAILURE;
+  }
+#endif
 
   /* Check for newly loaded textures */
   update_textures(wgpu_context);
