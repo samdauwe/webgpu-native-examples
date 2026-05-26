@@ -456,6 +456,13 @@ typedef enum WGPUQueryType {
     WGPUQueryType_Force32   = 0x7FFFFFFF
 } WGPUQueryType;
 
+typedef enum WGPUBufferMapState {
+    WGPUBufferMapState_Unmapped  = 0x00000001,
+    WGPUBufferMapState_Pending   = 0x00000002,
+    WGPUBufferMapState_Mapped    = 0x00000003,
+    WGPUBufferMapState_Force32   = 0x7FFFFFFF
+} WGPUBufferMapState;
+
 typedef enum WGPUMapAsyncStatus {
     WGPUMapAsyncStatus_Success         = 0x00000001,
     WGPUMapAsyncStatus_CallbackCancelled = 0x00000002,
@@ -1841,6 +1848,9 @@ WAJIC_LIB(WEBGPU, WGPURenderPassEncoder, wgpuCommandEncoderBeginRenderPass,
             };
         }
     }
+    // occlusionQuerySet at +24 in WGPURenderPassDescriptor
+    var oqs_h = MU32[(descriptor+24)>>2];
+    if (oqs_h && WQS[oqs_h]) desc.occlusionQuerySet = WQS[oqs_h];
     var rpe = Wget(WCE, encoder, 'encoder', 'wgpuCommandEncoderBeginRenderPass').beginRenderPass(desc);
     // Auto-apply viewport/scissor when rendering to a padded surface canvas
     if (surfId) {
@@ -2103,6 +2113,18 @@ WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderEnd,
     Wget(WRPE, encoder, 'encoder', 'wgpuRenderPassEncoderEnd').end();
 })
 
+WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderBeginOcclusionQuery,
+    (WGPURenderPassEncoder encoder, unsigned int queryIndex),
+{
+    Wget(WRPE, encoder, 'encoder', 'wgpuRenderPassEncoderBeginOcclusionQuery').beginOcclusionQuery(queryIndex);
+})
+
+WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderEndOcclusionQuery,
+    (WGPURenderPassEncoder encoder),
+{
+    Wget(WRPE, encoder, 'encoder', 'wgpuRenderPassEncoderEndOcclusionQuery').endOcclusionQuery();
+})
+
 WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderSetViewport,
     (WGPURenderPassEncoder encoder, float x, float y, float width, float height,
      float minDepth, float maxDepth),
@@ -2293,6 +2315,17 @@ WAJIC_LIB(WEBGPU, void, wgpuDeviceRelease, (WGPUDevice h),
 WAJIC_LIB(WEBGPU, void, wgpuQueueRelease, (WGPUQueue h), { Wdel(WQ, h); })
 WAJIC_LIB(WEBGPU, void, wgpuSurfaceRelease, (WGPUSurface h), { Wdel(WS, h); })
 WAJIC_LIB(WEBGPU, void, wgpuShaderModuleRelease, (WGPUShaderModule h), { Wdel(WSM, h); })
+WAJIC_LIB(WEBGPU, WGPUBufferMapState, wgpuBufferGetMapState,
+    (WGPUBuffer buffer),
+{
+    var buf = WB[buffer];
+    if (!buf) return 0x7FFFFFFF; // Force32 (invalid handle)
+    var s = buf.mapState;
+    if (s === 'mapped')  return 3; // WGPUBufferMapState_Mapped
+    if (s === 'pending') return 2; // WGPUBufferMapState_Pending
+    return 1; // WGPUBufferMapState_Unmapped
+})
+
 // wgpuBufferRelease: call buffer.destroy() to return GPU memory immediately rather than
 // waiting for JS GC to collect the buffer object.
 WAJIC_LIB(WEBGPU, void*, wgpuBufferGetMappedRange,
