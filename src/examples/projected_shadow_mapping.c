@@ -1047,10 +1047,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+#ifdef __WAJIC__
   /* Pump async file loading */
   sfetch_dowork();
 
-#ifdef __WAJIC__
   /* Create GPU buffers for each scene as soon as it loads (not all-or-nothing),
    * so the renderer never sees a loaded scene with a null vertex buffer. */
   if (!state.model_buffers_created) {
@@ -1168,7 +1168,9 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
 
+#ifdef __WAJIC__
   sfetch_shutdown();
+#endif
 
   /* Models */
   for (int i = 0; i < NUM_SCENES; i++) {
