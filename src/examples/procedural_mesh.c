@@ -4,8 +4,19 @@
 #define CGLM_CLIPSPACE_INCLUDE_ALL
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -345,7 +356,7 @@ static struct {
     .near_plane = 0.01f,
     .far_plane  = 200.0f,
     .orbit_angle = GLM_PI + 0.25f * GLM_PI,
-    .orbit_speed = 0.0f,
+    .orbit_speed = 1.0f,
     .auto_rotate = false,
   },
 };
@@ -940,7 +951,8 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   igBegin("Procedural Mesh", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL,
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_text("Left Mouse + drag to orbit");
     imgui_overlay_text("Meshes: %u", MESH_COUNT);
     imgui_overlay_text("Total vertices: %u", state.total_num_vertices);
@@ -948,7 +960,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   }
 
   if (igCollapsingHeader_BoolPtr("Camera", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_checkbox("Auto Rotate", &state.camera.auto_rotate);
     imgui_overlay_slider_float("Orbit Speed", &state.camera.orbit_speed, 0.0f,
                                2.0f, "%.2f");
