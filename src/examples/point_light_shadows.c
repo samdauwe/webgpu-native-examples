@@ -6,8 +6,21 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -101,6 +114,9 @@ static struct {
   gltf_model_t cube_model;
   bool scene_loaded;
   bool cube_loaded;
+#ifdef __WAJIC__
+  bool model_buffers_created; /* WAjic: GPU vertex/index buffers created */
+#endif
 
   struct {
     WGPUBuffer vertex_buffer;
@@ -213,8 +229,66 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static void scene_model_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    printf("point_light_shadows: scene model fetch failed, error: %d\n",
+           resp->error_code);
+    return;
+  }
+  state.scene_loaded
+    = gltf_model_load_from_memory(&state.scene_model, resp->data.ptr,
+                                  resp->data.size, scene_model_path, 1.0f);
+  if (state.scene_loaded) {
+    gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.scene_model,
+                                    state.scene_model.vertices, &desc);
+  }
+  else {
+    printf("point_light_shadows: failed to parse %s\n", scene_model_path);
+  }
+}
+
+static void cube_model_fetch_cb(const sfetch_response_t* resp)
+{
+  if (!resp->fetched) {
+    printf("point_light_shadows: cube model fetch failed, error: %d\n",
+           resp->error_code);
+    return;
+  }
+  state.cube_loaded = gltf_model_load_from_memory(
+    &state.cube_model, resp->data.ptr, resp->data.size, cube_model_path, 1.0f);
+  if (state.cube_loaded) {
+    gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.cube_model,
+                                    state.cube_model.vertices, &desc);
+  }
+  else {
+    printf("point_light_shadows: failed to parse %s\n", cube_model_path);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  /* WAjic: asynchronous fetch; *_loaded flags set when callbacks fire */
+  sfetch_send(&(sfetch_request_t){
+    .path     = scene_model_path,
+    .callback = scene_model_fetch_cb,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path     = cube_model_path,
+    .callback = cube_model_fetch_cb,
+  });
+#else
   const gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -232,6 +306,7 @@ static void load_models(void)
   if (!state.cube_loaded) {
     printf("Failed to load cube model: %s\n", cube_model_path);
   }
+#endif /* __WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -368,16 +443,17 @@ static void init_shadow_cube_map(struct wgpu_context_t* wgpu_context)
                                      });
   }
 
-  /* Sampler: linear filtering, clamp to border (white) */
+  /* Sampler: nearest filtering (R32Float is UnfilterableFloat without
+   * float32-filterable extension) */
   state.shadow_cube_map.sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
               .label         = STRVIEW("Shadow Cube Sampler"),
               .addressModeU  = WGPUAddressMode_ClampToEdge,
               .addressModeV  = WGPUAddressMode_ClampToEdge,
               .addressModeW  = WGPUAddressMode_ClampToEdge,
-              .magFilter     = WGPUFilterMode_Linear,
-              .minFilter     = WGPUFilterMode_Linear,
-              .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+              .magFilter     = WGPUFilterMode_Nearest,
+              .minFilter     = WGPUFilterMode_Nearest,
+              .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
               .maxAnisotropy = 1,
             });
 }
@@ -645,7 +721,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
         .binding    = 1,
         .visibility = WGPUShaderStage_Fragment,
         .texture = {
-          .sampleType    = WGPUTextureSampleType_Float,
+          .sampleType    = WGPUTextureSampleType_UnfilterableFloat,
           .viewDimension = WGPUTextureViewDimension_Cube,
         },
       },
@@ -653,7 +729,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
         .binding    = 2,
         .visibility = WGPUShaderStage_Fragment,
         .sampler = {
-          .type = WGPUSamplerBindingType_Filtering,
+          .type = WGPUSamplerBindingType_NonFiltering,
         },
       },
     };
@@ -960,7 +1036,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Display shadow cube render target",
                &state.settings.display_cube_map);
   }
@@ -1001,6 +1077,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 2,
+    .num_channels = 1,
+    .num_lanes    = 2,
+  });
+#endif /* __WAJIC__ */
+
   /* Camera setup:
    * Vulkan: pos(0, 0.5, -15), rot(-20.5, -673, 0), FOV 45, lookat
    * Apply porting guide: negate pos Y, negate rot X */
@@ -1016,9 +1100,11 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 45.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, Z_NEAR, Z_FAR);
 
-  /* Load models synchronously */
+  /* Load models (native: synchronous; WAjic: async sfetch) */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif /* __WAJIC__ */
 
   /* Shadow cube map */
   init_shadow_cube_map(wgpu_context);
@@ -1052,6 +1138,22 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+#ifdef __WAJIC__
+  /* Pump async file loading */
+  sfetch_dowork();
+
+  /* Lazy GPU buffer creation once both model fetches complete */
+  if (state.scene_loaded && state.cube_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+
+  /* Skip frame until scene buffers are ready */
+  if (!state.model_buffers_created) {
+    return EXIT_SUCCESS;
+  }
+#endif /* __WAJIC__ */
 
   /* Timing */
   uint64_t current_time = stm_now();
@@ -1241,17 +1343,12 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
 int main(void)
 {
-  /* Request Float32Filterable so R32Float shadow map can be sampled */
-  WGPUFeatureName required_features[] = {WGPUFeatureName_Float32Filterable};
-
   wgpu_start(&(wgpu_desc_t){
-    .title                  = "Point light shadows (cubemap)",
-    .init_cb                = init,
-    .frame_cb               = frame,
-    .shutdown_cb            = shutdown,
-    .input_event_cb         = input_event_cb,
-    .required_features      = required_features,
-    .required_feature_count = ARRAY_SIZE(required_features),
+    .title          = "Point light shadows (cubemap)",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
   return EXIT_SUCCESS;
 }
