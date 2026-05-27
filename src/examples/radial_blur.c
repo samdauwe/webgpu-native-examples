@@ -30,6 +30,18 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
@@ -38,6 +50,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -88,6 +101,7 @@ static struct {
   /* Model */
   gltf_model_t scene_model;
   bool model_loaded;
+  bool model_buffers_created;
 
   /* GPU vertex/index buffers */
   WGPUBuffer vertex_buffer;
@@ -413,8 +427,34 @@ static const gltf_model_desc_t model_load_desc = {
                    | GltfLoadingFlag_PreMultiplyVertexColors,
 };
 
+#ifdef __WAJIC__
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("radial_blur: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.scene_model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.model_loaded = true;
+  }
+  else {
+    printf("radial_blur: failed to parse glowsphere.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/glowsphere.gltf",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
   bool ok = gltf_model_load_from_file(&state.scene_model,
                                       "assets/models/glowsphere.gltf", 1.0f);
   if (!ok) {
@@ -422,6 +462,7 @@ static void load_model(void)
     return;
   }
   state.model_loaded = true;
+#endif /* __WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -981,14 +1022,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Radial Blur Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Radial blur", &state.settings.blur);
     igCheckbox("Display render target only", &state.settings.display_texture);
   }
 
   if (state.settings.blur) {
     if (igCollapsingHeader_BoolPtr("Blur parameters", NULL,
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+                                   ImGuiTreeNodeFlags_DefaultOpen)) {
       imgui_overlay_slider_float("Scale", &state.settings.radial_blur_scale,
                                  0.1f, 1.0f, "%.2f");
       imgui_overlay_slider_float(
@@ -1035,7 +1076,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 4,
     .num_channels = 1,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera setup (Vulkan: pos=(0,0,-17.5), rot=(-16.25,-28.75,0))
@@ -1048,9 +1091,11 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 45.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 1.0f, 256.0f);
 
-  /* Load model synchronously (it's small) */
+  /* Load model (native: sync; WAjic: async sfetch) */
   load_model();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Create offscreen framebuffer */
   init_offscreen_framebuffer(wgpu_context);
@@ -1089,6 +1134,14 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Pump async file loading */
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers once async fetch completes */
+  if (state.model_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif
 
   /* Upload gradient pixels once loaded */
   if (state.gradient_texture.loaded) {
