@@ -6,8 +6,24 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -100,6 +116,8 @@ static struct {
   /* Models */
   gltf_model_t scenes[NUM_SCENES];
   bool scenes_loaded[NUM_SCENES];
+  int scenes_load_count;
+  bool model_buffers_created;
 
   /* GPU vertex/index buffers per scene */
   struct {
@@ -234,6 +252,38 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("projected_shadow_mapping: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+  int scene_idx = *(const int*)response->user_data;
+  bool ok
+    = gltf_model_load_from_memory(&state.scenes[scene_idx], response->data.ptr,
+                                  response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same transforms as the native gltf_model_load_from_file_ext */
+    static const gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    if (state.scenes[scene_idx].vertex_count > 0) {
+      gltf_model_bake_node_transforms(&state.scenes[scene_idx],
+                                      state.scenes[scene_idx].vertices, &desc);
+    }
+    state.scenes_loaded[scene_idx] = true;
+    state.scenes_load_count++;
+  }
+  else {
+    printf("projected_shadow_mapping: failed to parse %s\n",
+           scene_paths[scene_idx]);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
   const gltf_model_desc_t desc = {
@@ -242,6 +292,18 @@ static void load_models(void)
     /* No FlipY for WebGPU */
   };
 
+#ifdef __WAJIC__
+  /* WAjic: async sfetch; scenes_loaded flags set in callbacks */
+  static const int scene_idx[NUM_SCENES] = {0, 1};
+  for (int i = 0; i < NUM_SCENES; i++) {
+    sfetch_send(&(sfetch_request_t){
+      .path      = scene_paths[i],
+      .callback  = model_fetch_callback,
+      .user_data = {.ptr = &scene_idx[i], .size = sizeof(scene_idx[i])},
+      .channel   = 0,
+    });
+  }
+#else
   for (int i = 0; i < NUM_SCENES; i++) {
     state.scenes_loaded[i] = gltf_model_load_from_file_ext(
       &state.scenes[i], scene_paths[i], 1.0f, &desc);
@@ -249,6 +311,7 @@ static void load_models(void)
       printf("Failed to load scene: %s\n", scene_paths[i]);
     }
   }
+#endif /* __WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -881,7 +944,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_combo_box("Scenes", &state.settings.scene_index, scene_names,
                             NUM_SCENES);
     igCheckbox("Display shadow render target",
@@ -923,6 +986,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = NUM_SCENES,
+    .num_channels = 1,
+    .num_lanes    = NUM_SCENES,
+  });
+#endif
+
   /* Camera setup */
   camera_init(&state.camera);
   state.camera.type = CameraType_LookAt;
@@ -935,9 +1006,11 @@ static int init(struct wgpu_context_t* wgpu_context)
     &state.camera, 60.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 1.0f, 256.0f);
 
-  /* Load models synchronously (they're small) */
+  /* Load models (native: sync; WAjic: async sfetch) */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Shadow map texture */
   init_shadow_map(wgpu_context);
@@ -970,6 +1043,17 @@ static int frame(struct wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Pump async file loading */
+  sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers once all scenes have loaded */
+  if (state.scenes_load_count == NUM_SCENES && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif
 
   /* Timing */
   uint64_t current_time = stm_now();
@@ -1077,6 +1161,8 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   imgui_overlay_shutdown();
+
+  sfetch_shutdown();
 
   /* Models */
   for (int i = 0; i < NUM_SCENES; i++) {
