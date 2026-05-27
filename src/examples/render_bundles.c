@@ -14,11 +14,22 @@
 #pragma GCC diagnostic pop
 #endif
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
