@@ -319,7 +319,9 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
   WGPUDevice device = wgpu_context->device;
 
   for (int i = 0; i < NUM_SCENES; i++) {
-    if (!state.scenes_loaded[i]) {
+    /* Skip scenes that are not yet loaded or whose buffers were already created
+     */
+    if (!state.scenes_loaded[i] || state.scene_buffers[i].vertex_buffer) {
       continue;
     }
 
@@ -363,12 +365,13 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
 
 static void draw_model(WGPURenderPassEncoder pass, int scene_index)
 {
-  if (!state.scenes_loaded[scene_index]) {
+  WGPUBuffer vb = state.scene_buffers[scene_index].vertex_buffer;
+  /* Guard: scene must be loaded and its GPU buffers must be ready */
+  if (!state.scenes_loaded[scene_index] || !vb) {
     return;
   }
 
   gltf_model_t* model = &state.scenes[scene_index];
-  WGPUBuffer vb       = state.scene_buffers[scene_index].vertex_buffer;
   WGPUBuffer ib       = state.scene_buffers[scene_index].index_buffer;
 
   wgpuRenderPassEncoderSetVertexBuffer(pass, 0, vb, 0, WGPU_WHOLE_SIZE);
@@ -1048,10 +1051,13 @@ static int frame(struct wgpu_context_t* wgpu_context)
   sfetch_dowork();
 
 #ifdef __WAJIC__
-  /* Create model GPU buffers once all scenes have loaded */
-  if (state.scenes_load_count == NUM_SCENES && !state.model_buffers_created) {
+  /* Create GPU buffers for each scene as soon as it loads (not all-or-nothing),
+   * so the renderer never sees a loaded scene with a null vertex buffer. */
+  if (!state.model_buffers_created) {
     create_model_buffers(wgpu_context);
-    state.model_buffers_created = true;
+    if (state.scenes_load_count == NUM_SCENES) {
+      state.model_buffers_created = true;
+    }
   }
 #endif
 
