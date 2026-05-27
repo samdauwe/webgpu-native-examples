@@ -483,7 +483,8 @@ typedef WGPUFlags WGPUMapMode;
 #define WGPUMapMode_Read  0x00000001u
 #define WGPUMapMode_Write 0x00000002u
 
-#define WGPUFeatureName_TimestampQuery 0x00000009u
+#define WGPUFeatureName_TimestampQuery       0x00000009u
+#define WGPUFeatureName_Float32Filterable    0x0000000Eu
 
 typedef struct WGPUFuture { uint64_t id; } WGPUFuture;
 
@@ -1146,7 +1147,7 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
     var EBBType = ',uniform,storage,read-only-storage'.split(',');
     var ESStep = ',,vertex,instance'.split(',');
     var EAlpha = 'auto,opaque,premultiplied,unpremultiplied,inherit'.split(',');
-    var EFeat = { 0x9: 'timestamp-query' }; // WGPUFeatureName -> WebGPU feature string
+    var EFeat = { 0x9: 'timestamp-query', 0xe: 'float32-filterable' }; // WGPUFeatureName -> WebGPU feature string
 
     // Read WGPUBlendComponent from ptr (3 x uint32: operation, srcFactor, dstFactor)
     function RdBlend(p) {
