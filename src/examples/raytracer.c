@@ -1,7 +1,18 @@
 #include "webgpu/wgpu_common.h"
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include <cglm/cglm.h>
 
@@ -902,6 +913,15 @@ static void convert_obj_to_scene(obj_model_t* obj_models, uint32_t obj_count,
 static void create_gpu_buffers(scene_t* scene);
 static void free_obj_models(obj_model_t* models, uint32_t count);
 static void free_mtl_materials(mtl_material_t* materials, uint32_t count);
+static void create_buffers(wgpu_context_t* wgpu_context);
+static void create_compute_pipeline(wgpu_context_t* wgpu_context);
+static void create_render_pipelines(wgpu_context_t* wgpu_context);
+static void create_bind_groups(wgpu_context_t* wgpu_context);
+
+/* ── WAjic: fetch buffer sizes ───────────────────────────────────────────── */
+#define RAYTRACER_OBJ_BUFFER_SIZE (2 * 1024 * 1024) /* 2 MB – OBJ is ~1.4 MB \
+                                                     */
+#define RAYTRACER_MTL_BUFFER_SIZE (8 * 1024)        /* 8 KB  – MTL is ~1.5 KB */
 
 /* Initialize scene */
 static void scene_init(scene_t* scene, WGPUDevice device)
@@ -1645,6 +1665,16 @@ static struct {
   bool mouse_right_down;
 
   bool initialized;
+
+#ifdef __WAJIC__
+  /* Async OBJ/MTL loading state */
+  int scene_files_loaded;     /* increments to 2 once OBJ + MTL are parsed */
+  bool scene_buffers_created; /* true after deferred GPU resource creation */
+  obj_model_t* wajic_obj_models;
+  uint32_t wajic_obj_model_count;
+  mtl_material_t* wajic_mtl_materials;
+  uint32_t wajic_mtl_material_count;
+#endif
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -1668,6 +1698,234 @@ static struct {
   .mouse_left_down    = false,
   .mouse_right_down   = false,
 };
+
+#ifdef __WAJIC__
+/* Read one text line from a memory buffer (fgets-compatible). */
+static bool buf_fgets(char* dst, int max_len, const char** cursor,
+                      const char* end)
+{
+  if (*cursor >= end) {
+    return false;
+  }
+  int i = 0;
+  while (i < max_len - 1 && *cursor < end) {
+    char c   = *(*cursor)++;
+    dst[i++] = c;
+    if (c == '\n') {
+      break;
+    }
+  }
+  dst[i] = '\0';
+  return (i > 0);
+}
+
+/* Memory-based OBJ parser (same logic as parse_obj_file). */
+static int parse_obj_from_memory(const char* data, size_t size,
+                                 obj_model_t** models, uint32_t* model_count)
+{
+  const char* cursor = data;
+  const char* end    = data + size;
+
+  vertex_3f_t* vertices
+    = (vertex_3f_t*)malloc(SCENE_MAX_VERTICES * sizeof(vertex_3f_t));
+  vertex_3f_t* normals
+    = (vertex_3f_t*)malloc(SCENE_MAX_NORMALS * sizeof(vertex_3f_t));
+
+  uint32_t vertex_count = 0;
+  uint32_t normal_count = 0;
+
+  *models      = (obj_model_t*)calloc(SCENE_MAX_MODELS, sizeof(obj_model_t));
+  *model_count = 0;
+
+  obj_model_t* current_model = NULL;
+  char current_material[64]  = {0};
+  char line[256];
+
+  while (buf_fgets(line, sizeof(line), &cursor, end)) {
+    if (line[0] == 'o' && line[1] == ' ') {
+      if (*model_count >= SCENE_MAX_MODELS) {
+        break;
+      }
+      current_model = &(*models)[*model_count];
+      (*model_count)++;
+      sscanf(line, "o %63s", current_model->name);
+      current_model->vertices       = vertices;
+      current_model->vertex_normals = normals;
+      current_model->faces
+        = (obj_face_t*)malloc(SCENE_MAX_FACES * sizeof(obj_face_t));
+      current_model->face_count = 0;
+    }
+    else if (line[0] == 'v' && line[1] == ' ') {
+      if (vertex_count < SCENE_MAX_VERTICES) {
+        sscanf(line, "v %f %f %f", &vertices[vertex_count].x,
+               &vertices[vertex_count].y, &vertices[vertex_count].z);
+        vertex_count++;
+      }
+    }
+    else if (line[0] == 'v' && line[1] == 'n') {
+      if (normal_count < SCENE_MAX_NORMALS) {
+        sscanf(line, "vn %f %f %f", &normals[normal_count].x,
+               &normals[normal_count].y, &normals[normal_count].z);
+        normal_count++;
+      }
+    }
+    else if (strncmp(line, "usemtl", 6) == 0) {
+      sscanf(line, "usemtl %63s", current_material);
+    }
+    else if (line[0] == 'f' && line[1] == ' ' && current_model) {
+      if (current_model->face_count < SCENE_MAX_FACES) {
+        obj_face_t* face = &current_model->faces[current_model->face_count];
+        strncpy(face->material, current_material, sizeof(face->material) - 1);
+        face->material[sizeof(face->material) - 1] = '\0';
+
+        char buf[256];
+        strncpy(buf, line + 2, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = '\0';
+
+        int v_idx[3] = {0, 0, 0};
+        int n_idx[3] = {0, 0, 0};
+
+        char* tok  = strtok(buf, " \t\r\n");
+        int vi     = 0;
+        int vcount = 0;
+        while (tok && vcount < 3) {
+          if (strstr(tok, "//") != NULL) {
+            sscanf(tok, "%d//%d", &vi, &n_idx[vcount]);
+            v_idx[vcount] = vi;
+          }
+          else if (strchr(tok, '/') != NULL) {
+            int a = 0, b = 0, c = 0;
+            int matched = sscanf(tok, "%d/%d/%d", &a, &b, &c);
+            if (matched == 3) {
+              v_idx[vcount] = a;
+              n_idx[vcount] = c;
+            }
+            else {
+              matched = sscanf(tok, "%d/%d", &a, &b);
+              if (matched >= 1) {
+                v_idx[vcount] = a;
+              }
+            }
+          }
+          else {
+            sscanf(tok, "%d", &vi);
+            v_idx[vcount] = vi;
+          }
+          vcount++;
+          tok = strtok(NULL, " \t\r\n");
+        }
+
+        for (int k = 0; k < 3; ++k) {
+          face->vertices[k].vertex_index        = v_idx[k];
+          face->vertices[k].vertex_normal_index = n_idx[k];
+        }
+
+        current_model->face_count++;
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < *model_count; ++i) {
+    (*models)[i].vertex_count        = vertex_count;
+    (*models)[i].vertex_normal_count = normal_count;
+  }
+
+  return 0;
+}
+
+/* Memory-based MTL parser (same logic as parse_mtl_file). */
+static int parse_mtl_from_memory(const char* data, size_t size,
+                                 mtl_material_t** materials,
+                                 uint32_t* material_count)
+{
+  const char* cursor = data;
+  const char* end    = data + size;
+
+  *materials
+    = (mtl_material_t*)calloc(SCENE_MAX_MATERIALS, sizeof(mtl_material_t));
+  *material_count = 0;
+
+  mtl_material_t* current_material = NULL;
+  char line[256];
+
+  while (buf_fgets(line, sizeof(line), &cursor, end)) {
+    if (strncmp(line, "newmtl", 6) == 0) {
+      if (*material_count >= SCENE_MAX_MATERIALS) {
+        break;
+      }
+      current_material = &(*materials)[*material_count];
+      (*material_count)++;
+      sscanf(line, "newmtl %63s", current_material->name);
+    }
+    else if (strncmp(line, "Kd", 2) == 0 && current_material) {
+      sscanf(line, "Kd %f %f %f", &current_material->kd_red,
+             &current_material->kd_green, &current_material->kd_blue);
+    }
+  }
+
+  return 0;
+}
+
+/* Fetch callback for the OBJ file. */
+static void obj_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("raytracer: OBJ fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
+    return;
+  }
+  parse_obj_from_memory((const char*)response->data.ptr, response->data.size,
+                        &state.wajic_obj_models, &state.wajic_obj_model_count);
+  free((void*)response->buffer.ptr);
+  state.scene_files_loaded++;
+}
+
+/* Fetch callback for the MTL file. */
+static void mtl_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("raytracer: MTL fetch failed, error: %d\n", response->error_code);
+    free((void*)response->buffer.ptr);
+    return;
+  }
+  parse_mtl_from_memory((const char*)response->data.ptr, response->data.size,
+                        &state.wajic_mtl_materials,
+                        &state.wajic_mtl_material_count);
+  free((void*)response->buffer.ptr);
+  state.scene_files_loaded++;
+}
+
+/* Complete GPU-resource init once both OBJ + MTL have been parsed. */
+static void raytracer_complete_init(wgpu_context_t* wgpu_context)
+{
+  /* Build scene from parsed data */
+  convert_obj_to_scene(state.wajic_obj_models, state.wajic_obj_model_count,
+                       state.wajic_mtl_materials,
+                       state.wajic_mtl_material_count, &state.scene);
+  create_gpu_buffers(&state.scene);
+
+  /* Free temporary parse data */
+  free_obj_models(state.wajic_obj_models, state.wajic_obj_model_count);
+  free_mtl_materials(state.wajic_mtl_materials, state.wajic_mtl_material_count);
+  state.wajic_obj_models    = NULL;
+  state.wajic_mtl_materials = NULL;
+
+  /* Create all GPU resources */
+  create_buffers(wgpu_context);
+  create_compute_pipeline(wgpu_context);
+  create_render_pipelines(wgpu_context);
+  create_bind_groups(wgpu_context);
+
+  /* Initialise frame state */
+  state.shader_seed[0] = (float)rand() / (float)RAND_MAX;
+  state.shader_seed[1] = (float)rand() / (float)RAND_MAX;
+  state.shader_seed[2] = (float)rand() / (float)RAND_MAX;
+  state.old_time_ms    = (float)stm_sec(stm_now()) * 1000.0f;
+
+  state.scene_buffers_created = true;
+  state.initialized           = true;
+}
+#endif /* __WAJIC__ */
 
 /* Reset render state */
 static void reset_render(wgpu_context_t* wgpu_context)
@@ -2072,12 +2330,12 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       [0] = {
         .binding = 0,
         .buffer  = state.raytraced_storage_buffer,
-        .size    = wgpuBufferGetSize(state.raytraced_storage_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [1] = {
         .binding = 1,
         .buffer  = state.rng_state_buffer,
-        .size    = wgpuBufferGetSize(state.rng_state_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [2] = {
         .binding = 2,
@@ -2106,17 +2364,17 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       [0] = {
         .binding = 0,
         .buffer  = state.scene.faces_buffer,
-        .size    = wgpuBufferGetSize(state.scene.faces_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [1] = {
         .binding = 1,
         .buffer  = state.scene.aabbs_buffer,
-        .size    = wgpuBufferGetSize(state.scene.aabbs_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [2] = {
         .binding = 2,
         .buffer  = state.scene.materials_buffer,
-        .size    = wgpuBufferGetSize(state.scene.materials_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
     };
 
@@ -2135,7 +2393,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       [0] = {
         .binding = 0,
         .buffer  = state.raytraced_storage_buffer,
-        .size    = wgpuBufferGetSize(state.raytraced_storage_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [1] = {
         .binding = 1,
@@ -2164,7 +2422,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       [0] = {
         .binding = 0,
         .buffer  = state.scene.aabbs_buffer,
-        .size    = wgpuBufferGetSize(state.scene.aabbs_buffer),
+        .size    = WGPU_WHOLE_SIZE,
       },
       [1] = {
         .binding = 1,
@@ -2240,6 +2498,29 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Initialize scene */
   scene_init(&state.scene, wgpu_context->device);
+
+#ifdef __WAJIC__
+  /* Initialise sokol-fetch and start async loads for OBJ + MTL. */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 2,
+    .num_channels = 1,
+    .num_lanes    = 2,
+  });
+
+  uint8_t* obj_buf = (uint8_t*)malloc(RAYTRACER_OBJ_BUFFER_SIZE);
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/Raytraced/raytraced-scene.obj",
+    .callback = obj_fetch_callback,
+    .buffer   = {.ptr = obj_buf, .size = RAYTRACER_OBJ_BUFFER_SIZE},
+  });
+
+  uint8_t* mtl_buf = (uint8_t*)malloc(RAYTRACER_MTL_BUFFER_SIZE);
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/Raytraced/raytraced-scene.mtl",
+    .callback = mtl_fetch_callback,
+    .buffer   = {.ptr = mtl_buf, .size = RAYTRACER_MTL_BUFFER_SIZE},
+  });
+#else
   if (scene_load_models(&state.scene,
                         "assets/models/Raytraced/raytraced-scene.obj",
                         "assets/models/Raytraced/raytraced-scene.mtl")
@@ -2247,31 +2528,29 @@ static int init(struct wgpu_context_t* wgpu_context)
     fprintf(stderr, "Failed to load scene models\n");
     return EXIT_FAILURE;
   }
+#endif
 
-  /* Initialize camera */
+  /* Initialize camera (does not depend on scene data). */
   vec3 camera_pos = {0.0f, 0.0f, 3.5f};
   raytracer_camera_init(&state.camera, camera_pos, 60.0f,
                         (float)wgpu_context->width
                           / (float)wgpu_context->height,
                         wgpu_context->width, wgpu_context->height);
 
-  /* Create buffers */
+#ifndef __WAJIC__
+  /* Create GPU resources (WAjic defers these until scene files are loaded). */
   create_buffers(wgpu_context);
-
-  /* Create pipelines */
   create_compute_pipeline(wgpu_context);
   create_render_pipelines(wgpu_context);
-
-  /* Create bind groups */
   create_bind_groups(wgpu_context);
 
-  /* Initialize frame state */
   state.shader_seed[0] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[1] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[2] = (float)rand() / (float)RAND_MAX;
   state.old_time_ms    = (float)stm_sec(stm_now()) * 1000.0f;
 
   state.initialized = true;
+#endif
 
   return EXIT_SUCCESS;
 }
@@ -2349,8 +2628,18 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 /* Frame rendering */
 static int frame(struct wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  /* Pump async file loading. */
+  sfetch_dowork();
+
+  /* Trigger deferred GPU init once both OBJ + MTL have been parsed. */
+  if (state.scene_files_loaded == 2 && !state.scene_buffers_created) {
+    raytracer_complete_init(wgpu_context);
+  }
+#endif
+
   if (!state.initialized) {
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS; /* Still loading — render nothing */
   }
 
   /* Check if max samples reached */
@@ -2480,6 +2769,10 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 
   /* Free shader strings */
   free_shader_strings();
+
+#ifdef __WAJIC__
+  sfetch_shutdown();
+#endif
 }
 
 /* Main entry point */
