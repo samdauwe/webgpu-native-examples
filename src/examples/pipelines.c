@@ -3,11 +3,24 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -56,6 +69,9 @@ static struct {
   /* Model */
   gltf_model_t model;
   bool model_loaded;
+#ifdef __WAJIC__
+  bool model_buffers_created; /* WAjic: GPU vertex/index buffers created */
+#endif
 
   /* GPU vertex/index buffers */
   WGPUBuffer vertex_buffer;
@@ -127,11 +143,38 @@ static struct {
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("pipelines: model fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    state.model_loaded = true;
+  }
+  else {
+    printf("pipelines: failed to parse treasure_smooth.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
+#ifdef __WAJIC__
+  /* WAjic: asynchronous fetch; model_loaded is set when the callback fires */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/treasure_smooth.gltf",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
   gltf_model_load_from_file(&state.model, "assets/models/treasure_smooth.gltf",
                             1.0f);
   state.model_loaded = true;
+#endif /* __WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -444,7 +487,8 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Pipelines", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL,
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("Left: Phong shading");
     igText("Center: Toon shading");
     igText("Right: Wireframe");
@@ -486,6 +530,14 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+  });
+#endif /* __WAJIC__ */
+
   /* Camera: lookat type
    * Vulkan original: position(0, 0, -10.5), rotation(-25, 15, 0)
    * WebGPU: negate pitch → rotation(25, 15, 0) */
@@ -501,11 +553,13 @@ static int init(struct wgpu_context_t* wgpu_context)
                            / (float)wgpu_context->height,
                          0.1f, 256.0f);
 
-  /* Load model synchronously */
+  /* Load model (native: synchronous; WAjic: async sfetch) */
   load_model();
 
-  /* Create GPU buffers */
+#ifndef __WAJIC__
+  /* Create GPU buffers (WAjic: deferred until async fetch completes) */
   create_model_buffers(wgpu_context);
+#endif /* __WAJIC__ */
 
   /* Create uniform buffer */
   init_uniform_buffer(wgpu_context);
@@ -526,8 +580,23 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.model_loaded) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+#ifdef __WAJIC__
+  /* Pump async file loading */
+  sfetch_dowork();
+
+  /* Lazy GPU buffer creation once the async model fetch completes */
+  if (state.model_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.model_buffers_created = true;
+  }
+#endif /* __WAJIC__ */
+
+  if (!state.model_loaded) {
+    return EXIT_SUCCESS;
   }
 
   /* Timing */
