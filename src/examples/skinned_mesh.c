@@ -1,21 +1,33 @@
-#include "meshes.h"
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
+#ifdef __WAJIC__
+/* In the WAjic build gltf_model.c is not compiled, so cgltf must provide
+ * its implementation from this translation unit. */
+#define CGLTF_IMPLEMENTATION
+#endif
 #include <cgltf.h>
 
 #include "core/image_loader.h"
+
+#include <assert.h>
+#include <string.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -25,6 +37,15 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -1307,6 +1328,14 @@ static void init_grid_pipeline(wgpu_context_t* wgpu_context)
         .count = 1,
         .mask  = ~0u,
       },
+      /* The render pass always has a depth attachment; declare the format even
+       * though the grid does not perform depth writes or reads. */
+      .depthStencil
+      = &(WGPUDepthStencilState){
+        .format            = WGPUTextureFormat_Depth24Plus,
+        .depthWriteEnabled = false,
+        .depthCompare      = WGPUCompareFunction_Always,
+      },
       .fragment
       = &(WGPUFragmentState){
         .module      = fragment_shader,
@@ -1436,69 +1465,28 @@ static void update_skybox_texture(wgpu_context_t* wgpu_context)
   }
 
   /* Upload the face data to the texture */
-  WGPUCommandEncoder cmd_encoder
-    = wgpuDeviceCreateCommandEncoder(wgpu_context->device, NULL);
-
-  /* Create staging buffers for each face */
-  WGPUBuffer staging_buffers[SKYBOX_FACES] = {0};
+  /* Use wgpuQueueWriteTexture — avoids staging buffers whose struct layout
+   * (WGPUTexelCopyBufferInfo) has a padding mismatch in WAjic's JS. */
   for (uint32_t face = 0; face < SKYBOX_FACES; ++face) {
-    WGPUBufferDescriptor staging_buffer_desc = {
-      .usage            = WGPUBufferUsage_CopySrc | WGPUBufferUsage_MapWrite,
-      .size             = SKYBOX_FACE_BYTES,
-      .mappedAtCreation = true,
-    };
-    staging_buffers[face]
-      = wgpuDeviceCreateBuffer(wgpu_context->device, &staging_buffer_desc);
-    ASSERT(staging_buffers[face])
+    wgpuQueueWriteTexture(wgpu_context->queue,
+                          &(WGPUTexelCopyTextureInfo){
+                            .texture  = state.skybox.texture,
+                            .mipLevel = 0,
+                            .origin = (WGPUOrigin3D){.x = 0, .y = 0, .z = face},
+                            .aspect = WGPUTextureAspect_All,
+                          },
+                          state.skybox.face_pixels[face], SKYBOX_FACE_BYTES,
+                          &(WGPUTexelCopyBufferLayout){
+                            .offset       = 0,
+                            .bytesPerRow  = SKYBOX_FACE_WIDTH * 4,
+                            .rowsPerImage = SKYBOX_FACE_HEIGHT,
+                          },
+                          &(WGPUExtent3D){
+                            .width              = SKYBOX_FACE_WIDTH,
+                            .height             = SKYBOX_FACE_HEIGHT,
+                            .depthOrArrayLayers = 1,
+                          });
   }
-
-  for (uint32_t face = 0; face < SKYBOX_FACES; ++face) {
-    /* Copy texture data into staging buffer */
-    void* mapping
-      = wgpuBufferGetMappedRange(staging_buffers[face], 0, SKYBOX_FACE_BYTES);
-    ASSERT(mapping)
-    memcpy(mapping, state.skybox.face_pixels[face], SKYBOX_FACE_BYTES);
-    wgpuBufferUnmap(staging_buffers[face]);
-
-    /* Upload staging buffer to texture */
-    wgpuCommandEncoderCopyBufferToTexture(cmd_encoder,
-      /* Source */
-      &(WGPUTexelCopyBufferInfo) {
-        .buffer = staging_buffers[face],
-        .layout = (WGPUTexelCopyBufferLayout) {
-          .offset       = 0,
-          .bytesPerRow  = SKYBOX_FACE_WIDTH * 4,
-          .rowsPerImage = SKYBOX_FACE_HEIGHT,
-        },
-      },
-      /* Destination */
-      &(WGPUTexelCopyTextureInfo){
-        .texture  = state.skybox.texture,
-        .mipLevel = 0,
-        .origin = (WGPUOrigin3D) {
-            .x = 0,
-            .y = 0,
-            .z = face,
-        },
-        .aspect = WGPUTextureAspect_All,
-      },
-      /* Size */
-      &(WGPUExtent3D){
-        .width = SKYBOX_FACE_WIDTH,
-        .height = SKYBOX_FACE_HEIGHT,
-        .depthOrArrayLayers = 1,
-      });
-  }
-
-  /* Execute the command and cleanup staging buffers */
-  WGPUCommandBuffer command = wgpuCommandEncoderFinish(cmd_encoder, NULL);
-  wgpuQueueSubmit(wgpu_context->queue, 1, &command);
-
-  for (uint32_t face = 0; face < SKYBOX_FACES; ++face) {
-    WGPU_RELEASE_RESOURCE(Buffer, staging_buffers[face])
-  }
-  WGPU_RELEASE_RESOURCE(CommandBuffer, command)
-  WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
   state.skybox.is_dirty = false;
 
@@ -1987,7 +1975,9 @@ static int init(wgpu_context_t* wgpu_context)
     .max_requests = 8,
     .num_channels = 2,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Initialize bind group layouts */
@@ -2230,23 +2220,13 @@ static int frame(wgpu_context_t* wgpu_context)
   state.color_attachment.view         = wgpu_context->swapchain_view;
   state.depth_stencil_attachment.view = state.depth_texture.view;
 
-  /* Update background clear color based on skybox setting */
-  if (state.settings.skybox_enabled) {
-    /* Dark background to let skybox show */
+  /* Background color: black when skybox is enabled (whale mode), gray otherwise
+   */
+  if (state.settings.skybox_enabled
+      && state.settings.object_type == OBJECT_TYPE_WHALE) {
     state.color_attachment.clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0};
   }
   else {
-    /* Original gray background */
-    state.color_attachment.clearValue = (WGPUColor){0.3, 0.3, 0.3, 1.0};
-  }
-
-  /* Update background clear color based on skybox setting */
-  if (state.settings.skybox_enabled) {
-    /* Dark background to let skybox show */
-    state.color_attachment.clearValue = (WGPUColor){0.0, 0.0, 0.0, 1.0};
-  }
-  else {
-    /* Original gray background */
     state.color_attachment.clearValue = (WGPUColor){0.3, 0.3, 0.3, 1.0};
   }
 
@@ -2330,32 +2310,12 @@ static int frame(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass)
   }
   else if (state.settings.object_type == OBJECT_TYPE_SKINNED_GRID) {
-    /* Grid render pass with depth testing for skybox */
+    /* Grid render pass. The skybox is intentionally skipped here because grid
+     * mode uses an orthographic projection; the skybox's pos.xyww depth trick
+     * only works correctly with perspective projection and the unit cube would
+     * map to a tiny fraction of the ortho viewport (±1 out of ±20 units). */
     WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
       command_encoder, &state.render_pass_descriptor);
-
-    /* Render skybox first (if enabled and available) */
-    if (state.settings.skybox_enabled && state.skybox.pipeline
-        && state.skybox.bind_group) {
-      /* Update skybox uniforms */
-      mat4 view_matrix, projection_matrix;
-      glm_mat4_copy(state.camera_matrices.view, view_matrix);
-      glm_mat4_copy(state.camera_matrices.projection, projection_matrix);
-
-      float skybox_uniforms[32]; /* 2 mat4s: view + projection */
-      memcpy(&skybox_uniforms[0], view_matrix, sizeof(mat4));
-      memcpy(&skybox_uniforms[16], projection_matrix, sizeof(mat4));
-      wgpuQueueWriteBuffer(wgpu_context->queue, state.skybox.uniform_buffer, 0,
-                           skybox_uniforms, sizeof(skybox_uniforms));
-
-      wgpuRenderPassEncoderSetPipeline(render_pass, state.skybox.pipeline);
-      wgpuRenderPassEncoderSetBindGroup(render_pass, 0, state.skybox.bind_group,
-                                        0, NULL);
-      wgpuRenderPassEncoderSetVertexBuffer(
-        render_pass, 0, state.skybox.vertex_buffer, 0, WGPU_WHOLE_SIZE);
-      wgpuRenderPassEncoderDraw(render_pass, 36, 1, 0,
-                                0); /* 36 vertices for cube */
-    }
 
     /* Render skinned grid */
     wgpuRenderPassEncoderSetPipeline(render_pass, state.grid_pipeline);
