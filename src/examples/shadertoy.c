@@ -2,11 +2,27 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#include <sys/time.h>
+#endif
 
 #include <stdbool.h>
-#include <sys/time.h>
+#include <string.h>
+#include <time.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Shadertoy
@@ -129,6 +145,28 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
 
 static void get_local_time(date_t* current_date)
 {
+#ifdef __WAJIC__
+  /* In WAjic/browser: decompose UTC epoch seconds without localtime(). */
+  time_t now            = time(NULL);
+  long rem              = (long)(now % 86400L);
+  long days             = (long)(now / 86400L);
+  current_date->msec    = 0;
+  current_date->hour    = (int)(rem / 3600L);
+  current_date->min     = (int)((rem % 3600L) / 60L);
+  current_date->sec     = (int)(rem % 60L);
+  current_date->day_sec = (float)rem;
+  /* Gregorian calendar decomposition from days since 1970-01-01 (UTC) */
+  long z            = days + 719468L;
+  long era          = (z >= 0L ? z : z - 146096L) / 146097L;
+  long doe          = z - era * 146097L;
+  long yoe          = (doe - doe / 1460L + doe / 36524L - doe / 146096L) / 365L;
+  long y            = yoe + era * 400L;
+  long doy          = doe - (365L * yoe + yoe / 4L - yoe / 100L);
+  long mp           = (5L * doy + 2L) / 153L;
+  current_date->day = (int)(doy - (153L * mp + 2L) / 5L + 1L);
+  current_date->month = (int)(mp + (mp < 10L ? 3L : -9L));
+  current_date->year  = (int)(y + (current_date->month <= 2 ? 1L : 0L));
+#else
   struct timeval te;
   gettimeofday(&te, NULL);
   time_t T               = time(NULL);
@@ -144,7 +182,7 @@ static void get_local_time(date_t* current_date)
   current_date->day_sec  = ((float)current_date->msec) / 1000.0
                           + current_date->sec + current_date->min * 60
                           + current_date->hour * 3600;
-  return;
+#endif
 }
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
