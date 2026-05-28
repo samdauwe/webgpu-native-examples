@@ -3,6 +3,15 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
+
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Shadow Mapping
  *
@@ -104,6 +113,7 @@ static struct {
   WGPUBindGroupLayout local_bind_group_layout;
 
   /* Depth and shadow textures */
+  WGPUTexture forward_depth_texture;
   WGPUTextureView forward_depth;
   WGPUTexture shadow_texture;
   WGPUTextureView shadow_view;
@@ -269,7 +279,8 @@ static void generate_matrix(float aspect_ratio, mat4 dest)
 }
 
 /* Create depth texture */
-static WGPUTextureView create_depth_texture(wgpu_context_t* wgpu_context)
+static WGPUTextureView create_depth_texture(wgpu_context_t* wgpu_context,
+                                            WGPUTexture* out_texture)
 {
   WGPUTexture depth_texture = wgpuDeviceCreateTexture(
     wgpu_context->device,
@@ -298,7 +309,12 @@ static WGPUTextureView create_depth_texture(wgpu_context_t* wgpu_context)
                      .aspect          = WGPUTextureAspect_All,
                    });
 
-  wgpuTextureRelease(depth_texture);
+  if (out_texture) {
+    *out_texture = depth_texture;
+  }
+  else {
+    wgpuTextureRelease(depth_texture);
+  }
   return view;
 }
 
@@ -799,9 +815,6 @@ static void init_forward_pass(wgpu_context_t* wgpu_context,
   };
 
   /* Render pipeline */
-  const char* fs_entry
-    = state.supports_storage_resources ? "fs_main" : "fs_main_without_storage";
-
   state.forward_pass.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
@@ -845,7 +858,9 @@ static void init_forward_pass(wgpu_context_t* wgpu_context,
       },
       .fragment = &(WGPUFragmentState){
         .module = shader,
-        .entryPoint = STRVIEW(fs_entry),
+        .entryPoint = state.supports_storage_resources
+                        ? STRVIEW("fs_main")
+                        : STRVIEW("fs_main_without_storage"),
         .targetCount = 1,
         .targets = &(WGPUColorTargetState){
           .format = wgpu_context->render_format,
@@ -926,7 +941,8 @@ static int init(wgpu_context_t* wgpu_context)
   init_shadow_resources(wgpu_context);
 
   /* Create depth texture */
-  state.forward_depth = create_depth_texture(wgpu_context);
+  state.forward_depth
+    = create_depth_texture(wgpu_context, &state.forward_depth_texture);
 
   /* Create shader module */
   WGPUShaderModule shader
@@ -958,8 +974,10 @@ static void resize(wgpu_context_t* wgpu_context)
   /* Recreate forward depth texture */
   if (state.forward_depth) {
     wgpuTextureViewRelease(state.forward_depth);
+    wgpuTextureRelease(state.forward_depth_texture);
   }
-  state.forward_depth = create_depth_texture(wgpu_context);
+  state.forward_depth
+    = create_depth_texture(wgpu_context, &state.forward_depth_texture);
 }
 
 /* Input event callback */
@@ -1112,6 +1130,7 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.forward_pass.pipeline)
   WGPU_RELEASE_RESOURCE(Texture, state.shadow_texture)
   WGPU_RELEASE_RESOURCE(TextureView, state.shadow_view)
+  WGPU_RELEASE_RESOURCE(Texture, state.forward_depth_texture)
   WGPU_RELEASE_RESOURCE(TextureView, state.forward_depth)
   WGPU_RELEASE_RESOURCE(Sampler, state.shadow_sampler)
 
