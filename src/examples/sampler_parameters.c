@@ -3,11 +3,16 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -17,6 +22,17 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
@@ -630,7 +646,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Presets */
   if (igCollapsingHeader_BoolPtr("Presets", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igButton("reset to initial", (ImVec2){0, 0})) {
       reset_to_initial();
     }
@@ -649,7 +665,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* Plane settings */
   if (igCollapsingHeader_BoolPtr("Plane settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_float("size = 2**", &state.settings.flange_log_size,
                                0.0f, 10.0f, "%.1f");
     igCheckbox("highlightFlange", &state.settings.highlight_flange);
@@ -659,7 +675,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
   /* GPUSamplerDescriptor */
   if (igCollapsingHeader_BoolPtr("GPUSamplerDescriptor", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_combo_box("addressModeU", &state.settings.address_mode_u,
                             state.address_modes_str, ADDRESS_MODE_COUNT);
     imgui_overlay_combo_box("addressModeV", &state.settings.address_mode_v,
@@ -687,7 +703,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
 
     /* maxAnisotropy */
     if (igCollapsingHeader_BoolPtr("maxAnisotropy (set only if all \"linear\")",
-                                  NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+                                   NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
       imgui_overlay_slider_int("maxAnisotropy", &state.settings.max_anisotropy,
                                1, 16);
     }
