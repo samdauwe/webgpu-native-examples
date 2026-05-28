@@ -1,5 +1,14 @@
 #include "webgpu/wgpu_common.h"
 
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle comparisons (e.g. ASSERT) compile without type errors. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
+
 #include <stdio.h>
 
 /* -------------------------------------------------------------------------- *
