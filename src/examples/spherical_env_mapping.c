@@ -7,14 +7,25 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -82,6 +93,7 @@ static struct {
   /* Model */
   gltf_model_t model;
   bool model_loaded;
+  bool model_buffers_created;
 
   struct {
     WGPUBuffer vertex;
@@ -173,23 +185,54 @@ static void init_depth_texture(struct wgpu_context_t* wgpu_context)
  * Model loading and GPU buffer creation
  * -------------------------------------------------------------------------- */
 
+static const gltf_model_desc_t model_load_desc = {
+  .loading_flags = GltfLoadingFlag_PreTransformVertices
+                   | GltfLoadingFlag_PreMultiplyVertexColors,
+};
+
+#ifdef __WAJIC__
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("[glTF ERROR] \nFailed to load model: %s (error: %d)\n", model_path,
+           response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    if (state.model.vertex_count > 0) {
+      gltf_model_bake_node_transforms(&state.model, state.model.vertices,
+                                      &model_load_desc);
+    }
+    state.model_loaded = true;
+  }
+  else {
+    printf("[glTF ERROR] \nFailed to parse glTF file: %s\n", model_path);
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
-  gltf_model_desc_t desc = {
-    .loading_flags = GltfLoadingFlag_PreTransformVertices
-                     | GltfLoadingFlag_PreMultiplyVertexColors,
-  };
-
-  state.model_loaded
-    = gltf_model_load_from_file_ext(&state.model, model_path, 1.0f, &desc);
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = model_path,
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
+  state.model_loaded = gltf_model_load_from_file_ext(&state.model, model_path,
+                                                     1.0f, &model_load_desc);
   if (!state.model_loaded) {
     printf("Failed to load model: %s\n", model_path);
   }
+#endif /* !__WAJIC__ */
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.model_loaded) {
+  if (!state.model_loaded || state.model_buffers_created) {
     return;
   }
 
@@ -223,6 +266,8 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
     wgpuQueueWriteBuffer(wgpu_context->queue, state.model_buffers.index, 0,
                          state.model.indices, ib_size);
   }
+
+  state.model_buffers_created = true;
 }
 
 /* Forward declaration */
@@ -563,7 +608,7 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Material", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_slider_int("Material cap", &state.ubo.tex_index, 0,
                              MATCAP_LAYER_COUNT - 1);
   }
@@ -610,10 +655,12 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Sokol_fetch for async texture loading */
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 1,
+    .max_requests = 2,
     .num_channels = 1,
-    .num_lanes    = 1,
-    .logger.func  = slog_func,
+    .num_lanes    = 2,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera */
@@ -655,12 +702,22 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static int frame(struct wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.model_loaded) {
+  if (!state.initialized) {
     return EXIT_SUCCESS;
   }
 
-  /* Process sokol_fetch requests */
+  /* Process sokol_fetch requests (drives both model and texture loading) */
   sfetch_dowork();
+
+  /* Deferred model buffer creation: model loaded async in WAjic */
+  if (state.model_loaded && !state.model_buffers_created) {
+    create_model_buffers(wgpu_context);
+  }
+
+  /* Wait until model buffers are ready before drawing */
+  if (!state.model_buffers_created) {
+    return EXIT_SUCCESS;
+  }
 
   /* Update texture when pixel data loaded */
   update_matcap_texture(wgpu_context);
