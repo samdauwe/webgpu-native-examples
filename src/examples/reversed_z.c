@@ -3,11 +3,16 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -17,6 +22,17 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+#include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 /* -------------------------------------------------------------------------- *
