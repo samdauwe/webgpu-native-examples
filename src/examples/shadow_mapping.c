@@ -3,10 +3,26 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Shadow Mapping
@@ -101,6 +117,10 @@ static struct {
   } shadow_depth_texture;
   WGPUSampler sampler;
   WGPUBool initialized;
+#ifdef __WAJIC__
+  bool mesh_loaded;
+  bool mesh_buffers_created;
+#endif
 } state = {
   .color_render_pass = {
     .color_attachment = {
@@ -934,10 +954,37 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
   }
 }
 
+#ifdef __WAJIC__
+/* Callback fired when the dragon PLY file has been fetched. Parses the mesh
+ * in-memory using fmemopen and sets state.mesh_loaded on success. */
+static void dragon_fetch_callback(const sfetch_response_t* response)
+{
+  if (response->fetched) {
+    if (stanford_dragon_mesh_init_from_memory(
+          &state.dragon_mesh, response->data.ptr, response->data.size)
+        == EXIT_SUCCESS) {
+      state.mesh_loaded = true;
+    }
+  }
+}
+#endif /* __WAJIC__ */
+
 static int init_cb(wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/meshes/dragon_vrip_res4.ply",
+    .callback = dragon_fetch_callback,
+  });
+#else
   stanford_dragon_mesh_init(&state.dragon_mesh);
   init_vertex_and_index_buffers(wgpu_context);
+#endif
   init_textures(wgpu_context);
   init_sampler(wgpu_context);
   setup_pipeline_layout(wgpu_context);
@@ -960,6 +1007,21 @@ static int frame_cb(wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return 1;
   }
+
+#ifdef __WAJIC__
+  sfetch_dowork();
+
+  /* Create GPU buffers once the dragon PLY mesh has been parsed */
+  if (state.mesh_loaded && !state.mesh_buffers_created) {
+    init_vertex_and_index_buffers(wgpu_context);
+    state.mesh_buffers_created = true;
+  }
+
+  /* Skip rendering until buffers are ready */
+  if (!state.mesh_buffers_created) {
+    return 0;
+  }
+#endif
 
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context);
@@ -1053,6 +1115,9 @@ static void shutdown_cb(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(TextureView, state.depth_texture.view)
   WGPU_RELEASE_RESOURCE(Texture, state.shadow_depth_texture.texture)
   WGPU_RELEASE_RESOURCE(TextureView, state.shadow_depth_texture.view)
+#ifdef __WAJIC__
+  sfetch_shutdown();
+#endif
 }
 
 int main(int argc, char* argv[])
