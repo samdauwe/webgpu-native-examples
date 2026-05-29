@@ -2,6 +2,16 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
@@ -10,6 +20,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
@@ -230,8 +241,16 @@ static void mat4_perspective_fov(float fovY, float aspect, float near,
 
 static void init_patch_mesh(wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  /* These two arrays total ~77 KB, which overflows the default WAjic WASM
+   * shadow stack (~64 KB) and corrupts adjacent BSS data (wgpu_context).
+   * Declare them static so they reside in BSS instead of the C stack. */
+  static float vertices_data[PATCH_VERTEX_COUNT * PATCH_FLOATS_PER_VERTEX];
+  static uint32_t indices_data[PATCH_INDEX_COUNT];
+#else
   float vertices_data[PATCH_VERTEX_COUNT * PATCH_FLOATS_PER_VERTEX] = {0};
   uint32_t indices_data[PATCH_INDEX_COUNT]                          = {0};
+#endif
 
   const uint32_t patch_size          = (uint32_t)PATCH_SIZE;
   const uint32_t patch_segment_count = (uint32_t)PATCH_SEGMENT_COUNT;
@@ -687,7 +706,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 2,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     init_patch_mesh(wgpu_context);
     init_uniform_buffer(wgpu_context);
