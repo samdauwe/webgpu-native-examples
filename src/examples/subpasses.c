@@ -27,12 +27,23 @@
 #include <cimgui.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
+#endif
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -79,12 +90,15 @@ static struct {
   WGPUBuffer scene_index_buffer;
   WGPUBuffer transparent_vertex_buffer;
   WGPUBuffer transparent_index_buffer;
+  bool models_buffers_created;
 
   /* Glass texture */
   struct {
     wgpu_texture_t texture;
     WGPUSampler sampler;
+#ifndef __WAJIC__
     uint8_t file_buffer[TEXTURE_FILE_BUFFER_SIZE];
+#endif
     bool loaded;
   } glass_texture;
 
@@ -388,8 +402,73 @@ static void init_render_passes(void)
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+static bool wajic_scene_loaded       = false;
+static bool wajic_transparent_loaded = false;
+
+static void scene_model_fetch_cb(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Failed to fetch samplebuilding.gltf, error: %d\n",
+           response->error_code);
+    return;
+  }
+  bool ok = gltf_model_load_from_memory(&state.scene_model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Apply the same pre-transform flags as the native load_from_file_ext */
+    const gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.scene_model,
+                                    state.scene_model.vertices, &desc);
+  }
+  wajic_scene_loaded = ok;
+  if (wajic_scene_loaded && wajic_transparent_loaded) {
+    state.models_loaded = true;
+  }
+}
+
+static void transparent_model_fetch_cb(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Failed to fetch samplebuilding_glass.gltf, error: %d\n",
+           response->error_code);
+    return;
+  }
+  bool ok
+    = gltf_model_load_from_memory(&state.transparent_model, response->data.ptr,
+                                  response->data.size, NULL, 1.0f);
+  if (ok) {
+    const gltf_model_desc_t desc = {
+      .loading_flags = GltfLoadingFlag_PreTransformVertices
+                       | GltfLoadingFlag_PreMultiplyVertexColors,
+    };
+    gltf_model_bake_node_transforms(&state.transparent_model,
+                                    state.transparent_model.vertices, &desc);
+  }
+  wajic_transparent_loaded = ok;
+  if (wajic_scene_loaded && wajic_transparent_loaded) {
+    state.models_loaded = true;
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_models(void)
 {
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/samplebuilding.gltf",
+    .callback = scene_model_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/samplebuilding_glass.gltf",
+    .callback = transparent_model_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+  });
+#else
   const gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices
                      | GltfLoadingFlag_PreMultiplyVertexColors,
@@ -411,6 +490,7 @@ static void load_models(void)
   }
 
   state.models_loaded = true;
+#endif
 }
 
 static void create_model_buffers(struct wgpu_context_t* wgpu_context)
@@ -503,7 +583,11 @@ static void fetch_glass_texture(void)
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/colored_glass_rgba.png",
     .callback = glass_texture_fetch_cb,
-    .buffer   = SFETCH_RANGE(state.glass_texture.file_buffer),
+#ifdef __WAJIC__
+    .buffer = {.ptr = NULL, .size = 0},
+#else
+    .buffer = SFETCH_RANGE(state.glass_texture.file_buffer),
+#endif
   });
 }
 
@@ -1105,14 +1189,14 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
   igBegin("Subpasses", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Subpasses", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igText("0: Deferred G-Buffer creation");
     igText("1: Deferred composition");
     igText("2: Forward transparency");
   }
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     if (igButton("Randomize lights", (ImVec2){0, 0})) {
       rng_state = (uint32_t)stm_now();
       init_lights();
@@ -1161,7 +1245,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 4,
     .num_channels = 1,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera (first-person) */
@@ -1181,7 +1267,9 @@ static int init(struct wgpu_context_t* wgpu_context)
 
   /* Load models */
   load_models();
+#ifndef __WAJIC__
   create_model_buffers(wgpu_context);
+#endif
 
   /* Initialize lights with a fixed seed for reproducibility */
   rng_state = 42u;
@@ -1232,6 +1320,15 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Pump async file loading */
   sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Deferred GPU resource creation after async model loads complete */
+  if (state.models_loaded && !state.models_buffers_created) {
+    create_model_buffers(wgpu_context);
+    state.models_buffers_created = true;
+  }
+#endif
+
   update_glass_texture(wgpu_context);
 
   /* Handle window resize */
