@@ -32,8 +32,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -202,6 +219,10 @@ static struct {
   /* Timing */
   uint64_t last_frame_time;
 
+  /* WAjic async loading state */
+  bool models_loaded;          /* true once gltf is parsed (WAjic async only) */
+  bool models_buffers_created; /* true once GPU buffers + pipelines are ready */
+
   /* Lifecycle */
   WGPUBool initialized;
 } state = {
@@ -249,15 +270,54 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context);
  * Model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * The fetch uses dynamic allocation (buffer.ptr = NULL): JS allocates the
+ * exact amount of WASM memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("SSAO: model fetch failed, error: %d\n", response->error_code);
+    return;
+  }
+
+  /* Load from the self-contained GLB (all textures embedded). */
+  bool ok = gltf_model_load_from_memory(&state.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    /* Do NOT call gltf_model_bake_node_transforms here: create_model_buffers()
+     * does the baking into a temporary copy before uploading to the GPU,
+     * exactly as it does in the native path. Baking here would double-apply
+     * the node transforms, producing a black screen. */
+    state.model_loaded  = true;
+    state.models_loaded = true;
+  }
+  else {
+    printf("SSAO: failed to parse Sponza model\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 static void load_model(void)
 {
+#ifdef __WAJIC__
+  /* In WAjic, fetch the self-contained GLB asynchronously.
+   * GPU resources are created in frame() once state.models_loaded is set. */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/Sponza/glb/Sponza.glb",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+#else
   bool ok = gltf_model_load_from_file(
     &state.model, "assets/models/Sponza/glTF/Sponza.gltf", 1.0f);
   if (!ok) {
     fprintf(stderr, "Failed to load Sponza.gltf\n");
     return;
   }
-  state.model_loaded = true;
+  state.model_loaded  = true;
+  state.models_loaded = true;
+#endif /* !__WAJIC__ */
 }
 
 static void create_model_buffers(wgpu_context_t* wgpu_context)
@@ -1427,7 +1487,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igBegin("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
   if (igCollapsingHeader_BoolPtr("Settings", NULL,
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     igCheckbox("Enable SSAO", &state.settings.enable_ssao);
     igCheckbox("SSAO blur", &state.settings.ssao_blur);
     igCheckbox("SSAO pass only", &state.settings.ssao_only);
@@ -1467,6 +1527,16 @@ static int init(wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+  /* sokol_fetch: 1 request (model file) */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
+  });
+
   /* Camera setup – first person, matching Vulkan example */
   camera_init(&state.camera);
   state.camera.type           = CameraType_FirstPerson;
@@ -1479,21 +1549,29 @@ static int init(wgpu_context_t* wgpu_context)
                            / (float)wgpu_context->height,
                          state.ubo_scene.near_plane, state.ubo_scene.far_plane);
 
-  /* Load model */
-  load_model();
-  create_model_buffers(wgpu_context);
-  create_material_textures(wgpu_context);
-
-  /* Create offscreen resources */
+  /* Create offscreen resources (resolution-dependent, no model data needed) */
   create_offscreen_framebuffers(wgpu_context);
   create_noise_texture(wgpu_context);
   create_uniform_buffers(wgpu_context);
 
-  /* Descriptor sets / pipelines */
+  /* Bind group layouts and pass-level bind groups (no model data needed) */
   setup_bind_group_layouts(wgpu_context);
   setup_bind_groups(wgpu_context);
+
+  /* Start model loading.
+   * Native: synchronous — also creates GPU buffers immediately.
+   * WAjic:  async sfetch — GPU buffers created in frame() once model arrives.
+   */
+  load_model();
+#ifndef __WAJIC__
+  create_model_buffers(wgpu_context);
+  create_material_textures(wgpu_context);
+  /* Pipeline layout requires material_bgl, created in create_material_textures
+   */
   setup_pipeline_layouts(wgpu_context);
   setup_render_pipelines(wgpu_context);
+  state.models_buffers_created = true;
+#endif /* !__WAJIC__ */
 
   /* ImGui */
   imgui_overlay_init(wgpu_context);
@@ -1511,6 +1589,28 @@ static int frame(wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Pump async file loading */
+  sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Once the async model load completes, create all model-dependent GPU
+   * resources: vertex/index buffers, material textures, pipeline layout, and
+   * render pipelines.  Pipeline layout requires material_bgl which is created
+   * inside create_material_textures(), so the order here is strict. */
+  if (state.models_loaded && !state.models_buffers_created) {
+    create_model_buffers(wgpu_context);
+    create_material_textures(wgpu_context);
+    setup_pipeline_layouts(wgpu_context);
+    setup_render_pipelines(wgpu_context);
+    state.models_buffers_created = true;
+  }
+
+  /* Skip rendering until all GPU resources are ready. */
+  if (!state.models_buffers_created) {
+    return EXIT_SUCCESS;
+  }
+#endif /* __WAJIC__ */
 
   /* Timing */
   uint64_t current_time = stm_now();
