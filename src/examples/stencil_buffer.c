@@ -7,8 +7,25 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -121,6 +138,10 @@ static struct {
   /* Timing */
   uint64_t last_frame_time;
 
+  /* WAjic async loading state */
+  bool
+    models_buffers_created; /* true once GPU model buffers have been created */
+
   WGPUBool initialized;
 } state = {
   .color_attachment = {
@@ -199,21 +220,15 @@ static void update_depth_texture(wgpu_context_t* wgpu_context)
  * Model loading
  * -------------------------------------------------------------------------- */
 
-static void load_model(wgpu_context_t* wgpu_context)
+/* The loading flags applied to the venus model. */
+static const gltf_model_desc_t venus_load_desc = {
+  .loading_flags = GltfLoadingFlag_PreTransformVertices,
+};
+
+/* Create GPU vertex/index buffers from an already-parsed gltf_model_t.
+ * Called synchronously on native and from frame() on WAjic after async load. */
+static void create_model_gpu_buffers(wgpu_context_t* wgpu_context)
 {
-  /* Load venus model with pre-transformed vertices (no FlipY for WebGPU) */
-  bool ok = gltf_model_load_from_file_ext(
-    &state.model, "assets/models/venus.gltf", 1.0f,
-    &(gltf_model_desc_t){
-      .loading_flags = GltfLoadingFlag_PreTransformVertices,
-    });
-
-  if (!ok) {
-    fprintf(stderr, "Failed to load venus.gltf\n");
-    return;
-  }
-  state.model_loaded = true;
-
   gltf_model_t* m = &state.model;
 
   /* Create vertex buffer */
@@ -246,6 +261,59 @@ static void load_model(wgpu_context_t* wgpu_context)
     wgpuBufferUnmap(state.index_buffer);
     state.index_count = m->index_count;
   }
+}
+
+#ifdef __WAJIC__
+/* Async model fetch callback (WAjic only).
+ * Uses dynamic allocation (buffer.ptr = NULL): JS allocates the exact amount
+ * of WASM memory needed and passes a valid pointer here. */
+static void model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("Stencil buffer: model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+
+  /* venus.gltf has all data as base64 data URIs, no external files needed. */
+  bool ok = gltf_model_load_from_memory(&state.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (ok) {
+    if (state.model.vertex_count > 0) {
+      gltf_model_bake_node_transforms(&state.model, state.model.vertices,
+                                      &venus_load_desc);
+    }
+    state.model_loaded = true;
+  }
+  else {
+    printf("Stencil buffer: failed to parse venus.gltf\n");
+  }
+}
+#endif /* __WAJIC__ */
+
+static void load_model(wgpu_context_t* wgpu_context)
+{
+#ifdef __WAJIC__
+  /* In WAjic, fetch venus.gltf asynchronously.
+   * GPU buffers are created in frame() once state.model_loaded is set. */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/venus.gltf",
+    .callback = model_fetch_callback,
+    .channel  = 0,
+  });
+  (void)wgpu_context;
+#else
+  /* Native: synchronous file loading + immediate GPU buffer creation. */
+  bool ok = gltf_model_load_from_file_ext(
+    &state.model, "assets/models/venus.gltf", 1.0f, &venus_load_desc);
+
+  if (!ok) {
+    fprintf(stderr, "Failed to load venus.gltf\n");
+    return;
+  }
+  state.model_loaded = true;
+  create_model_gpu_buffers(wgpu_context);
+#endif /* !__WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -630,8 +698,24 @@ static int init(wgpu_context_t* wgpu_context)
 
   stm_setup();
 
+  /* sokol_fetch: 1 request (venus.gltf) */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 1,
+    .num_channels = 1,
+    .num_lanes    = 1,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
+  });
+
   init_camera(wgpu_context);
+
+  /* Start model loading.
+   * Native: synchronous — also creates GPU buffers immediately.
+   * WAjic:  async sfetch — GPU buffers created in frame() once model arrives.
+   */
   load_model(wgpu_context);
+
   update_depth_texture(wgpu_context);
   init_uniform_buffer(wgpu_context);
   init_bind_group_layout(wgpu_context);
@@ -649,9 +733,29 @@ static int init(wgpu_context_t* wgpu_context)
 
 static int frame(wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized || !state.model_loaded) {
+  if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Pump async file loading */
+  sfetch_dowork();
+
+#ifdef __WAJIC__
+  /* Once the async model load completes, create GPU vertex/index buffers. */
+  if (state.model_loaded && !state.models_buffers_created) {
+    create_model_gpu_buffers(wgpu_context);
+    state.models_buffers_created = true;
+  }
+
+  /* Skip rendering until GPU model buffers are ready. */
+  if (!state.models_buffers_created) {
+    return EXIT_SUCCESS;
+  }
+#else
+  if (!state.model_loaded) {
+    return EXIT_FAILURE;
+  }
+#endif /* __WAJIC__ */
 
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context);
