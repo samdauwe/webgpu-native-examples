@@ -795,7 +795,7 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
     state.bind_groups_unpremultiplied.dst = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Unpremultiplied destination bind group"),
+        .label      = STRVIEW("Unpremultiplied destination - Bind group"),
         .layout     = state.bind_group_layout,
         .entryCount = ARRAY_SIZE(entries),
         .entries    = entries,
