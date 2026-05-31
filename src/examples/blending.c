@@ -813,7 +813,7 @@ static void init_dst_pipeline(wgpu_context_t* wgpu_context)
   WGPUBlendState blend_state = wgpu_create_blend_state(false);
 
   WGPURenderPipelineDescriptor pipeline_desc = {
-    .label  = STRVIEW("Destination pipeline"),
+    .label  = STRVIEW("Destination - Render pipeline"),
     .layout = state.pipeline_layout,
     .vertex = {
       .module     = state.shader_module,
