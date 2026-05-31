@@ -875,7 +875,7 @@ static void init_src_pipeline(wgpu_context_t* wgpu_context)
   };
 
   WGPURenderPipelineDescriptor pipeline_desc = {
-    .label  = STRVIEW("Source pipeline"),
+    .label  = STRVIEW("Source - Render pipeline"),
     .layout = state.pipeline_layout,
     .vertex = {
       .module     = state.shader_module,
