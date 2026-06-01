@@ -148,6 +148,7 @@ typedef enum WGPUTextureFormat {
     WGPUTextureFormat_Depth24PlusStencil8 = 0x00000029,
     WGPUTextureFormat_Depth32Float     = 0x0000002A,
     WGPUTextureFormat_Depth32FloatStencil8 = 0x0000002B,
+    WGPUTextureFormat_R16Unorm         = 0x0000002C,
     WGPUTextureFormat_Force32          = 0x7FFFFFFF
 } WGPUTextureFormat;
 
@@ -483,8 +484,9 @@ typedef WGPUFlags WGPUMapMode;
 #define WGPUMapMode_Read  0x00000001u
 #define WGPUMapMode_Write 0x00000002u
 
-#define WGPUFeatureName_TimestampQuery       0x00000009u
-#define WGPUFeatureName_Float32Filterable    0x0000000Eu
+#define WGPUFeatureName_TimestampQuery          0x00000009u
+#define WGPUFeatureName_Float32Filterable       0x0000000Eu
+#define WGPUFeatureName_Unorm16TextureFormats   0x00030002u
 
 typedef struct WGPUFuture { uint64_t id; } WGPUFuture;
 
@@ -1134,7 +1136,7 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
     }
 
     // Enum-to-string lookup tables
-    var EFmt = ',r8unorm,r8snorm,r8uint,r8sint,r16uint,r16sint,r16float,rg8unorm,rg8snorm,rg8uint,rg8sint,r32float,r32uint,r32sint,rg16uint,rg16sint,rg16float,rgba8unorm,rgba8unorm-srgb,rgba8snorm,rgba8uint,rgba8sint,bgra8unorm,bgra8unorm-srgb,rgb10a2uint,rgb10a2unorm,rg11b10ufloat,rgb9e5ufloat,rg32float,rg32uint,rg32sint,rgba16uint,rgba16sint,rgba16float,rgba32float,rgba32uint,rgba32sint,stencil8,depth16unorm,depth24plus,depth24plus-stencil8,depth32float,depth32float-stencil8'.split(',');
+    var EFmt = ',r8unorm,r8snorm,r8uint,r8sint,r16uint,r16sint,r16float,rg8unorm,rg8snorm,rg8uint,rg8sint,r32float,r32uint,r32sint,rg16uint,rg16sint,rg16float,rgba8unorm,rgba8unorm-srgb,rgba8snorm,rgba8uint,rgba8sint,bgra8unorm,bgra8unorm-srgb,rgb10a2uint,rgb10a2unorm,rg11b10ufloat,rgb9e5ufloat,rg32float,rg32uint,rg32sint,rgba16uint,rgba16sint,rgba16float,rgba32float,rgba32uint,rgba32sint,stencil8,depth16unorm,depth24plus,depth24plus-stencil8,depth32float,depth32float-stencil8,r16unorm'.split(',');
     var EVFmt = ',uint8x2,uint8x4,sint8x2,sint8x4,unorm8x2,unorm8x4,snorm8x2,snorm8x4,uint16x2,uint16x4,sint16x2,sint16x4,unorm16x2,unorm16x4,snorm16x2,snorm16x4,float16x2,float16x4,float32,float32x2,float32x3,float32x4,uint32,uint32x2,uint32x3,uint32x4,sint32,sint32x2,sint32x3,sint32x4,unorm10-10-10-2'.split(',');
     var ETopo = ',point-list,line-list,line-strip,triangle-list,triangle-strip'.split(',');
     var EFace = ',ccw,cw'.split(',');
@@ -1147,7 +1149,7 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
     var EBBType = ',uniform,storage,read-only-storage'.split(',');
     var ESStep = ',,vertex,instance'.split(',');
     var EAlpha = 'auto,opaque,premultiplied,unpremultiplied,inherit'.split(',');
-    var EFeat = { 0x9: 'timestamp-query', 0xe: 'float32-filterable' }; // WGPUFeatureName -> WebGPU feature string
+    var EFeat = { 0x9: 'timestamp-query', 0xe: 'float32-filterable', 0x30002: 'unorm16-texture-formats' }; // WGPUFeatureName -> WebGPU feature string
 
     // Read WGPUBlendComponent from ptr (3 x uint32: operation, srcFactor, dstFactor)
     function RdBlend(p) {
@@ -1176,6 +1178,13 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
         try {
             var adapterHasTS = adapter.features.has('timestamp-query');
             WA.webgpuHasTimestampQuery = adapterHasTS;
+            // Chrome 130+ renamed 'unorm16-texture-formats' to 'texture-formats-tier1'.
+            // Detect whichever name the adapter exposes and store it for runtime queries.
+            var u16FeatName = adapter.features.has('texture-formats-tier1') ? 'texture-formats-tier1'
+                            : adapter.features.has('unorm16-texture-formats')  ? 'unorm16-texture-formats'
+                            : null;
+            WA.webgpuHasUnorm16TextureFormats = !!u16FeatName;
+            WA.webgpuUnorm16FeatName = u16FeatName; // actual string used by this browser
             // Request the adapter's own supported limits so that large buffers
             // (e.g. OIT linked-list, shadow maps) are not capped at the
             // conservative WebGPU defaults (maxBufferSize = 256 MB).
@@ -1185,8 +1194,11 @@ WAJIC_LIB_WITH_INIT(WEBGPU,
                 reqLimits.maxBufferSize = adapterLimits.maxBufferSize;
             if (adapterLimits.maxStorageBufferBindingSize)
                 reqLimits.maxStorageBufferBindingSize = adapterLimits.maxStorageBufferBindingSize;
+            var reqFeats = [];
+            if (adapterHasTS) reqFeats.push('timestamp-query');
+            if (u16FeatName) reqFeats.push(u16FeatName);
             device = await adapter.requestDevice({
-                requiredFeatures: adapterHasTS ? ['timestamp-query'] : [],
+                requiredFeatures: reqFeats,
                 requiredLimits: reqLimits
             });
         } catch(err) {
@@ -1290,7 +1302,8 @@ WAJIC_LIB(WEBGPU, void, wgpuDeviceGetLimits, (WGPUDevice device, void* limits),
 WAJIC_LIB(WEBGPU, bool, wgpuAdapterHasFeature,
     (WGPUAdapter adapter, uint32_t feature),
 {
-    var featName = EFeat[feature];
+    // For the unorm16 feature, use the name the adapter actually supports.
+    var featName = (feature === 0x30002) ? (WA.webgpuUnorm16FeatName || null) : EFeat[feature];
     if (!featName) return 0;
     return WA.webgpuAdapter && WA.webgpuAdapter.features.has(featName) ? 1 : 0;
 })
@@ -1298,7 +1311,7 @@ WAJIC_LIB(WEBGPU, bool, wgpuAdapterHasFeature,
 WAJIC_LIB(WEBGPU, bool, wgpuDeviceHasFeature,
     (WGPUDevice device, uint32_t feature),
 {
-    var featName = EFeat[feature];
+    var featName = (feature === 0x30002) ? (WA.webgpuUnorm16FeatName || null) : EFeat[feature];
     if (!featName) return 0;
     var dev = device ? WD[device] : (WA.webgpuDevice || null);
     return dev && dev.features.has(featName) ? 1 : 0;
@@ -2124,6 +2137,12 @@ WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderDrawIndexed,
      int baseVertex, unsigned int firstInstance),
 {
     Wget(WRPE, encoder, 'encoder', 'drawIndexed').drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+})
+
+WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderDrawIndexedIndirect,
+    (WGPURenderPassEncoder encoder, WGPUBuffer indirectBuffer, uint64_t indirectOffset),
+{
+    Wget(WRPE, encoder, 'encoder', 'drawIndexedIndirect').drawIndexedIndirect(Wget(WB, indirectBuffer, 'buffer', 'drawIndexedIndirect'), indirectOffset);
 })
 
 WAJIC_LIB(WEBGPU, void, wgpuRenderPassEncoderEnd,
