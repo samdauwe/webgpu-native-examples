@@ -5,14 +5,25 @@
 #include <cJSON.h>
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
@@ -187,9 +198,11 @@ static struct {
     mat4 text_matrix;
   } view_matrices;
 
-  /* Async loading */
+  /* Async loading buffers (native only; WAjic uses dynamic allocation) */
+#ifndef __WAJIC__
   uint8_t font_json_buffer[FONT_JSON_BUFFER_SIZE];
   uint8_t font_texture_buffer[FONT_TEXTURE_SIZE];
+#endif
 
   /* Render pass */
   WGPURenderPassColorAttachment color_attachment;
@@ -1023,7 +1036,9 @@ static void font_json_fetch_callback(const sfetch_response_t* response)
     sfetch_send(&(sfetch_request_t){
       .path     = texture_path,
       .callback = font_texture_fetch_callback,
+#ifndef __WAJIC__
       .buffer   = SFETCH_RANGE(state.font_texture_buffer),
+#endif
     });
   }
 
@@ -1042,7 +1057,9 @@ static void init_font(wgpu_context_t* wgpu_context)
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/font/ya-hei-ascii-msdf.json",
     .callback = font_json_fetch_callback,
+#ifndef __WAJIC__
     .buffer   = SFETCH_RANGE(state.font_json_buffer),
+#endif
   });
 }
 
@@ -1283,6 +1300,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 4,
       .num_channels = 2,
       .num_lanes    = 2,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
 
     state.start_time = stm_now();
