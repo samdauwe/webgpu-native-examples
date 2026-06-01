@@ -134,6 +134,14 @@ uint16_t* image_pixels_16_from_file(const char* filename, int* width,
   return stbi_load_16(filename, width, height, channels, desired_channels);
 }
 
+uint16_t* image_pixels_16_from_memory(const uint8_t* buffer, int length,
+                                      int* width, int* height, int* channels,
+                                      int desired_channels)
+{
+  return stbi_load_16_from_memory(buffer, length, width, height, channels,
+                                  desired_channels);
+}
+
 /* -------------------------------------------------------------------------- *
  * Query functions
  * -------------------------------------------------------------------------- */
