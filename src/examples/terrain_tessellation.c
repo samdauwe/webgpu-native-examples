@@ -31,6 +31,12 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
@@ -39,6 +45,7 @@
 
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif /* __WAJIC__ */
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -48,6 +55,14 @@
 #include <cimgui.h>
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
+
+/* WAjic: NULL from cimgui conflicts with wajic builtins; restore to 0 */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
 #endif
 
 #include "core/camera.h"
@@ -791,6 +806,10 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
 /* Forward declaration for bind group recreation */
 static void create_bind_groups(wgpu_context_t* wgpu_context);
 
+/* Forward declaration for WAjic async init continuation */
+static void init_after_heightmap(wgpu_context_t* wgpu_context,
+                                 const uint16_t* hm_pixels, int hm_w, int hm_h);
+
 static wgpu_context_t* s_wgpu_ctx = NULL; /* set in init() */
 
 static void terrain_array_fetch_cb(const sfetch_response_t* response)
@@ -875,8 +894,68 @@ static void skysphere_fetch_cb(const sfetch_response_t* response)
  * Skysphere model loading
  * -------------------------------------------------------------------------- */
 
+#ifdef __WAJIC__
+/* Async sphere.gltf fetch callback (WAjic only).
+ * Dynamic allocation (buffer.ptr = NULL): JS allocates exact WASM memory. */
+static void sphere_model_fetch_cb(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("ERROR: sphere.gltf fetch failed (%d)\n", response->error_code);
+    return;
+  }
+
+  bool ok = gltf_model_load_from_memory(&state.sky.model, response->data.ptr,
+                                        response->data.size, NULL, 1.0f);
+  if (!ok) {
+    printf("ERROR: Failed to parse sphere.gltf\n");
+    return;
+  }
+
+  WGPUDevice device = s_wgpu_ctx->device;
+  gltf_model_t* m   = &state.sky.model;
+
+  size_t vb_sz            = m->vertex_count * sizeof(gltf_vertex_t);
+  state.sky.vertex_buffer = wgpuDeviceCreateBuffer(
+    device, &(WGPUBufferDescriptor){
+              .label = STRVIEW("Sky VB"),
+              .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+              .size  = vb_sz,
+              .mappedAtCreation = true,
+            });
+  void* vd = wgpuBufferGetMappedRange(state.sky.vertex_buffer, 0, vb_sz);
+  memcpy(vd, m->vertices, vb_sz);
+  wgpuBufferUnmap(state.sky.vertex_buffer);
+
+  if (m->index_count > 0) {
+    size_t ib_sz           = m->index_count * sizeof(uint32_t);
+    state.sky.index_buffer = wgpuDeviceCreateBuffer(
+      device, &(WGPUBufferDescriptor){
+                .label = STRVIEW("Sky IB"),
+                .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+                .size  = ib_sz,
+                .mappedAtCreation = true,
+              });
+    void* id = wgpuBufferGetMappedRange(state.sky.index_buffer, 0, ib_sz);
+    memcpy(id, m->indices, ib_sz);
+    wgpuBufferUnmap(state.sky.index_buffer);
+  }
+
+  state.sky.loaded = true;
+}
+#endif /* __WAJIC__ */
+
 static void load_skysphere_model(wgpu_context_t* wgpu_context)
 {
+#ifdef __WAJIC__
+  /* In WAjic, fetch sphere.gltf asynchronously. GPU buffers are created in
+   * sphere_model_fetch_cb; draw_sky() guards on state.sky.loaded. */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/sphere.gltf",
+    .callback = sphere_model_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+    .channel  = 0,
+  });
+#else
   bool ok = gltf_model_load_from_file(&state.sky.model,
                                       "assets/models/sphere.gltf", 1.0f);
   if (!ok) {
@@ -914,6 +993,7 @@ static void load_skysphere_model(wgpu_context_t* wgpu_context)
   }
 
   state.sky.loaded = true;
+#endif /* !__WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -1716,46 +1796,36 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
  * Lifecycle
  * -------------------------------------------------------------------------- */
 
-static int init(wgpu_context_t* wgpu_context)
+/* Performs all GPU-side init that must happen after the heightmap is loaded.
+ * Called directly in native builds, or from heightmap_fetch_cb in WAjic. */
+static void init_after_heightmap(wgpu_context_t* wgpu_context,
+                                 const uint16_t* hm_pixels, int hm_w, int hm_h)
 {
-  if (!wgpu_context) {
-    return EXIT_FAILURE;
-  }
-
-  s_wgpu_ctx = wgpu_context;
-
-  stm_setup();
-  sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 4,
-    .num_channels = 1,
-    .num_lanes    = 1,
-    .logger.func  = slog_func,
-  });
-
-  /* Camera */
-  init_camera(wgpu_context);
-
-  /* Load heightmap synchronously (needed for mesh generation) */
-  int hm_w = 0, hm_h = 0;
-  uint16_t* hm_pixels = load_heightmap(&hm_w, &hm_h);
-  if (!hm_pixels) {
-    return EXIT_FAILURE;
-  }
-
   /* Generate terrain mesh from heightmap */
   generate_terrain_mesh(wgpu_context, hm_pixels, hm_w);
 
   /* Create heightmap GPU texture */
   create_heightmap_texture(wgpu_context, hm_pixels, hm_w, hm_h);
-  image_free(hm_pixels);
 
-  /* Load skysphere model */
+  /* Load skysphere model (async in WAjic, sync in native) */
   load_skysphere_model(wgpu_context);
 
   /* Create placeholder textures for async-loaded assets */
   create_placeholder_textures(wgpu_context);
 
   /* Start async texture fetching */
+#ifdef __WAJIC__
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/terrain_texturearray_rgba.png",
+    .callback = terrain_array_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+  });
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/skysphere_rgba.png",
+    .callback = skysphere_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+  });
+#else
   uint8_t* terrain_buf = (uint8_t*)malloc(FETCH_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/terrain_texturearray_rgba.png",
@@ -1768,6 +1838,7 @@ static int init(wgpu_context_t* wgpu_context)
     .callback = skysphere_fetch_cb,
     .buffer   = {.ptr = skysphere_buf, .size = FETCH_BUFFER_SIZE},
   });
+#endif
 
   /* Uniform buffers */
   create_uniform_buffers(wgpu_context);
@@ -1786,17 +1857,89 @@ static int init(wgpu_context_t* wgpu_context)
   imgui_overlay_init(wgpu_context);
 
   state.initialized = true;
+}
+
+#ifdef __WAJIC__
+/* Async heightmap fetch callback (WAjic only).
+ * Dynamic allocation (buffer.ptr = NULL): JS allocates exact WASM memory.
+ * Decodes 16-bit grayscale PNG from memory, then kicks off the rest of init. */
+static void heightmap_fetch_cb(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("ERROR: heightmap fetch failed (%d)\n", response->error_code);
+    return;
+  }
+
+  int w = 0, h = 0, channels = 0;
+  uint16_t* pixels = image_pixels_16_from_memory(
+    (const uint8_t*)response->data.ptr, (int)response->data.size, &w, &h,
+    &channels, 1);
+  if (!pixels) {
+    printf("ERROR: Failed to decode terrain heightmap!\n");
+    return;
+  }
+
+  init_after_heightmap(s_wgpu_ctx, pixels, w, h);
+  image_free(pixels);
+}
+#endif /* __WAJIC__ */
+
+static int init(wgpu_context_t* wgpu_context)
+{
+  if (!wgpu_context) {
+    return EXIT_FAILURE;
+  }
+
+  s_wgpu_ctx = wgpu_context;
+
+  stm_setup();
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 4,
+    .num_channels = 1,
+    .num_lanes    = 1,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
+  });
+
+  /* Camera */
+  init_camera(wgpu_context);
+
+#ifdef __WAJIC__
+  /* In WAjic, file I/O is unavailable.  Fetch the heightmap asynchronously;
+   * init_after_heightmap() is called from heightmap_fetch_cb once the file
+   * arrives, continuing all GPU-side initialization from there. */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/textures/terrain_heightmap_r16.png",
+    .callback = heightmap_fetch_cb,
+    .buffer   = {.ptr = NULL, .size = 0},
+  });
+  /* state.initialized remains false; frame_cb returns early until set. */
   return EXIT_SUCCESS;
+#else
+  /* Load heightmap synchronously (needed for mesh generation) */
+  int hm_w = 0, hm_h = 0;
+  uint16_t* hm_pixels = load_heightmap(&hm_w, &hm_h);
+  if (!hm_pixels) {
+    return EXIT_FAILURE;
+  }
+
+  init_after_heightmap(wgpu_context, hm_pixels, hm_w, hm_h);
+  image_free(hm_pixels);
+
+  return EXIT_SUCCESS;
+#endif /* !__WAJIC__ */
 }
 
 static int frame(wgpu_context_t* wgpu_context)
 {
-  if (!state.initialized) {
-    return EXIT_FAILURE;
-  }
-
-  /* Process async file loads */
+  /* Process async file loads — must run even before state.initialized so that
+   * WAjic fetch callbacks (heightmap, sphere model, textures) can fire. */
   sfetch_dowork();
+
+  if (!state.initialized) {
+    return EXIT_SUCCESS;
+  }
 
   /* Frame timing */
   uint64_t now = stm_now();
