@@ -9,6 +9,15 @@
 
 #include <stdio.h>
 
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
+
 /* Max. number of chars the text overlay buffer can hold */
 #define TEXTOVERLAY_MAX_CHAR_COUNT (2048)
 
