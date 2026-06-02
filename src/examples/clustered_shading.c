@@ -760,7 +760,7 @@ static void create_default_textures(wgpu_context_t* wgpu_context)
 
   /* Default sampler */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Default sampler"),
+    .label         = STRVIEW("Default - Sampler"),
     .magFilter     = WGPUFilterMode_Linear,
     .minFilter     = WGPUFilterMode_Linear,
     .mipmapFilter  = WGPUMipmapFilterMode_Linear,
