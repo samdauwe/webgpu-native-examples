@@ -1938,12 +1938,13 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
     .buffer  = state.buffers.cluster,
     .size    = TOTAL_TILES * 32,
   };
-  state.cluster_storage_bind_group
-    = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
-                                          .layout = state.cluster_storage_bgl,
-                                          .entryCount = 1,
-                                          .entries    = &cluster_storage_entry,
-                                        });
+  state.cluster_storage_bind_group = wgpuDeviceCreateBindGroup(
+    device, &(WGPUBindGroupDescriptor){
+              .label      = STRVIEW("Cluster storage - Bind group"),
+              .layout     = state.cluster_storage_bgl,
+              .entryCount = 1,
+              .entries    = &cluster_storage_entry,
+            });
 
   /* Cluster read-only bind group (for rendering) */
   state.bind_groups.cluster = wgpuDeviceCreateBindGroup(
