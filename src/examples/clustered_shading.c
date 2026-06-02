@@ -1656,12 +1656,12 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
       .buffer     = {.type = WGPUBufferBindingType_Storage},
     },
   };
-  state.bind_group_layouts.frame
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .label = STRVIEW("frame-bgl"),
-                                                .entryCount = 4,
-                                                .entries    = frame_entries,
-                                              });
+  state.bind_group_layouts.frame = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Frame - Bind group layout"),
+              .entryCount = 4,
+              .entries    = frame_entries,
+            });
 
   /* Material bind group layout (group 1) */
   WGPUBindGroupLayoutEntry mat_entries[7] = {
