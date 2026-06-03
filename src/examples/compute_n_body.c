@@ -342,7 +342,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
   state.compute.uniform_buffer = wgpu_create_buffer(
     wgpu_context,
     &(wgpu_buffer_desc_t){
-      .label   = "Compute uniform buffer",
+      .label   = "Compute - Uniform buffer",
       .usage   = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size    = sizeof(compute_ubo_t),
       .initial = {.data = &state.compute.ubo, .size = sizeof(compute_ubo_t)},
