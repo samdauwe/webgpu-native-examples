@@ -822,7 +822,7 @@ static void create_pipeline_layouts(struct wgpu_context_t* wgpu_context)
   /* Graphics pipeline layout */
   state.graphics_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Graphics PL"),
+              .label                = STRVIEW("Graphics - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.graphics_bgl,
             });
