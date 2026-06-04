@@ -729,7 +729,7 @@ static void create_default_textures(wgpu_context_t* wgpu_context)
   uint8_t blue_pixel[4]  = {0, 0, 255, 0};
 
   WGPUTextureDescriptor tex_desc = {
-    .label         = STRVIEW("Default texture"),
+    .label         = STRVIEW("Default - Texture"),
     .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
     .dimension     = WGPUTextureDimension_2D,
     .size          = {1, 1, 1},
