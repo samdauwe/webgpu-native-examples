@@ -664,7 +664,7 @@ static void init_compute_bind_group(wgpu_context_t* wgpu_context)
 
   state.compute.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Compute bind group"),
+                            .label      = STRVIEW("Compute - Bind group"),
                             .layout     = state.compute.bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(bg_entries),
                             .entries    = bg_entries,
