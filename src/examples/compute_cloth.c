@@ -1135,7 +1135,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
     };
     state.graphics_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device, &(WGPUBindGroupDescriptor){
-                              .label      = STRVIEW("Graphics BG"),
+                              .label      = STRVIEW("Graphics  - Bind group"),
                               .layout     = state.graphics_bgl,
                               .entryCount = 3,
                               .entries    = gfx_entries,
