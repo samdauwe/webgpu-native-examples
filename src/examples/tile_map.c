@@ -1,17 +1,34 @@
 #include "webgpu/wgpu_common.h"
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
 
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Tile Map
@@ -56,7 +73,9 @@ static void tile_set_create(tile_set_t* this, wgpu_context_t* wgpu_context,
   sfetch_send(&(sfetch_request_t){
     .path      = file_path,
     .callback  = fetch_callback,
+#ifndef __WAJIC__
     .buffer    = SFETCH_RANGE(this->file_buffer),
+#endif
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -127,7 +146,9 @@ static void tile_map_layer_create(tile_map_layer_t* this,
   sfetch_send(&(sfetch_request_t){
     .path      = texture_path,
     .callback  = fetch_callback,
+#ifndef __WAJIC__
     .buffer    = SFETCH_RANGE(this->file_buffer),
+#endif
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -565,7 +586,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 3,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     tile_map_renderer_create(&tile_map_renderer, wgpu_context,
                              wgpu_context->render_format);
@@ -606,7 +629,9 @@ static int frame(struct wgpu_context_t* wgpu_context)
 static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
   tile_map_renderer_destroy(&tile_map_renderer);
 }
 
