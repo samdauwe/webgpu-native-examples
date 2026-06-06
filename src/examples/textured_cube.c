@@ -4,13 +4,21 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_IMAGE_IMPL
+#include <wajic_image.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
+#ifndef __WAJIC__
 #include "core/image_loader.h"
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Textured Cube
@@ -52,8 +60,10 @@ static struct {
     mat4 view;
   } view_matrices;
   wgpu_texture_t texture;
+#ifndef __WAJIC__
 #define TEXTURED_CUBE_FILE_BUFFER_SIZE (512 * 512 * 4)
   uint8_t* file_buffer;
+#endif
   WGPUPipelineLayout pipeline_layout;
   WGPURenderPipeline pipeline;
   WGPURenderPassColorAttachment color_attachment;
@@ -160,6 +170,7 @@ static void init_pipeline_layout(wgpu_context_t* wgpu_context)
  * @brief The fetch-callback is called by sokol_fetch.h when the data is loaded,
  * or when an error has occurred.
  */
+#ifndef __WAJIC__
 static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
@@ -193,13 +204,23 @@ static void fetch_callback(const sfetch_response_t* response)
       };
     texture->desc.is_dirty = true;
   }
+  else {
+    printf("Image decode failed for '%s' (data size: %u bytes)\n",
+           response->path ? response->path : "?",
+           (unsigned)response->data.size);
+  }
   free(state.file_buffer);
   state.file_buffer = NULL;
 }
+#endif /* !__WAJIC__ */
 
 static void init_texture(wgpu_context_t* wgpu_context)
 {
-  state.texture           = wgpu_create_color_bars_texture(wgpu_context, NULL);
+  state.texture = wgpu_create_color_bars_texture(wgpu_context, NULL);
+#ifdef __WAJIC__
+  /* Browser-native image loading: fetch + createImageBitmap decoding */
+  wajic_image_load("assets/textures/Di-3d.png");
+#else
   wgpu_texture_t* texture = &state.texture;
   state.file_buffer       = (uint8_t*)malloc(TEXTURED_CUBE_FILE_BUFFER_SIZE);
   sfetch_send(&(sfetch_request_t){
@@ -211,6 +232,7 @@ static void init_texture(wgpu_context_t* wgpu_context)
       .size = sizeof(wgpu_texture_t*),
     },
   });
+#endif
 }
 
 static void init_view_matrices(wgpu_context_t* wgpu_context)
@@ -367,11 +389,13 @@ static int init(struct wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
     stm_setup();
+#ifndef __WAJIC__
     sfetch_setup(&(sfetch_desc_t){
       .max_requests = 1,
       .num_channels = 1,
       .num_lanes    = 1,
     });
+#endif
     init_cube_mesh();
     init_vertex_buffer(wgpu_context);
     init_pipeline_layout(wgpu_context);
@@ -392,7 +416,31 @@ static int frame(struct wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
+#ifdef __WAJIC__
+  /* Poll browser-native image loader */
+  {
+    wajic_image_result_t img;
+    if (wajic_image_poll(&img)) {
+      if (img.pixels) {
+        state.texture.desc = (wgpu_texture_desc_t){
+          .extent = (WGPUExtent3D){
+            .width              = img.width,
+            .height             = img.height,
+            .depthOrArrayLayers = 1,
+          },
+          .format = WGPUTextureFormat_RGBA8Unorm,
+          .pixels = {
+            .ptr  = img.pixels,
+            .size = img.width * img.height * 4,
+          },
+        };
+        state.texture.desc.is_dirty = true;
+      }
+    }
+  }
+#else
   sfetch_dowork();
+#endif
 
   /* Recreate texture when pixel data loaded */
   if (state.texture.desc.is_dirty) {
@@ -440,11 +488,13 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
+#ifndef __WAJIC__
   sfetch_shutdown();
 
   /* Free file buffer if not yet released */
   free(state.file_buffer);
   state.file_buffer = NULL;
+#endif
 
   wgpu_destroy_texture(&state.texture);
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.cube.bind_group_layout)
@@ -455,13 +505,22 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.pipeline)
 }
 
+static void on_input_event(wgpu_context_t* wgpu_context,
+                           const input_event_t* event)
+{
+  if (event->type == INPUT_EVENT_TYPE_RESIZED) {
+    init_view_matrices(wgpu_context);
+  }
+}
+
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title       = "Textured Cube",
-    .init_cb     = init,
-    .frame_cb    = frame,
-    .shutdown_cb = shutdown,
+    .title          = "Textured Cube",
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = on_input_event,
   });
 
   return EXIT_SUCCESS;
