@@ -7,14 +7,25 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -164,6 +175,11 @@ static struct {
 
   uint64_t last_frame_time;
   bool initialized;
+#ifdef __WAJIC__
+  /* WAjic async model tracking: GPU buffers are created in frame() */
+  int wajic_models_loaded;
+  bool wajic_model_buffers_created;
+#endif
 } state = {
   /* clang-format off */
   .settings = {
@@ -542,7 +558,9 @@ static void cross_fetch_callback(const sfetch_response_t* response)
     printf(
       "[texture_cubemap_array] Failed to fetch cross image %u, error: %d\n",
       layer, response->error_code);
+#ifndef __WAJIC__
     free((void*)response->buffer.ptr);
+#endif
     return;
   }
 
@@ -550,7 +568,9 @@ static void cross_fetch_callback(const sfetch_response_t* response)
   state.cross_pixels[layer]
     = image_pixels_from_memory(response->data.ptr, (int)response->data.size,
                                &width, &height, &channels, 4);
+#ifndef __WAJIC__
   free((void*)response->buffer.ptr);
+#endif
   if (!state.cross_pixels[layer]) {
     printf("[texture_cubemap_array] Failed to decode cross PNG for layer %u\n",
            layer);
@@ -577,11 +597,15 @@ static void fetch_cubemap_crosses(void)
   static const uint32_t layer_indices[NUM_ARRAY_LAYERS] = {0, 1, 2};
 
   for (uint32_t i = 0; i < NUM_ARRAY_LAYERS; ++i) {
+#ifndef __WAJIC__
     state.cross_file_buf[i] = (uint8_t*)malloc(CROSS_FILE_BUF_SIZE);
+#endif
     sfetch_send(&(sfetch_request_t){
       .path     = cross_paths[i],
       .callback = cross_fetch_callback,
-      .buffer   = {.ptr = state.cross_file_buf[i], .size = CROSS_FILE_BUF_SIZE},
+#ifndef __WAJIC__
+      .buffer = {.ptr = state.cross_file_buf[i], .size = CROSS_FILE_BUF_SIZE},
+#endif
       .user_data = SFETCH_RANGE(layer_indices[i]),
     });
   }
@@ -620,12 +644,71 @@ static void create_model_gpu_buffers(wgpu_context_t* wgpu_context,
   wgpuQueueWriteBuffer(wgpu_context->queue, *ib_out, 0, mdl->indices, ib_size);
 }
 
+/* WAjic-only: async gltf model fetch callback.
+ * user_data == -1 → skybox (cube.gltf), 0..NUM_OBJECTS-1 → selectable object */
+#ifdef __WAJIC__
+static void wajic_model_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf("[texture_cubemap_array] model fetch failed, error: %d\n",
+           response->error_code);
+    return;
+  }
+  const int idx = *(const int*)response->user_data;
+  gltf_model_desc_t desc
+    = {.loading_flags = GltfLoadingFlag_PreTransformVertices};
+  if (idx < 0) {
+    state.skybox_model_loaded = gltf_model_load_from_memory(
+      &state.skybox_model, response->data.ptr, response->data.size, NULL, 1.0f);
+    if (state.skybox_model_loaded) {
+      gltf_model_bake_node_transforms(&state.skybox_model,
+                                      state.skybox_model.vertices, &desc);
+    }
+  }
+  else {
+    state.objects_loaded[idx] = gltf_model_load_from_memory(
+      &state.objects[idx], response->data.ptr, response->data.size, NULL, 1.0f);
+    if (state.objects_loaded[idx]) {
+      gltf_model_bake_node_transforms(&state.objects[idx],
+                                      state.objects[idx].vertices, &desc);
+    }
+  }
+  state.wajic_models_loaded++;
+}
+#endif /* __WAJIC__ */
+
 static void load_models(wgpu_context_t* wgpu_context)
 {
   gltf_model_desc_t desc = {
     .loading_flags = GltfLoadingFlag_PreTransformVertices,
   };
 
+#ifdef __WAJIC__
+  UNUSED_VAR(wgpu_context);
+  UNUSED_VAR(desc);
+
+  static const char* object_paths[NUM_OBJECTS] = {
+    "assets/models/sphere.gltf",
+    "assets/models/teapot.gltf",
+    "assets/models/torusknot.gltf",
+    "assets/models/venus.gltf",
+  };
+  static const int model_indices[1 + NUM_OBJECTS] = {-1, 0, 1, 2, 3};
+  sfetch_send(&(sfetch_request_t){
+    .path      = "assets/models/cube.gltf",
+    .callback  = wajic_model_fetch_callback,
+    .channel   = 0,
+    .user_data = SFETCH_RANGE(model_indices[0]),
+  });
+  for (int i = 0; i < NUM_OBJECTS; ++i) {
+    sfetch_send(&(sfetch_request_t){
+      .path      = object_paths[i],
+      .callback  = wajic_model_fetch_callback,
+      .channel   = 0,
+      .user_data = SFETCH_RANGE(model_indices[1 + i]),
+    });
+  }
+#else
   /* Skybox cube */
   state.skybox_model_loaded = gltf_model_load_from_file_ext(
     &state.skybox_model, "assets/models/cube.gltf", 1.0f, &desc);
@@ -655,6 +738,7 @@ static void load_models(wgpu_context_t* wgpu_context)
                                &state.object_buffers[i].index, lbl_vb, lbl_ib);
     }
   }
+#endif /* !__WAJIC__ */
 }
 
 /* -------------------------------------------------------------------------- *
@@ -991,12 +1075,15 @@ static int init(wgpu_context_t* wgpu_context)
     &state.camera, 60.0f,
     (float)wgpu_context->width / (float)wgpu_context->height, 0.1f, 256.0f);
 
-  /* Sokol fetch — 3 lanes for parallel PNG downloads */
+  /* Sokol fetch: 3 cross PNGs + 5 models (WAjic also loads models via sfetch)
+   */
   sfetch_setup(&(sfetch_desc_t){
-    .max_requests = 4,
+    .max_requests = 12,
     .num_channels = 1,
     .num_lanes    = 3,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Start async fetches for all three horizontal-cross PNGs */
@@ -1040,6 +1127,29 @@ static int frame(wgpu_context_t* wgpu_context)
   if (state.bind_group_dirty && state.cubemap.is_ready) {
     create_bind_group(wgpu_context);
   }
+
+#ifdef __WAJIC__
+  /* Create model GPU buffers once all async fetches complete */
+  if (!state.wajic_model_buffers_created
+      && state.wajic_models_loaded == 1 + NUM_OBJECTS) {
+    if (state.skybox_model_loaded) {
+      create_model_gpu_buffers(
+        wgpu_context, &state.skybox_model, &state.skybox_buffers.vertex,
+        &state.skybox_buffers.index, "Skybox VB", "Skybox IB");
+    }
+    for (int i = 0; i < NUM_OBJECTS; ++i) {
+      if (state.objects_loaded[i]) {
+        char lbl_vb[64], lbl_ib[64];
+        snprintf(lbl_vb, sizeof(lbl_vb), "Object[%d] VB", i);
+        snprintf(lbl_ib, sizeof(lbl_ib), "Object[%d] IB", i);
+        create_model_gpu_buffers(
+          wgpu_context, &state.objects[i], &state.object_buffers[i].vertex,
+          &state.object_buffers[i].index, lbl_vb, lbl_ib);
+      }
+    }
+    state.wajic_model_buffers_created = true;
+  }
+#endif /* __WAJIC__ */
 
   /* Update camera */
   camera_update(&state.camera, delta_time);
@@ -1108,7 +1218,9 @@ static void shutdown(wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   imgui_overlay_shutdown();
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
 
   /* Cubemap array GPU resources */
   WGPU_RELEASE_RESOURCE(TextureView, state.cubemap.view)
