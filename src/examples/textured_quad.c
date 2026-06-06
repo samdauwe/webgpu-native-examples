@@ -2,14 +2,19 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -24,6 +29,16 @@
 #include "core/camera.h"
 #include "core/image_loader.h"
 #include "webgpu/imgui_overlay.h"
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Textured Quad
@@ -216,9 +231,10 @@ static void fetch_callback(const sfetch_response_t* response)
 {
   if (!response->fetched) {
     printf("Texture fetch failed, error: %d\n", response->error_code);
+#ifndef __WAJIC__
     free(state.file_buffer);
     state.file_buffer = NULL;
-
+#endif
     return;
   }
 
@@ -247,8 +263,10 @@ static void fetch_callback(const sfetch_response_t* response)
     };
     texture->desc.is_dirty = true;
   }
+#ifndef __WAJIC__
   free(state.file_buffer);
   state.file_buffer = NULL;
+#endif
 }
 
 static void init_texture(wgpu_context_t* wgpu_context)
@@ -275,11 +293,15 @@ static void init_texture(wgpu_context_t* wgpu_context)
 
   /* Kick off async load */
   wgpu_texture_t* texture = &state.texture;
-  state.file_buffer       = (uint8_t*)malloc(TEXTURED_QUAD_FILE_BUFFER_SIZE);
+#ifndef __WAJIC__
+  state.file_buffer = (uint8_t*)malloc(TEXTURED_QUAD_FILE_BUFFER_SIZE);
+#endif
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/metalplate01_rgba.png",
     .callback = fetch_callback,
+#ifndef __WAJIC__
     .buffer    = {.ptr = state.file_buffer, .size = TEXTURED_QUAD_FILE_BUFFER_SIZE},
+#endif
     .user_data = {
       .ptr  = &texture,
       .size = sizeof(wgpu_texture_t*),
@@ -545,7 +567,9 @@ static int init(struct wgpu_context_t* wgpu_context)
       .max_requests = 1,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
 
     init_camera(wgpu_context);
@@ -639,11 +663,15 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   imgui_overlay_shutdown();
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
 
   /* Free file buffer if not yet released */
+#ifndef __WAJIC__
   free(state.file_buffer);
   state.file_buffer = NULL;
+#endif
 
   wgpu_destroy_texture(&state.texture);
   wgpu_destroy_buffer(&state.vertex_buffer);
