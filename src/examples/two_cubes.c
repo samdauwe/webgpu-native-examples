@@ -4,8 +4,23 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Two Cubes
