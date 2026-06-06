@@ -1,7 +1,19 @@
 #include "webgpu/wgpu_common.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef __WAJIC__
+/* WAjic: wgpuBufferGetMappedRange tracks only one range per buffer
+ * (WMBUF[buffer] stores a single {ptr, size, offset} entry).  When divide()
+ * calls wgpu_buffer_write_mapped_range() hundreds of times each call overwrites
+ * the previous entry, so only the last range would be written back at unmap
+ * time. Fix: build all geometry into a CPU-side staging buffer and upload once
+ * with a single wgpuQueueWriteBuffer call after all vertices have been
+ * computed. */
+static void* g_wajic_staging;
+#endif
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Vertex Buffer
@@ -84,9 +96,14 @@ float2 avg8(const float2* v0, const float2* v1)
 static void wgpu_buffer_write_mapped_range(WGPUBuffer buffer, size_t offset,
                                            void* data, size_t data_size)
 {
+#ifdef __WAJIC__
+  UNUSED_VAR(buffer);
+  memcpy((uint8_t*)g_wajic_staging + offset, data, data_size);
+#else
   void* mapping = wgpuBufferGetMappedRange(buffer, offset, data_size);
   ASSERT(mapping)
   memcpy(mapping, data, data_size);
+#endif
 }
 
 static void divide(const float2* v0, const float2* v1, const float2* v2,
@@ -153,20 +170,42 @@ static void create_geometry(wgpu_context_t* wgpu_context)
   };
 
   state.vertices_buffer = wgpu_create_buffer(
-    wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Geometry - Vertices buffer",
-                    .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
-                    .size  = MAX_VERTICES * sizeof(vertex_t),
-                    .count = 4,
-                    .mapped_at_creation = 1,
-                  });
+    wgpu_context,
+    &(wgpu_buffer_desc_t){
+      .label = "Geometry - Vertices buffer",
+      .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
+      .size  = MAX_VERTICES * sizeof(vertex_t),
+#ifdef __WAJIC__
+      /* WAjic uses wgpuQueueWriteBuffer; no mappedAtCreation needed. */
+      .count              = 0,
+      .mapped_at_creation = 0,
+#else
+      .count              = 4,
+      .mapped_at_creation = 1,
+#endif
+    });
 
   float viewport_x_scale = (float)wgpu_context->height / wgpu_context->width;
   for (int i = 0; i < 3; ++i) {
     v[i].x *= viewport_x_scale;
   }
+
+#ifdef __WAJIC__
+  /* Allocate the CPU-side staging buffer before divide() starts writing. */
+  g_wajic_staging = malloc((size_t)(MAX_VERTICES * sizeof(vertex_t)));
+#endif
+
   divide(&v[0], &v[1], &v[2], RECURSION_LIMIT);
+#ifdef __WAJIC__
+  /* Upload all computed vertices in a single call. */
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.vertices_buffer.buffer, 0,
+                       g_wajic_staging,
+                       state.vertices_buffer.count * sizeof(vertex_t));
+  free(g_wajic_staging);
+  g_wajic_staging = NULL;
+#else
   wgpuBufferUnmap(state.vertices_buffer.buffer);
+#endif
 }
 
 static void init_pipeline(wgpu_context_t* wgpu_context)
