@@ -6,14 +6,25 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors. */
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -118,7 +129,10 @@ static struct {
 
   /* Texture array (loaded asynchronously from PNG atlas) */
   wgpu_texture_t texture_array;
+#ifndef __WAJIC__
+  /* Native only: pre-allocated fetch buffer (WAjic uses dynamic allocation) */
   uint8_t file_buffer[FILE_BUFFER_SIZE];
+#endif
 
   /* Uniform buffer */
   WGPUBuffer uniform_buffer;
@@ -353,7 +367,9 @@ static void init_texture_array(wgpu_context_t* wgpu_context)
   sfetch_send(&(sfetch_request_t){
     .path     = texture_path,
     .callback = fetch_callback,
-    .buffer   = SFETCH_RANGE(state.file_buffer),
+#ifndef __WAJIC__
+    .buffer = SFETCH_RANGE(state.file_buffer),
+#endif
   });
 }
 
@@ -603,7 +619,8 @@ static void render_gui(struct wgpu_context_t* wgpu_context)
 
   igBegin("Texture Arrays", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-  if (igCollapsingHeader_BoolPtr("Info", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (igCollapsingHeader_BoolPtr("Info", NULL,
+                                 ImGuiTreeNodeFlags_DefaultOpen)) {
     imgui_overlay_text("GPU: %s", wgpu_context->platform_info.device[0] ?
                                     wgpu_context->platform_info.device :
                                     "Unknown");
@@ -654,7 +671,9 @@ static int init(struct wgpu_context_t* wgpu_context)
     .max_requests = 1,
     .num_channels = 1,
     .num_lanes    = 1,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
 
   /* Camera – matches Vulkan example:
@@ -747,7 +766,9 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(wgpu_context);
 
   imgui_overlay_shutdown();
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
 
   /* Depth texture */
   if (state.depth.view) {
