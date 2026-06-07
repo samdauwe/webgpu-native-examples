@@ -2,16 +2,31 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include "core/image_loader.h"
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Voxel Space
@@ -107,9 +122,11 @@ static struct {
     WGPURenderPassColorAttachment color_attachment;
     WGPURenderPassDescriptor descriptor;
   } render_pass;
-  /* Image loading buffers */
+  /* Image loading buffers (native only; WAjic uses dynamic allocation) */
+#ifndef __WAJIC__
   uint8_t height_map_buffer[MAP_SIZE * MAP_SIZE * 4];
   uint8_t color_map_buffer[MAP_SIZE * MAP_SIZE * 4];
+#endif
   WGPUBool height_map_loaded;
   WGPUBool color_map_loaded;
   WGPUBool initialized;
@@ -230,7 +247,9 @@ static void init_textures(wgpu_context_t* wgpu_context)
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/voxelspace_heightmap.png",
     .callback  = height_map_fetch_callback,
+#ifndef __WAJIC__
     .buffer    = SFETCH_RANGE(state.height_map_buffer),
+#endif
     .user_data = {
       .ptr  = &height_texture,
       .size = sizeof(wgpu_texture_t*),
@@ -242,7 +261,9 @@ static void init_textures(wgpu_context_t* wgpu_context)
   sfetch_send(&(sfetch_request_t){
     .path      = "assets/textures/voxelspace_colormap.png",
     .callback  = color_map_fetch_callback,
+#ifndef __WAJIC__
     .buffer    = SFETCH_RANGE(state.color_map_buffer),
+#endif
     .user_data = {
       .ptr  = &color_texture,
       .size = sizeof(wgpu_texture_t*),
@@ -706,7 +727,9 @@ static int init(wgpu_context_t* wgpu_context)
       .max_requests = 2,
       .num_channels = 1,
       .num_lanes    = 1,
-      .logger.func  = slog_func,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
     });
     stm_setup();
     state.last_time = stm_now();
@@ -938,7 +961,9 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(PipelineLayout, state.pipeline_layouts.render);
 
   /* Shutdown sokol_fetch */
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
 }
 
 int main(int argc, char* argv[])
