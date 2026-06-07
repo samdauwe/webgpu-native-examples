@@ -3,11 +3,17 @@
 
 #include <cglm/cglm.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include <stdbool.h>
 
@@ -20,6 +26,16 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Volume Rendering - Texture 3D
@@ -535,7 +551,9 @@ static void shutdown(struct wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
 
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
   imgui_overlay_shutdown();
 
   /* Free volume data if not yet released */
