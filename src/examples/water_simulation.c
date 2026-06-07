@@ -8,14 +8,19 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -26,6 +31,16 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 #include "core/image_loader.h"
 
@@ -205,11 +220,20 @@ static struct {
 #define WATER_SIM_FILE_BUFFER_SIZE (512 * 512 * 4)
 #define WATER_SIM_SKYBOX_FACE_SIZE (512 * 512 * 4)
   struct {
+#ifndef __WAJIC__
     uint8_t* file_buffer;
+    uint8_t* skybox_buffers[6];
+#endif
     size_t loaded_data_size;
     WGPUBool tiles_loaded;
-    /* Skybox face buffers (6 faces) */
-    uint8_t* skybox_buffers[6];
+    /* Decoded pixel data (valid until texture is created in frame()) */
+    uint8_t* tiles_pixels;
+    int tiles_width;
+    int tiles_height;
+    /* Skybox face decoded pixels */
+    uint8_t* skybox_pixels[6];
+    int skybox_face_width;
+    int skybox_face_height;
     size_t skybox_sizes[6];
     int skybox_loaded_count;
     WGPUBool skybox_ready;
@@ -518,14 +542,25 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
 static void tiles_texture_loaded(const sfetch_response_t* response)
 {
   if (response->fetched) {
-    if (response->data.size <= WATER_SIM_FILE_BUFFER_SIZE) {
+    /* Decode the image data in the callback while response->data.ptr is valid.
+     * In WAjic the raw file buffer is WAjic-managed WASM memory that is only
+     * valid during the callback, so we must decode here rather than in frame().
+     */
+    int width, height, channels;
+    const int desired_channels = 4;
+    uint8_t* pixels
+      = image_pixels_from_memory(response->data.ptr, (int)response->data.size,
+                                 &width, &height, &channels, desired_channels);
+    if (pixels) {
+      state.file_loading.tiles_pixels     = pixels;
+      state.file_loading.tiles_width      = width;
+      state.file_loading.tiles_height     = height;
       state.file_loading.loaded_data_size = response->data.size;
       state.file_loading.tiles_loaded     = true;
     }
   }
 }
 
-/* Skybox face loading callbacks (user_data = face index: 0-5) */
 static void skybox_face_loaded(const sfetch_response_t* response)
 {
   if (response->fetched) {
@@ -535,8 +570,17 @@ static void skybox_face_loaded(const sfetch_response_t* response)
       face_idx = *(const int*)response->user_data;
     }
     if (face_idx >= 0 && face_idx < 6) {
-      if (response->data.size <= WATER_SIM_SKYBOX_FACE_SIZE) {
-        state.file_loading.skybox_sizes[face_idx] = response->data.size;
+      /* Decode in the callback while response->data.ptr is valid */
+      int width, height, channels;
+      const int desired_channels = 4;
+      uint8_t* pixels            = image_pixels_from_memory(
+        response->data.ptr, (int)response->data.size, &width, &height,
+        &channels, desired_channels);
+      if (pixels) {
+        state.file_loading.skybox_pixels[face_idx] = pixels;
+        state.file_loading.skybox_sizes[face_idx]  = response->data.size;
+        state.file_loading.skybox_face_width       = width;
+        state.file_loading.skybox_face_height      = height;
         state.file_loading.skybox_loaded_count++;
         if (state.file_loading.skybox_loaded_count == 6) {
           state.file_loading.skybox_ready = true;
@@ -556,7 +600,9 @@ static int example_init(wgpu_context_t* wgpu_context)
   sfetch_setup(&(sfetch_desc_t){
     .num_channels = 1,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
   });
   stm_setup();
 
@@ -578,12 +624,16 @@ static int example_init(wgpu_context_t* wgpu_context)
   glm_vec3_zero(state.sphere_physics.velocity);
 
   /* Start loading tiles texture */
+#ifndef __WAJIC__
   state.file_loading.file_buffer = (uint8_t*)malloc(WATER_SIM_FILE_BUFFER_SIZE);
+#endif
   sfetch_send(&(sfetch_request_t){
     .path     = "assets/textures/tiles.jpg",
     .callback = tiles_texture_loaded,
-    .buffer   = {.ptr  = state.file_loading.file_buffer,
-                 .size = WATER_SIM_FILE_BUFFER_SIZE},
+#ifndef __WAJIC__
+    .buffer = {.ptr  = state.file_loading.file_buffer,
+               .size = WATER_SIM_FILE_BUFFER_SIZE},
+#endif
   });
 
   /* Start loading skybox faces */
@@ -597,13 +647,17 @@ static int example_init(wgpu_context_t* wgpu_context)
   };
   static int face_indices[6] = {0, 1, 2, 3, 4, 5};
   for (int i = 0; i < 6; i++) {
+#ifndef __WAJIC__
     state.file_loading.skybox_buffers[i]
       = (uint8_t*)malloc(WATER_SIM_SKYBOX_FACE_SIZE);
+#endif
     sfetch_send(&(sfetch_request_t){
-      .path      = skybox_faces[i],
-      .callback  = skybox_face_loaded,
-      .buffer    = {.ptr  = state.file_loading.skybox_buffers[i],
-                    .size = WATER_SIM_SKYBOX_FACE_SIZE},
+      .path     = skybox_faces[i],
+      .callback = skybox_face_loaded,
+#ifndef __WAJIC__
+      .buffer = {.ptr  = state.file_loading.skybox_buffers[i],
+                 .size = WATER_SIM_SKYBOX_FACE_SIZE},
+#endif
       .user_data = SFETCH_RANGE(face_indices[i]),
     });
   }
@@ -622,14 +676,31 @@ static void example_cleanup(wgpu_context_t* wgpu_context)
   imgui_overlay_shutdown();
 
   /* Shutdown sokol */
+#ifndef __WAJIC__
   sfetch_shutdown();
+#endif
 
   /* Free any file buffers not yet released */
+#ifndef __WAJIC__
   free(state.file_loading.file_buffer);
   state.file_loading.file_buffer = NULL;
   for (int i = 0; i < 6; i++) {
     free(state.file_loading.skybox_buffers[i]);
     state.file_loading.skybox_buffers[i] = NULL;
+  }
+#endif
+
+  /* Free any decoded pixel buffers not yet consumed (edge case: shutdown before
+   * textures were created) */
+  if (state.file_loading.tiles_pixels) {
+    image_free(state.file_loading.tiles_pixels);
+    state.file_loading.tiles_pixels = NULL;
+  }
+  for (int i = 0; i < 6; i++) {
+    if (state.file_loading.skybox_pixels[i]) {
+      image_free(state.file_loading.skybox_pixels[i]);
+      state.file_loading.skybox_pixels[i] = NULL;
+    }
   }
 
   /* Cleanup scene objects */
@@ -675,11 +746,10 @@ static int example_frame(wgpu_context_t* wgpu_context)
 
   /* Create tiles texture if data is loaded but texture not yet created */
   if (state.file_loading.tiles_loaded && !state.tiles_texture.handle) {
-    int width, height, channels;
-    const int desired_channels = 4;
-    uint8_t* pixels            = image_pixels_from_memory(
-      state.file_loading.file_buffer, (int)state.file_loading.loaded_data_size,
-      &width, &height, &channels, desired_channels);
+    /* Pixels were decoded in tiles_texture_loaded() callback */
+    uint8_t* pixels = state.file_loading.tiles_pixels;
+    int width       = state.file_loading.tiles_width;
+    int height      = state.file_loading.tiles_height;
 
     if (pixels) {
       state.tiles_texture = wgpu_create_texture(
@@ -702,6 +772,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
                               });
 
       image_free(pixels);
+      state.file_loading.tiles_pixels = NULL;
     }
     else {
       /* Create fallback texture if loading fails */
@@ -723,39 +794,25 @@ static int example_frame(wgpu_context_t* wgpu_context)
                               });
     }
     /* Free the tiles file buffer now that the texture is created */
+#ifndef __WAJIC__
     free(state.file_loading.file_buffer);
     state.file_loading.file_buffer = NULL;
+#endif
   }
 
   /* Create skybox cubemap texture when all faces are loaded */
   if (state.file_loading.skybox_ready && !state.skybox_texture.handle) {
-    /* Decode all 6 faces and determine dimensions */
-    int width = 0, height = 0;
-    uint8_t* face_pixels[6] = {NULL};
-    bool all_loaded         = true;
-
-    for (int i = 0; i < 6 && all_loaded; i++) {
-      int w, h, channels;
-      const int desired_channels = 4;
-      face_pixels[i]
-        = image_pixels_from_memory(state.file_loading.skybox_buffers[i],
-                                   (int)state.file_loading.skybox_sizes[i], &w,
-                                   &h, &channels, desired_channels);
-      if (face_pixels[i]) {
-        if (width == 0) {
-          width  = w;
-          height = h;
-        }
-        else if (w != width || h != height) {
-          all_loaded = false; /* Mismatched dimensions */
-        }
-      }
-      else {
-        all_loaded = false;
+    /* Pixels were decoded in skybox_face_loaded() callback */
+    int width      = state.file_loading.skybox_face_width;
+    int height     = state.file_loading.skybox_face_height;
+    bool all_valid = (width > 0 && height > 0);
+    for (int i = 0; i < 6 && all_valid; i++) {
+      if (!state.file_loading.skybox_pixels[i]) {
+        all_valid = false;
       }
     }
 
-    if (all_loaded && width > 0) {
+    if (all_valid) {
       /* Create cubemap texture */
       WGPUTexture cubemap_texture = wgpuDeviceCreateTexture(
         wgpu_context->device,
@@ -774,8 +831,10 @@ static int example_frame(wgpu_context_t* wgpu_context)
         /* Flip Y axis to match TypeScript version */
         uint8_t* flipped = malloc(width * height * 4);
         for (int y = 0; y < height; y++) {
-          memcpy(&flipped[y * width * 4],
-                 &face_pixels[i][(height - 1 - y) * width * 4], width * 4);
+          memcpy(
+            &flipped[y * width * 4],
+            &state.file_loading.skybox_pixels[i][(height - 1 - y) * width * 4],
+            width * 4);
         }
 
         wgpuQueueWriteTexture(
@@ -819,15 +878,18 @@ static int example_frame(wgpu_context_t* wgpu_context)
 
     /* Free face pixels */
     for (int i = 0; i < 6; i++) {
-      if (face_pixels[i]) {
-        image_free(face_pixels[i]);
+      if (state.file_loading.skybox_pixels[i]) {
+        image_free(state.file_loading.skybox_pixels[i]);
+        state.file_loading.skybox_pixels[i] = NULL;
       }
     }
     /* Free the skybox file buffers now that the cubemap is created */
+#ifndef __WAJIC__
     for (int i = 0; i < 6; i++) {
       free(state.file_loading.skybox_buffers[i]);
       state.file_loading.skybox_buffers[i] = NULL;
     }
+#endif
   }
 
   /* Initialize scene objects after textures are ready */
