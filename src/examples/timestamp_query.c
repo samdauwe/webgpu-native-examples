@@ -372,7 +372,7 @@ static void init_timestamp_query(wgpu_context_t* wgpu_context)
   /* Create query set for timestamps (2 queries: begin and end) */
   state.query_set = wgpuDeviceCreateQuerySet(
     wgpu_context->device, &(WGPUQuerySetDescriptor){
-                            .label = STRVIEW("Timestamp query set"),
+                            .label = STRVIEW("Timestamp - Query set"),
                             .type  = WGPUQueryType_Timestamp,
                             .count = 2,
                           });
