@@ -383,7 +383,7 @@ static void init_timestamp_query(wgpu_context_t* wgpu_context)
   state.timestamp_buffer             = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-                  .label = STRVIEW("Timestamp resolve buffer"),
+                  .label = STRVIEW("Timestamp - Resolve buffer"),
                   .size  = 2 * timestamp_byte_size,
                   .usage = WGPUBufferUsage_CopySrc | WGPUBufferUsage_QueryResolve,
     });
