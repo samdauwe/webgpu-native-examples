@@ -254,7 +254,7 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
   state.uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Uniform buffer"),
+      .label = STRVIEW("Uniform - Buffer"),
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
       .size  = sizeof(mat4), /* 4x4 matrix */
     });
