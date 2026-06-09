@@ -64,7 +64,7 @@ static const char* wireframe_shader_wgsl;
  * Constants
  * -------------------------------------------------------------------------- */
 
-#define NUM_OBJECTS 200
+#define NUM_OBJECTS (200)
 #define DEPTH_FORMAT WGPUTextureFormat_Depth24Plus
 
 /* -------------------------------------------------------------------------- *
