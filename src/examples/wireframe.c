@@ -5,8 +5,29 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
+
+/* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
+ * so WGPU handle assignments compile without pointer-to-integer errors.
+ * This must come AFTER all system headers to override any NULL redefinition. */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif /* __WAJIC__ */
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -136,6 +157,10 @@ static struct {
   uint64_t last_frame_time;
   /* State */
   WGPUBool initialized;
+  WGPUBool
+    models_loaded; /* true after teapot.json loaded and GPU objects created */
+  wgpu_context_t* wgpu_ctx; /* stored in init() for use in sfetch callbacks */
+  char* teapot_json_buf;    /* malloc'd buffer for teapot.json sfetch */
 } state = {
   .color_attachment = {
     .loadOp     = WGPULoadOp_Clear,
@@ -223,32 +248,42 @@ static void create_model_from_mesh(wgpu_context_t* wgpu_context,
   model->stride       = 6; /* position (3) + normal (3) */
 }
 
-static void create_teapot_model(wgpu_context_t* wgpu_context)
+/* Buffer size for the teapot JSON file (136 KB + 1 byte for null terminator) */
+#define TEAPOT_JSON_BUF_SIZE (140 * 1024)
+
+/* Forward declarations for sfetch callback */
+static void create_teapot_model(wgpu_context_t* wgpu_context,
+                                const char* json_data);
+static void init_objects(wgpu_context_t* wgpu_context);
+
+/* sfetch callback: fires when teapot.json has been downloaded */
+static void teapot_fetch_cb(const sfetch_response_t* response)
 {
-  /* Load teapot mesh from JSON */
-  const char* teapot_json_file = "assets/meshes/teapot.json";
-  FILE* fp                     = fopen(teapot_json_file, "r");
-  if (!fp) {
-    printf("Failed to open teapot.json\n");
+  if (!response->fetched) {
+    printf("File fetch failed, error: %d\n", response->error_code);
+    /* Allow rendering to proceed without the teapot */
+    state.models_loaded = true;
     return;
   }
 
-  fseek(fp, 0, SEEK_END);
-  long file_size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
+  /* Null-terminate the JSON data */
+  char* json_data                = (char*)response->data.ptr;
+  json_data[response->data.size] = '\0';
 
-  char* json_data = malloc(file_size + 1);
-  if (fread(json_data, 1, file_size, fp) != (size_t)file_size) {
-    printf("Failed to read teapot.json\n");
-    free(json_data);
-    fclose(fp);
-    return;
-  }
-  json_data[file_size] = '\0';
-  fclose(fp);
+  /* Create teapot model from JSON, then create all per-object GPU resources */
+  create_teapot_model(state.wgpu_ctx, json_data);
 
+  free(state.teapot_json_buf);
+  state.teapot_json_buf = NULL;
+
+  init_objects(state.wgpu_ctx);
+  state.models_loaded = true;
+}
+
+static void create_teapot_model(wgpu_context_t* wgpu_context,
+                                const char* json_data)
+{
   utah_teapot_mesh_init(&state.teapot_mesh, json_data);
-  free(json_data);
 
   utah_teapot_mesh_compute_normals(&state.teapot_mesh);
 
@@ -420,7 +455,15 @@ static void create_rock_model(wgpu_context_t* wgpu_context)
 
 static void init_models(wgpu_context_t* wgpu_context)
 {
-  create_teapot_model(wgpu_context);
+  /* Asynchronously fetch teapot.json; GPU model created in teapot_fetch_cb */
+  state.teapot_json_buf = (char*)malloc(TEAPOT_JSON_BUF_SIZE);
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/meshes/teapot.json",
+    .callback = teapot_fetch_cb,
+    .buffer = {.ptr = state.teapot_json_buf, .size = TEAPOT_JSON_BUF_SIZE - 1},
+  });
+
+  /* Create procedural models immediately (no file I/O needed) */
   create_sphere_model(wgpu_context);
   create_jewel_model(wgpu_context);
   create_rock_model(wgpu_context);
@@ -955,16 +998,29 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
 static int init(wgpu_context_t* wgpu_context)
 {
   if (wgpu_context) {
+    /* Store for sfetch callbacks that need the WebGPU device */
+    state.wgpu_ctx = wgpu_context;
+
     stm_setup();
     srand((unsigned int)stm_now());
 
-    init_models(wgpu_context);
+    sfetch_setup(&(sfetch_desc_t){
+      .max_requests = 1,
+      .num_channels = 1,
+      .num_lanes    = 1,
+#ifndef __WAJIC__
+      .logger.func = slog_func,
+#endif
+    });
+
+    init_models(wgpu_context); /* starts teapot.json sfetch */
     init_depth_texture(wgpu_context);
     init_view_matrices(wgpu_context);
     init_lit_bind_group_layout(wgpu_context);
     rebuild_lit_pipeline(wgpu_context);
     init_wireframe_pipelines(wgpu_context);
-    init_objects(wgpu_context);
+    /* init_objects is deferred: called from teapot_fetch_cb after all models
+     * ready */
     imgui_overlay_init(wgpu_context);
 
     state.initialized = true;
@@ -982,6 +1038,14 @@ static int frame(wgpu_context_t* wgpu_context)
 {
   if (!state.initialized) {
     return EXIT_FAILURE;
+  }
+
+  /* Pump sfetch: fires teapot_fetch_cb when teapot.json download completes */
+  sfetch_dowork();
+
+  /* Skip 3D rendering until all models are ready */
+  if (!state.models_loaded) {
+    return EXIT_SUCCESS;
   }
 
   /* Update time */
@@ -1079,6 +1143,14 @@ static int frame(wgpu_context_t* wgpu_context)
 static void shutdown(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
+
+  sfetch_shutdown();
+
+  /* Free teapot JSON buffer if the fetch was cancelled before completion */
+  if (state.teapot_json_buf) {
+    free(state.teapot_json_buf);
+    state.teapot_json_buf = NULL;
+  }
 
   imgui_overlay_shutdown();
 
