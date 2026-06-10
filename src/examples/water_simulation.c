@@ -785,7 +785,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
         });
       state.tile_sampler = wgpuDeviceCreateSampler(
         wgpu_context->device, &(WGPUSamplerDescriptor){
-                                .label         = STRVIEW("Tile sampler"),
+                                .label         = STRVIEW("Tile - Sampler"),
                                 .magFilter     = WGPUFilterMode_Linear,
                                 .minFilter     = WGPUFilterMode_Linear,
                                 .addressModeU  = WGPUAddressMode_Repeat,
