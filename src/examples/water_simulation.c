@@ -858,7 +858,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
       state.skybox_texture.handle = cubemap_texture;
       state.skybox_texture.view   = wgpuTextureCreateView(
         cubemap_texture, &(WGPUTextureViewDescriptor){
-                             .label           = STRVIEW("Skybox cubemap view"),
+                             .label           = STRVIEW("Skybox - Cubemap view"),
                              .format          = WGPUTextureFormat_RGBA8Unorm,
                              .dimension       = WGPUTextureViewDimension_Cube,
                              .baseMipLevel    = 0,
