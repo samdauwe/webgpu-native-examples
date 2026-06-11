@@ -817,7 +817,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
       WGPUTexture cubemap_texture = wgpuDeviceCreateTexture(
         wgpu_context->device,
         &(WGPUTextureDescriptor){
-          .label  = STRVIEW("Skybox cubemap"),
+          .label  = STRVIEW("Skybox - Cubemap"),
           .size   = {(uint32_t)width, (uint32_t)height, 6},
           .format = WGPUTextureFormat_RGBA8Unorm,
           .usage  = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
