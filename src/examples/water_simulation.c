@@ -869,7 +869,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
 
       state.skybox_sampler = wgpuDeviceCreateSampler(
         wgpu_context->device, &(WGPUSamplerDescriptor){
-                                .label         = STRVIEW("Skybox sampler"),
+                                .label         = STRVIEW("Skybox - Sampler"),
                                 .magFilter     = WGPUFilterMode_Linear,
                                 .minFilter     = WGPUFilterMode_Linear,
                                 .maxAnisotropy = 1,
