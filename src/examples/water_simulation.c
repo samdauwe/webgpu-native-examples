@@ -1102,7 +1102,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
     WGPUBindGroup water_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Water surface bind group"),
+        .label      = STRVIEW("Water surface - Bind group"),
         .layout     = wgpuRenderPipelineGetBindGroupLayout(state.water.surface_above_pipeline, 0),
         .entryCount = 11,
         .entries = (WGPUBindGroupEntry[]){
