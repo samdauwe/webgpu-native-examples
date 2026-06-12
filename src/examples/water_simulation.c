@@ -1068,7 +1068,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
     WGPUBindGroup sphere_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Sphere bind group"),
+        .label      = STRVIEW("Sphere - Bind group"),
         .layout     = wgpuRenderPipelineGetBindGroupLayout(state.sphere.pipeline, 0),
         .entryCount = 6,
         .entries = (WGPUBindGroupEntry[]){
