@@ -1032,7 +1032,7 @@ static int example_frame(wgpu_context_t* wgpu_context)
     WGPUBindGroup pool_bind_group = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Pool bind group"),
+        .label      = STRVIEW("Pool - Bind group"),
         .layout     = wgpuRenderPipelineGetBindGroupLayout(state.pool.pipeline, 0),
         .entryCount = 9,
         .entries = (WGPUBindGroupEntry[]){
