@@ -29,17 +29,39 @@
 
 #include "core/camera.h"
 
+#ifdef __WAJIC__
+#define WAJIC_SFETCH_IMPL
+#include <wajic_sfetch.h>
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
+#define SOKOL_FETCH_IMPL
+#include <sokol_fetch.h>
+#define SOKOL_LOG_IMPL
+#include <sokol_log.h>
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#endif
 
 #include <cglm/cglm.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __WAJIC__
 #include <sys/stat.h>
+#endif
+
+/* Ensure NULL is defined as 0 after WAjic system includes */
+#ifdef __WAJIC__
+#ifdef NULL
+#undef NULL
+#define NULL 0
+#endif
+#endif
 
 /* -------------------------------------------------------------------------- *
  * Quake 2 Format Constants
@@ -417,8 +439,10 @@ static const uint8_t q2_palette[256][3] = {
 // clang-format on
 
 /* -------------------------------------------------------------------------- *
- * File I/O Helpers
+ * File I/O Helpers (native only — WAjic uses sfetch for all file access)
  * -------------------------------------------------------------------------- */
+
+#ifndef __WAJIC__
 
 /**
  * @brief Query file size using stat(). Returns 0 on failure.
@@ -478,12 +502,58 @@ static uint8_t* file_load(const char* path, size_t* out_size)
   return buffer;
 }
 
+#endif /* !__WAJIC__ */
+
 /* -------------------------------------------------------------------------- *
  * PAK Archive Loading
  * -------------------------------------------------------------------------- */
 
 /**
- * @brief Load and parse a Quake 2 PAK archive.
+ * @brief Parse and validate a PAK header already in memory.
+ *
+ * Expects pak->file_data and pak->file_size to be set by the caller.
+ * Sets pak->entries and pak->num_entries on success.
+ *
+ * @param pak  PAK structure with file_data / file_size pre-filled.
+ * @return true on success; on failure pak->file_data is NOT freed (caller's
+ *         responsibility).
+ */
+static bool q2_pak_parse_header(q2_pak_t* pak)
+{
+  if (pak->file_size < sizeof(q2_pak_header_t)) {
+    fprintf(stderr, "[ERROR] PAK file too small: %u bytes\n", pak->file_size);
+    return false;
+  }
+
+  const q2_pak_header_t* header = (const q2_pak_header_t*)pak->file_data;
+
+  if (header->magic != Q2_PAK_MAGIC) {
+    fprintf(stderr, "[ERROR] Invalid PAK magic: 0x%08X (expected 0x%08X)\n",
+            header->magic, Q2_PAK_MAGIC);
+    return false;
+  }
+
+  if (header->offset + header->length > pak->file_size) {
+    fprintf(stderr, "[ERROR] PAK directory extends beyond file\n");
+    return false;
+  }
+
+  pak->entries     = (q2_pak_entry_t*)(pak->file_data + header->offset);
+  pak->num_entries = header->length / Q2_PAK_ENTRY_SIZE;
+
+  printf("[PAK]   File size:    %u bytes (%.2f MB)\n", pak->file_size,
+         pak->file_size / (1024.0 * 1024.0));
+  printf("[PAK]   Dir offset:   %u\n", header->offset);
+  printf("[PAK]   Dir size:     %u bytes\n", header->length);
+  printf("[PAK]   File count:   %u\n", pak->num_entries);
+
+  return true;
+}
+
+#ifndef __WAJIC__
+
+/**
+ * @brief Load and parse a Quake 2 PAK archive from a file path (native only).
  *
  * The entire file is loaded into memory. The directory is parsed in-place
  * without additional allocations for entry data.
@@ -501,45 +571,17 @@ static bool q2_pak_load(const char* path, q2_pak_t* pak)
     return false;
   }
 
-  if (pak->file_size < sizeof(q2_pak_header_t)) {
-    fprintf(stderr, "[ERROR] PAK file too small: %u bytes\n", pak->file_size);
+  if (!q2_pak_parse_header(pak)) {
     free(pak->file_data);
     pak->file_data = NULL;
     return false;
   }
-
-  /* Parse header */
-  const q2_pak_header_t* header = (const q2_pak_header_t*)pak->file_data;
-
-  if (header->magic != Q2_PAK_MAGIC) {
-    fprintf(stderr, "[ERROR] Invalid PAK magic: 0x%08X (expected 0x%08X)\n",
-            header->magic, Q2_PAK_MAGIC);
-    free(pak->file_data);
-    pak->file_data = NULL;
-    return false;
-  }
-
-  /* Validate directory bounds */
-  if (header->offset + header->length > pak->file_size) {
-    fprintf(stderr, "[ERROR] PAK directory extends beyond file\n");
-    free(pak->file_data);
-    pak->file_data = NULL;
-    return false;
-  }
-
-  /* Point entries directly into the loaded file buffer (zero-copy) */
-  pak->entries     = (q2_pak_entry_t*)(pak->file_data + header->offset);
-  pak->num_entries = header->length / Q2_PAK_ENTRY_SIZE;
 
   printf("[PAK] Loaded: %s\n", path);
-  printf("[PAK]   File size:    %u bytes (%.2f MB)\n", pak->file_size,
-         pak->file_size / (1024.0 * 1024.0));
-  printf("[PAK]   Dir offset:   %u\n", header->offset);
-  printf("[PAK]   Dir size:     %u bytes\n", header->length);
-  printf("[PAK]   File count:   %u\n", pak->num_entries);
-
   return true;
 }
+
+#endif /* !__WAJIC__ */
 
 /**
  * @brief Find a file entry in the PAK archive by path.
@@ -3201,7 +3243,21 @@ static q2_render_vertex_t* build_map_geometry(q2_bsp_map_t* map, q2_pak_t* pak,
   memset(texinfo_to_batch, -1, sizeof(texinfo_to_batch));
 
   for (uint32_t i = 0; i < map->num_texinfos && i < Q2_MAX_MAP_TEXTURES; i++) {
-    const char* name = map->texinfos[i].texture_name;
+    const char* raw = map->texinfos[i].texture_name;
+    if (raw[0] == '\0') {
+      continue;
+    }
+
+    /* Lowercase the name: Q2 PAK entries are always lowercase but BSP files
+     * authored on Windows may store mixed-case names (e.g. "e1u1/BOX3_1").
+     * A case-insensitive lookup avoids purple/black checkerboard placeholders.
+     */
+    char name[Q2_WAL_NAME_LEN];
+    uint32_t nc = 0;
+    for (; nc < Q2_WAL_NAME_LEN - 1 && raw[nc]; nc++) {
+      name[nc] = (char)tolower((unsigned char)raw[nc]);
+    }
+    name[nc] = '\0';
     if (name[0] == '\0') {
       continue;
     }
@@ -3548,21 +3604,77 @@ static void rebuild_visible_geometry(wgpu_context_t* wgpu_context,
  * Map Data Loading
  * -------------------------------------------------------------------------- */
 
+/* Forward declaration needed for WAjic pak_fetch_callback */
+static int32_t find_default_map_index(void);
+
+#ifdef __WAJIC__
+/**
+ * @brief sfetch callback: called when the PAK file finishes loading (WAjic).
+ *
+ * The buffer was dynamically allocated by JS (buffer.ptr = NULL in the
+ * sfetch_send call).  On success, ownership of the memory is transferred to
+ * pak->file_data; q2_pak_destroy() will free it.
+ */
+static void pak_fetch_callback(const sfetch_response_t* response)
+{
+  if (!response->fetched) {
+    printf(
+      "[Q2] PAK fetch failed (error %d). "
+      "Drop a .pak file onto the window to load a map.\n",
+      response->error_code);
+    return;
+  }
+
+  q2_pak_t* pak = &state.pak;
+  memset(pak, 0, sizeof(*pak));
+  /* Transfer ownership of the dynamically-allocated buffer to the pak */
+  pak->file_data = (uint8_t*)response->data.ptr;
+  pak->file_size = (uint32_t)response->data.size;
+
+  printf("[PAK] Loaded pak0.pak via fetch:\n");
+  if (!q2_pak_parse_header(pak)) {
+    free(pak->file_data);
+    pak->file_data = NULL;
+    return;
+  }
+
+  q2_discover_maps(pak, state.maps, &state.num_maps, Q2_MAX_MAPS);
+  if (state.num_maps > 0) {
+    /* Schedule map switch — frame() will pick it up via requested_map_index */
+    state.requested_map_index = find_default_map_index();
+  }
+  else {
+    printf("[Q2] No BSP maps found in the loaded PAK.\n");
+  }
+}
+#endif /* __WAJIC__ */
+
 /**
  * @brief Load the PAK archive and discover available maps.
  *
- * Loads the entire PAK file into memory (serves as the cache for all map
- * switches) and scans the directory for BSP files with metadata.
+ * Native: synchronous file I/O — loads and parses immediately.
+ * WAjic: starts an async sfetch; actual parsing happens in pak_fetch_callback.
+ *        Returns false so init() skips the synchronous map-switch path.
  *
- * @return true on success.
+ * @return true when PAK is fully loaded (native), false when loading is async.
  */
 static bool load_pak_and_discover_maps(const char* override_path)
 {
-  const char* pak_path
-    = override_path ? override_path :
-      getenv("Q2_PAK_PATH") ?
-                      getenv("Q2_PAK_PATH") :
-                      "/home/sdauwe/GitHub/quake2generic/build/baseq2/pak0.pak";
+#ifdef __WAJIC__
+  (void)override_path;
+  /* Dynamic allocation: JS determines the file size and calls malloc() for us
+   */
+  sfetch_send(&(sfetch_request_t){
+    .path     = "assets/models/Quake2/pak0.pak",
+    .callback = pak_fetch_callback,
+    .channel  = 0,
+  });
+  return false; /* Async: data not ready yet */
+#else
+  const char* pak_path = override_path ? override_path :
+                         getenv("Q2_PAK_PATH") ?
+                                         getenv("Q2_PAK_PATH") :
+                                         "assets/models/Quake2/pak0.pak";
 
   if (!q2_pak_load(pak_path, &state.pak)) {
     fprintf(stderr, "[ERROR] Could not load PAK: %s\n", pak_path);
@@ -3578,6 +3690,7 @@ static bool load_pak_and_discover_maps(const char* override_path)
   }
 
   return true;
+#endif /* __WAJIC__ */
 }
 
 /**
@@ -4632,7 +4745,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
                  fname);
 
         if (igSelectable_Bool(label, is_selected, ImGuiSelectableFlags_None,
-                         (ImVec2){0, 0})) {
+                              (ImVec2){0, 0})) {
           if ((int32_t)i != state.current_map_index) {
             state.requested_map_index = (int32_t)i;
           }
@@ -5157,7 +5270,9 @@ static void cleanup_map_resources(wgpu_context_t* wgpu_context)
 
   /* Wait for GPU to finish any pending work */
   if (wgpu_context && wgpu_context->device) {
+#ifndef __WAJIC__
     wgpuDeviceTick(wgpu_context->device);
+#endif
   }
 
   /* --- Release map-specific bind groups (not layouts) --- */
@@ -5403,9 +5518,20 @@ static int init(wgpu_context_t* wgpu_context)
 
   stm_setup();
 
-  /* Try to load PAK archive. If the default path doesn't exist (e.g. on a
-   * different machine), continue without a PAK — the user can drag & drop
-   * a .pak file onto the window at any time. */
+  /* sokol_fetch: supports async PAK loading in WAjic and graceful reload in
+   * native.  max_requests=2 covers the initial load + one reload. */
+  sfetch_setup(&(sfetch_desc_t){
+    .max_requests = 2,
+    .num_channels = 1,
+    .num_lanes    = 1,
+#ifndef __WAJIC__
+    .logger.func = slog_func,
+#endif
+  });
+
+  /* Try to load PAK archive.
+   * Native: synchronous — returns true when PAK is ready.
+   * WAjic: async sfetch queued — returns false; callback fires in frame(). */
   bool pak_loaded = load_pak_and_discover_maps(NULL);
 
   /* --- Create shared GPU resources (persist across map switches) --- */
@@ -5434,7 +5560,7 @@ static int init(wgpu_context_t* wgpu_context)
   /* ImGui overlay */
   imgui_overlay_init(wgpu_context);
 
-  /* --- Load the default map (only if PAK was successfully loaded) --- */
+  /* --- Load the default map (native only — WAjic defers to frame()) --- */
   if (pak_loaded) {
     int32_t default_map = find_default_map_index();
     if (!switch_map(wgpu_context, default_map)) {
@@ -5455,6 +5581,9 @@ static int frame(wgpu_context_t* wgpu_context)
   if (!state.initialized) {
     return EXIT_FAILURE;
   }
+
+  /* Pump async file loading (fires pak_fetch_callback when data arrives) */
+  sfetch_dowork();
 
   /* --- Handle pending PAK file reload (from drag & drop) --- */
   if (state.pak_reload.pending) {
@@ -5915,7 +6044,8 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
     state.camera.keys.right = input_event->keys_down[KEY_D];
   }
 
-  /* Handle drag & drop of .pak files */
+  /* Handle drag & drop of .pak files (native only — not supported in WAjic) */
+#ifndef __WAJIC__
   if (input_event->type == INPUT_EVENT_TYPE_FILE_DROP) {
     for (int i = 0; i < input_event->drop_count; i++) {
       const char* path = input_event->drop_paths[i];
@@ -5931,11 +6061,13 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
       }
     }
   }
+#endif /* !__WAJIC__ */
 }
 
 static void shutdown(wgpu_context_t* wgpu_context)
 {
   imgui_overlay_shutdown();
+  sfetch_shutdown();
 
   /* Release all map-specific resources (textures, geometry, MD2 per-map, etc.)
    */
