@@ -584,7 +584,12 @@ static bool q2_pak_load(const char* path, q2_pak_t* pak)
 #endif /* !__WAJIC__ */
 
 /**
- * @brief Find a file entry in the PAK archive by path.
+ * @brief Find a file entry in the PAK archive by path (case-insensitive).
+ *
+ * Q2 PAK files and BSP texinfo were originally written on Windows (case-
+ * insensitive filesystem). This means the PAK may store "textures/Bathtile.wal"
+ * while the BSP references "bathtile", or vice versa. A case-insensitive
+ * comparison handles both directions without modifying any stored data.
  *
  * @param pak      Loaded PAK archive.
  * @param filename File path to search for (e.g. "maps/demo1.bsp").
@@ -594,7 +599,24 @@ static const q2_pak_entry_t* q2_pak_find(const q2_pak_t* pak,
                                          const char* filename)
 {
   for (uint32_t i = 0; i < pak->num_entries; i++) {
-    if (strncmp(pak->entries[i].filename, filename, Q2_PAK_FILENAME_LEN) == 0) {
+    /* Case-insensitive comparison: handles PAK files whose directory entries
+     * use different capitalisation than the BSP texinfo (common with custom
+     * maps authored on case-insensitive file systems). */
+    const char* a = pak->entries[i].filename;
+    const char* b = filename;
+    bool match    = true;
+    for (uint32_t j = 0; j < Q2_PAK_FILENAME_LEN; j++) {
+      int ca = tolower((unsigned char)a[j]);
+      int cb = tolower((unsigned char)b[j]);
+      if (ca != cb) {
+        match = false;
+        break;
+      }
+      if (ca == 0) {
+        break; /* Both strings ended at the same position */
+      }
+    }
+    if (match) {
       return &pak->entries[i];
     }
   }
