@@ -302,7 +302,7 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout extract_bgl = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = STRVIEW("Extract BGL"),
+      .label      = STRVIEW("Extract - Bind group layout"),
       .entryCount = 2,
       .entries    = (WGPUBindGroupLayoutEntry[]){
         {
