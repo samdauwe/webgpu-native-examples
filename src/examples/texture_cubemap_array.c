@@ -282,7 +282,7 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
   state.cubemap.handle = wgpuDeviceCreateTexture(
     wgpu_context->device,
     &(WGPUTextureDescriptor){
-      .label = STRVIEW("Cubemap array texture"),
+      .label = STRVIEW("Cubemap array - Texture"),
       .usage = WGPUTextureUsage_TextureBinding
                | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopyDst,
       .dimension     = WGPUTextureDimension_2D,
