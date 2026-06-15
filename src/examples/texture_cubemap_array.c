@@ -359,7 +359,7 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
   /* A simple linear sampler for the extraction blit */
   WGPUSampler extract_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Cross extract sampler"),
+                            .label         = STRVIEW("Cross extract - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
