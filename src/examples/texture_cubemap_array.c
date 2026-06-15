@@ -334,7 +334,7 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
   WGPURenderPipeline extract_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Face extract pipeline"),
+      .label  = STRVIEW("Face extract - Render pipeline"),
       .layout = extract_pl,
       .vertex = (WGPUVertexState){
         .module     = extract_shader,
