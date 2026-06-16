@@ -388,7 +388,7 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
     WGPUTexture src_tex = wgpuDeviceCreateTexture(
       wgpu_context->device,
       &(WGPUTextureDescriptor){
-        .label     = STRVIEW("Cross source texture"),
+        .label     = STRVIEW("Cross source - Texture"),
         .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
         .dimension = WGPUTextureDimension_2D,
         .size      = {lw, lh, 1},
