@@ -443,9 +443,9 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
       /* 2D view targeting this face/layer at mip 0 */
       WGPUTextureView face_view = wgpuTextureCreateView(
         state.cubemap.handle, &(WGPUTextureViewDescriptor){
-                                .label           = STRVIEW("Face dst view"),
-                                .format          = WGPUTextureFormat_RGBA8Unorm,
-                                .dimension       = WGPUTextureViewDimension_2D,
+                                .label     = STRVIEW("Face dst - Texture view"),
+                                .format    = WGPUTextureFormat_RGBA8Unorm,
+                                .dimension = WGPUTextureViewDimension_2D,
                                 .baseMipLevel    = 0,
                                 .mipLevelCount   = 1,
                                 .baseArrayLayer  = array_layer,
