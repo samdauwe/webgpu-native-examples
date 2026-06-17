@@ -508,8 +508,8 @@ static void extract_cubemap_faces_from_crosses(wgpu_context_t* wgpu_context)
    * ---------------------------------------------------------------------- */
   state.cubemap.view = wgpuTextureCreateView(
     state.cubemap.handle, &(WGPUTextureViewDescriptor){
-                            .label         = STRVIEW("Cubemap array view"),
-                            .format        = WGPUTextureFormat_RGBA8Unorm,
+                            .label  = STRVIEW("Cubemap array - Texture view"),
+                            .format = WGPUTextureFormat_RGBA8Unorm,
                             .dimension     = WGPUTextureViewDimension_CubeArray,
                             .baseMipLevel  = 0,
                             .mipLevelCount = mip_count,
