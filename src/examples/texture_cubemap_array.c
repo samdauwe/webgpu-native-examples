@@ -808,11 +808,12 @@ static void init_bind_group_layout(wgpu_context_t* wgpu_context)
   };
 
   state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = STRVIEW("Cubemap array BGL"),
-                            .entryCount = ARRAY_SIZE(entries),
-                            .entries    = entries,
-                          });
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label      = STRVIEW("Cubemap array - Bind group layout"),
+      .entryCount = ARRAY_SIZE(entries),
+      .entries    = entries,
+    });
   ASSERT(state.bind_group_layout);
 }
 
