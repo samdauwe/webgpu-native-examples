@@ -861,7 +861,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
 {
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = STRVIEW("Cubemap array pipeline layout"),
+                            .label = STRVIEW("Cubemap array - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &state.bind_group_layout,
                           });
