@@ -383,7 +383,7 @@ static void extract_cubemap_faces_from_cross(wgpu_context_t* wgpu_context)
 
   WGPUPipelineLayout extract_pl = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label                = STRVIEW("Extract PL"),
+                            .label = STRVIEW("Extract - Pipeline layout"),
                             .bindGroupLayoutCount = 1,
                             .bindGroupLayouts     = &extract_bgl,
                           });
