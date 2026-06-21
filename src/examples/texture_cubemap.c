@@ -775,7 +775,7 @@ static void init_bind_group_layout(wgpu_context_t* wgpu_context)
 
   state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = STRVIEW("Cubemap BGL"),
+                            .label = STRVIEW("Cubemap - Bind group layout"),
                             .entryCount = ARRAY_SIZE(entries),
                             .entries    = entries,
                           });
