@@ -808,7 +808,7 @@ static void create_bind_group(wgpu_context_t* wgpu_context)
 
   state.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Cubemap BG"),
+                            .label      = STRVIEW("Cubemap - Bind group"),
                             .layout     = state.bind_group_layout,
                             .entryCount = ARRAY_SIZE(entries),
                             .entries    = entries,
