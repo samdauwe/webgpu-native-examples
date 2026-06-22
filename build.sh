@@ -3,6 +3,7 @@
 set -e
 
 BUILD_DIR="$PWD/build"
+BUILD_WAJIC_DIR="$PWD/build-wajic"
 
 DOCKER_DIR="$PWD/docker"
 DOCKER_NAME="docker-webgpu-native-examples:latest"
@@ -15,6 +16,16 @@ webgpu_native_examples() {
     cd "$BUILD_DIR"
     cmake .. -DCMAKE_BUILD_TYPE=Release
     make all -j8
+
+    cd "$WORKING_DIR"
+}
+
+webgpu_wasm_examples() {
+    WORKING_DIR=`pwd`
+
+    echo "---------- Building WebAssembly (WAjic) Examples ----------"
+    cmake -B "$BUILD_WAJIC_DIR" -S wajic
+    cmake --build "$BUILD_WAJIC_DIR" -- -j8
 
     cd "$WORKING_DIR"
 }
@@ -33,6 +44,7 @@ docker_run() {
     echo "---------- Running Docker container ----------"
     xhost + && \
     docker run -it --rm --privileged \
+        --security-opt label=disable \
         --env="DISPLAY" \
         --env="QT_X11_NO_MITSHM=1" \
         --network=host \
@@ -54,6 +66,10 @@ while [[ $# -gt 0 ]]; do case "$1" in
     shift
     webgpu_native_examples
     ;;
+  -webgpu_wasm_examples)
+    shift
+    webgpu_wasm_examples
+    ;;
   -docker_build)
     shift
     docker_build
@@ -66,7 +82,8 @@ while [[ $# -gt 0 ]]; do case "$1" in
     cat << EOF
 usage: $0 [options]
 options:
-  -webgpu_native_examples Build WebGPU native examples
+  -webgpu_native_examples Build WebGPU native examples (Dawn)
+  -webgpu_wasm_examples   Build WebAssembly examples (WAjic)
   -docker_build           Build Docker image for running the examples
   -docker_run             Run the Docker container with the examples
   -help                   Show help on stdout and exit
