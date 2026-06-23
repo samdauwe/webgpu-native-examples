@@ -489,12 +489,12 @@ static void extract_cubemap_faces_from_cross(wgpu_context_t* wgpu_context)
    * ---------------------------------------------------------------------- */
   state.cubemap.view = wgpuTextureCreateView(
     state.cubemap.handle, &(WGPUTextureViewDescriptor){
-                            .label           = STRVIEW("Cubemap view"),
-                            .format          = WGPUTextureFormat_RGBA8Unorm,
-                            .dimension       = WGPUTextureViewDimension_Cube,
-                            .baseMipLevel    = 0,
-                            .mipLevelCount   = mip_count,
-                            .baseArrayLayer  = 0,
+                            .label          = STRVIEW("Cubemap - Texture view"),
+                            .format         = WGPUTextureFormat_RGBA8Unorm,
+                            .dimension      = WGPUTextureViewDimension_Cube,
+                            .baseMipLevel   = 0,
+                            .mipLevelCount  = mip_count,
+                            .baseArrayLayer = 0,
                             .arrayLayerCount = NUM_CUBEMAP_FACES,
                             .aspect          = WGPUTextureAspect_All,
                           });
