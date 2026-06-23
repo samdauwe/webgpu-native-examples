@@ -457,7 +457,7 @@ static void extract_cubemap_faces_from_cross(wgpu_context_t* wgpu_context)
       .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
     };
     WGPURenderPassDescriptor rp_desc = {
-      .label                = STRVIEW("Face extract pass"),
+      .label                = STRVIEW("Face extract - Render pass"),
       .colorAttachmentCount = 1,
       .colorAttachments     = &color_att,
     };
