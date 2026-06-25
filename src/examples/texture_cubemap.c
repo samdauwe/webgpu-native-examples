@@ -502,7 +502,7 @@ static void extract_cubemap_faces_from_cross(wgpu_context_t* wgpu_context)
 
   state.cubemap.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Cubemap sampler"),
+                            .label         = STRVIEW("Cubemap - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
