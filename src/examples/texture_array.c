@@ -271,7 +271,7 @@ static void init_cube_buffers(struct wgpu_context_t* wgpu_context)
   state.cube.vertex = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("Cube vertex buffer"),
+      .label            = STRVIEW("Cube - Vertex buffer"),
       .usage            = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
       .size             = sizeof(vertices),
       .mappedAtCreation = false,
