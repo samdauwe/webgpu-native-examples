@@ -484,11 +484,12 @@ static void init_bind_group_layout(struct wgpu_context_t* wgpu_context)
   };
 
   state.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
-    wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label = STRVIEW("Texture array bind group layout"),
-                            .entryCount = (uint32_t)ARRAY_SIZE(entries),
-                            .entries    = entries,
-                          });
+    wgpu_context->device,
+    &(WGPUBindGroupLayoutDescriptor){
+      .label      = STRVIEW("Texture array - Bind group layout"),
+      .entryCount = (uint32_t)ARRAY_SIZE(entries),
+      .entries    = entries,
+    });
 }
 
 static void init_bind_group(struct wgpu_context_t* wgpu_context)
