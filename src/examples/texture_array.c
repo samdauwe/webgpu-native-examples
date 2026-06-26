@@ -530,7 +530,7 @@ static void init_pipeline(struct wgpu_context_t* wgpu_context)
 
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Texture array pipeline layout"),
+              .label = STRVIEW("Texture array - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bind_group_layout,
             });
