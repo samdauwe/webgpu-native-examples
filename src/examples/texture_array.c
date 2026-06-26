@@ -513,7 +513,7 @@ static void init_bind_group(struct wgpu_context_t* wgpu_context)
 
   state.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Texture array bind group"),
+                            .label      = STRVIEW("Texture array - Bind group"),
                             .layout     = state.bind_group_layout,
                             .entryCount = (uint32_t)ARRAY_SIZE(entries),
                             .entries    = entries,
