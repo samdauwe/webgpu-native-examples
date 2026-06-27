@@ -4,15 +4,108 @@
 
 [![Build WebAssembly & Deploy to GitHub Pages](https://github.com/samdauwe/webgpu-native-examples/actions/workflows/pages.yml/badge.svg)](https://github.com/samdauwe/webgpu-native-examples/actions/workflows/pages.yml)
 &nbsp;
-**[▶ Live WebAssembly demo](https://samdauwe.github.io/webgpu-native-examples/)**
 
 A collection of open-source C99 examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) — Google's cross-platform WebGPU implementation. Each example is a single self-contained C source file and targets both native desktop (Linux) and WebAssembly (via [WAjic](https://github.com/schellingb/wajic)).
 
+**[▶ Live WebAssembly demo](https://samdauwe.github.io/webgpu-native-examples/)**
+
 > **Browser requirement:** The WebAssembly examples require a browser with WebGPU support (Chrome 113+ or Edge 113+). Firefox and most mobile browsers are not yet supported.
 
-<img src="./doc/images/WebGPU_API.png"/>
+```mermaid
+graph TB
+    %% --- ACADEMIC PRESENTATION STYLE CORES ---
+    classDef native fill:#E5EEF7,stroke:#4A7BB0,stroke-width:3px,color:#000,font-size:18px,font-weight:bold,padding:15px;
+    classDef device fill:#7FAAD4,stroke:#2C4D75,stroke-width:3px,color:#fff,font-size:18px,font-weight:bold,padding:15px;
+    classDef pass fill:#9CD095,stroke:#3F7055,stroke-width:3px,color:#000,font-size:18px,font-weight:bold,padding:15px;
+    classDef cmd fill:#4E8E81,stroke:#1E4B41,stroke-width:3px,color:#fff,font-size:18px,font-weight:bold,padding:15px;
+    classDef resource fill:#B9D3EE,stroke:#3B6290,stroke-width:2px,color:#000,font-size:16px,font-weight:bold,padding:12px;
+    classDef config fill:#FFB380,stroke:#C45A33,stroke-width:3px,color:#000,font-size:16px,font-weight:bold,padding:12px;
+    classDef queue fill:#FFE285,stroke:#BC942C,stroke-width:3px,color:#000,font-size:18px,font-weight:bold,padding:15px;
 
-[<img src="./screenshots/demo_selection_1.jpg" width="360x"/>](https://youtu.be/64MP1a7qZK0 "WebGPU Native Examples and Demos")
+    %% --- HIGH-CONTRAST VECTOR LINKS ---
+    linkStyle default stroke:#111111,stroke-width:4px;
+
+    %% --- SECTION 1: SYSTEM INITIALIZATION ---
+    subgraph TopLayer ["Surface & Driver Initialization"]
+        direction LR
+        Canvas["HTMLCanvasElement Context"] --- GPUDevice["GPUDevice"]
+        GPUDevice --- GPUAdapter["GPUAdapter"]
+        GPUAdapter --- NativeAPIs["Native Drivers (D3D12 / Metal / Vulkan)"]
+    end
+    class NativeAPIs native;
+    class Canvas,GPUDevice,GPUAdapter device;
+
+    %% --- SECTION 2: RESOURCE & PIPELINE PIPELINE ---
+    subgraph PipelineSubsystem ["Resource & Pipeline Setup"]
+        direction TB
+        WGSL["WGSL Shader Source"] --> GPUShaderModule["GPUShaderModule"]
+        GPUBindGroupLayout["GPUBindGroupLayout"] --> GPUPipelineLayout["GPUPipelineLayout"]
+        GPUBindGroupLayout --> GPUBindGroup["GPUBindGroup"]
+
+        GPUPipelineLayout --> GPURenderPipeline["GPURenderPipeline"]
+        GPUPipelineLayout --> GPUComputePipeline["GPUComputePipeline"]
+        GPUShaderModule --> GPURenderPipeline
+        GPUShaderModule --> GPUComputePipeline
+
+        subgraph RenderStates ["Pipeline States Configuration"]
+            direction LR
+            VState["Vertex"] --- FState["Fragment"] --- PState["Primitive"] --- DSState["Depth/Stencil"]
+        end
+    end
+    class WGSL,GPUBindGroup,GPUBindGroupLayout,VState,FState resource;
+    class GPUPipelineLayout,GPURenderPipeline,GPUComputePipeline device;
+    class GPUShaderModule,PState,DSState config;
+
+    RenderStates -.-> GPURenderPipeline
+
+    %% --- SECTION 3: COMMAND RECORDING (COMPACT & SPEC COMPLIANT) ---
+    subgraph CommandRecording ["Command Generation Engine"]
+        direction LR
+        GPUCommandEncoder["GPUCommandEncoder"]
+
+        subgraph PassColumns ["Execution Passes"]
+            direction TB
+            subgraph ComputePass ["Compute Execution Pass"]
+                direction LR
+                CPEncoder["GPUComputePassEncoder"] --> CP_SetP["Set Pipeline"] --> CP_SetBG["Set BindGroup"] --> CP_Dispatch["Dispatch Workgroups"]
+            end
+
+            subgraph RenderPass ["Render Execution Pass"]
+                direction LR
+                RPEncoder["GPURenderPassEncoder"] --> RP_SetP["Set Pipeline"] --> RP_SetBuf["Set Buffers"] --> RP_SetBG["Set BindGroup"] --> RP_Draw["Draw / DrawIndexed"]
+            end
+        end
+
+        GPUCommandEncoder -->|beginComputePass| CPEncoder
+        GPUCommandEncoder -->|beginRenderPass| RPEncoder
+
+        %% Spec Correction: Pass encoders must explicitly call .end() to transfer control back
+        CPEncoder -.->|end| GPUCommandEncoder
+        RPEncoder -.->|end| GPUCommandEncoder
+    end
+    class GPUCommandEncoder cmd;
+    class CPEncoder,RPEncoder pass;
+    class CP_SetP,CP_SetBG,CP_Dispatch,RP_SetP,RP_SetBuf,RP_SetBG,RP_Draw resource;
+
+    %% --- SECTION 4: HARDWARE EXECUTION ---
+    subgraph ExecutionLayer ["GPU Execution Subsystem"]
+        direction LR
+        GPUCommandBuffer["GPUCommandBuffer"] -->|submit| GPUQueue["GPUQueue"]
+    end
+    class GPUCommandBuffer device;
+    class GPUQueue queue;
+
+    %% --- EXTERNAL ARCHITECTURAL BINDINGS ---
+    GPUDevice -->|createCommandEncoder| GPUCommandEncoder
+    GPUComputePipeline -.-> CP_SetP
+    GPURenderPipeline -.-> RP_SetP
+    GPUBindGroup -.-> CP_SetBG
+    GPUBindGroup -.-> RP_SetBG
+    GPUCommandEncoder -->|finish| GPUCommandBuffer
+
+    %% Overriding specific layout link index weights for dark/light consistency
+    linkStyle 16,17,18,19,20,21,22 stroke:#111111,stroke-width:4px;
+```
 
 ## Table of Contents
 
