@@ -53,13 +53,20 @@ jobs:
       # ── 2. Init only the lightweight WASM-required submodules ───────────────
       #    Excluded: external/dawn (native WebGPU — not needed for WASM)
       #              assets         (models/textures — deployed separately or via symlink)
+      #
+      #    cimgui wraps Dear ImGui which lives in a nested submodule (imgui/).
+      #    Use --recursive only for cimgui so the nested imgui/ submodule is
+      #    checked out too. The other deps are flat (no nested submodules).
       - name: Init WASM submodules
         run: |
+          # Flat submodules — no nested submodules inside
           git submodule update --init --depth=1 \
             external/cglm \
             external/cgltf \
-            external/cimgui \
             external/cJSON
+          # cimgui has a nested submodule (imgui/) — must use --recursive
+          git submodule update --init --recursive --depth=1 \
+            external/cimgui
 
       # ── 3. Install build tools ───────────────────────────────────────────────
       - name: Install LLVM ${{ env.LLVM_VERSION }}, Binaryen, Node.js
