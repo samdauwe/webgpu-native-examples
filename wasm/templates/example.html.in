@@ -23,6 +23,32 @@
   #no-webgpu h2 { color: #e06c75; font-weight: 400; margin: 0; }
   #no-webgpu p  { color: #888; max-width: 40ch; margin: 0; line-height: 1.5; }
   #no-webgpu a  { color: #7ec8e3; }
+  /* Loading indicator — visible until WASM main() starts */
+  #loading {
+    position: fixed; inset: 0;
+    background: #0d0d1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.2rem;
+    z-index: 10;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e0e0e0;
+    transition: opacity 0.4s ease;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  #loading-title { font-size: 1rem; font-weight: 300; color: #7ec8e3; letter-spacing: 0.05em; }
+  #loading-sub   { font-size: 0.8rem; color: #555; }
+  /* CSS spinner */
+  #loading-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #1e2d4a;
+    border-top-color: #7ec8e3;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -33,11 +59,26 @@
      or <a href="https://www.microsoft.com/edge" target="_blank" rel="noopener">Edge 113+</a>.</p>
   <p><a href="index.html">&larr; Back to examples</a></p>
 </div>
+<div id="loading">
+  <div id="loading-spinner"></div>
+  <div id="loading-title">@EXAMPLE_TITLE@</div>
+  <div id="loading-sub">Loading example&hellip;</div>
+</div>
 <canvas id="wa_canvas"></canvas>
 <script>
   // WebGPU support was verified on index page.
-  // Directly initialize WAjic with the canvas.
-  var WA = { canvas: document.getElementById('wa_canvas') };
+  // Set WA.started so the loading overlay is dismissed once WASM starts running.
+  var WA = {
+    canvas: document.getElementById('wa_canvas'),
+    started: function() {
+      var el = document.getElementById('loading');
+      if (el) {
+        el.classList.add('hidden');
+        // Remove from DOM after fade-out to free resources
+        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+      }
+    }
+  };
 </script>
 <script src="wajic.js" data-wasm="@EXAMPLE_NAME@.wasm"></script>
 </body>
