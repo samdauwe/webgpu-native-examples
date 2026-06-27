@@ -35,41 +35,10 @@
 </div>
 <canvas id="wa_canvas"></canvas>
 <script>
-  // Test WebGPU support by attempting to request an adapter
-  (async function() {
-    const noWebGpuDiv = document.getElementById('no-webgpu');
-    const canvas = document.getElementById('wa_canvas');
-    let hasWebGPU = false;
-
-    // Check 1: navigator.gpu exists
-    if (navigator.gpu) {
-      try {
-        // Check 2: Can actually request an adapter (catches mobile restrictions, etc.)
-        const adapter = await navigator.gpu.requestAdapter();
-        if (adapter) {
-          hasWebGPU = true;
-        }
-      } catch (e) {
-        // Adapter request failed (common on mobile or restricted contexts)
-        console.warn('WebGPU adapter request failed:', e.message);
-      }
-    }
-
-    if (!hasWebGPU) {
-      noWebGpuDiv.style.display = 'flex';
-      canvas.style.display = 'none';
-    } else {
-      noWebGpuDiv.style.display = 'none';
-      // Set global WA before loading WAjic
-      window.WA = { canvas: canvas };
-
-      // Dynamically load WAjic script only if WebGPU is supported
-      const script = document.createElement('script');
-      script.src = 'wajic.js';
-      script.setAttribute('data-wasm', '@EXAMPLE_NAME@.wasm');
-      document.body.appendChild(script);
-    }
-  })();
+  // WebGPU support was verified on index page.
+  // Directly initialize WAjic with the canvas.
+  var WA = { canvas: document.getElementById('wa_canvas') };
 </script>
+<script src="wajic.js" data-wasm="@EXAMPLE_NAME@.wasm"></script>
 </body>
 </html>

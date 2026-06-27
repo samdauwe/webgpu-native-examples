@@ -128,22 +128,30 @@
 @EXAMPLE_TILES@</div>
 
 <script>
-  // Test WebGPU support by attempting to request an adapter
+  // Detect WebGPU support with 5-second timeout.
+  // This check runs once on the index page; example pages assume WebGPU is supported.
   (async function() {
     const banner = document.getElementById('no-webgpu-banner');
     let hasWebGPU = false;
 
-    // Check 1: navigator.gpu exists
+    // Timeout promise: reject after 5 seconds
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('WebGPU detection timeout')), 5000)
+    );
+
     if (navigator.gpu) {
       try {
-        // Check 2: Can actually request an adapter (catches mobile restrictions, etc.)
-        const adapter = await navigator.gpu.requestAdapter();
+        // Race: either adapter is acquired or 5-second timeout fires
+        const adapter = await Promise.race([
+          navigator.gpu.requestAdapter(),
+          timeoutPromise
+        ]);
         if (adapter) {
           hasWebGPU = true;
         }
       } catch (e) {
-        // Adapter request failed (common on mobile or restricted contexts)
-        console.warn('WebGPU adapter request failed:', e.message);
+        // Timeout or adapter request failed
+        console.warn('WebGPU detection failed or timed out:', e.message);
       }
     }
 
