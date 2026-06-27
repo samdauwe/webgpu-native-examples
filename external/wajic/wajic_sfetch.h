@@ -186,7 +186,7 @@ WAJIC(void, _wsfetch_js_send,
     var maxRetries = 3;
     var attempt = 0;
     function doFetch() {
-        fetch(urlStr, { cache: 'no-cache' }).then(function(resp) {
+        fetch(urlStr, { cache: 'default' }).then(function(resp) {
             if (!resp.ok) {
                 console.error('[sfetch] HTTP ' + resp.status + ' for ' + urlStr);
                 ASM.WAFNSFetchDone(slot_index, 0, 5 /*INVALID_HTTP_STATUS*/);
@@ -248,7 +248,7 @@ WAJIC(void, _wsfetch_js_send_dynamic,
     var maxRetries = 3;
     var attempt = 0;
     function doFetch() {
-        fetch(urlStr, { cache: 'no-cache' }).then(function(resp) {
+        fetch(urlStr, { cache: 'default' }).then(function(resp) {
             if (!resp.ok) {
                 console.error('[sfetch] HTTP ' + resp.status + ' for ' + urlStr);
                 ASM.WAFNSFetchDoneDynamic(slot_index, 0, 0, 5);
