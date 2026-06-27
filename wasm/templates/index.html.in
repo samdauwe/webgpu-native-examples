@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGPU Examples</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    color: #fff;
+    border-bottom: 2px solid #7ec8e3;
+    padding-bottom: 0.5rem;
+  }
+
+  h1 span {
+    color: #7ec8e3;
+    font-weight: 600;
+  }
+
+  .subtitle {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: #888;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 6px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .tile {
+    display: flex;
+    align-items: flex-end;
+    padding: 0.75rem 0.9rem;
+    min-height: 80px;
+    background: #16213e;
+    border-left: 3px solid #7ec8e3;
+    color: #e0e0e0;
+    text-decoration: none;
+    font-size: 0.88rem;
+    line-height: 1.3;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    user-select: none;
+  }
+
+  .tile:hover {
+    background: #0f3460;
+    border-color: #53c0f0;
+    transform: translateY(-2px);
+    color: #fff;
+  }
+
+  .tile:active {
+    transform: translateY(0);
+    background: #533483;
+    border-color: #a98ee0;
+  }
+
+  /* Accent colour bands cycling every 8 tiles */
+  .tile:nth-child(8n+1)  { border-color: #7ec8e3; }
+  .tile:nth-child(8n+2)  { border-color: #53c0f0; }
+  .tile:nth-child(8n+3)  { border-color: #a98ee0; }
+  .tile:nth-child(8n+4)  { border-color: #e06c75; }
+  .tile:nth-child(8n+5)  { border-color: #98c379; }
+  .tile:nth-child(8n+6)  { border-color: #e5c07b; }
+  .tile:nth-child(8n+7)  { border-color: #56b6c2; }
+  .tile:nth-child(8n+8)  { border-color: #c678dd; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WebGPU <span>Examples</span></h1>
+  <p class="subtitle">C99 WebGPU examples compiled to WebAssembly via WAjic</p>
+</header>
+
+<div class="grid">
+@EXAMPLE_TILES@</div>
+
+</body>
+</html>

@@ -21,6 +21,12 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../external/wajic/cmake/cl
 
 project(webgpu-native-examples-wajic LANGUAGES C CXX)
 
+# Set default build type if not specified by the user or IDE
+# QtCreator and other IDEs rely on CMAKE_BUILD_TYPE to recognize build configurations
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 # Root of the webgpu-native-examples tree
 set(ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
@@ -1201,257 +1207,153 @@ set_property(TARGET compute_shader APPEND_STRING PROPERTY
 # Generate per-example HTML pages + index page for serving from dist/
 # ==============================================================================
 
-# Helper: generate an HTML page for a single example
-function(generate_example_html name)
-    set(HTML_FILE "${CMAKE_CURRENT_BINARY_DIR}/${name}.html")
-    file(WRITE "${HTML_FILE}" "<!DOCTYPE html>
-<html>
-<head>
-<meta charset=\"utf-8\">
-<title>${name} (WAjic WebGPU)</title>
-<style>
-  body { margin: 0; overflow: hidden; background: #000; }
-  canvas { display: block; }
-</style>
-</head>
-<body>
-<canvas id=\"wa_canvas\"></canvas>
-<script>var WA = { canvas: document.getElementById('wa_canvas') };</script>
-<script src=\"wajic.js\" data-wasm=\"${name}.wasm\"></script>
-</body>
-</html>
-")
-    add_custom_command(TARGET ${name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${HTML_FILE}" "${DIST_DIR}/${name}.html"
-        COMMENT "Generating ${name}.html in dist/wasm/"
+# Maps each example slug to its human-readable display title.
+# Format: "slug|Display Title"  (sorted alphabetically by slug)
+set(WASM_EXAMPLE_TITLES
+    "a_buffer|A-Buffer (OIT)"
+    "animometer|Animometer"
+    "aquarium|Aquarium"
+    "blending|Blending"
+    "blinn_phong_lighting|Blinn-Phong Lighting"
+    "bloom|Bloom (Fullscreen Blur)"
+    "cameras|Cameras"
+    "cascaded_shadow_mapping|Cascaded Shadow Mapping"
+    "clear_screen|Clear Screen"
+    "clustered_shading|Clustered Shading"
+    "compute_boids|Compute Boids"
+    "compute_cloth|Compute Cloth"
+    "compute_metaballs|Compute Metaballs"
+    "compute_n_body|Compute N-Body"
+    "compute_particles|Compute Shader Particle System"
+    "compute_particles_easing|Compute Particles Easing"
+    "compute_particles_webgpu_logo|Compute Particles WebGPU Logo"
+    "compute_ray_tracing|Compute Ray Tracing"
+    "compute_shader|Compute Shader Image Processing"
+    "conway|Conway Game of Life"
+    "conway_paletted_blurring|Conway Game of Life (Paletted Blurring)"
+    "coordinate_system|Coordinate System"
+    "cornell_box|Cornell Box (Lightmap Raytracer)"
+    "cube_reflection|Cube Reflection"
+    "cubemap|Cubemap"
+    "deferred_multi_sampling|Deferred Multi-Sampling"
+    "deferred_rendering|Deferred Rendering"
+    "deferred_shading|Deferred Shading"
+    "deferred_shadows|Deferred Shadows"
+    "dynamic_uniform_buffer|Dynamic Uniform Buffer"
+    "equirectangular_image|Equirectangular Image"
+    "fluid_simulation|Fluid Simulation"
+    "game_of_life|Game of Life"
+    "gears|Gears"
+    "gerstner_waves|Gerstner Waves"
+    "gltf_viewer|glTF PBR Viewer"
+    "hello_triangle|Hello Triangle"
+    "image_blur|Image Blur"
+    "imgui_overlay|ImGui Overlay"
+    "input_attachments|Input Attachments"
+    "instanced_cube|Instanced Cube"
+    "instancing|Instanced Mesh Rendering"
+    "metaballs|Metaballs"
+    "minimal|Minimal"
+    "msaa_line|MSAA Line"
+    "multi_sampling|Multisampling (MSAA)"
+    "n_body_simulation|N-Body Simulation"
+    "normal_map|Normal Mapping"
+    "obj_pbr_ibl|OBJ PBR with IBL"
+    "occlusion_query|Occlusion Query"
+    "offscreen|Offscreen Rendering"
+    "oit|Order Independent Transparency"
+    "out_of_bounds_viewport|Out-of-bounds Viewport"
+    "parallax_mapping|Parallax Mapping"
+    "particle_system|CPU Particle System"
+    "pipeline_constants|Pipeline Constants"
+    "pipelines|Pipeline State Objects"
+    "point_light_shadows|Point Light Shadows (Cubemap)"
+    "points|Points"
+    "post_processing|Post-processing"
+    "primitive_picking|Primitive Picking"
+    "pristine_grid|Pristine Grid"
+    "procedural_mesh|Procedural Mesh"
+    "projected_shadow_mapping|Projected Shadow Mapping"
+    "prng|Pseudorandom Number Generation"
+    "quake2_renderer|Quake 2 BSP Renderer"
+    "radial_blur|Radial Blur"
+    "raytracer|GPU Raytracer"
+    "render_bundles|Render Bundles"
+    "reversed_z|Reversed Z"
+    "sampler_parameters|Sampler Parameters"
+    "shadow|Shadow (Depth Array)"
+    "shadow_mapping|Shadow Mapping"
+    "shadertoy|Shadertoy (Seascape)"
+    "skinned_mesh|Skinned Mesh"
+    "spherical_env_mapping|Spherical Environment Mapping"
+    "square|Square"
+    "ssao|Screen Space Ambient Occlusion (SSAO)"
+    "stencil_buffer|Stencil Buffer Outlines"
+    "subpasses|Subpasses (G-Buffer + Transparency)"
+    "terrain_mesh|Terrain Mesh"
+    "terrain_tessellation|Terrain Tessellation"
+    "text_overlay|Text Overlay"
+    "text_rendering_msdf|Text Rendering MSDF"
+    "texture_3d|3D Texture"
+    "texture_array|Texture Array"
+    "texture_cubemap|Texture Cubemap"
+    "texture_cubemap_array|Texture Cubemap Array"
+    "textured_cube|Textured Cube"
+    "textured_quad|Textured Quad"
+    "tile_map|Tile Map"
+    "timestamp_query|Timestamp Query"
+    "triangle|Triangle"
+    "two_cubes|Two Cubes"
+    "vertex_buffer|Vertex Buffer"
+    "volume_rendering_texture_3d|Volume Rendering (3D Texture)"
+    "voxel_space|Voxel Space"
+    "water_simulation|Water Simulation"
+    "wireframe|Wireframe"
+    "wireframe_vertex_pulling|Wireframe Vertex Pulling"
+)
+
+# Helper: generate per-example HTML from a template file.
+# Uses configure_file() so the template lives outside CMakeLists.txt.
+function(generate_example_html entry)
+    string(REPLACE "|" ";" pair "${entry}")
+    list(GET pair 0 EXAMPLE_NAME)
+    list(GET pair 1 EXAMPLE_TITLE)
+    set(HTML_OUT "${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE_NAME}.html")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/templates/example.html.in"
+        "${HTML_OUT}"
+        @ONLY
     )
+    if(TARGET ${EXAMPLE_NAME})
+        add_custom_command(TARGET ${EXAMPLE_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${HTML_OUT}" "${DIST_DIR}/${EXAMPLE_NAME}.html"
+            COMMENT "Copying ${EXAMPLE_NAME}.html to dist/wasm/"
+        )
+    endif()
 endfunction()
 
-generate_example_html(clear_screen)
-generate_example_html(triangle)
-generate_example_html(textured_cube)
-generate_example_html(animometer)
-generate_example_html(gltf_viewer)
-generate_example_html(a_buffer)
-generate_example_html(aquarium)
-generate_example_html(blending)
-generate_example_html(blinn_phong_lighting)
-generate_example_html(bloom)
-generate_example_html(cameras)
-generate_example_html(cascaded_shadow_mapping)
-generate_example_html(clustered_shading)
-generate_example_html(compute_boids)
-generate_example_html(compute_cloth)
-generate_example_html(compute_metaballs)
-generate_example_html(compute_n_body)
-generate_example_html(compute_particles_easing)
-generate_example_html(compute_particles_webgpu_logo)
-generate_example_html(compute_particles)
-generate_example_html(compute_ray_tracing)
-generate_example_html(compute_shader)
-generate_example_html(conway)
-generate_example_html(conway_paletted_blurring)
-generate_example_html(coordinate_system)
-generate_example_html(cornell_box)
-generate_example_html(cube_reflection)
-generate_example_html(cubemap)
-generate_example_html(deferred_multi_sampling)
-generate_example_html(deferred_rendering)
-generate_example_html(deferred_shading)
-generate_example_html(deferred_shadows)
-generate_example_html(dynamic_uniform_buffer)
-generate_example_html(equirectangular_image)
-generate_example_html(fluid_simulation)
-generate_example_html(game_of_life)
-generate_example_html(gears)
-generate_example_html(gerstner_waves)
-generate_example_html(hello_triangle)
-generate_example_html(image_blur)
-generate_example_html(imgui_overlay)
-generate_example_html(input_attachments)
-generate_example_html(instanced_cube)
-generate_example_html(instancing)
-generate_example_html(metaballs)
-generate_example_html(minimal)
-generate_example_html(msaa_line)
-generate_example_html(multi_sampling)
-generate_example_html(n_body_simulation)
-generate_example_html(normal_map)
-generate_example_html(obj_pbr_ibl)
-generate_example_html(occlusion_query)
-generate_example_html(offscreen)
-generate_example_html(oit)
-generate_example_html(out_of_bounds_viewport)
-generate_example_html(parallax_mapping)
-generate_example_html(particle_system)
-generate_example_html(pipeline_constants)
-generate_example_html(pipelines)
-generate_example_html(point_light_shadows)
-generate_example_html(points)
-generate_example_html(post_processing)
-generate_example_html(primitive_picking)
-generate_example_html(pristine_grid)
-generate_example_html(procedural_mesh)
-generate_example_html(prng)
-generate_example_html(projected_shadow_mapping)
-generate_example_html(quake2_renderer)
-generate_example_html(radial_blur)
-generate_example_html(raytracer)
-generate_example_html(render_bundles)
-generate_example_html(reversed_z)
-generate_example_html(sampler_parameters)
-generate_example_html(shadow)
-generate_example_html(shadertoy)
-generate_example_html(shadow_mapping)
-generate_example_html(skinned_mesh)
-generate_example_html(spherical_env_mapping)
-generate_example_html(square)
-generate_example_html(ssao)
-generate_example_html(stencil_buffer)
-generate_example_html(subpasses)
-generate_example_html(terrain_mesh)
-generate_example_html(terrain_tessellation)
-generate_example_html(text_overlay)
-generate_example_html(text_rendering_msdf)
-generate_example_html(texture_3d)
-generate_example_html(texture_array)
-generate_example_html(texture_cubemap)
-generate_example_html(texture_cubemap_array)
-generate_example_html(textured_quad)
-generate_example_html(tile_map)
-generate_example_html(timestamp_query)
-generate_example_html(two_cubes)
-generate_example_html(vertex_buffer)
-generate_example_html(volume_rendering_texture_3d)
-generate_example_html(voxel_space)
-generate_example_html(water_simulation)
-generate_example_html(wireframe)
-generate_example_html(wireframe_vertex_pulling)
+foreach(entry ${WASM_EXAMPLE_TITLES})
+    generate_example_html("${entry}")
+endforeach()
 
-# Index page listing all examples
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/index.html" [=[
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>WebGPU Examples (WAjic)</title>
-<style>
-  body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0;
-         display: flex; flex-direction: column; align-items: center; padding: 2em; }
-  h1 { color: #fff; }
-  a { color: #7ec8e3; text-decoration: none; font-size: 1.2em; padding: 0.4em 0; }
-  a:hover { text-decoration: underline; }
-</style>
-</head>
-<body>
-<h1>WebGPU Examples (WAjic)</h1>
-<a href="clear_screen.html">Clear Screen</a>
-<a href="triangle.html">Triangle</a>
-<a href="textured_cube.html">Textured Cube</a>
-<a href="animometer.html">Animometer</a>
-<a href="gltf_viewer.html">glTF PBR Viewer</a>
-<a href="a_buffer.html">A-Buffer</a>
-<a href="aquarium.html">Aquarium</a>
-<a href="blending.html">Blending</a>
-<a href="blinn_phong_lighting.html">Blinn-Phong Lighting</a>
-<a href="bloom.html">Bloom (Fullscreen Blur)</a>
-<a href="cameras.html">Cameras</a>
-<a href="cascaded_shadow_mapping.html">Cascaded Shadow Mapping</a>
-<a href="clustered_shading.html">Clustered Shading</a>
-<a href="compute_boids.html">Compute Boids</a>
-<a href="compute_cloth.html">Compute Cloth</a>
-<a href="compute_metaballs.html">Compute Metaballs</a>
-<a href="compute_n_body.html">Compute N-Body</a>
-<a href="compute_particles_easing.html">Compute Particles Easing</a>
-<a href="compute_particles_webgpu_logo.html">Compute Particles WebGPU Logo</a>
-<a href="compute_particles.html">Compute Shader Particle System</a>
-<a href="compute_ray_tracing.html">Compute Ray Tracing</a>
-<a href="compute_shader.html">Compute Shader Image Processing</a>
-<a href="conway.html">Conway Game of Life</a>
-<a href="conway_paletted_blurring.html">Conway Game of Life (Paletted Blurring)</a>
-<a href="coordinate_system.html">Coordinate System</a>
-<a href="cornell_box.html">Cornell Box (Lightmap Raytracer)</a>
-<a href="cube_reflection.html">Cube Reflection</a>
-<a href="cubemap.html">Cubemap</a>
-<a href="deferred_multi_sampling.html">Deferred Multi-Sampling</a>
-<a href="deferred_rendering.html">Deferred Rendering</a>
-<a href="deferred_shading.html">Deferred Shading</a>
-<a href="deferred_shadows.html">Deferred Shadows</a>
-<a href="dynamic_uniform_buffer.html">Dynamic Uniform Buffer</a>
-<a href="equirectangular_image.html">Equirectangular Image</a>
-<a href="fluid_simulation.html">Fluid Simulation</a>
-<a href="game_of_life.html">Game of Life</a>
-<a href="gears.html">Gears</a>
-<a href="gerstner_waves.html">Gerstner Waves</a>
-<a href="hello_triangle.html">Hello Triangle</a>
-<a href="image_blur.html">Image Blur</a>
-<a href="imgui_overlay.html">ImGui Overlay</a>
-<a href="input_attachments.html">Input Attachments</a>
-<a href="instanced_cube.html">Instanced Cube</a>
-<a href="instancing.html">Instanced Mesh Rendering</a>
-<a href="metaballs.html">Metaballs</a>
-<a href="minimal.html">Minimal</a>
-<a href="msaa_line.html">MSAA Line</a>
-<a href="multi_sampling.html">Multisampling (MSAA)</a>
-<a href="n_body_simulation.html">N-Body Simulation</a>
-<a href="normal_map.html">Normal Mapping</a>
-<a href="obj_pbr_ibl.html">OBJ PBR with IBL</a>
-<a href="occlusion_query.html">Occlusion Query</a>
-<a href="offscreen.html">Offscreen Rendering</a>
-<a href="oit.html">Order Independent Transparency</a>
-<a href="out_of_bounds_viewport.html">Out-of-bounds Viewport</a>
-<a href="parallax_mapping.html">Parallax Mapping</a>
-<a href="particle_system.html">CPU Particle System</a>
-<a href="pipeline_constants.html">Pipeline Constants</a>
-<a href="pipelines.html">Pipeline State Objects</a>
-<a href="point_light_shadows.html">Point Light Shadows (Cubemap)</a>
-<a href="points.html">Points</a>
-<a href="post_processing.html">Post-processing</a>
-<a href="primitive_picking.html">Primitive Picking</a>
-<a href="pristine_grid.html">Pristine Grid</a>
-<a href="procedural_mesh.html">Procedural Mesh</a>
-<a href="prng.html">Pseudorandom Number Generation</a>
-<a href="projected_shadow_mapping.html">Projected Shadow Mapping</a>
-<a href="quake2_renderer.html">Quake 2 BSP Renderer</a>
-<a href="radial_blur.html">Radial Blur</a>
-<a href="raytracer.html">GPU Raytracer</a>
-<a href="render_bundles.html">Render Bundles</a>
-<a href="reversed_z.html">Reversed Z</a>
-<a href="sampler_parameters.html">Sampler Parameters</a>
-<a href="shadow.html">Shadow (Depth Array)</a>
-<a href="shadow_mapping.html">Shadow Mapping</a>
-<a href="shadertoy.html">Shadertoy (Seascape)</a>
-<a href="skinned_mesh.html">Skinned Mesh</a>
-<a href="spherical_env_mapping.html">Spherical Environment Mapping</a>
-<a href="square.html">Square</a>
-<a href="ssao.html">Screen Space Ambient Occlusion (SSAO)</a>
-<a href="stencil_buffer.html">Stencil Buffer Outlines</a>
-<a href="subpasses.html">Subpasses (G-Buffer + Transparency)</a>
-<a href="terrain_mesh.html">Terrain Mesh</a>
-<a href="terrain_tessellation.html">Terrain Tessellation</a>
-<a href="text_overlay.html">Text Overlay</a>
-<a href="text_rendering_msdf.html">Text Rendering MSDF</a>
-<a href="texture_3d.html">3D Texture</a>
-<a href="texture_array.html">Texture Array</a>
-<a href="texture_cubemap.html">Texture Cubemap</a>
-<a href="texture_cubemap_array.html">Texture Cubemap Array</a>
-<a href="textured_quad.html">Textured Quad</a>
-<a href="tile_map.html">Tile Map</a>
-<a href="timestamp_query.html">Timestamp Query</a>
-<a href="two_cubes.html">Two Cubes</a>
-<a href="vertex_buffer.html">Vertex Buffer</a>
-<a href="volume_rendering_texture_3d.html">Volume Rendering (3D Texture)</a>
-<a href="voxel_space.html">Voxel Space</a>
-<a href="water_simulation.html">Water Simulation</a>
-<a href="wireframe.html">Wireframe</a>
-<a href="wireframe_vertex_pulling.html">Wireframe Vertex Pulling</a>
-</body>
-</html>
-]=])
+# Build the <a> tile list for the index page, then configure the template.
+set(EXAMPLE_TILES "")
+foreach(entry ${WASM_EXAMPLE_TITLES})
+    string(REPLACE "|" ";" pair "${entry}")
+    list(GET pair 0 _slug)
+    list(GET pair 1 _title)
+    string(APPEND EXAMPLE_TILES
+        "  <a class=\"tile\" href=\"${_slug}.html\">${_title}</a>\n")
+endforeach()
 
-# Use a dedicated always-run target so index.html is updated on every build,
-# regardless of whether any particular example was relinked.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/templates/index.html.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/index.html"
+    @ONLY
+)
+
+# Always-run target: copy index.html to dist/wasm/ on every build.
 add_custom_target(copy_index_html ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
