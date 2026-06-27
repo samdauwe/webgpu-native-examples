@@ -1,0 +1,55 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "x64-debug",
+      "displayName": "x86_64 Debug",
+      "description": "Native debug build for x86_64. Output: build/x86_64/debug/",
+      "binaryDir": "${sourceDir}/build/x86_64/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "x64-release",
+      "displayName": "x86_64 Release",
+      "description": "Native optimized build for x86_64. Output: build/x86_64/release/",
+      "binaryDir": "${sourceDir}/build/x86_64/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "x64-relwithdebinfo",
+      "displayName": "x86_64 Release with Debug Info",
+      "description": "Optimized build with debug symbols. Output: build/x86_64/relwithdebinfo/",
+      "binaryDir": "${sourceDir}/build/x86_64/relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "x64-debug",
+      "displayName": "Build x86_64 Debug",
+      "configurePreset": "x64-debug"
+    },
+    {
+      "name": "x64-release",
+      "displayName": "Build x86_64 Release",
+      "configurePreset": "x64-release"
+    },
+    {
+      "name": "x64-relwithdebinfo",
+      "displayName": "Build x86_64 RelWithDebInfo",
+      "configurePreset": "x64-relwithdebinfo"
+    }
+  ]
+}

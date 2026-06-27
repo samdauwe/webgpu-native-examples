@@ -17,8 +17,17 @@ else()
   message(FATAL_ERROR "Unsupported ARCH: ${KERNEL_ARCH}")
 endif()
 
-# Set directory locations (allowing us to move directories easily)
-set(BUILD_DIR ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}${ARCH})
+# Build output directory — executables land directly in the cmake binary dir.
+# Use CMake presets (CMakePresets.json) for the canonical layout:
+#   cmake --preset x64-debug    -> build/x86_64/debug/
+#   cmake --preset x64-release  -> build/x86_64/release/
+set(BUILD_DIR ${CMAKE_BINARY_DIR})
+
+# Deployment directory for distributable artifacts
+set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
+
+# Lowercase build type for dist sub-path
+string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER)
 
 # ==============================================================================
 # Dependencies
@@ -303,13 +312,23 @@ source_group(TREE "${CMAKE_SOURCE_DIR}/src" FILES ${HEADERS} ${SOURCES})
 # Deployment
 # ==============================================================================
 
-# Copy full directories
-macro(copy_resource_dirs dirs)
-    foreach(dir ${dirs})
-        # Replace / at the end of the path (copy dir content VS copy dir)
-        string(REGEX REPLACE "/+$" "" dirclean "${dir}")
-        message(STATUS "Copying resource ${dirclean} to ${BUILD_DIR}")
-        file(COPY ${dirclean} DESTINATION ${BUILD_DIR})
-    endforeach()
-endmacro()
-copy_resource_dirs("${CMAKE_SOURCE_DIR}/assets")
+# Symlink assets/ into the build directory so examples find textures/models
+# without duplicating hundreds of MB of data on every configure.
+if(NOT EXISTS "${BUILD_DIR}/assets")
+    file(CREATE_LINK "${CMAKE_SOURCE_DIR}/assets" "${BUILD_DIR}/assets" SYMBOLIC)
+endif()
+
+# ---------------------------------------------------------------------------
+# dist/ layout
+#   dist/assets/             -> symlink to project assets/
+#   dist/native/x86_64/debug -> symlink to build dir (native executables)
+#   dist/wasm/               <- processed .wasm + HTML files (wasm CMakeLists)
+# ---------------------------------------------------------------------------
+file(MAKE_DIRECTORY "${DIST_DIR}/native/${KERNEL_ARCH}")
+if(NOT EXISTS "${DIST_DIR}/assets")
+    file(CREATE_LINK "${CMAKE_SOURCE_DIR}/assets" "${DIST_DIR}/assets" SYMBOLIC)
+endif()
+if(NOT EXISTS "${DIST_DIR}/native/${KERNEL_ARCH}/${BUILD_TYPE_LOWER}")
+    file(CREATE_LINK "${CMAKE_BINARY_DIR}"
+         "${DIST_DIR}/native/${KERNEL_ARCH}/${BUILD_TYPE_LOWER}" SYMBOLIC)
+endif()

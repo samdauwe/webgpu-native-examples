@@ -34,9 +34,8 @@ CMakeLists.txt.user.*
 *.a
 *.lib
 
-# Build dir
+# Build dirs
 build
-build-wajic
 debug_build
 release_build
 /bin

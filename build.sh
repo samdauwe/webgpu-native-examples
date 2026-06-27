@@ -1,33 +1,29 @@
 #!/usr/bin/env bash
+# build.sh — convenience wrapper around CMake presets.
+#
+# Build layout:
+#   build/x86_64/debug/    <- native debug executables
+#   build/x86_64/release/  <- native release executables
+#   build/wasm/            <- WAjic cmake build directory
+#   dist/assets/           <- symlink to assets/ (no duplication)
+#   dist/native/x86_64/    <- symlink(s) to native build dirs
+#   dist/wasm/             <- deployable .wasm / .html / wajic.js
 
 set -e
-
-BUILD_DIR="$PWD/build"
-BUILD_WAJIC_DIR="$PWD/build-wajic"
 
 DOCKER_DIR="$PWD/docker"
 DOCKER_NAME="docker-webgpu-native-examples:latest"
 
 webgpu_native_examples() {
-    WORKING_DIR=`pwd`
-
-    echo "---------- Building WebGPU Native Examples ----------"
-    mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-    cmake .. -DCMAKE_BUILD_TYPE=Release
-    make all -j8
-
-    cd "$WORKING_DIR"
+    echo "---------- Building WebGPU Native Examples (x86_64 Release) ----------"
+    cmake --preset x64-release
+    cmake --build --preset x64-release
 }
 
 webgpu_wasm_examples() {
-    WORKING_DIR=`pwd`
-
     echo "---------- Building WebAssembly (WAjic) Examples ----------"
-    cmake -B "$BUILD_WAJIC_DIR" -S wajic
-    cmake --build "$BUILD_WAJIC_DIR" -- -j8
-
-    cd "$WORKING_DIR"
+    cmake -S wasm -B build/wasm
+    cmake --build build/wasm -- -j"$(nproc)"
 }
 
 docker_build() {

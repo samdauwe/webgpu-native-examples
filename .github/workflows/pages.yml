@@ -1,0 +1,160 @@
+# .github/workflows/pages.yml
+#
+# Build WebAssembly examples and publish them to GitHub Pages.
+#
+# Trigger: every push to the `master` branch (configurable via PAGES_BRANCH below).
+#
+# Workflow steps:
+#   1. Check out the repository (without submodules — Dawn would add ~3 GB)
+#   2. Check out only the lightweight submodules required for the WASM build
+#   3. Restore the compiled Emscripten system libraries from cache;
+#      if the cache is cold, build them with build_system_libraries.sh
+#   4. Run `cmake -S wasm -B build/wasm && cmake --build build/wasm`
+#   5. Upload dist/wasm/ as a GitHub Pages artifact and deploy
+
+name: Build WebAssembly & Deploy to GitHub Pages
+
+# ─── Triggers ────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: ["master"]   # Change to "main" if your default branch differs
+  workflow_dispatch:       # Allow manual runs from the Actions tab
+
+# Only one concurrent deployment; cancel in-progress runs for the same branch
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
+
+# ─── Permissions ─────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+# ─── Environment ─────────────────────────────────────────────────────────────
+env:
+  # Pinned LLVM version — must match what the local build_system_libraries.sh
+  # uses so the cached system.bc remains valid.
+  LLVM_VERSION: "18"
+
+# ─── Jobs ────────────────────────────────────────────────────────────────────
+jobs:
+  build:
+    name: Build WebAssembly
+    runs-on: ubuntu-24.04
+
+    steps:
+      # ── 1. Checkout (no submodules — Dawn is native-only and is huge) ────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false   # We selectively init only what the WASM build needs
+
+      # ── 2. Init only the lightweight WASM-required submodules ───────────────
+      #    Excluded: external/dawn (native WebGPU — not needed for WASM)
+      #              assets         (models/textures — deployed separately or via symlink)
+      - name: Init WASM submodules
+        run: |
+          git submodule update --init --depth=1 \
+            external/cglm \
+            external/cgltf \
+            external/cimgui \
+            external/cJSON
+
+      # ── 3. Install build tools ───────────────────────────────────────────────
+      - name: Install LLVM ${{ env.LLVM_VERSION }}, Binaryen, Node.js
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang-${{ env.LLVM_VERSION }} \
+            lld-${{ env.LLVM_VERSION }} \
+            binaryen \
+            nodejs \
+            cmake \
+            ninja-build
+
+          # Make the versioned binaries available as plain `clang` / `wasm-ld`
+          sudo update-alternatives --install /usr/bin/clang   clang   /usr/bin/clang-${{ env.LLVM_VERSION }}   100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${{ env.LLVM_VERSION }} 100
+          sudo update-alternatives --install /usr/bin/wasm-ld wasm-ld /usr/bin/wasm-ld-${{ env.LLVM_VERSION }} 100
+
+          # Verify required tools are on PATH
+          clang   --version | head -1
+          wasm-ld --version | head -1
+          wasm-opt --version
+          node    --version
+
+      # ── 4. Cache Emscripten system libraries ─────────────────────────────────
+      #    Cache key includes:
+      #      • LLVM version  (binary format may change)
+      #      • SHA of build_system_libraries.sh  (script logic changes)
+      #      • OS runner  (ensures consistent libc)
+      - name: Restore Emscripten system library cache
+        id: emscripten-cache
+        uses: actions/cache@v4
+        with:
+          path: external/emscripten
+          key: emscripten-syslibs-llvm${{ env.LLVM_VERSION }}-${{ runner.os }}-${{ hashFiles('external/wajic/scripts/build_system_libraries.sh') }}
+
+      # ── 5. Build Emscripten system libs (only on cache miss) ─────────────────
+      - name: Build Emscripten system libraries
+        if: steps.emscripten-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss — building Emscripten system libraries …"
+          bash external/wajic/scripts/build_system_libraries.sh \
+            --llvm-root "$(dirname "$(which clang)")" \
+            --output-dir "$PWD/external/emscripten/system" \
+            --jobs "$(nproc)"
+
+      # ── 6. Verify the system.bc is present ───────────────────────────────────
+      - name: Verify system library
+        run: |
+          test -f external/emscripten/system/system.bc || \
+            { echo "ERROR: system.bc not found"; exit 1; }
+          echo "system.bc OK ($(du -sh external/emscripten/system/system.bc | cut -f1))"
+
+      # ── 7. Configure WebAssembly build ───────────────────────────────────────
+      - name: Configure WASM build
+        run: cmake -S wasm -B build/wasm
+
+      # ── 8. Compile all WASM examples ─────────────────────────────────────────
+      - name: Build WASM examples
+        run: cmake --build build/wasm --parallel "$(nproc)"
+
+      # ── 9. Verify output artifacts ───────────────────────────────────────────
+      - name: Verify dist/wasm output
+        run: |
+          echo "── dist/wasm/ contents ──"
+          ls -lh dist/wasm/*.wasm dist/wasm/index.html dist/wasm/wajic.js 2>/dev/null || true
+          echo "── WASM file count: $(ls dist/wasm/*.wasm 2>/dev/null | wc -l) ──"
+          test -f dist/wasm/index.html || { echo "ERROR: index.html missing"; exit 1; }
+          test -f dist/wasm/wajic.js   || { echo "ERROR: wajic.js missing";   exit 1; }
+
+      # ── 10. Remove the assets symlink before upload ───────────────────────────
+      #    GitHub Pages uploads don't follow local symlinks; the assets/ symlink
+      #    inside dist/wasm/ points to the project assets/ folder which is a
+      #    separate submodule and is not checked out in this workflow.
+      #    Remove the dangling symlink so the upload step doesn't fail.
+      - name: Remove assets symlink from dist/wasm
+        run: rm -f dist/wasm/assets
+
+      # ── 11. Upload as GitHub Pages artifact ──────────────────────────────────
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/wasm
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

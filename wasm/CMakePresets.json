@@ -1,0 +1,21 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "wasm",
+      "displayName": "WebAssembly (WAjic)",
+      "description": "WebAssembly build using WAjic wasm32 toolchain. Output: dist/wasm/",
+      "binaryDir": "${sourceDir}/../build/wasm"
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "wasm",
+      "displayName": "Build WebAssembly",
+      "configurePreset": "wasm"
+    }
+  ]
+}
