@@ -60,11 +60,16 @@
       canvas.style.display = 'none';
     } else {
       noWebGpuDiv.style.display = 'none';
-      var WA = { canvas: canvas };
-      // WAjic script will now load
+      // Set global WA before loading WAjic
+      window.WA = { canvas: canvas };
+
+      // Dynamically load WAjic script only if WebGPU is supported
+      const script = document.createElement('script');
+      script.src = 'wajic.js';
+      script.setAttribute('data-wasm', '@EXAMPLE_NAME@.wasm');
+      document.body.appendChild(script);
     }
   })();
 </script>
-<script src="wajic.js" data-wasm="@EXAMPLE_NAME@.wasm"></script>
 </body>
 </html>
