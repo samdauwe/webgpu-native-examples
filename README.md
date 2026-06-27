@@ -2,7 +2,13 @@
 
 # WebGPU Native Examples and Demos
 
+[![Build WebAssembly & Deploy to GitHub Pages](https://github.com/samdauwe/webgpu-native-examples/actions/workflows/pages.yml/badge.svg)](https://github.com/samdauwe/webgpu-native-examples/actions/workflows/pages.yml)
+&nbsp;
+**[▶ Live WebAssembly demo](https://samdauwe.github.io/webgpu-native-examples/)**
+
 A collection of open-source C99 examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) — Google's cross-platform WebGPU implementation. Each example is a single self-contained C source file and targets both native desktop (Linux) and WebAssembly (via [WAjic](https://github.com/schellingb/wajic)).
+
+> **Browser requirement:** The WebAssembly examples require a browser with WebGPU support (Chrome 113+ or Edge 113+). Firefox and most mobile browsers are not yet supported.
 
 <img src="./doc/images/WebGPU_API.png"/>
 
