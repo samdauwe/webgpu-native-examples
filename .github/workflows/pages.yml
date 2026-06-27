@@ -52,18 +52,19 @@ jobs:
 
       # ── 2. Init only the lightweight WASM-required submodules ───────────────
       #    Excluded: external/dawn (native WebGPU — not needed for WASM)
-      #              assets         (models/textures — deployed separately or via symlink)
       #
       #    cimgui wraps Dear ImGui which lives in a nested submodule (imgui/).
       #    Use --recursive only for cimgui so the nested imgui/ submodule is
       #    checked out too. The other deps are flat (no nested submodules).
+      #    assets/ is also needed for GitHub Pages deployment.
       - name: Init WASM submodules
         run: |
           # Flat submodules — no nested submodules inside
           git submodule update --init --depth=1 \
             external/cglm \
             external/cgltf \
-            external/cJSON
+            external/cJSON \
+            assets
           # cimgui has a nested submodule (imgui/) — must use --recursive
           git submodule update --init --recursive --depth=1 \
             external/cimgui
@@ -145,13 +146,17 @@ jobs:
           test -f dist/wasm/index.html || { echo "ERROR: index.html missing"; exit 1; }
           test -f dist/wasm/wajic.js   || { echo "ERROR: wajic.js missing";   exit 1; }
 
-      # ── 10. Remove the assets symlink before upload ───────────────────────────
-      #    GitHub Pages uploads don't follow local symlinks; the assets/ symlink
-      #    inside dist/wasm/ points to the project assets/ folder which is a
-      #    separate submodule and is not checked out in this workflow.
-      #    Remove the dangling symlink so the upload step doesn't fail.
-      - name: Remove assets symlink from dist/wasm
-        run: rm -f dist/wasm/assets
+      # ── 10. Copy assets for GitHub Pages deployment ──────────────────────────
+      #    The CMake build creates a symlink (dist/wasm/assets → ./assets),
+      #    but GitHub Pages doesn't follow symlinks. Replace it with an actual
+      #    copy of the assets folder so all meshes, textures, etc. are deployed.
+      - name: Deploy assets to dist/wasm
+        run: |
+          # Remove the symlink if it exists
+          rm -f dist/wasm/assets
+          # Copy the actual assets folder
+          cp -r assets dist/wasm/assets
+          echo "Deployed $(find dist/wasm/assets -type f | wc -l) asset files"
 
       # ── 11. Upload as GitHub Pages artifact ──────────────────────────────────
       - name: Upload Pages artifact
