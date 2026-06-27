@@ -2,15 +2,9 @@
 
 # WebGPU Native Examples and Demos
 
-[WebGPU](https://gpuweb.github.io/gpuweb/) is a new graphics and compute API designed by the [“GPU for the Web”](https://www.w3.org/community/gpu/) W3C community group. It aims to provide modern features such as “GPU compute” as well as lower overhead access to GPU hardware and better, more predictable performance. WebGPU should work with existing platform APIs such as Direct3D 12 from Microsoft, Metal from Apple, and Vulkan from the Khronos Group. 
-
-WebGPU is designed for the Web, used by JavaScript and WASM applications, and driven by the shared principles of Web APIs. However, it doesn't have to be only for the Web. Targeting WebGPU on native enables writing extremely portable and fairly performant graphics applications. The WebGPU API is beginner friendly, meaning that the API automates some of the aspects of low-level graphics APIs which have high complexity but low return on investment. It still has the core pieces of the next-gen APIs, such as command buffers, render passes, pipeline states and layouts. Because the complexity is reduced, users will be able to direct more focus towards writing efficient application code.
-
-From the very beginning, Google had both native and in-browser use of their implementation, which is now called [Dawn](https://dawn.googlesource.com/dawn). Mozilla has a shared interest in allowing developers to target a shared “WebGPU on native” target instead of a concrete “Dawn” or “[wgpu-native](https://github.com/gfx-rs/wgpu-native)”. This is achieved, by a [shared header](https://github.com/webgpu-native/webgpu-headers), and C-compatible libraries implementing it. However, this specification is still a moving target.
+A collection of open-source C99 examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) — Google's cross-platform WebGPU implementation. Each example is a single self-contained C source file and targets both native desktop (Linux) and WebAssembly (via [WAjic](https://github.com/schellingb/wajic)).
 
 <img src="./doc/images/WebGPU_API.png"/>
-
-This repository contains a collection of open source C examples for [WebGPU](https://gpuweb.github.io/gpuweb/) using [Dawn](https://dawn.googlesource.com/dawn) the open-source and cross-platform implementation of the work-in-progress [WebGPU](https://gpuweb.github.io/gpuweb/) standard.
 
 [<img src="./screenshots/demo_selection_1.jpg" width="360x"/>](https://youtu.be/64MP1a7qZK0 "WebGPU Native Examples and Demos")
 
@@ -19,6 +13,8 @@ This repository contains a collection of open source C examples for [WebGPU](htt
 + [Supported Platforms](#Supported-Platforms)
 + [Get the Sources](#Get-the-Sources)
 + [Building for native with Dawn](#Building-for-native-with-Dawn)
++ [Building for WebAssembly with WAjic](#Building-for-WebAssembly-with-WAjic)
++ [Building with Docker](#Building-with-Docker)
 + [Running the examples](#Running-the-examples)
 + [Project Layout](#Project-Layout)
 + [Examples](#Examples)
@@ -35,7 +31,6 @@ This repository contains a collection of open source C examples for [WebGPU](htt
 + [Dependencies](#Dependencies)
 + [Credits](#Credits)
 + [References](#References)
-+ [Roadmap](#Roadmap)
 + [License](#License)
 
 ## Supported Platforms
@@ -58,71 +53,185 @@ $ git submodule update --init
 
 ## Building for native with Dawn
 
-The examples are built on top of [Dawn](https://dawn.googlesource.com/dawn), an open-source and cross-platform implementation of the work-in-progress WebGPU standard.
+The examples use [Dawn](https://dawn.googlesource.com/dawn), Google's open-source WebGPU implementation.
 
-### GNU/Linux
+### Prerequisites
 
-Build the examples using the following commands:
-
+**Fedora:**
 ```bash
-$ cmake -B build && cmake --build build -j4
+sudo dnf install cmake ninja-build clang lld \
+  libXi-devel libXcursor-devel libXinerama-devel libXrandr-devel \
+  libxcb-devel libX11-devel libxkbcommon-devel mesa-libGL-devel \
+  vulkan-headers vulkan-loader-devel mesa-vulkan-drivers
 ```
 
-### Docker container
-
-To build and run the examples inside a [Docker](https://www.docker.com/) container, follow the steps as described below.
-
-Build the Docker image:
-
+**Ubuntu/Debian:**
 ```bash
-$ bash ./build.sh -docker_build
+sudo apt install cmake ninja-build clang lld \
+  libxi-dev libxcursor-dev libxinerama-dev libxrandr-dev \
+  libxcb1-dev libx11-dev libxkbcommon-dev libgl-dev \
+  libvulkan-dev mesa-vulkan-drivers
 ```
 
-Run the Docker container:
+### Build
 
 ```bash
-$ bash ./build.sh -docker_run
+# Debug build (default)
+cmake --preset x64-debug
+cmake --build --preset x64-debug
+
+# Release build
+cmake --preset x64-release
+cmake --build --preset x64-release
 ```
 
-Finally, build the samples
+Or without presets:
+```bash
+cmake -B build/x86_64/debug && cmake --build build/x86_64/debug -j$(nproc)
+```
+
+## Building for WebAssembly with WAjic
+
+Selected examples compile to [WebAssembly](https://webassembly.org/) using
+[WAjic](https://github.com/schellingb/wajic) — a lightweight C/C++ → WASM toolchain
+that produces a ~5 KB runtime. The same C99 source files compile for both native and browser targets.
+
+### Prerequisites
+
+**Fedora:**
+```bash
+sudo dnf install clang lld binaryen nodejs python3 python3-cryptography
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install clang lld nodejs python3
+pip install cryptography
+# Install Binaryen >= version_130 from https://github.com/WebAssembly/binaryen/releases
+```
+
+The WAjic runtime and system libraries (musl libc / libcxx) are already included under `external/`.
+
+### Build
 
 ```bash
-$ bash ./build.sh -webgpu_native_examples
+# Configure
+cmake -S wasm -B build/wasm
+
+# Compile
+cmake --build build/wasm --parallel $(nproc)
+```
+
+Or use the preset:
+```bash
+cmake -S wasm --preset wasm && cmake --build --preset wasm
+```
+
+Deployable output (`.wasm`, `.html`, `wajic.js`) lands in `dist/wasm/`.
+
+### Serve locally
+
+WebGPU requires HTTPS. A self-signed dev server is included:
+
+```bash
+python3 wasm/serve.py
+```
+
+Open **https://localhost:8443/** in Chrome 113+ or another WebGPU-capable browser.
+Accept the self-signed certificate warning once.
+
+### Adding more examples
+
+Add one line to `wasm/CMakeLists.txt`:
+
+```cmake
+add_wajic_example(my_example src/examples/my_example.c)
+```
+
+## Building with Docker
+
+The Docker image is based on **Fedora** and includes all tools for both native and WebAssembly builds.
+
+```bash
+# Build the image
+bash ./build.sh -docker_build
+
+# Start a container (mounts the project directory)
+bash ./build.sh -docker_run
+```
+
+Inside the container:
+
+```bash
+# Native build
+bash ./build.sh -webgpu_native_examples
+
+# WebAssembly build
+bash ./build.sh -webgpu_wasm_examples
+```
+
+Deployable WebAssembly output lands in `dist/wasm/`. Serve it with:
+
+```bash
+python3 wasm/serve.py
 ```
 
 ## Running the examples
 
 ### Linux
 
-The build step described in the previous section creates a subfolder "x64" in the build folder. This subfolder contains all libraries and assets needed to run examples. A separate executable is created for each different example.
+After building with the debug preset, executables are in `build/x86_64/debug/`. An `assets/` symlink is created there automatically:
 
 ```bash
-$ ./hello_triangle
+cd build/x86_64/debug
+./triangle
 ```
+
+For the release preset, executables are in `build/x86_64/release/`.
 
 ## Project Layout
 
 ```bash
 ├─ 📂 assets/         # Assets (models, textures, shaders, etc.)
+├─ 📂 build/          # CMake build directories (git-ignored)
+│  ├─ 📁 x86_64/
+│  │  ├─ 📁 debug/    <- native debug executables + assets symlink
+│  │  └─ 📁 release/  <- native release executables + assets symlink
+│  └─ 📁 wasm/        <- WAjic cmake build intermediaries
+├─ 📂 dist/           # Distributable output (git-ignored)
+│  ├─ 🔗 assets/      <- symlink → assets/  (shared, no disk duplication)
+│  ├─ 📂 native/
+│  │  └─ 📂 x86_64/
+│  │     ├─ 🔗 debug/    <- symlink → build/x86_64/debug/
+│  │     └─ 🔗 release/  <- symlink → build/x86_64/release/
+│  └─ 📂 wasm/        <- .wasm + .html + wajic.js + assets symlink
 ├─ 📂 doc/            # Documentation files
 │  └─ 📁 images         # WebGPU diagram, logo
 ├─ 📂 docker/         # Contains the Dockerfile for building Docker image
 ├─ 📂 external/       # Dependencies
 │  ├─ 📁 cglm           # Highly Optimized Graphics Math (glm) for C
-│  ├─ 📁 dawn           # WebGPU implementation
+│  ├─ 📁 dawn           # WebGPU implementation (native)
+│  ├─ 📁 emscripten     # musl libc / libcxx system libraries (WAjic WASM builds)
+│  ├─ 📁 wajic          # WAjic runtime, headers, cmake toolchain
 │  └─ 📁 ...            # Other Dependencies (cgltf, cimgui, stb, etc.)
 ├─ 📂 screenshots/    # Contains screenshots for each functional example
 ├─ 📂 src/            # Helper functions and examples source code
 │  ├─ 📁 core           # Base functions (input, camera, logging, etc.)
-│  ├─ 📁 examples       # Examples source code, each example is located in a single file
-│  ├─ 📁 platforms      # Platform dependent functionality (input handling, window creation, etc.)
-│  ├─ 📁 webgpu         # WebGPU related helper functions (buffers & textures creation, etc.)
-│  └─ 📄 main.c         # Example launcher main source file
+│  ├─ 📁 examples       # Examples source code, each example is a single file
+│  ├─ 📁 platforms      # Platform dependent functionality
+│  └─ 📁 webgpu         # WebGPU related helper functions
+│     ├─ 📄 wgpu_common.c        # Native platform layer (Dawn + GLFW)
+│     └─ 📄 wgpu_common_wajic.c  # WAjic platform layer (browser canvas + events)
+├─ 📂 wasm/           # WAjic WebAssembly build system entry point
+│  ├─ 📄 CMakeLists.txt   # Standalone CMake project for WASM targets
+│  ├─ 📄 CMakePresets.json # wasm build preset (binaryDir: build/wasm/)
+│  └─ 📄 serve.py         # Local HTTPS dev server (serves dist/wasm/)
 ├─ 📄 .clang-format   # Clang-format file for automatically formatting C code
 ├─ 📄 .gitmodules     # Used Git submodules
 ├─ 📄 .gitignore      # Ignore certain files in git repo
-├─ 📄 build.sh        # bash script to automate different aspects of the build process
-├─ 📄 CMakeLists.txt  # CMake build file
+├─ 📄 build.sh        # bash script to automate different aspects of the build
+├─ 📄 CMakeLists.txt  # CMake build file (native / Dawn)
+├─ 📄 CMakePresets.json # Native build presets (x64-debug, x64-release, …)
 ├─ 📄 LICENSE         # Repository License (Apache-2.0 License)
 └─ 📃 README.md       # Read Me!
 ```
