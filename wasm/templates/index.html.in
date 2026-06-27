@@ -128,15 +128,35 @@
 @EXAMPLE_TILES@</div>
 
 <script>
-  if (!navigator.gpu) {
-    document.getElementById('no-webgpu-banner').style.display = 'block';
-    // Make tiles non-interactive so users aren't confused
-    document.querySelectorAll('.tile').forEach(function(t) {
-      t.style.opacity = '0.5';
-      t.style.pointerEvents = 'none';
-      t.removeAttribute('href');
-    });
-  }
+  // Test WebGPU support by attempting to request an adapter
+  (async function() {
+    const banner = document.getElementById('no-webgpu-banner');
+    let hasWebGPU = false;
+
+    // Check 1: navigator.gpu exists
+    if (navigator.gpu) {
+      try {
+        // Check 2: Can actually request an adapter (catches mobile restrictions, etc.)
+        const adapter = await navigator.gpu.requestAdapter();
+        if (adapter) {
+          hasWebGPU = true;
+        }
+      } catch (e) {
+        // Adapter request failed (common on mobile or restricted contexts)
+        console.warn('WebGPU adapter request failed:', e.message);
+      }
+    }
+
+    if (!hasWebGPU) {
+      banner.style.display = 'block';
+      // Make tiles non-interactive so users aren't confused
+      document.querySelectorAll('.tile').forEach(function(t) {
+        t.style.opacity = '0.5';
+        t.style.pointerEvents = 'none';
+        t.removeAttribute('href');
+      });
+    }
+  })();
 </script>
 </body>
 </html>
