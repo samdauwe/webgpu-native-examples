@@ -12,16 +12,16 @@
     background: #1a1a2e;
     color: #e0e0e0;
     min-height: 100vh;
-    padding: 2rem;
+    padding: 1rem 1.25rem 2rem;
   }
 
   header {
     max-width: 1200px;
-    margin: 0 auto 2rem;
+    margin: 0 auto 1.5rem;
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: clamp(1.4rem, 4vw, 2rem);
     font-weight: 300;
     letter-spacing: 0.05em;
     color: #fff;
@@ -40,27 +40,50 @@
     color: #888;
   }
 
+  /* WebGPU not supported banner — hidden by default */
+  #no-webgpu-banner {
+    display: none;
+    max-width: 1200px;
+    margin: 0 auto 1.25rem;
+    padding: 0.75rem 1rem;
+    background: #2d1f1f;
+    border-left: 3px solid #e06c75;
+    border-radius: 2px;
+    font-size: 0.88rem;
+    color: #e0a0a0;
+    line-height: 1.5;
+  }
+  #no-webgpu-banner a { color: #7ec8e3; }
+
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 6px;
     max-width: 1200px;
     margin: 0 auto;
+  }
+
+  /* On small screens (phones) show 2 columns */
+  @media (max-width: 480px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    body  { padding: 0.75rem 0.75rem 2rem; }
   }
 
   .tile {
     display: flex;
     align-items: flex-end;
     padding: 0.75rem 0.9rem;
-    min-height: 80px;
+    min-height: 72px;
     background: #16213e;
     border-left: 3px solid #7ec8e3;
     color: #e0e0e0;
     text-decoration: none;
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     line-height: 1.3;
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
     user-select: none;
+    /* Improve tap target size on touch devices */
+    -webkit-tap-highlight-color: transparent;
   }
 
   .tile:hover {
@@ -94,8 +117,26 @@
   <p class="subtitle">C99 WebGPU examples compiled to WebAssembly via WAjic</p>
 </header>
 
+<div id="no-webgpu-banner">
+  ⚠ Your browser does not support WebGPU. Examples require
+  <a href="https://www.google.com/chrome/" target="_blank" rel="noopener">Chrome 113+</a> or
+  <a href="https://www.microsoft.com/edge" target="_blank" rel="noopener">Edge 113+</a>.
+  Tiles are shown for reference only.
+</div>
+
 <div class="grid">
 @EXAMPLE_TILES@</div>
 
+<script>
+  if (!navigator.gpu) {
+    document.getElementById('no-webgpu-banner').style.display = 'block';
+    // Make tiles non-interactive so users aren't confused
+    document.querySelectorAll('.tile').forEach(function(t) {
+      t.style.opacity = '0.5';
+      t.style.pointerEvents = 'none';
+      t.removeAttribute('href');
+    });
+  }
+</script>
 </body>
 </html>

@@ -1,16 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@EXAMPLE_TITLE@ — WebGPU Examples</title>
 <style>
   body { margin: 0; overflow: hidden; background: #000; }
-  canvas { display: block; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #no-webgpu {
+    display: none;
+    position: fixed; inset: 0;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+    padding: 2rem;
+  }
+  #no-webgpu h2 { color: #e06c75; font-weight: 400; margin: 0; }
+  #no-webgpu p  { color: #888; max-width: 40ch; margin: 0; line-height: 1.5; }
+  #no-webgpu a  { color: #7ec8e3; }
 </style>
 </head>
 <body>
+<div id="no-webgpu">
+  <h2>WebGPU not supported</h2>
+  <p>This example requires a browser with WebGPU support.<br>
+     Try <a href="https://www.google.com/chrome/" target="_blank" rel="noopener">Chrome 113+</a>
+     or <a href="https://www.microsoft.com/edge" target="_blank" rel="noopener">Edge 113+</a>.</p>
+  <p><a href="index.html">&larr; Back to examples</a></p>
+</div>
 <canvas id="wa_canvas"></canvas>
-<script>var WA = { canvas: document.getElementById('wa_canvas') };</script>
+<script>
+  if (!navigator.gpu) {
+    document.getElementById('no-webgpu').style.display = 'flex';
+    document.getElementById('wa_canvas').style.display = 'none';
+  } else {
+    var WA = { canvas: document.getElementById('wa_canvas') };
+  }
+</script>
 <script src="wajic.js" data-wasm="@EXAMPLE_NAME@.wasm"></script>
 </body>
 </html>
