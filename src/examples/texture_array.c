@@ -577,7 +577,7 @@ static void init_pipeline(struct wgpu_context_t* wgpu_context)
   state.pipeline = wgpuDeviceCreateRenderPipeline(
     device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Texture array render pipeline"),
+      .label  = STRVIEW("Texture array - Render pipeline"),
       .layout = state.pipeline_layout,
       .vertex = (WGPUVertexState){
         .module      = shader,
