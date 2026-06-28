@@ -683,7 +683,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
   /* Create sampler */
   state.text_renderer.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("MSDF text sampler"),
+                            .label         = STRVIEW("MSDF text - Sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
@@ -1037,7 +1037,7 @@ static void font_json_fetch_callback(const sfetch_response_t* response)
       .path     = texture_path,
       .callback = font_texture_fetch_callback,
 #ifndef __WAJIC__
-      .buffer   = SFETCH_RANGE(state.font_texture_buffer),
+      .buffer = SFETCH_RANGE(state.font_texture_buffer),
 #endif
     });
   }
@@ -1058,7 +1058,7 @@ static void init_font(wgpu_context_t* wgpu_context)
     .path     = "assets/font/ya-hei-ascii-msdf.json",
     .callback = font_json_fetch_callback,
 #ifndef __WAJIC__
-    .buffer   = SFETCH_RANGE(state.font_json_buffer),
+    .buffer = SFETCH_RANGE(state.font_json_buffer),
 #endif
   });
 }
