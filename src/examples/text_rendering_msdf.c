@@ -697,7 +697,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
   state.text_renderer.camera_uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("MSDF camera uniform buffer"),
+      .label = STRVIEW("MSDF camera - Uniform buffer"),
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size  = sizeof(state.text_renderer.camera_array),
     });
