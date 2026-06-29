@@ -919,9 +919,10 @@ static void create_render_pipelines(wgpu_context_t* wgpu_context);
 static void create_bind_groups(wgpu_context_t* wgpu_context);
 
 /* ── WAjic: fetch buffer sizes ───────────────────────────────────────────── */
-#define RAYTRACER_OBJ_BUFFER_SIZE (2 * 1024 * 1024) /* 2 MB – OBJ is ~1.4 MB \
-                                                     */
-#define RAYTRACER_MTL_BUFFER_SIZE (8 * 1024)        /* 8 KB  – MTL is ~1.5 KB */
+#define RAYTRACER_OBJ_BUFFER_SIZE                                              \
+  (2 * 1024 * 1024)                          /* 2 MB – OBJ is ~1.4 MB        \
+                                              */
+#define RAYTRACER_MTL_BUFFER_SIZE (8 * 1024) /* 8 KB  – MTL is ~1.5 KB */
 
 /* Initialize scene */
 static void scene_init(scene_t* scene, WGPUDevice device)
@@ -2493,6 +2494,13 @@ static void update_uniforms(wgpu_context_t* wgpu_context)
 /* Initialize */
 static int init(struct wgpu_context_t* wgpu_context)
 {
+  /* Unused functions */
+  UNUSED_FUNCTION(raytracer_camera_set_target);
+  UNUSED_FUNCTION(raytracer_camera_set_position);
+  UNUSED_FUNCTION(raytracer_camera_set_distance);
+  UNUSED_FUNCTION(raytracer_camera_get_distance);
+  UNUSED_FUNCTION(raytracer_camera_set_constraints);
+
   /* Initialize sokol time */
   stm_setup();
 
