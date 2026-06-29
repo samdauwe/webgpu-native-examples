@@ -457,7 +457,7 @@ static void init_depth_stencil(wgpu_context_t* wgpu_context)
   ASSERT(wgpu_context->depth_stencil_tex != NULL);
 
   WGPUTextureViewDescriptor view_desc = {
-    .label           = STRVIEW("Depth stencil texture view"),
+    .label           = STRVIEW("Depth stencil - Texture view"),
     .dimension       = WGPUTextureViewDimension_2D,
     .format          = texture_desc.format,
     .baseMipLevel    = 0,
