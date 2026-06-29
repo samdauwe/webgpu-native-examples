@@ -440,7 +440,7 @@ static void ensure_enough_asteroids(wgpu_context_t* wgpu_context)
 static void init_depth_stencil(wgpu_context_t* wgpu_context)
 {
   WGPUTextureDescriptor texture_desc = {
-    .label         = STRVIEW("Depth stencil texture"),
+    .label         = STRVIEW("Depth stencil - Texture"),
     .size          = (WGPUExtent3D){
        .width              = wgpu_context->width,
        .height             = wgpu_context->height,
