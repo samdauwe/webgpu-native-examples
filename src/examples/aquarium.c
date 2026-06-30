@@ -68,7 +68,8 @@
 #define FISH_SPECIES_COUNT (5u)
 
 /* Asset loading constants */
-#define MAX_MODELS_PER_SCENE 4
+#define MAX_MODELS_PER_SCENE                                                   \
+  8 /* EnvironmentBox has 6 models (floor+4 sides+ceiling) */
 #define MAX_PROP_PLACEMENTS 200
 #define MAX_VERTICES 65536
 #define MAX_INDICES 65536
