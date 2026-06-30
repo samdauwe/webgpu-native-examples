@@ -1070,16 +1070,8 @@ static void fish_school_update_counts(fish_school_t* this, int total_fish)
   for (uint32_t i = 0; i < FISH_SPECIES_COUNT; ++i) {
     const char* name = fish_species[i].name;
     if (strncmp(name, "Big", 3) == 0) {
-      int cap = remaining;
-      if (total_fish < 100) {
-        cap = 1;
-      }
-      else if (total_fish < 1000) {
-        cap = 2;
-      }
-      else {
-        cap = 4;
-      }
+      /* WebGL reference: totalFish < 100 ? 1 : 2 per big fish species */
+      int cap     = (total_fish < 100) ? 1 : 2;
       int desired = remaining < cap ? remaining : cap;
       if (remaining <= 0) {
         desired = 0;
