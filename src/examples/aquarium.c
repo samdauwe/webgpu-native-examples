@@ -1422,7 +1422,7 @@ create_diffuse_pipeline(WGPUDevice device, diffuse_pipeline_desc_t* desc)
     pipeline_layout = wgpuDeviceCreatePipelineLayout(
       device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = STRVIEW("Diffuse Pipeline Layout"),
+        .label                = STRVIEW("Diffuse - Pipeline Layout"),
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
         .bindGroupLayouts     = bind_groups_layouts,
       });
