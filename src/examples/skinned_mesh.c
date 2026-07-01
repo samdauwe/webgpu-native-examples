@@ -808,7 +808,7 @@ static void parse_gltf_meshes(wgpu_context_t* wgpu_context, gltf_scene_t* scene,
       prim->vertex_buffer = wgpu_create_buffer(
         wgpu_context,
         &(wgpu_buffer_desc_t){
-          .label        = "GLTF vertex buffer",
+          .label        = "GLTF - vertex buffer",
           .usage        = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
           .size         = prim->vertex_count * sizeof(gltf_vertex_t),
           .initial.data = vertices,
