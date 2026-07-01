@@ -32,9 +32,9 @@ static const char* shadow_shader_wgsl;
  * Shadow Mapping Example
  * -------------------------------------------------------------------------- */
 
-#define MAX_LIGHTS 10
-#define SHADOW_SIZE 512
-#define NUM_CUBES 4
+#define MAX_LIGHTS (10)
+#define SHADOW_SIZE (512)
+#define NUM_CUBES (4)
 
 /* Vertex structure */
 typedef struct {
