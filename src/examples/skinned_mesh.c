@@ -685,7 +685,7 @@ static void parse_gltf_skins(wgpu_context_t* wgpu_context, gltf_scene_t* scene,
     skin->joint_matrices_buffer = wgpuDeviceCreateBuffer(
       wgpu_context->device,
       &(WGPUBufferDescriptor){
-        .label            = STRVIEW("Joint matrices buffer"),
+        .label            = STRVIEW("Joint matrices - Storage buffer"),
         .usage            = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size             = skin->joint_count * sizeof(mat4),
         .mappedAtCreation = false,
