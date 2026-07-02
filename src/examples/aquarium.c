@@ -1526,7 +1526,7 @@ static fish_pipeline_result_t create_fish_pipeline(WGPUDevice device,
     pipeline_layout = wgpuDeviceCreatePipelineLayout(
       device,
       &(WGPUPipelineLayoutDescriptor){
-        .label                = STRVIEW("Fish Pipeline Layout"),
+        .label                = STRVIEW("Fish - Pipeline Layout"),
         .bindGroupLayoutCount = (uint32_t)ARRAY_SIZE(bind_groups_layouts),
         .bindGroupLayouts     = bind_groups_layouts,
       });
