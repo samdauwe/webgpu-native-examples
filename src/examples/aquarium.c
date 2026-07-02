@@ -5819,8 +5819,10 @@ static void wajic_texture_fetch_callback(const sfetch_response_t* response)
   }
 
   int w = 0, h = 0, c = 0;
+  image_set_flip_vertically_on_load(true);
   uint8_t* pixels = image_pixels_from_memory(
     response->data.ptr, (int)response->data.size, &w, &h, &c, 4);
+  image_set_flip_vertically_on_load(false);
 
   /* Free the JS-allocated fetch buffer */
   free((void*)response->data.ptr);
