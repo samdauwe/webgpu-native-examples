@@ -1537,7 +1537,7 @@ static fish_pipeline_result_t create_fish_pipeline(WGPUDevice device,
   WGPURenderPipeline pipeline;
   {
     WGPURenderPipelineDescriptor rp_desc = {
-      .label  = STRVIEW("Fish Pipeline"),
+      .label  = STRVIEW("Fish - Render Pipeline"),
       .layout = pipeline_layout,
       .vertex = {
         .module      = shader_module,
