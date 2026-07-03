@@ -706,7 +706,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
   state.text_renderer.font_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = STRVIEW("MSDF font group layout"),
+      .label      = STRVIEW("MSDF - Font group layout"),
       .entryCount = 3,
       .entries = (WGPUBindGroupLayoutEntry[]){
         {
