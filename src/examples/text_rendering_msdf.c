@@ -740,7 +740,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
   state.text_renderer.text_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = STRVIEW("MSDF text group layout"),
+      .label      = STRVIEW("MSDF text - Bind group layout"),
       .entryCount = 2,
       .entries = (WGPUBindGroupLayoutEntry[]){
         {
