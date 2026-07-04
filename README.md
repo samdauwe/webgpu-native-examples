@@ -755,6 +755,10 @@ Real-time metaball rendering using marching cubes on the CPU, with tri-planar te
 
 WebGPU demo featuring an implementation of Jos Stam's ["Real-Time Fluid Dynamics for Games" paper](https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf). This example has been ported from [this JavaScript implementation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation) to native code.
 
+#### [Fur Rendering](src/examples/fur.c)
+
+Demonstrates GPU-accelerated fur/grass rendering using the "shell fur" technique. The model geometry is rendered in multiple instanced passes, each displacing vertices outward along the surface normals by an increasing amount, creating layered fur shells. A sinusoidal wave animation driven by time and per-vertex random coefficients simulates wind-blown movement. Five fur presets are provided (Leopard, Cow, Chick, Timber Wolf, Moss) with interactive controls for layer count and thickness. Ported from the [WebGL 2 Fur demo](https://github.com/keaukraine/webgl-fur).
+
 #### [Vertex Buffer](src/examples/vertex_buffer.c)
 
 This example shows how to map a GPU buffer and use the function wgpuBufferGetMappedRange. This example is based on the [vertex_buffer](https://github.com/juj/wasm_webgpu/blob/main/samples/vertex_buffer/vertex_buffer.c) test case.
