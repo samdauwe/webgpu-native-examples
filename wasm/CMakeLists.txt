@@ -523,6 +523,15 @@ add_wajic_example(fluid_simulation src/examples/fluid_simulation.c
     USE_CIMGUI
 )
 
+add_wajic_example(fur src/examples/fur.c
+    USE_CIMGUI
+    EXTRA_SOURCES
+        src/core/image_loader.c
+    EXTRA_INCLUDES
+        external/sokol
+        external/stb
+)
+
 add_wajic_example(game_of_life src/examples/game_of_life.c
     USE_CIMGUI
 )
@@ -1242,6 +1251,7 @@ set(WASM_EXAMPLE_TITLES
     "dynamic_uniform_buffer|Dynamic Uniform Buffer"
     "equirectangular_image|Equirectangular Image"
     "fluid_simulation|Fluid Simulation"
+    "fur|Fur Rendering"
     "game_of_life|Game of Life"
     "gears|Gears"
     "gerstner_waves|Gerstner Waves"
