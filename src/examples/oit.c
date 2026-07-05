@@ -658,7 +658,7 @@ static void init_geometry_pass_resources(struct wgpu_context_t* wgpu_context)
       = (uint64_t)state.geometry_pass.max_node_count * NODE_STRIDE;
     state.geometry_pass.linked_list = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Linked List Buffer"),
+                .label = STRVIEW("Linked List - Storage buffer"),
                 .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
                 .size  = buf_size,
               });
