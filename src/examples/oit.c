@@ -630,7 +630,7 @@ static void init_geometry_pass_resources(struct wgpu_context_t* wgpu_context)
     uint32_t init_data[2]            = {0, state.geometry_pass.max_node_count};
     state.geometry_pass.geometry_sbo = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("GeometrySBO"),
+                .label = STRVIEW("Geometry - Storage buffer"),
                 .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
                 .size  = sizeof(init_data),
                 .mappedAtCreation = true,
