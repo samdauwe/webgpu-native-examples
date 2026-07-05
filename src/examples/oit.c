@@ -646,7 +646,7 @@ static void init_geometry_pass_resources(struct wgpu_context_t* wgpu_context)
     uint32_t buf_size                  = w * h * sizeof(uint32_t);
     state.geometry_pass.head_index_buf = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Head Index Buffer"),
+                .label = STRVIEW("Head Index - Storage buffer"),
                 .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
                 .size  = buf_size,
               });
