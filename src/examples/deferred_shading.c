@@ -270,7 +270,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   /* Albedo: RGBA8Unorm (RGB = diffuse color, A = specular intensity) */
   {
     WGPUTextureDescriptor desc = {
-      .label = STRVIEW("GBuffer Albedo"),
+      .label = STRVIEW("GBuffer - Albedo"),
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension     = WGPUTextureDimension_2D,
