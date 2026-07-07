@@ -751,6 +751,10 @@ WebGPU demo featuring marching cubes and bloom post-processing via compute shade
 
 Real-time metaball rendering using marching cubes on the CPU, with tri-planar texture mapping on the GPU. Animated blobs that merge and split are rendered with selectable textures (lava, slime, water) inside a point-lit dungeon environment loaded from glTF, with instanced light sprites and an interactive orbit camera. This example has been ported from [this JavaScript implementation](https://github.com/toji/webgpu-metaballs) to native code.
 
+#### [Dunes Rendering](src/examples/dunes.c)
+
+Demonstrates a procedurally animated desert dunes scene using the WebGPU graphics API. Features multi-textured terrain with slope-based shading and wind-driven sand animation, palm trees with alpha-tested transparency, two animated birds with morph-target frame interpolation, a dust particle system with soft-edge depth compositing, a sky sphere, and an additive-blended sun flare. Four time-of-day presets are provided (Night, Day, Sunset, Sunrise) with automatic camera rotation or random viewpoint cycling modes. Ported from the [WebGL Dunes demo](https://github.com/keaukraine/webgl-dunes).
+
 #### [Fluid Simulation](src/examples/fluid_simulation.c)
 
 WebGPU demo featuring an implementation of Jos Stam's ["Real-Time Fluid Dynamics for Games" paper](https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf). This example has been ported from [this JavaScript implementation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation) to native code.

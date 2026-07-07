@@ -506,6 +506,18 @@ set_property(TARGET deferred_shadows APPEND_STRING PROPERTY
 
 add_wajic_example(dynamic_uniform_buffer src/examples/dynamic_uniform_buffer.c)
 
+add_wajic_example(dunes src/examples/dunes.c
+    USE_CIMGUI
+    EXTRA_SOURCES
+        src/core/image_loader.c
+    EXTRA_INCLUDES
+        external/sokol
+        external/stb
+)
+set_property(TARGET dunes APPEND_STRING PROPERTY
+    LINK_FLAGS " -Xlinker --initial-memory=67108864"
+)
+
 # equirectangular_image decodes a 5 MB JPEG into RGBA pixels.  Reserve 16 MB
 # of initial WASM memory so the malloc'd file buffer + decoded pixels fit.
 add_wajic_example(equirectangular_image src/examples/equirectangular_image.c
@@ -1249,6 +1261,7 @@ set(WASM_EXAMPLE_TITLES
     "deferred_shading|Deferred Shading"
     "deferred_shadows|Deferred Shadows"
     "dynamic_uniform_buffer|Dynamic Uniform Buffer"
+    "dunes|Dunes Rendering"
     "equirectangular_image|Equirectangular Image"
     "fluid_simulation|Fluid Simulation"
     "fur|Fur Rendering"
