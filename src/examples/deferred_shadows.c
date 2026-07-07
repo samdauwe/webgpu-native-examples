@@ -287,7 +287,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   /* Normal: RGBA16Float */
   {
     WGPUTextureDescriptor desc = {
-      .label = STRVIEW("GBuffer Normal"),
+      .label = STRVIEW("GBuffer Normal - Texture"),
       .usage
       = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
       .dimension     = WGPUTextureDimension_2D,
