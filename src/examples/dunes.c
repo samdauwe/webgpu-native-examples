@@ -2585,7 +2585,7 @@ static const char* dunes_terrain_shader_wgsl = CODE(
     let lightmap = mix(tex_data.r, tex_data.g, u.lightmap_select);
     col *= mix(u.shadow_color, vec4f(1.0, 1.0, 1.0, 1.0), lightmap);
     col  = mix(col, u.fog_color, in.fog_amount);
-    return col;
+    return vec4f(col.rgb, 1.0); /* force alpha=1 to avoid compositor darkening */
   }
 );
 
@@ -2615,7 +2615,7 @@ static const char* dunes_diffuse_shader_wgsl = CODE(
   fn vertexMain(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.position = u.view_proj_matrix * vec4f(in.position, 1.0);
-    out.uv       = vec2f(in.uv.x, 1.0 - in.uv.y);
+    out.uv       = in.uv;
     return out;
   }
 
@@ -2653,7 +2653,7 @@ static const char* dunes_diffuse_colored_shader_wgsl = CODE(
   fn vertexMain(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.position = u.view_proj_matrix * vec4f(in.position, 1.0);
-    out.uv       = vec2f(in.uv.x, 1.0 - in.uv.y);
+    out.uv       = in.uv;
     return out;
   }
 
@@ -2691,7 +2691,7 @@ static const char* dunes_diffuse_alpha_shader_wgsl = CODE(
   fn vertexMain(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.position = u.view_proj_matrix * vec4f(in.position, 1.0);
-    out.uv       = vec2f(in.uv.x, 1.0 - in.uv.y);
+    out.uv       = in.uv;
     return out;
   }
 
@@ -2742,7 +2742,7 @@ static const char* dunes_animated_colored_shader_wgsl = CODE(
     var out: VertexOutput;
     let pos      = mix(in.pos1, in.pos2, u.morph);
     out.position = u.view_proj_matrix * vec4f(pos, 1.0);
-    out.uv       = vec2f(in.uv.x, 1.0 - in.uv.y);
+    out.uv       = in.uv;
     return out;
   }
 
@@ -2797,7 +2797,7 @@ static const char* dunes_soft_particle_shader_wgsl = CODE(
   fn vertexMain(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.position = u.view_proj_matrix * vec4f(in.position, 1.0);
-    out.uv       = vec2f(in.uv.x, 1.0 - in.uv.y);
+    out.uv       = in.uv;
     return out;
   }
 
