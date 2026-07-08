@@ -2167,9 +2167,8 @@ static void render_gui(void)
 static int init(wgpu_context_t* wgpu_context)
 {
   state.wgpu_context   = wgpu_context;
-  state.current_preset = 1;                     /* Start with Day */
-  state.camera_mode    = DUNES_CAMERA_ROTATING; /* Rotating gives consistent
-                                                   terrain view on startup */
+  state.current_preset = 1;                /* Start with Day */
+  state.camera_mode = DUNES_CAMERA_RANDOM; /* Random terrain view on startup */
 
 #ifndef __WAJIC__
   sfetch_setup(&(sfetch_desc_t){
