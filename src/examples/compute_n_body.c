@@ -708,7 +708,7 @@ static void init_compute_pipelines(wgpu_context_t* wgpu_context)
   state.compute.pipeline_integrate = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = STRVIEW("N-body integrate pipeline"),
+      .label   = STRVIEW("N-body integrate - Compute pipeline"),
       .layout  = state.compute.pipeline_layout,
       .compute = {
         .module     = integ_module,
