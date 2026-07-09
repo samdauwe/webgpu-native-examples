@@ -691,7 +691,7 @@ static void init_compute_pipelines(wgpu_context_t* wgpu_context)
   state.compute.pipeline_calculate = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = STRVIEW("N-body calculate pipeline"),
+      .label   = STRVIEW("N-body calculate - Compute pipeline"),
       .layout  = state.compute.pipeline_layout,
       .compute = {
         .module     = calc_module,
