@@ -322,7 +322,7 @@ static void create_model_buffers(wgpu_context_t* wgpu_context)
       = state.models.rock.vertex_count * (uint32_t)sizeof(gltf_vertex_t);
     state.model_buffers.rock.vertex = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Rock vertex buffer"),
+                .label = STRVIEW("Rock - Vertex buffer"),
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                 .size  = vb_size,
                 .mappedAtCreation = false,
