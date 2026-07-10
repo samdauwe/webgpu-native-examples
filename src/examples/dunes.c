@@ -2170,14 +2170,14 @@ static int init(wgpu_context_t* wgpu_context)
   state.current_preset = 1;                /* Start with Day */
   state.camera_mode = DUNES_CAMERA_RANDOM; /* Random terrain view on startup */
 
-#ifndef __WAJIC__
   sfetch_setup(&(sfetch_desc_t){
     .max_requests = 24,
     .num_channels = 4,
     .num_lanes    = 4,
-    .logger.func  = slog_func,
-  });
+#ifndef __WAJIC__
+    .logger.func = slog_func,
 #endif
+  });
 
   stm_setup();
   srand(42);
@@ -2292,9 +2292,7 @@ static int init(wgpu_context_t* wgpu_context)
 
 static int frame(wgpu_context_t* wgpu_context)
 {
-#ifndef __WAJIC__
   sfetch_dowork();
-#endif
 
   /* Upload any pending fetched data */
   upload_pending_textures(wgpu_context);
@@ -2394,9 +2392,7 @@ static void shutdown(wgpu_context_t* wgpu_context)
 
   imgui_overlay_shutdown();
 
-#ifndef __WAJIC__
   sfetch_shutdown();
-#endif
 
   /* Models */
   dunes_model_t* models[]
