@@ -789,7 +789,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
   state.text_renderer.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("MSDF text pipeline"),
+      .label  = STRVIEW("MSDF text - Rznder pipeline"),
       .layout = pipeline_layout,
       .vertex = {
         .module     = shader_module,
