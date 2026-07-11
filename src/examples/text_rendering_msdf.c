@@ -878,7 +878,7 @@ static void init_font_bind_group(wgpu_context_t* wgpu_context)
   state.font.font.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("MSDF font bind group"),
+      .label      = STRVIEW("MSDF font - Bind group"),
       .layout     = state.text_renderer.font_bind_group_layout,
       .entryCount = 3,
       .entries = (WGPUBindGroupEntry[]){
