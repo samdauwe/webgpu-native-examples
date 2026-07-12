@@ -640,7 +640,7 @@ static void init_textures(struct wgpu_context_t* wgpu_context)
   }
 
   WGPUSamplerDescriptor desc = {
-    .label         = STRVIEW("Model Texture Sampler"),
+    .label         = STRVIEW("Model Texture - Sampler"),
     .addressModeU  = WGPUAddressMode_Repeat,
     .addressModeV  = WGPUAddressMode_Repeat,
     .addressModeW  = WGPUAddressMode_Repeat,
