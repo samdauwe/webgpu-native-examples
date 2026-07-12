@@ -385,7 +385,7 @@ static void init_render_passes(void)
         .stencilClearValue = 0,
       };
     state.offscreen_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                  = STRVIEW("G-Buffer MSAA Render Pass"),
+      .label                  = STRVIEW("G-Buffer MSAA - Render Pass"),
       .colorAttachmentCount   = 3,
       .colorAttachments       = state.offscreen_pass.color_attachments,
       .depthStencilAttachment = &state.offscreen_pass.depth_stencil_attachment,
