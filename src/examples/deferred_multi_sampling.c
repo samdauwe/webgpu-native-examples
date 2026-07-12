@@ -412,7 +412,7 @@ static void init_render_passes(void)
         .stencilClearValue = 0,
       };
     state.composition_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                = STRVIEW("Composition Render Pass"),
+      .label                = STRVIEW("Composition - Render Pass"),
       .colorAttachmentCount = 1,
       .colorAttachments     = &state.composition_pass.color_attachment,
       .depthStencilAttachment
