@@ -895,6 +895,18 @@ add_wajic_example(reversed_z src/examples/reversed_z.c
         external/sokol
 )
 
+add_wajic_example(rock_pillars src/examples/rock_pillars.c
+    USE_CIMGUI
+    EXTRA_SOURCES
+        src/core/image_loader.c
+    EXTRA_INCLUDES
+        external/sokol
+        external/stb
+)
+set_property(TARGET rock_pillars APPEND_STRING PROPERTY
+    LINK_FLAGS " -Xlinker --initial-memory=67108864"
+)
+
 add_wajic_example(sampler_parameters src/examples/sampler_parameters.c
     USE_CIMGUI
     EXTRA_INCLUDES
@@ -1303,6 +1315,7 @@ set(WASM_EXAMPLE_TITLES
     "raytracer|GPU Raytracer"
     "render_bundles|Render Bundles"
     "reversed_z|Reversed Z"
+    "rock_pillars|Floating Rock Pillars"
     "sampler_parameters|Sampler Parameters"
     "shadow|Shadow (Depth Array)"
     "shadow_mapping|Shadow Mapping"
