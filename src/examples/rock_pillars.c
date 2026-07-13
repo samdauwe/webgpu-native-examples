@@ -342,6 +342,7 @@ typedef struct {
   bool initialized;
   bool cubemap_loading; /* currently loading cubemap faces */
   int pending_preset;   /* preset to switch to (-1 = no change) */
+  uint64_t last_time;   /* for delta-time computation */
 } rp_state_t;
 
 static rp_state_t state;
@@ -1426,9 +1427,31 @@ static void rp_init_pipelines(wgpu_context_t* ctx)
         .multisample  = {.count = 1, .mask = 0xFFFFFFFF}});
     ASSERT(state.fern_pipeline);
 
-    /* Trees use same pipeline but different bind group (different texture) */
-    state.trees_pipeline = state.fern_pipeline;
-    wgpuRenderPipelineAddRef(state.trees_pipeline);
+    /* Trees use same pipeline config as fern (alpha-tested instanced,
+     * but bound with the pine_leaves texture via a different bind group). */
+    state.trees_pipeline = wgpuDeviceCreateRenderPipeline(
+      d,
+      &(WGPURenderPipelineDescriptor){
+        .label    = STRVIEW("RP Trees pipeline"),
+        .layout   = state.pl_fern,
+        .vertex   = {.module      = sm,
+                     .entryPoint  = STRVIEW("vertexMain"),
+                     .bufferCount = 2,
+                     .buffers     = vbls},
+        .fragment = &(
+          WGPUFragmentState){.module      = sm,
+                             .entryPoint  = STRVIEW("fragmentMain"),
+                             .targetCount = 1,
+                             .targets     = &(
+                               WGPUColorTargetState){.format = fmt,
+                                                         .writeMask
+                                                         = WGPUColorWriteMask_All}},
+        .primitive    = {.topology  = WGPUPrimitiveTopology_TriangleList,
+                         .cullMode  = WGPUCullMode_None,
+                         .frontFace = WGPUFrontFace_CCW},
+        .depthStencil = &ds_write,
+        .multisample  = {.count = 1, .mask = 0xFFFFFFFF}});
+    ASSERT(state.trees_pipeline);
 
     wgpuShaderModuleRelease(sm);
   }
@@ -1676,8 +1699,10 @@ static void rp_precompute_ubos(wgpu_context_t* ctx, const mat4 view_proj,
   mat4 proj_only;
   glm_mat4_identity(proj_only);
   glm_perspective(glm_rad(RP_FOV_DEG), ratio_s, RP_Z_NEAR, RP_Z_FAR, proj_only);
-  proj_only[2][2] = 0.5f * proj_only[2][2] + 0.5f * proj_only[3][2];
-  proj_only[3][2] = 0.5f * proj_only[3][2];
+  /* OpenGL [-1,1] → WebGPU [0,1]: new[2][2] = old[2][2]*0.5 + old[2][3]*0.5
+   * where old[2][3] = -1 always → new[2][2] = old[2][2]*0.5 - 0.5 */
+  proj_only[2][2] = proj_only[2][2] * 0.5f - 0.5f;
+  proj_only[3][2] = proj_only[3][2] * 0.5f;
 
   for (int i = 0; i < RP_SMOKE_COUNT; i++) {
     float sx = state.smoke_positions[i * 3 + 0];
@@ -1867,7 +1892,16 @@ static int frame(wgpu_context_t* ctx)
   }
 
   /* Advance timers */
-  double t = stm_sec(stm_now());
+  uint64_t now_ticks = stm_now();
+  float dt_sec       = (state.last_time > 0) ?
+                         (float)stm_sec(stm_diff(now_ticks, state.last_time)) :
+                         1.0f / 60.0f;
+  state.last_time    = now_ticks;
+  /* Clamp delta time to avoid large jumps after a stall (e.g. when the
+   * window is first shown or unpaused after many seconds). */
+  if (dt_sec > 0.1f)
+    dt_sec = 0.1f;
+  double t = stm_sec(now_ticks);
   state.timer_camera
     = fmodf((float)t * 1000.0f, RP_CAMERA_PERIOD) / RP_CAMERA_PERIOD;
   state.timer_fog = fmodf((float)t * 1000.0f, RP_FOG_PERIOD) / RP_FOG_PERIOD;
@@ -1884,9 +1918,10 @@ static int frame(wgpu_context_t* ctx)
     state.bird_morph  = fmodf(ba * RP_BIRD_FRAMES, 1.0f);
   }
 
-  /* Advance bird path timers */
+  /* Advance bird path timers using actual delta time so speed is
+   * frame-rate independent (the TypeScript version uses elapsed ms). */
   for (int i = 0; i < 6; i++) {
-    state.bird_paths[i].t += (float)(1.0 / 60.0) * state.bird_paths[i].inv_dur;
+    state.bird_paths[i].t += dt_sec * state.bird_paths[i].inv_dur;
     if (state.bird_paths[i].t > 1.0f) {
       state.bird_paths[i].t = 0.0f;
     }
@@ -1904,9 +1939,10 @@ static int frame(wgpu_context_t* ctx)
 
   /* WebGPU depth range [0..1] */
   glm_perspective(glm_rad(RP_FOV_DEG), ratio, RP_Z_NEAR, RP_Z_FAR, proj);
-  /* Map [-1..1] Z depth to [0..1] for WebGPU convention */
-  proj[2][2] = 0.5f * proj[2][2] + 0.5f * proj[3][2];
-  proj[3][2] = 0.5f * proj[3][2];
+  /* OpenGL [-1,1] → WebGPU [0,1]: new[2][2] = old[2][2]*0.5 + old[2][3]*0.5
+   * where old[2][3] = -1 always → new[2][2] = old[2][2]*0.5 - 0.5 */
+  proj[2][2] = proj[2][2] * 0.5f - 0.5f;
+  proj[3][2] = proj[3][2] * 0.5f;
   glm_mat4_mul(proj, view, view_proj);
 
   /* Pre-compute all per-draw UBOs */
@@ -1929,8 +1965,8 @@ static int frame(wgpu_context_t* ctx)
     WGPURenderPassEncoder rp
       = wgpuCommandEncoderBeginRenderPass(cmd, &state.render_pass_desc);
 
-    bool all_ready
-      = state.models_loaded >= 10 && state.tex_cubemap.view != NULL;
+    bool all_ready = state.models_loaded >= 10 && state.tex_cubemap.view != 0
+                     && state.bg_sky != 0;
 
     if (all_ready) {
       /* --- Sky --- */
@@ -2263,16 +2299,13 @@ static int init(wgpu_context_t* ctx)
     }
   }
 
-  /* Init bind group layouts, pipelines, placeholder bind groups */
+  /* Init bind group layouts and pipelines.
+   * Bind groups are NOT created here — the cubemap texture (loaded
+   * asynchronously) would be NULL, causing a validation error.
+   * frame() builds them once rp_upload_cubemap() makes the view available. */
   rp_init_bind_group_layouts(ctx);
   rp_init_pipelines(ctx);
-
-  /* Create placeholder bind groups (will be rebuilt once textures/cubemap load)
-   */
-  rp_init_bind_groups(ctx);
-
-  state.resources_dirty = false;
-  state.initialized     = true;
+  state.initialized = true;
   return EXIT_SUCCESS;
 }
 
@@ -2702,27 +2735,29 @@ static const char* rp_birds_shader_wgsl = CODE(
     let morph = u.misc.z;
     var pos = mix(in.pos1, in.pos2, morph);
 
-    /* Random scatter around flock center */
-    let fi = f32(in.iid);
-    /* Use placement.x/y as seed_x/seed_y for the two random offsets */
-    let seed_x = u.placement.x * 0.01 + 1.1;
-    let seed_y = u.placement.y * 0.01 + 2.2;
-    let r1 = random_f(fi + seed_x);
-    let r2 = random_f(fi + seed_y);
-    let cx = u.placement.x;
-    let cy = u.placement.y;
-    let cz = u.placement.z;
-    let rot = u.placement.w;
-    pos.x += cx + 150.0 * r1;
-    pos.y += cy + 300.0 * r2;
-    pos.z += cz - 20.0 + 42.0 * r1;
+    /* Random scatter: use FIXED seed constants (1.1, 2.2) matching the
+     * TypeScript reference — seed must NOT depend on the flock position
+     * (u.placement.x/y) or individual bird positions would flicker every
+     * frame as the flock moves, making the birds appear to fly very fast. */
+    let fi  = f32(in.iid);
+    let r1  = random_f(fi + 1.1);
+    let r2  = random_f(fi + 2.2);
 
-    /* Apply rotation around Z */
-    let s = sin(rot);
-    let c = cos(rot);
-    let bx = c * pos.x - s * pos.y;
-    let by = s * pos.x + c * pos.y;
-    pos = vec3f(bx * 0.4, by * 0.4, pos.z * 0.4);
+    /* Correct transformation order (matches TypeScript MVP construction):
+     *   1. Add scatter in model space
+     *   2. Scale (0.4)
+     *   3. Rotate around Z
+     *   4. Translate to flock center (AFTER scale/rotate, not before)  */
+    pos += vec3f(150.0 * r1, 300.0 * r2, 42.0 * r1);
+    pos  *= 0.4;
+    let rot = u.placement.w;
+    let s   = sin(rot);
+    let c   = cos(rot);
+    let bx  = c * pos.x - s * pos.y;
+    let by  = s * pos.x + c * pos.y;
+    pos = vec3f(bx, by, pos.z);
+    /* Translate to flock center (placement.xyz) */
+    pos += vec3f(u.placement.x, u.placement.y, u.placement.z - 20.0);
 
     let wp = vec4f(pos, 1.0);
     out.clip = u.view_proj * wp;
