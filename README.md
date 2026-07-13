@@ -755,6 +755,10 @@ Real-time metaball rendering using marching cubes on the CPU, with tri-planar te
 
 Demonstrates a procedurally animated desert dunes scene using the WebGPU graphics API. Features multi-textured terrain with slope-based shading and wind-driven sand animation, palm trees with alpha-tested transparency, two animated birds with morph-target frame interpolation, a dust particle system with soft-edge depth compositing, a sky sphere, and an additive-blended sun flare. Four time-of-day presets are provided (Night, Day, Sunset, Sunrise) with automatic camera rotation or random viewpoint cycling modes. Ported from the [WebGL Dunes demo](https://github.com/keaukraine/webgl-dunes).
 
+#### [Floating Rock Pillars](src/examples/rock_pillars.c)
+
+Demonstrates an animated floating islands scene rendered with WebGPU. Features five groups of instanced rock pillars with vertex lighting and grass blending, instanced alpha-tested foliage (ferns and pine trees), a morph-animated bird system with flock simulation, billboard cloud/smoke particles with soft-particle depth compositing, a cubemap skybox and height-based fog that blends into the sky colour, and procedurally placed instances along a parametric spline path. Four time-of-day presets (Sunrise, Day, Sunset, Night) and a rotating spline camera are provided. Ported from the [WebGL Rock Pillars demo](https://github.com/keaukraine/webgl-rock-pillars).
+
 #### [Fluid Simulation](src/examples/fluid_simulation.c)
 
 WebGPU demo featuring an implementation of Jos Stam's ["Real-Time Fluid Dynamics for Games" paper](https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf). This example has been ported from [this JavaScript implementation](https://github.com/indiana-dev/WebGPU-Fluid-Simulation) to native code.
