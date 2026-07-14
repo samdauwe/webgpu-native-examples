@@ -1676,17 +1676,17 @@ static void rp_precompute_ubos(wgpu_context_t* ctx, const mat4 view_proj,
   /* Birds (6 paths × 1 UBO each — bird scatter is done in shader) */
   for (int i = 0; i < 6; i++) {
     float cx
-      = state.bird_paths[i].start[0]
+      = state.bird_paths[i].end[0]
         + state.bird_paths[i].t
-            * (state.bird_paths[i].end[0] - state.bird_paths[i].start[0]);
+            * (state.bird_paths[i].start[0] - state.bird_paths[i].end[0]);
     float cy
-      = state.bird_paths[i].start[1]
+      = state.bird_paths[i].end[1]
         + state.bird_paths[i].t
-            * (state.bird_paths[i].end[1] - state.bird_paths[i].start[1]);
+            * (state.bird_paths[i].start[1] - state.bird_paths[i].end[1]);
     float cz
-      = state.bird_paths[i].start[2]
+      = state.bird_paths[i].end[2]
         + state.bird_paths[i].t
-            * (state.bird_paths[i].end[2] - state.bird_paths[i].start[2]);
+            * (state.bird_paths[i].start[2] - state.bird_paths[i].end[2]);
     /* height_rand_mult = cx, height_fixed = cy encode bird flock center */
     rp_ubo_t* bu = SLOT(RP_UBO_SLOT_BIRDS0 + i);
     rp_fill_ubo(bu, view_proj, view, p, fog_s, fog_d, cx, cy, cz,
