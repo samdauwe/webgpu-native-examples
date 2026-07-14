@@ -2095,7 +2095,7 @@ static int init(wgpu_context_t* ctx)
   /* Samplers */
   state.sampler = wgpuDeviceCreateSampler(
     ctx->device, &(WGPUSamplerDescriptor){
-                   .label         = STRVIEW("RP sampler"),
+                   .label         = STRVIEW("RP - Sampler"),
                    .addressModeU  = WGPUAddressMode_Repeat,
                    .addressModeV  = WGPUAddressMode_Repeat,
                    .minFilter     = WGPUFilterMode_Linear,
