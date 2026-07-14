@@ -2106,7 +2106,7 @@ static int init(wgpu_context_t* ctx)
                  });
   state.sampler_clamp = wgpuDeviceCreateSampler(
     ctx->device, &(WGPUSamplerDescriptor){
-                   .label         = STRVIEW("RP sampler clamp"),
+                   .label         = STRVIEW("RP - Sampler clamp"),
                    .addressModeU  = WGPUAddressMode_ClampToEdge,
                    .addressModeV  = WGPUAddressMode_ClampToEdge,
                    .minFilter     = WGPUFilterMode_Linear,
