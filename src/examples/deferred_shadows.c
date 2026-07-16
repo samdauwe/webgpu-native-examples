@@ -363,7 +363,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   {
     state.gbuffer.sampler = wgpuDeviceCreateSampler(
       device, &(WGPUSamplerDescriptor){
-                .label         = STRVIEW("GBuffer Sampler"),
+                .label         = STRVIEW("GBuffer - Sampler"),
                 .addressModeU  = WGPUAddressMode_ClampToEdge,
                 .addressModeV  = WGPUAddressMode_ClampToEdge,
                 .addressModeW  = WGPUAddressMode_ClampToEdge,
