@@ -399,7 +399,7 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
   /* Layered depth texture (2D array with LIGHT_COUNT layers) */
   state.shadow_map.depth_texture = wgpuDeviceCreateTexture(
     device, &(WGPUTextureDescriptor){
-              .label = STRVIEW("Shadow Map Depth Array"),
+              .label = STRVIEW("Shadow Map Depth Array - Texture"),
               .usage = WGPUTextureUsage_RenderAttachment
                        | WGPUTextureUsage_TextureBinding,
               .dimension     = WGPUTextureDimension_2D,
