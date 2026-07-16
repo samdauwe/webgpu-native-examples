@@ -440,7 +440,7 @@ static void init_shadow_map(struct wgpu_context_t* wgpu_context)
   /* Comparison sampler for PCF shadow sampling */
   state.shadow_map.comparison_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Shadow Comparison Sampler"),
+              .label         = STRVIEW("Shadow Comparison - Sampler"),
               .addressModeU  = WGPUAddressMode_ClampToEdge,
               .addressModeV  = WGPUAddressMode_ClampToEdge,
               .addressModeW  = WGPUAddressMode_ClampToEdge,
