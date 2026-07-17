@@ -412,7 +412,7 @@ static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
   /* Input vertex buffer: flat mesh, read by compute shader */
   state.terrain.input_vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Terrain Input VB"),
+              .label = STRVIEW("Terrain Input - Vertex buffer"),
               .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
               .size  = vb_size,
               .mappedAtCreation = true,
