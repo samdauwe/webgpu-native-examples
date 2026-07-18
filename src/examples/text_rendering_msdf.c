@@ -770,7 +770,7 @@ static void init_text_renderer(wgpu_context_t* wgpu_context)
 
   WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
     wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                            .label = STRVIEW("MSDF text + Pipeline layout"),
+                            .label = STRVIEW("MSDF text - Pipeline layout"),
                             .bindGroupLayoutCount = 2,
                             .bindGroupLayouts     = bind_group_layouts,
                           });
