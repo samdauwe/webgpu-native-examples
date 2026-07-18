@@ -283,7 +283,7 @@ static void init_cube_buffers(struct wgpu_context_t* wgpu_context)
   state.cube.index = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("Cube index buffer"),
+      .label            = STRVIEW("Cube - Index buffer"),
       .usage            = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
       .size             = sizeof(indices),
       .mappedAtCreation = false,
