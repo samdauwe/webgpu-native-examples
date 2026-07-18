@@ -393,7 +393,7 @@ static void init_timestamp_query(wgpu_context_t* wgpu_context)
   state.timestamp_map_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Timestamp map buffer"),
+      .label = STRVIEW("Timestamp - Map buffer"),
       .size  = 2 * timestamp_byte_size,
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
     });
