@@ -321,7 +321,7 @@ static void init_bind_group(struct wgpu_context_t* wgpu_context)
 
   state.bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("Mesh bind group"),
+                            .label      = STRVIEW("Mesh - Bind group"),
                             .layout     = state.bind_group_layout,
                             .entryCount = 1,
                             .entries    = &entry,
