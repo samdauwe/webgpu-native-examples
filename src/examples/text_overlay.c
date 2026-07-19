@@ -335,7 +335,7 @@ static void init_pipeline(struct wgpu_context_t* wgpu_context)
   /* Pipeline layout */
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Mesh pipeline layout"),
+              .label                = STRVIEW("Mesh - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bind_group_layout,
             });
