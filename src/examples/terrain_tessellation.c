@@ -426,7 +426,7 @@ static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
   /* Output vertex buffer: displaced mesh, written by compute, read by render */
   state.terrain.vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Terrain Output VB"),
+              .label = STRVIEW("Terrain Output - Vertex buffer"),
               .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage,
               .size  = vb_size,
             });
