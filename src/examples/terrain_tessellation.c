@@ -434,7 +434,7 @@ static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
   size_t ib_size             = index_count * sizeof(uint32_t);
   state.terrain.index_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Terrain IB"),
+              .label = STRVIEW("Terrain - Index buffer"),
               .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
               .size  = ib_size,
               .mappedAtCreation = true,
