@@ -386,7 +386,7 @@ static void init_pipeline(struct wgpu_context_t* wgpu_context)
 
   state.pipeline = wgpuDeviceCreateRenderPipeline(
     device, &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Mesh pipeline"),
+      .label  = STRVIEW("Mesh - Render pipeline"),
       .layout = state.pipeline_layout,
       .vertex = (WGPUVertexState){
         .module      = shader,
