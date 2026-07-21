@@ -485,7 +485,7 @@ static void generate_terrain_mesh(wgpu_context_t* wgpu_context,
   size_t ci_size                    = ci_count * sizeof(uint32_t);
   state.terrain.coarse_index_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Terrain Coarse IB"),
+              .label = STRVIEW("Terrain Coarse - Index buffer"),
               .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
               .size  = ci_size,
               .mappedAtCreation = true,
