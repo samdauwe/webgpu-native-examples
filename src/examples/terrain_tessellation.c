@@ -573,9 +573,10 @@ static void create_heightmap_texture(wgpu_context_t* wgpu_context,
 
   state.tex.heightmap_view = wgpuTextureCreateView(
     state.tex.heightmap, &(WGPUTextureViewDescriptor){
-                           .format          = WGPUTextureFormat_R16Unorm,
-                           .dimension       = WGPUTextureViewDimension_2D,
-                           .mipLevelCount   = 1,
+                           .label         = STRVIEW("Heightmap - Texture view"),
+                           .format        = WGPUTextureFormat_R16Unorm,
+                           .dimension     = WGPUTextureViewDimension_2D,
+                           .mipLevelCount = 1,
                            .arrayLayerCount = 1,
                          });
 
