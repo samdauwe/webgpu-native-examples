@@ -581,7 +581,7 @@ static void create_heightmap_texture(wgpu_context_t* wgpu_context,
 
   state.tex.heightmap_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Heightmap Sampler"),
+              .label         = STRVIEW("Heightmap - Sampler"),
               .addressModeU  = WGPUAddressMode_MirrorRepeat,
               .addressModeV  = WGPUAddressMode_MirrorRepeat,
               .addressModeW  = WGPUAddressMode_MirrorRepeat,
