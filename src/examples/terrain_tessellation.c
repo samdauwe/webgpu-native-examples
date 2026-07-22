@@ -553,7 +553,7 @@ static void create_heightmap_texture(wgpu_context_t* wgpu_context,
 
   state.tex.heightmap
     = wgpuDeviceCreateTexture(device, &(WGPUTextureDescriptor){
-                                        .label = STRVIEW("Heightmap"),
+                                        .label = STRVIEW("Heightmap - Texture"),
                                         .usage = WGPUTextureUsage_TextureBinding
                                                  | WGPUTextureUsage_CopyDst,
                                         .dimension = WGPUTextureDimension_2D,
