@@ -696,7 +696,7 @@ static void create_skysphere_texture(wgpu_context_t* wgpu_context,
 
   state.tex.skysphere_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Skysphere Sampler"),
+              .label         = STRVIEW("Skysphere - Sampler"),
               .addressModeU  = WGPUAddressMode_ClampToEdge,
               .addressModeV  = WGPUAddressMode_ClampToEdge,
               .addressModeW  = WGPUAddressMode_ClampToEdge,
