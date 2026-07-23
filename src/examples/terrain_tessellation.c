@@ -666,7 +666,7 @@ static void create_skysphere_texture(wgpu_context_t* wgpu_context,
 
   state.tex.skysphere
     = wgpuDeviceCreateTexture(device, &(WGPUTextureDescriptor){
-                                        .label = STRVIEW("Skysphere"),
+                                        .label = STRVIEW("Skysphere - Textrue"),
                                         .usage = WGPUTextureUsage_TextureBinding
                                                  | WGPUTextureUsage_CopyDst,
                                         .dimension = WGPUTextureDimension_2D,
