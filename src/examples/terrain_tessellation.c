@@ -642,7 +642,7 @@ static void create_terrain_array_texture(wgpu_context_t* wgpu_context,
 
   state.tex.terrain_array_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Terrain Layer Sampler"),
+              .label         = STRVIEW("Terrain Layer - Sampler"),
               .addressModeU  = WGPUAddressMode_Repeat,
               .addressModeV  = WGPUAddressMode_Repeat,
               .addressModeW  = WGPUAddressMode_Repeat,
