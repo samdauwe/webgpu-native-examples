@@ -753,7 +753,7 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
     });
   state.tex.terrain_array_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Terrain Layer Sampler Placeholder"),
+              .label = STRVIEW("Terrain Layer Sampler Placeholder - Sampler"),
               .addressModeU  = WGPUAddressMode_Repeat,
               .addressModeV  = WGPUAddressMode_Repeat,
               .addressModeW  = WGPUAddressMode_Repeat,
