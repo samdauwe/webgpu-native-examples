@@ -743,12 +743,14 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
       &(WGPUExtent3D){1, 1, 1});
   }
   state.tex.terrain_array_view = wgpuTextureCreateView(
-    state.tex.terrain_array, &(WGPUTextureViewDescriptor){
-                               .format    = WGPUTextureFormat_RGBA8Unorm,
-                               .dimension = WGPUTextureViewDimension_2DArray,
-                               .mipLevelCount   = 1,
-                               .arrayLayerCount = TERRAIN_LAYER_COUNT,
-                             });
+    state.tex.terrain_array,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Terrain Layers Placeholder - Texture view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
+      .dimension       = WGPUTextureViewDimension_2DArray,
+      .mipLevelCount   = 1,
+      .arrayLayerCount = TERRAIN_LAYER_COUNT,
+    });
   state.tex.terrain_array_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
               .label         = STRVIEW("Terrain Layer Sampler Placeholder"),
