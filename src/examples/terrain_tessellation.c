@@ -723,7 +723,7 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
   state.tex.terrain_array = wgpuDeviceCreateTexture(
     device,
     &(WGPUTextureDescriptor){
-      .label     = STRVIEW("Terrain Layers Placeholder"),
+      .label     = STRVIEW("Terrain Layers Placeholder - Texture"),
       .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
       .dimension = WGPUTextureDimension_2D,
       .size      = {1, 1, TERRAIN_LAYER_COUNT},
