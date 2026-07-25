@@ -793,7 +793,7 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
     });
   state.tex.skysphere_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
-              .label         = STRVIEW("Skysphere Sampler Placeholder"),
+              .label = STRVIEW("Skysphere Sampler Placeholder - Sampler"),
               .addressModeU  = WGPUAddressMode_ClampToEdge,
               .addressModeV  = WGPUAddressMode_ClampToEdge,
               .addressModeW  = WGPUAddressMode_ClampToEdge,
