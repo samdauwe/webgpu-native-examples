@@ -769,7 +769,7 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
   state.tex.skysphere = wgpuDeviceCreateTexture(
     device,
     &(WGPUTextureDescriptor){
-      .label     = STRVIEW("Skysphere Placeholder"),
+      .label     = STRVIEW("Skysphere Placeholder - Texture"),
       .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
       .dimension = WGPUTextureDimension_2D,
       .size      = {1, 1, 1},
