@@ -783,12 +783,14 @@ static void create_placeholder_textures(wgpu_context_t* wgpu_context)
     &(WGPUTexelCopyBufferLayout){.bytesPerRow = 4, .rowsPerImage = 1},
     &(WGPUExtent3D){1, 1, 1});
   state.tex.skysphere_view = wgpuTextureCreateView(
-    state.tex.skysphere, &(WGPUTextureViewDescriptor){
-                           .format          = WGPUTextureFormat_RGBA8Unorm,
-                           .dimension       = WGPUTextureViewDimension_2D,
-                           .mipLevelCount   = 1,
-                           .arrayLayerCount = 1,
-                         });
+    state.tex.skysphere,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Skysphere Placeholder - Texture view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
+      .dimension       = WGPUTextureViewDimension_2D,
+      .mipLevelCount   = 1,
+      .arrayLayerCount = 1,
+    });
   state.tex.skysphere_sampler = wgpuDeviceCreateSampler(
     device, &(WGPUSamplerDescriptor){
               .label         = STRVIEW("Skysphere Sampler Placeholder"),
