@@ -1238,12 +1238,12 @@ static void create_bind_group_layouts(wgpu_context_t* wgpu_context)
                      .viewDimension = WGPUTextureViewDimension_2D},
     },
   };
-  state.bg_layouts.skysphere
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .label = STRVIEW("Sky BGL"),
-                                                .entryCount = 3,
-                                                .entries    = sky_entries,
-                                              });
+  state.bg_layouts.skysphere = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Sky - Bind group layout"),
+              .entryCount = 3,
+              .entries    = sky_entries,
+            });
 
   /* Compute: input verts (storage r), output verts (storage rw), UBO,
      heightmap tex + sampler */
