@@ -1280,12 +1280,12 @@ static void create_bind_group_layouts(wgpu_context_t* wgpu_context)
       .sampler    = {.type = WGPUSamplerBindingType_Filtering},
     },
   };
-  state.bg_layouts.compute
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .label = STRVIEW("Compute BGL"),
-                                                .entryCount = 5,
-                                                .entries    = compute_entries,
-                                              });
+  state.bg_layouts.compute = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Compute - Bind group layout"),
+              .entryCount = 5,
+              .entries    = compute_entries,
+            });
 
   /* Cull/LOD compute: UBO + heightmap tex+sampler + indirect args + output
      indices */
