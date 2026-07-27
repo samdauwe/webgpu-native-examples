@@ -1039,7 +1039,7 @@ static void create_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   state.uniform_bufs.terrain = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Terrain UBO",
+                    .label = "Terrain - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(terrain_ubo_t),
                   });
