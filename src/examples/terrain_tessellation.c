@@ -1353,7 +1353,7 @@ static void create_pipeline_layouts(wgpu_context_t* wgpu_context)
 
   state.pipe_layouts.compute = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Compute PL"),
+              .label                = STRVIEW("Compute - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bg_layouts.compute,
             });
