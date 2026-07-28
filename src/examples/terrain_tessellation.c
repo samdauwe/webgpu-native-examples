@@ -1339,7 +1339,7 @@ static void create_pipeline_layouts(wgpu_context_t* wgpu_context)
 
   state.pipe_layouts.terrain = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Terrain PL"),
+              .label                = STRVIEW("Terrain - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bg_layouts.terrain,
             });
