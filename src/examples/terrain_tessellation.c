@@ -1346,7 +1346,7 @@ static void create_pipeline_layouts(wgpu_context_t* wgpu_context)
 
   state.pipe_layouts.skysphere = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Sky PL"),
+              .label                = STRVIEW("Sky - Pipeline layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.bg_layouts.skysphere,
             });
