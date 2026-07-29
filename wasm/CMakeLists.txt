@@ -1192,6 +1192,19 @@ set_property(TARGET voxel_space APPEND_STRING PROPERTY
     LINK_FLAGS " -Xlinker --initial-memory=16777216"
 )
 
+add_wajic_example(voxel_airplanes src/examples/voxel_airplanes.c
+    USE_CIMGUI
+    EXTRA_SOURCES
+        src/core/image_loader.c
+    EXTRA_INCLUDES
+        external/sokol
+        external/stb
+)
+# voxel_airplanes loads 9 plane models + 13 terrain PNGs; reserve 64 MB.
+set_property(TARGET voxel_airplanes APPEND_STRING PROPERTY
+    LINK_FLAGS " -Xlinker --initial-memory=67108864"
+)
+
 add_wajic_example(water_simulation src/examples/water_simulation.c
     USE_CIMGUI
     EXTRA_SOURCES
@@ -1343,6 +1356,7 @@ set(WASM_EXAMPLE_TITLES
     "vertex_buffer|Vertex Buffer"
     "volume_rendering_texture_3d|Volume Rendering (3D Texture)"
     "voxel_space|Voxel Space"
+    "voxel_airplanes|Voxel Airplanes"
     "water_simulation|Water Simulation"
     "wireframe|Wireframe"
     "wireframe_vertex_pulling|Wireframe Vertex Pulling"

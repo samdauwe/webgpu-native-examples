@@ -787,6 +787,10 @@ This example demonstrates how to render a torus knot mesh with Blinn-Phong light
 
 A simple WebGPU implementation of the "Pristine Grid" technique described in [this wonderful little blog post](https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8). The example code has been ported from [this JavaScript implementation](https://github.com/toji/pristine-grid-webgpu) to native code.
 
+#### [Voxel Airplanes](src/examples/voxel_airplanes.c)
+
+Demonstrates a voxel airplane formation scene using the WebGPU graphics API. Features 9 voxel airplane models with packed normal+color vertices, 6 formation types (Single, Triangle, Large Triangle, Diamond, Cross, Line), animated propellers and plane wonder motion, fly-in/fly-away transitions between planes, scrolling blocky-filtered terrain (13 terrain presets) with noise-masked transitions, wind stripe and cloud billboard effects with additive blending, and a rotating orbit camera. Ported from the [WebGL Voxel Airplanes demo](https://keaukraine.medium.com/voxel-airplanes-3d-webgl-demo-d210d5dfa54e).
+
 #### [Voxel Space](src/examples/voxel_space.c)
 
 This example shows a voxel-based terrain rendering technique using WebGPU compute shaders. The terrain is rendered using a height map and color map, similar to the classic Comanche game. The example code has been ported from [this JavaScript implementation](https://github.com/s-macke/VoxelSpace) to native code.
