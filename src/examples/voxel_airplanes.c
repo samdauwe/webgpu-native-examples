@@ -751,12 +751,11 @@ static void va_create_terrain_pipeline(wgpu_context_t* ctx)
                  });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
-    ctx->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .label = {.data = "VA Terrain PL", .length = sizeof("VA Terrain PL") - 1},
-      .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = &state.bgl_terrain,
-    });
+    ctx->device, &(WGPUPipelineLayoutDescriptor){
+                   .label = STRVIEW("VA Terrain - Pipeline layout"),
+                   .bindGroupLayoutCount = 1,
+                   .bindGroupLayouts     = &state.bgl_terrain,
+                 });
 
   WGPUShaderModule sm
     = wgpu_create_shader_module(ctx->device, va_terrain_shader_wgsl);
