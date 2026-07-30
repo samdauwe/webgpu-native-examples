@@ -900,25 +900,26 @@ static void va_create_terrain_trans_pipeline(wgpu_context_t* ctx)
 
 static void va_create_plane_body_pipeline(wgpu_context_t* ctx)
 {
-  WGPUBindGroupLayoutEntry bgle[3] = {
+  /* Only 2 bindings: UBO (dynamic) + palette texture.
+   * No sampler needed because the shader uses textureLoad only. */
+  WGPUBindGroupLayoutEntry bgle[2] = {
     [0] = {.binding    = 0,
            .visibility = WGPUShaderStage_Vertex,
            .buffer     = {.type             = WGPUBufferBindingType_Uniform,
                           .hasDynamicOffset = true,
                           .minBindingSize   = sizeof(va_plane_body_ubo_t)}},
+    /* Use UnfilterableFloat + no sampler: textureLoad does not need a sampler
+     * and Chrome WebGPU rejects NonFiltering sampler + Float texture pairs. */
     [1] = {.binding    = 1,
            .visibility = WGPUShaderStage_Vertex,
-           .sampler    = {.type = WGPUSamplerBindingType_NonFiltering}},
-    [2] = {.binding    = 2,
-           .visibility = WGPUShaderStage_Vertex,
-           .texture    = {.sampleType    = WGPUTextureSampleType_Float,
+           .texture    = {.sampleType    = WGPUTextureSampleType_UnfilterableFloat,
                           .viewDimension = WGPUTextureViewDimension_2D}},
   };
   state.bgl_plane_body = wgpuDeviceCreateBindGroupLayout(
     ctx->device, &(WGPUBindGroupLayoutDescriptor){
                    .label      = {.data   = "VA Plane Body BGL",
                                   .length = sizeof("VA Plane Body BGL") - 1},
-                   .entryCount = 3,
+                   .entryCount = 2,
                    .entries    = bgle,
                  });
 
@@ -1255,16 +1256,15 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
                    });
   }
 
-  /* Plane body */
+  /* Plane body — 2 bindings (no sampler: shader uses textureLoad only) */
   if (state.bg_plane_body)
     wgpuBindGroupRelease(state.bg_plane_body);
   {
-    WGPUBindGroupEntry bge[3] = {
+    WGPUBindGroupEntry bge[2] = {
       [0] = {.binding = 0,
              .buffer  = state.plane_body_ubo,
              .size    = sizeof(va_plane_body_ubo_t)},
-      [1] = {.binding = 1, .sampler = state.sampler_nearest},
-      [2] = {.binding     = 2,
+      [1] = {.binding     = 1,
              .textureView = state.tex_palette[state.cfg.current_palette].view},
     };
     state.bg_plane_body = wgpuDeviceCreateBindGroup(
@@ -1272,7 +1272,7 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
                      .label      = {.data   = "VA Plane Body BG",
                                     .length = sizeof("VA Plane Body BG") - 1},
                      .layout     = state.bgl_plane_body,
-                     .entryCount = 3,
+                     .entryCount = 2,
                      .entries    = bge,
                    });
   }
@@ -2342,8 +2342,8 @@ static const char* va_plane_body_shader_wgsl = CODE(
   }
 
   @group(0) @binding(0) var<uniform> u       : Uniforms;
-  @group(0) @binding(1) var          samp    : sampler;
-  @group(0) @binding(2) var          palette : texture_2d<f32>;
+  /* binding 1: palette texture — no sampler needed, we use textureLoad */
+  @group(0) @binding(1) var          palette : texture_2d<f32>;
 
   const NORMALS = array<vec3f, 6>(
     vec3f( 1.0,  0.0,  0.0),
