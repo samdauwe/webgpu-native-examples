@@ -773,7 +773,7 @@ static void va_create_terrain_pipeline(wgpu_context_t* ctx)
   };
 
   WGPURenderPipelineDescriptor desc = {
-    .label  = {.data = "VA Terrain Pipeline", .length = sizeof("VA Terrain Pipeline") - 1},
+    .label  = STRVIEW("VA Terrain - Render pipeline"),
     .layout = pl,
     .vertex = {
       .module      = sm,
