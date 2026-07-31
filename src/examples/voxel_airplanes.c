@@ -835,8 +835,7 @@ static void va_create_terrain_trans_pipeline(wgpu_context_t* ctx)
   };
   state.bgl_terrain_trans = wgpuDeviceCreateBindGroupLayout(
     ctx->device, &(WGPUBindGroupLayoutDescriptor){
-                   .label      = {.data   = "VA Terrain Trans BGL",
-                                  .length = sizeof("VA Terrain Trans BGL") - 1},
+                   .label = STRVIEW("VA Terrain Trans - Bind group layout"),
                    .entryCount = 5,
                    .entries    = bgle,
                  });
