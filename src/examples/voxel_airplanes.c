@@ -842,8 +842,7 @@ static void va_create_terrain_trans_pipeline(wgpu_context_t* ctx)
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
     ctx->device, &(WGPUPipelineLayoutDescriptor){
-                   .label                = {.data   = "VA Terrain Trans PL",
-                                            .length = sizeof("VA Terrain Trans PL") - 1},
+                   .label = STRVIEW("VA Terrain Trans - Pipeline layout"),
                    .bindGroupLayoutCount = 1,
                    .bindGroupLayouts     = &state.bgl_terrain_trans,
                  });
