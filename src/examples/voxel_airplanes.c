@@ -913,8 +913,7 @@ static void va_create_plane_body_pipeline(wgpu_context_t* ctx)
   };
   state.bgl_plane_body = wgpuDeviceCreateBindGroupLayout(
     ctx->device, &(WGPUBindGroupLayoutDescriptor){
-                   .label      = {.data   = "VA Plane Body BGL",
-                                  .length = sizeof("VA Plane Body BGL") - 1},
+                   .label      = STRVIEW("VA Plane Body - Bind group layout"),
                    .entryCount = 2,
                    .entries    = bgle,
                  });
