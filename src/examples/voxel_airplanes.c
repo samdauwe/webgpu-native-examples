@@ -628,6 +628,7 @@ static void va_upload_texture(wgpu_context_t* ctx, wgpu_texture_t* t)
   uint32_t w = t->desc.extent.width, h = t->desc.extent.height;
 
   WGPUTextureDescriptor td = {
+    .label         = STRVIEW("Upload pending - Texture"),
     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
     .dimension     = WGPUTextureDimension_2D,
     .size          = {w, h, 1},
