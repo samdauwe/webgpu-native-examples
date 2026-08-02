@@ -942,8 +942,7 @@ static void va_create_plane_body_pipeline(wgpu_context_t* ctx)
   };
 
   WGPURenderPipelineDescriptor desc = {
-    .label     = {.data   = "VA Plane Body Pipeline",
-                  .length = sizeof("VA Plane Body Pipeline") - 1},
+    .label     = STRVIEW("VA Plane Body - Render pipeline"),
     .layout    = pl,
     .vertex    = {.module      = sm,
                   .entryPoint  = STRVIEW("vertexMain"),
