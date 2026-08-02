@@ -998,12 +998,11 @@ static void va_create_glass_pipeline(wgpu_context_t* ctx)
     });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
-    ctx->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .label = {.data = "VA Glass PL", .length = sizeof("VA Glass PL") - 1},
-      .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = &state.bgl_glass,
-    });
+    ctx->device, &(WGPUPipelineLayoutDescriptor){
+                   .label = STRVIEW("VA Glass - Pipeline layout"),
+                   .bindGroupLayoutCount = 1,
+                   .bindGroupLayouts     = &state.bgl_glass,
+                 });
 
   WGPUShaderModule sm
     = wgpu_create_shader_module(ctx->device, va_glass_shader_wgsl);
