@@ -920,8 +920,7 @@ static void va_create_plane_body_pipeline(wgpu_context_t* ctx)
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
     ctx->device, &(WGPUPipelineLayoutDescriptor){
-                   .label                = {.data   = "VA Plane Body PL",
-                                            .length = sizeof("VA Plane Body PL") - 1},
+                   .label = STRVIEW("VA Plane Body - Pipeline layout"),
                    .bindGroupLayoutCount = 1,
                    .bindGroupLayouts     = &state.bgl_plane_body,
                  });
