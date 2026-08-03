@@ -25,6 +25,8 @@
 #ifdef __WAJIC__
 #define WAJIC_IMAGE_IMPL
 #include <wajic_image.h>
+/* Bump max concurrent slots: 44 model + 19 texture requests = 63 total */
+#define WAJIC_SFETCH_MAX_REQUESTS 128
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
 #define WAJIC_TIME_IMPL
@@ -418,8 +420,8 @@ static struct {
   /* Loading counters */
   int models_loaded; /* += 1 for each vtx+idx pair fully uploaded */
   int textures_loaded;
-  int total_models; /* expected total */
-  int total_textures;
+  int total_models;   /* expected total */
+  int total_textures; /* expected total (set in init) */
   bool pipelines_ready;
   bool resources_dirty; /* bind groups need recreation */
   bool initialized;
