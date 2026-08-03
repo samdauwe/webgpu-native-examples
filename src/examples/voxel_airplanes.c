@@ -992,12 +992,11 @@ static void va_create_glass_pipeline(wgpu_context_t* ctx)
                           .viewDimension = WGPUTextureViewDimension_2D}},
   };
   state.bgl_glass = wgpuDeviceCreateBindGroupLayout(
-    ctx->device,
-    &(WGPUBindGroupLayoutDescriptor){
-      .label = {.data = "VA Glass BGL", .length = sizeof("VA Glass BGL") - 1},
-      .entryCount = 3,
-      .entries    = bgle,
-    });
+    ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                   .label      = STRVIEW("VA Glass - Bind group layout"),
+                   .entryCount = 3,
+                   .entries    = bgle,
+                 });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
     ctx->device, &(WGPUPipelineLayoutDescriptor){
