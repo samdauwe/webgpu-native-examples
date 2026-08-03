@@ -1021,7 +1021,7 @@ static void va_create_glass_pipeline(wgpu_context_t* ctx)
   };
 
   WGPURenderPipelineDescriptor desc = {
-    .label  = {.data = "VA Glass Pipeline", .length = sizeof("VA Glass Pipeline") - 1},
+    .label  = STRVIEW("VA Glass - Render pipeline"),
     .layout = pl,
     .vertex = { .module = sm, .entryPoint = STRVIEW("vertexMain"),
                 .bufferCount = 1, .buffers = &vbl },
