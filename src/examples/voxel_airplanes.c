@@ -1071,12 +1071,11 @@ static void va_create_wind_pipeline(wgpu_context_t* ctx)
                  });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
-    ctx->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .label = {.data = "VA Wind PL", .length = sizeof("VA Wind PL") - 1},
-      .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = &state.bgl_wind,
-    });
+    ctx->device, &(WGPUPipelineLayoutDescriptor){
+                   .label                = STRVIEW("VA Wind - Pipeline layout"),
+                   .bindGroupLayoutCount = 1,
+                   .bindGroupLayouts     = &state.bgl_wind,
+                 });
 
   WGPUShaderModule sm
     = wgpu_create_shader_module(ctx->device, va_wind_shader_wgsl);
