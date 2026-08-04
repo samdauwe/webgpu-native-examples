@@ -1064,12 +1064,11 @@ static void va_create_wind_pipeline(wgpu_context_t* ctx)
                           .minBindingSize   = sizeof(va_wind_ubo_t)}},
   };
   state.bgl_wind = wgpuDeviceCreateBindGroupLayout(
-    ctx->device,
-    &(WGPUBindGroupLayoutDescriptor){
-      .label = {.data = "VA Wind BGL", .length = sizeof("VA Wind BGL") - 1},
-      .entryCount = 1,
-      .entries    = bgle,
-    });
+    ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                   .label      = STRVIEW("VA Wind - Bind group layout"),
+                   .entryCount = 1,
+                   .entries    = bgle,
+                 });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
     ctx->device,
