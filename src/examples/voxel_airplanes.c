@@ -1081,7 +1081,7 @@ static void va_create_wind_pipeline(wgpu_context_t* ctx)
     = wgpu_create_shader_module(ctx->device, va_wind_shader_wgsl);
 
   WGPURenderPipelineDescriptor desc = {
-    .label  = {.data = "VA Wind Pipeline", .length = sizeof("VA Wind Pipeline") - 1},
+    .label  = STRVIEW("VA Wind - Render pipeline"),
     .layout = pl,
     .vertex = { .module = sm, .entryPoint = STRVIEW("vertexMain"),
                 .bufferCount = 0 }, /* no vertex buffer - hardcoded in shader */
