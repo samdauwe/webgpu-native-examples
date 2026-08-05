@@ -1137,12 +1137,11 @@ static void va_create_cloud_pipeline(wgpu_context_t* ctx)
                  });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
-    ctx->device,
-    &(WGPUPipelineLayoutDescriptor){
-      .label = {.data = "VA Cloud PL", .length = sizeof("VA Cloud PL") - 1},
-      .bindGroupLayoutCount = 1,
-      .bindGroupLayouts     = &state.bgl_cloud,
-    });
+    ctx->device, &(WGPUPipelineLayoutDescriptor){
+                   .label = STRVIEW("VA Cloud - Pipeline layout"),
+                   .bindGroupLayoutCount = 1,
+                   .bindGroupLayouts     = &state.bgl_cloud,
+                 });
 
   WGPUShaderModule sm
     = wgpu_create_shader_module(ctx->device, va_cloud_shader_wgsl);
