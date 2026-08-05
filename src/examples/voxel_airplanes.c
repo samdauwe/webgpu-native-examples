@@ -1158,7 +1158,7 @@ static void va_create_cloud_pipeline(wgpu_context_t* ctx)
   };
 
   WGPURenderPipelineDescriptor desc = {
-    .label  = {.data = "VA Cloud Pipeline", .length = sizeof("VA Cloud Pipeline") - 1},
+    .label  = STRVIEW("VA Cloud - Render pipeline"),
     .layout = pl,
     .vertex = { .module = sm, .entryPoint = STRVIEW("vertexMain"),
                 .bufferCount = 1, .buffers = &vbl },
