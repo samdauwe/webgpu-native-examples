@@ -1130,12 +1130,11 @@ static void va_create_cloud_pipeline(wgpu_context_t* ctx)
                           .viewDimension = WGPUTextureViewDimension_2D}},
   };
   state.bgl_cloud = wgpuDeviceCreateBindGroupLayout(
-    ctx->device,
-    &(WGPUBindGroupLayoutDescriptor){
-      .label = {.data = "VA Cloud BGL", .length = sizeof("VA Cloud BGL") - 1},
-      .entryCount = 3,
-      .entries    = bgle,
-    });
+    ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                   .label      = STRVIEW("VA Cloud - Bind group layout"),
+                   .entryCount = 3,
+                   .entries    = bgle,
+                 });
 
   WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
     ctx->device,
