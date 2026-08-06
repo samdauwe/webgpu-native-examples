@@ -1209,8 +1209,7 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
     };
     state.bg_terrain = wgpuDeviceCreateBindGroup(
       ctx->device, &(WGPUBindGroupDescriptor){
-                     .label      = {.data   = "VA Terrain BG",
-                                    .length = sizeof("VA Terrain BG") - 1},
+                     .label      = STRVIEW("VA Terrain - Bind group"),
                      .layout     = state.bgl_terrain,
                      .entryCount = 3,
                      .entries    = bge,
