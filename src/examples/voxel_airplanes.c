@@ -1256,8 +1256,7 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
     };
     state.bg_plane_body = wgpuDeviceCreateBindGroup(
       ctx->device, &(WGPUBindGroupDescriptor){
-                     .label      = {.data   = "VA Plane Body BG",
-                                    .length = sizeof("VA Plane Body BG") - 1},
+                     .label      = STRVIEW("VA Plane Body - Bind group"),
                      .layout     = state.bgl_plane_body,
                      .entryCount = 2,
                      .entries    = bge,
