@@ -1312,13 +1312,12 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
       [2] = {.binding = 2, .textureView = state.tex_cloud.view},
     };
     state.bg_cloud = wgpuDeviceCreateBindGroup(
-      ctx->device,
-      &(WGPUBindGroupDescriptor){
-        .label  = {.data = "VA Cloud BG", .length = sizeof("VA Cloud BG") - 1},
-        .layout = state.bgl_cloud,
-        .entryCount = 3,
-        .entries    = bge,
-      });
+      ctx->device, &(WGPUBindGroupDescriptor){
+                     .label      = STRVIEW("VA Cloud - Bind group"),
+                     .layout     = state.bgl_cloud,
+                     .entryCount = 3,
+                     .entries    = bge,
+                   });
   }
 }
 
