@@ -1275,13 +1275,12 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
       [2] = {.binding = 2, .textureView = state.tex_glass.view},
     };
     state.bg_glass = wgpuDeviceCreateBindGroup(
-      ctx->device,
-      &(WGPUBindGroupDescriptor){
-        .label  = {.data = "VA Glass BG", .length = sizeof("VA Glass BG") - 1},
-        .layout = state.bgl_glass,
-        .entryCount = 3,
-        .entries    = bge,
-      });
+      ctx->device, &(WGPUBindGroupDescriptor){
+                     .label      = STRVIEW("VA Glass - Bind group"),
+                     .layout     = state.bgl_glass,
+                     .entryCount = 3,
+                     .entries    = bge,
+                   });
   }
 
   /* Wind */
