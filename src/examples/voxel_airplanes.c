@@ -1292,13 +1292,12 @@ static void va_create_bind_groups(wgpu_context_t* ctx)
       = {.binding = 0, .buffer = state.wind_ubo, .size = sizeof(va_wind_ubo_t)},
     };
     state.bg_wind = wgpuDeviceCreateBindGroup(
-      ctx->device,
-      &(WGPUBindGroupDescriptor){
-        .label  = {.data = "VA Wind BG", .length = sizeof("VA Wind BG") - 1},
-        .layout = state.bgl_wind,
-        .entryCount = 1,
-        .entries    = bge,
-      });
+      ctx->device, &(WGPUBindGroupDescriptor){
+                     .label      = STRVIEW("VA Wind - Bind group"),
+                     .layout     = state.bgl_wind,
+                     .entryCount = 1,
+                     .entries    = bge,
+                   });
   }
 
   /* Cloud */
