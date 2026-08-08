@@ -2040,8 +2040,7 @@ static int init(wgpu_context_t* ctx)
                  });
   state.sampler_nearest = wgpuDeviceCreateSampler(
     ctx->device, &(WGPUSamplerDescriptor){
-                   .label         = {.data   = "VA Nearest Sampler",
-                                     .length = sizeof("VA Nearest Sampler") - 1},
+                   .label         = STRVIEW("VA Nearest - Sampler"),
                    .minFilter     = WGPUFilterMode_Nearest,
                    .magFilter     = WGPUFilterMode_Nearest,
                    .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
