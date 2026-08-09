@@ -585,7 +585,7 @@ static void va_alloc_model_buffers(wgpu_context_t* ctx, va_model_t* m,
 
   snprintf(buf, sizeof(buf), "%s idx", lbl);
   WGPUBufferDescriptor id = {
-    .label = {.data = buf, .length = strlen(buf)},
+    .label = STRVIEW(buf),
     .size  = (idx_sz + 3u) & ~3u,
     .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
   };
