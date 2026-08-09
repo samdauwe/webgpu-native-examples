@@ -2030,7 +2030,7 @@ static int init(wgpu_context_t* ctx)
   /* Samplers */
   state.sampler_linear = wgpuDeviceCreateSampler(
     ctx->device, &(WGPUSamplerDescriptor){
-                   .label         = STRVIEW("VA Linear - Sampler"),
+                   .label         = STRVIEW("VA Linear - Texture sampler"),
                    .minFilter     = WGPUFilterMode_Linear,
                    .magFilter     = WGPUFilterMode_Linear,
                    .mipmapFilter  = WGPUMipmapFilterMode_Linear,
