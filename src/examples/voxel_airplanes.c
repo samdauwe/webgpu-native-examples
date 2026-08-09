@@ -563,7 +563,7 @@ static WGPUBuffer va_create_ubo(wgpu_context_t* ctx, size_t size,
                                 const char* label)
 {
   WGPUBufferDescriptor bd = {
-    .label = {.data = label, .length = strlen(label)},
+    .label = STRVIEW(label),
     .size  = size,
     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
   };
