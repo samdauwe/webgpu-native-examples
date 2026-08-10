@@ -826,7 +826,7 @@ static void init_wireframe_pipelines(wgpu_context_t* wgpu_context)
 
   /* Line-list wireframe pipeline */
   WGPURenderPipelineDescriptor wireframe_desc = {
-    .label  = STRVIEW("Wireframe - Line list pipeline"),
+    .label  = STRVIEW("Wireframe Line list - Render pipeline"),
     .layout = pipeline_layout,
     .vertex = {
       .module     = shader_module,
