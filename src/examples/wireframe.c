@@ -856,7 +856,7 @@ static void init_wireframe_pipelines(wgpu_context_t* wgpu_context)
 
   /* Barycentric coordinates based wireframe pipeline */
   WGPURenderPipelineDescriptor barycentric_desc = {
-    .label  = STRVIEW("Wireframe - Barycentric pipeline"),
+    .label  = STRVIEW("Wireframe Barycentric - Render pipeline"),
     .layout = pipeline_layout,
     .vertex = {
       .module     = shader_module,
