@@ -59,6 +59,22 @@
 
 static const char* solid_color_lit_shader_wgsl;
 static const char* wireframe_shader_wgsl;
+static const char* wireframe_buffer_view_shader_wgsl;
+
+/* -------------------------------------------------------------------------- *
+ * buffer_view WGSL feature detection
+ * In native Dawn this feature is not yet in WGPUWGSLLanguageFeatureName enum;
+ * in browser WebGPU it may be supported via wgslLanguageFeatures.
+ * -------------------------------------------------------------------------- */
+
+#ifdef __WAJIC__
+WAJIC(int, wasm_has_wgsl_buffer_view, (), {
+  return (navigator.gpu && navigator.gpu.wgslLanguageFeatures
+          && navigator.gpu.wgslLanguageFeatures.has('buffer_view')) ?
+           1 :
+           0;
+})
+#endif
 
 /* -------------------------------------------------------------------------- *
  * Constants
@@ -72,10 +88,18 @@ static const char* wireframe_shader_wgsl;
  * -------------------------------------------------------------------------- */
 
 typedef struct model_t {
-  WGPUBuffer vertex_buffer;
-  WGPUBuffer index_buffer;
-  uint32_t vertex_count;
-  uint32_t stride; /* Vertex stride in number of floats (6 = pos + normal) */
+  WGPUBuffer vertex_buffer; /* storage buffer for non-buffer_view wireframe */
+  WGPUBuffer index_buffer;  /* storage buffer for non-buffer_view wireframe */
+  uint32_t index_count;     /* number of indices (for draw calls) */
+  uint32_t stride; /* vertex stride in number of floats (6 = pos + normal) */
+  uint32_t model_index;      /* index in combined buffer metadata */
+  uint64_t vertex_offset;    /* byte offset of vertex data in combined buffer */
+  uint64_t index_offset;     /* byte offset of index data in combined buffer */
+  uint64_t vertex_byte_size; /* byte size of vertex data */
+  uint64_t index_byte_size;  /* byte size of index data */
+  /* Temp CPU data for combined buffer (freed after build) */
+  float* cpu_vertices;
+  uint32_t* cpu_indices;
 } model_t;
 
 typedef struct object_info_t {
@@ -88,6 +112,8 @@ typedef struct object_info_t {
   WGPUBindGroup lit_bind_group;
   WGPUBindGroup wireframe_bind_group;
   WGPUBindGroup barycentric_wireframe_bind_group;
+  WGPUBindGroup wireframe_buffer_view_bind_group;
+  WGPUBindGroup barycentric_wireframe_buffer_view_bind_group;
 } object_info_t;
 
 /* Uniform buffer structures (must match shader layout) */
@@ -101,7 +127,8 @@ typedef struct line_uniforms_t {
   uint32_t stride;
   float thickness;
   float alpha_threshold;
-  uint32_t padding;
+  uint32_t
+    model_index; /* index in combined buffer (used by buffer_view shader) */
 } line_uniforms_t;
 
 /* -------------------------------------------------------------------------- *
@@ -124,13 +151,20 @@ static struct {
   primitive_vertex_data_t rock_data;
   /* Objects */
   object_info_t objects[NUM_OBJECTS];
+  /* Combined buffer (all model vertex/index data + metadata) */
+  WGPUBuffer combined_buffer;
   /* Pipelines */
   WGPURenderPipeline lit_pipeline;
   WGPURenderPipeline wireframe_pipeline;
   WGPURenderPipeline barycentric_wireframe_pipeline;
+  WGPURenderPipeline wireframe_buffer_view_pipeline;
+  WGPURenderPipeline barycentric_wireframe_buffer_view_pipeline;
   /* Bind group layouts */
   WGPUBindGroupLayout lit_bind_group_layout;
   WGPUBindGroupLayout wireframe_bind_group_layout;
+  WGPUBindGroupLayout wireframe_buffer_view_bind_group_layout;
+  /* buffer_view feature support */
+  bool supports_buffer_view;
   /* Depth texture */
   wgpu_texture_t depth_texture;
   /* View matrices */
@@ -151,6 +185,7 @@ static struct {
     int32_t depth_bias;
     float depth_bias_slope_scale;
     bool show_models;
+    bool buffer_view; /* use buffer_view variant (if supported) */
   } settings;
   /* Timing */
   float time;
@@ -187,6 +222,7 @@ static struct {
     .depth_bias                    = 1,
     .depth_bias_slope_scale        = 0.5f,
     .show_models                   = true,
+    .buffer_view                   = false,
   },
 };
 
@@ -222,13 +258,13 @@ static void create_model_from_mesh(wgpu_context_t* wgpu_context,
                                    const uint32_t* indices,
                                    uint64_t indices_byte_size, model_t* model)
 {
+  /* Individual storage buffers for the non-buffer_view wireframe pipeline */
   model->vertex_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Model - Vertex buffer"),
+      .label = STRVIEW("Model - Vertex storage buffer"),
       .size  = vertices_byte_size,
-      .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Storage
-               | WGPUBufferUsage_CopyDst,
+      .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
     });
   wgpuQueueWriteBuffer(wgpu_context->queue, model->vertex_buffer, 0, vertices,
                        vertices_byte_size);
@@ -236,20 +272,104 @@ static void create_model_from_mesh(wgpu_context_t* wgpu_context,
   model->index_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Model - Index buffer"),
+      .label = STRVIEW("Model - Index storage buffer"),
       .size  = indices_byte_size,
-      .usage = WGPUBufferUsage_Index | WGPUBufferUsage_Storage
-               | WGPUBufferUsage_CopyDst,
+      .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
     });
   wgpuQueueWriteBuffer(wgpu_context->queue, model->index_buffer, 0, indices,
                        indices_byte_size);
 
-  model->vertex_count = (uint32_t)(indices_byte_size / sizeof(uint32_t));
-  model->stride       = 6; /* position (3) + normal (3) */
+  model->index_count      = (uint32_t)(indices_byte_size / sizeof(uint32_t));
+  model->stride           = 6; /* position (3) + normal (3) */
+  model->vertex_byte_size = vertices_byte_size;
+  model->index_byte_size  = indices_byte_size;
+
+  /* Keep CPU copies so create_combined_buffer can pack all models together */
+  model->cpu_vertices = (float*)malloc(vertices_byte_size);
+  model->cpu_indices  = (uint32_t*)malloc(indices_byte_size);
+  if (model->cpu_vertices)
+    memcpy(model->cpu_vertices, vertices, vertices_byte_size);
+  if (model->cpu_indices)
+    memcpy(model->cpu_indices, indices, indices_byte_size);
 }
 
 /* Buffer size for the teapot JSON file (136 KB + 1 byte for null terminator) */
 #define TEAPOT_JSON_BUF_SIZE (140 * 1024)
+
+/* Number of models in the combined buffer */
+#define NUM_MODELS (4u)
+
+/* -------------------------------------------------------------------------- *
+ * Combined buffer: metadata + vertex/index data for all models
+ *
+ * Layout:
+ *   [metadata: NUM_MODELS * 4 * uint32_t]
+ *   For each model i:  [u32: vertex_offset, u32: vertex_size,
+ *                       u32: index_offset,  u32: index_size]
+ *   [vertex data model 0][index data model 0] ...
+ *   [vertex data model N-1][index data model N-1]
+ * -------------------------------------------------------------------------- */
+
+static void create_combined_buffer(wgpu_context_t* wgpu_context)
+{
+  /* Calculate total size: metadata + all vertex/index data */
+  const uint64_t metadata_size = NUM_MODELS * 4 * sizeof(uint32_t);
+  uint64_t data_size           = 0;
+  for (uint32_t i = 0; i < NUM_MODELS; ++i) {
+    data_size += state.models.all[i]->vertex_byte_size
+                 + state.models.all[i]->index_byte_size;
+  }
+  const uint64_t total_size = metadata_size + data_size;
+
+  uint8_t* buf     = (uint8_t*)malloc(total_size);
+  uint32_t* u32buf = (uint32_t*)buf;
+
+  uint64_t offset = metadata_size;
+  for (uint32_t i = 0; i < NUM_MODELS; ++i) {
+    model_t* m     = state.models.all[i];
+    m->model_index = i;
+
+    /* Write metadata entry */
+    u32buf[i * 4 + 0] = (uint32_t)offset;
+    u32buf[i * 4 + 1] = (uint32_t)m->vertex_byte_size;
+    m->vertex_offset  = offset;
+
+    /* Copy vertex data */
+    if (m->cpu_vertices)
+      memcpy(buf + offset, m->cpu_vertices, m->vertex_byte_size);
+    offset += m->vertex_byte_size;
+
+    u32buf[i * 4 + 2] = (uint32_t)offset;
+    u32buf[i * 4 + 3] = (uint32_t)m->index_byte_size;
+    m->index_offset   = offset;
+
+    /* Copy index data */
+    if (m->cpu_indices)
+      memcpy(buf + offset, m->cpu_indices, m->index_byte_size);
+    offset += m->index_byte_size;
+  }
+
+  state.combined_buffer = wgpuDeviceCreateBuffer(
+    wgpu_context->device,
+    &(WGPUBufferDescriptor){
+      .label = STRVIEW("Combined - Buffer"),
+      .size  = total_size,
+      .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Index
+               | WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
+    });
+  wgpuQueueWriteBuffer(wgpu_context->queue, state.combined_buffer, 0, buf,
+                       total_size);
+  free(buf);
+
+  /* Free CPU model data — no longer needed after the combined buffer is built
+   */
+  for (uint32_t i = 0; i < NUM_MODELS; ++i) {
+    free(state.models.all[i]->cpu_vertices);
+    free(state.models.all[i]->cpu_indices);
+    state.models.all[i]->cpu_vertices = NULL;
+    state.models.all[i]->cpu_indices  = NULL;
+  }
+}
 
 /* Forward declarations for sfetch callback */
 static void create_teapot_model(wgpu_context_t* wgpu_context,
@@ -769,12 +889,140 @@ static void init_wireframe_pipelines(wgpu_context_t* wgpu_context)
   wgpuPipelineLayoutRelease(pipeline_layout);
 }
 
+/* buffer_view variant: 3 bindings (uniform, combined_buffer, line_uniform) */
+static void init_wireframe_buffer_view_pipelines(wgpu_context_t* wgpu_context)
+{
+  if (!state.supports_buffer_view)
+    return;
+
+  /* Bind group layout — only 3 bindings (combined buffer replaces
+   * vertex+index)*/
+  WGPUBindGroupLayoutEntry bv_entries[3] = {
+    [0] = {
+      .binding    = 0,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+      .buffer = {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(uniforms_t),
+      },
+    },
+    [1] = {
+      .binding    = 1,
+      .visibility = WGPUShaderStage_Vertex,
+      .buffer = {
+        .type           = WGPUBufferBindingType_ReadOnlyStorage,
+        .minBindingSize = 0,
+      },
+    },
+    [2] = {
+      .binding    = 2,
+      .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+      .buffer = {
+        .type           = WGPUBufferBindingType_Uniform,
+        .minBindingSize = sizeof(line_uniforms_t),
+      },
+    },
+  };
+
+  state.wireframe_buffer_view_bind_group_layout
+    = wgpuDeviceCreateBindGroupLayout(
+      wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
+                              .label = STRVIEW("Wireframe buffer_view - BGL"),
+                              .entryCount = ARRAY_SIZE(bv_entries),
+                              .entries    = bv_entries,
+                            });
+
+  WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+    wgpu_context->device,
+    &(WGPUPipelineLayoutDescriptor){
+      .label = STRVIEW("Wireframe buffer_view - Pipeline layout"),
+      .bindGroupLayoutCount = 1,
+      .bindGroupLayouts     = &state.wireframe_buffer_view_bind_group_layout,
+    });
+
+  WGPUShaderModule shader_module = wgpu_create_shader_module(
+    wgpu_context->device, wireframe_buffer_view_shader_wgsl);
+
+  WGPUDepthStencilState depth_stencil_state = {
+    .format            = DEPTH_FORMAT,
+    .depthWriteEnabled = true,
+    .depthCompare      = WGPUCompareFunction_LessEqual,
+    .stencilFront      = {.compare = WGPUCompareFunction_Always},
+    .stencilBack       = {.compare = WGPUCompareFunction_Always},
+  };
+
+  /* Line-list buffer_view pipeline */
+  WGPURenderPipelineDescriptor wf_bv_desc = {
+    .label  = STRVIEW("Wireframe buffer_view - Line list pipeline"),
+    .layout = pipeline_layout,
+    .vertex = {
+      .module     = shader_module,
+      .entryPoint = STRVIEW("vsIndexedU32BufferView"),
+    },
+    .fragment = &(WGPUFragmentState){
+      .module      = shader_module,
+      .entryPoint  = STRVIEW("fsBufferView"),
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState){
+        .format    = wgpu_context->render_format,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive    = {.topology = WGPUPrimitiveTopology_LineList},
+    .depthStencil = &depth_stencil_state,
+    .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+  };
+
+  state.wireframe_buffer_view_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &wf_bv_desc);
+
+  /* Barycentric buffer_view pipeline */
+  WGPUBlendState alpha_blend = {
+    .color = {.srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add},
+    .alpha = {.srcFactor = WGPUBlendFactor_One,
+              .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+              .operation = WGPUBlendOperation_Add},
+  };
+  WGPURenderPipelineDescriptor bary_bv_desc = {
+    .label  = STRVIEW("Wireframe buffer_view - Barycentric pipeline"),
+    .layout = pipeline_layout,
+    .vertex = {
+      .module     = shader_module,
+      .entryPoint = STRVIEW("vsIndexedU32BarycentricBufferView"),
+    },
+    .fragment = &(WGPUFragmentState){
+      .module      = shader_module,
+      .entryPoint  = STRVIEW("fsBarycentricBufferView"),
+      .targetCount = 1,
+      .targets = &(WGPUColorTargetState){
+        .format    = wgpu_context->render_format,
+        .blend     = &alpha_blend,
+        .writeMask = WGPUColorWriteMask_All,
+      },
+    },
+    .primitive    = {.topology = WGPUPrimitiveTopology_TriangleList},
+    .depthStencil = &depth_stencil_state,
+    .multisample  = {.count = 1, .mask = 0xFFFFFFFF},
+  };
+
+  state.barycentric_wireframe_buffer_view_pipeline
+    = wgpuDeviceCreateRenderPipeline(wgpu_context->device, &bary_bv_desc);
+
+  wgpuShaderModuleRelease(shader_module);
+  wgpuPipelineLayoutRelease(pipeline_layout);
+}
+
 /* -------------------------------------------------------------------------- *
  * Object initialization
  * -------------------------------------------------------------------------- */
 
 static void init_objects(wgpu_context_t* wgpu_context)
 {
+  /* Build the combined buffer (needs all CPU model data to be present) */
+  create_combined_buffer(wgpu_context);
+
   for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
     object_info_t* obj = &state.objects[i];
 
@@ -791,11 +1039,12 @@ static void init_objects(wgpu_context_t* wgpu_context)
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       });
 
-    /* Create line uniform buffer */
+    /* Create line uniform buffer — model_index used by buffer_view shader */
     line_uniforms_t line_uniforms = {
       .stride          = obj->model->stride,
       .thickness       = state.settings.thickness,
       .alpha_threshold = state.settings.alpha_threshold,
+      .model_index     = obj->model->model_index,
     };
     obj->line_uniform_buffer = wgpuDeviceCreateBuffer(
       wgpu_context->device,
@@ -820,7 +1069,8 @@ static void init_objects(wgpu_context_t* wgpu_context)
                               },
                             });
 
-    /* Create wireframe bind groups */
+    /* Non-buffer_view wireframe bind groups (separate vertex + index buffers)
+     */
     WGPUBindGroupEntry wf_entries[4] = {
       [0] = {.binding = 0,
              .buffer  = obj->uniform_buffer,
@@ -852,6 +1102,40 @@ static void init_objects(wgpu_context_t* wgpu_context)
         .entryCount = ARRAY_SIZE(wf_entries),
         .entries    = wf_entries,
       });
+
+    /* buffer_view wireframe bind groups (single combined buffer) */
+    if (state.supports_buffer_view) {
+      WGPUBindGroupEntry bv_entries[3] = {
+        [0] = {.binding = 0,
+               .buffer  = obj->uniform_buffer,
+               .size    = sizeof(uniforms_t)},
+        [1] = {.binding = 1,
+               .buffer  = state.combined_buffer,
+               .size    = WGPU_WHOLE_SIZE},
+        [2] = {.binding = 2,
+               .buffer  = obj->line_uniform_buffer,
+               .size    = sizeof(line_uniforms_t)},
+      };
+
+      obj->wireframe_buffer_view_bind_group = wgpuDeviceCreateBindGroup(
+        wgpu_context->device,
+        &(WGPUBindGroupDescriptor){
+          .label      = STRVIEW("Wireframe buffer_view - Bind group"),
+          .layout     = state.wireframe_buffer_view_bind_group_layout,
+          .entryCount = ARRAY_SIZE(bv_entries),
+          .entries    = bv_entries,
+        });
+
+      obj->barycentric_wireframe_buffer_view_bind_group
+        = wgpuDeviceCreateBindGroup(
+          wgpu_context->device,
+          &(WGPUBindGroupDescriptor){
+            .label      = STRVIEW("Barycentric wireframe buffer_view - BG"),
+            .layout     = state.wireframe_buffer_view_bind_group_layout,
+            .entryCount = ARRAY_SIZE(bv_entries),
+            .entries    = bv_entries,
+          });
+    }
   }
 }
 
@@ -882,6 +1166,7 @@ static void update_line_uniforms(wgpu_context_t* wgpu_context)
       .stride          = state.objects[i].model->stride,
       .thickness       = state.settings.thickness,
       .alpha_threshold = state.settings.alpha_threshold,
+      .model_index     = state.objects[i].model->model_index,
     };
     wgpuQueueWriteBuffer(wgpu_context->queue,
                          state.objects[i].line_uniform_buffer, 0,
@@ -945,6 +1230,9 @@ static void render_gui(wgpu_context_t* wgpu_context)
   igCheckbox("Lines", &state.settings.lines);
   igCheckbox("Models", &state.settings.show_models);
   igCheckbox("Animate", &state.settings.animate);
+  if (state.supports_buffer_view) {
+    igCheckbox("Buffer View", &state.settings.buffer_view);
+  }
 
   igSeparator();
 
@@ -1013,12 +1301,21 @@ static int init(wgpu_context_t* wgpu_context)
 #endif
     });
 
+    /* Detect WGSL buffer_view language feature support */
+#ifdef __WAJIC__
+    state.supports_buffer_view = (bool)wasm_has_wgsl_buffer_view();
+#else
+    state.supports_buffer_view
+      = false; /* Dawn: buffer_view not in WGSLLanguageFeatureName yet */
+#endif
+
     init_models(wgpu_context); /* starts teapot.json sfetch */
     init_depth_texture(wgpu_context);
     init_view_matrices(wgpu_context);
     init_lit_bind_group_layout(wgpu_context);
     rebuild_lit_pipeline(wgpu_context);
     init_wireframe_pipelines(wgpu_context);
+    init_wireframe_buffer_view_pipelines(wgpu_context);
     /* init_objects is deferred: called from teapot_fetch_cb after all models
      * ready */
     imgui_overlay_init(wgpu_context);
@@ -1078,44 +1375,55 @@ static int frame(wgpu_context_t* wgpu_context)
   WGPURenderPassEncoder rpass_enc
     = wgpuCommandEncoderBeginRenderPass(cmd_enc, &state.render_pass_descriptor);
 
-  /* Render lit models */
+  /* Render lit models — uses combined buffer with per-model byte offsets */
   if (state.settings.show_models) {
     wgpuRenderPassEncoderSetPipeline(rpass_enc, state.lit_pipeline);
 
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
       object_info_t* obj = &state.objects[i];
-      wgpuRenderPassEncoderSetVertexBuffer(
-        rpass_enc, 0, obj->model->vertex_buffer, 0, WGPU_WHOLE_SIZE);
-      wgpuRenderPassEncoderSetIndexBuffer(rpass_enc, obj->model->index_buffer,
-                                          WGPUIndexFormat_Uint32, 0,
-                                          WGPU_WHOLE_SIZE);
+      wgpuRenderPassEncoderSetVertexBuffer(rpass_enc, 0, state.combined_buffer,
+                                           obj->model->vertex_offset,
+                                           obj->model->vertex_byte_size);
+      wgpuRenderPassEncoderSetIndexBuffer(
+        rpass_enc, state.combined_buffer, WGPUIndexFormat_Uint32,
+        obj->model->index_offset, obj->model->index_byte_size);
       wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, obj->lit_bind_group, 0,
                                         0);
-      wgpuRenderPassEncoderDrawIndexed(rpass_enc, obj->model->vertex_count, 1,
-                                       0, 0, 0);
+      wgpuRenderPassEncoderDrawIndexed(rpass_enc, obj->model->index_count, 1, 0,
+                                       0, 0);
     }
   }
 
   /* Render wireframe lines */
   if (state.settings.lines) {
+    const bool use_bv
+      = state.settings.buffer_view && state.supports_buffer_view;
     if (state.settings.barycentric_coordinates_based) {
-      wgpuRenderPassEncoderSetPipeline(rpass_enc,
-                                       state.barycentric_wireframe_pipeline);
+      WGPURenderPipeline pipeline
+        = use_bv ? state.barycentric_wireframe_buffer_view_pipeline :
+                   state.barycentric_wireframe_pipeline;
+      wgpuRenderPassEncoderSetPipeline(rpass_enc, pipeline);
       for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
         object_info_t* obj = &state.objects[i];
-        wgpuRenderPassEncoderSetBindGroup(
-          rpass_enc, 0, obj->barycentric_wireframe_bind_group, 0, 0);
-        wgpuRenderPassEncoderDraw(rpass_enc, obj->model->vertex_count, 1, 0, 0);
+        WGPUBindGroup bg   = use_bv ?
+                               obj->barycentric_wireframe_buffer_view_bind_group :
+                               obj->barycentric_wireframe_bind_group;
+        wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bg, 0, 0);
+        wgpuRenderPassEncoderDraw(rpass_enc, obj->model->index_count, 1, 0, 0);
       }
     }
     else {
-      wgpuRenderPassEncoderSetPipeline(rpass_enc, state.wireframe_pipeline);
+      WGPURenderPipeline pipeline = use_bv ?
+                                      state.wireframe_buffer_view_pipeline :
+                                      state.wireframe_pipeline;
+      wgpuRenderPassEncoderSetPipeline(rpass_enc, pipeline);
       for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
         object_info_t* obj = &state.objects[i];
-        wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
-                                          obj->wireframe_bind_group, 0, 0);
-        /* Draw 6 vertices per triangle (2 per edge * 3 edges) */
-        wgpuRenderPassEncoderDraw(rpass_enc, obj->model->vertex_count * 2, 1, 0,
+        WGPUBindGroup bg   = use_bv ? obj->wireframe_buffer_view_bind_group :
+                                      obj->wireframe_bind_group;
+        wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, bg, 0, 0);
+        /* 6 vertices per triangle for line-list (2 per edge × 3 edges) */
+        wgpuRenderPassEncoderDraw(rpass_enc, obj->model->index_count * 2, 1, 0,
                                   0);
       }
     }
@@ -1162,9 +1470,20 @@ static void shutdown(wgpu_context_t* wgpu_context)
     WGPU_RELEASE_RESOURCE(BindGroup, state.objects[i].wireframe_bind_group)
     WGPU_RELEASE_RESOURCE(BindGroup,
                           state.objects[i].barycentric_wireframe_bind_group)
+    WGPU_RELEASE_RESOURCE(BindGroup,
+                          state.objects[i].wireframe_buffer_view_bind_group)
+    WGPU_RELEASE_RESOURCE(
+      BindGroup, state.objects[i].barycentric_wireframe_buffer_view_bind_group)
   }
 
-  /* Destroy models */
+  /* Destroy models (free any leftover CPU data on early exit) */
+  for (uint32_t i = 0; i < NUM_MODELS; ++i) {
+    free(state.models.all[i]->cpu_vertices);
+    free(state.models.all[i]->cpu_indices);
+    state.models.all[i]->cpu_vertices = NULL;
+    state.models.all[i]->cpu_indices  = NULL;
+  }
+  WGPU_RELEASE_RESOURCE(Buffer, state.combined_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.models.teapot.vertex_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.models.teapot.index_buffer)
   WGPU_RELEASE_RESOURCE(Buffer, state.models.sphere.vertex_buffer)
@@ -1183,8 +1502,13 @@ static void shutdown(wgpu_context_t* wgpu_context)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.lit_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.wireframe_pipeline)
   WGPU_RELEASE_RESOURCE(RenderPipeline, state.barycentric_wireframe_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline, state.wireframe_buffer_view_pipeline)
+  WGPU_RELEASE_RESOURCE(RenderPipeline,
+                        state.barycentric_wireframe_buffer_view_pipeline)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.lit_bind_group_layout)
   WGPU_RELEASE_RESOURCE(BindGroupLayout, state.wireframe_bind_group_layout)
+  WGPU_RELEASE_RESOURCE(BindGroupLayout,
+                        state.wireframe_buffer_view_bind_group_layout)
 
   /* Destroy depth texture */
   wgpu_destroy_texture(&state.depth_texture);
@@ -1327,6 +1651,99 @@ static const char* wireframe_shader_wgsl = CODE(
       discard;
     }
 
+    return vec4((uni.color.rgb + 0.5) * a, a);
+  }
+);
+
+static const char* wireframe_buffer_view_shader_wgsl = CODE(
+  requires buffer_view;
+
+  struct Uniforms {
+    worldViewProjectionMatrix: mat4x4f,
+    worldMatrix: mat4x4f,
+    color: vec4f,
+  };
+
+  struct LineUniforms {
+    stride: u32,
+    thickness: f32,
+    alphaThreshold: f32,
+    modelIndex: u32
+  };
+
+  struct VSOut {
+    @builtin(position) position: vec4f,
+  };
+
+  @group(0) @binding(0) var<uniform> uni: Uniforms;
+  @group(0) @binding(1) var<storage, read> inputs: buffer;
+  @group(0) @binding(2) var<uniform> line: LineUniforms;
+
+  @vertex fn vsIndexedU32BufferView(@builtin(vertex_index) vNdx: u32) -> VSOut {
+    let meta = *bufferView<vec4u>(&inputs, line.modelIndex * 16);
+    let vertexOffset = meta[0];
+    let vertexSize   = meta[1];
+    let indexOffset  = meta[2];
+    let indexSize    = meta[3];
+    let positions = bufferArrayView<array<f32>>(&inputs, vertexOffset, vertexSize);
+    let indices   = bufferArrayView<array<u32>>(&inputs, indexOffset,  indexSize);
+
+    let triNdx  = vNdx / 6;
+    let vertNdx = (vNdx % 2 + vNdx / 2) % 3;
+    let index   = (*indices)[triNdx * 3 + vertNdx];
+    let pNdx    = index * line.stride;
+    let position = vec4f((*positions)[pNdx], (*positions)[pNdx + 1], (*positions)[pNdx + 2], 1);
+
+    var vOut: VSOut;
+    vOut.position = uni.worldViewProjectionMatrix * position;
+    return vOut;
+  }
+
+  @fragment fn fsBufferView() -> @location(0) vec4f {
+    return uni.color + vec4f(0.5);
+  }
+
+  struct BarycentricCoordinateBasedVSOutput {
+    @builtin(position) position: vec4f,
+    @location(0) barycenticCoord: vec3f,
+  };
+
+  @vertex fn vsIndexedU32BarycentricBufferView(
+    @builtin(vertex_index) vNdx: u32
+  ) -> BarycentricCoordinateBasedVSOutput {
+    let meta = *bufferView<vec4u>(&inputs, line.modelIndex * 16);
+    let vertexOffset = meta[0];
+    let vertexSize   = meta[1];
+    let indexOffset  = meta[2];
+    let indexSize    = meta[3];
+    let positions = bufferArrayView<array<f32>>(&inputs, vertexOffset, vertexSize);
+    let indices   = bufferArrayView<array<u32>>(&inputs, indexOffset,  indexSize);
+
+    let vertNdx = vNdx % 3;
+    let index   = (*indices)[vNdx];
+    let pNdx    = index * line.stride;
+    let position = vec4f((*positions)[pNdx], (*positions)[pNdx + 1], (*positions)[pNdx + 2], 1);
+
+    var vsOut: BarycentricCoordinateBasedVSOutput;
+    vsOut.position = uni.worldViewProjectionMatrix * position;
+    vsOut.barycenticCoord = vec3f(0);
+    vsOut.barycenticCoord[vertNdx] = 1.0;
+    return vsOut;
+  }
+
+  fn edgeFactor(bary: vec3f) -> f32 {
+    let d = fwidth(bary);
+    let a3 = smoothstep(vec3f(0.0), d * line.thickness, bary);
+    return min(min(a3.x, a3.y), a3.z);
+  }
+
+  @fragment fn fsBarycentricBufferView(
+    v: BarycentricCoordinateBasedVSOutput
+  ) -> @location(0) vec4f {
+    let a = 1.0 - edgeFactor(v.barycenticCoord);
+    if (a < line.alphaThreshold) {
+      discard;
+    }
     return vec4((uni.color.rgb + 0.5) * a, a);
   }
 );
