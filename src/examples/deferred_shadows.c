@@ -508,7 +508,7 @@ static void init_render_passes(void)
         .depthClearValue = 1.0f,
       };
     state.shadow_pass.descriptor = (WGPURenderPassDescriptor){
-      .label                  = STRVIEW("Shadow Map Render Pass"),
+      .label                  = STRVIEW("Shadow Map - Render Pass"),
       .colorAttachmentCount   = 0,
       .colorAttachments       = NULL,
       .depthStencilAttachment = &state.shadow_pass.depth_stencil_attachment,
