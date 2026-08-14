@@ -690,7 +690,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
   /* Offscreen UBO */
   state.offscreen_ubo = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Offscreen UBO"),
+              .label = STRVIEW("Offscreen - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(state.offscreen_ubo_data),
             });
