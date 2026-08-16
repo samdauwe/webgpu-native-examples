@@ -320,7 +320,7 @@ static void init_gbuffer_textures(struct wgpu_context_t* wgpu_context)
   /* Nearest-neighbor sampler for G-Buffer */
   {
     WGPUSamplerDescriptor desc = {
-      .label         = STRVIEW("GBuffer - Sampler"),
+      .label         = STRVIEW("GBuffer Texture - Sampler"),
       .addressModeU  = WGPUAddressMode_ClampToEdge,
       .addressModeV  = WGPUAddressMode_ClampToEdge,
       .addressModeW  = WGPUAddressMode_ClampToEdge,
