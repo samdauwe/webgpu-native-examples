@@ -957,7 +957,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
 
     state.armor_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Armor Bind Group"),
+                .label      = STRVIEW("Armor - Bind Group"),
                 .layout     = state.offscreen_bgl,
                 .entryCount = 4,
                 .entries    = entries,
