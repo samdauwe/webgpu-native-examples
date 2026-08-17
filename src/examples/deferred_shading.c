@@ -912,7 +912,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 
     state.composition_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Composition BGL"),
+                .label      = STRVIEW("Composition - Bind group layout"),
                 .entryCount = 5,
                 .entries    = entries,
               });
