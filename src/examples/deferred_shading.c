@@ -1044,7 +1044,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
   /* Offscreen pipeline layout */
   state.offscreen_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Offscreen Pipeline Layout"),
+              .label                = STRVIEW("Offscreen - Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.offscreen_bgl,
             });
