@@ -1052,7 +1052,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
   /* Composition pipeline layout */
   state.composition_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Composition Pipeline Layout"),
+              .label                = STRVIEW("Composition - Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.composition_bgl,
             });
