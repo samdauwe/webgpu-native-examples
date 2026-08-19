@@ -835,7 +835,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
   for (uint32_t i = 0; i < LIGHT_COUNT; i++) {
     state.shadow_ubos[i] = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Shadow UBO"),
+                .label = STRVIEW("Shadow - UBO"),
                 .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                 .size  = sizeof(state.shadow_ubo_data[0]),
               });
