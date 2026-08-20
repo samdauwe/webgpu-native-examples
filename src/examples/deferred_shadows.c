@@ -1033,7 +1033,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 
     state.shadow_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Shadow BGL"),
+                .label      = STRVIEW("Shadow - Bind group layout"),
                 .entryCount = 1,
                 .entries    = entries,
               });
