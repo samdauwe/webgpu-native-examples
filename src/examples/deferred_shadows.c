@@ -1139,7 +1139,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.model_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Model Bind Group"),
+                .label      = STRVIEW("Model - Bind Group"),
                 .layout     = state.offscreen_bgl,
                 .entryCount = 4,
                 .entries    = entries,
