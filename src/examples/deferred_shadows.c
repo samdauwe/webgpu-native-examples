@@ -1176,7 +1176,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.shadow_bind_groups[i] = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Shadow Bind Group"),
+                .label      = STRVIEW("Shadow - Bind Group"),
                 .layout     = state.shadow_bgl,
                 .entryCount = 1,
                 .entries    = entries,
