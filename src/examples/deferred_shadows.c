@@ -1199,7 +1199,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.composition_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Composition Bind Group"),
+                .label      = STRVIEW("Composition - Bind Group"),
                 .layout     = state.composition_bgl,
                 .entryCount = 7,
                 .entries    = entries,
