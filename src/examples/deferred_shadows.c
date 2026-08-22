@@ -1224,7 +1224,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
 
   state.shadow_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Shadow Pipeline Layout"),
+              .label                = STRVIEW("Shadow - Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.shadow_bgl,
             });
