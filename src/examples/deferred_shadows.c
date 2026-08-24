@@ -1401,7 +1401,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.composition_pipeline = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-                .label  = STRVIEW("Composition Pipeline"),
+                .label  = STRVIEW("Composition - Render Pipeline"),
                 .layout = state.composition_pipeline_layout,
                 .vertex = (WGPUVertexState){
                   .module      = shader,
