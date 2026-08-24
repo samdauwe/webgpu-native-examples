@@ -271,7 +271,7 @@ static void init_vertex_and_index_buffers(wgpu_context_t* wgpu_context,
       = (dragon_mesh->triangles.count + ground_plane_index_count) * 3;
     uint64_t index_buffer_size       = state.index_count * sizeof(uint16_t);
     WGPUBufferDescriptor buffer_desc = {
-      .label            = STRVIEW("Index buffer"),
+      .label            = STRVIEW("Stanford dragon mesh - Index buffer"),
       .usage            = WGPUBufferUsage_Index,
       .size             = index_buffer_size,
       .mappedAtCreation = true,
