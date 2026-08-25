@@ -829,7 +829,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 
     state.offscreen_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Offscreen BGL"),
+                .label      = STRVIEW("Offscreen - Bind group layout"),
                 .entryCount = 4,
                 .entries    = entries,
               });
