@@ -878,7 +878,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 
     state.composition_msaa_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Composition MSAA BGL"),
+                .label      = STRVIEW("Composition MSAA - Bind group layout"),
                 .entryCount = 4,
                 .entries    = entries,
               });
