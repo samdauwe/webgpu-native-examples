@@ -237,11 +237,12 @@ static WGPUTextureView create_texture_view_2d(WGPUTexture texture,
 {
   return wgpuTextureCreateView(texture,
                                &(WGPUTextureViewDescriptor){
-                                 .format          = format,
-                                 .dimension       = WGPUTextureViewDimension_2D,
-                                 .baseMipLevel    = 0,
-                                 .mipLevelCount   = 1,
-                                 .baseArrayLayer  = 0,
+                                 .label          = STRVIEW("2D - Texture view"),
+                                 .format         = format,
+                                 .dimension      = WGPUTextureViewDimension_2D,
+                                 .baseMipLevel   = 0,
+                                 .mipLevelCount  = 1,
+                                 .baseArrayLayer = 0,
                                  .arrayLayerCount = 1,
                                  .aspect          = WGPUTextureAspect_All,
                                });
