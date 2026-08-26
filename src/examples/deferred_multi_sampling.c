@@ -704,7 +704,7 @@ static void init_uniform_buffers(struct wgpu_context_t* wgpu_context)
 
   state.composition_ubo = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Composition UBO"),
+              .label = STRVIEW("Composition - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(state.composition_ubo_data),
             });
