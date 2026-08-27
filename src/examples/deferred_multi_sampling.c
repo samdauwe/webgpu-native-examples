@@ -986,13 +986,13 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
       {.binding = 2, .textureView = state.textures.textures[3].view},
       {.binding = 3, .sampler = state.textures.sampler},
     };
-    state.box_bind_group
-      = wgpuDeviceCreateBindGroup(device, &(WGPUBindGroupDescriptor){
-                                            .label  = STRVIEW("Box Bind Group"),
-                                            .layout = state.offscreen_bgl,
-                                            .entryCount = 4,
-                                            .entries    = entries,
-                                          });
+    state.box_bind_group = wgpuDeviceCreateBindGroup(
+      device, &(WGPUBindGroupDescriptor){
+                .label      = STRVIEW("Box - Bind Group"),
+                .layout     = state.offscreen_bgl,
+                .entryCount = 4,
+                .entries    = entries,
+              });
   }
 
   /* Composition MSAA bind group: multisampled textures + UBO */
