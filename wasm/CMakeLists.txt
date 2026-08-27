@@ -628,6 +628,16 @@ add_wajic_example(metaballs src/examples/metaballs.c
 
 add_wajic_example(minimal src/examples/minimal.c)
 
+add_wajic_example(momentous src/examples/momentous.c
+    USE_CIMGUI
+    EXTRA_INCLUDES
+        external/sokol
+)
+# momentous uses ~3 MB of GPU particle textures plus force field; reserve
+# extra initial WASM memory to prevent heap growth during init.
+set_property(TARGET momentous APPEND_STRING PROPERTY
+    LINK_FLAGS " -Xlinker --initial-memory=8388608")
+
 add_wajic_example(msaa_line src/examples/msaa_line.c)
 
 add_wajic_example(multi_sampling src/examples/multi_sampling.c
@@ -1302,6 +1312,7 @@ set(WASM_EXAMPLE_TITLES
     "instancing|Instanced Mesh Rendering"
     "metaballs|Metaballs"
     "minimal|Minimal"
+    "momentous|Momentous"
     "msaa_line|MSAA Line"
     "multi_sampling|Multisampling (MSAA)"
     "n_body_simulation|N-Body Simulation"

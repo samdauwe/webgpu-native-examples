@@ -751,6 +751,10 @@ WebGPU demo featuring marching cubes and bloom post-processing via compute shade
 
 Real-time metaball rendering using marching cubes on the CPU, with tri-planar texture mapping on the GPU. Animated blobs that merge and split are rendered with selectable textures (lava, slime, water) inside a point-lit dungeon environment loaded from glTF, with instanced light sprites and an interactive orbit camera. This example has been ported from [this JavaScript implementation](https://github.com/toji/webgpu-metaballs) to native code.
 
+#### [Momentous](src/examples/momentous.c)
+
+GPU-driven particle system reimplementation of the particle effect from "fr-059: momentum" by Farbrausch/ryg. 48 K small cubes are integrated on the GPU each frame using verlet integration driven by a procedurally generated divergence-free 3-D force field, creating an organic, flowing motion. Each cube is oriented along its velocity direction and lit using a tri-light shading model with derivative-based faceted normals. This example has been ported from [this D3D10 implementation](https://github.com/rygorous/momentous) to native WebGPU.
+
 #### [Dunes Rendering](src/examples/dunes.c)
 
 Demonstrates a procedurally animated desert dunes scene using the WebGPU graphics API. Features multi-textured terrain with slope-based shading and wind-driven sand animation, palm trees with alpha-tested transparency, two animated birds with morph-target frame interpolation, a dust particle system with soft-edge depth compositing, a sky sphere, and an additive-blended sun flare. Four time-of-day presets are provided (Night, Day, Sunset, Sunrise) with automatic camera rotation or random viewpoint cycling modes. Ported from the [WebGL Dunes demo](https://github.com/keaukraine/webgl-dunes).
