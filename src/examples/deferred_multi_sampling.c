@@ -935,7 +935,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
 
     state.composition_no_msaa_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Composition No-MSAA BGL"),
+                .label = STRVIEW("Composition No-MSAA - Bind group layout"),
                 .entryCount = 5,
                 .entries    = entries,
               });
