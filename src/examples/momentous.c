@@ -503,7 +503,7 @@ static void create_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.update_vel_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                              .label      = STRVIEW("UpdateVel - BGL"),
+                              .label = STRVIEW("UpdateVel - Bind group layout"),
                               .entryCount = 2,
                               .entries    = e,
                             });
