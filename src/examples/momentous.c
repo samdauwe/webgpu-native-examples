@@ -8,7 +8,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #ifdef __WAJIC__
 #define WAJIC_TIME_IMPL
@@ -113,7 +112,7 @@ static struct {
   /* 3-D force field texture (RGBA32F, FORCE_SIZE^3) */
   WGPUTexture force_tex;
   WGPUTextureView force_view;
-  WGPUSampler force_sampler;
+  WGPUSampler force_sampler; /* unused placeholder kept for struct layout */
   /* Depth texture for cube rendering */
   WGPUTexture depth_tex;
   WGPUTextureView depth_view;
@@ -330,17 +329,9 @@ static void create_force_texture(wgpu_context_t* wgpu_context)
                        .arrayLayerCount = 1,
                      });
 
-  state.force_sampler = wgpuDeviceCreateSampler(
-    wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Force - Sampler"),
-                            .addressModeU  = WGPUAddressMode_Repeat,
-                            .addressModeV  = WGPUAddressMode_Repeat,
-                            .addressModeW  = WGPUAddressMode_Repeat,
-                            .minFilter     = WGPUFilterMode_Linear,
-                            .magFilter     = WGPUFilterMode_Linear,
-                            .mipmapFilter  = WGPUMipmapFilterMode_Nearest,
-                            .maxAnisotropy = 1,
-                          });
+  /* No sampler needed: force field is sampled via textureLoad (manual
+   * trilinear) */
+  state.force_sampler = NULL;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -473,41 +464,42 @@ static void create_bind_group_layouts(wgpu_context_t* wgpu_context)
              .visibility = WGPUShaderStage_Fragment,
              .buffer     = {.type           = WGPUBufferBindingType_Uniform,
                             .minBindingSize = sizeof(update_consts_t)}},
+      /* particle textures — accessed via textureLoad, no filtering needed */
       [1] = {.binding    = 1,
              .visibility = WGPUShaderStage_Fragment,
-             .texture    = {.sampleType    = WGPUTextureSampleType_Float,
-                            .viewDimension = WGPUTextureViewDimension_2D}},
+             .texture = {.sampleType = WGPUTextureSampleType_UnfilterableFloat,
+                         .viewDimension = WGPUTextureViewDimension_2D}},
       [2] = {.binding    = 2,
              .visibility = WGPUShaderStage_Fragment,
-             .texture    = {.sampleType    = WGPUTextureSampleType_Float,
-                            .viewDimension = WGPUTextureViewDimension_2D}},
+             .texture = {.sampleType = WGPUTextureSampleType_UnfilterableFloat,
+                         .viewDimension = WGPUTextureViewDimension_2D}},
+      /* force 3D texture — sampled via manual textureLoad, no
+         float32-filterable needed */
       [3] = {.binding    = 3,
              .visibility = WGPUShaderStage_Fragment,
-             .sampler    = {.type = WGPUSamplerBindingType_Filtering}},
-      [4] = {.binding    = 4,
-             .visibility = WGPUShaderStage_Fragment,
-             .texture    = {.sampleType    = WGPUTextureSampleType_Float,
-                            .viewDimension = WGPUTextureViewDimension_3D}},
+             .texture = {.sampleType = WGPUTextureSampleType_UnfilterableFloat,
+                         .viewDimension = WGPUTextureViewDimension_3D}},
     };
     state.update_pos_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
                               .label      = STRVIEW("UpdatePos - BGL"),
-                              .entryCount = 5,
+                              .entryCount = 4,
                               .entries    = e,
                             });
   }
 
   /* UpdateVel: 2×texture_2d */
   {
+    /* particle textures — accessed via textureLoad, no filtering needed */
     WGPUBindGroupLayoutEntry e[2] = {
       [0] = {.binding    = 0,
              .visibility = WGPUShaderStage_Fragment,
-             .texture    = {.sampleType    = WGPUTextureSampleType_Float,
-                            .viewDimension = WGPUTextureViewDimension_2D}},
+             .texture = {.sampleType = WGPUTextureSampleType_UnfilterableFloat,
+                         .viewDimension = WGPUTextureViewDimension_2D}},
       [1] = {.binding    = 1,
              .visibility = WGPUShaderStage_Fragment,
-             .texture    = {.sampleType    = WGPUTextureSampleType_Float,
-                            .viewDimension = WGPUTextureViewDimension_2D}},
+             .texture = {.sampleType = WGPUTextureSampleType_UnfilterableFloat,
+                         .viewDimension = WGPUTextureViewDimension_2D}},
     };
     state.update_vel_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
@@ -668,20 +660,19 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
   for (int k = 0; k < 3; ++k) {
     /* UpdatePos */
     {
-      WGPUBindGroupEntry e[5] = {
+      WGPUBindGroupEntry e[4] = {
         [0] = {.binding = 0,
                .buffer  = state.update_consts_buf,
                .size    = sizeof(update_consts_t)},
         [1] = {.binding = 1, .textureView = state.part_view[(k + 1) % 3]},
         [2] = {.binding = 2, .textureView = state.part_view[(k + 2) % 3]},
-        [3] = {.binding = 3, .sampler = state.force_sampler},
-        [4] = {.binding = 4, .textureView = state.force_view},
+        [3] = {.binding = 3, .textureView = state.force_view},
       };
       state.update_pos_bg[k] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
                                 .label      = STRVIEW("UpdatePos - BG"),
                                 .layout     = state.update_pos_bgl,
-                                .entryCount = 5,
+                                .entryCount = 4,
                                 .entries    = e,
                               });
     }
@@ -1100,15 +1091,13 @@ static void input_event_cb(wgpu_context_t* wgpu_context,
 int main(void)
 {
   wgpu_start(&(wgpu_desc_t){
-    .title                  = "Momentous",
-    .width                  = 1280,
-    .height                 = 720,
-    .init_cb                = init,
-    .frame_cb               = frame,
-    .shutdown_cb            = shutdown,
-    .input_event_cb         = input_event_cb,
-    .required_feature_count = 1,
-    .required_features = (WGPUFeatureName[]){WGPUFeatureName_Float32Filterable},
+    .title          = "Momentous",
+    .width          = 1280,
+    .height         = 720,
+    .init_cb        = init,
+    .frame_cb       = frame,
+    .shutdown_cb    = shutdown,
+    .input_event_cb = input_event_cb,
   });
   return EXIT_SUCCESS;
 }
@@ -1133,8 +1122,7 @@ static const char* update_pos_shader_wgsl = CODE(
   @group(0) @binding(0) var<uniform> u:          UpdateConsts;
   @group(0) @binding(1) var          tex_older:  texture_2d<f32>;
   @group(0) @binding(2) var          tex_newer:  texture_2d<f32>;
-  @group(0) @binding(3) var          force_smp:  sampler;
-  @group(0) @binding(4) var          force_tex:  texture_3d<f32>;
+  @group(0) @binding(3) var          force_tex:  texture_3d<f32>;
 
   @vertex fn vs(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4f {
     let x = f32(vid >> 1u) * 4.0 - 1.0;
@@ -1148,12 +1136,25 @@ static const char* update_pos_shader_wgsl = CODE(
     let newer  = textureLoad(tex_newer, c, 0);
 
     // Compute force field sample coordinate with smoothstep weights
-    let fp_raw = newer.xyz * u.field_scale + u.field_offs;
+    let fp_raw = newer.xyz * u.field_scale + u.field_offs;  // pos * 32
     let fr     = fract(fp_raw);
-    let fs     = fr * fr * (3.0 - 2.0 * fr);  // smoothstep
-    let fp_sm  = fp_raw - fr + fs;             // integer part + smooth fraction
-
-    let force  = textureSample(force_tex, force_smp, fp_sm * u.field_sample_scale).xyz;
+    let fs     = fr * fr * (3.0 - 2.0 * fr);  // smoothstep weights
+    // Manual trilinear interpolation via textureLoad (avoids float32-filterable requirement)
+    let b  = vec3i(i32(floor(fp_raw.x)) & 31, i32(floor(fp_raw.y)) & 31,
+                   i32(floor(fp_raw.z)) & 31);
+    let nx = (b.x + 1) & 31;
+    let ny = (b.y + 1) & 31;
+    let nz = (b.z + 1) & 31;
+    let v000 = textureLoad(force_tex, vec3i(b.x,  b.y,  b.z),  0).xyz;
+    let v100 = textureLoad(force_tex, vec3i(nx,   b.y,  b.z),  0).xyz;
+    let v010 = textureLoad(force_tex, vec3i(b.x,  ny,   b.z),  0).xyz;
+    let v110 = textureLoad(force_tex, vec3i(nx,   ny,   b.z),  0).xyz;
+    let v001 = textureLoad(force_tex, vec3i(b.x,  b.y,  nz),   0).xyz;
+    let v101 = textureLoad(force_tex, vec3i(nx,   b.y,  nz),   0).xyz;
+    let v011 = textureLoad(force_tex, vec3i(b.x,  ny,   nz),   0).xyz;
+    let v111 = textureLoad(force_tex, vec3i(nx,   ny,   nz),   0).xyz;
+    let force = mix(mix(mix(v000, v100, fs.x), mix(v010, v110, fs.x), fs.y),
+                    mix(mix(v001, v101, fs.x), mix(v011, v111, fs.x), fs.y), fs.z);
 
     // Verlet integration
     let new_xyz = newer.xyz + u.damping * (newer.xyz - older.xyz) + u.accel * force;
