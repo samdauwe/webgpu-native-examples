@@ -1185,12 +1185,12 @@ static const char* update_vel_shader_wgsl = CODE(
 static const char* cube_shader_wgsl = CODE(
   struct CubeConsts {
     clip_from_world: mat4x4f,
-    world_down:      vec3f,   time_offs: f32,
-    ambient:         vec3f,   _p0:       f32,
-    key_col:         vec3f,   _p1:       f32,
-    fill_col:        vec3f,   _p2:       f32,
-    back_col:        vec3f,   _p3:       f32,
-    light_dir:       vec3f,   _p4:       f32,
+    world_down:      vec3f,   time_offs:  f32,
+    ambient:         vec3f,   _p0:        f32,
+    key_col:         vec3f,   _p1:        f32,
+    fill_col:        vec3f,   _p2:        f32,
+    back_col:        vec3f,   _p3:        f32,
+    light_dir:       vec3f,   _p4:        f32,
   }
 
   @group(0) @binding(0) var<uniform> c:       CubeConsts;
@@ -1198,8 +1198,11 @@ static const char* cube_shader_wgsl = CODE(
   @group(0) @binding(2) var          tex_vel: texture_2d<f32>;
 
   struct VOut {
-    @builtin(position) clip_pos:  vec4f,
-    @location(0)       world_pos: vec3f,
+    @builtin(position)              clip_pos:  vec4f,
+    // Flat-interpolated: avoids subpixel-width derivative collapse to zero.
+    // Provoking vertex (first of each triangle in strip) carries the outward
+    // face normal for that triangle.  Assignment per corner index below.
+    @location(0) @interpolate(flat) face_norm: vec3f,
   }
 
   @vertex fn vs(
@@ -1216,7 +1219,7 @@ static const char* cube_shader_wgsl = CODE(
 
     if cube_pos.w == 0.0 {
       v.clip_pos  = vec4f(0.0);
-      v.world_pos = vec3f(0.0);
+      v.face_norm = vec3f(0.0);
       return v;
     }
 
@@ -1232,16 +1235,36 @@ static const char* cube_shader_wgsl = CODE(
     wp += select( -s,   s,  (vid & 2u) != 0u) * y_axis;
     wp += select( -s,   s,  (vid & 4u) != 0u) * z_axis;
 
-    v.clip_pos  = c.clip_from_world * vec4f(wp, 1.0);
-    v.world_pos = wp;
+    v.clip_pos = c.clip_from_world * vec4f(wp, 1.0);
+
+    // Assign outward face normal for this vertex's role as provoking vertex.
+    // Strip [0,2,1,3,7,2,6,0,4,1,5,7,4,6] → provoking = first of each triple:
+    //  corner 0 → T0(-z front), T7(-y bottom)  → -z_axis (front wins)
+    //  corner 1 → T2/T9(+x end caps)            → +x_hat
+    //  corner 2 → T1(-z front), T5(-x end cap)  → -z_axis (front wins)
+    //  corner 3 → T3(+y top)                    → +y_axis
+    //  corner 4 → T8(-y bottom)                 → -y_axis
+    //  corner 5 → T10(+z back, camera-hidden)   → +z_axis
+    //  corner 6 → T6(-x end cap)                → -x_hat
+    //  corner 7 → T4(+y top), T11(+z back)      → +y_axis (top wins)
+    let vlen  = length(x_axis);
+    let x_hat = select(vec3f(1,0,0), x_axis / vlen, vlen > 1e-6);
+    switch vid & 7u {
+      case 0u: { v.face_norm = -z_axis; }
+      case 1u: { v.face_norm =  x_hat;  }
+      case 2u: { v.face_norm = -z_axis; }
+      case 3u: { v.face_norm =  y_axis; }
+      case 4u: { v.face_norm = -y_axis; }
+      case 5u: { v.face_norm =  z_axis; }
+      case 6u: { v.face_norm = -x_hat;  }
+      case 7u: { v.face_norm =  y_axis; }
+      default: { v.face_norm = vec3f(0,0,1); }
+    }
     return v;
   }
 
   @fragment fn fs(v: VOut) -> @location(0) vec4f {
-  // Derive world-space face normal: D3D10 used cross(ddy,ddx) for CW faces;
-  // WebGPU/GLM flips the screen winding, so cross(dpdx,dpdy) is equivalent.
-  let n     = cross(dpdx(v.world_pos), dpdy(v.world_pos));
-    let NdotL = dot(n, c.light_dir) * inverseSqrt(max(dot(n, n), 1e-8));
+    let NdotL = dot(v.face_norm, c.light_dir);
 
     // Tri-light model: key + fill + back + ambient
     let lit = c.ambient
