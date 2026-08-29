@@ -546,7 +546,7 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
       = wgpu_create_shader_module(wgpu_context->device, update_pos_shader_wgsl);
     WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = STRVIEW("UpdatePos - PL"),
+                              .label = STRVIEW("UpdatePos - Pipeline layout"),
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &state.update_pos_bgl,
                             });
