@@ -585,7 +585,7 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
     state.update_vel_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("UpdateVel - Pipeline"),
+        .label  = STRVIEW("UpdateVel - Render pipeline"),
         .layout = pl,
         .vertex = {.module = sm, .entryPoint = STRVIEW("vs")},
         .fragment = &(WGPUFragmentState){
