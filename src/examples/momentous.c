@@ -578,7 +578,7 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
       = wgpu_create_shader_module(wgpu_context->device, update_vel_shader_wgsl);
     WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = STRVIEW("UpdateVel - PL"),
+                              .label = STRVIEW("UpdateVel - Pipeline layout"),
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &state.update_vel_bgl,
                             });
