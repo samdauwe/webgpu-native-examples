@@ -610,7 +610,7 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
       = wgpu_create_shader_module(wgpu_context->device, cube_shader_wgsl);
     WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device, &(WGPUPipelineLayoutDescriptor){
-                              .label                = STRVIEW("Cube - PL"),
+                              .label = STRVIEW("Cube - Pipeline layout"),
                               .bindGroupLayoutCount = 1,
                               .bindGroupLayouts     = &state.cube_bgl,
                             });
