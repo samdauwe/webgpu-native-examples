@@ -617,7 +617,7 @@ static void create_pipelines(wgpu_context_t* wgpu_context)
     state.cube_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Cube - Pipeline"),
+        .label  = STRVIEW("Cube - Render pipeline"),
         .layout = pl,
         .vertex = {.module = sm, .entryPoint = STRVIEW("vs")},
         .fragment = &(WGPUFragmentState){
