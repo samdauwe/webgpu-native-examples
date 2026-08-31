@@ -670,7 +670,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       };
       state.update_pos_bg[k] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
-                                .label      = STRVIEW("UpdatePos - BG"),
+                                .label      = STRVIEW("UpdatePos - Bind group"),
                                 .layout     = state.update_pos_bgl,
                                 .entryCount = 4,
                                 .entries    = e,
