@@ -703,7 +703,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       };
       state.cube_bg[k] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
-                                .label      = STRVIEW("Cube - BG"),
+                                .label      = STRVIEW("Cube - Bind group"),
                                 .layout     = state.cube_bgl,
                                 .entryCount = 3,
                                 .entries    = e,
