@@ -825,7 +825,7 @@ static int init(wgpu_context_t* wgpu_context)
   state.update_consts_buf = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("UpdateConsts - UB"),
+      .label = STRVIEW("UpdateConsts - Uniform buffer"),
       .size  = sizeof(update_consts_t),
       .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
     });
