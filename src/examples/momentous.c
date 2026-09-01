@@ -685,7 +685,7 @@ static void create_bind_groups(wgpu_context_t* wgpu_context)
       };
       state.update_vel_bg[k] = wgpuDeviceCreateBindGroup(
         wgpu_context->device, &(WGPUBindGroupDescriptor){
-                                .label      = STRVIEW("UpdateVel - BG"),
+                                .label      = STRVIEW("UpdateVel - Bind group"),
                                 .layout     = state.update_vel_bgl,
                                 .entryCount = 2,
                                 .entries    = e,
