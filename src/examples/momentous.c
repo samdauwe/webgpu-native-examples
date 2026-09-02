@@ -953,7 +953,7 @@ static int frame(wgpu_context_t* wgpu_context)
       .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
     };
     WGPURenderPassDescriptor rpd = {
-      .label                = STRVIEW("UpdatePos - Pass"),
+      .label                = STRVIEW("UpdatePos - Render pass"),
       .colorAttachmentCount = 1,
       .colorAttachments     = &ca,
     };
