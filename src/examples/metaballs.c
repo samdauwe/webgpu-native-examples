@@ -1440,7 +1440,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   state.vertex_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Metaballs Vertex Buffer"),
+      .label = STRVIEW("Metaballs - Vertex Buffer"),
       .size  = vb_size,
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
     });
