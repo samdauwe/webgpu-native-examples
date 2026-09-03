@@ -1003,7 +1003,7 @@ static int frame(wgpu_context_t* wgpu_context)
       .depthClearValue = 1.0f,
     };
     WGPURenderPassDescriptor rpd = {
-      .label                  = STRVIEW("Cube - Pass"),
+      .label                  = STRVIEW("Cube - Render pass"),
       .colorAttachmentCount   = 1,
       .colorAttachments       = &ca,
       .depthStencilAttachment = &dsa,
