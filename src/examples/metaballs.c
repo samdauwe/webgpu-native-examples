@@ -1015,12 +1015,14 @@ static void init_env_default_texture(wgpu_context_t* wgpu_context)
   uint8_t white[4] = {255, 255, 255, 255};
   wgpu_image_to_texure(wgpu_context, state.env_default_texture, white, size, 4);
   state.env_default_texture_view = wgpuTextureCreateView(
-    state.env_default_texture, &(WGPUTextureViewDescriptor){
-                                 .format        = WGPUTextureFormat_RGBA8Unorm,
-                                 .dimension     = WGPUTextureViewDimension_2D,
-                                 .mipLevelCount = 1,
-                                 .arrayLayerCount = 1,
-                               });
+    state.env_default_texture,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Environment default - Texture view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
+      .dimension       = WGPUTextureViewDimension_2D,
+      .mipLevelCount   = 1,
+      .arrayLayerCount = 1,
+    });
 }
 
 /* -------------------------------------------------------------------------- *
