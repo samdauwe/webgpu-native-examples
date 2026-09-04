@@ -1450,7 +1450,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   state.normal_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Metaballs Normal Buffer"),
+      .label = STRVIEW("Metaballs - Normal Buffer"),
       .size  = vb_size,
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
     });
