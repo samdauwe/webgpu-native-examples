@@ -1458,7 +1458,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   state.index_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Metaballs Index Buffer"),
+      .label = STRVIEW("Metaballs - Index Buffer"),
       .size  = ib_size,
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
     });
