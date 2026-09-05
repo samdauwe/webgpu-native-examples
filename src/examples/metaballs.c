@@ -1064,6 +1064,7 @@ static void env_process_cgltf_data(wgpu_context_t* wgpu_context,
           .depthOrArrayLayers = 1,
         };
         WGPUTextureDescriptor tex_desc = {
+          .label = STRVIEW("Environment model - Texture"),
           .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
           .dimension     = WGPUTextureDimension_2D,
           .size          = tex_size,
