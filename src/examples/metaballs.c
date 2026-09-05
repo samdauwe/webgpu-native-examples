@@ -1471,7 +1471,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   state.uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Metaballs Uniform Buffer"),
+      .label = STRVIEW("Metaballs - Uniform Buffer"),
       .size  = 512,
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
     });
