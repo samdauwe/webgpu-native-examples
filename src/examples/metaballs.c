@@ -1077,12 +1077,14 @@ static void env_process_cgltf_data(wgpu_context_t* wgpu_context,
         wgpu_image_to_texure(wgpu_context, env->images[i].texture, pixels,
                              tex_size, 4);
         env->images[i].view = wgpuTextureCreateView(
-          env->images[i].texture, &(WGPUTextureViewDescriptor){
-                                    .format    = WGPUTextureFormat_RGBA8Unorm,
-                                    .dimension = WGPUTextureViewDimension_2D,
-                                    .mipLevelCount   = 1,
-                                    .arrayLayerCount = 1,
-                                  });
+          env->images[i].texture,
+          &(WGPUTextureViewDescriptor){
+            .label           = STRVIEW("Environment model - Texture view"),
+            .format          = WGPUTextureFormat_RGBA8Unorm,
+            .dimension       = WGPUTextureViewDimension_2D,
+            .mipLevelCount   = 1,
+            .arrayLayerCount = 1,
+          });
         image_free(pixels);
       }
     }
