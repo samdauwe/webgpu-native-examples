@@ -1494,7 +1494,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
   /* Frame bind group layout: projection + view uniforms + lights storage */
   state.frame_bgl = wgpuDeviceCreateBindGroupLayout(wgpu_context->device,
     &(WGPUBindGroupLayoutDescriptor){
-      .label      = STRVIEW("Frame BGL"),
+      .label      = STRVIEW("Frame - Bind group layout"),
       .entryCount = 3,
       .entries = (WGPUBindGroupLayoutEntry[]){
         {
