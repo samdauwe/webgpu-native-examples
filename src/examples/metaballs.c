@@ -1480,7 +1480,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   state.lights_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label = STRVIEW("Lights Storage Buffer"),
+      .label = STRVIEW("Lights - Storage Buffer"),
       .size  = sizeof(light_uniforms_t),
       .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
     });
