@@ -1600,6 +1600,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
   /* Pipeline layout */
   state.pipeline_layout = wgpuDeviceCreatePipelineLayout(wgpu_context->device,
     &(WGPUPipelineLayoutDescriptor){
+      .label = STRVIEW("Pipeline layout"),
       .bindGroupLayoutCount = 2,
       .bindGroupLayouts = (WGPUBindGroupLayout[]){
         state.frame_bgl,
