@@ -1576,7 +1576,7 @@ static void init_material_bind_group(wgpu_context_t* wgpu_context)
   }
   state.material_bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device,
     &(WGPUBindGroupDescriptor){
-      .label      = STRVIEW("Material Bind Group"),
+      .label      = STRVIEW("Material - Bind Group"),
       .layout     = state.material_bgl,
       .entryCount = 2,
       .entries = (WGPUBindGroupEntry[]){
