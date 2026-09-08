@@ -1619,7 +1619,7 @@ static void init_pipeline(wgpu_context_t* wgpu_context)
   /* Render pipeline */
   state.pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Metaball Pipeline"),
+      .label  = STRVIEW("Metaball - Render pipeline"),
       .layout = state.pipeline_layout,
       .vertex = {
         .module     = shader_module,
