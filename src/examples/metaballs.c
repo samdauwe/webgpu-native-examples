@@ -1756,6 +1756,7 @@ static void init_environment_pipeline(wgpu_context_t* wgpu_context)
   /* Environment sampler */
   state.env_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
+                            .label         = STRVIEW("Environment - Sampler"),
                             .addressModeU  = WGPUAddressMode_Repeat,
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
