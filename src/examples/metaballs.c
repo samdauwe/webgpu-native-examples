@@ -1698,7 +1698,7 @@ static void init_light_sprite_pipeline(wgpu_context_t* wgpu_context)
   state.light_sprite_pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Light Sprite Pipeline"),
+      .label  = STRVIEW("Light Sprite - Render pipeline"),
       .layout = state.light_sprite_pipeline_layout,
       .vertex = {
         .module     = vert_module,
