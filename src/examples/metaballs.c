@@ -1835,7 +1835,7 @@ static void init_environment_pipeline(wgpu_context_t* wgpu_context)
   /* Create one pipeline (back-face culling) */
   state.env_pipeline = wgpuDeviceCreateRenderPipeline(wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Environment Pipeline"),
+      .label  = STRVIEW("Environment - Render pipeline"),
       .layout = state.env_pipeline_layout,
       .vertex = {
         .module      = env_shader,
