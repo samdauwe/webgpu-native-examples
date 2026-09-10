@@ -1909,7 +1909,7 @@ static void init_environment_pipeline(wgpu_context_t* wgpu_context)
 
     mat->bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Env Material BG"),
+        .label      = STRVIEW("Env Material - Bind group"),
         .layout     = state.env_material_bgl,
         .entryCount = 3,
         .entries = (WGPUBindGroupEntry[]){
