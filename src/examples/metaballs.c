@@ -1929,7 +1929,7 @@ static void init_environment_pipeline(wgpu_context_t* wgpu_context)
     env_primitive_t* prim = &state.env.primitives[i];
     prim->model_bind_group = wgpuDeviceCreateBindGroup(wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Env Model BG"),
+        .label      = STRVIEW("Env Model - Bind group"),
         .layout     = state.env_model_bgl,
         .entryCount = 1,
         .entries = &(WGPUBindGroupEntry){
