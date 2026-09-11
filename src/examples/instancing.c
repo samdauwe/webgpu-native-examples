@@ -334,7 +334,7 @@ static void create_model_buffers(wgpu_context_t* wgpu_context)
       = state.models.rock.index_count * (uint32_t)sizeof(uint32_t);
     state.model_buffers.rock.index = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Rock index buffer"),
+                .label = STRVIEW("Rock - Index buffer"),
                 .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
                 .size  = ib_size,
                 .mappedAtCreation = false,
