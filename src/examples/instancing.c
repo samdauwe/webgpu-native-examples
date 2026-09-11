@@ -349,7 +349,7 @@ static void create_model_buffers(wgpu_context_t* wgpu_context)
       = state.models.planet.vertex_count * (uint32_t)sizeof(gltf_vertex_t);
     state.model_buffers.planet.vertex = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
-                .label = STRVIEW("Planet vertex buffer"),
+                .label = STRVIEW("Planet - Vertex buffer"),
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                 .size  = vb_size,
                 .mappedAtCreation = false,
