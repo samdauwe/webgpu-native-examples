@@ -684,7 +684,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.bgl_ubo_only = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("BGL - UBO only"),
+                .label      = STRVIEW("UBO only - Bind group layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
               });
