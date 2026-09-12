@@ -639,7 +639,7 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
   state.uniform_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("Instancing uniform buffer"),
+      .label            = STRVIEW("Instancing - Uniform buffer"),
       .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
       .size             = sizeof(uniform_data_t),
       .mappedAtCreation = false,
