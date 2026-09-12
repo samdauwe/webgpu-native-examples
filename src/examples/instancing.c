@@ -439,7 +439,7 @@ static void prepare_instance_data(wgpu_context_t* wgpu_context)
   state.instance_buffer = wgpuDeviceCreateBuffer(
     wgpu_context->device,
     &(WGPUBufferDescriptor){
-      .label            = STRVIEW("Instance data buffer"),
+      .label            = STRVIEW("Instance data - Vertex buffer"),
       .usage            = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
       .size             = buf_size,
       .mappedAtCreation = false,
