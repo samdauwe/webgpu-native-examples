@@ -720,7 +720,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.bgl_static = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("BGL - static (planet)"),
+                .label      = STRVIEW("Static (planet) - Bind group layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
               });
