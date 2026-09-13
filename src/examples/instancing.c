@@ -783,7 +783,7 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
     };
     state.bg_starfield = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("BG - starfield"),
+                .label      = STRVIEW("Starfield - Bind group"),
                 .layout     = state.bgl_ubo_only,
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
