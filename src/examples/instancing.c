@@ -756,7 +756,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.bgl_rocks = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("BGL - rocks (texture array)"),
+                .label = STRVIEW("Rocks (texture array) - Bind group layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
               });
