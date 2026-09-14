@@ -870,7 +870,7 @@ static void update_bind_groups(wgpu_context_t* wgpu_context)
     };
     state.bg_planet = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("BG - planet"),
+                .label      = STRVIEW("Planet - Bind group"),
                 .layout     = state.bgl_static,
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
