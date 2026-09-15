@@ -958,7 +958,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
 
     state.pipeline_starfield = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Starfield pipeline"),
+        .label  = STRVIEW("Starfield - Render pipeline"),
         .layout = state.pl_starfield,
         .vertex = (WGPUVertexState){
           .module      = sf_shader,
