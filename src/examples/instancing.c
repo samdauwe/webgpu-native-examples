@@ -948,7 +948,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.pl_starfield = wgpuDeviceCreatePipelineLayout(
       device, &(WGPUPipelineLayoutDescriptor){
-                .label                = STRVIEW("Starfield pipeline layout"),
+                .label                = STRVIEW("Starfield - Pipeline layout"),
                 .bindGroupLayoutCount = 1,
                 .bindGroupLayouts     = &state.bgl_ubo_only,
               });
