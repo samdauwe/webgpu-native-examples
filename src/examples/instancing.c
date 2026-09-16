@@ -993,7 +993,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.pl_static = wgpuDeviceCreatePipelineLayout(
       device, &(WGPUPipelineLayoutDescriptor){
-                .label                = STRVIEW("Planet pipeline layout"),
+                .label                = STRVIEW("Planet - Pipeline layout"),
                 .bindGroupLayoutCount = 1,
                 .bindGroupLayouts     = &state.bgl_static,
               });
