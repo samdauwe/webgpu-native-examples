@@ -1061,7 +1061,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.pl_rocks = wgpuDeviceCreatePipelineLayout(
       device, &(WGPUPipelineLayoutDescriptor){
-                .label                = STRVIEW("Rocks pipeline layout"),
+                .label                = STRVIEW("Rocks - Pipeline layout"),
                 .bindGroupLayoutCount = 1,
                 .bindGroupLayouts     = &state.bgl_rocks,
               });
