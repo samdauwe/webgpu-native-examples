@@ -1026,7 +1026,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
 
     state.pipeline_planet = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Planet pipeline"),
+        .label  = STRVIEW("Planet - Render pipeline"),
         .layout = state.pl_static,
         .vertex = (WGPUVertexState){
           .module      = pl_shader,
