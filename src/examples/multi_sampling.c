@@ -222,7 +222,7 @@ static void create_model_buffers(struct wgpu_context_t* wgpu_context)
   /* Upload vertex buffer */
   state.vertex_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label            = STRVIEW("Voyager Vertex Buffer"),
+              .label            = STRVIEW("Voyager - Vertex Buffer"),
               .usage            = WGPUBufferUsage_Vertex,
               .size             = vb_size,
               .mappedAtCreation = true,
