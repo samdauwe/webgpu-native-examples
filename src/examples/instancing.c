@@ -1118,7 +1118,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
 
     state.pipeline_rocks = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Rocks pipeline"),
+        .label  = STRVIEW("Rocks - Render pipeline"),
         .layout = state.pl_rocks,
         .vertex = (WGPUVertexState){
           .module      = rock_shader,
