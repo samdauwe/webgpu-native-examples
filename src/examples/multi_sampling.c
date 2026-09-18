@@ -259,7 +259,7 @@ static void create_default_texture(struct wgpu_context_t* wgpu_context)
   state.default_texture = wgpuDeviceCreateTexture(
     device,
     &(WGPUTextureDescriptor){
-      .label     = STRVIEW("Default White Texture"),
+      .label     = STRVIEW("Default White - Texture"),
       .usage     = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
       .dimension = WGPUTextureDimension_2D,
       .size      = {1, 1, 1},
