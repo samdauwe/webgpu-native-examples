@@ -304,7 +304,7 @@ static void create_texture_sampler(struct wgpu_context_t* wgpu_context)
 {
   state.texture_sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Texture Sampler"),
+                            .label         = STRVIEW("Texture - Sampler"),
                             .addressModeU  = WGPUAddressMode_Repeat,
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
