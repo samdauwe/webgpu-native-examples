@@ -118,6 +118,7 @@ function(add_wajic_example name source)
     target_include_directories(${name} SYSTEM
         PRIVATE ${ROOT}/external/cglm/include
                 ${ROOT}/external/wajic
+                ${ROOT}/external/stb
     )
     if(EX_EXTRA_INCLUDES)
         foreach(incdir ${EX_EXTRA_INCLUDES})
