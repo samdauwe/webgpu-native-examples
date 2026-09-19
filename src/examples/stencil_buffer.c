@@ -82,8 +82,11 @@ typedef struct {
   float _padding[3];   /* offset 148 - pad to 16-byte alignment */
 } uniform_data_t;
 
+/* MSVC's default C mode predates _Static_assert */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(uniform_data_t) == 160,
                "uniform_data_t must be 160 bytes");
+#endif
 
 /* -------------------------------------------------------------------------- *
  * State

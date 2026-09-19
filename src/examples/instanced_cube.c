@@ -35,12 +35,9 @@ static const char* instanced_vertex_shader_wgsl;
 
 #define MAX_NUM_INSTANCES (16u)
 
-static const uint32_t x_count             = 4;
-static const uint32_t y_count             = 4;
-static const uint32_t num_instances       = x_count * y_count;
-static const uint32_t matrix_float_count  = 16; // 4x4 matrix
-static const uint32_t matrix_size         = 4 * matrix_float_count;
-static const uint32_t uniform_buffer_size = num_instances * matrix_size;
+static const uint32_t x_count            = 4;
+static const uint32_t y_count            = 4;
+static const uint32_t matrix_float_count = 16; // 4x4 matrix
 
 static struct {
   cube_mesh_t cube_mesh;
@@ -188,6 +185,8 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 
   // Uniform buffer: allocate a buffer large enough to hold transforms for every
   // instance.
+  const uint32_t matrix_size         = 4 * matrix_float_count;
+  const uint32_t uniform_buffer_size = x_count * y_count * matrix_size;
   state.uniform_buffer.buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
                     .label = "Camera view matrices - Uniform buffer",
@@ -324,6 +323,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0,
                                     state.uniform_buffer.bind_group, 0, 0);
+  const uint32_t num_instances = x_count * y_count;
   wgpuRenderPassEncoderDraw(rpass_enc, state.cube_vertex_count, num_instances,
                             0, 0);
   wgpuRenderPassEncoderEnd(rpass_enc);

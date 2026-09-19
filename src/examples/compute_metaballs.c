@@ -1115,9 +1115,6 @@ static struct {
     .width     = 6.0f,
     .height    = 6.0f,
     .depth     = 6.0f,
-    .res_x     = VOLUME_WIDTH,
-    .res_y     = VOLUME_HEIGHT,
-    .res_z     = VOLUME_DEPTH,
     .iso_level = 20.0f,
   },
   .screen_effect_settings = {
@@ -7148,6 +7145,10 @@ static void render_gui(wgpu_context_t* wgpu_context, float delta_time)
 static int init(wgpu_context_t* wgpu_context)
 {
   state.wgpu_context = wgpu_context;
+
+  state.volume_settings.res_x = VOLUME_WIDTH;
+  state.volume_settings.res_y = VOLUME_HEIGHT;
+  state.volume_settings.res_z = VOLUME_DEPTH;
 
   /* Initialize sokol_time */
   stm_setup();

@@ -4295,7 +4295,8 @@ static const char* gltf_pbr_shader_wgsl = CODE(
     color = pow(color, vec3f(invGamma));
     return color;
   }
-
+/* split: MSVC caps a string literal at 16380 bytes */
+) CODE(
   // ========================================================================
   // Vertex shader
   // ========================================================================

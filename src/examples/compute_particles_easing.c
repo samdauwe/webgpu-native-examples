@@ -113,7 +113,7 @@ static struct {
 static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const float t_scale                     = 0.005f;
-  static const float vertex_buffer[6 * 6] = {
+  const float vertex_buffer[6 * 6] = {
     // clang-format off
     -t_scale, -t_scale, 0.0f, 1.0f, 0.0f, 0.0f, //
      t_scale, -t_scale, 0.0f, 1.0f, 0.0f, 1.0f, //

@@ -9,7 +9,8 @@ endif()
 
 # Architecture string.
 set(ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Override CPU architecture")
-string(REGEX REPLACE "amd64" "x86_64" KERNEL_ARCH "${ARCH}")
+string(TOLOWER "${ARCH}" ARCH_LOWER)
+string(REGEX REPLACE "amd64" "x86_64" KERNEL_ARCH "${ARCH_LOWER}")
 
 if("${KERNEL_ARCH}" STREQUAL "x86_64")
   set(ARCH "x64")
@@ -150,6 +151,11 @@ function(add_example_executable EXAMPLE_NAME)
         target_compile_options(${EXAMPLE_NAME} PRIVATE -D_POSIX_C_SOURCE=200809L)
         target_compile_definitions(${EXAMPLE_NAME} PRIVATE _GLFW_X11)
     endif()
+    if(WIN32)
+        target_compile_definitions(${EXAMPLE_NAME} PRIVATE _GLFW_WIN32)
+    elseif(APPLE)
+        target_compile_definitions(${EXAMPLE_NAME} PRIVATE _GLFW_COCOA)
+    endif()
     # ==============================================================================
     # Include directories
     # ==============================================================================
@@ -162,6 +168,7 @@ function(add_example_executable EXAMPLE_NAME)
             PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui
             PRIVATE ${PROJECT_SOURCE_DIR}/external/cimgui/imgui
         )
+        target_compile_definitions(${EXAMPLE_NAME} PRIVATE CIMGUI_DEFINE_ENUMS_AND_STRUCTS)
     endif()
     target_include_directories(${EXAMPLE_NAME} SYSTEM
         PRIVATE external/cglm/include
@@ -180,15 +187,16 @@ function(add_example_executable EXAMPLE_NAME)
         # nothing to do for now
     else()
         set_target_properties(${EXAMPLE_NAME} PROPERTIES LINK_FLAGS "-Wl,-rpath,./")
-        target_link_libraries(${EXAMPLE_NAME} PRIVATE
-          webgpu_dawn
-          webgpu_glfw
-          glfw
-        )
-        # Link cimgui if requested
-        if(ARG_USE_CIMGUI)
-            target_link_libraries(${EXAMPLE_NAME} PRIVATE cimgui)
-        endif()
+    endif()
+
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE
+      webgpu_dawn
+      webgpu_glfw
+      glfw
+    )
+    # Link cimgui if requested
+    if(ARG_USE_CIMGUI)
+        target_link_libraries(${EXAMPLE_NAME} PRIVATE cimgui)
     endif()
     # ==============================================================================
     # IDE support
