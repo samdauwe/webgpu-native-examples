@@ -668,7 +668,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
   /* Asteroid Count slider (1000-10000, step 1000) */
   int asteroid_count = state.settings.asteroid_count;
   if (imgui_overlay_slider_int("Asteroid Count", &asteroid_count, 1000,
-                               10000)) {
+                               MAX_ASTEROID_COUNT)) {
     /* Round to nearest 1000 */
     asteroid_count = ((asteroid_count + 500) / 1000) * 1000;
     if (asteroid_count != state.settings.asteroid_count) {
