@@ -4,7 +4,6 @@
 #define WAJIC_SFETCH_MAX_REQUESTS 4
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so static WGPU handle initializers compile without type errors. */
@@ -18,7 +17,6 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -142,7 +140,7 @@ static void init_particle_buffer(wgpu_context_t* wgpu_context)
   state.initial_particle_data = (float*)malloc(INITIAL_PARTICLE_DATA_SIZE);
 
   /* Particle data */
-  const float current_time = stm_sec(stm_now());
+  const float current_time = stm_sec(wgpu_now_ns());
   for (uint32_t i = 0; i < (uint32_t)PARTICLE_NUM; ++i) {
     const float life = random_float() * 8000.0f + 2000.0f;
     const float age  = random_float() * life;

@@ -4,7 +4,6 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -13,7 +12,6 @@
 #define NULL 0
 #endif
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -293,7 +291,7 @@ static void update_camera_uniforms(wgpu_context_t* wgpu_context)
   }
   glm_mat4_copy(state.projection_matrix,
                 state.camera_uniforms.projection_matrix);
-  state.camera_uniforms.time = (float)stm_sec(stm_now());
+  state.camera_uniforms.time = (float)stm_sec(wgpu_now_ns());
 
   wgpuQueueWriteBuffer(wgpu_context->queue, state.frame_uniform_buffer.buffer,
                        0, &state.camera_uniforms, sizeof(camera_uniforms_t));
@@ -655,7 +653,8 @@ static int frame(wgpu_context_t* wgpu_context)
   wgpuCommandBufferRelease(cmd_buffer);
 
   // Render GUI overlay (creates its own render pass)
-  imgui_overlay_new_frame(wgpu_context, stm_sec(stm_laptime(&state.last_time)));
+  imgui_overlay_new_frame(wgpu_context,
+                          stm_sec(wgpu_laptime_ns(&state.last_time)));
   render_gui(wgpu_context);
   imgui_overlay_render(wgpu_context);
 

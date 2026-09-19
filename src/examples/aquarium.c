@@ -21,7 +21,6 @@
 #define WAJIC_SFETCH_MAX_REQUESTS 128
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so static WGPU handle initializers and return statements compile without
@@ -34,7 +33,6 @@
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -5691,7 +5689,7 @@ static int init(wgpu_context_t* wgpu_context)
   state.device       = wgpu_context->device;
   state.queue        = wgpu_context->queue;
   state.color_format = wgpu_context->render_format;
-  state.last_time    = stm_now();
+  state.last_time    = wgpu_now_ns();
 
   /* Initialize texture cache */
   texture_cache_init(&state.texture_cache, state.device, state.queue);
@@ -6090,7 +6088,7 @@ static int frame(wgpu_context_t* wgpu_context)
   setup_depth_texture_if_needed();
 
   /* Update timing using sokol_time */
-  uint64_t now        = stm_now();
+  uint64_t now        = wgpu_now_ns();
   float delta_seconds = (float)stm_sec(stm_diff(now, state.last_time));
   state.last_time     = now;
   delta_seconds       = fminf(delta_seconds, 0.1f); /* Cap to 100ms */

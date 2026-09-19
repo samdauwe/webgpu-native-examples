@@ -6,10 +6,8 @@
 #include <string.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1205,7 +1203,7 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* Render GUI */
   imgui_overlay_new_frame(wgpu_context,
-                          (float)stm_sec(stm_laptime(&state.last_frame_time)));
+                          (float)stm_sec(wgpu_laptime_ns(&state.last_frame_time)));
   render_gui(wgpu_context);
   imgui_overlay_render(wgpu_context);
 

@@ -9,7 +9,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -22,7 +21,6 @@
 #include <sokol_log.h>
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -591,7 +589,7 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* Create text overlay */
   state.text_overlay = text_overlay_create(wgpu_context);
 
-  state.last_time   = stm_now();
+  state.last_time   = wgpu_now_ns();
   state.initialized = true;
 
   return EXIT_SUCCESS;
@@ -623,7 +621,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   UNUSED_VAR(queue);
 
   /* Timing */
-  uint64_t now      = stm_now();
+  uint64_t now      = wgpu_now_ns();
   state.frame_timer = (float)stm_sec(stm_diff(now, state.last_time));
   state.last_time   = now;
 

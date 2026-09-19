@@ -8,7 +8,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -21,7 +20,6 @@
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -397,7 +395,7 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
  * It rotates around Y axis with a slight pitch movement. */
 static void update_transformation_matrix(void)
 {
-  const float now = stm_ms(stm_now()) / 800.0f;
+  const float now = stm_ms(wgpu_now_ns()) / 800.0f;
 
   /* Apply rotation to view matrix */
   glm_mat4_copy(state.view_matrices.view, state.view_matrices.tmp);

@@ -23,7 +23,6 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
@@ -31,7 +30,6 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 #define SOKOL_FETCH_IMPL
@@ -1128,7 +1126,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Timing */
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = now;
   }

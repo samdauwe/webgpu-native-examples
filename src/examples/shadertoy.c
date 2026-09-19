@@ -3,10 +3,8 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #include <sys/time.h>
 #endif
@@ -192,7 +190,7 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   state.shader_inputs_ubo.iResolution[1] = (float)wgpu_context->height;
 
   /* iTime: Time since the shader started (in seconds) */
-  const float now        = stm_sec(stm_now());
+  const float now        = stm_sec(wgpu_now_ns());
   const float frame_time = now - state.prev_time;
   state.prev_time        = now;
   state.shader_inputs_ubo.iTime += frame_time;

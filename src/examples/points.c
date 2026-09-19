@@ -4,7 +4,6 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -13,7 +12,6 @@
 #define NULL 0
 #endif
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -174,7 +172,7 @@ static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 static void update_uniform_buffer_data(struct wgpu_context_t* wgpu_context)
 {
   /* Get current timestamp */
-  const float now = stm_sec(stm_now());
+  const float now = stm_sec(wgpu_now_ns());
 
   /* Set the size in the uniform values */
   state.ubo_vs.size = state.settings.size;
@@ -569,7 +567,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 /* Render GUI */
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
   state.last_imgui_frame_time = now;

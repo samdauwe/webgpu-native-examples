@@ -5,10 +5,8 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -498,7 +496,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 
 static void update_fps_counter(void)
 {
-  const float now               = stm_ms(stm_now());
+  const float now               = stm_ms(wgpu_now_ns());
   const float frame_time_millis = now - state.prev_time_millis;
   state.prev_time_millis        = now;
   if (state.fps_counter.last_fps_update_time_valid) {

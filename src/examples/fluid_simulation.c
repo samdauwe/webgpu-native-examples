@@ -2,10 +2,8 @@
 #include "webgpu/wgpu_common.h"
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1320,7 +1318,7 @@ simulation_dispatch_compute_pipeline(WGPUComputePassEncoder pass_encoder)
 
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, simulation.last_frame_ticks));
   simulation.last_frame_ticks = now;
@@ -1397,7 +1395,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Update time */
-  const float now = (float)stm_ms(stm_now()) / 1000.0f;
+  const float now = (float)stm_ms(wgpu_now_ns()) / 1000.0f;
   settings.dt
     = MIN(1.0f / 60.0f, (now - simulation.last_frame)) * settings.sim_speed;
   settings.time += settings.dt;

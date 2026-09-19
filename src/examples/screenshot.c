@@ -28,7 +28,6 @@
 
 #include <cglm/cglm.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 #define SOKOL_LOG_IMPL
@@ -911,7 +910,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* ---- Timing ---- */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

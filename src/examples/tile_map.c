@@ -3,14 +3,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -621,7 +619,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Update the uniform data for every layer */
   tile_map_renderer_update_tile_map_layers(&tile_map_renderer,
-                                           stm_ms(stm_now()));
+                                           stm_ms(wgpu_now_ns()));
 
   return tile_map_renderer_draw(&tile_map_renderer);
 }

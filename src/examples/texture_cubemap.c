@@ -10,7 +10,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -23,7 +22,6 @@
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1026,7 +1024,7 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 static int init(wgpu_context_t* wgpu_context)
 {
   stm_setup();
-  state.last_frame_time = stm_now();
+  state.last_frame_time = wgpu_now_ns();
 
   /* Camera: lookat, position at (0,0,-4) */
   camera_init(&state.camera);
@@ -1073,7 +1071,7 @@ static int init(wgpu_context_t* wgpu_context)
 
 static int frame(wgpu_context_t* wgpu_context)
 {
-  uint64_t now          = stm_now();
+  uint64_t now          = wgpu_now_ns();
   float delta_time      = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 

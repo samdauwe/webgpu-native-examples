@@ -15,10 +15,8 @@
 #include <sokol_fetch.h>
 #endif
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 #ifdef NULL
@@ -1375,7 +1373,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 
     imgui_overlay_init(wgpu_context);
 
-    state.last_frame_time = stm_now();
+    state.last_frame_time = wgpu_now_ns();
     state.initialized     = true;
     return EXIT_SUCCESS;
   }
@@ -1399,7 +1397,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   update_textures(wgpu_context);
 
   /* Delta time */
-  uint64_t now          = stm_now();
+  uint64_t now          = wgpu_now_ns();
   float delta_time      = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 

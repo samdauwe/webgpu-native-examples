@@ -8,10 +8,8 @@
 #include <time.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -243,7 +241,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Buffer for all particles data of type [(posx,posy,velx,vely),...] */
   float particle_data[NUM_PARTICLES * 4];
   memset(particle_data, 0.f, sizeof(particle_data));
-  srand((unsigned int)time(NULL)); // randomize seed
+  srand(wgpu_random_seed()); // randomize seed
   for (uint32_t i = 0; i < NUM_PARTICLES; i += 4) {
     const size_t chunk       = i * 4;
     particle_data[chunk + 0] = 2 * (random_float() - 0.5f);        /* posx */
@@ -599,7 +597,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

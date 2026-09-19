@@ -34,7 +34,6 @@
 #define WAJIC_SFETCH_MAX_REQUESTS 8
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so static WGPU handle initializers and return statements compile without
@@ -51,7 +50,6 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -225,7 +223,7 @@ static void init_particles(particle_t* particles)
     {0.0f, 0.0f, -5.0f}, {0.0f, 4.0f, 0.0f},  {0.0f, -8.0f, 0.0f},
   };
 
-  srand((unsigned)time(NULL));
+  srand(wgpu_random_seed());
 
   for (uint32_t i = 0; i < NUM_ATTRACTORS; i++) {
     for (uint32_t j = 0; j < PARTICLES_PER_ATTRACTOR; j++) {
@@ -832,7 +830,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Timing */
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = now;
   }

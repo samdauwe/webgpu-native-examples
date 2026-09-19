@@ -14,7 +14,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
@@ -23,7 +22,6 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -382,7 +380,7 @@ static float uniform_rand(void)
 
 static void prepare_instance_data(wgpu_context_t* wgpu_context)
 {
-  srand((unsigned int)time(NULL));
+  srand(wgpu_random_seed());
 
   instance_data_t* instances
     = (instance_data_t*)malloc(INSTANCE_COUNT * sizeof(instance_data_t));
@@ -1314,7 +1312,7 @@ static int init(wgpu_context_t* wgpu_context)
   /* ---- ImGui ----------------------------------------------------------- */
   imgui_overlay_init(wgpu_context);
 
-  state.last_frame_time = stm_now();
+  state.last_frame_time = wgpu_now_ns();
   state.initialized     = true;
 
   return EXIT_SUCCESS;
@@ -1345,7 +1343,7 @@ static int frame(wgpu_context_t* wgpu_context)
   update_textures(wgpu_context);
 
   /* Timing */
-  uint64_t now          = stm_now();
+  uint64_t now          = wgpu_now_ns();
   float dt              = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 

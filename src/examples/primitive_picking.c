@@ -7,7 +7,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -19,7 +18,6 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -659,7 +657,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 static void update_transformation_matrix(void)
 {
   if (state.settings.rotate) {
-    state.rad = PI * (stm_sec(stm_now()) / 10.0f);
+    state.rad = PI * (stm_sec(wgpu_now_ns()) / 10.0f);
   }
 
   /* Update model matrix with rotation */
@@ -703,7 +701,7 @@ static void update_uniform_buffers(wgpu_context_t* wgpu_context)
   /* Update frame uniform buffer */
   mat4 camera_view_proj, camera_inv_view_proj;
   if (state.settings.rotate) {
-    state.rad = PI * (stm_sec(stm_now()) / 10.0f);
+    state.rad = PI * (stm_sec(wgpu_now_ns()) / 10.0f);
   }
 
   mat4 rotation;
@@ -800,7 +798,7 @@ static WGPUCommandBuffer build_command_buffer(wgpu_context_t* wgpu_context)
 /* Render GUI */
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
   state.last_imgui_frame_time = now;

@@ -9,10 +9,8 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -7153,7 +7151,7 @@ static int init(wgpu_context_t* wgpu_context)
   stm_setup();
 
   /* Initialize random seed */
-  srand((unsigned int)time(NULL));
+  srand(wgpu_random_seed());
 
   /* Initialize components */
   init_cameras();
@@ -7205,9 +7203,9 @@ static int frame(wgpu_context_t* wgpu_context)
   /* Update time */
   static uint64_t start_time = 0;
   if (start_time == 0) {
-    start_time = stm_now();
+    start_time = wgpu_now_ns();
   }
-  float current_time    = (float)stm_sec(stm_since(start_time));
+  float current_time    = (float)stm_sec(stm_diff(wgpu_now_ns(), start_time));
   state.delta_time      = current_time - state.last_frame_time;
   state.last_frame_time = current_time;
 

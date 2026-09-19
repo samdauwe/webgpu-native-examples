@@ -88,6 +88,7 @@ struct wgpu_context_t {
   WGPUTexture depth_stencil_tex;
   WGPUTextureFormat depth_stencil_format;
   WGPUTextureView swapchain_view;
+  WGPUTexture swapchain_tex; /* kept until present so a capture can read it */
   WGPUTextureView msaa_view;
   WGPUTextureView depth_stencil_view;
   wgpu_mipmap_generator_t* mipmap_generator; /* Lazily created on demand */
@@ -95,6 +96,19 @@ struct wgpu_context_t {
 };
 
 void wgpu_start(const wgpu_desc_t* desc);
+
+/* Current time in nanoseconds. Examples use this instead of calling stm_now()
+ * directly so that a capture (WGPU_CAPTURE_FRAME) can run them on a fixed
+ * clock. */
+uint64_t wgpu_now_ns(void);
+
+/* Nanoseconds since *last, which is then set to now (stm_laptime on the clock
+ * above). */
+uint64_t wgpu_laptime_ns(uint64_t* last);
+
+/* Seed for an example's srand(): the wall clock normally, a constant during a
+ * capture, so the same random scene is drawn every run. */
+unsigned int wgpu_random_seed(void);
 
 #ifndef __WAJIC__
 /* -------------------------------------------------------------------------- *

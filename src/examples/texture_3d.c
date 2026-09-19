@@ -4,7 +4,6 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -15,7 +14,6 @@
 #else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -107,7 +105,7 @@ static void perlin_noise_init(perlin_noise_t* pn, bool random_seed)
 
   /* Fisher-Yates shuffle */
   if (random_seed) {
-    srand((unsigned int)time(NULL));
+    srand(wgpu_random_seed());
   }
   else {
     srand(0);
@@ -683,7 +681,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate frame delta time */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

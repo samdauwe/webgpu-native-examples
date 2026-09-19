@@ -8,14 +8,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1290,7 +1288,7 @@ static int init(wgpu_context_t* wgpu_context)
     state.wgpu_ctx = wgpu_context;
 
     stm_setup();
-    srand((unsigned int)stm_now());
+    srand(wgpu_random_seed());
 
     sfetch_setup(&(sfetch_desc_t){
       .max_requests = 1,
@@ -1347,14 +1345,14 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* Update time */
   if (state.settings.animate) {
-    state.time = (float)stm_sec(stm_now());
+    state.time = (float)stm_sec(wgpu_now_ns());
   }
 
   /* Update uniforms */
   update_uniform_buffers(wgpu_context);
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

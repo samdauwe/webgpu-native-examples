@@ -1,16 +1,14 @@
-﻿#include "webgpu/imgui_overlay.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -865,7 +863,7 @@ static void init_render_pass_descriptors(void)
 /* Update transformation matrices */
 static void update_transformation_matrix(void)
 {
-  const float now     = (float)stm_sec(stm_now());
+  const float now     = (float)stm_sec(wgpu_now_ns());
   const float sin_now = sinf(now);
   const float cos_now = cosf(now);
 
@@ -976,7 +974,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   update_uniform_buffers(wgpu_context);
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

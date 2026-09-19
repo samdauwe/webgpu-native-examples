@@ -17,14 +17,12 @@
 #include <wajic_image.h>
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1940,7 +1938,7 @@ static void precompute_ubos(wgpu_context_t* wgpu_context)
 
 static void animate(void)
 {
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_time == 0) {
     state.last_time = now;
     return;
@@ -2338,7 +2336,7 @@ static int frame(wgpu_context_t* wgpu_context)
 
   /* GUI: build draw list while render pass is open */
   {
-    uint64_t now = stm_now();
+    uint64_t now = wgpu_now_ns();
     if (state.last_frame_time == 0) {
       state.last_frame_time = now;
     }

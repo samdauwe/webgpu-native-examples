@@ -6,10 +6,8 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -595,7 +593,7 @@ static mat4* get_camera_view_proj_matrix(wgpu_context_t* wgpu_context)
 
   vec3 eye_position = {0.0f, 50.0f, -100.0f};
 
-  const uint64_t now  = stm_now();
+  const uint64_t now  = wgpu_now_ns();
   const float time_ms = (float)stm_ms(stm_diff(now, state.time_offset));
   float rad           = PI * (time_ms / 2000.0f);
   glm_vec3_rotate_y(eye_position, state.view_matrices.origin, rad,
@@ -996,7 +994,7 @@ static int init_cb(wgpu_context_t* wgpu_context)
 
   /* Initialize time tracking */
   stm_setup();
-  state.time_offset = stm_now();
+  state.time_offset = wgpu_now_ns();
 
   state.initialized = true;
   return 0;
