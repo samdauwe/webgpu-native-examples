@@ -2005,6 +2005,7 @@ wgpu_create_color_bars_texture(struct wgpu_context_t* wgpu_context,
                                                });
   if (texture.desc.pixels.ptr) {
     free((void*)texture.desc.pixels.ptr);
+    texture.desc.pixels.ptr  = NULL;
     texture.desc.pixels.size = 0;
   }
 
