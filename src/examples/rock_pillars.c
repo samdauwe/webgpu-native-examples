@@ -40,7 +40,9 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #endif
 #include <cimgui.h>
 #ifdef __GNUC__
@@ -1524,8 +1526,8 @@ static void rp_init_pipelines(wgpu_context_t* ctx)
 /* Compute view-proj matrix for a billboard quad (removes view rotation,
    keeps translation + projection). Billboard faces the camera. */
 static void rp_compute_billboard_mvp(float tx, float ty, float tz, float scale,
-                                     float rot_z, const mat4 view,
-                                     const mat4 proj, mat4 out_mvp)
+                                     float rot_z, mat4 view,
+                                     mat4 proj, mat4 out_mvp)
 {
   mat4 model;
   glm_mat4_identity(model);
@@ -1587,7 +1589,7 @@ static void rp_compute_billboard_mvp(float tx, float ty, float tz, float scale,
 static uint8_t
   rp_ubo_staging[RP_UBO_DRAW_SLOTS * RP_UBO_STRIDE + 64 * RP_UBO_STRIDE];
 
-static void rp_fill_ubo(rp_ubo_t* u, const mat4 view_proj, const mat4 view,
+static void rp_fill_ubo(rp_ubo_t* u, mat4 view_proj, mat4 view,
                         const rp_preset_t* p, float fog_start, float fog_dist,
                         float height_rand_mult, float height_fixed,
                         float scale_base, float scale_range, float morph,
@@ -1614,8 +1616,8 @@ static void rp_fill_ubo(rp_ubo_t* u, const mat4 view_proj, const mat4 view,
 
 static size_t rp_ubo_total_slots;
 
-static void rp_precompute_ubos(wgpu_context_t* ctx, const mat4 view_proj,
-                               const mat4 view)
+static void rp_precompute_ubos(wgpu_context_t* ctx, mat4 view_proj,
+                               mat4 view)
 {
   const rp_preset_t* p = &rp_presets[state.cfg.preset];
   float fog_s          = state.cfg.fog_start * 0.666f

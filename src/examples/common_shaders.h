@@ -3,6 +3,12 @@
 
 #include "webgpu/wgpu_common.h"
 
+/* Suppress unused-variable warnings for headers included in many TUs */
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
+
 // clang-format off
 static const char* basic_vertex_shader_wgsl = CODE(
   struct Uniforms {
@@ -80,5 +86,9 @@ static const char* fullscreen_textured_quad_wgsl = CODE(
   }
 );
 // clang-format on
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #endif /* COMMON_SHADERS_H */

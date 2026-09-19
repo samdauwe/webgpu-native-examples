@@ -18,7 +18,9 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #endif
 #include <cimgui.h>
 #ifdef __GNUC__
@@ -39,7 +41,8 @@
  * WGSL Shaders
  * -------------------------------------------------------------------------- */
 
-static const char* raytracing_compute_shader_wgsl;
+static const char* raytracing_compute_shader_part1;
+static const char* raytracing_compute_shader_part2;
 static const char* fullscreen_quad_shader_wgsl;
 
 /* -------------------------------------------------------------------------- *
@@ -493,9 +496,13 @@ static void init_compute_pipeline(wgpu_context_t* wgpu_context)
                           });
   ASSERT(state.compute.bind_group != NULL);
 
-  /* Compute shader module */
+  /* Compute shader module (two parts concatenated to stay within C99 limit) */
+  static char raytracing_compute_shader[8192];
+  snprintf(raytracing_compute_shader, sizeof(raytracing_compute_shader), "%s%s",
+           raytracing_compute_shader_part1,
+           raytracing_compute_shader_part2);
   WGPUShaderModule comp_shader_module = wgpu_create_shader_module(
-    wgpu_context->device, raytracing_compute_shader_wgsl);
+    wgpu_context->device, raytracing_compute_shader);
 
   /* Compute pipeline */
   state.compute.pipeline = wgpuDeviceCreateComputePipeline(
@@ -741,7 +748,7 @@ static const char* fullscreen_quad_shader_wgsl = CODE(
   }
 );
 
-static const char* raytracing_compute_shader_wgsl = CODE(
+static const char* raytracing_compute_shader_part1 = CODE(
   /* Ray tracing compute shader - based on Inigo Quilez's work */
 
   const EPSILON : f32 = 0.0001;
@@ -898,6 +905,11 @@ static const char* raytracing_compute_shader_wgsl = CODE(
     }
     return vec2<f32>(1.0, t);
   }
+);
+
+// clang-format on
+static const char* raytracing_compute_shader_part2 = CODE(
+// clang-format off
 
   /* Fog */
 

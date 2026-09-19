@@ -69,6 +69,7 @@ static struct {
 static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 {
   const uint32_t vertex_count = NUMBER_OF_LINES * 2;
+  UNUSED_VAR(vertex_count);
   vertex_t vertex_data[NUMBER_OF_LINES * 2];
   float percent = 0.0f, sin_value = 0.0f, cos_value = 0.0f;
   for (uint32_t i = 0; i < NUMBER_OF_LINES; ++i) {

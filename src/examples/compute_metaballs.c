@@ -17,7 +17,9 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #endif
 #include <cimgui.h>
 #ifdef __GNUC__
@@ -2434,7 +2436,7 @@ static void init_metaballs_shadow(wgpu_context_t* wgpu_context,
   WGPUShaderModuleDescriptor shadow_shader_desc = {
     .label = STRVIEW("Metaballs shadow - Vertex shader"),
     .nextInChain
-      = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+      = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
         .chain = (WGPUChainedStruct){
           .sType = WGPUSType_ShaderSourceWGSL,
         },
@@ -3380,7 +3382,7 @@ static void box_outline_init(box_outline_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Box outline vertex shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -3394,7 +3396,7 @@ static void box_outline_init(box_outline_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Box outline fragment shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4018,7 +4020,7 @@ static void ground_init(ground_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Ground vertex shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4031,7 +4033,7 @@ static void ground_init(ground_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Ground fragment shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4134,7 +4136,7 @@ static void ground_init(ground_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Ground shadow vertex shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4544,7 +4546,7 @@ static void particles_init(particles_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Particles vertex shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4557,7 +4559,7 @@ static void particles_init(particles_t* this)
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Particles fragment shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4780,7 +4782,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_wgsl,
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Effect vertex shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -4793,7 +4795,7 @@ static void effect_init(effect_t* this, const char* fragment_shader_wgsl,
       &(WGPUShaderModuleDescriptor){
         .label = STRVIEW("Effect fragment shader"),
         .nextInChain
-          = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+          = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
               .sType = WGPUSType_ShaderSourceWGSL,
             },
@@ -5271,7 +5273,7 @@ static void bloom_pass_init_compute_pipeline(bloom_pass_t* this)
     WGPUShaderModuleDescriptor shader_desc = {
       .label = STRVIEW("Bloom blur - Compute shader"),
       .nextInChain
-        = (const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
+        = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
           .chain = (WGPUChainedStruct){
             .sType = WGPUSType_ShaderSourceWGSL,
           },
@@ -7189,6 +7191,11 @@ static int init(wgpu_context_t* wgpu_context)
 
   /* Initialize imgui */
   imgui_overlay_init(wgpu_context);
+
+  /* Suppress unused-function warnings for debug/optional functions */
+  UNUSED_FUNCTION(settings_get_quality);
+  UNUSED_FUNCTION(settings_set_quality);
+  UNUSED_FUNCTION(copy_pass_render);
 
   state.prepared = true;
 

@@ -10,7 +10,9 @@
 #include <sokol_time.h>
 #endif
 
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #include <cimgui.h>
 
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0

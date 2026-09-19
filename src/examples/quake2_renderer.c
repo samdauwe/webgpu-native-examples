@@ -19,7 +19,9 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #endif
 #include <cimgui.h>
 #ifdef __GNUC__
@@ -6125,6 +6127,12 @@ static void shutdown(wgpu_context_t* wgpu_context)
 
   /* Release PAK archive (the in-memory cache) */
   q2_pak_destroy(&state.pak);
+
+  /* Suppress unused-function warnings for debug helpers */
+  UNUSED_FUNCTION(q2_bsp_print_metadata);
+  UNUSED_FUNCTION(q2_pak_print_summary);
+  UNUSED_FUNCTION(q2_wal_print_info);
+  UNUSED_VAR(q2_md2_normals);
 }
 
 /* -------------------------------------------------------------------------- *

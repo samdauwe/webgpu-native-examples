@@ -41,7 +41,9 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#ifndef CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#endif
 #endif
 #include <cimgui.h>
 #ifdef __GNUC__
@@ -1370,7 +1372,10 @@ static int va_compute_plane_stagings(int plane_idx, float x, float y, float z,
 
   /* Precompute light in view space (same for all planes this frame) */
   vec4 ld4;
-  glm_vec4_copy3(state.light_dir, ld4);
+  /* Explicit copy avoids -Wstringop-overflow on glm_vec4_copy3 */
+  ld4[0] = state.light_dir[0];
+  ld4[1] = state.light_dir[1];
+  ld4[2] = state.light_dir[2];
   ld4[3] = 0.0f;
   vec4 ldv;
   glm_mat4_mulv(state.view_matrix, ld4, ldv);
