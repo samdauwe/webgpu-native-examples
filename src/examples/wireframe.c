@@ -293,8 +293,8 @@ static void create_model_from_mesh(wgpu_context_t* wgpu_context,
     memcpy(model->cpu_indices, indices, indices_byte_size);
 }
 
-/* Buffer size for the teapot JSON file (136 KB + 1 byte for null terminator) */
-#define TEAPOT_JSON_BUF_SIZE (140 * 1024)
+/* Buffer size for the teapot JSON file (142 KB + 1 byte for null terminator) */
+#define TEAPOT_JSON_BUF_SIZE (256 * 1024)
 
 /* Number of models in the combined buffer */
 #define NUM_MODELS (4u)
