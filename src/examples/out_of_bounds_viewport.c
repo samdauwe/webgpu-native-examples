@@ -35,10 +35,14 @@
 /* -------------------------------------------------------------------------- *
  * WebGPU Example - Out-of-bounds Viewport
  *
- * WebGPU doesn't let you set the viewport's values to be out-of-bounds.
- * Therefore, the viewport's values need to be clamped to the screen-size, which
- * means the viewport values can't be defined in a way that makes the viewport
- * go off the screen. This example shows how to render a viewport out-of-bounds.
+ * This example shows how to render a viewport that extends off the screen.
+ *
+ * WebGPU originally required the viewport to be contained in the render target,
+ * so the only way to do this was to fold the viewport transform into the vertex
+ * shader, which is what the default path does. The spec now allows an origin as
+ * low as -2 * maxTextureDimension2D, so the viewport can also be expressed
+ * directly. The "Real SetViewport" checkbox switches between the two, which
+ * agree except for rounding along the viewport edges.
  *
  * Ref:
  * https://babylonjs.medium.com/how-to-simulate-out-of-bounds-viewports-when-using-webgpu-or-babylonnative-2280637c0660
@@ -77,6 +81,7 @@ static struct {
   WGPURenderPassColorAttachment color_attachment;
   WGPURenderPassDescriptor render_pass_descriptor;
   viewport_params_t viewport_params;
+  bool use_real_viewport;
   uint64_t last_frame_time;
   WGPUBool initialized;
 } state = {
@@ -96,6 +101,7 @@ static struct {
     .width  = 1.0f,
     .height = 1.0f,
   },
+  .use_real_viewport = false,
 };
 
 /**
@@ -172,8 +178,14 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
 /* Update uniform buffer with current viewport parameters */
 static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
+  /* In real-viewport mode the rasterizer applies the transform, so the shader
+   * must stay identity. */
+  const viewport_params_t identity = {
+    .x = 0.0f, .y = 0.0f, .width = 1.0f, .height = 1.0f};
+  const viewport_params_t* params
+    = state.use_real_viewport ? &identity : &state.viewport_params;
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
-                       &state.viewport_params, sizeof(viewport_params_t));
+                       params, sizeof(viewport_params_t));
 }
 
 /* Initialize bind group layout */
@@ -357,6 +369,8 @@ static void render_gui(void)
   igSetNextWindowSize((ImVec2){300.0f, 0.0f}, ImGuiCond_FirstUseEver);
 
   igBegin("Viewport Parameters", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+  imgui_overlay_checkbox("Real SetViewport (negative origin)",
+                         &state.use_real_viewport);
   imgui_overlay_slider_float("X", &state.viewport_params.x, -0.5f, 0.5f,
                              "%.2f");
   imgui_overlay_slider_float("Y", &state.viewport_params.y, -0.5f, 0.5f,
@@ -419,9 +433,24 @@ static int frame(wgpu_context_t* wgpu_context)
   wgpuRenderPassEncoderSetPipeline(rpass_enc, state.pipeline);
   wgpuRenderPassEncoderSetBindGroup(rpass_enc, 0, state.bind_group.handle, 0,
                                     0);
-  wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
-                                   (float)wgpu_context->width,
-                                   (float)wgpu_context->height, 0.0f, 1.0f);
+  if (state.use_real_viewport) {
+    /* The shader path maps NDC x to [2x-1, 2x+2w-1], i.e. pixels
+     * [x*W, (x+w)*W]; y is flipped, so top = (1-y-h)*H. */
+    const float vp_w = state.viewport_params.width * (float)wgpu_context->width;
+    const float vp_h
+      = state.viewport_params.height * (float)wgpu_context->height;
+    const float vp_x = state.viewport_params.x * (float)wgpu_context->width;
+    const float vp_y
+      = (1.0f - state.viewport_params.y - state.viewport_params.height)
+        * (float)wgpu_context->height;
+    wgpuRenderPassEncoderSetViewport(rpass_enc, vp_x, vp_y, vp_w, vp_h, 0.0f,
+                                     1.0f);
+  }
+  else {
+    wgpuRenderPassEncoderSetViewport(rpass_enc, 0.0f, 0.0f,
+                                     (float)wgpu_context->width,
+                                     (float)wgpu_context->height, 0.0f, 1.0f);
+  }
   wgpuRenderPassEncoderSetScissorRect(rpass_enc, 0u, 0u,
                                       (uint32_t)wgpu_context->width,
                                       (uint32_t)wgpu_context->height);
