@@ -8,12 +8,59 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* The harness owns the clock, so it is also the translation unit that compiles
+ * sokol_time; examples only use the declarations. */
+#ifdef __WAJIC__
+#define WAJIC_TIME_IMPL
+#include <wajic_time.h>
+#else
+#define SOKOL_TIME_IMPL
+#include <sokol_time.h>
+#endif
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Context
  * -------------------------------------------------------------------------- */
 
 static wgpu_context_t wgpu_context;
+
+/* -------------------------------------------------------------------------- *
+ * Deterministic capture
+ *
+ * WGPU_CAPTURE_FRAME=<n> renders n frames, writes the backbuffer to
+ * WGPU_CAPTURE_FILE (default "capture.png") and exits. While it is set the
+ * example runs on a fixed 60 Hz clock and a fixed random seed, so frame n is
+ * the same animation state on every run and every implementation, and two
+ * captures can be diffed as a rendering comparison.
+ * -------------------------------------------------------------------------- */
+
+#define WGPU_CAPTURE_STEP_NS UINT64_C(16666667) /* 1/60 s */
+
+static int wgpu_fixed_time_enabled  = 0;
+static uint64_t wgpu_fixed_time_ns  = 0;
+
+uint64_t wgpu_now_ns(void)
+{
+  return wgpu_fixed_time_enabled ? wgpu_fixed_time_ns : stm_now();
+}
+
+uint64_t wgpu_laptime_ns(uint64_t* last)
+{
+  const uint64_t now      = wgpu_now_ns();
+  const uint64_t duration = (0 != *last) ? (now - *last) : 0;
+  *last                   = now;
+  return duration;
+}
+
+unsigned int wgpu_random_seed(void)
+{
+  return wgpu_fixed_time_enabled ? 12345u : (unsigned int)time(NULL);
+}
 
 /* ========================================================================== *
  * Platform-specific code
@@ -428,6 +475,8 @@ void wgpu_start(const wgpu_desc_t* desc)
   assert(desc);
   assert(desc->init_cb && desc->frame_cb && desc->shutdown_cb);
 
+  stm_setup();
+
   memset(&wgpu_context, 0, sizeof(wgpu_context));
   wgpu_context.desc              = *desc;
   wgpu_context.desc.sample_count = VALUE_OR(wgpu_context.desc.sample_count, 1);
@@ -517,6 +566,8 @@ static void wgpu_swapchain_init(wgpu_context_t* wgpu_context);
 static void wgpu_swapchain_discard(wgpu_context_t* wgpu_context);
 static void wgpu_swapchain_resized(wgpu_context_t* wgpu_context);
 static WGPUTextureView wgpu_swapchain_next(wgpu_context_t* wgpu_context);
+static void wgpu_capture_and_exit(wgpu_context_t* wgpu_context,
+                                  const char* out_path);
 
 static keycode_t remap_glfw_key_code(int key)
 {
@@ -666,6 +717,8 @@ void wgpu_start(const wgpu_desc_t* desc)
   assert(desc->title);
   assert((desc->width >= 0) && (desc->height >= 0));
   assert(desc->init_cb && desc->frame_cb && desc->shutdown_cb);
+
+  stm_setup();
 
   memset(&wgpu_context, 0, sizeof(wgpu_context));
 
@@ -1141,6 +1194,24 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
     }
   }
 
+  const char* capture_frame_env = getenv("WGPU_CAPTURE_FRAME");
+  const uint64_t capture_frame
+    = (capture_frame_env && *capture_frame_env)
+        ? strtoull(capture_frame_env, NULL, 10)
+        : 0;
+  const char* capture_file_env = getenv("WGPU_CAPTURE_FILE");
+  const char* capture_file
+    = (capture_file_env && *capture_file_env) ? capture_file_env : "capture.png";
+
+  /* Arm the fixed clock before init_cb, not at the first frame: examples seed
+   * rand() and take their first timestamp during init, and an init-time wall
+   * clock followed by a fixed per-frame clock gives a garbage first delta. */
+  if (0 != capture_frame) {
+    wgpu_fixed_time_enabled = 1;
+    wgpu_fixed_time_ns      = 0;
+    glfwSetTime(0.0);
+  }
+
   wgpu_swapchain_init(wgpu_context);
   wgpu_context->desc.init_cb(wgpu_context_struct);
   wgpuDevicePopErrorScope(
@@ -1153,7 +1224,16 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
   input_event_t input_event = {0};
 
   while (!glfwWindowShouldClose(window)) {
+    if (0 != capture_frame) {
+      wgpu_fixed_time_ns = (frame_count - 1) * WGPU_CAPTURE_STEP_NS;
+      glfwSetTime((double)(frame_count - 1) / 60.0);
+    }
     glfwPollEvents();
+    /* A capture ignores input: the real cursor crossing the window would
+     * otherwise steer cameras and shader inputs. */
+    if (0 != capture_frame) {
+      input_state.event_type = INPUT_EVENT_TYPE_INVALID;
+    }
     if (wgpu_context->input_event_cb
         && input_state.event_type != INPUT_EVENT_TYPE_INVALID) {
       update_input_event(&input_event, frame_count);
@@ -1164,9 +1244,17 @@ static void wgpu_platform_start(wgpu_context_t* wgpu_context)
     wgpu_context->swapchain_view = wgpu_swapchain_next(wgpu_context);
     if (wgpu_context->swapchain_view) {
       wgpu_context->desc.frame_cb(wgpu_context_struct);
+      if (0 != capture_frame && frame_count == capture_frame
+          && wgpu_context->swapchain_tex) {
+        wgpu_capture_and_exit(wgpu_context, capture_file); /* does not return */
+      }
       wgpuTextureViewRelease(wgpu_context->swapchain_view);
       wgpu_context->swapchain_view = 0;
       wgpuSurfacePresent(wgpu_context->surface);
+      if (wgpu_context->swapchain_tex) {
+        wgpuTextureRelease(wgpu_context->swapchain_tex);
+        wgpu_context->swapchain_tex = 0;
+      }
     }
     wgpuDevicePopErrorScope(wgpu_context->device,
                             (WGPUPopErrorScopeCallbackInfo){
@@ -1207,7 +1295,9 @@ static void wgpu_swapchain_init(wgpu_context_t* wgpu_context)
                        &(WGPUSurfaceConfiguration){
                          .device      = wgpu_context->device,
                          .format      = wgpu_context->render_format,
-                         .usage       = WGPUTextureUsage_RenderAttachment,
+                         /* CopySrc so a capture can read the backbuffer back */
+                         .usage       = WGPUTextureUsage_RenderAttachment
+                                        | WGPUTextureUsage_CopySrc,
                          .alphaMode   = WGPUCompositeAlphaMode_Auto,
                          .width       = (uint32_t)wgpu_context->width,
                          .height      = (uint32_t)wgpu_context->height,
@@ -1308,8 +1398,97 @@ static WGPUTextureView wgpu_swapchain_next(wgpu_context_t* wgpu_context)
       abort();
   }
   WGPUTextureView view = wgpuTextureCreateView(surface_texture.texture, 0);
-  wgpuTextureRelease(surface_texture.texture);
+  /* Released by the frame loop after present, so a capture can copy it. */
+  wgpu_context->swapchain_tex = surface_texture.texture;
   return view;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Capture: copy the backbuffer to a PNG and exit. Pure WebGPU, so any
+ * implementation captures the same way.
+ * -------------------------------------------------------------------------- */
+
+typedef struct {
+  volatile int done;
+  WGPUMapAsyncStatus status;
+} wgpu_map_result_t;
+
+static void wgpu_capture_map_cb(WGPUMapAsyncStatus status, WGPUStringView message,
+                                void* userdata1, void* userdata2)
+{
+  (void)message;
+  (void)userdata2;
+  wgpu_map_result_t* result = (wgpu_map_result_t*)userdata1;
+  result->status            = status;
+  result->done              = 1;
+}
+
+static void wgpu_capture_and_exit(wgpu_context_t* ctx, const char* out_path)
+{
+  const uint32_t width    = (uint32_t)ctx->width;
+  const uint32_t height   = (uint32_t)ctx->height;
+  const uint32_t unpadded = width * 4u;
+  const uint32_t padded   = (unpadded + 255u) & ~255u; /* 256-byte row align */
+  const uint64_t size     = (uint64_t)padded * height;
+
+  WGPUBuffer readback = wgpuDeviceCreateBuffer(
+    ctx->device, &(WGPUBufferDescriptor){
+                   .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead,
+                   .size  = size});
+
+  WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx->device, NULL);
+  WGPUTexelCopyTextureInfo src = {.texture  = ctx->swapchain_tex,
+                                  .mipLevel = 0,
+                                  .aspect   = WGPUTextureAspect_All};
+  WGPUTexelCopyBufferInfo dst
+    = {.buffer = readback,
+       .layout = {.offset = 0, .bytesPerRow = padded, .rowsPerImage = height}};
+  WGPUExtent3D extent = {.width = width, .height = height, .depthOrArrayLayers = 1};
+  wgpuCommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &extent);
+  WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(encoder, NULL);
+  wgpuQueueSubmit(ctx->queue, 1, &cmd_buffer);
+  wgpuCommandBufferRelease(cmd_buffer);
+  wgpuCommandEncoderRelease(encoder);
+
+  wgpu_map_result_t result = {0};
+  wgpuBufferMapAsync(readback, WGPUMapMode_Read, 0, (size_t)size,
+                     (WGPUBufferMapCallbackInfo){
+                       .mode      = WGPUCallbackMode_AllowProcessEvents,
+                       .callback  = wgpu_capture_map_cb,
+                       .userdata1 = &result});
+  for (int spin = 0; !result.done && spin < 100000; ++spin) {
+    wgpuInstanceProcessEvents(ctx->instance);
+  }
+
+  int ok = 0;
+  if (result.done && result.status == WGPUMapAsyncStatus_Success) {
+    const unsigned char* mapped = (const unsigned char*)wgpuBufferGetConstMappedRange(
+      readback, 0, (size_t)size);
+    unsigned char* rgb = (unsigned char*)malloc((size_t)width * height * 3u);
+    if (mapped && rgb) {
+      const int bgra = (ctx->render_format == WGPUTextureFormat_BGRA8Unorm
+                        || ctx->render_format == WGPUTextureFormat_BGRA8UnormSrgb);
+      for (uint32_t y = 0; y < height; ++y) {
+        const unsigned char* row = mapped + (size_t)y * padded;
+        unsigned char* out       = rgb + (size_t)y * width * 3u;
+        for (uint32_t x = 0; x < width; ++x) {
+          const unsigned char* p = row + (size_t)x * 4u;
+          out[x * 3u + 0]        = bgra ? p[2] : p[0];
+          out[x * 3u + 1]        = p[1];
+          out[x * 3u + 2]        = bgra ? p[0] : p[2];
+        }
+      }
+      ok = stbi_write_png(out_path, (int)width, (int)height, 3, rgb,
+                          (int)width * 3);
+    }
+    free(rgb);
+    wgpuBufferUnmap(readback);
+  }
+  wgpuBufferRelease(readback);
+  fprintf(stderr, "capture: %s %s (%ux%u)\n", ok ? "wrote" : "FAILED to write",
+          out_path, width, height);
+  fflush(stderr);
+  exit(ok ? 0 : 2);
 }
 
 /* -------------------------------------------------------------------------- *

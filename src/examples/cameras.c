@@ -15,10 +15,8 @@
 
 /* Timing */
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1066,7 +1064,7 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
   init_view_matrices(wgpu_context);
 
   /* Set the current time */
-  state.last_frame_ms = stm_ms(stm_now());
+  state.last_frame_ms = stm_ms(wgpu_now_ns());
 
   /* Uniform buffer */
   state.uniform_buffer_vs = wgpu_create_buffer(
@@ -1091,7 +1089,7 @@ static mat4* get_model_view_projection_matrix(float delta_time)
 static void update_model_view_projection_matrix(wgpu_context_t* wgpu_context)
 {
   /* Get the model-view-projection matrix */
-  const float now        = stm_ms(stm_now());
+  const float now        = stm_ms(wgpu_now_ns());
   const float delta_time = (now - state.last_frame_ms) / 1000.0f;
   state.last_frame_ms    = now;
 
@@ -1319,7 +1317,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   sfetch_dowork();
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_imgui_frame_time == 0) {
     state.last_imgui_frame_time = current_time;
   }

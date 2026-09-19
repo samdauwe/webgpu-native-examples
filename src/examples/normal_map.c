@@ -7,14 +7,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -309,7 +307,7 @@ static mat4* get_view_matrix(void)
 static mat4* get_model_matrix(void)
 {
   glm_mat4_identity(state.view_matrices.model);
-  const float now = stm_sec(stm_now());
+  const float now = stm_sec(wgpu_now_ns());
   glm_rotate_y(state.view_matrices.model, now * -0.5f,
                state.view_matrices.model);
 
@@ -930,7 +928,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

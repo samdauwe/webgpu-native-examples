@@ -6,14 +6,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1926,7 +1924,7 @@ static void update_camera_matrices(wgpu_context_t* wgpu_context)
                    state.settings.object_scale});
 
   if (state.settings.object_type == OBJECT_TYPE_WHALE) {
-    const float time = stm_sec(stm_now());
+    const float time = stm_sec(wgpu_now_ns());
     glm_rotate_y(state.camera_matrices.model, time * 0.5f,
                  state.camera_matrices.model);
   }
@@ -2126,7 +2124,7 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }
@@ -2165,7 +2163,7 @@ static int frame(wgpu_context_t* wgpu_context)
   update_camera_matrices(wgpu_context);
 
   /* Calculate animation */
-  const float t     = (stm_sec(stm_now()) / 20.0f) * state.settings.speed;
+  const float t     = (stm_sec(wgpu_now_ns()) / 20.0f) * state.settings.speed;
   const float angle = sinf(t) * state.settings.angle;
 
   /* Update grid bones */

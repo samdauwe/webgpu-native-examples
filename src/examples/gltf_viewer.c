@@ -36,10 +36,8 @@
 
 /* Timer */
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -3344,7 +3342,7 @@ static int init(wgpu_context_t* ctx)
 {
   /* Timer */
   stm_setup();
-  state.last_frame_time = stm_now();
+  state.last_frame_time = wgpu_now_ns();
 
   /* Initialize default file paths */
   strncpy(state.model_path, MODEL_FILE_PATH, sizeof(state.model_path) - 1);
@@ -3545,7 +3543,7 @@ static int frame(wgpu_context_t* ctx)
   process_loaded_assets(ctx);
 
   /* Timer */
-  uint64_t now          = stm_now();
+  uint64_t now          = wgpu_now_ns();
   float delta_time      = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
   if (delta_time <= 0.0f || delta_time > 0.1f)

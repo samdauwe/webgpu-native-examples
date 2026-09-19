@@ -8,7 +8,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -21,7 +20,6 @@
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1223,7 +1221,7 @@ static void init_view_matrices(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(wgpu_context_t* wgpu_context)
 {
-  const float now = (float)stm_sec(stm_now()) / 5.0f;
+  const float now = (float)stm_sec(wgpu_now_ns()) / 5.0f;
 
   /* View matrix */
   glm_mat4_identity(state.view_matrices.view);
@@ -1264,7 +1262,7 @@ static void update_transformation_matrix(wgpu_context_t* wgpu_context)
 
   /* Update crawling text transform */
   if (state.title_text_idx >= 0 && state.large_text_idx >= 0) {
-    uint64_t elapsed = stm_diff(stm_now(), state.start_time);
+    uint64_t elapsed = stm_diff(wgpu_now_ns(), state.start_time);
     float crawl      = fmodf((float)stm_sec(elapsed) / 2.5f, 14.0f);
 
     glm_mat4_identity(state.view_matrices.text_matrix);
@@ -1305,7 +1303,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 #endif
     });
 
-    state.start_time = stm_now();
+    state.start_time = wgpu_now_ns();
 
     init_cube_mesh();
     init_cube_vertex_buffer(wgpu_context);

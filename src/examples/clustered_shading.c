@@ -10,10 +10,8 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 /* Async file loading */
@@ -2979,7 +2977,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Timing */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   float time_delta      = 0.0f;
   float timestamp_ms    = (float)stm_ms(current_time);
 

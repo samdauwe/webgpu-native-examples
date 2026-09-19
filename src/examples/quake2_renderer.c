@@ -32,14 +32,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -5143,7 +5141,7 @@ static void init_md2_models(wgpu_context_t* wgpu_context)
   }
 
   state.md2.num_models      = model_count;
-  state.md2.anim_start_time = stm_now();
+  state.md2.anim_start_time = wgpu_now_ns();
 
   /* Initialize next_frame for entities now that models are loaded.
    * Gameplay-static entities stay on frame 0 (no animation). */
@@ -5627,7 +5625,7 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Delta time */
-  uint64_t now          = stm_now();
+  uint64_t now          = wgpu_now_ns();
   float dt              = (state.last_frame_time == 0) ?
                             (1.0f / 60.0f) :
                             (float)stm_sec(stm_diff(now, state.last_frame_time));

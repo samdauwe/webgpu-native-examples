@@ -24,7 +24,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -39,7 +38,6 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1070,7 +1068,7 @@ static int init(wgpu_context_t* wgpu_context)
   });
 
   /* Seed RNG with time for variety each run */
-  state.rng_state = (uint32_t)stm_now() ^ 0xDEADBEEFu;
+  state.rng_state = (uint32_t)wgpu_now_ns() ^ 0xDEADBEEFu;
   if (state.rng_state == 0) {
     state.rng_state = 1;
   }
@@ -1240,7 +1238,7 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Delta time */
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = now;
   }

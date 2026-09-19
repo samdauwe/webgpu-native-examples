@@ -1,4 +1,4 @@
-﻿#include "webgpu/imgui_overlay.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include "common_shaders.h"
@@ -6,12 +6,10 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -505,7 +503,7 @@ static void update_settings(wgpu_context_t* wgpu_context)
 /* Render GUI */
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
   state.last_imgui_frame_time = now;

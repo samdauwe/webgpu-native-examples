@@ -7,10 +7,8 @@
 #include <string.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -102,7 +100,7 @@ static void init_vertex_buffer(wgpu_context_t* wgpu_context)
 
 static void update_transformation_matrix(void)
 {
-  const float now = stm_sec(stm_now());
+  const float now = stm_sec(wgpu_now_ns());
 
   uint32_t m = 0, i = 0;
   for (uint32_t x = 0; x < x_count; ++x) {

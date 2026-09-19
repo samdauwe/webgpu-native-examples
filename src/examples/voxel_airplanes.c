@@ -29,14 +29,12 @@
 #define WAJIC_SFETCH_MAX_REQUESTS 128
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -426,7 +424,7 @@ static struct {
   bool resources_dirty; /* bind groups need recreation */
   bool initialized;
 
-  uint64_t last_time; /* stm_now() at last frame */
+  uint64_t last_time; /* wgpu_now_ns() at last frame */
   float dt_sec;       /* last frame delta time in seconds */
 } state = {
   /* clang-format off */
@@ -1880,7 +1878,7 @@ static void va_check_and_upload_pending(wgpu_context_t* ctx)
 
 static void va_update_timers(double dt_ms)
 {
-  uint64_t now_ms = stm_ms(stm_now());
+  uint64_t now_ms = stm_ms(wgpu_now_ns());
 
   state.t_camera = (state.cfg.camera_mode == VA_CAMERA_FIXED) ?
                      0.13f :
@@ -1936,7 +1934,7 @@ static int frame(wgpu_context_t* ctx)
 {
   sfetch_dowork();
 
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   double dt_ms
     = (state.last_time > 0) ? stm_ms(stm_diff(now, state.last_time)) : 0.0;
   state.last_time = now;
@@ -2023,7 +2021,7 @@ static void input_event_cb(wgpu_context_t* ctx, const input_event_t* ev)
 static int init(wgpu_context_t* ctx)
 {
   stm_setup();
-  srand((unsigned)stm_now());
+  srand(wgpu_random_seed());
 
   state.wgpu_context = ctx;
 

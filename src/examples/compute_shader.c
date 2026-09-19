@@ -5,7 +5,6 @@
 #define WAJIC_SFETCH_MAX_REQUESTS 2
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <stdio.h>
 #include <wajic_time.h>
 #ifdef NULL
@@ -15,7 +14,6 @@
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -605,7 +603,7 @@ static void init_compute_pipelines(wgpu_context_t* wgpu_context)
 
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now    = stm_now();
+  const uint64_t now    = wgpu_now_ns();
   const float dt_sec    = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 

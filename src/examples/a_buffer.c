@@ -7,14 +7,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1099,7 +1097,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate GUI frame time */
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
   state.last_imgui_frame_time = now;
@@ -1118,7 +1116,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Update uniform buffer */
-  update_uniform_buffer(wgpu_context, (float)stm_ms(stm_now()));
+  update_uniform_buffer(wgpu_context, (float)stm_ms(wgpu_now_ns()));
 
   const uint32_t canvas_width  = wgpu_context->width;
   const uint32_t canvas_height = wgpu_context->height;

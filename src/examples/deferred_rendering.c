@@ -1,4 +1,4 @@
-﻿#include "meshes.h"
+#include "meshes.h"
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
@@ -9,10 +9,8 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 #ifdef NULL
@@ -1488,7 +1486,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
 #endif
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_imgui_frame_time == 0) {
     state.last_imgui_frame_time = current_time;
   }
@@ -1504,10 +1502,10 @@ static int frame(struct wgpu_context_t* wgpu_context)
 
   /* Update time (use sokol_time so no glfwGetTime() needed in browser) */
   if (state.time.start_time == 0) {
-    state.time.start_time = (uint64_t)stm_ms(stm_now());
+    state.time.start_time = (uint64_t)stm_ms(wgpu_now_ns());
   }
   state.time.elapsed_ms
-    = (float)((uint64_t)stm_ms(stm_now()) - state.time.start_time);
+    = (float)((uint64_t)stm_ms(wgpu_now_ns()) - state.time.start_time);
 
   /* Update uniform buffers */
   update_uniform_buffers(wgpu_context, state.time.elapsed_ms);

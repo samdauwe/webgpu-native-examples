@@ -4,7 +4,6 @@
 #include <cglm/cglm.h>
 #include <string.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 /* -------------------------------------------------------------------------- *
@@ -903,7 +902,7 @@ static int init(wgpu_context_t* wgpu_context)
 
   /* Initialize timing */
   stm_setup();
-  state.last_time = stm_now();
+  state.last_time = wgpu_now_ns();
 
   /* Initialize pipelines first (need bind group layout) */
   init_pipelines(wgpu_context);
@@ -938,7 +937,7 @@ static int frame(wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
   }
 
-  float time = (float)stm_sec(stm_since(0));
+  float time = (float)stm_sec(wgpu_now_ns());
 
   /* Update depth texture if needed */
   update_depth_texture(wgpu_context);

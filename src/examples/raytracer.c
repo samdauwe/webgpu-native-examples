@@ -3,14 +3,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #ifdef NULL
 #undef NULL
 #define NULL 0
 #endif
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1921,7 +1919,7 @@ static void raytracer_complete_init(wgpu_context_t* wgpu_context)
   state.shader_seed[0] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[1] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[2] = (float)rand() / (float)RAND_MAX;
-  state.old_time_ms    = (float)stm_sec(stm_now()) * 1000.0f;
+  state.old_time_ms    = (float)stm_sec(wgpu_now_ns()) * 1000.0f;
 
   state.scene_buffers_created = true;
   state.initialized           = true;
@@ -1933,7 +1931,7 @@ static void reset_render(wgpu_context_t* wgpu_context)
 {
   UNUSED_VAR(wgpu_context);
   state.frame_counter   = 0;
-  state.old_time_ms     = (float)stm_sec(stm_now()) * 1000.0f;
+  state.old_time_ms     = (float)stm_sec(wgpu_now_ns()) * 1000.0f;
   state.time_expired_ms = 0.0f;
 }
 
@@ -2555,7 +2553,7 @@ static int init(struct wgpu_context_t* wgpu_context)
   state.shader_seed[0] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[1] = (float)rand() / (float)RAND_MAX;
   state.shader_seed[2] = (float)rand() / (float)RAND_MAX;
-  state.old_time_ms    = (float)stm_sec(stm_now()) * 1000.0f;
+  state.old_time_ms    = (float)stm_sec(wgpu_now_ns()) * 1000.0f;
 
   state.initialized = true;
 #endif
@@ -2656,7 +2654,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Update time */
-  float now_ms      = (float)stm_sec(stm_now()) * 1000.0f;
+  float now_ms      = (float)stm_sec(wgpu_now_ns()) * 1000.0f;
   float diff        = now_ms - state.old_time_ms;
   state.old_time_ms = now_ms;
   state.time_expired_ms += diff;

@@ -3,10 +3,8 @@
 #include <math.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -69,7 +67,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   state.color_attachment.view = wgpu_context->swapchain_view;
 
   /* Figure out how far along duration we are, between 0.0 and 1.0 */
-  const float t = cos(stm_sec(stm_now())) * 0.5f + 0.5f;
+  const float t = cos(stm_sec(wgpu_now_ns())) * 0.5f + 0.5f;
 
   /* Interpolate between two colors */
   state.color_attachment.clearValue = lerp(

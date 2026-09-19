@@ -28,14 +28,12 @@
 #include <wajic_image.h>
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1892,7 +1890,7 @@ static int frame(wgpu_context_t* ctx)
   }
 
   /* Advance timers */
-  uint64_t now_ticks = stm_now();
+  uint64_t now_ticks = wgpu_now_ns();
   float dt_sec       = (state.last_time > 0) ?
                          (float)stm_sec(stm_diff(now_ticks, state.last_time)) :
                          1.0f / 60.0f;
@@ -2032,7 +2030,7 @@ static int frame(wgpu_context_t* ctx)
   /* GUI: new frame, draw widgets, then submit + render */
   {
     static uint64_t last_t = 0;
-    uint64_t now           = stm_now();
+    uint64_t now           = wgpu_now_ns();
     float dt = last_t ? (float)stm_sec(stm_diff(now, last_t)) : 1.0f / 60.0f;
     last_t   = now;
     imgui_overlay_new_frame(ctx, dt);

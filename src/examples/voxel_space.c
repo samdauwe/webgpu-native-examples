@@ -5,14 +5,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -732,7 +730,7 @@ static int init(wgpu_context_t* wgpu_context)
 #endif
     });
     stm_setup();
-    state.last_time = stm_now();
+    state.last_time = wgpu_now_ns();
     init_textures(wgpu_context);
     init_uniform_buffer(wgpu_context);
     init_compute_pipeline(wgpu_context);
@@ -872,7 +870,7 @@ static int frame(wgpu_context_t* wgpu_context)
   }
 
   /* Update camera based on input */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   float delta_time = (float)stm_sec(stm_diff(current_time, state.last_time));
   state.last_time  = current_time;
 

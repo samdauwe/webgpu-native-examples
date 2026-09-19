@@ -17,7 +17,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #ifdef NULL
 #undef NULL
@@ -27,7 +26,6 @@
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -569,7 +567,7 @@ static void update_transformation_matrix(float time)
 
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
-  const float now = stm_sec(stm_now());
+  const float now = stm_sec(wgpu_now_ns());
   update_transformation_matrix(now);
 
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer.buffer, 0,
@@ -710,7 +708,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate delta time and FPS */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.timing.last_frame_time == 0) {
     state.timing.last_frame_time      = current_time;
     state.timing.last_fps_update_time = current_time;

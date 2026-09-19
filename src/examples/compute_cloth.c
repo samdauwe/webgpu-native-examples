@@ -25,7 +25,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -38,7 +37,6 @@
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -645,7 +643,7 @@ static void update_compute_ubo(struct wgpu_context_t* wgpu_context)
   /* Wind simulation */
   if (state.settings.simulate_wind) {
     float time_val
-      = (float)stm_sec(stm_now()) * 0.5f; /* slow time progression */
+      = (float)stm_sec(wgpu_now_ns()) * 0.5f; /* slow time progression */
     float rd1 = 1.0f + ((float)(rand() % 1000) / 1000.0f) * 11.0f;
     float rd2 = 1.0f + ((float)(rand() % 1000) / 1000.0f) * 11.0f;
     state.compute_ubo_data.gravity[0]
@@ -1098,7 +1096,7 @@ static int init(struct wgpu_context_t* wgpu_context)
   /* ImGui */
   imgui_overlay_init(wgpu_context);
 
-  state.last_frame_time = stm_now();
+  state.last_frame_time = wgpu_now_ns();
   state.initialized     = true;
 
   return EXIT_SUCCESS;
@@ -1143,7 +1141,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Timing */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   state.frame_timer
     = (float)stm_sec(stm_diff(current_time, state.last_frame_time));
   state.last_frame_time = current_time;

@@ -5,10 +5,8 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -766,10 +764,10 @@ static void update_timer(void)
 
   if (start_time == 0) {
     stm_setup();
-    start_time = stm_now();
+    start_time = wgpu_now_ns();
   }
 
-  current_time = stm_now();
+  current_time = wgpu_now_ns();
   state.timer  = (float)stm_ms(current_time - start_time) / 1000.0f * 0.25f;
 }
 

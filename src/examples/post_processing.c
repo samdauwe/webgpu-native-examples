@@ -1,4 +1,4 @@
-﻿#include "webgpu/imgui_overlay.h"
+#include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
@@ -7,7 +7,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 /* WAjic WebGPU handles are uint32_t, not pointers; redefine NULL to plain 0
  * so WGPU handle assignments compile without pointer-to-integer errors. */
@@ -22,7 +21,6 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -1500,14 +1498,14 @@ static int frame(struct wgpu_context_t* ctx)
   }
 
   /* Timing */
-  const float ts = (float)stm_sec(stm_now());
+  const float ts = (float)stm_sec(wgpu_now_ns());
   const float dt = ts - state.old_time;
   state.old_time = ts;
 
   update_uniforms(ctx, ts, dt);
 
   /* ImGui */
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = now;
   }

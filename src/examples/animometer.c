@@ -4,10 +4,8 @@
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -220,7 +218,7 @@ static void init_pipeline_layouts(wgpu_context_t* wgpu_context)
 static void update_uniform_buffers(wgpu_context_t* wgpu_context)
 {
   /* Update uniforms */
-  state.uniform_time[0] = stm_sec(stm_now());
+  state.uniform_time[0] = stm_sec(wgpu_now_ns());
   wgpuQueueWriteBuffer(wgpu_context->queue, state.uniform_buffer,
                        state.time_offset, &state.uniform_time,
                        sizeof(state.uniform_time));
@@ -450,7 +448,7 @@ static int init(struct wgpu_context_t* wgpu_context)
 /* Render GUI */
 static void render_gui(wgpu_context_t* wgpu_context)
 {
-  const uint64_t now    = stm_now();
+  const uint64_t now    = wgpu_now_ns();
   const float dt_sec    = (float)stm_sec(stm_diff(now, state.last_frame_time));
   state.last_frame_time = now;
 
@@ -510,8 +508,8 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Performance tracking */
-  const uint64_t frame_start_time  = stm_now();
-  const uint64_t current_timestamp = stm_now();
+  const uint64_t frame_start_time  = wgpu_now_ns();
+  const uint64_t current_timestamp = wgpu_now_ns();
 
   double frame_time = 0.0;
   if (state.previous_frame_timestamp != 0) {
@@ -562,7 +560,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   wgpuCommandEncoderRelease(cmd_enc);
 
   /* Calculate performance metrics */
-  const double js_time = stm_ms(stm_diff(stm_now(), frame_start_time));
+  const double js_time = stm_ms(stm_diff(wgpu_now_ns(), frame_start_time));
 
   /* Exponential moving average with weight */
   const double w = 0.2;

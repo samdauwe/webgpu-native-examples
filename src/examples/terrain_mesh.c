@@ -5,7 +5,6 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #ifdef NULL
 #undef NULL
@@ -18,7 +17,6 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -411,7 +409,7 @@ static void update_camera_pose(float dt)
 
 static void update_uniform_buffer(wgpu_context_t* wgpu_context)
 {
-  const float frame_timestamp_millis = stm_ms(stm_now());
+  const float frame_timestamp_millis = stm_ms(wgpu_now_ns());
   const float dt
     = (frame_timestamp_millis - state.last_frame_time) * 0.001; // s
   state.last_frame_time = frame_timestamp_millis;

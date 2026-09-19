@@ -10,12 +10,10 @@
 #include <string.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -814,7 +812,7 @@ static int init(wgpu_context_t* wgpu_context)
 
   state.wgpu_ctx = wgpu_context;
   stm_setup();
-  srand((unsigned int)(stm_now() & 0xFFFFFFFFu));
+  srand(wgpu_random_seed());
 
   /* Default simulation settings */
   state.settings.damping = 0.99f;
@@ -861,7 +859,7 @@ static int frame(wgpu_context_t* wgpu_context)
     return EXIT_FAILURE;
 
   /* Frame timing */
-  uint64_t now = stm_now();
+  uint64_t now = wgpu_now_ns();
   if (state.last_time == 0)
     state.last_time = now;
   float dt        = (float)stm_sec(stm_diff(now, state.last_time));

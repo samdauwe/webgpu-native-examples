@@ -1,14 +1,12 @@
-﻿#include "meshes.h"
+#include "meshes.h"
 #include "webgpu/imgui_overlay.h"
 #include "webgpu/wgpu_common.h"
 
 #include <cglm/cglm.h>
 
 #ifdef __WAJIC__
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -255,7 +253,7 @@ static void update_view_matrices(wgpu_context_t* wgpu_context)
 {
   glm_mat4_identity(state.cube.view_matrices.view);
   glm_translate(state.cube.view_matrices.view, (vec3){0.0f, 0.0f, -4.0f});
-  const float now = stm_sec(stm_now());
+  const float now = stm_sec(wgpu_now_ns());
   glm_rotate(state.cube.view_matrices.view, 1.0f,
              (vec3){sin(now), cos(now), 0.0f});
 
@@ -553,7 +551,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   update_uniform_buffers(wgpu_context);
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }

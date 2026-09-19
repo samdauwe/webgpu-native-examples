@@ -6,12 +6,10 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -160,7 +158,7 @@ get_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context,
 static void
 update_inverse_model_view_projection_matrix(wgpu_context_t* wgpu_context)
 {
-  const float now        = stm_ms(stm_now());
+  const float now        = stm_ms(wgpu_now_ns());
   const float delta_time = (now - state.last_frame_ms) / 1000.0f;
   state.last_frame_ms    = now;
 
@@ -191,7 +189,7 @@ static void init_uniform_buffer(wgpu_context_t* wgpu_context)
                   });
 
   /* Set uniform buffer block data */
-  state.last_frame_ms = stm_ms(stm_now());
+  state.last_frame_ms = stm_ms(wgpu_now_ns());
   update_uniform_buffers(wgpu_context);
 }
 
@@ -501,7 +499,7 @@ static int frame(struct wgpu_context_t* wgpu_context)
   }
 
   /* Calculate GUI frame time */
-  const uint64_t now = stm_now();
+  const uint64_t now = wgpu_now_ns();
   const float dt_sec
     = (float)stm_sec(stm_diff(now, state.last_imgui_frame_time));
   state.last_imgui_frame_time = now;

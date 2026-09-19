@@ -6,14 +6,12 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_IMPL
 #include <wajic_sfetch.h>
-#define WAJIC_TIME_IMPL
 #include <wajic_time.h>
 #else
 #define SOKOL_FETCH_IMPL
 #include <sokol_fetch.h>
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 #endif
 
@@ -606,7 +604,7 @@ static void init_orbit_camera_matrices(void)
 static void update_uniform_buffers_scene(wgpu_context_t* wgpu_context)
 {
   /* Elapsed time */
-  state.scene_data.elapsed_time = stm_sec(stm_now());
+  state.scene_data.elapsed_time = stm_sec(wgpu_now_ns());
 
   /* MVP */
   from_euler(state.current_mouse_position[1], state.current_mouse_position[0],

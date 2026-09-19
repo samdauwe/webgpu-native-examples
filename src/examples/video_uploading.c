@@ -10,7 +10,6 @@
 #define SOKOL_LOG_IMPL
 #include <sokol_log.h>
 
-#define SOKOL_TIME_IMPL
 #include <sokol_time.h>
 
 #ifdef __GNUC__
@@ -789,7 +788,7 @@ static void update_uniforms(wgpu_context_t* wgpu_context)
 
   if (is_360) {
     /* 360 video: Update camera matrices */
-    const float time     = stm_sec(stm_now());
+    const float time     = stm_sec(wgpu_now_ns());
     const float rotation = time * 0.1f + state.camera.y_rotation;
     const float aspect
       = (float)wgpu_context->width / (float)wgpu_context->height;
@@ -973,7 +972,7 @@ static int frame(wgpu_context_t* wgpu_context)
   update_uniforms(wgpu_context);
 
   /* Calculate delta time for ImGui */
-  uint64_t current_time = stm_now();
+  uint64_t current_time = wgpu_now_ns();
   if (state.last_frame_time == 0) {
     state.last_frame_time = current_time;
   }
