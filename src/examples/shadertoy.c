@@ -8,7 +8,11 @@
 #else
 #define SOKOL_TIME_IMPL
 #include <sokol_time.h>
+#if defined(_WIN32)
+#include <sys/timeb.h>
+#else
 #include <sys/time.h>
+#endif
 #endif
 
 #include <stdbool.h>
@@ -167,12 +171,18 @@ static void get_local_time(date_t* current_date)
   current_date->month = (int)(mp + (mp < 10L ? 3L : -9L));
   current_date->year  = (int)(y + (current_date->month <= 2 ? 1L : 0L));
 #else
-  struct timeval te;
-  gettimeofday(&te, NULL);
   time_t T               = time(NULL);
   struct tm tm           = *localtime(&T);
+#if defined(_WIN32)
+  struct _timeb tb;
+  _ftime(&tb);
+  current_date->msec     = (int)tb.millitm;
+#else
+  struct timeval te;
+  gettimeofday(&te, NULL);
   long long milliseconds = te.tv_sec * 1000LL + te.tv_usec / 1000;
   current_date->msec     = (int)(milliseconds % (1000));
+#endif
   current_date->sec      = tm.tm_sec;
   current_date->min      = tm.tm_min;
   current_date->hour     = tm.tm_hour;

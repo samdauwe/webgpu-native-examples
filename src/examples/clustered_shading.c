@@ -114,6 +114,9 @@
 #define GL_NEAREST_MIPMAP_LINEAR 0x2702
 #define GL_LINEAR_MIPMAP_LINEAR 0x2703
 #define GL_REPEAT 0x2901
+#endif
+/* OpenGL 1.4; not in the OpenGL 1.1 gl.h shipped with Windows */
+#ifndef GL_MIRRORED_REPEAT
 #define GL_MIRRORED_REPEAT 0x8370
 #endif
 

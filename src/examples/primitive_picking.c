@@ -155,7 +155,6 @@ static struct {
     .depthClearValue = 1.0f,
   },
   .forward_render_pass = {
-    .label                  = STRVIEW("Forward rendering pass"),
     .colorAttachmentCount   = 2,
     .colorAttachments       = state.forward_color_attachments,
     .depthStencilAttachment = &state.forward_depth_attachment,
@@ -167,12 +166,8 @@ static struct {
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   },
   .debug_render_pass = {
-    .label                = STRVIEW("Primitive index debug view pass"),
     .colorAttachmentCount = 1,
     .colorAttachments     = &state.debug_color_attachment,
-  },
-  .pick_compute_pass = {
-    .label = STRVIEW("Pick compute pass"),
   },
   .rad           = 0.0f,
   .mesh_loaded   = false,
@@ -880,6 +875,11 @@ static void input_event_cb(struct wgpu_context_t* wgpu_context,
 
 static int setup(struct wgpu_context_t* wgpu_context)
 {
+  /* MSVC rejects a compound literal in a static initializer */
+  state.forward_render_pass.label = STRVIEW("Forward rendering pass");
+  state.debug_render_pass.label = STRVIEW("Primitive index debug view pass");
+  state.pick_compute_pass.label = STRVIEW("Pick compute pass");
+
   /* Initialize sokol_time */
   stm_setup();
 
