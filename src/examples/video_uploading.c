@@ -24,13 +24,146 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <time.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#define popen _popen
+#define pclose _pclose
+#define NULL_DEVICE "nul"
+#define WHICH_COMMAND "where"
+/* Raw frames are binary: without "b" the CRT translates CRLF and stops at the
+ * first 0x1A, so fread never returns a whole frame. */
+#define PIPE_READ_BINARY "rb"
+#else
+#include <pthread.h>
 #include <unistd.h>
+#define NULL_DEVICE "/dev/null"
+#define WHICH_COMMAND "which"
+#define PIPE_READ_BINARY "r"
+#endif
+
+/* -------------------------------------------------------------------------- *
+ * Threading: pthreads on POSIX, Win32 threads on Windows. The decode thread
+ * returns nothing, so a trampoline per platform is enough to bridge the two
+ * entry point signatures.
+ * -------------------------------------------------------------------------- */
+
+typedef void (*thread_entry_t)(void* arg);
+
+#if defined(_WIN32)
+typedef HANDLE thread_t;
+typedef CRITICAL_SECTION mutex_t;
+#else
+typedef pthread_t thread_t;
+typedef pthread_mutex_t mutex_t;
+#endif
+
+typedef struct {
+  thread_entry_t entry;
+  void* arg;
+} thread_start_t;
+
+#if defined(_WIN32)
+static DWORD WINAPI thread_trampoline(LPVOID param)
+#else
+static void* thread_trampoline(void* param)
+#endif
+{
+  thread_start_t* start = (thread_start_t*)param;
+  thread_entry_t entry  = start->entry;
+  void* arg             = start->arg;
+  free(start);
+  entry(arg);
+#if defined(_WIN32)
+  return 0;
+#else
+  return NULL;
+#endif
+}
+
+static bool thread_start(thread_t* thread, thread_entry_t entry, void* arg)
+{
+  thread_start_t* start = (thread_start_t*)malloc(sizeof(thread_start_t));
+  if (!start) {
+    return false;
+  }
+  start->entry = entry;
+  start->arg   = arg;
+#if defined(_WIN32)
+  *thread = CreateThread(NULL, 0, thread_trampoline, start, 0, NULL);
+  if (*thread == NULL) {
+    free(start);
+    return false;
+  }
+#else
+  if (pthread_create(thread, NULL, thread_trampoline, start) != 0) {
+    free(start);
+    return false;
+  }
+#endif
+  return true;
+}
+
+static void thread_join(thread_t thread)
+{
+#if defined(_WIN32)
+  WaitForSingleObject(thread, INFINITE);
+  CloseHandle(thread);
+#else
+  pthread_join(thread, NULL);
+#endif
+}
+
+static void mutex_init(mutex_t* mutex)
+{
+#if defined(_WIN32)
+  InitializeCriticalSection(mutex);
+#else
+  pthread_mutex_init(mutex, NULL);
+#endif
+}
+
+static void mutex_destroy(mutex_t* mutex)
+{
+#if defined(_WIN32)
+  DeleteCriticalSection(mutex);
+#else
+  pthread_mutex_destroy(mutex);
+#endif
+}
+
+static void mutex_lock(mutex_t* mutex)
+{
+#if defined(_WIN32)
+  EnterCriticalSection(mutex);
+#else
+  pthread_mutex_lock(mutex);
+#endif
+}
+
+static void mutex_unlock(mutex_t* mutex)
+{
+#if defined(_WIN32)
+  LeaveCriticalSection(mutex);
+#else
+  pthread_mutex_unlock(mutex);
+#endif
+}
+
+static void sleep_ms(uint32_t milliseconds)
+{
+#if defined(_WIN32)
+  Sleep(milliseconds);
+#else
+  struct timespec ts = {.tv_sec  = (time_t)(milliseconds / 1000u),
+                        .tv_nsec = (long)(milliseconds % 1000u) * 1000000L};
+  nanosleep(&ts, NULL);
+#endif
+}
 
 /* -------------------------------------------------------------------------- *
  * WebGPU Example -
@@ -69,12 +202,12 @@ typedef struct {
 /* Video decode state */
 typedef struct {
   FILE* ffmpeg_pipe;
-  pthread_t decode_thread;
+  thread_t decode_thread;
   bool thread_running;
   bool has_frame;
   uint8_t* frame_buffer;
   uint8_t* display_buffer;
-  pthread_mutex_t buffer_mutex;
+  mutex_t buffer_mutex;
   int width;
   int height;
   bool looping;
@@ -187,13 +320,13 @@ static struct {
 
 static bool check_ffmpeg_available(void)
 {
-  int ret = system("which ffmpeg > /dev/null 2>&1");
+  int ret = system(WHICH_COMMAND " ffmpeg > " NULL_DEVICE " 2>&1");
   if (ret != 0) {
     printf("FFmpeg not found in PATH\n");
     return false;
   }
 
-  ret = system("which ffprobe > /dev/null 2>&1");
+  ret = system(WHICH_COMMAND " ffprobe > " NULL_DEVICE " 2>&1");
   if (ret != 0) {
     printf("ffprobe not found in PATH\n");
     return false;
@@ -228,7 +361,7 @@ static bool get_video_dimensions(const char* video_path, int* width,
 }
 
 /* Video decode thread */
-static void* video_decode_thread(void* arg)
+static void video_decode_thread(void* arg)
 {
   video_decode_t* decode = (video_decode_t*)arg;
 
@@ -244,10 +377,10 @@ static void* video_decode_thread(void* arg)
       const char* video_path = state.videos[state.current_video_index].path;
       char cmd[512];
       snprintf(cmd, sizeof(cmd),
-               "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>/dev/null",
+               "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>" NULL_DEVICE,
                video_path);
 
-      decode->ffmpeg_pipe = popen(cmd, "r");
+      decode->ffmpeg_pipe = popen(cmd, PIPE_READ_BINARY);
       if (!decode->ffmpeg_pipe) {
         printf("Failed to restart FFmpeg pipe\n");
         break;
@@ -262,13 +395,12 @@ static void* video_decode_thread(void* arg)
 
     if (count != frame_size) {
       decode->eof_reached = true;
-      struct timespec ts  = {.tv_sec = 0, .tv_nsec = 16000000}; /* 16ms */
-      nanosleep(&ts, NULL);
+      sleep_ms(16);
       continue;
     }
 
     /* Copy to display buffer with RGB to RGBA conversion */
-    pthread_mutex_lock(&decode->buffer_mutex);
+    mutex_lock(&decode->buffer_mutex);
     for (int y = 0; y < decode->height; ++y) {
       for (int x = 0; x < decode->width; ++x) {
         int src_idx  = (y * decode->width + x) * 3;
@@ -283,13 +415,10 @@ static void* video_decode_thread(void* arg)
       }
     }
     decode->has_frame = true;
-    pthread_mutex_unlock(&decode->buffer_mutex);
+    mutex_unlock(&decode->buffer_mutex);
 
-    struct timespec ts = {.tv_sec = 0, .tv_nsec = 16000000}; /* ~60 FPS */
-    nanosleep(&ts, NULL);
+    sleep_ms(16); /* ~60 FPS */
   }
-
-  return NULL;
 }
 
 static bool start_video_decode(const char* video_path)
@@ -299,7 +428,7 @@ static bool start_video_decode(const char* video_path)
   /* Stop any existing decode */
   if (decode->thread_running) {
     decode->thread_running = false;
-    pthread_join(decode->decode_thread, NULL);
+    thread_join(decode->decode_thread);
   }
 
   if (decode->ffmpeg_pipe) {
@@ -332,15 +461,15 @@ static bool start_video_decode(const char* video_path)
   }
 
   /* Initialize mutex */
-  pthread_mutex_init(&decode->buffer_mutex, NULL);
+  mutex_init(&decode->buffer_mutex);
 
   /* Start FFmpeg pipe */
   char cmd[512];
   snprintf(cmd, sizeof(cmd),
-           "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>/dev/null",
+           "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>" NULL_DEVICE,
            video_path);
 
-  decode->ffmpeg_pipe = popen(cmd, "r");
+  decode->ffmpeg_pipe = popen(cmd, PIPE_READ_BINARY);
   if (!decode->ffmpeg_pipe) {
     printf("Failed to open FFmpeg pipe\n");
     return false;
@@ -352,8 +481,7 @@ static bool start_video_decode(const char* video_path)
   decode->looping        = true;
   decode->eof_reached    = false;
 
-  if (pthread_create(&decode->decode_thread, NULL, video_decode_thread, decode)
-      != 0) {
+  if (!thread_start(&decode->decode_thread, video_decode_thread, decode)) {
     printf("Failed to create decode thread\n");
     pclose(decode->ffmpeg_pipe);
     decode->ffmpeg_pipe = NULL;
@@ -369,7 +497,7 @@ static void stop_video_decode(void)
 
   if (decode->thread_running) {
     decode->thread_running = false;
-    pthread_join(decode->decode_thread, NULL);
+    thread_join(decode->decode_thread);
   }
 
   if (decode->ffmpeg_pipe) {
@@ -377,7 +505,7 @@ static void stop_video_decode(void)
     decode->ffmpeg_pipe = NULL;
   }
 
-  pthread_mutex_destroy(&decode->buffer_mutex);
+  mutex_destroy(&decode->buffer_mutex);
 
   if (decode->frame_buffer) {
     free(decode->frame_buffer);
@@ -430,23 +558,40 @@ static void init_video_texture(wgpu_context_t* wgpu_context)
     height = 1080;
   }
 
-  /* Create the texture */
-  state.video_texture.texture = wgpuDeviceCreateTexture(
-    wgpu_context->device,
-    &(WGPUTextureDescriptor){
-      .label = STRVIEW("Video - Texture"),
-      .size =
-        (WGPUExtent3D){
+  /* Create the texture. Without FFmpeg there are no frames to upload, so the
+   * colour bars are generated straight into the video texture. */
+  if (state.using_fallback) {
+    wgpu_texture_t fallback = wgpu_create_color_bars_texture(
+      wgpu_context,
+      &(wgpu_texture_desc_t){
+        .extent = (WGPUExtent3D){
           .width              = width,
           .height             = height,
           .depthOrArrayLayers = 1,
         },
-      .mipLevelCount = 1,
-      .sampleCount   = 1,
-      .dimension     = WGPUTextureDimension_2D,
-      .format        = WGPUTextureFormat_RGBA8Unorm,
-      .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
-    });
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .usage  = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+      });
+    state.video_texture.texture = fallback.handle;
+  }
+  else {
+    state.video_texture.texture = wgpuDeviceCreateTexture(
+      wgpu_context->device,
+      &(WGPUTextureDescriptor){
+        .label = STRVIEW("Video - Texture"),
+        .size =
+          (WGPUExtent3D){
+            .width              = width,
+            .height             = height,
+            .depthOrArrayLayers = 1,
+          },
+        .mipLevelCount = 1,
+        .sampleCount   = 1,
+        .dimension     = WGPUTextureDimension_2D,
+        .format        = WGPUTextureFormat_RGBA8Unorm,
+        .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+      });
+  }
   ASSERT(state.video_texture.texture != NULL);
 
   /* Create the texture view */
@@ -478,27 +623,6 @@ static void init_video_texture(wgpu_context_t* wgpu_context)
     ASSERT(state.video_texture.sampler != NULL);
   }
 
-  /* Upload fallback texture if needed */
-  if (state.using_fallback) {
-    wgpu_texture_t fallback_tex = wgpu_create_color_bars_texture(
-      wgpu_context,
-      &(wgpu_texture_desc_t){
-        .format = WGPUTextureFormat_RGBA8Unorm,
-        .usage  = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
-      });
-
-    if (fallback_tex.desc.pixels.ptr) {
-      wgpu_image_to_texure(wgpu_context, state.video_texture.texture,
-                           (void*)fallback_tex.desc.pixels.ptr,
-                           (WGPUExtent3D){
-                             .width              = width,
-                             .height             = height,
-                             .depthOrArrayLayers = 1,
-                           },
-                           4u);
-      wgpu_destroy_texture(&fallback_tex);
-    }
-  }
 }
 
 static void init_uniform_buffer(wgpu_context_t* wgpu_context)
@@ -843,7 +967,7 @@ static void update_video_texture(wgpu_context_t* wgpu_context)
 
   video_decode_t* decode = &state.video_decode;
 
-  pthread_mutex_lock(&decode->buffer_mutex);
+  mutex_lock(&decode->buffer_mutex);
   if (decode->has_frame) {
     wgpu_image_to_texure(wgpu_context, state.video_texture.texture,
                          decode->display_buffer,
@@ -855,7 +979,7 @@ static void update_video_texture(wgpu_context_t* wgpu_context)
                          4u);
     decode->has_frame = false;
   }
-  pthread_mutex_unlock(&decode->buffer_mutex);
+  mutex_unlock(&decode->buffer_mutex);
 }
 
 static void render_gui(wgpu_context_t* wgpu_context)
