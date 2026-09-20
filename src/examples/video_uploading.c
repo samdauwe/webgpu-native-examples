@@ -376,9 +376,10 @@ static void video_decode_thread(void* arg)
       /* Reopen FFmpeg pipe */
       const char* video_path = state.videos[state.current_video_index].path;
       char cmd[512];
-      snprintf(cmd, sizeof(cmd),
-               "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>" NULL_DEVICE,
-               video_path);
+      snprintf(
+        cmd, sizeof(cmd),
+        "ffmpeg -re -i \"%s\" -f rawvideo -pix_fmt rgb24 - 2>" NULL_DEVICE,
+        video_path);
 
       decode->ffmpeg_pipe = popen(cmd, PIPE_READ_BINARY);
       if (!decode->ffmpeg_pipe) {
@@ -622,7 +623,6 @@ static void init_video_texture(wgpu_context_t* wgpu_context)
                             });
     ASSERT(state.video_texture.sampler != NULL);
   }
-
 }
 
 static void init_uniform_buffer(wgpu_context_t* wgpu_context)
@@ -1001,7 +1001,7 @@ static void render_gui(wgpu_context_t* wgpu_context)
       for (int i = 0; i < VIDEO_COUNT; ++i) {
         bool is_selected = (i == state.current_video_index);
         if (igSelectable_Bool(state.videos[i].name, is_selected,
-                         ImGuiSelectableFlags_None, (ImVec2){0, 0})) {
+                              ImGuiSelectableFlags_None, (ImVec2){0, 0})) {
           switch_video(wgpu_context, i);
         }
         if (is_selected) {
