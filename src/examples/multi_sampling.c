@@ -343,7 +343,7 @@ static void create_material_bind_groups(struct wgpu_context_t* wgpu_context)
         state.materials[i].gpu_texture = wgpuDeviceCreateTexture(
           device,
           &(WGPUTextureDescriptor){
-            .label = STRVIEW("Material Texture"),
+            .label = STRVIEW("Material - Texture"),
             .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
             .dimension     = WGPUTextureDimension_2D,
             .size          = {tex->width, tex->height, 1},
