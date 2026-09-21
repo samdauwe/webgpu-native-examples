@@ -447,7 +447,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.ubo_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("UBO Bind Group Layout"),
+                .label      = STRVIEW("UBO - Bind Group Layout"),
                 .entryCount = 1,
                 .entries    = &entry,
               });
