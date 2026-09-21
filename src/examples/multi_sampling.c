@@ -372,10 +372,10 @@ static void create_material_bind_groups(struct wgpu_context_t* wgpu_context)
         state.materials[i].gpu_texture_view
           = wgpuTextureCreateView(state.materials[i].gpu_texture,
                                   &(WGPUTextureViewDescriptor){
-                                    .label  = STRVIEW("Material Texture View"),
-                                    .format = WGPUTextureFormat_RGBA8Unorm,
-                                    .dimension    = WGPUTextureViewDimension_2D,
-                                    .baseMipLevel = 0,
+                                    .label = STRVIEW("Material - Texture View"),
+                                    .format    = WGPUTextureFormat_RGBA8Unorm,
+                                    .dimension = WGPUTextureViewDimension_2D,
+                                    .baseMipLevel    = 0,
                                     .mipLevelCount   = 1,
                                     .baseArrayLayer  = 0,
                                     .arrayLayerCount = 1,
