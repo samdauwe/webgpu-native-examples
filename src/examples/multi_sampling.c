@@ -475,7 +475,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.texture_bind_group_layout = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Texture Bind Group Layout"),
+                .label      = STRVIEW("Texture - Bind Group Layout"),
                 .entryCount = (uint32_t)ARRAY_SIZE(entries),
                 .entries    = entries,
               });
