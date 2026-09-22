@@ -495,7 +495,7 @@ static void init_ubo_bind_group(struct wgpu_context_t* wgpu_context)
   };
   state.ubo_bind_group = wgpuDeviceCreateBindGroup(
     wgpu_context->device, &(WGPUBindGroupDescriptor){
-                            .label      = STRVIEW("UBO Bind Group"),
+                            .label      = STRVIEW("UBO - Bind Group"),
                             .layout     = state.ubo_bind_group_layout,
                             .entryCount = 1,
                             .entries    = &entry,
