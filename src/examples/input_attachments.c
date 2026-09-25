@@ -271,7 +271,7 @@ static void init_offscreen_attachments(struct wgpu_context_t* wgpu_context)
   if (!state.attachments.sampler) {
     state.attachments.sampler = wgpuDeviceCreateSampler(
       device, &(WGPUSamplerDescriptor){
-                .label         = STRVIEW("Attachment Sampler"),
+                .label         = STRVIEW("Attachment - Sampler"),
                 .addressModeU  = WGPUAddressMode_ClampToEdge,
                 .addressModeV  = WGPUAddressMode_ClampToEdge,
                 .addressModeW  = WGPUAddressMode_ClampToEdge,
