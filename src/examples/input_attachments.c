@@ -224,7 +224,7 @@ static void init_offscreen_attachments(struct wgpu_context_t* wgpu_context)
   /* Color attachment (RGBA8Unorm, used as render target + sampled texture) */
   state.attachments.color_texture = wgpuDeviceCreateTexture(
     device, &(WGPUTextureDescriptor){
-              .label = STRVIEW("Attachment Color"),
+              .label = STRVIEW("Attachment Color - Texture"),
               .usage = WGPUTextureUsage_RenderAttachment
                        | WGPUTextureUsage_TextureBinding,
               .dimension     = WGPUTextureDimension_2D,
