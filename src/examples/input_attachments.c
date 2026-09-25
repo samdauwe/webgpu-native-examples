@@ -247,7 +247,7 @@ static void init_offscreen_attachments(struct wgpu_context_t* wgpu_context)
   /* Depth attachment (Depth24PlusStencil8, used as render target + sampled) */
   state.attachments.depth_texture = wgpuDeviceCreateTexture(
     device, &(WGPUTextureDescriptor){
-              .label = STRVIEW("Attachment Depth"),
+              .label = STRVIEW("Attachment Depth - Texture"),
               .usage = WGPUTextureUsage_RenderAttachment
                        | WGPUTextureUsage_TextureBinding,
               .dimension     = WGPUTextureDimension_2D,
