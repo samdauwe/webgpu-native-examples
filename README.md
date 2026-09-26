@@ -379,6 +379,10 @@ This example shows how to render points of various sizes using a quad and instan
 
 This example provides example camera implementations
 
+#### [Clear Water](src/examples/clear_water.c)
+
+Real-time, photoreal shallow-water rendering. Features FFT ocean spectrum, refracted light caustics with chromatic dispersion, physically-based Fresnel reflections and GGX sun glints, interactive ripples (tap the water surface), a procedural pebble seabed, volumetric underwater scattering, and ACES tone-mapping with bloom. Ported from Aurélien Gironnet's single-file WebGL2 demo.
+
 #### [Dynamic uniform buffers](src/examples/dynamic_uniform_buffer.c)
 
 Dynamic uniform buffers are used for rendering multiple objects with multiple matrices stored in a single uniform buffer object. Individual matrices are dynamically addressed upon bind group binding time, minimizing the number of required bind groups.

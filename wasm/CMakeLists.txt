@@ -285,6 +285,15 @@ add_wajic_example(cascaded_shadow_mapping src/examples/cascaded_shadow_mapping.c
         external/sokol
 )
 
+add_wajic_example(clear_water src/examples/clear_water.c
+    USE_CIMGUI
+    EXTRA_SOURCES
+        src/core/image_loader.c
+    EXTRA_INCLUDES
+        external/stb
+        external/sokol
+)
+
 # clustered_shading uses cgltf directly (not via gltf_model API).  In the
 # native build, CGLTF_IMPLEMENTATION is provided by gltf_model.c in
 # COMMON_SOURCES.  For WAjic we define it as a compile flag so the single
@@ -1276,6 +1285,7 @@ set(WASM_EXAMPLE_TITLES
     "cameras|Cameras"
     "cascaded_shadow_mapping|Cascaded Shadow Mapping"
     "clear_screen|Clear Screen"
+    "clear_water|Clear Water"
     "clustered_shading|Clustered Shading"
     "compute_boids|Compute Boids"
     "compute_cloth|Compute Cloth"
