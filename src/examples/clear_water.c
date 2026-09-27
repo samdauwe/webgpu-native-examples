@@ -467,7 +467,7 @@ static cw_rt_t cw_rt_create(wgpu_context_t* ctx, uint32_t w, uint32_t h,
     usage |= WGPUTextureUsage_TextureBinding;
 
   WGPUTextureDescriptor td = {
-    .label         = {.data = label, .length = label ? strlen(label) : 0},
+    .label         = STRVIEW(label),
     .usage         = usage,
     .dimension     = WGPUTextureDimension_2D,
     .size          = {w, h, 1},
