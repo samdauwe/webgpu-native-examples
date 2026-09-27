@@ -539,17 +539,19 @@ static WGPUSampler cw_sampler(wgpu_context_t* ctx, WGPUAddressMode wrap,
                               WGPUFilterMode filter, uint16_t aniso,
                               WGPUMipmapFilterMode mip)
 {
-  return wgpuDeviceCreateSampler(ctx->device, &(WGPUSamplerDescriptor){
-                                                .addressModeU  = wrap,
-                                                .addressModeV  = wrap,
-                                                .addressModeW  = wrap,
-                                                .magFilter     = filter,
-                                                .minFilter     = filter,
-                                                .mipmapFilter  = mip,
-                                                .lodMinClamp   = 0.0f,
-                                                .lodMaxClamp   = 1024.0f,
-                                                .maxAnisotropy = aniso,
-                                              });
+  return wgpuDeviceCreateSampler(ctx->device,
+                                 &(WGPUSamplerDescriptor){
+                                   .label         = STRVIEW("CW - Sampler"),
+                                   .addressModeU  = wrap,
+                                   .addressModeV  = wrap,
+                                   .addressModeW  = wrap,
+                                   .magFilter     = filter,
+                                   .minFilter     = filter,
+                                   .mipmapFilter  = mip,
+                                   .lodMinClamp   = 0.0f,
+                                   .lodMaxClamp   = 1024.0f,
+                                   .maxAnisotropy = aniso,
+                                 });
 }
 
 /* -------------------------------------------------------------------------- *
