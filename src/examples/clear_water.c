@@ -2116,6 +2116,7 @@ static int frame(wgpu_context_t* ctx)
 
 static void shutdown(wgpu_context_t* ctx)
 {
+  UNUSED_FUNCTION(cw_begin_rt_pass_unused);
   (void)ctx;
   imgui_overlay_shutdown();
   sfetch_shutdown();
