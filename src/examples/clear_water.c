@@ -478,6 +478,7 @@ static cw_rt_t cw_rt_create(wgpu_context_t* ctx, uint32_t w, uint32_t h,
   WGPUTexture tex = wgpuDeviceCreateTexture(ctx->device, &td);
   WGPUTextureView view
     = wgpuTextureCreateView(tex, &(WGPUTextureViewDescriptor){
+                                   .label         = STRVIEW(label),
                                    .format        = fmt,
                                    .dimension     = WGPUTextureViewDimension_2D,
                                    .mipLevelCount = mip_count,
