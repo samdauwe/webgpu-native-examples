@@ -425,7 +425,7 @@ static void cw_build_h0(wgpu_context_t* ctx)
   state.h0_tex  = wgpuDeviceCreateTexture(ctx->device, &td);
   state.h0_view = wgpuTextureCreateView(
     state.h0_tex, &(WGPUTextureViewDescriptor){
-                    .label           = STRVIEW("CW H0 View"),
+                    .label           = STRVIEW("CW H0 - Texture View"),
                     .format          = WGPUTextureFormat_RGBA32Float,
                     .dimension       = WGPUTextureViewDimension_2D,
                     .mipLevelCount   = 1,
