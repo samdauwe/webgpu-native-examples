@@ -414,7 +414,7 @@ static void cw_build_h0(wgpu_context_t* ctx)
 
   /* Create GPU texture */
   WGPUTextureDescriptor td = {
-    .label         = STRVIEW("CW H0 Spectrum"),
+    .label         = STRVIEW("CW H0 Spectrum - Texture"),
     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
     .dimension     = WGPUTextureDimension_2D,
     .size          = {(uint32_t)N, (uint32_t)N, 1},
