@@ -664,8 +664,10 @@ static WGPUBindGroupLayout cw_bgl_tex_ub(wgpu_context_t* ctx)
     },
   };
   return wgpuDeviceCreateBindGroupLayout(
-    ctx->device,
-    &(WGPUBindGroupLayoutDescriptor){.entryCount = 2, .entries = entries});
+    ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                   .label      = STRVIEW("cw bgl tex ub - Bind group layout"),
+                   .entryCount = 2,
+                   .entries    = entries});
 }
 
 /* Create BGL for: texture + sampler + uniform-buffer */
