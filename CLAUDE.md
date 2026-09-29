@@ -247,12 +247,12 @@ static void update_uniform_buffer(const wgpu_context_t* wgpu_context) { … }
 ```bash
 # Native (debug)
 cd build/x86_64/debug
-ninja <example_name>
+make <example_name>
 ./<example_name>
 
 # WebAssembly
 cd build/wasm
-ninja <example_name>
+make <example_name>
 ```
 
 Run each example for at least 10 seconds and confirm:
