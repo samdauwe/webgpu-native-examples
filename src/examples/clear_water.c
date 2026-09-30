@@ -193,18 +193,18 @@ static struct {
   /* ---- Simulation textures (fixed size) ---- */
   WGPUTexture h0_tex; /* initial spectrum RGBA32Float NxN  */
   WGPUTextureView h0_view;
-  cw_rt_t fft[2];           /* FFT ping-pong RGBA16Float NxN     */
-  cw_rt_t surf;             /* resolved surface RGBA16Float NxN  */
+  cw_rt_t fft[2];           /* FFT ping-pong RGBA16Float NxN      */
+  cw_rt_t surf;             /* resolved surface RGBA16Float NxN   */
   WGPUSampler surf_sampler; /* linear+repeat+mip for surf         */
   WGPUSampler surf_aniso;   /* aniso 8 for surf                   */
   cw_rt_t rip[2];           /* ripple ping-pong RGBA16Float RNxRN */
   WGPUSampler rip_sampler;  /* linear+clamp                       */
-  cw_rt_t rip_n;            /* ripple normals RGBA16Float RNxRN  */
+  cw_rt_t rip_n;            /* ripple normals RGBA16Float RNxRN   */
   cw_rt_t caus;             /* caustics RGBA16Float CxC+mip       */
   WGPUSampler caus_sampler; /* linear+repeat+mip+aniso 8          */
 
   /* ---- Screen-sized render targets ---- */
-  cw_rt_t hdr;                /* RGBA16Float WxH                   */
+  cw_rt_t hdr;                /* RGBA16Float WxH                    */
   cw_rt_t qa, qb;             /* half-res RGBA16Float               */
   cw_rt_t b1;                 /* half-res bloom RGBA16Float         */
   cw_rt_t b2, b2t;            /* quarter-res bloom                  */
