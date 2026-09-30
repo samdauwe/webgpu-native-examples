@@ -487,6 +487,7 @@ static cw_rt_t cw_rt_create(wgpu_context_t* ctx, uint32_t w, uint32_t h,
   /* Separate mip-0 view for render attachment */
   WGPUTextureView render_view
     = wgpuTextureCreateView(tex, &(WGPUTextureViewDescriptor){
+                                   .label         = STRVIEW(label),
                                    .format        = fmt,
                                    .dimension     = WGPUTextureViewDimension_2D,
                                    .baseMipLevel  = 0,
