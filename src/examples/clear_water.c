@@ -627,7 +627,7 @@ static WGPURenderPipeline cw_fs_pipeline(wgpu_context_t* ctx,
 
   WGPURenderPipeline pipe = wgpuDeviceCreateRenderPipeline(ctx->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = {.data = label, .length = label ? strlen(label) : 0},
+      .label  = STRVIEW(label),
       .layout = layout,
       .vertex = {
         .module     = mod,
