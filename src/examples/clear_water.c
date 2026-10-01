@@ -1381,7 +1381,7 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       state.caus_pipe[c] = wgpuDeviceCreateRenderPipeline(
         ctx->device,
         &(WGPURenderPipelineDescriptor){
-          .label       = STRVIEW("CW Caus Pipe"),
+          .label       = STRVIEW("CW Caus - Render pipeline"),
           .layout      = layout,
           .vertex      = {.module      = mod,
                           .entryPoint  = STRVIEW("vs_main"),
