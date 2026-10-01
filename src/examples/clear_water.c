@@ -694,8 +694,10 @@ static WGPUBindGroupLayout cw_bgl_texsamp_ub(wgpu_context_t* ctx)
     },
   };
   return wgpuDeviceCreateBindGroupLayout(
-    ctx->device,
-    &(WGPUBindGroupLayoutDescriptor){.entryCount = 3, .entries = entries});
+    ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                   .label = STRVIEW("cw bgl tex samp ub - Bind group layout"),
+                   .entryCount = 3,
+                   .entries    = entries});
 }
 
 /* -------------------------------------------------------------------------- *
