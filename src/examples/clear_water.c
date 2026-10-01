@@ -1346,7 +1346,7 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       /* Caustics pipeline with grid vertex buffer */
       WGPUShaderModule mod = wgpuDeviceCreateShaderModule(ctx->device,
         &(WGPUShaderModuleDescriptor){
-          .label = STRVIEW("CW Caus Shader"),
+          .label = STRVIEW("CW Caus - Shader"),
           .nextInChain = (WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = {.sType = WGPUSType_ShaderSourceWGSL},
             .code  = {.data = cw_caus_shader_wgsl,
