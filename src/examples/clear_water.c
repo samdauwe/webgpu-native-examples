@@ -910,8 +910,11 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
       {.binding = 8, .buffer = state.water_ub, .size = sizeof(cw_water_ub_t)},
     };
     state.water_bg = wgpuDeviceCreateBindGroup(
-      ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = wbgl, .entryCount = 9, .entries = be});
+      ctx->device,
+      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Water - Bind group"),
+                                 .layout     = wbgl,
+                                 .entryCount = 9,
+                                 .entries    = be});
 
     /* Re-create the water pipeline with this layout */
     if (state.water_pipe) {
