@@ -895,8 +895,10 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
                             .minBindingSize = sizeof(cw_water_ub_t)}},
     };
     WGPUBindGroupLayout wbgl = wgpuDeviceCreateBindGroupLayout(
-      ctx->device,
-      &(WGPUBindGroupLayoutDescriptor){.entryCount = 9, .entries = e});
+      ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                     .label      = STRVIEW("Water - Bind group layout"),
+                     .entryCount = 9,
+                     .entries    = e});
 
     WGPUBindGroupEntry be[9] = {
       {.binding = 0, .textureView = state.surf.view},
