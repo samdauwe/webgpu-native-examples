@@ -938,8 +938,11 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
       {.binding = 2, .buffer = state.bright_ub, .size = sizeof(cw_bright_ub_t)},
     };
     state.bright_bg = wgpuDeviceCreateBindGroup(
-      ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = bgl, .entryCount = 3, .entries = be});
+      ctx->device,
+      &(WGPUBindGroupDescriptor){.label  = STRVIEW("Bright bg - Bind group"),
+                                 .layout = bgl,
+                                 .entryCount = 3,
+                                 .entries    = be});
     if (!state.bright_pipe) {
       state.bright_pipe = cw_fs_pipeline(
         ctx, bgl, cw_bright_shader_wgsl, WGPUTextureFormat_RGBA16Float,
