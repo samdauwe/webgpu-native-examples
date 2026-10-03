@@ -595,7 +595,7 @@ static WGPURenderPipeline cw_fs_pipeline(wgpu_context_t* ctx,
   /* Single module containing both vertex and fragment shaders */
   WGPUShaderModule mod = wgpuDeviceCreateShaderModule(ctx->device,
     &(WGPUShaderModuleDescriptor){
-      .label    = {.data = label, .length = label ? strlen(label) : 0},
+      .label    = STRVIEW(label),
       .nextInChain = (WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
         .chain = {.sType = WGPUSType_ShaderSourceWGSL},
         .code  = {.data = fs_wgsl, .length = strlen(fs_wgsl)},
