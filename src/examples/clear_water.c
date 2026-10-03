@@ -967,8 +967,11 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
         {.binding = 2, .buffer = ubs[i], .size = sizeof(cw_blur_ub_t)},
       };
       *bgs[i] = wgpuDeviceCreateBindGroup(
-        ctx->device, &(WGPUBindGroupDescriptor){
-                       .layout = bgl, .entryCount = 3, .entries = be});
+        ctx->device,
+        &(WGPUBindGroupDescriptor){.label      = STRVIEW("Blur - Bind group"),
+                                   .layout     = bgl,
+                                   .entryCount = 3,
+                                   .entries    = be});
     }
     if (!state.blur_pipe) {
       state.blur_pipe = cw_fs_pipeline(
