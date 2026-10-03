@@ -518,13 +518,12 @@ static WGPUBuffer cw_ub_create(wgpu_context_t* ctx, uint32_t size,
                                const char* label)
 {
   return wgpuDeviceCreateBuffer(
-    ctx->device,
-    &(WGPUBufferDescriptor){
-      .label            = {.data = label, .length = label ? strlen(label) : 0},
-      .usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-      .size             = size,
-      .mappedAtCreation = false,
-    });
+    ctx->device, &(WGPUBufferDescriptor){
+                   .label = STRVIEW(label),
+                   .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                   .size  = size,
+                   .mappedAtCreation = false,
+                 });
 }
 
 static void cw_ub_write(wgpu_context_t* ctx, WGPUBuffer buf, const void* data,
