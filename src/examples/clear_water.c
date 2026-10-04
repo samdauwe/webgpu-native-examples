@@ -1032,8 +1032,10 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
                             .minBindingSize = sizeof(cw_final_ub_t)}},
     };
     WGPUBindGroupLayout fbgl = wgpuDeviceCreateBindGroupLayout(
-      ctx->device,
-      &(WGPUBindGroupLayoutDescriptor){.entryCount = 9, .entries = fe});
+      ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                     .label      = STRVIEW("Final BG - Bind group layout"),
+                     .entryCount = 9,
+                     .entries    = fe});
 
     WGPUBindGroupEntry fbe[9] = {
       {.binding = 0, .textureView = state.hdr.view},
