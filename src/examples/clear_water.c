@@ -1261,8 +1261,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
            .size    = sizeof(cw_fft_ub_t)},
         };
         state.fft_bg[step] = wgpuDeviceCreateBindGroup(
-          ctx->device, &(WGPUBindGroupDescriptor){
-                         .layout = bgl, .entryCount = 2, .entries = be});
+          ctx->device,
+          &(WGPUBindGroupDescriptor){.label  = STRVIEW("FFT BG - Bind group"),
+                                     .layout = bgl,
+                                     .entryCount = 2,
+                                     .entries    = be});
         cur_src = 1 - cur_src;
       }
     }
