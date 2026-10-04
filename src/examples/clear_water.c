@@ -1049,8 +1049,11 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
       {.binding = 8, .buffer = state.final_ub, .size = sizeof(cw_final_ub_t)},
     };
     state.final_bg = wgpuDeviceCreateBindGroup(
-      ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = fbgl, .entryCount = 9, .entries = fbe});
+      ctx->device,
+      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Final BG - Bind group"),
+                                 .layout     = fbgl,
+                                 .entryCount = 9,
+                                 .entries    = fbe});
 
     if (state.final_pipe) {
       wgpuRenderPipelineRelease(state.final_pipe);
