@@ -1241,8 +1241,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       {.binding = 1, .buffer = state.spec_ub, .size = sizeof(cw_spec_ub_t)},
     };
     state.spec_bg = wgpuDeviceCreateBindGroup(
-      ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = bgl, .entryCount = 2, .entries = be});
+      ctx->device,
+      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Spectrum - Bind group"),
+                                 .layout     = bgl,
+                                 .entryCount = 2,
+                                 .entries    = be});
     WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl)
   }
 
