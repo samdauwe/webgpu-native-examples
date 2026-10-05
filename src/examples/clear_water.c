@@ -985,8 +985,11 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
       {.binding = 2, .buffer = state.copy_ub, .size = sizeof(cw_copy_ub_t)},
     };
     state.copy_b1_bg = wgpuDeviceCreateBindGroup(
-      ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = bgl, .entryCount = 3, .entries = cbe});
+      ctx->device,
+      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Copy b1 - Bind group"),
+                                 .layout     = bgl,
+                                 .entryCount = 3,
+                                 .entries    = cbe});
     if (!state.copy_pipe) {
       state.copy_pipe = cw_fs_pipeline(
         ctx, bgl, cw_copy_shader_wgsl, WGPUTextureFormat_RGBA16Float,
