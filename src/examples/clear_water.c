@@ -1268,8 +1268,8 @@ static void cw_init_fixed(wgpu_context_t* ctx)
         };
         state.fft_bg[step] = wgpuDeviceCreateBindGroup(
           ctx->device,
-          &(WGPUBindGroupDescriptor){.label  = STRVIEW("FFT BG - Bind group"),
-                                     .layout = bgl,
+          &(WGPUBindGroupDescriptor){.label      = STRVIEW("FFT - Bind group"),
+                                     .layout     = bgl,
                                      .entryCount = 2,
                                      .entries    = be});
         cur_src = 1 - cur_src;
