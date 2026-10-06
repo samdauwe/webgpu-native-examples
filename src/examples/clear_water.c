@@ -1287,8 +1287,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
                      .viewDimension = WGPUTextureViewDimension_2D},
     }};
     WGPUBindGroupLayout bgl       = wgpuDeviceCreateBindGroupLayout(
-      ctx->device,
-      &(WGPUBindGroupLayoutDescriptor){.entryCount = 1, .entries = e});
+      ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                           .label      = STRVIEW("Resolve - Bind group"),
+                           .entryCount = 1,
+                           .entries    = e,
+                   });
     state.resolve_pipe = cw_fs_pipeline(
       ctx, bgl, cw_resolve_shader_wgsl, WGPUTextureFormat_RGBA16Float,
       WGPUColorWriteMask_All, false, "CW Resolve");
