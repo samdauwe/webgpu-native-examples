@@ -1288,7 +1288,7 @@ static void cw_init_fixed(wgpu_context_t* ctx)
     }};
     WGPUBindGroupLayout bgl       = wgpuDeviceCreateBindGroupLayout(
       ctx->device, &(WGPUBindGroupLayoutDescriptor){
-                           .label      = STRVIEW("Resolve - Bind group"),
+                           .label      = STRVIEW("Resolve - Bind group layout"),
                            .entryCount = 1,
                            .entries    = e,
                    });
