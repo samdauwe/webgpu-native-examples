@@ -1300,7 +1300,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       = {{.binding = 0, .textureView = state.fft[0].view}};
     state.resolve_bg = wgpuDeviceCreateBindGroup(
       ctx->device, &(WGPUBindGroupDescriptor){
-                     .layout = bgl, .entryCount = 1, .entries = be});
+                     .label      = STRVIEW("Resolve - Bind group"),
+                     .layout     = bgl,
+                     .entryCount = 1,
+                     .entries    = be,
+                   });
     WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl)
   }
 
