@@ -1378,8 +1378,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
                             .minBindingSize = sizeof(cw_caus_ub_t)}},
     };
     WGPUBindGroupLayout cbgl = wgpuDeviceCreateBindGroupLayout(
-      ctx->device,
-      &(WGPUBindGroupLayoutDescriptor){.entryCount = 3, .entries = ce});
+      ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                     .label      = STRVIEW("Caustics - Bind group layout"),
+                     .entryCount = 3,
+                     .entries    = ce,
+                   });
 
     for (int c = 0; c < 3; c++) {
       /* Caustics pipeline with grid vertex buffer */
