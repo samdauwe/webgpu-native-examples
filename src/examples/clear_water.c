@@ -1347,7 +1347,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       };
       state.ripn_bg[i] = wgpuDeviceCreateBindGroup(
         ctx->device, &(WGPUBindGroupDescriptor){
-                       .layout = bgl, .entryCount = 3, .entries = be});
+                       .label      = STRVIEW("Ripple-normals - Bind group"),
+                       .layout     = bgl,
+                       .entryCount = 3,
+                       .entries    = be,
+                     });
     }
     WGPU_RELEASE_RESOURCE(BindGroupLayout, bgl)
   }
