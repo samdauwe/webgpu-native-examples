@@ -1785,8 +1785,11 @@ static void cw_render_water(wgpu_context_t* ctx, WGPUCommandEncoder enc,
     .clearValue = {0.05, 0.12, 0.18, 1.0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   };
-  WGPURenderPassDescriptor rpd
-    = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+  WGPURenderPassDescriptor rpd = {
+    .label                = STRVIEW("Main water - Render pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &ca,
+  };
   WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
   wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)state.screen_w,
                                    (float)state.screen_h, 0, 1);
