@@ -1717,8 +1717,11 @@ static void cw_render_caustics(wgpu_context_t* ctx, WGPUCommandEncoder enc,
     .clearValue = {0, 0, 0, 0},
     .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
   };
-  WGPURenderPassDescriptor rpd
-    = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+  WGPURenderPassDescriptor rpd = {
+    .label                = STRVIEW("Caustics - Render pass"),
+    .colorAttachmentCount = 1,
+    .colorAttachments     = &ca,
+  };
   WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
   wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)CW_C, (float)CW_C, 0, 1);
 
