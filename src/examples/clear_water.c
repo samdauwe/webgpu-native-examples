@@ -1655,8 +1655,11 @@ static void cw_step_ripples(wgpu_context_t* ctx, WGPUCommandEncoder enc,
       .clearValue = {0, 0, 0, 0},
       .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
     };
-    WGPURenderPassDescriptor rpd
-      = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+    WGPURenderPassDescriptor rpd = {
+      .label                = STRVIEW("Ripple simulation - Render pass"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &ca,
+    };
     WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
     wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)CW_RN, (float)CW_RN, 0,
                                      1);
