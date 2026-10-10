@@ -1178,8 +1178,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       .clearValue = {0, 0, 0, 0},
       .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
     };
-    WGPURenderPassDescriptor rpd
-      = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+    WGPURenderPassDescriptor rpd = {
+      .label                = STRVIEW("4×4 black streak texture - Render pass"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &ca,
+    };
     WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
     wgpuRenderPassEncoderEnd(rp);
     wgpuRenderPassEncoderRelease(rp);
