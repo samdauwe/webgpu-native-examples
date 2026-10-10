@@ -1236,8 +1236,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       },
     };
     WGPUBindGroupLayout bgl = wgpuDeviceCreateBindGroupLayout(
-      ctx->device, &(WGPUBindGroupLayoutDescriptor){.entryCount = 2,
-                                                    .entries = spec_entries});
+      ctx->device, &(WGPUBindGroupLayoutDescriptor){
+                     .label = STRVIEW("Spectrum pipeline - Bind group layout"),
+                     .entryCount = 2,
+                     .entries    = spec_entries,
+                   });
     state.spec_pipe = cw_fs_pipeline(ctx, bgl, cw_spectrum_shader_wgsl,
                                      WGPUTextureFormat_RGBA16Float,
                                      WGPUColorWriteMask_All, false, "CW Spec");
