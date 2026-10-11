@@ -1603,8 +1603,11 @@ static void cw_run_fft(wgpu_context_t* ctx, WGPUCommandEncoder enc, float t)
       .clearValue = {0, 0, 0, 0},
       .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
     };
-    WGPURenderPassDescriptor rpd
-      = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+    WGPURenderPassDescriptor rpd = {
+      .label                = STRVIEW("Resolve pass → surf - Render pass"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &ca,
+    };
     WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
     wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)CW_N, (float)CW_N, 0, 1);
     wgpuRenderPassEncoderSetPipeline(rp, state.resolve_pipe);
