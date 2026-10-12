@@ -1931,8 +1931,11 @@ static void cw_post(wgpu_context_t* ctx, WGPUCommandEncoder enc, float t)
          .storeOp    = WGPUStoreOp_Store,
          .clearValue = {0, 0, 0, 0},
          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED};
-    WGPURenderPassDescriptor rpd
-      = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+    WGPURenderPassDescriptor rpd = {
+      .label                = STRVIEW("Wide blur ×2 iterations - Render pass"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &ca,
+    };
     WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
     wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)state.b2t.w,
                                      (float)state.b2t.h, 0, 1);
