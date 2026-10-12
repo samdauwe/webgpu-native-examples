@@ -1454,7 +1454,11 @@ static void cw_init_fixed(wgpu_context_t* ctx)
       };
       state.caus_bg[c] = wgpuDeviceCreateBindGroup(
         ctx->device, &(WGPUBindGroupDescriptor){
-                       .layout = cbgl, .entryCount = 3, .entries = cbe});
+                       .label      = STRVIEW("Caustics - Bind group"),
+                       .layout     = cbgl,
+                       .entryCount = 3,
+                       .entries    = cbe,
+                     });
     }
     WGPU_RELEASE_RESOURCE(BindGroupLayout, cbgl)
   }
