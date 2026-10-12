@@ -1908,8 +1908,11 @@ static void cw_post(wgpu_context_t* ctx, WGPUCommandEncoder enc, float t)
          .storeOp    = WGPUStoreOp_Store,
          .clearValue = {0, 0, 0, 0},
          .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED};
-    WGPURenderPassDescriptor rpd
-      = {.colorAttachmentCount = 1, .colorAttachments = &ca};
+    WGPURenderPassDescriptor rpd = {
+      .label                = STRVIEW("Copy b1 → b2 - Render pass"),
+      .colorAttachmentCount = 1,
+      .colorAttachments     = &ca,
+    };
     WGPURenderPassEncoder rp = wgpuCommandEncoderBeginRenderPass(enc, &rpd);
     wgpuRenderPassEncoderSetViewport(rp, 0, 0, (float)state.b2.w,
                                      (float)state.b2.h, 0, 1);
