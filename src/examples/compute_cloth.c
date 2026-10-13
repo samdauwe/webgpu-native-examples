@@ -621,7 +621,7 @@ static void create_uniform_buffers(struct wgpu_context_t* wgpu_context)
 
   state.compute_ubo_buffer = wgpuDeviceCreateBuffer(
     device, &(WGPUBufferDescriptor){
-              .label = STRVIEW("Compute UBO"),
+              .label = STRVIEW("Compute - UBO"),
               .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
               .size  = sizeof(compute_ubo_t),
             });
