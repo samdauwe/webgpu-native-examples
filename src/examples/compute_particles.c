@@ -25,9 +25,9 @@
 #ifdef __WAJIC__
 #define WAJIC_SFETCH_MAX_REQUESTS 4
 #define WAJIC_SFETCH_IMPL
-#include <wajic_sfetch.h>
 #include <math.h>
 #include <stdio.h>
+#include <wajic_sfetch.h>
 #include <wajic_time.h>
 #ifdef NULL
 #undef NULL
@@ -367,7 +367,7 @@ static void init_graphics_bind_group_layout(wgpu_context_t* wgpu_context)
 
   state.graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = STRVIEW("Graphics bind group layout"),
+                            .label = STRVIEW("Graphics - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
