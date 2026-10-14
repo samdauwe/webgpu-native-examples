@@ -453,7 +453,7 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
   particle_vertex_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
 
   WGPURenderPipelineDescriptor rp_desc = {
-    .label  = STRVIEW("Particle render pipeline"),
+    .label  = STRVIEW("Particle - Render pipeline"),
     .layout = state.graphics.pipeline_layout,
     .vertex = {
       .module      = vert_module,
