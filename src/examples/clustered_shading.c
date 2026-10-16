@@ -1597,6 +1597,7 @@ static void process_gltf_node(wgpu_context_t* wgpu_context, cgltf_data* data,
       /* Create model uniform buffer and bind group */
       WGPUBuffer model_buf = wgpuDeviceCreateBuffer(
         device, &(WGPUBufferDescriptor){
+                  .label = STRVIEW("Model - Uniform buffe"),
                   .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                   .size  = 64,
                   .mappedAtCreation = false,
