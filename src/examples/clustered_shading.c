@@ -1751,6 +1751,7 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
   };
   state.cluster_dist_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
+              .label = STRVIEW("Cluster distance - Pipeline layout"),
               .bindGroupLayoutCount = 4,
               .bindGroupLayouts     = cluster_dist_layouts,
             });
