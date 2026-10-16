@@ -1613,6 +1613,7 @@ static void process_gltf_node(wgpu_context_t* wgpu_context, cgltf_data* data,
       };
       g_prim->model_bind_group = wgpuDeviceCreateBindGroup(
         device, &(WGPUBindGroupDescriptor){
+                  .label      = STRVIEW("Model - Bind group"),
                   .layout     = state.bind_group_layouts.primitive,
                   .entryCount = 1,
                   .entries    = &model_entry,
