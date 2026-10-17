@@ -733,6 +733,10 @@ add_wajic_example(out_of_bounds_viewport src/examples/out_of_bounds_viewport.c
         external/sokol
 )
 
+add_wajic_example(painted_ocean_scene src/examples/painted_ocean_scene.c
+    USE_CIMGUI
+)
+
 add_wajic_example(parallax_mapping src/examples/parallax_mapping.c
     USE_CIMGUI
     EXTRA_SOURCES
@@ -1333,6 +1337,7 @@ set(WASM_EXAMPLE_TITLES
     "offscreen|Offscreen Rendering"
     "oit|Order Independent Transparency"
     "out_of_bounds_viewport|Out-of-bounds Viewport"
+    "painted_ocean_scene|Painted Ocean Scene"
     "parallax_mapping|Parallax Mapping"
     "particle_system|CPU Particle System"
     "pipeline_constants|Pipeline Constants"

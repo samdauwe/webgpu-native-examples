@@ -383,6 +383,10 @@ This example provides example camera implementations
 
 Real-time, photoreal shallow-water rendering. Features FFT ocean spectrum, refracted light caustics with chromatic dispersion, physically-based Fresnel reflections and GGX sun glints, interactive ripples (tap the water surface), a procedural pebble seabed, volumetric underwater scattering, and ACES tone-mapping with bloom. Ported from Aurélien Gironnet's single-file WebGL2 demo.
 
+#### [Painted Ocean Scene](src/examples/painted_ocean_scene.c)
+
+A panoramic view over a coral reef beneath clear turquoise water and a sky of ray-marched clouds, painted entirely by fragment shaders on a single screen-covering triangle: no meshes and no depth buffer. Features a GPU flocking simulation (Craig Reynolds' boids) for the fish and the birds, branching coral marched as distance fields, parallax-shaded seabed with caustics, refraction, ray-marched clouds with their own shadow map, feathered birds and ACES tone mapping. A governor lowers the render resolution to hold 60 fps. Drag to orbit, scroll to zoom, WASD / arrow keys to travel, H to hide the GUI. Ported from the [WebGPU painted ocean scene](https://github.com/shovon/webgpu-painted-ocean-scene) demo; the animation speed is adjustable and defaults to half the original.
+
 #### [Dynamic uniform buffers](src/examples/dynamic_uniform_buffer.c)
 
 Dynamic uniform buffers are used for rendering multiple objects with multiple matrices stored in a single uniform buffer object. Individual matrices are dynamically addressed upon bind group binding time, minimizing the number of required bind groups.
