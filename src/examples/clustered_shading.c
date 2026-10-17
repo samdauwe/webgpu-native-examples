@@ -1968,6 +1968,7 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
   };
   WGPUPipelineLayout lights_pl = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
+              .label = STRVIEW("Cluster lights - Pipeline Layout"),
               .bindGroupLayoutCount = 2,
               .bindGroupLayouts     = lights_layouts,
             });
