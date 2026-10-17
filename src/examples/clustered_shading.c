@@ -1955,6 +1955,7 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
   /* Cluster read-only bind group (for rendering) */
   state.bind_groups.cluster = wgpuDeviceCreateBindGroup(
     device, &(WGPUBindGroupDescriptor){
+              .label      = STRVIEW("Cluster read-only - Bind group"),
               .layout     = state.bind_group_layouts.cluster,
               .entryCount = 1,
               .entries    = &cluster_storage_entry,
