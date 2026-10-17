@@ -457,9 +457,12 @@ static void update_buffers(wgpu_context_t* wgpu_context, ImDrawData* draw_data)
     ASSERT(overlay_state.index_buffer);
   }
 
-  /* Upload data using staging buffers */
-  ImDrawVert* vtx_staging = (ImDrawVert*)malloc(vertex_size);
-  ImDrawIdx* idx_staging  = (ImDrawIdx*)malloc(index_size);
+  /* Upload data using staging buffers. WebGPU buffer writes must be a multiple
+   * of 4 bytes, so the staging allocations are padded to match. */
+  ImDrawVert* vtx_staging
+    = (ImDrawVert*)malloc((size_t)((vertex_size + 3) & ~(uint64_t)3));
+  ImDrawIdx* idx_staging
+    = (ImDrawIdx*)malloc((size_t)((index_size + 3) & ~(uint64_t)3));
 
   ImDrawVert* vtx_dst = vtx_staging;
   ImDrawIdx* idx_dst  = idx_staging;
