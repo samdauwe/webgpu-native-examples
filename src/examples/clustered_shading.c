@@ -1112,6 +1112,7 @@ static void load_glb_scene(wgpu_context_t* wgpu_context, const void* glb_data,
     uint32_t bin_size          = ((uint32_t)data->buffers[0].size + 3u) & ~3u;
     state.gltf.geometry_buffer = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
+                .label = STRVIEW("GLTF - GPU buffer"),
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_Index
                          | WGPUBufferUsage_CopyDst,
                 .size             = bin_size,
