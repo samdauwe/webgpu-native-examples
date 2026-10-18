@@ -1140,6 +1140,7 @@ static void load_glb_scene(wgpu_context_t* wgpu_context, const void* glb_data,
     cgltf_sampler* s = &data->samplers[i];
 
     WGPUSamplerDescriptor desc = {
+      .label         = STRVIEW("GLTF - Sampler"),
       .maxAnisotropy = 1,
     };
 
