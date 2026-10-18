@@ -1273,6 +1273,7 @@ static void load_glb_scene(wgpu_context_t* wgpu_context, const void* glb_data,
 
     WGPUBuffer mat_buf = wgpuDeviceCreateBuffer(
       device, &(WGPUBufferDescriptor){
+                .label = STRVIEW("Material - Bind group"),
                 .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                 .size  = sizeof(mat_uniforms),
                 .mappedAtCreation = false,
