@@ -1826,6 +1826,7 @@ static void init_light_sprite_pipeline(wgpu_context_t* wgpu_context)
   WGPUBindGroupLayout sprite_layouts[1] = {state.bind_group_layouts.frame};
   WGPUPipelineLayout sprite_pl          = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
+                       .label                = STRVIEW("Sprite - Pipeline layout"),
                        .bindGroupLayoutCount = 1,
                        .bindGroupLayouts     = sprite_layouts,
             });
