@@ -1808,6 +1808,7 @@ static void init_gpu_buffers(wgpu_context_t* wgpu_context)
   };
   state.bind_groups.frame = wgpuDeviceCreateBindGroup(
     device, &(WGPUBindGroupDescriptor){
+              .label      = STRVIEW("Frame - Bind group"),
               .layout     = state.bind_group_layouts.frame,
               .entryCount = 4,
               .entries    = frame_entries,
