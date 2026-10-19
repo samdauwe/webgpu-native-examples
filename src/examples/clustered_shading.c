@@ -1381,6 +1381,7 @@ static bool decode_glb_images_batch(wgpu_context_t* wgpu_context)
         state.gltf.images[idx].texture = wgpuDeviceCreateTexture(
           device,
           &(WGPUTextureDescriptor){
+            .label = STRVIEW("GLTF - Texture"),
             .usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
             .dimension     = WGPUTextureDimension_2D,
             .size          = tex_size,
