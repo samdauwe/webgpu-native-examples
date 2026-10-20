@@ -2027,6 +2027,7 @@ static void create_render_textures(wgpu_context_t* wgpu_context)
   /* MSAA color texture */
   state.msaa_texture = wgpuDeviceCreateTexture(
     device, &(WGPUTextureDescriptor){
+              .label         = STRVIEW("MSAA color - Texture"),
               .usage         = WGPUTextureUsage_RenderAttachment,
               .dimension     = WGPUTextureDimension_2D,
               .size          = {w, h, 1},
