@@ -1905,11 +1905,12 @@ static void init_cluster_compute(wgpu_context_t* wgpu_context)
     .visibility = WGPUShaderStage_Compute,
     .buffer     = {.type = WGPUBufferBindingType_Storage},
   };
-  state.cluster_storage_bgl
-    = wgpuDeviceCreateBindGroupLayout(device, &(WGPUBindGroupLayoutDescriptor){
-                                                .entryCount = 1,
-                                                .entries    = &storage_entry,
-                                              });
+  state.cluster_storage_bgl = wgpuDeviceCreateBindGroupLayout(
+    device, &(WGPUBindGroupLayoutDescriptor){
+              .label      = STRVIEW("Cluster storage - Bind group layout"),
+              .entryCount = 1,
+              .entries    = &storage_entry,
+            });
 
   /* Cluster bounds pipeline */
   WGPUBindGroupLayout bounds_layouts[2] = {
