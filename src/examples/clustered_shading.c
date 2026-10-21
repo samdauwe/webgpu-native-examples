@@ -2423,6 +2423,7 @@ static WGPURenderPipeline create_pbr_pipeline(wgpu_context_t* wgpu_context,
 
   WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device,
     &(WGPURenderPipelineDescriptor){
+      .label  = STRVIEW("Render pipeline"),
       .layout = layout,
       .vertex = {
         .module      = vs_module,
