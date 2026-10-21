@@ -2297,6 +2297,7 @@ static void start_async_pipeline_warmup(wgpu_context_t* wgpu_context)
     };
 
     WGPURenderPipelineDescriptor desc = {
+      .label  = STRVIEW("Render pipeline"),
       .layout = pl_layout,
       .vertex = {
         .module      = prim_vs,
