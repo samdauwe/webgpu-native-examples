@@ -291,17 +291,18 @@ static void init_offscreen_framebuffers(struct wgpu_context_t* wgpu_context)
     state.offscreen_fb[i].depth_texture
       = wgpuDeviceCreateTexture(device, &depth_desc);
 
-    state.offscreen_fb[i].depth_view
-      = wgpuTextureCreateView(state.offscreen_fb[i].depth_texture,
-                              &(WGPUTextureViewDescriptor){
-                                .format = WGPUTextureFormat_Depth24PlusStencil8,
-                                .dimension       = WGPUTextureViewDimension_2D,
-                                .baseMipLevel    = 0,
-                                .mipLevelCount   = 1,
-                                .baseArrayLayer  = 0,
-                                .arrayLayerCount = 1,
-                                .aspect          = WGPUTextureAspect_All,
-                              });
+    state.offscreen_fb[i].depth_view = wgpuTextureCreateView(
+      state.offscreen_fb[i].depth_texture,
+      &(WGPUTextureViewDescriptor){
+        .label           = STRVIEW("Offscreen Depth - Texture view"),
+        .format          = WGPUTextureFormat_Depth24PlusStencil8,
+        .dimension       = WGPUTextureViewDimension_2D,
+        .baseMipLevel    = 0,
+        .mipLevelCount   = 1,
+        .baseArrayLayer  = 0,
+        .arrayLayerCount = 1,
+        .aspect          = WGPUTextureAspect_All,
+      });
   }
 
   /* Shared sampler for offscreen textures */
