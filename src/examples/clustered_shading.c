@@ -2513,6 +2513,7 @@ static void create_render_bundle(wgpu_context_t* wgpu_context,
   WGPUTextureFormat color_fmts[1] = {wgpu_context->render_format};
   WGPURenderBundleEncoder encoder = wgpuDeviceCreateRenderBundleEncoder(
     wgpu_context->device, &(WGPURenderBundleEncoderDescriptor){
+                            .label = STRVIEW("Render bundle encoder"),
                             .colorFormatCount   = 1,
                             .colorFormats       = color_fmts,
                             .depthStencilFormat = DEPTH_FORMAT,
