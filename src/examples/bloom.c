@@ -342,7 +342,7 @@ static void init_cubemap_texture(struct wgpu_context_t* wgpu_context)
 
   /* Create cubemap texture (6 array layers) */
   WGPUTextureDescriptor tex_desc = {
-    .label = STRVIEW("Cubemap Texture"),
+    .label = STRVIEW("Cubemap - Texture"),
     .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
              | WGPUTextureUsage_RenderAttachment,
     .dimension     = WGPUTextureDimension_2D,
