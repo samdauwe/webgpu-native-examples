@@ -838,7 +838,7 @@ static void init_bind_group_layouts(struct wgpu_context_t* wgpu_context)
     };
     state.skybox_bgl = wgpuDeviceCreateBindGroupLayout(
       device, &(WGPUBindGroupLayoutDescriptor){
-                .label      = STRVIEW("Skybox BGL"),
+                .label      = STRVIEW("Skybox - Bind group layout"),
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
               });
