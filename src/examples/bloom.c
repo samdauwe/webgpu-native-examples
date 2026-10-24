@@ -872,7 +872,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
   /* Skybox pipeline layout */
   state.skybox_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Skybox Pipeline Layout"),
+              .label                = STRVIEW("Skybox - Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.skybox_bgl,
             });
