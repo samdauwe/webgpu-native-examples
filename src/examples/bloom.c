@@ -898,7 +898,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.scene_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Scene Bind Group"),
+                .label      = STRVIEW("Scene - Bind Group"),
                 .layout     = state.scene_bgl,
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
