@@ -864,7 +864,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
   /* Blur pipeline layout */
   state.blur_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label                = STRVIEW("Blur Pipeline Layout"),
+              .label                = STRVIEW("Blur - Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.blur_bgl,
             });
