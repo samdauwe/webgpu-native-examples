@@ -979,7 +979,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.skybox_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Skybox Bind Group"),
+                .label      = STRVIEW("Skybox - Bind Group"),
                 .layout     = state.skybox_bgl,
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
