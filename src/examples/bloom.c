@@ -925,7 +925,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.blur_vert_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Blur Vert Bind Group"),
+                .label      = STRVIEW("Blur Vert - Bind Group"),
                 .layout     = state.blur_bgl,
                 .entryCount = ARRAY_SIZE(entries),
                 .entries    = entries,
