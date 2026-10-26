@@ -1166,7 +1166,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.blur_horz_pipeline = wgpuDeviceCreateRenderPipeline(device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Blur Horz Pipeline"),
+        .label  = STRVIEW("Blur Horz - Render pipeline"),
         .layout = state.blur_pipeline_layout,
         .vertex = {
           .module      = sm,
