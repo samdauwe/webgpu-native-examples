@@ -1104,7 +1104,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.blur_vert_pipeline = wgpuDeviceCreateRenderPipeline(device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Blur Vert Pipeline"),
+        .label  = STRVIEW("Blur Vert - Render pipeline"),
         .layout = state.blur_pipeline_layout,
         .vertex = {
           .module      = sm,
