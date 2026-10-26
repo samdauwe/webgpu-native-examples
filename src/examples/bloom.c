@@ -1042,7 +1042,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.glow_pipeline = wgpuDeviceCreateRenderPipeline(device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Glow Pipeline"),
+        .label  = STRVIEW("Glow - Render pipeline"),
         .layout = state.scene_pipeline_layout,
         .vertex = {
           .module      = sm,
