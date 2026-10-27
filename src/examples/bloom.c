@@ -1213,7 +1213,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.phong_pipeline = wgpuDeviceCreateRenderPipeline(device,
       &(WGPURenderPipelineDescriptor){
-        .label  = STRVIEW("Phong Pipeline"),
+        .label  = STRVIEW("Phong - Render pipeline"),
         .layout = state.scene_pipeline_layout,
         .vertex = {
           .module      = sm,
