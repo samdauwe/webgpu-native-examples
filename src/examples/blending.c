@@ -735,7 +735,7 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
     state.bind_groups_premultiplied.src = wgpuDeviceCreateBindGroup(
       wgpu_context->device,
       &(WGPUBindGroupDescriptor){
-        .label      = STRVIEW("Premultiplied source bind group"),
+        .label      = STRVIEW("Premultiplied source - Bind group"),
         .layout     = state.bind_group_layout,
         .entryCount = ARRAY_SIZE(entries),
         .entries    = entries,
@@ -1204,8 +1204,8 @@ static int frame(wgpu_context_t* wgpu_context)
   wgpuQueueSubmit(wgpu_context->queue, 1, &cmd_buffer);
 
   /* Render GUI */
-  imgui_overlay_new_frame(wgpu_context,
-                          (float)stm_sec(wgpu_laptime_ns(&state.last_frame_time)));
+  imgui_overlay_new_frame(
+    wgpu_context, (float)stm_sec(wgpu_laptime_ns(&state.last_frame_time)));
   render_gui(wgpu_context);
   imgui_overlay_render(wgpu_context);
 
