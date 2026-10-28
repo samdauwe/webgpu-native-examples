@@ -317,7 +317,7 @@ static void init_size_dependent_buffers(wgpu_context_t* wgpu_context)
       });
 
     WGPUBufferDescriptor buffer_desc = {
-      .label            = STRVIEW("Heads init - storage buffer"),
+      .label            = STRVIEW("Heads init - Storage buffer"),
       .usage            = WGPUBufferUsage_CopySrc,
       .size             = buffer_count * sizeof(uint32_t),
       .mappedAtCreation = true,
