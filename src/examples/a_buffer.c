@@ -278,7 +278,7 @@ static void init_size_dependent_buffers(wgpu_context_t* wgpu_context)
   // the slice. We do this using a uniform buffer with a dynamic offset.
   {
     WGPUBufferDescriptor buffer_desc = {
-      .label = STRVIEW("Slice info - uniform buffer"),
+      .label = STRVIEW("Slice info - Uniform buffer"),
       .usage = WGPUBufferUsage_Uniform,
       .size
       = state.num_slices * state.device_limits.minUniformBufferOffsetAlignment,
