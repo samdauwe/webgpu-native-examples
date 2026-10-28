@@ -938,8 +938,8 @@ static void cw_init_screen_bgs(wgpu_context_t* ctx,
     };
     state.bright_bg = wgpuDeviceCreateBindGroup(
       ctx->device,
-      &(WGPUBindGroupDescriptor){.label  = STRVIEW("Bright bg - Bind group"),
-                                 .layout = bgl,
+      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Bright - Bind group"),
+                                 .layout     = bgl,
                                  .entryCount = 3,
                                  .entries    = be});
     if (!state.bright_pipe) {
