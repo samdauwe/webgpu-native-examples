@@ -1396,7 +1396,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   ASSERT(state.renderer.depth_texture);
 
   WGPUTextureViewDescriptor depth_view_desc = {
-    .label           = STRVIEW("Depth texture view"),
+    .label           = STRVIEW("Depth - Texture view"),
     .format          = DEPTH_FORMAT,
     .dimension       = WGPUTextureViewDimension_2D,
     .baseMipLevel    = 0,
