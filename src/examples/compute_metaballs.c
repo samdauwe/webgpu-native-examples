@@ -1363,7 +1363,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   /* Create screen projection uniform buffer */
   state.renderer.screen_projection_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Screen Projection UBO",
+                    .label = "Screen Projection - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(mat4),
                   });
