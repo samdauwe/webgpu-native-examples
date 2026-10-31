@@ -1411,7 +1411,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
 
   /* Create default sampler */
   WGPUSamplerDescriptor sampler_desc = {
-    .label         = STRVIEW("Default sampler"),
+    .label         = STRVIEW("Default - Sampler"),
     .addressModeU  = WGPUAddressMode_ClampToEdge,
     .addressModeV  = WGPUAddressMode_ClampToEdge,
     .addressModeW  = WGPUAddressMode_ClampToEdge,
