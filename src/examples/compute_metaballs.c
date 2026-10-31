@@ -1485,7 +1485,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   };
 
   WGPUBindGroupDescriptor bg_desc = {
-    .label      = STRVIEW("Frame bind group"),
+    .label      = STRVIEW("Frame - Bind group"),
     .layout     = state.renderer.frame_bind_group_layout,
     .entryCount = 3,
     .entries    = bg_entries,
