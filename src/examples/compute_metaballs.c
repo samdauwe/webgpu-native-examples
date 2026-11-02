@@ -1572,7 +1572,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
       .depthClearValue = 1.0f,
     };
   state.renderer.framebuffer.descriptor = (WGPURenderPassDescriptor){
-    .label                  = STRVIEW("Final composite pass"),
+    .label                  = STRVIEW("Final composite - Render pass"),
     .colorAttachmentCount   = 1,
     .colorAttachments       = state.renderer.framebuffer.color_attachments,
     .depthStencilAttachment = NULL,
