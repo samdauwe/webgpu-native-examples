@@ -1543,7 +1543,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
   };
 
   WGPUBindGroupDescriptor screen_bg_desc = {
-    .label      = STRVIEW("Screen frame bind group"),
+    .label      = STRVIEW("Screen frame - Bind group"),
     .layout     = state.renderer.screen_frame_bind_group_layout,
     .entryCount = 2,
     .entries    = screen_bg_entries,
