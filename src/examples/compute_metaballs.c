@@ -1517,7 +1517,7 @@ static void init_renderer(wgpu_context_t* wgpu_context)
       },
     };
     WGPUBindGroupLayoutDescriptor screen_bgl_desc = {
-      .label      = STRVIEW("Screen frame bind group layout"),
+      .label      = STRVIEW("Screen frame - Bind group layout"),
       .entryCount = 2,
       .entries    = screen_bgl_entries,
     };
