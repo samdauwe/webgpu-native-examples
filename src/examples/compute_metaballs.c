@@ -3380,7 +3380,7 @@ static void box_outline_init(box_outline_t* this)
     WGPUShaderModule vs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = STRVIEW("Box outline vertex shader"),
+        .label = STRVIEW("Box outline - Vertex shader"),
         .nextInChain
           = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
