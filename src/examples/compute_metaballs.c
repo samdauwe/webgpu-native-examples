@@ -1634,7 +1634,7 @@ static void recreate_depth_texture(wgpu_context_t* wgpu_context)
   }
 
   WGPUTextureDescriptor depth_texture_desc = {
-    .label = STRVIEW("Depth texture"),
+    .label = STRVIEW("Depth - Texture"),
     .usage
     = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
     .dimension               = WGPUTextureDimension_2D,
