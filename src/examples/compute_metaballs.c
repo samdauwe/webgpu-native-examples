@@ -4031,7 +4031,7 @@ static void ground_init(ground_t* this)
     WGPUShaderModule fs_module = wgpuDeviceCreateShaderModule(
       wgpu_context->device,
       &(WGPUShaderModuleDescriptor){
-        .label = STRVIEW("Ground fragment shader"),
+        .label = STRVIEW("Ground - Fragment shader"),
         .nextInChain
           = (WGPUChainedStruct*)(const WGPUChainedStruct*)&(WGPUShaderSourceWGSL){
             .chain = (WGPUChainedStruct){
