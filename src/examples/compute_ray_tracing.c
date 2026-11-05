@@ -159,17 +159,17 @@ static void init_storage_texture(wgpu_context_t* wgpu_context)
     });
   ASSERT(state.storage_texture.handle != NULL);
 
-  state.storage_texture.view
-    = wgpuTextureCreateView(state.storage_texture.handle,
-                            &(WGPUTextureViewDescriptor){
-                              .label = STRVIEW("Ray trace target texture view"),
-                              .format          = WGPUTextureFormat_RGBA8Unorm,
-                              .dimension       = WGPUTextureViewDimension_2D,
-                              .baseMipLevel    = 0,
-                              .mipLevelCount   = 1,
-                              .baseArrayLayer  = 0,
-                              .arrayLayerCount = 1,
-                            });
+  state.storage_texture.view = wgpuTextureCreateView(
+    state.storage_texture.handle,
+    &(WGPUTextureViewDescriptor){
+      .label           = STRVIEW("Ray trace target - Texture view"),
+      .format          = WGPUTextureFormat_RGBA8Unorm,
+      .dimension       = WGPUTextureViewDimension_2D,
+      .baseMipLevel    = 0,
+      .mipLevelCount   = 1,
+      .baseArrayLayer  = 0,
+      .arrayLayerCount = 1,
+    });
   ASSERT(state.storage_texture.view != NULL);
 
   state.storage_texture.sampler = wgpuDeviceCreateSampler(
@@ -499,8 +499,7 @@ static void init_compute_pipeline(wgpu_context_t* wgpu_context)
   /* Compute shader module (two parts concatenated to stay within C99 limit) */
   static char raytracing_compute_shader[8192];
   snprintf(raytracing_compute_shader, sizeof(raytracing_compute_shader), "%s%s",
-           raytracing_compute_shader_part1,
-           raytracing_compute_shader_part2);
+           raytracing_compute_shader_part1, raytracing_compute_shader_part2);
   WGPUShaderModule comp_shader_module = wgpu_create_shader_module(
     wgpu_context->device, raytracing_compute_shader);
 
@@ -909,7 +908,7 @@ static const char* raytracing_compute_shader_part1 = CODE(
 
 // clang-format on
 static const char* raytracing_compute_shader_part2 = CODE(
-// clang-format off
+  // clang-format off
 
   /* Fog */
 
