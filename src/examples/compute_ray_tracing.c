@@ -174,15 +174,15 @@ static void init_storage_texture(wgpu_context_t* wgpu_context)
 
   state.storage_texture.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label        = STRVIEW("Ray trace target sampler"),
-                            .addressModeU = WGPUAddressMode_ClampToEdge,
-                            .addressModeV = WGPUAddressMode_ClampToEdge,
-                            .addressModeW = WGPUAddressMode_ClampToEdge,
-                            .minFilter    = WGPUFilterMode_Linear,
-                            .magFilter    = WGPUFilterMode_Linear,
-                            .mipmapFilter = WGPUMipmapFilterMode_Linear,
-                            .lodMinClamp  = 0.0f,
-                            .lodMaxClamp  = 1.0f,
+                            .label = STRVIEW("Ray trace target - Sampler"),
+                            .addressModeU  = WGPUAddressMode_ClampToEdge,
+                            .addressModeV  = WGPUAddressMode_ClampToEdge,
+                            .addressModeW  = WGPUAddressMode_ClampToEdge,
+                            .minFilter     = WGPUFilterMode_Linear,
+                            .magFilter     = WGPUFilterMode_Linear,
+                            .mipmapFilter  = WGPUMipmapFilterMode_Linear,
+                            .lodMinClamp   = 0.0f,
+                            .lodMaxClamp   = 1.0f,
                             .maxAnisotropy = 1,
                           });
   ASSERT(state.storage_texture.sampler != NULL);
