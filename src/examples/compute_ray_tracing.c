@@ -251,7 +251,7 @@ static void init_storage_buffers(wgpu_context_t* wgpu_context)
 
   state.compute.planes_buffer = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Planes storage buffer",
+                    .label = "Planes - Storage buffer",
                     .usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage,
                     .size  = sizeof(planes),
                     .initial.data = planes,
