@@ -322,7 +322,7 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
 
   state.graphics.bind_group_layout = wgpuDeviceCreateBindGroupLayout(
     wgpu_context->device, &(WGPUBindGroupLayoutDescriptor){
-                            .label      = STRVIEW("Graphics bind group layout"),
+                            .label = STRVIEW("Graphics - Bind group layout"),
                             .entryCount = (uint32_t)ARRAY_SIZE(bgl_entries),
                             .entries    = bgl_entries,
                           });
