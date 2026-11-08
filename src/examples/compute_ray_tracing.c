@@ -370,7 +370,7 @@ static void init_graphics_pipeline(wgpu_context_t* wgpu_context)
   state.graphics.pipeline = wgpuDeviceCreateRenderPipeline(
     wgpu_context->device,
     &(WGPURenderPipelineDescriptor){
-      .label  = STRVIEW("Fullscreen quad render pipeline"),
+      .label  = STRVIEW("Fullscreen quad - Render pipeline"),
       .layout = state.graphics.pipeline_layout,
       .vertex = {
         .module      = shader_module,
