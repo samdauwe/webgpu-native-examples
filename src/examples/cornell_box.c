@@ -895,7 +895,7 @@ static void init_radiosity(wgpu_context_t* wgpu_context)
   state.radiosity.radiosity_pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = STRVIEW("Radiosity - Radiosity pipeline"),
+      .label   = STRVIEW("Radiosity - Compute pipeline"),
       .layout  = pipeline_layout,
       .compute = (WGPUComputeState){
         .module        = shader_module,
