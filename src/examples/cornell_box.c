@@ -729,7 +729,7 @@ static void init_framebuffer(wgpu_context_t* wgpu_context)
 
   state.framebuffer.view = wgpuTextureCreateView(
     state.framebuffer.texture, &(WGPUTextureViewDescriptor){
-                                 .label         = STRVIEW("Framebuffer - View"),
+                                 .label = STRVIEW("Framebuffer - Texture view"),
                                  .format        = WGPUTextureFormat_RGBA16Float,
                                  .dimension     = WGPUTextureViewDimension_2D,
                                  .baseMipLevel  = 0,
