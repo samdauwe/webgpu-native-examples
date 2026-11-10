@@ -507,7 +507,7 @@ static void init_compute_pipeline(wgpu_context_t* wgpu_context)
   state.compute.pipeline = wgpuDeviceCreateComputePipeline(
     wgpu_context->device,
     &(WGPUComputePipelineDescriptor){
-      .label   = STRVIEW("Raytracing compute pipeline"),
+      .label   = STRVIEW("Raytracing - Compute pipeline"),
       .layout  = state.compute.pipeline_layout,
       .compute = {
         .module     = comp_shader_module,
