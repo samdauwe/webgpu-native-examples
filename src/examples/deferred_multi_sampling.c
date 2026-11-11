@@ -1029,7 +1029,7 @@ static void init_bind_groups(struct wgpu_context_t* wgpu_context)
     };
     state.composition_no_msaa_bind_group = wgpuDeviceCreateBindGroup(
       device, &(WGPUBindGroupDescriptor){
-                .label      = STRVIEW("Composition No-MSAA Bind Group"),
+                .label      = STRVIEW("Composition No-MSAA - Bind Group"),
                 .layout     = state.composition_no_msaa_bgl,
                 .entryCount = 5,
                 .entries    = entries,
