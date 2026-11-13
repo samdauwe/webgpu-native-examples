@@ -1061,7 +1061,7 @@ static void init_pipeline_layouts(struct wgpu_context_t* wgpu_context)
 
   state.composition_no_msaa_pipeline_layout = wgpuDeviceCreatePipelineLayout(
     device, &(WGPUPipelineLayoutDescriptor){
-              .label = STRVIEW("Composition No-MSAA Pipeline Layout"),
+              .label = STRVIEW("Composition No-MSAA + Pipeline Layout"),
               .bindGroupLayoutCount = 1,
               .bindGroupLayouts     = &state.composition_no_msaa_bgl,
             });
