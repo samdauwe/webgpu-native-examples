@@ -1128,7 +1128,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.offscreen_pipeline = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-                .label  = STRVIEW("Offscreen MSAA Pipeline"),
+                .label  = STRVIEW("Offscreen MSAA - Render pipeline"),
                 .layout = state.offscreen_pipeline_layout,
                 .vertex = (WGPUVertexState){
                   .module      = shader,
