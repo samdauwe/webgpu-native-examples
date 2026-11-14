@@ -1231,7 +1231,7 @@ static void init_pipelines(struct wgpu_context_t* wgpu_context)
 
     state.composition_no_msaa_pipeline = wgpuDeviceCreateRenderPipeline(
       device, &(WGPURenderPipelineDescriptor){
-                .label  = STRVIEW("Composition No-MSAA Pipeline"),
+                .label  = STRVIEW("Composition No-MSAA - Render pipeline"),
                 .layout = state.composition_no_msaa_pipeline_layout,
                 .vertex = (WGPUVertexState){
                   .module      = shader,
