@@ -699,7 +699,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                   });
   state.particle_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Dunes - Particle UBO (dynamic)",
+                    .label = "Dunes Particle - UBO (dynamic)",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = DUNES_PARTICLE_COUNT * DUNES_UBO_STRIDE,
                   });
