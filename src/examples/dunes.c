@@ -693,7 +693,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                   });
   state.animated_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Dunes - Animated UBO (dynamic)",
+                    .label = "Dunes Animated - UBO (dynamic)",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = DUNES_BIRD_SLOTS * DUNES_UBO_STRIDE,
                   });
