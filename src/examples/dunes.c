@@ -743,9 +743,11 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.terrain_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
-      &(WGPUBindGroupLayoutDescriptor){.label = STRVIEW("Dunes - Terrain BGL"),
-                                       .entryCount = 5,
-                                       .entries    = e});
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Dunes Terrain - Bind group layout"),
+        .entryCount = 5,
+        .entries    = e,
+      });
     ASSERT(state.terrain_bgl != NULL);
   }
 
