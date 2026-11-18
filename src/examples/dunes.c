@@ -705,7 +705,7 @@ static void init_uniform_buffers(wgpu_context_t* wgpu_context)
                   });
   state.depth_ubo = wgpu_create_buffer(
     wgpu_context, &(wgpu_buffer_desc_t){
-                    .label = "Dunes - Depth UBO",
+                    .label = "Dunes Depth - UBO",
                     .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
                     .size  = sizeof(dunes_depth_uniforms_t),
                   });
