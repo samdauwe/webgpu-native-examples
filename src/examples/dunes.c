@@ -768,9 +768,11 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.diffuse_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
-      &(WGPUBindGroupLayoutDescriptor){.label = STRVIEW("Dunes - Diffuse BGL"),
-                                       .entryCount = 3,
-                                       .entries    = e});
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Dunes Diffuse - Bind group layout"),
+        .entryCount = 3,
+        .entries    = e,
+      });
     ASSERT(state.diffuse_bgl != NULL);
   }
 
