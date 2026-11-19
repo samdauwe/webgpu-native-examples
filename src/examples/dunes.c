@@ -799,9 +799,11 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     };
     state.colored_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
-      &(WGPUBindGroupLayoutDescriptor){.label = STRVIEW("Dunes - Colored BGL"),
-                                       .entryCount = 4,
-                                       .entries    = e});
+      &(WGPUBindGroupLayoutDescriptor){
+        .label      = STRVIEW("Dunes Colored - Bind group layout"),
+        .entryCount = 4,
+        .entries    = e,
+      });
     ASSERT(state.colored_bgl != NULL);
   }
 
