@@ -923,11 +923,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       [2] = {.binding = 2, .textureView = state.textures[p->sky_tex_idx].view},
     };
     state.sky_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Sky BG"),
-                                 .layout     = state.diffuse_bgl,
-                                 .entryCount = 3,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Dunes Sky - Bind group"),
+                              .layout     = state.diffuse_bgl,
+                              .entryCount = 3,
+                              .entries    = e,
+                            });
     ASSERT(state.sky_bg != NULL);
   }
 
