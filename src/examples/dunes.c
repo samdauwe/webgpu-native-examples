@@ -946,11 +946,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       = {.binding = 3, .textureView = state.textures[DUNES_TEX_SUN_FLARE].view},
     };
     state.colored_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Colored BG"),
-                                 .layout     = state.colored_bgl,
-                                 .entryCount = 4,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Dunes Colored - Bind group"),
+                              .layout = state.colored_bgl,
+                              .entryCount = 4,
+                              .entries    = e,
+                            });
     ASSERT(state.colored_bg != NULL);
   }
 
