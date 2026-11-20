@@ -903,11 +903,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       = {.binding = 4, .textureView = state.textures[DUNES_TEX_DETAIL].view},
     };
     state.terrain_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Terrain BG"),
-                                 .layout     = state.terrain_bgl,
-                                 .entryCount = 5,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Dunes Terrain - Bind group"),
+                              .layout = state.terrain_bgl,
+                              .entryCount = 5,
+                              .entries    = e,
+                            });
     ASSERT(state.terrain_bg != NULL);
   }
 
