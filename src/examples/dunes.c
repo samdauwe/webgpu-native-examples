@@ -1010,11 +1010,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       [3] = {.binding = 3, .textureView = state.offscreen_depth.view},
     };
     state.particle_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Particle BG"),
-                                 .layout     = state.particle_bgl,
-                                 .entryCount = 4,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label  = STRVIEW("Dunes Particle - Bind group"),
+                              .layout = state.particle_bgl,
+                              .entryCount = 4,
+                              .entries    = e,
+                            });
     ASSERT(state.particle_bg != NULL);
   }
 
