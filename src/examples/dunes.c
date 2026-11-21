@@ -989,11 +989,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
       [2] = {.binding = 2, .textureView = state.textures[DUNES_TEX_BIRD].view},
     };
     state.animated_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Bird BG"),
-                                 .layout     = state.animated_bgl,
-                                 .entryCount = 3,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Dunes Bird - Bind group"),
+                              .layout     = state.animated_bgl,
+                              .entryCount = 3,
+                              .entries    = e,
+                            });
     ASSERT(state.animated_bg != NULL);
   }
 
