@@ -599,7 +599,7 @@ static void init_offscreen_depth_texture(wgpu_context_t* wgpu_context)
 {
   wgpu_destroy_texture(&state.offscreen_depth);
   WGPUTextureDescriptor desc = {
-    .label         = STRVIEW("Dunes - Offscreen depth texture"),
+    .label         = STRVIEW("Dunes Offscreen depth - Texture"),
     .dimension     = WGPUTextureDimension_2D,
     .format        = WGPUTextureFormat_Depth32Float,
     .mipLevelCount = 1,
