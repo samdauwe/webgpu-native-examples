@@ -566,7 +566,7 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
 {
   wgpu_destroy_texture(&state.depth_texture);
   WGPUTextureDescriptor desc = {
-    .label         = STRVIEW("Dunes - Depth texture"),
+    .label         = STRVIEW("Dunes Depth - Texture"),
     .dimension     = WGPUTextureDimension_2D,
     .format        = DUNES_DEPTH_FORMAT,
     .mipLevelCount = 1,
