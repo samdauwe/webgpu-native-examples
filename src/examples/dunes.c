@@ -578,7 +578,7 @@ static void init_depth_texture(wgpu_context_t* wgpu_context)
     = wgpuDeviceCreateTexture(wgpu_context->device, &desc);
   ASSERT(state.depth_texture.handle != NULL);
   WGPUTextureViewDescriptor vd = {
-    .label           = STRVIEW("Dunes - Depth texture view"),
+    .label           = STRVIEW("Dunes Depth - texture view"),
     .format          = DUNES_DEPTH_FORMAT,
     .dimension       = WGPUTextureViewDimension_2D,
     .baseMipLevel    = 0,
