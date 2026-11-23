@@ -635,7 +635,7 @@ static void init_samplers(wgpu_context_t* wgpu_context)
 {
   state.sampler = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Dunes - Linear sampler"),
+                            .label         = STRVIEW("Dunes Linear - sampler"),
                             .addressModeU  = WGPUAddressMode_ClampToEdge,
                             .addressModeV  = WGPUAddressMode_ClampToEdge,
                             .addressModeW  = WGPUAddressMode_ClampToEdge,
