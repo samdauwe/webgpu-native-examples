@@ -875,7 +875,10 @@ static void init_bind_group_layouts(wgpu_context_t* wgpu_context)
     state.depth_bgl = wgpuDeviceCreateBindGroupLayout(
       wgpu_context->device,
       &(WGPUBindGroupLayoutDescriptor){
-        .label = STRVIEW("Dunes - Depth BGL"), .entryCount = 1, .entries = e});
+        .label      = STRVIEW("Dunes Depth - Bind group layout"),
+        .entryCount = 1,
+        .entries    = e,
+      });
     ASSERT(state.depth_bgl != NULL);
   }
 }
