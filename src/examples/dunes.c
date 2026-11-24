@@ -1031,11 +1031,12 @@ static void init_bind_groups(wgpu_context_t* wgpu_context)
              .size    = state.depth_ubo.size},
     };
     state.depth_bg = wgpuDeviceCreateBindGroup(
-      wgpu_context->device,
-      &(WGPUBindGroupDescriptor){.label      = STRVIEW("Dunes - Depth BG"),
-                                 .layout     = state.depth_bgl,
-                                 .entryCount = 1,
-                                 .entries    = e});
+      wgpu_context->device, &(WGPUBindGroupDescriptor){
+                              .label      = STRVIEW("Dunes Depth - Bind group"),
+                              .layout     = state.depth_bgl,
+                              .entryCount = 1,
+                              .entries    = e,
+                            });
     ASSERT(state.depth_bg != NULL);
   }
 
