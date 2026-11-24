@@ -650,7 +650,7 @@ static void init_samplers(wgpu_context_t* wgpu_context)
 
   state.sampler_repeat = wgpuDeviceCreateSampler(
     wgpu_context->device, &(WGPUSamplerDescriptor){
-                            .label         = STRVIEW("Dunes - Repeat sampler"),
+                            .label         = STRVIEW("Dunes Repeat - Sampler"),
                             .addressModeU  = WGPUAddressMode_Repeat,
                             .addressModeV  = WGPUAddressMode_Repeat,
                             .addressModeW  = WGPUAddressMode_Repeat,
