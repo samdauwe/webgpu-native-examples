@@ -1130,7 +1130,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
     state.terrain_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = STRVIEW("Dunes - Terrain pipeline"),
+        .label    = STRVIEW("Dunes Terrain - Render pipeline"),
         .layout   = state.terrain_pl,
         .vertex   = {.module      = sm,
                      .entryPoint  = STRVIEW("vertexMain"),
