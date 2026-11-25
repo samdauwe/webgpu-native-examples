@@ -1120,9 +1120,11 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.terrain_pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
-      &(WGPUPipelineLayoutDescriptor){.label = STRVIEW("Dunes - Terrain PL"),
-                                      .bindGroupLayoutCount = 1,
-                                      .bindGroupLayouts = &state.terrain_bgl});
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Dunes Terrain - Pipeline layout"),
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &state.terrain_bgl,
+      });
     WGPUShaderModule sm    = wgpu_create_shader_module(wgpu_context->device,
                                                        dunes_terrain_shader_wgsl);
     state.terrain_pipeline = wgpuDeviceCreateRenderPipeline(
