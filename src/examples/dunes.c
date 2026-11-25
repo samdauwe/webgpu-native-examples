@@ -1157,9 +1157,11 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.diffuse_pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
-      &(WGPUPipelineLayoutDescriptor){.label = STRVIEW("Dunes - Diffuse PL"),
-                                      .bindGroupLayoutCount = 1,
-                                      .bindGroupLayouts = &state.diffuse_bgl});
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Dunes Diffuse - Pipeline layout"),
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &state.diffuse_bgl,
+      });
     WGPUShaderModule sm = wgpu_create_shader_module(wgpu_context->device,
                                                     dunes_diffuse_shader_wgsl);
     WGPUDepthStencilState ds_sky
