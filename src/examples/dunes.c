@@ -1171,7 +1171,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
     state.sky_pipeline  = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-         .label    = STRVIEW("Dunes - Sky pipeline"),
+         .label    = STRVIEW("Dunes Sky - Render pipeline"),
          .layout   = state.diffuse_pl,
          .vertex   = {.module      = sm,
                       .entryPoint  = STRVIEW("vertexMain"),
