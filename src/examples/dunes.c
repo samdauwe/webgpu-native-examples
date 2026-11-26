@@ -1210,7 +1210,7 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
     state.colored_pipeline = wgpuDeviceCreateRenderPipeline(
       wgpu_context->device,
       &(WGPURenderPipelineDescriptor){
-        .label    = STRVIEW("Dunes - Colored pipeline"),
+        .label    = STRVIEW("Dunes Colored - Render pipeline"),
         .layout   = state.colored_pl,
         .vertex   = {.module      = sm,
                      .entryPoint  = STRVIEW("vertexMain"),
