@@ -1200,9 +1200,11 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.colored_pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
-      &(WGPUPipelineLayoutDescriptor){.label = STRVIEW("Dunes - Colored PL"),
-                                      .bindGroupLayoutCount = 1,
-                                      .bindGroupLayouts = &state.colored_bgl});
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Dunes Colored - Pipeline layout"),
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &state.colored_bgl,
+      });
     WGPUShaderModule sm = wgpu_create_shader_module(
       wgpu_context->device, dunes_diffuse_colored_shader_wgsl);
     state.colored_pipeline = wgpuDeviceCreateRenderPipeline(
