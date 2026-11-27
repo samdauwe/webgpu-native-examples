@@ -1268,9 +1268,11 @@ static void init_pipelines(wgpu_context_t* wgpu_context)
   {
     state.animated_pl = wgpuDeviceCreatePipelineLayout(
       wgpu_context->device,
-      &(WGPUPipelineLayoutDescriptor){.label = STRVIEW("Dunes - Animated PL"),
-                                      .bindGroupLayoutCount = 1,
-                                      .bindGroupLayouts = &state.animated_bgl});
+      &(WGPUPipelineLayoutDescriptor){
+        .label                = STRVIEW("Dunes Animated - Pipeline layout"),
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts     = &state.animated_bgl,
+      });
     WGPUShaderModule sm = wgpu_create_shader_module(
       wgpu_context->device, dunes_animated_colored_shader_wgsl);
     /* Bird animation vertex buffer layout (Bug 2 fix):
